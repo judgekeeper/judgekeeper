@@ -9,17 +9,20 @@ from __future__ import annotations
 import json
 import re
 import shlex
+from html import escape, unescape
 
 import pytest
 
 from judgekeeper import page, report_page, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
+from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
 
 FLAGS = ["--label-map", "good=pass,bad=fail", "--port", "0", "--no-browser"]
-BASE = "judgekeeper evals/results.csv --label-map good=pass,bad=fail --port 0 --no-browser"
-MARK = "judgekeeper mark evals/results.csv --label-map good=pass,bad=fail"  # no page flags
+MAP = quote_arg("good=pass,bad=fail")  # in double quotes on Windows
+BASE = f"judgekeeper evals/results.csv --label-map {MAP} --port 0 --no-browser"
+MARK = f"judgekeeper mark evals/results.csv --label-map {MAP}"  # no page flags
 GONE = ("judgekeeper start", "--review", "--ask-again", "--try-new-judge", "--label-more",
         "--fix", "--rule-file", "--test-pass-mark")
 
@@ -50,7 +53,7 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert code == 0, out
     assert ws.report_html.is_file(), (out, sorted(p.name for p in ws.dir.iterdir()))
     page = ws.report_html.read_text(encoding="utf-8")
-    on_page = set(re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page))
+    on_page = {unescape(c) for c in re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page)}
     # as the terminal prints them: mark keeps every flag, check and fix the path
     named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
     assert {k: named[k] for k in ("mark", "check", "fix")} == {
@@ -99,8 +102,8 @@ def test_marked_line_is_the_same_everywhere(
     assert f"then run `{MARK}`: the new answers join the ones you marked." in card
     for name, text in (("result page", html),
                        ("report.html", ws.report_html.read_text(encoding="utf-8"))):
-        assert f"then run <code>{MARK}</code>: the new answers join the ones you marked." in \
-            text, name
+        assert (f"then run <code>{escape(MARK)}</code>: the new answers join the ones you "
+                "marked.") in text, name
     capsys.readouterr()
     assert main(shlex.split(MARK)[1:]) == 3  # nothing new yet: it says the same
     out = " ".join(capsys.readouterr().out.split())

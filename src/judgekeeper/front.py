@@ -45,7 +45,7 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import PLACEHOLDER, old_hook, plural, program, quote_arg, wrap
+from judgekeeper.textio import held_back, old_hook, plural, program, quote_arg, wrap
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -163,8 +163,8 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(f"'{v}'" if flag == "--metric" or quote_arg(str(v)) == PLACEHOLDER
-                          else quote_arg(str(v)) for v in values)  # names alike
+        names = ", ".join(f"'{v}'" if flag == "--metric" or held_back(v) else quote_arg(str(v))
+                          for v in values)  # names alike; one held back, as data
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start._or(commands)

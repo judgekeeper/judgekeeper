@@ -33,6 +33,7 @@ from judgekeeper.links import link, said
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.textio import (
+    held_lines,
     jsonl_lines,
     make_private,
     old_hook,
@@ -724,6 +725,8 @@ class Talk:
 
     def say(self, text: str = "") -> None:
         print(said(text))
+        for line in held_lines(text):  # a name left out of the command above, as data
+            print(said(line))
 
     def para(self, text: str, indent: str = "") -> None:
         for line in wrap(text, indent=indent):

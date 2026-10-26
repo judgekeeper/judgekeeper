@@ -86,6 +86,15 @@ def fresh_key_registry(monkeypatch):
     monkeypatch.setattr(redact, "_named_vars", set())
 
 
+@pytest.fixture(autouse=True)
+def fresh_held_names(monkeypatch):
+    """Names quote_arg left out of a command wait to be said for the life of a process; each
+    test starts with none."""
+    from judgekeeper import textio
+
+    monkeypatch.setattr(textio, "_held", {})
+
+
 def build_mlflow_store(root, note: str = "") -> str:
     """A real MLflow SQLite store under `root`, made by tests/fixtures/mlflow/make_store.py
     (about ten seconds); returns its tracking URI. Skips when mlflow is not installed."""

@@ -386,7 +386,8 @@ def test_the_eval_log_advice_keeps_the_reading_flags(here, capsys, monkeypatch, 
     later = time.time() + 60
     os.utime(here / "logs" / "2026-10-17T17-49-42-00-00_qa_new.eval", (later, later))
     _, out = find(capsys, "--metric", "model_graded_qa", "--label-map", "maybe=error")
-    flags = "--metric model_graded_qa --label-map maybe=error --port 0 --no-browser"
+    flags = (f"--metric model_graded_qa --label-map {textio.quote_arg('maybe=error')} --port 0 "
+             "--no-browser")
     if uvx:
         said = (f'To read the newest, run `uvx --from "judgekeeper[inspect]=={__version__}" '
                 f"judgekeeper {flags}`.")

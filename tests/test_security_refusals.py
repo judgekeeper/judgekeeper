@@ -717,19 +717,49 @@ def test_a_deeply_nested_post_gets_400_and_the_page_goes_on(page_server):
 
 # Commands printed for Windows -----------------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["x&calc", "a|calc", "%USERPROFILE%", "a^b",
-                                  "$(Start-Process calc)", "a`b", 'say "hi"'])
-def test_no_command_printed_for_windows_holds_a_shell_character(monkeypatch, name):
-    monkeypatch.setattr(sys, "platform", "win32")
-    quoted = textio.quote_arg(name)
-    assert not set(quoted) & set("&|%^$()`\"")
-    assert textio.held_back([name]) == [f"  NAME: {name}"]
-
-
 def test_a_plain_name_stays_in_the_command_for_windows(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.quote_arg("results-2.json") == "results-2.json"
     assert textio.quote_arg(r"C:\my data\results-2.json") == r'"C:\my data\results-2.json"'
-    assert textio.held_back([r"C:\my data\results-2.json"]) == []
+    assert textio.held_lines("`judgekeeper NAME`") == []
+
+
+@pytest.mark.parametrize("name", ["x&calc", "a|calc", "a^b", "a<b>c", "good=pass,bad=fail",
+                                  "judgekeeper[inspect]==1.0.0", "a;b (c) {d} @e +f",
+                                  "2025-11-26T01-23-23+00-00_task_abc.eval"])
+def test_a_name_with_a_shell_character_is_quoted_for_windows(monkeypatch, name):
+    """Inside double quotes cmd.exe and PowerShell read these characters as text."""
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.quote_arg(name) == f'"{name}"'
+    assert textio.held_lines("`judgekeeper NAME`") == []
+
+
+def test_a_trailing_backslash_does_not_escape_the_closing_quote_on_windows(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.quote_arg("C:\\a&b\\") == '"C:\\a&b\\\\"'
+    assert textio.quote_arg("C:\\a=b\\\\") == '"C:\\a=b\\\\\\\\"'
+
+
+@pytest.mark.parametrize("name", ["%USERPROFILE%", "!x!", "$(Start-Process calc)", "a`b",
+                                  'say "hi"', "a\u201dcalc", "a\nb", "a\rb", "a\x07b", "a\tb"])
+def test_a_name_no_quotes_keep_as_text_is_left_out_on_windows(monkeypatch, name):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.quote_arg(name) == "NAME"
+    assert textio.held_lines("Next: run `judgekeeper NAME`.") == [f"  NAME: {name}"]
+    assert textio.held_lines("Next: run `judgekeeper NAME`.") == []  # said once
+
+
+def test_a_name_left_out_on_windows_is_said_under_its_command(tmp_path, capsys, monkeypatch):
+    from tests.start_projects import split, table_project
+
+    table_project(tmp_path, split(20, 16), name="100%/results.csv")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "win32")
+    code = main(["100%/results.csv", "--pass-if", "0.5", "--no-browser"])
+    err = capsys.readouterr().err.splitlines()
+    assert code == 2
+    assert err[-2:] == ['Next: run `judgekeeper NAME --no-browser --pass-if "score>=0.5"`.',
+                        "  NAME: 100%/results.csv"], err
 
 
 # A key split by any character the terminal drops ----------------------------------------------

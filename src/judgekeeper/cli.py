@@ -36,6 +36,7 @@ from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.textio import (
     describe_os_error,
+    held_lines,
     is_windows,
     lenient_streams,
     program,
@@ -150,6 +151,8 @@ class _Version(argparse.Action):
 def _say(text: str, file=None, end: str = "\n") -> None:
     """Print text that may quote an input file: control characters are dropped."""
     print(printable(text), file=file, end=end)
+    for line in held_lines(text):  # a name left out of the command above, as data
+        print(printable(line), file=file)
 
 
 def _error(message: str) -> None:
