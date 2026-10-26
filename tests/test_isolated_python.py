@@ -1,6 +1,6 @@
-"""Every Python judgekeeper starts for itself runs isolated (`-I`): no current folder or script
-folder on its path, no PYTHON* variables, no user site. So a project's `json.py` never runs in
-it. The project's own Python, which `fix` and `check` run on purpose, is not this one."""
+"""Every Python judgekeeper starts for itself leaves out the current folder and script folder
+(`-P`) and the PYTHON* variables (`-E`), or is fully isolated (`-I`). So a project's `json.py`
+never runs in it. The project's own Python, which `fix` and `check` run on purpose, is not this one."""
 
 from __future__ import annotations
 
@@ -33,4 +33,5 @@ def test_every_python_judgekeeper_starts_for_itself_is_isolated():
     assert starts, "no process started with sys.executable was found"
     for where, argv in starts:
         flags = [a.value for a in argv[1:] if isinstance(a, ast.Constant)]
-        assert "-I" in flags, f"{where} starts sys.executable without -I"
+        assert "-I" in flags or {"-E", "-P"} <= set(flags), (
+            f"{where} starts sys.executable without -E and -P (or -I)")

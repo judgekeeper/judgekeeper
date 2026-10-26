@@ -167,6 +167,26 @@ def test_the_page_never_imports_the_projects_modules(project):
     assert sorted(p.name for p in project.glob("ran-*")) == []
 
 
+@pytest.mark.real_page
+def test_the_page_keeps_the_user_site(tmp_path, monkeypatch):
+    """A user install (pip's "Defaulting to user installation") puts judgekeeper in the user
+    site: the page's Python keeps it, and still leaves out the current folder and PYTHON*."""
+    started = []
+
+    def popen(argv, **kwargs):
+        started.append(argv)
+        raise OSError
+
+    with monkeypatch.context() as m:
+        m.setattr(background.subprocess, "Popen", popen)
+        assert background.start(tmp_path, {}, "t" * 43) is None
+    flags = [a for a in started[0][1:] if a.startswith("-") and a != "-m"]
+    code = "import sys; f = sys.flags; print(f.no_user_site, f.ignore_environment, f.safe_path)"
+    seen = subprocess.run([sys.executable, *flags, "-c", code], capture_output=True, text=True,
+                          check=True).stdout.split()
+    assert seen == ["0", "1", "True"], started[0]
+
+
 def test_mark_stop_closes_a_page_whose_server_json_is_gone(project):
     first = jk(project, "mark", "--port", "0", "--no-browser")
     assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
