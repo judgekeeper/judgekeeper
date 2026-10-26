@@ -128,6 +128,63 @@ def test_release_workflow_builds_checks_and_tests_the_wheel():
         assert publish.get("needs")  # publishes only what the build job built and tested
 
 
+RELEASE_REQUIREMENTS = ROOT / ".github" / "release-requirements.txt"
+REQUIRE_HASHES = ("python -m pip install --require-hashes --no-deps "
+                  "-r .github/release-requirements.txt")
+
+
+@pytest.mark.parametrize("name", ["release.yml", "testpypi.yml"])
+def test_only_the_hash_pinned_build_tools_run_before_the_upload(name):
+    """The job that makes dist/ runs nothing else: the tests and their packages run in their
+    own job, on a downloaded copy, and publish uploads the build job's files."""
+    jobs = _workflow(name)["jobs"]
+    build = jobs["build"]
+    runs = [line.strip() for step in build["steps"] for line in step.get("run", "").splitlines()]
+    assert "pytest" not in _steps_text(build)
+    assert [line for line in runs if "install" in line] == [REQUIRE_HASHES]
+    assert "python -m build --no-isolation --outdir dist ." in runs
+    assert "actions/upload-artifact@" in _steps_text(build)
+    test = jobs["test"]
+    assert test["needs"] == "build"
+    assert "actions/download-artifact@" in _steps_text(test)
+    assert "actions/upload-artifact@" not in _steps_text(test)
+    assert "-m pytest -p no:cacheprovider" in _steps_text(test)
+    assert set(jobs["publish"]["needs"]) == {"build", "test"}
+
+
+def test_the_release_build_tools_are_pinned_with_hashes():
+    text = RELEASE_REQUIREMENTS.read_text(encoding="utf-8")
+    command = text.splitlines()[1]  # the command that made the file, under uv's header
+    assert command.startswith("#") and "uv pip compile - --generate-hashes" in command
+    entries = [line.strip() for line in text.replace("\\\n", " ").splitlines()
+               if line.strip() and not line.strip().startswith("#")]
+    assert entries
+    for entry in entries:
+        assert re.match(r"[\w.-]+==\S+ ", entry), entry
+        assert "--hash=sha256:" in entry, entry
+    names = {entry.split("==")[0] for entry in entries}
+    assert {"build", "twine", "hatchling"} <= names
+    assert "hatchling==1.32.4 " in " ".join(entries)
+    # dependabot still opens update PRs for the pins
+    config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
+    (pins,) = [u for u in config["updates"]
+               if u["package-ecosystem"] == "pip" and u["directory"] == "/.github"]
+    assert pins["schedule"]["interval"] == "weekly"
+
+
+def test_release_builds_only_a_tag_on_main():
+    """A guard against tagging the wrong commit: the tagged commit must be on main."""
+    steps = _workflow("release.yml")["jobs"]["build"]["steps"]
+    (checkout,) = [s for s in steps if s.get("uses", "").startswith("actions/checkout@")]
+    assert checkout["with"] == {"persist-credentials": False, "fetch-depth": 0}
+    runs = [s.get("run", "") for s in steps]
+    (check,) = [i for i, run in enumerate(runs) if "merge-base" in run]
+    assert "git fetch --no-tags origin main" in runs[check]
+    assert 'git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD' in runs[check]
+    (build,) = [i for i, run in enumerate(runs) if "python -m build" in run]
+    assert check < build
+
+
 def test_practice_release_runs_only_by_hand_and_uploads_to_testpypi_without_a_token():
     text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
     assert "secrets." not in text and "password" not in text and "TOKEN" not in text
@@ -154,10 +211,12 @@ def test_practice_release_builds_rc_in_the_runner_and_tests_it_like_the_release(
     wf = _workflow("testpypi.yml")
     build = _steps_text(wf["jobs"]["build"])
     for needed in ("${version}rc${RC}", "pyproject.toml", "src/judgekeeper/__init__.py",
-                   "python -m build", "twine check --strict", "venv", ".whl",
-                   "judgekeeper --version", "judgekeeper.record(",
-                   '-m pytest -p no:cacheprovider -m \\"not version_number\\"'):
+                   "python -m build", "twine check --strict", ".whl"):
         assert needed in build, needed
+    test = _steps_text(wf["jobs"]["test"])
+    for needed in ("venv", ".whl", "judgekeeper --version", "judgekeeper.record(",
+                   '-m pytest -p no:cacheprovider -m \\"not version_number\\"'):
+        assert needed in test, needed
     text = (WORKFLOWS / "testpypi.yml").read_text(encoding="utf-8")
     assert "git commit" not in text and "git push" not in text  # main keeps its version
     assert "persist-credentials: false" in text
@@ -298,6 +357,34 @@ def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_p
     for path in package.rglob("*"):
         if path.is_file() and "__pycache__" not in path.parts and path.name != ".DS_Store":
             assert f"src/judgekeeper/{path.relative_to(package).as_posix()}" in names, path
+
+
+def _tracked(*paths: str) -> list[str]:
+    """The files git tracks under the paths; skips the test outside a git checkout."""
+    try:
+        top = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--show-toplevel"],
+                             check=True, capture_output=True, text=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("needs a git checkout")
+    if Path(top).resolve() != ROOT:
+        pytest.skip("needs a git checkout of this repository")
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", *paths],
+                         check=True, capture_output=True, text=True).stdout
+    return sorted(path for path in out.split("\0") if path)
+
+
+def test_the_wheel_and_sdist_hold_only_tracked_files(tmp_path):
+    """hatchling packs every file .gitignore doesn't name, tracked or not: an untracked note
+    or key next to the code would ship."""
+    tracked = _tracked("src/judgekeeper")
+    wheel = _build_wheel(ROOT, tmp_path / "wheel")
+    names = sorted(name for name in zipfile.ZipFile(wheel).namelist()
+                   if ".dist-info/" not in name)
+    assert names == [path.removeprefix("src/") for path in tracked]
+    sdist = _build_sdist(ROOT, tmp_path / "sdist")
+    top = ["README.md", "LICENSE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml",
+           ".gitignore"]
+    assert sdist == sorted(_tracked("src/judgekeeper", *top) + ["PKG-INFO"])
 
 
 def test_release_workflows_test_the_wheels_from_the_checkout_not_the_sdist():
@@ -608,7 +695,7 @@ def test_ci_runs_the_typescript_snippet_with_node_22():
     assert test["run"].startswith("pytest")
 
 
-@pytest.mark.parametrize("name", ["ci.yml", "windows.yml", "release.yml"])
+@pytest.mark.parametrize("name", ["ci.yml", "windows.yml", "release.yml", "testpypi.yml"])
 def test_every_checkout_leaves_no_token_behind(name):
     steps = [step for job in _workflow(name)["jobs"].values() for step in job.get("steps", [])
              if str(step.get("uses", "")).startswith("actions/checkout@")]

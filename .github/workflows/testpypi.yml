@@ -50,16 +50,36 @@ jobs:
           grep -qx "version = \"$practice\"" pyproject.toml
           grep -qx "__version__ = \"$practice\"" src/judgekeeper/__init__.py
           echo "version=$practice" >> "$GITHUB_OUTPUT"
-      - name: Install build tools
-        run: python -m pip install --upgrade pip build twine
+      - name: Install the pinned build tools
+        run: python -m pip install --require-hashes --no-deps -r .github/release-requirements.txt
       - name: Build both distributions
-        run: python -m build --outdir dist .
+        run: python -m build --no-isolation --outdir dist .
       - name: Check the metadata TestPyPI will render
         run: twine check --strict dist/*
       - name: Check the wheel has the practice version
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: ls dist/judgekeeper-"$VERSION"-py3-none-any.whl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
       - name: Install the wheel into a clean venv
         run: |
           python -m venv "$RUNNER_TEMP/venv"
@@ -80,14 +100,9 @@ jobs:
           # version number itself expect main's version, not the practice one.
           "$RUNNER_TEMP/venv/bin/python" -c 'import judgekeeper, sys; assert "site-packages" in judgekeeper.__file__, judgekeeper.__file__'
           "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider -m "not version_number"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [build, test]
     runs-on: ubuntu-latest
     environment:
       name: testpypi
