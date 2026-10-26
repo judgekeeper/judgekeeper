@@ -29,7 +29,13 @@ permissions:
 
 jobs:
   install-check:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # workflow_run matches by name: take only a successful release run of this repository's own
+    # Release workflow, not a fork's workflow that is also called "Release".
+    if: >-
+      github.event_name != 'workflow_run' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'release' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:

@@ -192,6 +192,18 @@ def test_the_workflow_runs_39_jobs_on_three_systems_6_of_them_through_uvx(ic):
     assert triggers["workflow_dispatch"]["inputs"]["source"]["default"] == "build"
 
 
+def test_the_release_trigger_takes_only_this_repositorys_release():
+    """`workflow_run` matches a workflow by name: a fork's own "Release" must not count."""
+    yaml = pytest.importorskip("yaml")
+    job = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["install-check"]
+    condition = " ".join(job["if"].split())
+    for needed in ("github.event_name != 'workflow_run'",
+                   "github.event.workflow_run.conclusion == 'success'",
+                   "github.event.workflow_run.event == 'release'",
+                   "github.event.workflow_run.head_repository.full_name == github.repository"):
+        assert needed in condition, needed
+
+
 def test_the_uvx_jobs_get_uv_from_a_pinned_action_and_say_via(ic):
     yaml = pytest.importorskip("yaml")
     steps = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["install-check"]["steps"]
