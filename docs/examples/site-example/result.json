@@ -117,5 +117,9 @@
   "smallest_drop": 35,
   "picks": [],
   "command": "judgekeeper",
+  "flags": {
+    "path": ".",
+    "port": 8765
+  },
   "marks_sha256": "2ceae7b5959749eed33674e7165d46faf9f36793ccedaf01e9ad173108423cb0"
 }

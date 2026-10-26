@@ -1546,7 +1546,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
         return
     try:
         if adopted and isinstance(saved, dict):
-            store_result(ws, StartSession(ws), saved.get("command"), redraw=True)
+            store_result(ws, StartSession(ws), saved.get("flags"), redraw=True)
         else:
             write_report(ws, worse=worse)
     except OSError:

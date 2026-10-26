@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -34,6 +35,9 @@ from judgekeeper.textio import jsonl_lines
 
 TIMES = 2
 WORKER_TIMEOUT = 300
+CMD_SPECIAL = re.compile(r'[&|<>^%!"]')  # what cmd.exe acts on in a .cmd or .bat command line
+CMD_REFUSED = ("your project's folder path has a character Windows would run as a command "
+               "(& | < > ^ % ! or \"); move the project to a folder without it")
 EXACT, CLOSE, CANT = "exact", "close", "cant"
 
 
@@ -228,7 +232,14 @@ def run_process(argv: list[str], cwd: Path, env: dict | None = None,
     Returns an object with returncode, stdout and stderr; a program that is not there gives
     returncode 127, one that is there but cannot be started (on Windows, a file that is not a
     program: WinError 193) 126. The program runs in its own process group: on Ctrl-C,
-    SIGTERM, a timeout or any error, it and everything it started are stopped (stop_group)."""
+    SIGTERM, a timeout or any error, it and everything it started are stopped (stop_group).
+    On Windows a `.cmd` or `.bat` runs through cmd.exe, which acts on CMD_SPECIAL even in an
+    argument Python quotes: such an argument is refused (AgainError) and nothing starts."""
+    if sys.platform == "win32" and str(argv[0]).lower().endswith((".cmd", ".bat")) and any(
+            CMD_SPECIAL.search(str(a)) for a in argv[1:]):
+        from judgekeeper.again.fresh import AgainError
+
+        raise AgainError(CMD_REFUSED)
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, encoding="utf-8", errors="replace",

@@ -232,8 +232,7 @@ def test_ctrl_c_while_the_page_starts_ends_its_process(project, monkeypatch):
 
     monkeypatch.setattr(background, "answers", interrupted)
     folder = project / ".judgekeeper"
-    settings = {"root": str(project), "port": 0, "command": "judgekeeper mark",
-                "start_command": "judgekeeper"}
+    settings = {"root": str(project), "port": 0, "flags": {}}
     with pytest.raises(KeyboardInterrupt):
         background.start(folder, settings, "t" * 43)
     proc = background._started[-1]

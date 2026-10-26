@@ -305,7 +305,7 @@ def test_promptfoo_project_one_run_then_clicks(here, capsys,
     assert session.summary()["status"]["ready"]  # "See your result" appears
     started, _ = pages
     # The click: the page's /result makes the result as page.page_server's result() does.
-    r = start_label.store_result(ws, session, started[-1]["start_command"])
+    r = start_label.store_result(ws, session, started[-1]["flags"])
     html = ws.report_html.read_text(encoding="utf-8")
     assert r["verdict"].split(".")[0] in html and 'class="counts"' in html
     code, out, err = run(capsys)

@@ -16,6 +16,7 @@ LLM-as-a-judge needs work, and only the counts before there is a result (too_ear
 from __future__ import annotations
 
 import json
+import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
@@ -316,22 +317,33 @@ def counts(r: dict) -> dict:
 
 
 def commands(r: dict) -> dict[str, str]:
-    """The commands the page names, from the one that made the result (r["command"]: the path
-    and the person's flags), as the terminal prints them: `mark` keeps every flag, `check` and
-    `fix` the path only, `more` (start_label.mark_command) the flags that read results."""
+    """The commands the page names, made again from the flags of the run that made the result
+    (r["flags"], start.run_flags; never the text of r["command"]), as the terminal prints
+    them: `mark` keeps every flag, `check` and `fix` the path only, `more`
+    (start_label.mark_command) the flags that read results. On Windows a value no quotes keep
+    as text shows as NAME (said by held_note)."""
+    from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
-    from judgekeeper.textio import program
 
-    run = r.get("command") or program()
-    flags = run[len(program()):].strip() if run.startswith(program()) else ""
-    if flags == "start" or flags.startswith("start "):  # a result made before 1.0
-        flags = flags[len("start"):].strip()
-        run = " ".join(x for x in (program(), flags) if x)
-    path = "" if not flags or flags.startswith("-") else flags.split(" --")[0]
-    return {"run": run, "mark": " ".join(x for x in (program("mark"), flags) if x),
-            "check": " ".join(x for x in (program("check"), path) if x),
-            "fix": " ".join(x for x in (program("fix"), path) if x),
-            "more": mark_command(run)}
+    flags = r.get("flags")
+    path = {"path": saved_flags(flags).get("path", ".")}
+    run = command_from(flags, kept=True)
+    return {"run": run, "mark": command_from(flags, "mark", kept=True),
+            "check": command_from(path, "check", kept=True),
+            "fix": command_from(path, "fix", kept=True), "more": mark_command(run)}
+
+
+def held_note(r: dict, shown: str) -> str:
+    """When a command in `shown` (the page's parts) shows NAME, on Windows: each value the
+    commands show as NAME, as data."""
+    from judgekeeper.start import held_values
+    from judgekeeper.textio import PLACEHOLDER
+
+    if not re.search(rf"\b{PLACEHOLDER}\b", shown):
+        return ""
+    lines = "".join(f'<p class="note"><code>{_e(f"{PLACEHOLDER}: {v}")}</code></p>'
+                    for v in held_values(r.get("flags")))
+    return f'<div class="band">{lines}</div>' if lines else ""
 
 
 def next_step(r: dict) -> str | None:
@@ -676,6 +688,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
         parts += [_groups(c, fixing, live, mark, fix), _details(r)]
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
+    parts.append(held_note(r, "".join(parts)))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
     if live and 'class="why"' in "".join(parts):

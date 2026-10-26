@@ -642,7 +642,7 @@ def test_fix_it_says_what_fix_does_for_a_judge_judgekeeper_cant_ask():
 
 
 def test_fix_it_keeps_the_path_the_result_was_made_for():
-    html = start_label.result_html(_result(*NOT_GATE_TNR, command=f"{program()} evals/app"))
+    html = start_label.result_html(_result(*NOT_GATE_TNR, flags={"path": "evals/app"}))
     assert f'<code id="fix-cmd">{program("fix")} evals/app</code>' in html
 
 

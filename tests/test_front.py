@@ -561,7 +561,7 @@ def test_at_a_terminal_the_pass_mark_is_asked(here, capsys, terminal, pages):
     assert "Pass when the score is at least" in asked[0]
     assert next_lines(out) == [START]  # mark, then "See your result": no command to copy
     started, _ = pages
-    assert "--pass-if" in started[-1]["start_command"]  # the result's commands keep it
+    assert "pass_if" in started[-1]["flags"]  # the result's commands keep it
 
 
 def test_at_a_terminal_an_own_format_is_mapped_and_saved(here, capsys, terminal):
