@@ -12,7 +12,9 @@ test calls an API.
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 import time
 from pathlib import Path
 
@@ -494,6 +496,28 @@ def test_a_test_is_kept_without_answer_text(here, capsys, judge):
         assert i not in text
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no owner-only file mode")
+def test_rule_txt_is_made_owner_only(here, capsys):
+    ws = project(here)
+    run(capsys)
+    assert stat.S_IMODE((ws.dir / "fix" / "rule.txt").stat().st_mode) == 0o600
+
+
+def test_the_kept_rule_is_scrubbed(here, capsys, judge):
+    from judgekeeper.fingerprint import rule_hash
+
+    ws = project(here)
+    run(capsys)
+    rule = f"{NEW_RULE} Bearer FAKERULEffffffff1fffff sk-ant-api03-FAKERULE2aaaaaaaaaa"
+    _write_rule(ws, rule)
+    run(capsys, "--yes")
+    h = rule_hash(rule)  # the hash of the rule as written
+    saved = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
+    text = saved.read_text(encoding="utf-8")
+    assert "FAKERULE" not in text and text.count("[REDACTED]") == 2
+    assert text.startswith(NEW_RULE)
+
+
 def test_a_tested_rule_is_not_tested_again(here, capsys, judge):
     ws = project(here)
     run(capsys)
@@ -676,3 +700,15 @@ def test_check_names_a_rule_tested_with_fix(here, capsys, judge):
     day = _day(split["tests"][-1]["time"])
     result = {"safe": "safe to try", "better": "better"}[split["tests"][-1]["verdict"]]
     assert f"This is the rule you tested with `judgekeeper fix` on {day} ({result})." in out
+
+
+@pytest.mark.parametrize("value, output, shown", [
+    ({"question": "Q", "answer": "A"}, "A", "Q"),
+    ({"question": "Q", "answer": "A"}, " A\n", "Q"),
+    ({"question": "Q", "context": "C", "answer": "A"}, "A", "question: Q\ncontext: C"),
+])
+def test_the_result_page_shows_the_input_as_the_marking_page_does(value, output, shown):
+    from types import SimpleNamespace
+
+    m = SimpleNamespace(rows={"a": {"input": value}})
+    assert fix._question(m, {"id": "a", "output": output}) == shown

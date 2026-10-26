@@ -143,8 +143,9 @@ def test_a_lock_that_cant_be_removed_yet_is_tried_again(ws, monkeypatch):
     assert len(refused) == 3 and not (ws.dir / label_mod.LOCK).exists()
 
 
-def test_a_page_that_stopped_counts_as_closed_though_its_lock_stays(ws, monkeypatch):
-    """`mark --stop`: a page that no longer answers, whose process has ended, is closed."""
+def test_a_page_that_stopped_counts_as_closed_though_it_left_its_lock(ws, monkeypatch):
+    """`mark --stop`: a page that no longer answers, whose process has ended, is closed, and
+    the lock it left is removed."""
     from judgekeeper import background
 
     _, thread = _serving(ws)
@@ -152,4 +153,4 @@ def test_a_page_that_stopped_counts_as_closed_though_its_lock_stays(ws, monkeypa
     monkeypatch.setattr(background, "_running", lambda pid: False)
     assert background.stop(ws.dir, timeout=5)
     thread.join(timeout=5)
-    assert (ws.dir / label_mod.LOCK).exists()
+    assert not (ws.dir / label_mod.LOCK).exists()

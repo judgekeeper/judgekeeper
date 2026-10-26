@@ -442,6 +442,17 @@ def test_every_format_and_ignorable_character_is_removed():
             assert redact.printable(f"a{c}b") == "ab", hex(n)
 
 
+def test_the_marking_pages_top_bar_shows_no_hidden_character():
+    from judgekeeper import mark_page
+
+    hidden = "\u202e\u2066\u200b\x1b[31m"
+    shown = mark_page.label_page(None, "judgekeeper mark", model=f"openai:gpt{hidden}-4.1-mini",
+                                 tool=f"prompt{hidden}foo")
+    for c in ("\u202e", "\u2066", "\u200b", "\x1b"):
+        assert c not in shown, hex(ord(c))
+    assert "openai:gpt[31m-4.1-mini" in shown and "prompt[31mfoo" in shown
+
+
 @pytest.mark.parametrize("c", MORE_HIDDEN)
 def test_a_rule_line_and_mistakes_md_drop_the_other_invisible_marks(c):
     from judgekeeper.links import said
@@ -582,6 +593,40 @@ def test_a_lock_naming_another_programs_listener_is_not_used(tmp_path):
             "pid": os.getpid(), "port": other.server_address[1], "stop": "s",
             "token": "ATTACKER-TOKEN-VALUE"}), encoding="utf-8")
         assert label.live_lock(folder) is None
+    finally:
+        other.shutdown()
+        other.server_close()
+
+
+def test_a_lock_naming_another_programs_listener_is_removed_and_never_stopped(tmp_path):
+    from judgekeeper import background
+
+    seen = []
+
+    class Kept(_Yes):
+        def do_GET(self):
+            seen.append(("GET", self.path))
+            super().do_GET()
+
+        def do_POST(self):
+            seen.append(("POST", self.path))
+            super().do_GET()
+
+    other = HTTPServer(("127.0.0.1", 0), Kept)
+    thread = threading.Thread(target=other.serve_forever, daemon=True)
+    thread.start()
+    try:
+        folder = tmp_path / "proj" / ".judgekeeper"
+        folder.mkdir(parents=True)
+        lock = json.dumps({"pid": os.getpid(), "port": other.server_address[1],
+                           "stop": "STOP-FROM-PROJECT", "token": "ATTACKER-TOKEN-VALUE"})
+        for name in (label.LOCK, label.LOCK_COPY):
+            (folder / name).write_text(lock, encoding="utf-8")
+        assert not label.is_open(folder)
+        assert not background.stop(folder, timeout=1)
+        assert not (folder / label.LOCK).exists() and not (folder / label.LOCK_COPY).exists()
+        assert [m for m, _ in seen if m == "POST"] == []
+        assert not [path for _, path in seen if "STOP-FROM-PROJECT" in path]
     finally:
         other.shutdown()
         other.server_close()

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 import re
 import secrets
@@ -33,6 +34,7 @@ from judgekeeper.links import link, said
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.textio import (
+    PRIVATE_FILE,
     held_lines,
     jsonl_lines,
     make_private,
@@ -305,9 +307,8 @@ def _file(ws: Workspace, name: str) -> str:
 def _rule_file(ws: Workspace) -> str:
     """_file(RULE), made empty first when there is none (never over one): the person is told
     to write in it. An empty rule.txt is no rule."""
-    try:
-        with (_folder(ws) / RULE).open("x", encoding="utf-8"):
-            pass
+    try:  # owner-only, as every file judgekeeper makes
+        os.close(os.open(_folder(ws) / RULE, os.O_CREAT | os.O_EXCL | os.O_WRONLY, PRIVATE_FILE))
     except OSError:  # there already (or can't be made: the line still names it)
         pass
     return _file(ws, RULE)
@@ -544,11 +545,17 @@ def cut_words(text: str, width: int) -> str:
 
 
 def _question(m: Marks, row: dict) -> str:
-    """A mistake's question as the marking page showed it: one named value as its value alone."""
+    """A mistake's question as the marking page showed it: of named values, those that are not
+    the answer itself (it shows next to it); one left as its value alone."""
     from judgekeeper.start_label import question_view
 
     shown = question_view(m.rows.get(row["id"], {}).get("input"))
-    return "\n".join(f"{k}: {v}" for k, v in shown) if isinstance(shown, list) else shown
+    if not isinstance(shown, list):
+        return shown
+    shown = [(k, v) for k, v in shown if v.strip() != str(row["output"]).strip()]
+    if len(shown) == 1:
+        return shown[0][1]
+    return "\n".join(f"{k}: {v}" for k, v in shown)
 
 
 # mistakes.md --------------------------------------------------------------------------------
@@ -1237,12 +1244,13 @@ def test_rule(talk: Talk, ws: Workspace, m: Marks, split: Split, rule: str, yes:
 
 
 def _keep(ws: Workspace, split: Split, rule: str, h: str, v) -> None:
-    """The tested rule in rules/<hash>.txt, the test in split.json and a history line: the
-    rule's hash, the counts and the verdict, never answer text or ids."""
+    """The tested rule in rules/<hash>.txt (scrubbed; `h` is the hash of the rule as written),
+    the test in split.json and a history line: the rule's hash, the counts and the verdict,
+    never answer text or ids."""
     path = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, rule)
+    write_replacing(path, scrub(rule))
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "n": v.n, "fixed": v.fixed,
             "broke": v.broke, "verdict": v.kind, "test": len(split.tests) + 1}
     split.tests.append(test)

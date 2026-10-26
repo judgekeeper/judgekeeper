@@ -236,24 +236,31 @@ def read_lock(folder: Path) -> dict | None:
     return None
 
 
-def live_lock(folder: Path) -> dict | None:
-    """The project's lock when its page answers to its stop secret and to its token, and as
-    judgekeeper's page for this project does (`is_page`, and /project names the project's
-    folder), else None. A lock whose page is gone is removed: its token is no use to anyone.
-    One that names another program's listener is left: judgekeeper never vouches for it."""
+def own_lock(folder: Path) -> dict | None:
+    """The project's lock when the port it names is judgekeeper's page for this project
+    (`is_page`, and /project names the project's folder) and that page answers to its stop
+    secret, else None. Nothing from the lock is sent before the first two checks. A lock that
+    fails them is removed: its page is gone, or another program listens on its port (a lock
+    shipped with the project, or a port taken over), which never gets a token or a /stop."""
     lock = read_lock(folder)
     if lock is None:
         return None
-    if ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) != 200:
-        for name in (LOCK, LOCK_COPY):
-            try:
-                (Path(folder) / name).unlink()
-            except OSError:
-                pass
-        return None
     project = Path(folder).absolute().parent.name
-    own = is_page(lock["port"]) and page_folder(lock["port"]) == project
-    return lock if own and lock["token"] and answers(lock["port"], lock["token"]) else None
+    if (is_page(lock["port"]) and page_folder(lock["port"]) == project
+            and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200):
+        return lock
+    for name in (LOCK, LOCK_COPY):
+        try:
+            (Path(folder) / name).unlink()
+        except OSError:
+            pass
+    return None
+
+
+def live_lock(folder: Path) -> dict | None:
+    """The project's lock (`own_lock`) when its page answers to its token too, else None."""
+    lock = own_lock(folder)
+    return lock if lock and lock["token"] and answers(lock["port"], lock["token"]) else None
 
 
 def _answer(port: int, method: str, path: str, query: dict,
@@ -293,12 +300,10 @@ def is_page(port: int) -> bool:
 
 
 def is_open(folder: Path) -> bool:
-    """Whether the page named in the project's lock (in `folder`) answers to its stop secret;
-    a lock nobody answers is stale. Asking the page, not the process, works the same
-    everywhere: on Windows a process can't be looked at without the standard library's
-    os.kill, which ends it."""
-    lock = read_lock(folder)
-    return lock is not None and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200
+    """Whether the project's lock (in `folder`) names its open page (`own_lock`); any other
+    lock is stale. Asking the page, not the process, works the same everywhere: on Windows a
+    process can't be looked at without the standard library's os.kill, which ends it."""
+    return own_lock(folder) is not None
 
 
 def page_folder(port: int) -> str | None:

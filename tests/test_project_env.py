@@ -167,6 +167,20 @@ def test_a_dotenv_never_redirects_promptfoo_and_its_key_is_still_passed(tools, l
     assert "[REDACTED]" in _written(ws)
 
 
+BEDROCK = "bedrock-bearer-ZQ-value-0123456789"
+
+
+def test_a_bedrock_token_passed_on_is_scrubbed_from_the_output_and_the_files(tools):
+    ws = tools.fake.ws
+    (ws.root / ".env").write_text(f"OPENAI_API_KEY={KEY}\nAWS_BEARER_TOKEN_BEDROCK={BEDROCK}\n",
+                                  encoding="utf-8")
+    tools.fake.extra = f" {BEDROCK}"  # a reason that quotes the token
+    _, said = _ask(ws)
+    assert tools.seen[0]["AWS_BEARER_TOKEN_BEDROCK"] == BEDROCK  # passed on
+    assert BEDROCK not in said and BEDROCK not in _written(ws)
+    assert "[REDACTED]" in _written(ws)
+
+
 def test_a_dotenv_with_app_settings_is_still_asked(tools):
     ws = tools.fake.ws
     (ws.root / ".env").write_text(f"DATABASE_URL=postgres://u:p@db.example/app\n"

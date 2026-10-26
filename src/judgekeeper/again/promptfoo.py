@@ -42,7 +42,7 @@ from judgekeeper.readers.promptfoo import (
     read_promptfoo,
 )
 from judgekeeper.records import LLM, derive_record_id
-from judgekeeper.redact import register_secret, scrub
+from judgekeeper.redact import register_key_env, register_secret, scrub
 from judgekeeper.table import make_fingerprint
 from judgekeeper.textio import make_private, read_json, write_replacing
 
@@ -401,6 +401,7 @@ def _passed_on(graders) -> set[str]:
             config = s.get("config")
             if isinstance(config, dict) and isinstance(config.get("apiKeyEnvar"), str):
                 names.add(config["apiKeyEnvar"])
+                register_key_env(config["apiKeyEnvar"])  # its value is scrubbed
     return names
 
 

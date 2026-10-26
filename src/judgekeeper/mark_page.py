@@ -18,6 +18,7 @@ from __future__ import annotations
 from html import escape
 
 from judgekeeper import look, targets
+from judgekeeper.redact import visible
 
 # Answers looked at that fill the bar: about what a first result takes (enough of each kind)
 FIRST = 2 * targets.ROUGH
@@ -171,7 +172,7 @@ __TOP__
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="row row-q"><div><div class="label">Question</div><h1 class="question" id="q-text"></h1></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
+    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text"></h1></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
     <div class="row row-a"><div class="label">Answer</div><p class="answer" id="a-text"></p></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
@@ -243,18 +244,30 @@ __TOP__
   }
   $("see").setAttribute("href", url("/result"));
 
-  // A question is text, or [[name, value], ...]: each name a small label above its value.
-  function showQuestion(value, into) {
+  // A question is text, or [[name, value], ...]. A part that is the answer itself is left
+  // out (it shows below); one part left shows as plain text, two or more under "Input", each
+  // name a small label above its value.
+  function question(it) {
+    var value = it.input;
+    if (!Array.isArray(value)) { return value == null ? "" : String(value); }
+    var answer = String(it.output == null ? "" : it.output).trim();
+    value = value.filter(function (pair) { return String(pair[1]).trim() !== answer; });
+    return value.length > 1 ? value : value.length ? String(value[0][1]) : "";
+  }
+  function showQuestion(it) {
+    var value = question(it), into = $("q-text");
     into.textContent = "";
-    if (!Array.isArray(value)) { into.textContent = value == null ? "" : String(value); return; }
+    setText("q-label", Array.isArray(value) ? "Input" : "Question");
+    $("q-row").hidden = Array.isArray(it.input) && value === "";
+    if (!Array.isArray(value)) { into.textContent = value; return; }
     value.forEach(function (pair) {
       into.appendChild(el("span", "field-name", pair[0]));
       into.appendChild(el("span", "field", pair[1]));
     });
   }
-  function firstLine(value) {
-    var text = Array.isArray(value) ? (value[0] ? value[0][1] : "") : (value || "");
-    return String(text).split("\\n")[0];
+  function firstLine(it) {
+    var value = question(it);
+    return String(Array.isArray(value) ? value[0][1] : value).split("\\n")[0];
   }
 
   // The answers list: the person's own marks only.
@@ -268,7 +281,7 @@ __TOP__
       a.href = "#"; a.setAttribute("data-k", String(k));
       if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
       a.appendChild(el("span", "num", k < 99 ? ("0" + (k + 1)).slice(-2) : String(k + 1)));
-      a.appendChild(el("span", "q", firstLine(it.input)));
+      a.appendChild(el("span", "q", firstLine(it)));
       var dot = el("span", "dot-wrap");
       dot.setAttribute("aria-hidden", "true");
       dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
@@ -316,7 +329,7 @@ __TOP__
       state.appendChild(el("span", "", "Marked "));
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
     }
-    showQuestion(it.input, $("q-text"));
+    showQuestion(it);
     setText("a-text", it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
     $("pass").setAttribute("aria-pressed", String(it.label === "pass"));
@@ -504,13 +517,15 @@ def _progress() -> str:
 def label_page(description: str | None, command: str | None = None,
                model: str | None = None, tool: str | None = None) -> str:
     """The marking page. `command` is what the person runs to come back; `model` and `tool`
-    name the judge in the top bar. `description` (the app the answers came from, as the
-    results name it) is not shown: the results name one source, the same on every answer.
+    name the judge in the top bar, without hidden characters (redact.visible). `description`
+    (the app the answers came from, as the results name it) is not shown: the results name
+    one source, the same on every answer.
     The server fills in __DATA__, __TOKEN__ and __NONCE__."""
     from judgekeeper.textio import program
 
     command = command or program("mark")
-    left = look.meta(_text(model) if model else None, _text(tool) if tool else None)
+    left = look.meta(_text(visible(model)) if model else None,
+                     _text(visible(tool)) if tool else None)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__COMMAND__", _text(command))
             .replace("__TITLE__", _text(TITLE))
