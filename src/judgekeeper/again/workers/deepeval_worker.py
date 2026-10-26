@@ -1,9 +1,10 @@
-"""judgekeeper's DeepEval worker, run with the user's own Python in the project folder:
+"""judgekeeper's DeepEval worker, run with the user's own Python from an empty folder:
 
     python deepeval_worker.py job.json out.jsonl
 
 Standard library plus the user's installed DeepEval. Mode "dry" builds the metric the job
-describes and writes DeepEval's version and the model the metric will use: no judge call,
+describes and writes DeepEval's version and the model the metric will use, with its class: no
+judge call,
 `measure()` is not called. Mode "run" measures each of the job's answers `times` times with
 its own metric (a GEval answer keeps its own saved steps) and writes one line per answer per
 time, then a "done" line. `metric.measure()` is called directly, never `deepeval.evaluate()`
@@ -11,7 +12,8 @@ time, then a "done" line. `metric.measure()` is called directly, never `deepeval
 DeepEval's telemetry is off, and CONFIDENT_API_KEY and DEEPEVAL_RESULTS_FOLDER are removed
 before DeepEval is imported, so nothing is uploaded or written to a results folder. DeepEval
 loads no `.env` (DEEPEVAL_DISABLE_DOTENV): judgekeeper passes on the API keys from it; any other
-name there could send the calls elsewhere.
+name there could send the calls elsewhere. Nor its old settings file, `.deepeval/.deepeval`
+(DEEPEVAL_DISABLE_LEGACY_KEYFILE), which can name another provider or server.
 """
 
 import json
@@ -20,6 +22,7 @@ import sys
 
 os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "1"
 os.environ["DEEPEVAL_DISABLE_DOTENV"] = "1"
+os.environ["DEEPEVAL_DISABLE_LEGACY_KEYFILE"] = "1"
 for _name in ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER"):
     os.environ.pop(_name, None)
 
@@ -135,8 +138,10 @@ def main(job_path, out_path):
     except Exception as e:  # noqa: BLE001 - the user's DeepEval refused the metric: say why
         emit(out_path, {"ok": False, "error": f"{type(e).__name__}: {e}"})
         return 0
+    model = getattr(metric, "model", None)
     emit(out_path, {"ok": True, "version": version,
-                    "evaluation_model": metric.evaluation_model})
+                    "evaluation_model": metric.evaluation_model,
+                    "model_class": type(model).__name__ if model is not None else None})
     return 0
 
 

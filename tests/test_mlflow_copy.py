@@ -52,7 +52,7 @@ def test_the_copy_is_made_used_and_removed(tmp_path):
     assert copy.name == "mlflow.db" and copy.parent != db.parent
     assert copy.read_bytes() == db.read_bytes()
     assert (copy.parent / "mlflow.db-wal").read_bytes() == b"wal bytes"
-    assert (copy.parent / "mlflow.db-shm").read_bytes() == b"shm bytes"
+    assert (copy.parent / "mlflow.db-shm").is_file()  # SQLite's index: rebuilt when read
     assert mlflow_store.store_uri(db) == uri  # one copy per process
     mlflow_store.remove_copies()
     assert not copy.parent.exists()

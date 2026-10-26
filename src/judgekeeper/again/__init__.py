@@ -337,19 +337,28 @@ def your_python(python: str) -> str:
     return name if name == UVX_PYTHON else f"your Python ({python})"
 
 
-def start_worker(tool: str, python: str, job: dict, cwd: Path, out_path: Path,
+def start_worker(tool: str, python: str, job: dict, root: Path, out_path: Path,
                  env: dict | None = None, drop: tuple = (),
                  timeout: float | None = WORKER_TIMEOUT):
-    """Run `workers/<tool>_worker.py job.json out.jsonl` with `python`, in the project folder,
-    writing to `out_path`. The worker's environment is judgekeeper's, without the names in
-    `drop`, with `env` on top. Returns the finished process."""
+    """Run `workers/<tool>_worker.py job.json out.jsonl` with `python`, writing to `out_path`,
+    for the project at `root` but never in it: from a new empty folder (`outside`), removed
+    afterwards. The tools read settings files from where they run (DeepEval's
+    `.deepeval/.deepeval`), so every path a worker needs is in its job, in full. The worker's
+    environment is judgekeeper's, without the names in `drop`, with `env` on top, and
+    LITELLM_MODE=PRODUCTION unless the shell set it: litellm, which the tools import when it is
+    installed, otherwise loads a `.env` found up from its own folder (the project's, for a
+    project .venv). DeepEval's cache goes in the worker's folder. Returns the finished
+    process."""
     worker = Path(__file__).parent / "workers" / f"{tool}_worker.py"
     environ = {k: v for k, v in os.environ.items() if k not in drop}
     environ.update(env or {})
-    with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp:
+    environ.setdefault("LITELLM_MODE", "PRODUCTION")
+    with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp, outside() as here:
+        if tool == "deepeval":
+            environ["DEEPEVAL_CACHE_FOLDER"] = str(here / ".deepeval")
         job_path = Path(tmp) / "job.json"
         job_path.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
-        return run_process([python, str(worker), str(job_path), str(out_path)], cwd=cwd,
+        return run_process([python, str(worker), str(job_path), str(out_path)], cwd=here,
                            env=environ, timeout=timeout)
 
 
@@ -359,12 +368,13 @@ def last_error(proc) -> str:
     return scrub(tail[-1]) if tail else f"exit code {proc.returncode}"
 
 
-def run_worker(tool: str, python: str, job: dict, cwd: Path, env: dict | None = None,
+def run_worker(tool: str, python: str, job: dict, root: Path, env: dict | None = None,
                drop: tuple = ()) -> dict:
-    """Run a worker (`start_worker`) and return its last output line."""
+    """Run a worker (`start_worker`) for the project at `root` and return its last output
+    line."""
     with tempfile.TemporaryDirectory(prefix="judgekeeper-") as tmp:
         out_path = Path(tmp) / "out.jsonl"
-        proc = start_worker(tool, python, job, cwd, out_path, env=env, drop=drop)
+        proc = start_worker(tool, python, job, root, out_path, env=env, drop=drop)
         lines = (jsonl_lines(out_path.read_text(encoding="utf-8"))
                  if out_path.is_file() else [])
     lines = [x for x in lines if x.strip()]

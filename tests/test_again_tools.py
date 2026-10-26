@@ -140,7 +140,8 @@ def test_the_deepeval_worker_dry_run_builds_and_checks_only(tmp_path, stubs, mon
                                                  ["input", "actual_output"])}
     out = again.run_worker("deepeval", sys.executable, job, tmp_path,
                            env=de.WORKER_ENV, drop=de.WORKER_DROP)
-    assert out == {"ok": True, "version": "4.2.8", "evaluation_model": "gpt-4.1"}
+    assert out == {"ok": True, "version": "4.2.8", "evaluation_model": "gpt-4.1",
+                   "model_class": "GPTModel"}
     log = stubs()
     imported = next(e for e in log if e["kind"] == "import")
     assert imported == {"kind": "import", "telemetry": "1", "confident": False,
@@ -621,7 +622,7 @@ def test_the_mlflow_worker_dry_run(tmp_path, stubs, monkeypatch):
                            {"mode": "dry", "name": "tone", "version": "2"}, tmp_path,
                            env=mf.WORKER_ENV)
     assert out == {"ok": True, "version": "3.16.1", "registered": True, "builtin": False,
-                   "code": False, "param": None}
+                   "code": False, "param": None, "models": ["openai:/gpt-4.1-mini"]}
     out = again.run_worker("mlflow", sys.executable, {"mode": "dry", "name": "safety"},
                            tmp_path, env=mf.WORKER_ENV)
     assert out["registered"] is False and out["builtin"] is True

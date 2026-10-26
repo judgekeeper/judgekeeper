@@ -3,12 +3,15 @@
 A worker (`workers/deepeval_worker.py`) builds the user's metric in the user's own Python and
 calls `metric.measure()` directly, never `deepeval.evaluate()`, which overwrites the saved run
 and may upload it. Telemetry is off and CONFIDENT_API_KEY is not passed on. DeepEval loads no
-`.env`; judgekeeper passes on from its .env files only the API key names (keys.passed_on).
+`.env` and not its old `.deepeval/.deepeval` file; judgekeeper passes on from the .env files
+only the API key names (keys.passed_on).
 
 - GEval: each answer's saved steps and rubric come back from its `verboseLogs`, so the scoring
   prompt is the original's. Which fields it reads is not saved: `--fields`, or a question.
 - The model: DeepEval's own settings pick it first; when that gives another model, it is
-  built again from the saved name, and used only if DeepEval then reports exactly that name.
+  built again from the saved name, and used only if DeepEval then reports exactly that name,
+  with the model class of that name's provider (a Bedrock or LiteLLM model can report a bare
+  OpenAI name).
 - Built-in metrics are always a close copy. DAG, custom and conversational metrics can't be
   asked, nor scores DeepEval turned round in 4.2.0 when the versions are on either side.
 A verdict is DeepEval's own `success`, so the threshold applies as the user's version does.
@@ -71,7 +74,14 @@ TURNED_IN = (4, 2, 0)
 BY_NAME = {"Anthropic": "AnthropicModel", "Gemini": "GeminiModel", "Deepseek": "DeepSeekModel",
            "Grok": "GrokModel", "KIMI": "KimiModel", "Azure": "AzureOpenAIModel"}
 _BEDROCK = re.compile(r"[a-z][a-z0-9-]*\.[a-z]")  # "anthropic.claude-...", "us.amazon.nova-..."
+# The class DeepEval builds a model with, by the provider label after its name; a bare name is
+# OpenAI's
+CLASSES = {**BY_NAME, "Local Model": "LocalModel", "Ollama": "OllamaModel"}
+# OpenAI's class; DeepEval 4.2.9 and 4.3 name it OpenAIModel (GPTModel is another name for it)
+OPENAI_CLASS = "GPTModel"
+SAME_CLASS = {"OpenAIModel": OPENAI_CLASS}
 NOT_CONFIRMED = "which fields your LLM-as-a-judge reads was not confirmed"
+OTHER_PROVIDER = "DeepEval builds another provider's model"
 OLLAMA = "A DeepEval LLM-as-a-judge on Ollama can't be asked again yet."
 WORKER_ENV = {"DEEPEVAL_TELEMETRY_OPT_OUT": "1"}
 WORKER_DROP = ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER")
@@ -185,6 +195,25 @@ def by_name(model: str) -> tuple[dict | None, str]:
     if "/" in model or ":" in model or _BEDROCK.match(model):
         return None, "this LLM-as-a-judge needs more than its name"
     return {"name": model}, ""
+
+
+def model_class(model: str) -> str | None:
+    """The class DeepEval builds the saved model `model` with, by its provider (CLASSES, or
+    GPTModel for a bare OpenAI name); None when judgekeeper doesn't know it."""
+    m = SUFFIX.search(model)
+    if m:
+        return CLASSES.get(m[1].strip())
+    return OPENAI_CLASS if by_name(model)[0] else None
+
+
+def other_class(out: dict, model: str) -> str | None:
+    """Why the model the dry worker built (`out`) is not the saved model's provider's, or
+    None."""
+    want, got = model_class(model), out.get("model_class")
+    if want is None or got is None or SAME_CLASS.get(got, got) == want:
+        return None
+    return (f"your saved decisions came from {model}, but DeepEval builds a {got} here, not "
+            f"a {want}")
 
 
 _SETUP = re.compile(r"deepeval set-[a-z0-9-]+(?: --[a-z0-9-]+(?:=[^\s`'\"]+)?)*")
@@ -416,6 +445,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             notes.append(f"Your DeepEval settings pick {picked}; judgekeeper builds your "
                          f"LLM-as-a-judge with the model your results name, {model}, and DeepEval "
                          "confirms it.")
+        wrong = other_class(out, model)  # `out`: the dry run of the model that is asked
+        if wrong:
+            return cant("deepeval", judge, wrong, short=OTHER_PROVIDER)
         if talk is not None:
             version_ok = talk.ask_yes(f"Is DeepEval {version} the version you ran your eval "
                                       "with?")

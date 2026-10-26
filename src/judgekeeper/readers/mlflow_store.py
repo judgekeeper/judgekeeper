@@ -10,6 +10,10 @@ local folder, a SQL store, a server and Databricks all work, with MLflow handlin
 - Only trace-level assessments are verdicts (the root span counts as the trace).
 - A copied folder store keeps its traces' old paths; they are read from the store's own folder,
   never from where the store points.
+- In mlflow.db, a trace names where its data is kept. Only a local folder inside the folder
+  that holds mlflow.db is read; any other trace is read from the short previews the store
+  keeps, and said. MLflow never fetches trace data from a server, and the MLflow login is out
+  of the environment while judgekeeper reads a local store.
 - A `make_judge`'s instructions in the metadata are its rule, hashed into the fingerprint.
   Other judges' prompts are not saved, and scorer tracing is off by default: prompt unknown.
 """
@@ -79,6 +83,20 @@ _noted = False  # FOLDER_NOTE was said in this run
 _copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
 _copies_lock = threading.Lock()
 
+# Where a trace's data is kept, as its tags name it (an archived trace's in the second): MLflow
+# downloads it from there, sending the MLflow login, when its spans are not in the database
+LOCATION_TAGS = ("mlflow.artifactLocation", "mlflow.trace.archiveLocation")
+SPANS_LOCATION = "mlflow.trace.spansLocation"
+IN_DATABASE = "TRACKING_STORE"
+ARCHIVED = "ARCHIVE_REPO"
+# In a copy's folder, never made: where the copy points a trace's data kept elsewhere
+ELSEWHERE = "stored-elsewhere"
+# The MLflow login and TLS settings, for a tracking server: a local store never needs them
+LOGIN = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD", "MLFLOW_TRACKING_TOKEN",
+         "MLFLOW_TRACKING_CLIENT_CERT_PATH", "MLFLOW_TRACKING_SERVER_CERT_PATH",
+         "MLFLOW_TRACKING_INSECURE_TLS")
+_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]+:")  # s3:, dbfs:, mlflow-artifacts:; never C:
+
 
 def store_uri(path: Path, say=None) -> str:
     """The tracking URI to read the local store at `path` with.
@@ -111,12 +129,100 @@ def store_uri(path: Path, say=None) -> str:
                     part = path.with_name(path.name + suffix)
                     if part.is_file():
                         shutil.copy2(part, folder / part.name)
+                _keep_local(folder / path.name, path.parent)
             except BaseException:
                 shutil.rmtree(folder, ignore_errors=True)
                 raise
             _copies[key] = folder / path.name
         copy = _copies[key]
     return f"sqlite:///{copy.as_posix()}"
+
+
+def kept_location(value, home: Path) -> Path | None:
+    """Where a trace's data is kept (`value`, a location tag's), as a full path, when it is a
+    plain local path or a `file:` address with no host that leads inside `home` (the folder
+    that holds mlflow.db) once links are followed; else None: a server (http, s3, gs, wasbs,
+    mlflow-artifacts, dbfs...), a host's or network share's path, or a folder elsewhere."""
+    text = str(value or "")
+    if text.lower().startswith("file:"):
+        address = urlparse(text)
+        if address.netloc:
+            return None
+        text = url2pathname(address.path)
+    elif _SCHEME.match(text):
+        return None
+    if not text or text.startswith(("\\\\", "//")):
+        return None
+    try:
+        path = (Path(home) / text).resolve()
+        return path if path.is_relative_to(Path(home).resolve()) else None
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _keep_local(copy: Path, home: Path) -> None:
+    """In judgekeeper's copy of mlflow.db (never the person's own file), before MLflow opens
+    it: each trace location kept_location keeps becomes its full path, and every other one
+    points into the copy's own folder, where nothing is, so MLflow can't fetch it. The copy's
+    triggers are dropped first: one could put a value back. A copy that can't be made so is
+    damaged; one with nothing to change is left byte for byte as it is (read read-only, which
+    never folds in or removes its -wal file), and so is one that holds no trace tags (MLflow
+    reads no trace data from it)."""
+    import sqlite3
+    from contextlib import closing
+
+    elsewhere = (copy.parent / ELSEWHERE).as_uri()
+    query = "select request_id, key, value from trace_tags where key in (?, ?)"
+    try:
+        with closing(sqlite3.connect(f"{copy.as_uri()}?mode=ro", uri=True)) as con:
+            rows = con.execute(query, LOCATION_TAGS).fetchall()
+    except sqlite3.Error:
+        return
+    want = {}
+    for trace, key, value in rows:
+        kept = kept_location(value, home)
+        want[(trace, key)] = kept.as_uri() if kept is not None else elsewhere
+    if all(want[(trace, key)] == value for trace, key, value in rows):
+        return
+    with closing(sqlite3.connect(copy)) as con:
+        try:
+            for (name,) in con.execute(
+                    "select name from sqlite_master where type = 'trigger'").fetchall():
+                con.execute('drop trigger "{}"'.format(str(name).replace('"', '""')))
+            con.executemany("update trace_tags set value = ? where request_id = ? and key = ?",
+                            [(v, trace, key) for (trace, key), v in want.items()])
+            con.commit()
+            after = {(t, k): v for t, k, v in con.execute(query, LOCATION_TAGS).fetchall()}
+        except sqlite3.Error:
+            after = None
+    if after != want:
+        raise damaged_db(f"sqlite:///{copy.as_posix()}")
+
+
+def _copy_folder(uri) -> Path | None:
+    """The folder of judgekeeper's copy of mlflow.db that `uri` reads, else None."""
+    text = str(uri or "")
+    if not text.startswith("sqlite:///"):
+        return None
+    path = Path(text.removeprefix("sqlite:///"))
+    with _copies_lock:
+        return path.parent if path in _copies.values() else None
+
+
+@contextmanager
+def logged_out(uri) -> Iterator[None]:
+    """While judgekeeper reads the local store at `uri` (mlflow.db or mlruns/): the MLflow
+    login (LOGIN) out of the environment, put back afterwards, also after an error. A local
+    store never needs it; MLflow sends it to any server a trace names. Never for a server."""
+    text = str(uri or "")
+    if not (text.startswith("sqlite:") or is_folder_store(uri)):
+        yield
+        return
+    kept = {name: os.environ.pop(name) for name in LOGIN if name in os.environ}
+    try:
+        yield
+    finally:
+        os.environ.update(kept)
 
 
 def folder_of(uri) -> Path | None:
@@ -266,12 +372,13 @@ def experiments_with_traces(uri: str) -> list[str]:
     MLflow's order. Call it inside folder_store_allowed and quiet."""
     client = _client(uri)
     names = []
-    for exp in client.search_experiments():
-        scope = _trace_scope(client.search_traces, exp.experiment_id)
-        if "include_spans" in inspect.signature(client.search_traces).parameters:
-            scope["include_spans"] = False
-        if len(client.search_traces(**scope, max_results=1)):
-            names.append(exp.name)
+    with logged_out(uri):
+        for exp in client.search_experiments():
+            scope = _trace_scope(client.search_traces, exp.experiment_id)
+            if "include_spans" in inspect.signature(client.search_traces).parameters:
+                scope["include_spans"] = False
+            if len(client.search_traces(**scope, max_results=1)):
+                names.append(exp.name)
     return names
 
 
@@ -283,19 +390,22 @@ def _trace_scope(search_traces, experiment_id: str) -> dict:
 
 
 def _traces(client, experiment_id: str, folder: Path | None = None,
-            missing: list | None = None):
+            missing: list | None = None, previews: list | None = None):
     """Every trace of an experiment, with its spans. In a folder store (`folder`), each
     trace's files are read from the store's own folder only (_with_spans): MLflow looks for
     them at the full path saved when the trace was made, which points at another computer's
     folders once the store is copied or cloned, or at a server. A trace whose files are not
-    there is left out, its id added to `missing`."""
+    there is left out, its id added to `missing`. In judgekeeper's copy of mlflow.db, a trace
+    whose data is kept elsewhere (_keep_local) comes with no spans, its id added to
+    `previews`: what the store itself keeps of it is read (_content)."""
     scope = _trace_scope(client.search_traces, experiment_id)
     can_skip = "include_spans" in inspect.signature(client.search_traces).parameters
     local = folder is not None and can_skip
+    copy = _copy_folder(getattr(client, "tracking_uri", None)) if can_skip else None
     server_only = False  # the spans are on an artifact server that isn't there
     token = None
     while True:
-        extra = {"include_spans": False} if local or server_only else {}
+        extra = {"include_spans": False} if local or copy or server_only else {}
         try:
             page = client.search_traces(**scope, max_results=PAGE_SIZE, page_token=token,
                                         **extra)
@@ -304,7 +414,11 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
                 raise
             server_only = True  # read what the store itself holds (the previews)
             continue
-        for trace in page:
+        if copy is not None:
+            page_traces = _from_the_copy(client, list(page), copy, previews)
+        else:
+            page_traces = page
+        for trace in page_traces:
             if local:
                 page_trace_id = trace.info.trace_id
                 trace = _with_spans(trace, folder / str(experiment_id))
@@ -316,6 +430,48 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
         token = page.token
         if not token:
             return
+
+
+def kept_elsewhere(info, copy: Path) -> bool:
+    """Whether a trace (its info) in judgekeeper's copy of mlflow.db has its data elsewhere:
+    its spans are not in the database, and its location tag is missing or points where the
+    copy sends what it doesn't keep (_keep_local)."""
+    tags = getattr(info, "tags", None) or {}
+    where = tags.get(SPANS_LOCATION)
+    if where == IN_DATABASE:
+        return False
+    tag = LOCATION_TAGS[1] if where == ARCHIVED else LOCATION_TAGS[0]
+    return tags.get(tag) in (None, "", (copy / ELSEWHERE).as_uri())
+
+
+def _from_the_copy(client, page: list, copy: Path, previews: list | None) -> list:
+    """A page of traces found without their spans, in judgekeeper's copy of mlflow.db: each
+    with its spans from the database or the local folder it names, in the page's order; one
+    kept elsewhere as found, its id added to `previews`. A trace MLflow can't load is left
+    out, as MLflow leaves it out."""
+    wanted = [t.info.trace_id for t in page if not kept_elsewhere(t.info, copy)]
+    full = {}
+    if wanted:
+        batch = getattr(getattr(client, "_tracing_client", None), "batch_get_traces", None)
+        if batch is not None:
+            full = {t.info.trace_id: t for t in batch(wanted)}
+        else:  # an older MLflow: one trace at a time
+            for trace_id in wanted:
+                try:
+                    full[trace_id] = client.get_trace(trace_id)
+                except Exception:  # noqa: BLE001, S112 - not loaded: left out, as MLflow does
+                    continue
+    from mlflow.entities import Trace
+
+    found = []
+    for trace in page:
+        if kept_elsewhere(trace.info, copy):
+            if previews is not None:
+                previews.append(trace.info.trace_id)
+            found.append(trace)
+        elif trace.info.trace_id in full:  # its spans, with the info search_traces gave
+            found.append(Trace(trace.info, full[trace.info.trace_id].data))
+    return found
 
 
 TRACE_FILE = ("traces", "artifacts", "traces.json")  # inside an experiment's folder
@@ -439,7 +595,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
-    with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri):
+    with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri), logged_out(uri):
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
                                  metric, folder_of(uri))
@@ -593,6 +749,13 @@ SERVER_ONLY = ("These MLflow traces were saved to a tracking server (mlflow-arti
                "Their text isn't in {store}, so there is nothing to show you for marking.")
 
 
+def previews_line(n: int) -> str:
+    """The note for answers read from the store's previews: their data is kept elsewhere."""
+    if n == 1:
+        return "1 answer read from its short preview; its full data is stored elsewhere."
+    return f"{n} answers read from their short previews; their full data is stored elsewhere."
+
+
 def missing_line(n: int, folder: str) -> str:
     """The note for answers left out because their trace files are missing."""
     what = "1 answer was" if n == 1 else f"{n} answers were"
@@ -618,9 +781,10 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     n_traces = 0
     no_text = 0  # traces with neither spans nor previews: their text is elsewhere
     missing: list[str] = []
+    previews: list[str] = []  # the ids of traces whose data is kept elsewhere
     damaged: list[str] = []  # the ids of traces left out for a damaged field
     capped = False
-    for trace in _traces(client, exp.experiment_id, folder, missing):
+    for trace in _traces(client, exp.experiment_id, folder, missing, previews):
         if n_traces >= MAX_TRACES:
             capped = True
             break
@@ -768,6 +932,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                             "spans, name it with --metric.")
     if missing:
         humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
+    if previews:
+        humans.notes.append(previews_line(len(previews)))
     if capped:
         humans.notes.append(CAPPED.format(experiment=exp.name, n=MAX_TRACES))
     if files and damaged:
