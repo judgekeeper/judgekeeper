@@ -302,6 +302,14 @@ def test_known_safe_inspect_settings_are_still_asked(tmp_path, stubs):
     assert p.status != "cant", p.why
 
 
+def test_a_grader_with_max_connections_is_still_asked(tmp_path, stubs):
+    ws = _checked(tmp_path, inspect_project)
+    _inspect_log(tmp_path, lambda d: d["eval"].update(model_roles={"grader": {
+        **GRADER, "config": {"max_connections": 10}}}))
+    p = make_plan(ws, PY)
+    assert p.status != "cant", p.why
+
+
 def test_the_inspect_worker_refuses_a_setting_that_is_not_known_safe():
     worker = _worker("inspect_worker")
 

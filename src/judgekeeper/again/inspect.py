@@ -55,7 +55,8 @@ _ELSEWHERE = re.compile(r"\s*(~|/|\\|[A-Za-z]:(?!\s)|(file|local|data):)")
 # any other can change the model called, the cost or where answers are kept
 SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", "stop_seqs",
                          "system_message", "reasoning_effort", "reasoning_tokens",
-                         "reasoning_summary", "max_retries", "timeout", "cache"})
+                         "reasoning_summary", "max_retries", "timeout", "cache",
+                         "max_connections"})
 MAX_TOKENS = 32_000
 
 

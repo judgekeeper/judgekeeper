@@ -25,7 +25,8 @@ import sys
 # The only model settings passed on from a log (judgekeeper's plan refuses any other first)
 SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", "stop_seqs",
                          "system_message", "reasoning_effort", "reasoning_tokens",
-                         "reasoning_summary", "max_retries", "timeout", "cache"})
+                         "reasoning_summary", "max_retries", "timeout", "cache",
+                         "max_connections"})
 MAX_TOKENS = 32000
 
 
