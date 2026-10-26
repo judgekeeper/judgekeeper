@@ -1,4 +1,4 @@
-"""judgekeeper's Inspect AI worker, run with the user's own Python in the project folder:
+"""judgekeeper's Inspect AI worker, run with the user's own Python from an empty folder:
 
     python inspect_worker.py job.json out.jsonl
 
@@ -10,9 +10,10 @@ Mode "run" loads no `.env` (judgekeeper passes on the API keys from it; any othe
 could send the calls elsewhere), reads the log without writing it, keeps the job's samples and
 rebuilds the recorded scorer from Inspect's registry with its saved options. Once per time
 asked, `score_async(..., copy=True)` re-scores a copy in memory, with every model role rebuilt
-with its cache off so each time is really asked: by its name and settings only, never with a
-server (`base_url`) or `args` from the log. When a grader is set, the model under test is
-`mockllm/model`, which can't call anything. `inspect score --overwrite` is never used.
+with its cache off so each time is really asked: by its name and SAFE_CONFIG settings only,
+never with a server (`base_url`), `args` or another setting from the log. When a grader is set,
+the model under test is `mockllm/model`, which can't call anything. A template file comes by
+its full path in the job (`template`). `inspect score --overwrite` is never used.
 """
 
 import asyncio
@@ -20,6 +21,13 @@ import copy
 import json
 import os
 import sys
+
+# The only model settings passed on from a log (judgekeeper's plan refuses any other first)
+SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", "stop_seqs",
+                         "system_message", "reasoning_effort", "reasoning_tokens",
+                         "reasoning_summary", "max_retries", "timeout", "cache",
+                         "max_connections"})
+MAX_TOKENS = 32000
 
 
 def emit(path, record):
@@ -45,7 +53,8 @@ def plain(value):
 def uncached(model, GenerateConfig, get_model):
     """A model as the log saved it (a name, a role's ModelConfig, or a scorer option's dict),
     rebuilt with the same generate settings and its cache off. The log's server (`base_url`)
-    and `args` are never passed: a log can come from someone else (the plan refuses them)."""
+    and `args` are never passed, and a setting not in SAFE_CONFIG (or max_tokens above
+    MAX_TOKENS) stops it: a log can come from someone else (the plan refuses them first)."""
     if isinstance(model, list):
         return [uncached(m, GenerateConfig, get_model) for m in model]
     if isinstance(model, str):
@@ -56,6 +65,10 @@ def uncached(model, GenerateConfig, get_model):
         name, config = model.model, model.config
     if hasattr(config, "model_dump"):
         config = config.model_dump(exclude_none=True)
+    for key, value in (config or {}).items():
+        too_many = key == "max_tokens" and (not isinstance(value, int) or value > MAX_TOKENS)
+        if value is not None and (key not in SAFE_CONFIG or too_many):
+            raise ValueError(f"the log's model setting {key} is not passed on")
     config = {**(config or {}), "cache": False}
     return get_model(name, config=GenerateConfig(**config))
 
@@ -178,6 +191,8 @@ def run(job, out_path, version):
     usage = {(str(s.id), s.epoch): usage_of(s) for s in log.samples}
     spec = next(s for s in log.eval.scorers if s.name == job["scorer"])
     options = dict(spec.options or {})
+    if job.get("template"):  # a template file in the project, by its full path
+        options["template"] = job["template"]
     if job.get("rule") is not None:  # judgekeeper fix: a new rule in place of the saved one
         options[job.get("rule_field") or "instructions"] = job["rule"]
     if options.get("model") is not None:

@@ -999,12 +999,20 @@ def _old_rule(m: Marks) -> str:
 
 def _problems(m: Marks, split: Split, rule: str) -> list[dict]:
     """The rule checks: blocking (empty, judgekeeper's prompt pasted back, a dropped or added
-    template part) and said (a big change, text copied from the seen answers)."""
+    template part, a rule for an Inspect template that Inspect would read or fetch) and said
+    (a big change, text copied from the seen answers)."""
     old = _old_rule(m)
     outputs = [m.row(i)["output"] for i in split.seen]
     found = start_fix_rule.checks(old, rule, m.data.get("tool") or "", outputs)
     if not any(c["blocking"] for c in found):
         found += start_fix_rule.agent_checks(old, rule)
+    if m.data.get("tool") == "inspect" and m.data.get("rule_field") == "template":
+        from judgekeeper.again.inspect import template_problem
+
+        problem = template_problem(rule, m.ws.root)  # Inspect would read or fetch it
+        if problem:
+            found.append({"text": f"Your new rule goes into your scorer's template, and it "
+                                  f"{problem}.", "blocking": True})
     return found
 
 

@@ -9,13 +9,17 @@ not record, so it is asked at a terminal; otherwise a close copy. A registered j
 version saved, or an unregistered `make_judge`, is a close copy too. A custom `@scorer` and
 Databricks judges can't be asked again. A judge that reads the whole trace (`{{ trace }}`)
 makes up to 30 calls per answer, and an answer whose trace is no longer in the store is left
-out. MLflow's Python API loads no `.env`: the key must be in the shell.
+out. A registered judge whose stored model is not the one the results name can't be asked.
+MLflow's Python API loads no `.env`, and litellm, which MLflow's judges use when it is
+installed, loads none either (LITELLM_MODE, set for every worker): the key must be in the
+shell. The worker gets no MLflow login (mlflow_store.LOGIN): the store is local.
 """
 
 from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 
 from judgekeeper import again, keys, prices
 from judgekeeper.again import (
@@ -35,6 +39,14 @@ from judgekeeper.table import make_fingerprint
 from judgekeeper.textio import get_extra
 
 WORKER_ENV = {"MLFLOW_DISABLE_TELEMETRY": "true", "MLFLOW_DISABLE_AGENT_HINT": "1"}
+
+
+def worker_drop() -> tuple:
+    """What the worker's environment leaves out: the MLflow login (a local store never needs
+    it)."""
+    from judgekeeper.readers.mlflow_store import LOGIN
+
+    return LOGIN
 
 
 def worker_env(uri) -> dict:
@@ -103,6 +115,10 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
         if worker.get("param"):  # a setting such as api_base, found and not loaded
             return CANT, (f"your stored LLM-as-a-judge sets `{worker['param']}`, which "
                           "judgekeeper does not pass on")
+        other = [m for m in worker.get("models") or [] if m != info.get("source_id")]
+        if other:  # MLflow would call the stored model, not the one the results name
+            return CANT, (f"your stored LLM-as-a-judge calls {other[0]}, but your results name "
+                          f"{info.get('source_id')}")
         if info.get("scorer_version"):
             return EXACT, (f"MLflow calls your registered LLM-as-a-judge {name}, version "
                            f"{info['scorer_version']}")
@@ -167,6 +183,7 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
         _traces,
         folder_of,
         folder_store_allowed,
+        logged_out,
         quiet,
         store_uri,
     )
@@ -177,8 +194,9 @@ def assessment_info(ws, metric: str, run: str | None = None) -> dict:
         path = ws.root / saved
     else:
         path = next(iter(find.search(ws.root).readable("mlflow"))).path
+    path = Path(path).resolve()  # the worker runs elsewhere: the store by its full path
     uri = store_uri(path)  # a temporary copy of mlflow.db, kept for the worker
-    with folder_store_allowed(uri), quiet():  # mlruns/: the folder-store setting, this read
+    with folder_store_allowed(uri), quiet(), logged_out(uri):  # mlruns/: its setting, this read
         from mlflow import MlflowClient
 
         client = MlflowClient(tracking_uri=uri)
@@ -247,7 +265,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             "mode": "dry", "name": info.get("scorer_name") or info.get("name"),
             "version": info.get("scorer_version"), "uri": info.get("uri"),
             "experiment": info.get("experiment"), "instructions": saved}, root,
-            env=worker_env(info.get("uri")))
+            env=worker_env(info.get("uri")), drop=worker_drop())
         if not worker.get("ok"):
             if worker.get("missing"):
                 return cant("mlflow", judge, f"MLflow is not installed in {again.python_name(python)}. Activate "
@@ -320,7 +338,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
             return None
 
     fresh, got, done = worker_run.ask(ws, plan, talk, "MLflow",
-                                      env=worker_env(plan.job.get("uri")))
+                                      env=worker_env(plan.job.get("uri")), drop=worker_drop())
     worker_run.count(fresh, plan, got, "MLflow", verdict)
     judge = plan.job["judge"]
     evaluator = _model(judge.get("model"))

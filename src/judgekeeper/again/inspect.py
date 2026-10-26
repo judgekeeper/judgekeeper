@@ -11,11 +11,14 @@ another version it is a close copy until every counted answer's new grading prom
 the saved one (`metadata.grading`); an answer whose prompt differs is not counted. A custom
 scorer can't be asked again (Inspect would import the user's task file), and rule scorers
 (`match`, `includes`) are not judges. A log that names a server (`base_url`) or settings
-(`args`, `model_args`) for a model that grades, or a template Inspect could read from outside
-the project, can't be asked either: the log is a file that may come from someone else, and the
-worker never passes them on. A template file must be a plain name inside the project
-(TEMPLATE_NAME). The worker loads no `.env`: judgekeeper passes on from the nearest one only
-the API key names (keys.passed_on).
+(`args`, `model_args`) for a model that grades, a model setting that is not in SAFE_CONFIG
+(`extra_body`, `num_choices`, `store`, `extra_headers`... change the model called, the cost or
+where answers are kept), or a template Inspect could read from outside the project, can't be
+asked either: the log is a file that may come from someone else, and the worker never passes
+them on. A template file must be a plain name inside the project (TEMPLATE_NAME); the worker
+gets it by its full path, since it runs from an empty folder. A new rule that goes into the
+template gets the same checks. The worker loads no `.env`: judgekeeper passes on from the
+nearest one only the API key names (keys.passed_on).
 """
 
 from __future__ import annotations
@@ -48,6 +51,13 @@ TEMPLATE_NAME = re.compile(r"[A-Za-z0-9_./\\-]+")
 # home folder (~), the root, a drive (C:x, not "Q: {question}"), or a file:, local: or data:
 # protocol. An address (://) or a chain (::) is refused before.
 _ELSEWHERE = re.compile(r"\s*(~|/|\\|[A-Za-z]:(?!\s)|(file|local|data):)")
+# The only model settings a log may give (the worker's SAFE_CONFIG, which runs on its own):
+# any other can change the model called, the cost or where answers are kept
+SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", "stop_seqs",
+                         "system_message", "reasoning_effort", "reasoning_tokens",
+                         "reasoning_summary", "max_retries", "timeout", "cache",
+                         "max_connections"})
+MAX_TOKENS = 32_000
 
 
 def _exists(path: Path) -> bool:
@@ -64,6 +74,24 @@ def _outside(path: Path, root: Path) -> bool:
         return True
 
 
+def template_problem(template: str, root: Path = Path()) -> str | None:
+    """What makes Inspect read the template text `template` from somewhere judgekeeper does
+    not allow, as words that follow "your scorer's template ...", or None."""
+    if "://" in template or "::" in template:
+        return f"is an online address ({template}), which Inspect would fetch"
+    path = Path(root, template)  # Inspect reads a name that is a file as that file
+    text = any(c in template for c in "{ \n\r\t")
+    if _ELSEWHERE.match(template) or (not text and ".." in re.split(r"[/\\]", template)) \
+            or ((not text or _exists(path)) and _outside(path, root)):
+        return f"is a file outside your project ({template})"
+    if not text and not TEMPLATE_NAME.fullmatch(template):
+        return f"is a file name judgekeeper doesn't accept ({template})"
+    named = template.endswith(TEMPLATE_FILE) or "/" in template or "\\" in template
+    if named and not text and not _exists(path):
+        return f"is a template file ({template}) that is not here"
+    return None
+
+
 def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
@@ -73,24 +101,41 @@ def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) ->
         return (f"your LLM-as-a-judge is a custom scorer ({name}): asking again would import your "
                 "task file, which runs your code")
     template = options.get("template")
-    if isinstance(template, str) and ("://" in template or "::" in template):
-        return f"your scorer's template is an online address ({template}), which Inspect would fetch"
-    if isinstance(template, str):  # Inspect reads a name that is a file as that file
-        path = Path(root, template)
-        text = any(c in template for c in "{ \n\r\t")
-        if _ELSEWHERE.match(template) or (not text and ".." in re.split(r"[/\\]", template)) \
-                or ((not text or _exists(path)) and _outside(path, root)):
-            return f"your scorer's template is a file outside your project ({template})"
-        if not text and not TEMPLATE_NAME.fullmatch(template):
-            return (f"your scorer's template is a file name judgekeeper doesn't accept "
-                    f"({template})")
-        named = template.endswith(TEMPLATE_FILE) or "/" in template or "\\" in template
-        if named and not text and not _exists(path):
-            return f"your scorer's template is a template file ({template}) that is not here"
+    problem = template_problem(template, root) if isinstance(template, str) else None
+    if problem:
+        return f"your scorer's template {problem}"
     history = options.get("include_history")
     if isinstance(history, str):
         return (f"your scorer's include_history was a function ({history}), which the log "
                 "saves only by name")
+    return None
+
+
+def template_file(options: dict, root: Path) -> str | None:
+    """The full path of the scorer's template when it is a file in the project (cant_reason
+    allowed it), else None: the worker runs from an empty folder, where its name is nothing."""
+    template = options.get("template")
+    if not isinstance(template, str):
+        return None
+    path = Path(root, template)
+    try:
+        return str(path.resolve()) if _exists(path) and path.is_file() else None
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _config_field(config) -> str | None:
+    """The first setting in a model's saved config that is not in SAFE_CONFIG, or max_tokens
+    above MAX_TOKENS; None when every one is safe."""
+    if not isinstance(config, dict):
+        return None
+    for key, value in config.items():
+        if value is None:
+            continue
+        if key not in SAFE_CONFIG:
+            return str(key)[:60] or '""'
+        if key == "max_tokens" and (not isinstance(value, int) or value > MAX_TOKENS):
+            return "max_tokens"
     return None
 
 
@@ -104,14 +149,32 @@ def _set(model) -> str | None:
     return next((k for k in ("base_url", "model_args", "args") if model.get(k)), None)
 
 
+def _unsafe(model) -> str | None:
+    """The first setting in a model's config, as the log saves it, that is not safe
+    (_config_field)."""
+    if isinstance(model, list):
+        return next(filter(None, map(_unsafe, model)), None)
+    return _config_field(model.get("config")) if isinstance(model, dict) else None
+
+
 def elsewhere(spec: dict, options: dict) -> str | None:
     """Why the log's own server or settings for a model keep it from being asked again, or
     None: a `base_url` or `args` on a model role, the scorer's model, or the model under test
-    when it grades (as the worker decides: no scorer model and the scorer's role is not set)."""
-    found = [(f"the {name} role" if name != "grader" else "the grader", _set(model))
-             for name, model in (spec.get("model_roles") or {}).items()]
-    found.append(("the grader", _set(options.get("model"))))
+    when it grades (as the worker decides: no scorer model and the scorer's role is not set);
+    a model setting that is not safe (_config_field) on any of them, or in the log's
+    `model_generate_config`."""
     roles = spec.get("model_roles") or {}
+    unsafe = [(f"the {name} role" if name != "grader" else "the grader", _unsafe(model))
+              for name, model in roles.items()]
+    unsafe += [("the grader", _unsafe(options.get("model"))),
+               ("the model under test", _config_field(spec.get("model_generate_config")))]
+    for who, key in unsafe:
+        if key:
+            return (f"your log gives {who} a model setting ({key}) judgekeeper does not pass "
+                    "on")
+    found = [(f"the {name} role" if name != "grader" else "the grader", _set(model))
+             for name, model in roles.items()]
+    found.append(("the grader", _set(options.get("model"))))
     if options.get("model") is None and options.get("model_role", "grader") not in roles:
         found.append(("the model under test", _set({"base_url": spec.get("model_base_url"),
                                                     "model_args": spec.get("model_args")})))
@@ -230,6 +293,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     reason = elsewhere(spec, options)
     if reason:
         return cant("inspect", judge, reason, short=reason.split(" (")[0])
+    rule_field = data.get("rule_field") or "instructions"
+    problem = (template_problem(opts.rule, root)
+               if opts.rule is not None and rule_field == "template" else None)
+    if problem:
+        return cant("inspect", judge, f"your new rule goes into your scorer's template, and it "
+                    f"{problem}", short="your new rule can't be a template")
 
     roles = spec.get("model_roles") or {}
     graders = _models(roles.get("grader")) or _models(options.get("model"))
@@ -302,9 +371,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 calls_each=[calls] * len(found), tokens=tokens, left_out=left,
                 settings=check.settings, not_passed=check.not_passed, key_ok=check.ok,
                 key_step=check.step, tool_version=installed or made_with, runner=[python], payload=payload,
-                job={"log": str(root / data["results_files"][0]), "scorer": metric,
-                     "new": new, "rule": opts.rule,
-                     "rule_field": data.get("rule_field") or "instructions"},
+                job={"log": str((root / data["results_files"][0]).resolve()), "scorer": metric,
+                     "new": new, "rule": opts.rule, "rule_field": rule_field,
+                     "template": template_file(options, root)},
                 side_effects=[(f"Your eval's code is not run. Inspect re-scores a copy of your "
                                f"log in {again.your_python(python)}; your log is never changed.")])
 

@@ -15,7 +15,10 @@ the user's store. MLflow's telemetry is off. A registered judge's stored form is
 is got back: one that holds its own code (a custom `@scorer`) is never loaded, since MLflow
 loads it by running that code, and MLflow's switch that allows this is taken out of the
 environment. Nor is one whose `inference_params` (MLflow passes them on with every call) hold a
-setting other than SAFE_PARAMS: `api_base` there would send the call and the key elsewhere.
+setting other than SAFE_PARAMS, or whose form holds OTHER_SERVER at any depth: `api_base` there
+would send the call and the key elsewhere. The dry run also writes the models the stored form
+names, which the plan compares with the results' model. A trace whose data the store does not
+keep (judgekeeper's copy of mlflow.db points it nowhere) is read without its spans.
 """
 
 import inspect
@@ -35,6 +38,8 @@ CODE_FIELDS = ("call_source", "call_signature", "original_func_name")
 # The model settings a stored judge's inference_params may hold; any other stops it loading
 SAFE_PARAMS = frozenset({"temperature", "max_tokens", "max_completion_tokens", "top_p",
                          "top_k", "seed", "stop", "n", "presence_penalty", "frequency_penalty"})
+# Settings anywhere in a stored form that send the call, or extra headers, elsewhere
+OTHER_SERVER = frozenset({"api_base", "base_url", "extra_headers"})
 
 
 def emit(path, record):
@@ -92,13 +97,32 @@ def other_setting(params):
 
 def unsafe_param(form):
     """The first setting in a scorer's stored inference_params, also inside another scorer's,
-    that is not in SAFE_PARAMS, else None."""
+    that is not in SAFE_PARAMS, or an OTHER_SERVER key with a value at any depth (MLflow
+    stores "extra_headers": null in every built-in judge), else None."""
     if isinstance(form, dict):
-        found = other_setting(form.get("inference_params"))
+        found = next((str(k) for k, v in form.items() if k in OTHER_SERVER
+                      and v not in (None, "", {}, [])), None)
+        found = found or other_setting(form.get("inference_params"))
         return found or next((f for f in map(unsafe_param, form.values()) if f), None)
     if isinstance(form, list):
         return next((f for f in map(unsafe_param, form) if f), None)
     return None
+
+
+def stored_models(form):
+    """The models a scorer's stored form names (the `model` of each judge's data, also inside
+    another scorer's), in order."""
+    found = []
+    if isinstance(form, dict):
+        for key, value in form.items():
+            if str(key).endswith("_pydantic_data") and isinstance(value, dict) and isinstance(
+                    value.get("model"), str) and value["model"] not in found:
+                found.append(value["model"])
+            found += [m for m in stored_models(value) if m not in found]
+    elif isinstance(form, list):
+        for value in form:
+            found += [m for m in stored_models(value) if m not in found]
+    return found
 
 
 def stored(name, experiment, version):
@@ -177,14 +201,29 @@ def answered_by(result):
     return source if isinstance(source, str) and source else None
 
 
+def search_infos(client, experiment):
+    """{trace id: its info} for every trace of an experiment, found without their spans."""
+    infos, token = {}, None
+    while True:
+        page = client.search_traces(locations=[experiment], max_results=100, page_token=token,
+                                    include_spans=False)
+        infos.update((t.info.trace_id, t.info) for t in page)
+        token = page.token
+        if not token:
+            return infos
+
+
 def get_trace(client, uri, trace_id, infos):
     """A trace with its spans. MLflow looks for a folder store's trace files at the full path
     saved when the trace was made; when the store was copied or cloned from another computer,
     they are in the store's own folder instead (`infos` keeps each experiment's traces,
-    found without their spans, between calls)."""
+    found without their spans, between calls). In mlflow.db, a trace whose data is kept
+    elsewhere comes without its spans: its assessments are in the store."""
     try:
         return client.get_trace(trace_id)
     except Exception:  # not where MLflow looks: try the store's own folder
+        if str(uri or "").startswith("sqlite:"):
+            return without_spans(client, trace_id, infos)
         if not uri or "://" in str(uri) or not Path(uri).is_dir():
             raise
     from mlflow.entities import Trace, TraceData
@@ -196,18 +235,23 @@ def get_trace(client, uri, trace_id, infos):
             continue  # a trace folder that leads outside its experiment
         experiment = path.parts[-5]
         if experiment not in infos:
-            infos[experiment] = {}
-            token = None
-            while True:
-                page = client.search_traces(locations=[experiment], max_results=100,
-                                            page_token=token, include_spans=False)
-                infos[experiment].update((t.info.trace_id, t.info) for t in page)
-                token = page.token
-                if not token:
-                    break
+            infos[experiment] = search_infos(client, experiment)
         return Trace(infos[experiment][trace_id],
                      TraceData.from_dict(json.loads(path.read_text(encoding="utf-8"))))
     raise LookupError(f"the files of trace {trace_id} are missing from {uri}")
+
+
+def without_spans(client, trace_id, infos):
+    """A trace of mlflow.db found without its spans (`infos` keeps each experiment's traces
+    between calls)."""
+    from mlflow.entities import Trace, TraceData
+
+    for exp in client.search_experiments():
+        if exp.experiment_id not in infos:
+            infos[exp.experiment_id] = search_infos(client, exp.experiment_id)
+        if trace_id in infos[exp.experiment_id]:
+            return Trace(infos[exp.experiment_id][trace_id], TraceData(spans=[]))
+    raise LookupError(f"trace {trace_id} is not in the store")
 
 
 def run(job, out_path, version):
@@ -229,6 +273,8 @@ def run(job, out_path, version):
                                                       infos) if answer.get("trace") else None)
                 trace = traces[answer["id"]]
                 if job["judge"].get("trace"):
+                    if trace is None or not trace.data.spans:
+                        raise LookupError("the trace's full data is stored elsewhere")
                     result = call(judge, trace=trace)
                 else:
                     result = call(judge, inputs=answer["inputs"], outputs=answer["outputs"],
@@ -270,19 +316,19 @@ def main(job_path, out_path):
         return 0
     if job.get("uri"):
         mlflow.set_tracking_uri(job["uri"])
-    registered, code, param = False, False, None
+    registered, code, param, models = False, False, None, []
     try:
         form = stored(job["name"], job.get("experiment"), job.get("version"))
-        code, param = holds_code(form), unsafe_param(form)
+        code, param, models = holds_code(form), unsafe_param(form), stored_models(form)
         kwargs = {"name": job["name"], "experiment_id": job.get("experiment")}
         if job.get("version"):
             kwargs["version"] = int(job["version"])
         # never loaded with code, or with a setting that is not passed on
         registered = code or bool(param) or scorers.get_scorer(**kwargs) is not None
     except Exception:  # noqa: BLE001 - not registered, or no registry here
-        registered, code, param = False, False, None
+        registered, code, param, models = False, False, None, []
     emit(out_path, {"ok": True, "version": version,
-                    "registered": registered, "code": code, "param": param,
+                    "registered": registered, "code": code, "param": param, "models": models,
                     "builtin": is_builtin(scorers, job["name"], job.get("instructions"))})
     return 0
 

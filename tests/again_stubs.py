@@ -66,6 +66,13 @@ COMMON = """
             return plan["values"][key]
         verdict = plan.get("verdicts", {}).get(key, True)
         return (not verdict) if [key, time] in plan.get("flips", []) else verdict
+
+    _log("started", cwd=os.getcwd(), litellm_mode=os.environ.get("LITELLM_MODE"),
+         cache_folder=os.environ.get("DEEPEVAL_CACHE_FOLDER"))
+    try:  # as MLflow, DeepEval and Inspect AI import litellm when it is installed
+        import litellm  # noqa: F401
+    except ImportError:
+        pass
 """
 
 STUB_DEEPEVAL = {
@@ -73,6 +80,16 @@ STUB_DEEPEVAL = {
     __version__ = os.environ.get("STUB_VERSION", "4.2.8")
     if not os.environ.get("DEEPEVAL_DISABLE_DOTENV"):
         _load_env()
+    # DeepEval's old settings file, read from where it runs; STUB_KEYFILE: one read whatever
+    # is set, as a DeepEval without the switch might
+    _keyfile = os.environ.get("STUB_KEYFILE") or (
+        None if os.environ.get("DEEPEVAL_DISABLE_LEGACY_KEYFILE")
+        else os.path.join(".deepeval", ".deepeval"))
+    if _keyfile and os.path.isfile(_keyfile):
+        _log("keyfile", path=os.path.abspath(_keyfile))
+        with open(_keyfile) as f:
+            for _key, _value in json.load(f).items():
+                os.environ.setdefault(_key, str(_value))
     _log("import", telemetry=os.environ.get("DEEPEVAL_TELEMETRY_OPT_OUT"),
          confident="CONFIDENT_API_KEY" in os.environ,
          results_folder="DEEPEVAL_RESULTS_FOLDER" in os.environ)
@@ -93,12 +110,25 @@ STUB_DEEPEVAL = {
             if model is None and os.environ.get("STUB_DEFAULT_NEEDS_KEY") and \
                     not os.environ.get("OPENAI_API_KEY"):  # DeepEval's default OpenAI model
                 raise ValueError("OpenAI API key is not configured")
-            if model is None:  # DeepEval's own settings pick the model: STUB_MODEL
-                self.evaluation_model = os.environ.get("STUB_MODEL", "gpt-4.1")
-            elif isinstance(model, str):  # a name: OpenAI, unless a USE_* setting says other
-                self.evaluation_model = model + os.environ.get("STUB_STRING_SUFFIX", "")
+            self.base_url = None
+            if not isinstance(model, (str, type(None))):
+                self.model, self.evaluation_model = model, model.get_model_name()
+            elif os.environ.get("USE_AWS_BEDROCK_MODEL") == "YES":  # reports the bare name
+                self.model = type("AmazonBedrockModel", (), {})()
+                self.evaluation_model = model or os.environ.get("AWS_BEDROCK_MODEL_NAME")
+            elif os.environ.get("USE_LOCAL_MODEL") == "YES":
+                self.model = type("LocalModel", (), {})()
+                self.evaluation_model = f"{os.environ.get('LOCAL_MODEL_NAME')} (Local Model)"
+                self.base_url = os.environ.get("LOCAL_MODEL_BASE_URL")
             else:
-                self.evaluation_model = model.get_model_name()
+                cls = os.environ.get("STUB_MODEL_CLASS", "GPTModel")
+                if model is None:  # DeepEval's own settings pick the model: STUB_MODEL
+                    self.evaluation_model = os.environ.get("STUB_MODEL", "gpt-4.1")
+                    if self.evaluation_model.endswith(" (Ollama)"):
+                        cls = "OllamaModel"
+                else:  # a name: OpenAI, unless a USE_* setting says other
+                    self.evaluation_model = model + os.environ.get("STUB_STRING_SUFFIX", "")
+                self.model = type(cls, (), {})()
             self.threshold = kwargs.get("threshold", 0.5)
 
         def measure(self, case, _show_indicator=True, **k):
@@ -108,6 +138,14 @@ STUB_DEEPEVAL = {
                  show_indicator=_show_indicator, case=case.kwargs,
                  steps=self.kwargs.get("evaluation_steps"))
             _call_env()
+            if self.base_url:  # a local model's server, as DeepEval's LocalModel calls it
+                import json
+                import urllib.request
+                try:
+                    urllib.request.urlopen(self.base_url + "/chat/completions",
+                                           data=json.dumps({"input": key}).encode(), timeout=5)
+                except OSError:
+                    pass
             value = _answer(key, time)
             if isinstance(value, bool):
                 self.success, self.score = value, 0.9 if value else 0.1
@@ -406,6 +444,7 @@ STUB_MLFLOW = {
             self.trace_id = trace_id
             self.info = type("Info", (), {"assessments": [_Assessment(a) for a in
                                                           d.get("assessments", [])]})()
+            self.data = type("Data", (), {"spans": d.get("spans", ["root"])})()
 
     class MlflowClient:
         def __init__(self, tracking_uri=None):
