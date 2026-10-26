@@ -260,12 +260,23 @@ def test_fix_refuses_a_config_env_it_does_not_pass_on(here, capsys, judge,  # no
 
 @pytest.mark.parametrize("name", ["OPENAI_BASE_URL", "ANTHROPIC_API_BASE", "NODE_OPTIONS",
                                   "PATH", "DYLD_INSERT_LIBRARIES", "npm_config_registry",
-                                  "HTTPS_PROXY", "AZURE_OPENAI_API_HOST", "MY_ENDPOINT"])
+                                  "HTTPS_PROXY", "AZURE_OPENAI_API_HOST", "MY_ENDPOINT",
+                                  "COMSPEC", "SHELL", "BASH_ENV", "ENV", "PYTHONPATH",
+                                  "PYTHONSTARTUP"])
 def test_fix_refuses_a_dotenv_that_redirects_promptfoo(here, capsys, judge,  # noqa: F811
                                                          fixing, name):
     (here / ".env").write_text(f"OPENAI_API_KEY=x\nexport {name}=x\n", encoding="utf-8")
     code, out = test_fix.run(capsys, "--yes")
     _refused(code, out, judge, here, f"your .env sets `{name}`")
+
+
+@pytest.mark.parametrize("name", ["NO_PROXY", "no_proxy"])
+def test_fix_still_asks_with_a_dotenv_that_only_skips_a_proxy(here, capsys, judge,  # noqa: F811
+                                                              fixing, runs, name):
+    (here / ".env").write_text(f"OPENAI_API_KEY=x\n{name}=localhost\n", encoding="utf-8")
+    code, out = test_fix.run(capsys, "--yes")
+    assert code == 0, out
+    assert judge["evals"] == 2
 
 
 def test_fix_still_asks_a_grader_with_only_known_settings(here, capsys, judge,  # noqa: F811

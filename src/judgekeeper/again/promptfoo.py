@@ -390,8 +390,9 @@ def grader_refusal(grader) -> tuple[str, str] | None:
 
 
 # A name in the project's .env (which promptfoo reads itself) that starts a program or points
-# the calls at another server
-STARTS = ("NODE_", "LD_", "DYLD_", "NPM_CONFIG_")
+# the calls at another server. NO_PROXY can only skip a proxy, so it is allowed.
+STARTS = ("NODE_", "LD_", "DYLD_", "NPM_CONFIG_", "PYTHON")
+PROGRAMS = {"PATH", "COMSPEC", "SHELL", "BASH_ENV", "ENV"}
 REDIRECTS = ("BASE_URL", "API_BASE", "HOST", "ENDPOINT", "PROXY")
 
 
@@ -418,7 +419,9 @@ def env_refusal(root: Path, config: Path | None, graders) -> str | None:
             return f"its config sets `{name}`, which judgekeeper does not pass on"
     for name, path in sorted(keys.Sources.read("promptfoo", root, config).in_files.items()):
         upper = name.upper()
-        if upper == "PATH" or upper.startswith(STARTS) or any(w in upper for w in REDIRECTS):
+        if upper == "NO_PROXY":
+            continue
+        if upper in PROGRAMS or upper.startswith(STARTS) or any(w in upper for w in REDIRECTS):
             return (f"your {path.name} sets `{name}`, which can start a program or send the "
                     "calls to another server")
     return None
