@@ -1,10 +1,12 @@
 """When promptfoo's results are only in its database, `start` offers to run promptfoo's own
-`export` command (at a terminal only). The one process function is replaced: no promptfoo."""
+`export` command (at a terminal only, Enter is No). The one process function is replaced: no
+promptfoo, except a fake project promptfoo that leaves a file when it runs."""
 
 from __future__ import annotations
 
 import builtins
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -63,7 +65,7 @@ def run(capsys, *argv):
 
 def test_a_run_from_another_project_is_deleted(tmp_path, capsys, export, terminal):
     _config(tmp_path, description="my project")
-    terminal += [""]
+    terminal += ["y"]
     code, out, _ = run(capsys, tmp_path)
     assert code == 0
     assert ("That was your last promptfoo run, from another project. Find yours with promptfoo "
@@ -76,7 +78,7 @@ def test_a_run_from_another_project_is_deleted(tmp_path, capsys, export, termina
 def test_other_prompts_also_mean_another_project(tmp_path, capsys, export, terminal):
     _config(tmp_path, description=None, prompt="Reply kindly: {{question}}")
     export.data["config"] = {"prompts": ["Something else: {{x}}"]}
-    terminal += [""]
+    terminal += ["y"]
     _, out, _ = run(capsys, tmp_path)
     assert "from another project" in out
     assert not (tmp_path / "promptfoo-results.json").exists()
@@ -85,8 +87,54 @@ def test_other_prompts_also_mean_another_project(tmp_path, capsys, export, termi
 def test_matching_prompts_carry_on_without_a_description(tmp_path, capsys, export, terminal):
     _config(tmp_path, description=None, prompt="Answer: {{question}}")
     export.data["config"] = {"prompts": ["Answer: {{question}}"]}
-    terminal += ["", "n"]
+    terminal += ["y", "n"]
     run(capsys, tmp_path)
     assert (tmp_path / "promptfoo-results.json").is_file()
 
 
+
+
+def _marking_promptfoo(root):
+    """The project's own promptfoo, as a folder could ship it: it leaves `ran-promptfoo`."""
+    folder = root / "node_modules" / ".bin"
+    folder.mkdir(parents=True)
+    (folder / "promptfoo").write_text("#!/bin/sh\necho ran > ran-promptfoo\nexit 1\n",
+                                      encoding="utf-8")
+    (folder / "promptfoo").chmod(0o755)
+    (folder / "promptfoo.cmd").write_text("@echo ran> ran-promptfoo\r\n@exit /b 1\r\n",
+                                          encoding="utf-8")
+    return root / "ran-promptfoo"
+
+
+def test_only_a_yes_runs_the_projects_promptfoo(tmp_path, capsys, monkeypatch):
+    _config(tmp_path)
+    ran = _marking_promptfoo(tmp_path)
+    monkeypatch.setattr(again, "which", lambda name: None)
+    run(capsys, tmp_path)  # no terminal
+    run(capsys, tmp_path, "--yes")
+    assert not ran.exists()
+
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    asked = []
+    monkeypatch.setattr(builtins, "input", lambda prompt="": asked.append(prompt) or "")
+    _, out, _ = run(capsys, tmp_path)  # Enter
+    assert not ran.exists(), out
+    assert "promptfoo export eval latest -o promptfoo-results.json" in " ".join(out.split())
+    question = next(q for q in asked if "promptfoo" in q)
+    assert question == ("Run this project's promptfoo (node_modules/.bin/promptfoo"
+                        f"{'.cmd' if sys.platform == 'win32' else ''}) to export your latest "
+                        "results? It runs code from this folder, like running its tests. "
+                        "No AI call. [y/N] ")
+
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "y")
+    run(capsys, tmp_path)
+    assert ran.exists()
+
+
+def test_a_promptfoo_on_the_path_is_named_too(tmp_path, capsys, export, terminal):
+    _config(tmp_path)
+    terminal += ["n"]
+    _, out, _ = run(capsys, tmp_path)
+    assert (f"Run promptfoo ({PROMPTFOO}) to export your latest results? It reads promptfoo's "
+            "database in your home folder and writes one file here. No AI call. [y/N]") in out
+    assert export.calls == []

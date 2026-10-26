@@ -261,7 +261,7 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 ## Your API keys
 
 - Your key is used only by your own eval tool, when it asks your LLM-as-a-judge, from your machine straight to the provider. A key in promptfoo's config `env:` block counts too.
-- Finding, marking and the result never run your eval's code, make no AI call and need no key. To ask again, `fix` and `check` run your eval tool ([what runs](eval-tools.md#asking-again)). Before any AI call, judgekeeper says how many calls it makes and asks first (`Go ahead? [y/N]`, Enter is No). Without a terminal, only `--yes` says yes.
+- Finding, marking and the result never run your eval's code, unless you say yes to the export question, which runs the project's promptfoo. They make no AI call and need no key. To ask again, `fix` and `check` run your eval tool ([what runs](eval-tools.md#asking-again)). Before any AI call, judgekeeper says how many calls it makes and asks first (`Go ahead? [y/N]`, Enter is No). Without a terminal, only `--yes` says yes.
 - judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `Bearer …`, `Basic …`, and the `user:password@` part of a URL.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
