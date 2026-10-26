@@ -300,12 +300,41 @@ def test_ci_tests_every_python_the_classifiers_name_and_windows_on_every_pull_re
     on = win["on"]
     assert set(on) == {"pull_request", "push", "workflow_dispatch"}
     assert on["push"] == {"branches": ["main"]}
-    (job,) = win["jobs"].values()
-    assert job["runs-on"] == "windows-latest" and "pytest" in _steps_text(job)
-    (python,) = [s for s in job["steps"] if s.get("uses", "").startswith("actions/setup-python@")]
-    assert str(python["with"]["python-version"]) == "3.12"
+    assert set(win["jobs"]) == {"test-windows", "test-windows-versions"}
+    for job in win["jobs"].values():
+        assert job["runs-on"] == "windows-latest" and "pytest" in _steps_text(job)
     assert "not yet a supported platform" not in (WORKFLOWS / "windows.yml").read_text(
         encoding="utf-8")
+
+
+def _setup(job, action):
+    (step,) = [s for s in job["steps"] if s.get("uses", "").startswith(f"actions/{action}@")]
+    return step
+
+
+def _run(job, name):
+    (step,) = [s for s in job["steps"] if s.get("name") == name]
+    return step["run"]
+
+
+def test_windows_runs_every_extra_and_node_like_linux():
+    """The required Windows job takes the Inspect, MLflow and promptfoo (npx) paths too."""
+    job = _workflow("windows.yml")["jobs"]["test-windows"]
+    assert str(_setup(job, "setup-python")["with"]["python-version"]) == "3.12"
+    assert str(_setup(job, "setup-node")["with"]["node-version"]) == "22"
+    assert 'pip install -e ".[dev,mlflow,inspect]"' in _run(job, "Install")
+    (test,) = [s for s in job["steps"] if s.get("name") == "Test"]
+    assert test["env"]["JUDGEKEEPER_NEEDS_NODE"] == "1"
+    assert test["run"].startswith("pytest")
+
+
+def test_windows_also_runs_the_oldest_and_newest_python():
+    job = _workflow("windows.yml")["jobs"]["test-windows-versions"]
+    assert job["strategy"]["fail-fast"] is False
+    assert job["strategy"]["matrix"]["python-version"] == ["3.11", "3.14"]
+    assert _setup(job, "setup-python")["with"]["python-version"] == "${{ matrix.python-version }}"
+    assert 'pip install -e ".[dev]"' in _run(job, "Install")
+    assert _run(job, "Test").startswith("pytest")
 
 
 def test_ci_runs_the_background_page_on_macos():
