@@ -429,8 +429,17 @@ ELSEWHERE = {
         "options"].update(model={**GRADER, "base_url": SERVER}),
     "scorer model_args": lambda e: e.update(model_roles={}) or e["scorers"][0][
         "options"].update(model=[{**GRADER, "model_args": {"trust_remote_code": 1}}]),
-    "model under test base_url": lambda e: e.update(model_base_url=SERVER),
-    "model under test args": lambda e: e.update(model_args={"trust_remote_code": 1}),
+    "model under test base_url": lambda e: e.update(model_roles={}, model_base_url=SERVER),
+    "model under test args": lambda e: e.update(model_roles={},
+                                                model_args={"trust_remote_code": 1}),
+    "model under test, other role": lambda e: e["scorers"][0]["options"].update(
+        model_role="judge") or e.update(model_base_url=SERVER),
+}
+# The model under test does not grade when a grader is set: its server and settings are unused
+GRADED_ELSEWHERE = {
+    "grader role": lambda e: None,
+    "scorer model": lambda e: e.update(model_roles={}) or e["scorers"][0]["options"].update(
+        model=GRADER),
 }
 
 
@@ -441,6 +450,20 @@ def test_a_log_that_names_a_server_or_settings_for_a_model_is_not_asked(tmp_path
     p = make_plan(ws, PY)
     assert p.status == "cant", p.why
     assert stubs("get_model") == [] and stubs("score_async") == []
+
+
+@pytest.mark.parametrize("grader", GRADED_ELSEWHERE)
+@pytest.mark.parametrize("key", ["model_base_url", "model_args"])
+def test_a_model_under_test_that_does_not_grade_keeps_its_own_settings(tmp_path, stubs, grader,
+                                                                       key):
+    ws = _checked(tmp_path, inspect_project)
+
+    def change(d):
+        GRADED_ELSEWHERE[grader](d["eval"])
+        d["eval"][key] = SERVER if key == "model_base_url" else {"trust_remote_code": 1}
+    _inspect_log(tmp_path, change)
+    p = make_plan(ws, PY)
+    assert p.status != "cant", p.why
 
 
 @pytest.mark.parametrize("grader", [True, False])

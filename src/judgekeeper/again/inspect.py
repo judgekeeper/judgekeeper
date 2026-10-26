@@ -77,12 +77,15 @@ def _set(model) -> str | None:
 
 def elsewhere(spec: dict, options: dict) -> str | None:
     """Why the log's own server or settings for a model keep it from being asked again, or
-    None: a `base_url` or `args` on a model role, the scorer's model or the model under test."""
+    None: a `base_url` or `args` on a model role, the scorer's model, or the model under test
+    when it grades (as the worker decides: no scorer model and the scorer's role is not set)."""
     found = [(f"the {name} role" if name != "grader" else "the grader", _set(model))
              for name, model in (spec.get("model_roles") or {}).items()]
-    found += [("the grader", _set(options.get("model"))),
-              ("the model under test", _set({"base_url": spec.get("model_base_url"),
-                                             "model_args": spec.get("model_args")}))]
+    found.append(("the grader", _set(options.get("model"))))
+    roles = spec.get("model_roles") or {}
+    if options.get("model") is None and options.get("model_role", "grader") not in roles:
+        found.append(("the model under test", _set({"base_url": spec.get("model_base_url"),
+                                                    "model_args": spec.get("model_args")})))
     for who, key in found:
         if key == "base_url":
             return f"your log names a server for {who} (base_url), which judgekeeper does not use"
