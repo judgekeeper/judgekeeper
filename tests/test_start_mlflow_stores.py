@@ -402,7 +402,10 @@ OUTSIDE = "outside the experiment"  # stands for the absolute path of a folder o
 
 def _plant(experiment, trace_id):
     path = experiment.joinpath("traces", trace_id, "artifacts", "traces.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:  # a name this system can't hold (Windows: tr-*): nothing to plant
+        return
     path.write_text('{"spans": []}', encoding="utf-8")
 
 
