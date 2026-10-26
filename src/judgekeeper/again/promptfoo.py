@@ -6,13 +6,17 @@ a yes); a close copy otherwise. It can't when the grader was set with `--grader`
 hidden secret, or runs the user's own code: anything but a model provider promptfoo calls over
 HTTP, an agent with tools, a rule, var, saved prompt or transform that loads a file or package,
 template code in the rule, rubric prompt or grader, or a grader setting outside a list known to
-be safe. An answer whose saved prompt or vars hold template code is left out. A version goes
-into `npx promptfoo@<version>` only when it reads as one.
+be safe. Each provider promptfoo would load from a grader is checked, also in a map by output
+type ({"text": ...}). It can't either when the config's `env:` block sets a name other than a
+key, or a `.env` sets one that starts a program or points the calls elsewhere. An answer whose
+saved prompt or vars hold template code is left out. A version goes into
+`npx promptfoo@<version>` only when it reads as one.
 
 `run` writes a temporary config and tests file next to the user's config, each answer as a
 fixed `providerOutput` with its saved vars and only its model-graded assertions. promptfoo runs
-with no cache, no writes, no sharing and telemetry off; the config's `env:` block goes into
-promptfoo's environment, never into a file. Both files are removed afterwards, also on Ctrl-C.
+with no cache, no writes, no sharing and telemetry off; the keys in the config's `env:` block
+go into promptfoo's environment, never into a file. Both files are removed afterwards, also on
+Ctrl-C.
 """
 
 from __future__ import annotations
@@ -104,7 +108,7 @@ WORD_SETTINGS = {
     "organization": re.compile(r"org-[A-Za-z0-9]{1,64}"),
     "apiKeyEnvar": re.compile(r"[A-Za-z_][A-Za-z0-9_]*"),  # which one: _other_key
 }
-VERSION = re.compile(r"\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?")
+VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?")
 CONFIG = ".judgekeeper-regrade.promptfoo.json"
 TESTS = ".judgekeeper-regrade.tests.json"
 RUN_ENV = {"PROMPTFOO_CACHE_ENABLED": "false", "PROMPTFOO_DISABLE_TELEMETRY": "1",
@@ -133,12 +137,44 @@ def calls_for(assertion: dict) -> int:
     return CALLS.get(kind, 1)
 
 
+def _text_grader(grader):
+    """The grader promptfoo grades text with: the grader, or the "text" one of a map by
+    output type."""
+    while isinstance(grader, dict) and grader.get("text") is not None:
+        grader = grader["text"]
+    return grader
+
+
 def _grader_id(grader) -> str | None:
+    grader = _text_grader(grader)
     if isinstance(grader, str):
         return grader
     if isinstance(grader, dict) and isinstance(grader.get("id"), str):
         return grader["id"]
     return None
+
+
+def loaded(grader) -> tuple[list[str], list[dict]]:
+    """(every provider id promptfoo would load from a grader, every settings dict with an
+    id). promptfoo takes a grader as text, as {id, config...}, or as a map by output type
+    ({"text": ..., "embedding": ...}), whose values are graders too; it looks in the map
+    before the id."""
+    ids: list[str] = []
+    settings: list[dict] = []
+
+    def walk(value) -> None:
+        if isinstance(value, str):
+            ids.append(value)
+        elif isinstance(value, dict):
+            for kind in GRADER_TYPES:
+                if value.get(kind) is not None:
+                    walk(value[kind])
+            if "id" in value:
+                settings.append(value)
+                if isinstance(value["id"], str):
+                    ids.append(value["id"])
+    walk(grader)
+    return ids, settings
 
 
 def _code(values) -> bool:
@@ -212,27 +248,11 @@ def _model(provider_id: str) -> bool:
 
 def _agent(grader) -> str | None:
     """The id in a grader of a provider that runs an agent with tools, or None."""
-    for i in _ids(grader):
+    for i in loaded(grader)[0]:
         parts = i.strip().lower().split(":")
         if len(parts) > 1 and parts[0] in MODEL_PROVIDERS and parts[1] in AGENT_TYPES:
             return i
     return None
-
-
-def _ids(value):
-    """The provider ids in a grader: the grader itself when it is text, else every "id"."""
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for k, v in value.items():
-            if k == "id" and isinstance(v, str):
-                yield v
-            elif isinstance(v, dict | list):
-                yield from _ids(v)
-    elif isinstance(value, list):
-        for v in value:
-            if isinstance(v, dict):
-                yield from _ids(v)
 
 
 def _transforms(value) -> bool:
@@ -284,19 +304,6 @@ def _key(value, names) -> str | None:
     return None
 
 
-def _graders(value):
-    """Each provider setting in a grader: the grader, and every dict in it with an "id"."""
-    if isinstance(value, dict):
-        if "id" in value:
-            yield value
-        for v in value.values():
-            if isinstance(v, dict | list):
-                yield from _graders(v)
-    elif isinstance(value, list):
-        for v in value:
-            yield from _graders(v)
-
-
 def _other_key(grader: dict) -> str | None:
     """apiKeyEnvar when it names a variable that is not the provider's own key."""
     name = (grader.get("config") or {}).get("apiKeyEnvar") if isinstance(
@@ -312,7 +319,8 @@ def _grader_code(grader) -> str | None:
     """What in a grader runs the user's code or sends the answers or the key elsewhere, or
     None. A results file comes with a project someone else may have written: a grader that
     reads another key or talks to another server is not your judge as you know it."""
-    for i in _ids(grader):
+    ids, settings = loaded(grader)
+    for i in ids:
         if not _model(i):
             return i
     found = _key(grader, CODE_KEYS)
@@ -320,7 +328,7 @@ def _grader_code(grader) -> str | None:
         return f"{found} in your grader's settings"
     if _transforms(grader):
         return "a transform in your grader's settings"
-    for g in _graders(grader):
+    for g in settings:
         found = _elsewhere({k: v for k, v in g.items() if k != "id"}) or _other_key(g)
         if found:
             return f"{found} in your grader's settings"
@@ -360,6 +368,62 @@ def _unknown_setting(grader) -> str | None:
             return f"its setting `{k}` is not one judgekeeper knows is safe"
         if not known:
             return f"its setting `{k}` has a value judgekeeper doesn't know is safe"
+    return None
+
+
+def grader_refusal(grader) -> tuple[str, str] | None:
+    """(why, short) when a grader is not asked again: an agent, the user's own code or
+    another server, or a setting not known to be safe. Checked on each provider promptfoo
+    would load from it (loaded), in the plan and again on the tests handed to promptfoo."""
+    agent = _agent(grader)
+    if agent:
+        return (f"your LLM-as-a-judge is an agent that can use tools ({agent})",
+                "your LLM-as-a-judge is an agent")
+    own = _grader_code(grader)
+    if own:
+        return (f"your LLM-as-a-judge runs your own code ({own})",
+                "your LLM-as-a-judge is your own code")
+    unknown = _unknown_setting(grader)
+    if unknown:
+        return unknown, "your grader has a setting judgekeeper doesn't know is safe"
+    return None
+
+
+# A name in the project's .env (which promptfoo reads itself) that starts a program or points
+# the calls at another server. NO_PROXY can only skip a proxy, so it is allowed.
+STARTS = ("NODE_", "LD_", "DYLD_", "NPM_CONFIG_", "PYTHON")
+PROGRAMS = {"PATH", "COMSPEC", "SHELL", "BASH_ENV", "ENV"}
+REDIRECTS = ("BASE_URL", "API_BASE", "HOST", "ENDPOINT", "PROXY")
+
+
+def _passed_on(graders) -> set[str]:
+    """The names of the config's `env:` block passed on to promptfoo: the key names of the
+    providers judgekeeper knows and each grader's apiKeyEnvar (checked by _other_key). Any
+    other can start a program (NODE_OPTIONS, PATH) or send the calls elsewhere."""
+    names = {n for provider in keys.PROVIDERS.values() for alt in provider.keys for n in alt}
+    for g in graders:
+        for s in loaded(g)[1]:
+            config = s.get("config")
+            if isinstance(config, dict) and isinstance(config.get("apiKeyEnvar"), str):
+                names.add(config["apiKeyEnvar"])
+    return names
+
+
+def env_refusal(root: Path, config: Path | None, graders) -> str | None:
+    """Why promptfoo is not run with this project's environment, or None: the config's `env:`
+    block sets a name judgekeeper does not pass on, or a .env promptfoo reads sets a name that
+    starts a program or redirects the calls. Names only; no value is read from a .env."""
+    allowed = _passed_on(graders)
+    for name in keys.config_env(config):
+        if name not in allowed:
+            return f"its config sets `{name}`, which judgekeeper does not pass on"
+    for name, path in sorted(keys.Sources.read("promptfoo", root, config).in_files.items()):
+        upper = name.upper()
+        if upper == "NO_PROXY":
+            continue
+        if upper in PROGRAMS or upper.startswith(STARTS) or any(w in upper for w in REDIRECTS):
+            return (f"your {path.name} sets `{name}`, which can start a program or send the "
+                    "calls to another server")
     return None
 
 
@@ -517,18 +581,14 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             return cant("promptfoo", judge,
                         "your grader's settings hold a secret written in the config, which "
                         "promptfoo hides in the results", short="your grader holds a secret")
-        agent = _agent(g)
-        if agent:
-            return cant("promptfoo", judge, "your LLM-as-a-judge is an agent that can use tools "
-                                            f"({agent})", short="your LLM-as-a-judge is an agent")
-        own = _grader_code(g)
-        if own:
-            return cant("promptfoo", judge, f"your LLM-as-a-judge runs your own code ({own})",
-                        short="your LLM-as-a-judge is your own code")
-        unknown = _unknown_setting(g)
-        if unknown:
-            return cant("promptfoo", judge, unknown,
-                        short="your grader has a setting judgekeeper doesn't know is safe")
+        refused = grader_refusal(g)
+        if refused:
+            return cant("promptfoo", judge, refused[0], short=refused[1])
+    config = _config(root)
+    refused = env_refusal(root, config, graders.values())
+    if refused:
+        return cant("promptfoo", judge, refused,
+                    short="your project sets a name judgekeeper does not pass on")
     for _, _, comps, test_opts, default_test in judged:
         for c in comps:
             a = c["assertion"]
@@ -576,7 +636,6 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                     "results don't keep",
                     short="your LLM-as-a-judge reads a trace")
 
-    config = _config(root)
     grader = next(iter(graders.values()))
     reasons, notes = [], []
     key_env = None
@@ -587,8 +646,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     else:
         model = _grader_id(grader)
         provider = keys.provider_of(model)
-        if isinstance(grader, dict):
-            key_env = (grader.get("config") or {}).get("apiKeyEnvar")
+        text = _text_grader(grader)
+        if isinstance(text, dict) and isinstance(text.get("config"), dict):
+            key_env = text["config"].get("apiKeyEnvar")
     if len(graders) > 1:
         notes.append(f"Your answers were graded by {len(graders)} different graders; the "
                      "first is named here.")
@@ -744,12 +804,14 @@ def regrade_config() -> dict:
             "evaluateOptions": {"cache": False}, "tests": f"file://{TESTS}"}
 
 
-def _config_env(config: Path | None) -> dict[str, str]:
-    """The person's config's `env:` block (the values it can read), which promptfoo uses
-    over the shell in their own runs: a key set there is the one their judge uses. Passed in
-    promptfoo's environment, never written; each credential among them is scrubbed from
+def _config_env(config: Path | None, graders) -> dict[str, str]:
+    """The keys in the person's config's `env:` block (the values it can read; _passed_on),
+    which promptfoo uses over the shell in their own runs: a key set there is the one their
+    judge uses. Passed in promptfoo's environment, never written; each is scrubbed from
     everything judgekeeper writes or prints."""
-    env = {k: v for k, v in keys.config_env(config).items() if isinstance(v, str)}
+    allowed = _passed_on(graders)
+    env = {k: v for k, v in keys.config_env(config).items()
+           if isinstance(v, str) and k in allowed}
     for name, value in env.items():
         register_secret(name, value)
     return env
@@ -766,7 +828,12 @@ def run(ws, plan: Plan, talk) -> Fresh:
     found = next((f for f in map(loads_code, tests) if f), None)
     if found:  # the plan refuses these; this is the last look before promptfoo reads them
         raise AgainError(f"your LLM-as-a-judge runs your own code ({found})")
+    graders = [t["options"].get("provider") for t in tests]
+    refused = next((r[0] for r in map(grader_refusal, graders) if r), None)
     config = _config(root)
+    refused = refused or env_refusal(root, config, graders)
+    if refused:
+        raise AgainError(refused)
     folder = plan.folder or new_folder(ws)
     make_private(folder)
     out = folder / "promptfoo.json"
@@ -785,7 +852,7 @@ def run(ws, plan: Plan, talk) -> Fresh:
         progress = again.Progress(talk, None)  # promptfoo writes its results at the end
         with again.watching(progress.tick):
             proc = again.run_process(argv, cwd=root,
-                                     env={**os.environ, **_config_env(config), **RUN_ENV})
+                                     env={**os.environ, **_config_env(config, graders), **RUN_ENV})
     finally:
         for path in files:
             path.unlink(missing_ok=True)

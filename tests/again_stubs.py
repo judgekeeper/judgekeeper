@@ -9,7 +9,8 @@ its trace id (MLflow). The plan's keys:
 - "errors": [[key, time]], the judge call raises; "values": {key: value}, a raw value instead;
 - "prompt_changed": [key], Inspect answers whose grading prompt comes back different;
 - "extra": text put into every reason (a planted secret);
-- "error_text": text put into an Inspect judge call's error, after the grading prompt.
+- "error_text": text put into an Inspect judge call's error, after the grading prompt;
+- "stored": {name: a registered MLflow scorer's stored form} (default: a make_judge's).
 """
 
 from __future__ import annotations
@@ -368,7 +369,8 @@ STUB_INSPECT = {
 STUB_MLFLOW = {
     "mlflow/__init__.py": COMMON + """
     __version__ = os.environ.get("STUB_VERSION", "3.16.1")
-    _log("import", telemetry=os.environ.get("MLFLOW_DISABLE_TELEMETRY"))
+    _log("import", telemetry=os.environ.get("MLFLOW_DISABLE_TELEMETRY"),
+         custom_scorers="MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS" in os.environ)
 
     def set_tracking_uri(uri):
         _log("set_tracking_uri", uri=uri)
@@ -457,6 +459,31 @@ STUB_MLFLOW = {
     class RelevanceToQuery(_Judge):  # as in MLflow: no expectations, no trace
         def __call__(self, *, inputs=None, outputs=None):
             return super().__call__(inputs=inputs, outputs=outputs)
+    """,
+    "mlflow/genai/scorers/registry.py": """
+    import json
+    from mlflow import _log, _plan
+    from mlflow.genai.scorers import REGISTERED
+
+    class _Version:  # as the store keeps it: the scorer's stored form, as JSON text
+        def __init__(self, name):
+            stored = _plan().get("stored", {}).get(name) or {
+                "name": name, "instructions_judge_pydantic_data": {
+                    "instructions": "Is {{ outputs }} kind?", "model": "openai:/gpt-4.1-mini"}}
+            self._serialized_scorer = json.dumps(stored)
+
+    class _Tracking:
+        def get_scorer(self, experiment_id, name, version=None):
+            _log("stored_scorer", name=name, experiment_id=experiment_id, version=version)
+            if name not in REGISTERED:
+                raise ValueError(f"no scorer {name}")
+            return _Version(name)
+
+    class _Store:
+        _tracking_store = _Tracking()
+
+    def _get_scorer_store(tracking_uri=None):
+        return _Store()
     """,
 }
 

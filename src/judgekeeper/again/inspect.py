@@ -10,8 +10,11 @@ It is exactly your judge when the installed Inspect is the version that made the
 another version it is a close copy until every counted answer's new grading prompt matches
 the saved one (`metadata.grading`); an answer whose prompt differs is not counted. A custom
 scorer can't be asked again (Inspect would import the user's task file), and rule scorers
-(`match`, `includes`) are not judges. Inspect's Python API loads no `.env`, so the worker
-calls Inspect's own loader when the user's Inspect has it.
+(`match`, `includes`) are not judges. A log that names a server (`base_url`) or settings
+(`args`, `model_args`) for a model that grades, or a template that is an online address or a
+file outside the project, can't be asked either: the log is a file that may come from someone else, and the worker never passes them
+on. Inspect's Python API loads no `.env`, so the worker calls Inspect's own loader when the
+user's Inspect has it.
 """
 
 from __future__ import annotations
@@ -39,7 +42,21 @@ RULES = {"match", "includes", "exact", "pattern", "answer", "choice", "f1", "mat
 TEMPLATE_FILE = (".txt", ".md", ".jinja", ".j2", ".tmpl")
 
 
-def cant_reason(name: str, options: dict, builtin: bool) -> str | None:
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except (OSError, ValueError):  # a long or odd template text is not a file name
+        return False
+
+
+def _outside(path: Path, root: Path) -> bool:
+    try:
+        return not path.resolve().is_relative_to(root.resolve())
+    except (OSError, ValueError, RuntimeError):
+        return True
+
+
+def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
         return (f"your LLM-as-a-judge is a rule ({base}), not a model, so asking again gives the "
@@ -48,13 +65,49 @@ def cant_reason(name: str, options: dict, builtin: bool) -> str | None:
         return (f"your LLM-as-a-judge is a custom scorer ({name}): asking again would import your "
                 "task file, which runs your code")
     template = options.get("template")
-    if isinstance(template, str) and "{" not in template and (
-            template.endswith(TEMPLATE_FILE) or "/" in template) and not Path(template).exists():
-        return f"your scorer's template is a template file ({template}) that is not here"
+    if isinstance(template, str) and "://" in template:  # Inspect reads it as an address
+        return f"your scorer's template is an online address ({template}), which Inspect would fetch"
+    if isinstance(template, str):  # Inspect reads a name that is a file as that file
+        path = Path(root, template)
+        named = template.endswith(TEMPLATE_FILE) or "/" in template or "\\" in template
+        if named or Path(template).is_absolute() or _exists(path):
+            if Path(template).is_absolute() or _outside(path, root):
+                return f"your scorer's template is a file outside your project ({template})"
+            if "{" not in template and not _exists(path):
+                return f"your scorer's template is a template file ({template}) that is not here"
     history = options.get("include_history")
     if isinstance(history, str):
         return (f"your scorer's include_history was a function ({history}), which the log "
                 "saves only by name")
+    return None
+
+
+def _set(model) -> str | None:
+    """The setting a model, as the log saves it, sets beyond its name and config: "base_url",
+    "model_args" or "args"; None when it sets none."""
+    if isinstance(model, list):
+        return next(filter(None, map(_set, model)), None)
+    if not isinstance(model, dict):
+        return None
+    return next((k for k in ("base_url", "model_args", "args") if model.get(k)), None)
+
+
+def elsewhere(spec: dict, options: dict) -> str | None:
+    """Why the log's own server or settings for a model keep it from being asked again, or
+    None: a `base_url` or `args` on a model role, the scorer's model, or the model under test
+    when it grades (as the worker decides: no scorer model and the scorer's role is not set)."""
+    found = [(f"the {name} role" if name != "grader" else "the grader", _set(model))
+             for name, model in (spec.get("model_roles") or {}).items()]
+    found.append(("the grader", _set(options.get("model"))))
+    roles = spec.get("model_roles") or {}
+    if options.get("model") is None and options.get("model_role", "grader") not in roles:
+        found.append(("the model under test", _set({"base_url": spec.get("model_base_url"),
+                                                    "model_args": spec.get("model_args")})))
+    for who, key in found:
+        if key == "base_url":
+            return f"your log names a server for {who} (base_url), which judgekeeper does not use"
+        if key:
+            return f"your log gives {who} settings ({key}), which judgekeeper does not pass on"
     return None
 
 
@@ -160,9 +213,12 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 "Update it with pip install -U inspect-ai, or activate a virtual environment that "
                 "has a newer one"),
                 short=f"needs Inspect AI {'.'.join(map(str, MIN_VERSION))} or newer")
-    reason = cant_reason(metric, options, builtin)
+    reason = cant_reason(metric, options, builtin, root)
     if reason:
         return cant("inspect", judge, reason, short=reason.split(" (")[0].split(":")[0])
+    reason = elsewhere(spec, options)
+    if reason:
+        return cant("inspect", judge, reason, short=reason.split(" (")[0])
 
     roles = spec.get("model_roles") or {}
     graders = _models(roles.get("grader")) or _models(options.get("model"))
