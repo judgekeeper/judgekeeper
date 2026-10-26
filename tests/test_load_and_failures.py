@@ -6,6 +6,7 @@ large gets its 413. Small made-up projects: each test asserts on how the work is
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -405,6 +406,71 @@ def test_a_part_in_a_compression_inspect_never_writes_is_refused(tmp_path, monke
     with pytest.raises(RecordsError) as e:
         inspect_logs._load(path)
     assert "can't be read" in str(e.value) and calls == []
+
+
+OLD_EVAL = Path(__file__).parent / "fixtures" / "inspect" / "real" / "old" / "inspect-0.3.204.eval"
+
+
+def _with_sample(tmp_path, change) -> Path:
+    """The real old .eval log, its first sample's JSON text changed by `change`."""
+    import zipfile
+
+    with zipfile.ZipFile(OLD_EVAL) as z:
+        parts = {name: z.read(name).decode("utf-8") for name in z.namelist()}
+    parts["samples/1_epoch_1.json"] = change(parts["samples/1_epoch_1.json"])
+    path = tmp_path / "2026-10-21_qa.eval"
+    _zip(path, parts, zipfile.ZIP_DEFLATED)
+    return path
+
+
+def test_an_eval_log_nested_too_deep_is_refused_unread(tmp_path, monkeypatch):
+    """A few KB can hold a sample nested 100,000 deep, which inspect_ai would take many GB to
+    read: the count of what a part unpacks to also counts how deep it goes."""
+    import time
+    import tracemalloc
+
+    pytest.importorskip("inspect_ai")
+    import inspect_ai.log
+
+    from judgekeeper.readers import read_inspect
+    from judgekeeper.records import RecordsError
+
+    deep = 100_000
+    path = _with_sample(tmp_path, lambda _: '{"id": 1, "epoch": 1, "input": "x", "target": "y", '
+                        '"metadata": ' + "[" * deep + "1" + "]" * deep + "}")
+    assert path.stat().st_size < 20_000
+    calls = []
+    for reader in ("read_eval_log", "read_eval_log_samples"):
+        monkeypatch.setattr(inspect_ai.log, reader, lambda *a, _name=reader, **k: calls.append(
+            _name))
+    tracemalloc.start()
+    start = time.monotonic()
+    try:
+        with pytest.raises(RecordsError) as e:
+            read_inspect(path)
+        took, peak = time.monotonic() - start, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert str(e.value).startswith(f"{path.name} is nested more than 500 levels deep"), e.value
+    assert calls == [] and took < 2 and peak < 20 * 2**20
+
+
+def test_brackets_and_quotes_inside_text_are_not_nesting(tmp_path, monkeypatch):
+    """Only lists and objects count: brackets in a string (with escaped quotes and
+    backslashes around them) do not, also when a string runs across the steps counted."""
+    import json
+
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.readers import inspect_logs, read_inspect
+
+    def bracketed(text):
+        sample = json.loads(text)
+        sample["metadata"] = {"note": '\\"' + "[{" * 2000 + '\\" \\'}
+        return json.dumps(sample)
+
+    path = _with_sample(tmp_path, bracketed)
+    monkeypatch.setattr(inspect_logs, "STEP", 7)
+    assert len(read_inspect(path)) == len(read_inspect(OLD_EVAL))
 
 
 def test_without_sample_reading_a_log_that_unpacks_too_big_stops(tmp_path, monkeypatch):
