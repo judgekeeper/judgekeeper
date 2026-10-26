@@ -11,7 +11,10 @@ for a judge that reads the whole trace), once per answer per time, and writes on
 the Feedback's value and rationale, or its error. The traces are only read
 (`MlflowClient.get_trace`, on the read-only store address judgekeeper gives).
 `mlflow.genai.evaluate()` is never called in any mode: it would add a run and assessments to
-the user's store. MLflow's telemetry is off.
+the user's store. MLflow's telemetry is off. A registered judge's stored form is read before it
+is got back: one that holds its own code (a custom `@scorer`) is never loaded, since MLflow
+loads it by running that code, and MLflow's switch that allows this is taken out of the
+environment.
 """
 
 import inspect
@@ -24,7 +27,10 @@ from pathlib import Path
 
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+os.environ.pop("MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS", None)  # MLflow would run a scorer's code
 TRACE_ID = re.compile(r"tr-[0-9a-f]+|[0-9a-f]{32}")  # MLflow 3's trace ids, MLflow 2's
+# In a scorer's stored form: a custom @scorer's own code, which MLflow runs to load it
+CODE_FIELDS = ("call_source", "call_signature", "original_func_name")
 
 
 def emit(path, record):
@@ -58,9 +64,31 @@ def plain(value):
     return value if isinstance(value, (str, bool, int, float)) or value is None else str(value)
 
 
+def holds_code(form):
+    """Whether a scorer's stored form holds its own code, also inside another scorer's."""
+    if isinstance(form, dict):
+        return any(form.get(k) is not None for k in CODE_FIELDS) or any(
+            holds_code(v) for v in form.values())
+    if isinstance(form, list):
+        return any(holds_code(v) for v in form)
+    return False
+
+
+def stored(name, experiment, version):
+    """A registered scorer's stored form, as the store keeps it, read without loading the
+    scorer. Raises when it is not registered or can't be read."""
+    from mlflow.genai.scorers.registry import _get_scorer_store
+
+    found = _get_scorer_store()._tracking_store.get_scorer(
+        experiment, name, int(version) if version else None)
+    return json.loads(found._serialized_scorer)
+
+
 def build(judge, scorers):
     model = judge.get("model") if judge.get("model") not in (None, "default") else None
     if judge["kind"] == "registered":
+        if holds_code(stored(judge["name"], judge.get("experiment"), judge.get("version"))):
+            raise ValueError("your LLM-as-a-judge is a custom @scorer, which runs your own code")
         kwargs = {"name": judge["name"], "experiment_id": judge.get("experiment")}
         if judge.get("version"):
             kwargs["version"] = int(judge["version"])
@@ -210,16 +238,17 @@ def main(job_path, out_path):
         return 0
     if job.get("uri"):
         mlflow.set_tracking_uri(job["uri"])
-    registered = False
+    registered, code = False, False
     try:
+        code = holds_code(stored(job["name"], job.get("experiment"), job.get("version")))
         kwargs = {"name": job["name"], "experiment_id": job.get("experiment")}
         if job.get("version"):
             kwargs["version"] = int(job["version"])
-        registered = scorers.get_scorer(**kwargs) is not None
+        registered = code or scorers.get_scorer(**kwargs) is not None  # never loaded with code
     except Exception:  # noqa: BLE001 - not registered, or no registry here
-        registered = False
+        registered, code = False, False
     emit(out_path, {"ok": True, "version": version,
-                    "registered": registered,
+                    "registered": registered, "code": code,
                     "builtin": is_builtin(scorers, job["name"], job.get("instructions"))})
     return 0
 

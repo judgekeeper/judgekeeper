@@ -89,6 +89,44 @@ def test_an_agent_grader_is_not_asked(tmp_path, grader):
     assert p.status == "cant" and "your LLM-as-a-judge is an agent that can use tools" in p.why
 
 
+# promptfoo loads a grader written as a map by output type: each provider in it is checked
+BY_TYPE = [{"text": "https://example.invalid/x"}, {"text": "webhook:https://example.invalid/x"},
+           {"text": "echo"}, {"text": "mystery:model-1"}, {"embedding": "echo"},
+           {"text": {"text": "echo"}}, {"classification": {"moderation": "echo"}},
+           {"text": "openai:gpt-4o-mini", "embedding": "echo"}]
+
+
+@pytest.mark.parametrize("grader", BY_TYPE)
+def test_a_grader_by_output_type_that_is_not_a_model_provider_is_not_asked(tmp_path, grader):
+    ws = _checked(tmp_path)
+    _graded_by(tmp_path, grader)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant" and "your own code" in p.why
+
+
+@pytest.mark.parametrize("grader", [
+    {"text": "anthropic:claude-agent-sdk"}, {"text": "openai:codex-sdk"},
+    {"text": {"text": "openai:codex-sdk"}}, {"moderation": "anthropic:claude-code"},
+])
+def test_an_agent_grader_by_output_type_is_not_asked(tmp_path, grader):
+    ws = _checked(tmp_path)
+    _graded_by(tmp_path, grader)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status == "cant" and "your LLM-as-a-judge is an agent that can use tools" in p.why
+
+
+@pytest.mark.parametrize("grader", [
+    {"text": "openai:gpt-4o-mini"},
+    {"text": {"id": "openai:gpt-4o-mini", "config": {"temperature": 0}}},
+])
+def test_a_model_grader_by_output_type_is_asked_and_named(tmp_path, grader):
+    ws = _checked(tmp_path)
+    _graded_by(tmp_path, grader)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    assert p.status != "cant", p.why
+    assert p.model == "openai:gpt-4o-mini"
+
+
 def test_a_model_named_like_an_agent_is_still_asked(tmp_path):
     ws = _checked(tmp_path)
     _graded_by(tmp_path, "openai:codex-mini-latest")

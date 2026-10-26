@@ -9,7 +9,8 @@ file) and whether Inspect's `.env` loader is there; it calls no model and touche
 Mode "run" calls that loader, reads the log without writing it, keeps the job's samples and
 rebuilds the recorded scorer from Inspect's registry with its saved options. Once per time
 asked, `score_async(..., copy=True)` re-scores a copy in memory, with every model role rebuilt
-with its cache off so each time is really asked. When a grader is set, the model under test is
+with its cache off so each time is really asked: by its name and settings only, never with a
+server (`base_url`) or `args` from the log. When a grader is set, the model under test is
 `mockllm/model`, which can't call anything. `inspect score --overwrite` is never used.
 """
 
@@ -42,21 +43,20 @@ def plain(value):
 
 def uncached(model, GenerateConfig, get_model):
     """A model as the log saved it (a name, a role's ModelConfig, or a scorer option's dict),
-    rebuilt with the same settings and its cache off."""
+    rebuilt with the same generate settings and its cache off. The log's server (`base_url`)
+    and `args` are never passed: a log can come from someone else (the plan refuses them)."""
     if isinstance(model, list):
         return [uncached(m, GenerateConfig, get_model) for m in model]
     if isinstance(model, str):
         return get_model(model, config=GenerateConfig(cache=False))
     if isinstance(model, dict):
         name, config = model.get("model"), model.get("config") or {}
-        base_url, args = model.get("base_url"), model.get("model_args") or model.get("args")
     else:
         name, config = model.model, model.config
-        base_url, args = getattr(model, "base_url", None), getattr(model, "args", None)
     if hasattr(config, "model_dump"):
         config = config.model_dump(exclude_none=True)
     config = {**(config or {}), "cache": False}
-    return get_model(name, config=GenerateConfig(**config), base_url=base_url, **(args or {}))
+    return get_model(name, config=GenerateConfig(**config))
 
 
 def scorer_from_registry(registry_create, name, options):
@@ -193,9 +193,7 @@ def run(job, out_path, version):
     if options.get("model") is not None or options.get("model_role", "grader") in roles:
         model = get_model("mockllm/model")
     else:
-        model = uncached({"model": log.eval.model, "config": log.eval.model_generate_config,
-                          "base_url": getattr(log.eval, "model_base_url", None),
-                          "args": getattr(log.eval, "model_args", None)},
+        model = uncached({"model": log.eval.model, "config": log.eval.model_generate_config},
                          GenerateConfig, get_model)
     for time in range(job["times"]):
         failed = {}

@@ -215,6 +215,59 @@ def test_fix_never_hands_on_template_code(here, capsys, judge, fixing, door):  #
     assert "AI calls" not in out
 
 
+@pytest.mark.parametrize("grader", [{"text": "anthropic:claude-agent-sdk"},
+                                    {"text": "https://example.invalid/x"}])
+def test_fix_never_hands_on_a_grader_by_output_type(here, capsys, judge,  # noqa: F811
+                                                    fixing, grader):
+    _grader(here, grader)
+    code, out = test_fix.run(capsys, "--yes")
+    assert code == 3, out
+    assert judge["evals"] == 0 and "AI calls" not in out
+
+
+def _node(monkeypatch) -> None:
+    """promptfoo's start, as far as its environment goes: node loads the file that
+    NODE_OPTIONS names with --require, as the real one would, which writes MARKER."""
+    inner = again.run_process
+
+    def runner(argv, cwd, env=None, timeout=None):
+        if "--require" in (env or {}).get("NODE_OPTIONS", ""):
+            (Path(cwd) / MARKER).write_text("ran", encoding="utf-8")
+        return inner(argv, cwd, env, timeout)
+
+    monkeypatch.setattr(again, "run_process", runner)
+
+
+def _env_block(root, *lines):
+    config = root / "promptfooconfig.yaml"
+    config.write_text(config.read_text(encoding="utf-8") + "env:\n"
+                      + "".join(f"  {line}\n" for line in lines), encoding="utf-8")
+
+
+@pytest.mark.parametrize(("line", "name"), [
+    ("NODE_OPTIONS: --require ./x.js", "NODE_OPTIONS"), ("PATH: ./bin", "PATH"),
+    ("OPENAI_BASE_URL: https://example.invalid/v1", "OPENAI_BASE_URL"),
+    ("OPENAI_TEMPERATURE: '0'", "OPENAI_TEMPERATURE"),
+])
+def test_fix_refuses_a_config_env_it_does_not_pass_on(here, capsys, judge,  # noqa: F811
+                                                       fixing, monkeypatch, line, name):
+    _node(monkeypatch)
+    _env_block(here, "OPENAI_API_KEY: sk-config-0123456789abcdef", line)
+    code, out = test_fix.run(capsys, "--yes")
+    _refused(code, out, judge, here,
+             f"its config sets `{name}`, which judgekeeper does not pass on")
+
+
+@pytest.mark.parametrize("name", ["OPENAI_BASE_URL", "ANTHROPIC_API_BASE", "NODE_OPTIONS",
+                                  "PATH", "DYLD_INSERT_LIBRARIES", "npm_config_registry",
+                                  "HTTPS_PROXY", "AZURE_OPENAI_API_HOST", "MY_ENDPOINT"])
+def test_fix_refuses_a_dotenv_that_redirects_promptfoo(here, capsys, judge,  # noqa: F811
+                                                         fixing, name):
+    (here / ".env").write_text(f"OPENAI_API_KEY=x\nexport {name}=x\n", encoding="utf-8")
+    code, out = test_fix.run(capsys, "--yes")
+    _refused(code, out, judge, here, f"your .env sets `{name}`")
+
+
 def test_fix_still_asks_a_grader_with_only_known_settings(here, capsys, judge,  # noqa: F811
                                                           fixing, runs):
     _grader(here, {"id": "openai:chat:gpt-4.1-mini", "label": "grader", "config": ALLOWED})
@@ -572,3 +625,40 @@ def test_the_last_check_finds_template_code_split_across_two_vars(tmp_path, monk
         pf.run(ws, p, SimpleNamespace(say=lambda *a, **k: None))
     assert "template code" in str(e.value)
     assert not (tmp_path / pf.CONFIG).exists() and not (tmp_path / pf.TESTS).exists()
+
+
+def test_the_last_check_finds_a_grader_by_output_type(tmp_path, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("promptfoo was started")
+
+    ws = _checked(tmp_path)
+    monkeypatch.setattr(again, "run_process", refuse)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    p.runner = ["promptfoo"]
+    answer, row, comps, opts, default = copy.deepcopy(p.payload[0])
+    p.payload[0] = (answer, row, comps, {**opts, "provider": {"text": "echo"}}, default)
+    with pytest.raises(AgainError) as e:
+        pf.run(ws, p, SimpleNamespace(say=lambda *a, **k: None))
+    assert OWN_CODE in str(e.value)
+    assert not (tmp_path / pf.CONFIG).exists() and not (tmp_path / pf.TESTS).exists()
+
+
+def test_the_last_check_finds_a_config_env_set_after_the_plan(tmp_path, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("promptfoo was started")
+
+    ws = _checked(tmp_path)
+    monkeypatch.setattr(again, "run_process", refuse)
+    p = make_plan(ws, AgainOptions(), dry=False)
+    p.runner = ["promptfoo"]
+    (tmp_path / "promptfooconfig.yaml").write_text("env:\n  NODE_OPTIONS: --require ./x.js\n",
+                                                   encoding="utf-8")
+    with pytest.raises(AgainError) as e:
+        pf.run(ws, p, SimpleNamespace(say=lambda *a, **k: None))
+    assert "`NODE_OPTIONS`" in str(e.value)
+    assert not (tmp_path / pf.CONFIG).exists() and not (tmp_path / pf.TESTS).exists()
+
+
+def test_a_version_with_other_digits_does_not_read_as_one():
+    assert pf.VERSION.fullmatch("0.124.1")
+    assert not pf.VERSION.fullmatch("٠.١٢٣.٠")

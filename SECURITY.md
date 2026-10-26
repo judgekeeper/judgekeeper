@@ -27,7 +27,7 @@ The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
 ## When it runs your project's code
 
-Asking your LLM-as-a-judge again (`judgekeeper fix` and `judgekeeper check`) runs your own eval tool and Python, so use it only in projects you trust. It asks before any AI call. What runs before it asks, and which promptfoo graders it will and won't run, are in [eval-tools.md](docs/eval-tools.md#asking-again).
+Asking your LLM-as-a-judge again (`judgekeeper fix` and `judgekeeper check`) runs your own eval tool and Python, so use it only in projects you trust. It asks before any AI call. What runs before it asks, which promptfoo graders it will and won't run, and the project settings that make it refuse, are in [eval-tools.md](docs/eval-tools.md#asking-again).
 
 ## Other things
 

@@ -418,6 +418,69 @@ def test_inspect_classification():
                            builtin=True) is None
 
 
+# A log can name a server or settings for a model; they are not used
+SERVER = "https://example.invalid/v1"
+GRADER = {"model": "openai/gpt-4.1-mini", "config": {}}
+ELSEWHERE = {
+    "role base_url": lambda e: e.update(model_roles={"grader": {**GRADER, "base_url": SERVER}}),
+    "role args": lambda e: e.update(model_roles={"grader": {**GRADER,
+                                                            "args": {"trust_remote_code": 1}}}),
+    "scorer model base_url": lambda e: e.update(model_roles={}) or e["scorers"][0][
+        "options"].update(model={**GRADER, "base_url": SERVER}),
+    "scorer model_args": lambda e: e.update(model_roles={}) or e["scorers"][0][
+        "options"].update(model=[{**GRADER, "model_args": {"trust_remote_code": 1}}]),
+    "model under test base_url": lambda e: e.update(model_base_url=SERVER),
+    "model under test args": lambda e: e.update(model_args={"trust_remote_code": 1}),
+}
+
+
+@pytest.mark.parametrize("where", ELSEWHERE)
+def test_a_log_that_names_a_server_or_settings_for_a_model_is_not_asked(tmp_path, stubs, where):
+    ws = _checked(tmp_path, inspect_project)
+    _inspect_log(tmp_path, lambda d: ELSEWHERE[where](d["eval"]))
+    p = make_plan(ws, PY)
+    assert p.status == "cant", p.why
+    assert stubs("get_model") == [] and stubs("score_async") == []
+
+
+@pytest.mark.parametrize("grader", [True, False])
+def test_the_inspect_worker_uses_no_server_or_settings_from_the_log(tmp_path, stubs, grader):
+    inspect_project(tmp_path, split(2, 1))
+
+    def change(d):
+        e = d["eval"]
+        e.update(model="openai/gpt-4o", model_base_url=SERVER, model_args={"a": 1})
+        e["model_roles"] = {"grader": {**GRADER, "base_url": SERVER, "args": {"a": 1}}} if (
+            grader) else {}
+        if grader:
+            e["scorers"][0]["options"]["model"] = {**GRADER, "base_url": SERVER,
+                                                   "model_args": {"a": 1}}
+    _inspect_log(tmp_path, change)
+    log = tmp_path / "logs" / "2026-10-02_support.json"
+    sample = json.loads(log.read_text(encoding="utf-8"))["samples"][0]
+    again.run_worker("inspect", sys.executable, {
+        "mode": "run", "log": str(log), "scorer": "model_graded_qa", "times": 1,
+        "answers": [{"id": "a", "sample": sample["id"], "epoch": sample.get("epoch")}]},
+        tmp_path)
+    made = stubs("get_model")
+    assert {e["model"] for e in made} == {"openai/gpt-4.1-mini", "mockllm/model"} if grader \
+        else {"openai/gpt-4o"}
+    assert all(e["base_url"] is None and e["args"] == {} for e in made), made
+
+
+@pytest.mark.parametrize("where", ["absolute", "outside"])
+def test_a_template_file_outside_the_project_is_not_asked(tmp_path, stubs, where):
+    root = tmp_path / "project"
+    root.mkdir()
+    ws = _checked(root, inspect_project)
+    outside = tmp_path / "grade.txt"
+    outside.write_text("Grade {answer}", encoding="utf-8")
+    template = str(outside) if where == "absolute" else "../grade.txt"
+    _inspect_log(root, lambda d: d["eval"]["scorers"][0]["options"].update(template=template))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "outside your project" in p.why
+
+
 def test_the_inspect_worker_reports_its_env_loader(tmp_path, stubs, monkeypatch):
     out = again.run_worker("inspect", sys.executable, {"mode": "dry",
                                                        "scorer": "model_graded_qa"}, tmp_path)
@@ -474,10 +537,54 @@ def test_the_mlflow_worker_dry_run(tmp_path, stubs, monkeypatch):
     out = again.run_worker("mlflow", sys.executable,
                            {"mode": "dry", "name": "tone", "version": "2"}, tmp_path,
                            env=mf.WORKER_ENV)
-    assert out == {"ok": True, "version": "3.16.1", "registered": True, "builtin": False}
+    assert out == {"ok": True, "version": "3.16.1", "registered": True, "builtin": False,
+                   "code": False}
     out = again.run_worker("mlflow", sys.executable, {"mode": "dry", "name": "safety"},
                            tmp_path, env=mf.WORKER_ENV)
     assert out["registered"] is False and out["builtin"] is True
+
+
+CUSTOM = {"name": "mine", "call_source": "return len(outputs) > 3",
+          "call_signature": "(outputs)", "original_func_name": "mine"}
+
+
+def test_the_mlflow_worker_never_lets_mlflow_rebuild_code(tmp_path, stubs, monkeypatch):
+    monkeypatch.setenv("MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS", "true")
+    again.run_worker("mlflow", sys.executable, {"mode": "dry", "name": "safety"}, tmp_path,
+                     env=mf.WORKER_ENV)
+    assert [e["custom_scorers"] for e in stubs("import")] == [False]
+
+
+@pytest.mark.parametrize("stored", [CUSTOM, {"name": "panel", "ensemble_scorer_data": {
+    "scorers": [{"name": "tone"}, CUSTOM]}}])
+def test_a_registered_custom_scorer_is_not_loaded(tmp_path, stubs, monkeypatch, stored):
+    monkeypatch.setenv("STUB_REGISTERED", "mine")
+    stubs.plan(stored={"mine": stored})
+    out = again.run_worker("mlflow", sys.executable,
+                           {"mode": "dry", "name": "mine", "experiment": "1", "version": "1"},
+                           tmp_path, env=mf.WORKER_ENV)
+    assert out["registered"] is True and out["code"] is True
+    assert mf.classify(_info(scorer_name="mine", scorer_version="1"), out)[0] == "cant"
+    job = {"mode": "run", "uri": None, "times": 1, "answers": [], "judge": {
+        "kind": "registered", "name": "mine", "experiment": "1", "version": "1"}}
+    assert not again.run_worker("mlflow", sys.executable, job, tmp_path,
+                                env=mf.WORKER_ENV).get("ok")
+    assert stubs("get_scorer") == []
+
+
+def test_the_mlflow_plan_refuses_a_registered_custom_scorer(tmp_path, stubs, monkeypatch):
+    ws = _checked(tmp_path, inspect_project)
+    data = ws.data()
+    data["tool"] = "mlflow"
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(mf, "assessment_info", lambda ws, metric: _info(
+        name="mine", scorer_name="mine", scorer_version="1", experiment="1",
+        traces=_traces(ws)))
+    monkeypatch.setenv("STUB_REGISTERED", "mine")
+    stubs.plan(stored={"mine": CUSTOM})
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "custom @scorer" in p.why
+    assert stubs("get_scorer") == []
 
 
 def test_the_mlflow_plan(tmp_path, stubs, monkeypatch, terminal):

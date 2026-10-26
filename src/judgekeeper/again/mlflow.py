@@ -98,6 +98,8 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
                       "Databricks workspace")
     name = info.get("scorer_name") or info.get("name")
     if info.get("scorer_name") and worker.get("registered"):
+        if worker.get("code"):  # the worker found its code in the store and did not load it
+            return CANT, "your LLM-as-a-judge is a custom @scorer, which runs your own code"
         if info.get("scorer_version"):
             return EXACT, (f"MLflow calls your registered LLM-as-a-judge {name}, version "
                            f"{info['scorer_version']}")
