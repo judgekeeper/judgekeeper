@@ -2,7 +2,8 @@
 
 A worker (`workers/deepeval_worker.py`) builds the user's metric in the user's own Python and
 calls `metric.measure()` directly, never `deepeval.evaluate()`, which overwrites the saved run
-and may upload it. Telemetry is off and CONFIDENT_API_KEY is not passed on.
+and may upload it. Telemetry is off and CONFIDENT_API_KEY is not passed on. DeepEval loads no
+`.env`; judgekeeper passes on from its .env files only the API key names (keys.passed_on).
 
 - GEval: each answer's saved steps and rubric come back from its `verboseLogs`, so the scoring
   prompt is the original's. Which fields it reads is not saved: `--fields`, or a question.
@@ -74,6 +75,12 @@ NOT_CONFIRMED = "which fields your LLM-as-a-judge reads was not confirmed"
 OLLAMA = "A DeepEval LLM-as-a-judge on Ollama can't be asked again yet."
 WORKER_ENV = {"DEEPEVAL_TELEMETRY_OPT_OUT": "1"}
 WORKER_DROP = ("CONFIDENT_API_KEY", "DEEPEVAL_RESULTS_FOLDER")
+
+
+def _env(root) -> dict[str, str]:
+    """The worker's environment on top of the shell's: WORKER_ENV and the API keys from the
+    project's .env files, which DeepEval does not load itself when judgekeeper runs it."""
+    return {**keys.passed_on("deepeval", root, keys.key_names()), **WORKER_ENV}
 _RUBRIC = re.compile(r"(\d+)(?:-(\d+))?: (.*)\Z")
 
 
@@ -363,7 +370,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     named = by_name(model)[0] if SUFFIX.search(model) and not _on_ollama(model) else None
     if dry:
         out = again.run_worker("deepeval", python, {"mode": "dry", "metric": metric_job(
-            found[0][2], fields, named)}, root, env=WORKER_ENV, drop=WORKER_DROP)
+            found[0][2], fields, named)}, root, env=_env(root), drop=WORKER_DROP)
         if not out.get("ok"):
             if out.get("missing"):
                 return cant("deepeval", judge, f"DeepEval is not installed in "
@@ -399,7 +406,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 return cant("deepeval", judge, f"{head}; {why_not}, so judgekeeper can't build "
                             "it again", short=short)
             out = again.run_worker("deepeval", python, {"mode": "dry", "metric": metric_job(
-                found[0][2], fields, built)}, root, env=WORKER_ENV, drop=WORKER_DROP)
+                found[0][2], fields, built)}, root, env=_env(root), drop=WORKER_DROP)
             if not out.get("ok"):
                 return cant("deepeval", judge, f"{head}; DeepEval could not build {model} by "
                             f"name: {out.get('error')}", short=short)
@@ -444,6 +451,9 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
             i, o = prices.tokens_from_text(text)
             tokens.append((i * n, o * n))
     check = keys.check(model, "deepeval", root)
+    if check.not_passed:
+        why = keys.not_passed_why(check.not_passed) + ("; " + why if status == CLOSE else "")
+        status = CLOSE
     left = []
     gone = len(answers) - len(found) - unreadable
     if gone:
@@ -464,7 +474,8 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 status=status, why=why, model=model, provider=check.provider,
                 key_lines=check.lines, notes=notes, calls_each=calls_each,
                 calls_note="at least" if at_least else "", tokens=tokens, left_out=left,
-                settings=check.settings, key_ok=check.ok, key_step=check.step, tool_version=version,
+                settings=check.settings, not_passed=check.not_passed, key_ok=check.ok,
+                key_step=check.step, tool_version=version,
                 runner=[python], payload=payload,
                 side_effects=[(f"Your eval's code is not run. DeepEval measures your metric "
                                f"directly in {again.your_python(python)}; never deepeval.evaluate(), so "
@@ -488,7 +499,7 @@ def _turned(found: list, version: str | None) -> str | None:
 
 def run(ws, plan: Plan, talk) -> Fresh:
     """Measure each labeled answer `plan.times` times with the user's own DeepEval."""
-    fresh, got, done = worker_run.ask(ws, plan, talk, "DeepEval", env=WORKER_ENV,
+    fresh, got, done = worker_run.ask(ws, plan, talk, "DeepEval", env=_env(ws.root),
                                       drop=WORKER_DROP)
     version = done.get("version") or plan.tool_version
     firsts = worker_run.count(fresh, plan, got, "DeepEval",

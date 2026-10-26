@@ -674,8 +674,9 @@ def _fake_fix_judge(root, monkeypatch):
         fake = holder["fake"]
         if "eval" in argv:
             holder["evals"] += 1
-            config = json.loads((Path(cwd) / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
-            tests = json.loads((Path(cwd) / config["tests"].removeprefix("file://"))
+            path = Path(cwd) / argv[argv.index("-c") + 1]
+            config = json.loads(path.read_text(encoding="utf-8"))
+            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
                                .read_text(encoding="utf-8"))
             fake.flips = {(t["description"], 0) for t in tests
                           if t["assert"][0]["value"] == NEW_RULE

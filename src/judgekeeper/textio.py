@@ -555,14 +555,18 @@ def held_back(arg: str | Path) -> bool:
                              or not str(arg).isprintable())
 
 
-def quote_arg(arg: str | Path) -> str:
+def quote_arg(arg: str | Path, kept: bool = False) -> str:
     """`arg` as one argument of a command the user pastes; quoted only when it needs it. On
     Windows an argument quotes can't keep as text stays out of the command: PLACEHOLDER
-    stands in its place, and `held_lines` says it as data under the line that shows it."""
+    stands in its place, and `held_lines` says it as data under the line that shows it.
+    `kept`: the command is kept in a file or on the page, where no line under it says the
+    value, so a held-back value is written in single quotes (its POSIX form) instead."""
     text = str(arg)
     if is_windows():
         if _plain_on_windows(text):
             return subprocess.list2cmdline([text])  # double quotes: cmd.exe and PowerShell
+        if held_back(text) and kept:
+            return shlex.quote(text)
         if held_back(text):
             _held[text] = None
             return PLACEHOLDER
@@ -576,10 +580,12 @@ def quote_arg(arg: str | Path) -> str:
 
 def held_lines(text: str) -> list[str]:
     """A line for each value `quote_arg` left out of a command, as data, once `text` (a line
-    about to be said) shows PLACEHOLDER. Each is said once."""
+    about to be said) shows PLACEHOLDER; scrubbed, as every line said is. Each is said once."""
+    from judgekeeper.redact import scrub
+
     if not _held or not re.search(rf"\b{PLACEHOLDER}\b", text):
         return []
-    lines = [f"  {PLACEHOLDER}: {v}" for v in _held]
+    lines = [scrub(f"  {PLACEHOLDER}: {v}") for v in _held]
     _held.clear()
     return lines
 

@@ -800,6 +800,65 @@ def test_a_name_left_out_on_windows_is_said_under_its_command(tmp_path, capsys, 
                         "  NAME: 100%/results.csv"], err
 
 
+def test_a_held_back_value_is_scrubbed_where_it_is_said(monkeypatch, capsys):
+    from judgekeeper import cli
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    args = ["--tracking-uri", "https://alice:s3cr%40tpass@mlflow.example", "--metric", "x"]
+    cli._next(cli._step("run `{command}`.", args))
+    err = capsys.readouterr().err
+    assert "NAME: https://[REDACTED]@mlflow.example" in err
+    assert "s3cr" not in err
+
+
+def test_held_back_values_from_one_command_never_reach_the_next(monkeypatch, capsys):
+    from judgekeeper import cli
+
+    seen, real = [], cli.parse_args
+
+    def parse(args_list):
+        seen.append(dict(textio._held))
+        return real(args_list)
+
+    monkeypatch.setattr(cli, "parse_args", parse)
+    monkeypatch.setattr(sys, "platform", "win32")
+    textio.quote_arg("C:\\work\\100% done")  # held back by a first command in this process
+    main(["--help"])
+    main(["--help"])
+    capsys.readouterr()
+    assert seen == [{}, {}]
+
+
+def test_a_command_kept_in_a_file_or_page_holds_the_value_not_name(monkeypatch):
+    from types import SimpleNamespace
+
+    from judgekeeper import front
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    talk = SimpleNamespace(path="C:\\work\\100% done", answers={}, store=None,
+                           options={"port": 8765, "no_browser": False, "pass_if": "x>=0.5"})
+    command = front._command_of(talk, True, "mark", kept=True)
+    assert "NAME" not in command
+    assert command.endswith("mark 'C:\\work\\100% done' --pass-if \"x>=0.5\"")
+    assert textio._held == {}
+
+
+@pytest.mark.parametrize("saved", ["long", "list"])
+def test_an_odd_saved_result_never_stops_a_new_one(here, saved):
+    ws, _, _, _ = _ready(here)
+    result = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    result["made_at"] = "2026-10-26T10:00:00Z" + "A" * 300
+    ws.result_json.write_text(json.dumps(result if saved == "long" else []), encoding="utf-8")
+    session = start_label.StartSession(ws)
+    item = session.items[0]
+    session.update({"id": item["id"], "label": "fail" if item["label"] == "pass" else "pass",
+                    "seconds": 1})
+    start_label.store_result(ws, session)
+    copies = [p for p in ws.history.iterdir() if p.is_file()]
+    assert len(copies) == 1 and len(copies[0].name) <= len("result-.json") + 32
+    assert isinstance(json.loads(ws.result_json.read_text(encoding="utf-8")), dict)
+
+
 # A key split by any character the terminal drops ----------------------------------------------
 
 def test_a_key_split_by_any_dropped_character_stays_hidden(monkeypatch):

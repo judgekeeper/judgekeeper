@@ -2,11 +2,12 @@
 
     python inspect_worker.py job.json out.jsonl
 
-Standard library plus the user's installed Inspect AI. Mode "dry" reports Inspect's version,
-whether the job's scorer is one of Inspect's own (found without importing the user's task
-file) and whether Inspect's `.env` loader is there; it calls no model and touches no log.
+Standard library plus the user's installed Inspect AI. Mode "dry" reports Inspect's version
+and whether the job's scorer is one of Inspect's own (found without importing the user's task
+file); it calls no model and touches no log.
 
-Mode "run" calls that loader, reads the log without writing it, keeps the job's samples and
+Mode "run" loads no `.env` (judgekeeper passes on the API keys from it; any other name there
+could send the calls elsewhere), reads the log without writing it, keeps the job's samples and
 rebuilds the recorded scorer from Inspect's registry with its saved options. Once per time
 asked, `score_async(..., copy=True)` re-scores a copy in memory, with every model role rebuilt
 with its cache off so each time is really asked: by its name and settings only, never with a
@@ -162,12 +163,6 @@ def usage_of(sample):
 
 
 def run(job, out_path, version):
-    try:
-        from inspect_ai._util.dotenv import init_dotenv
-    except ImportError:
-        init_dotenv = None
-    if init_dotenv is not None:
-        init_dotenv()
     from inspect_ai import score_async
     from inspect_ai.model import GenerateConfig, get_model
     from inspect_ai.util import registry_create
@@ -257,13 +252,8 @@ def main(job_path, out_path):
         except Exception:  # noqa: BLE001 - a lookup error means it is not registered
             found = False
         builtin = builtin or found
-    try:
-        from inspect_ai._util.dotenv import init_dotenv  # noqa: F401 - only whether it is there
-        dotenv = True
-    except ImportError:
-        dotenv = False
     emit(out_path, {"ok": True, "version": getattr(inspect_ai, "__version__", None),
-                    "builtin": builtin, "dotenv": dotenv})
+                    "builtin": builtin})
     return 0
 
 

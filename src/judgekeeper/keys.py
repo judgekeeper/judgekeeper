@@ -6,10 +6,12 @@ in your shell)." The tool reads the key itself; judgekeeper never needs, holds, 
 stores, logs or passes on a key value.
 
 The provider comes from the judge's model, never from which keys happen to exist (promptfoo's
-default grader is the one exception: promptfoo picks it from the key names present). In `.env`
-files and promptfoo's `env:` block each line is cut at the first `=` (or `:`) and the rest is
-dropped at once; no dotenv library, since it would parse the values. Every key name found set
-in the shell is registered with `redact`, so its value is scrubbed from what a tool prints.
+default grader is the one exception: promptfoo picks it from the key names present). A `.env`
+line is read as dotenv reads it (`NAME=value`, `NAME: value`, `export`, quotes); only names are
+kept, except for `passed_on`: when judgekeeper runs the judge's tool, the tool reads no `.env`
+of the project, and judgekeeper passes on the values of the API key names alone. Every key
+name found set in the shell, and every value passed on, is registered with `redact`, so its
+value is scrubbed from what a tool prints.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper.redact import register_key_env
+from judgekeeper.redact import register_key_env, register_secret
 
 HOME = Path.home()
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
@@ -81,6 +83,16 @@ BARE = (("gpt-", "openai"), ("o1", "openai"), ("o3", "openai"), ("o4", "openai")
 TOOLS = {"promptfoo": "promptfoo", "deepeval": "DeepEval", "inspect": "Inspect AI",
          "mlflow": "MLflow"}
 LOADS_ENV = {"promptfoo", "deepeval"}
+# The tools that read no .env when judgekeeper runs them: it passes on the key names (passed_on)
+# and, for promptfoo, a number setting of the grader's provider written as a plain number
+KEYS_ONLY = {"promptfoo", "inspect", "deepeval"}
+NUMBER_SUFFIXES = ("_TEMPERATURE", "_MAX_TOKENS", "_MAX_COMPLETION_TOKENS", "_TOP_P")
+PLAIN_NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+# Names that change the judge for any provider, and the credential files a provider reads: in a
+# .env judgekeeper does not pass on, they are named like a provider's settings
+ALSO_CHANGES = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
+CREDENTIAL_FILES = {"google": ("GOOGLE_APPLICATION_CREDENTIALS",),
+                    "aws": ("AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE")}
 # promptfoo's default grader, per promptfoo version: family -> model (checked 2026-10-05).
 DEFAULT_GRADERS = {
     "0.123.1": {"openai": "gpt-5.6-sol", "anthropic": "claude-sonnet-4-6",
@@ -124,24 +136,98 @@ def provider_of(model: str | None, provider: str | None = None) -> str | None:
 
 # Names in files ---------------------------------------------------------------------------
 
-def names_in(path: Path) -> set[str]:
-    """The variable names a .env file sets. Each line is cut at its first `=`; the rest of the
-    line is never kept."""
+# dotenv's line (dotenv 17, lib/main.js LINE), which promptfoo, Inspect AI and DeepEval read
+# alike: `NAME=value` or `NAME: value`, after `export ` or not; a value quoted with ', " or `
+# (over several lines too), else up to a `#`.
+_DOTENV_LINE = re.compile(
+    r"^\s*(?:export\s+)?([A-Za-z0-9_.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|"
+    r"\s*\"(?:\\\"|[^\"])*\"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?$", re.MULTILINE)
+
+
+def _dotenv_lines(path: Path):
+    """(name, the value as written) for each line dotenv reads in a .env file, in order."""
     try:
-        lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return set()
-    names = set()
-    for line in lines:
-        line = line.strip()
-        if line.startswith("export "):
-            line = line[len("export "):].lstrip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name = line.partition("=")[0].strip()
-        if NAME.match(name):
-            names.add(name)
-    return names
+        return
+    for m in _DOTENV_LINE.finditer(text.replace("\r\n", "\n").replace("\r", "\n")):
+        yield m[1], m[2] or ""
+
+
+def names_in(path: Path) -> set[str]:
+    """The variable names a .env file sets; the values are never kept."""
+    return {name for name, _ in _dotenv_lines(path) if NAME.match(name)}
+
+
+def env_values(path: Path, names) -> dict[str, str]:
+    """The values a .env file gives the names in `names`, as dotenv reads them (a later line
+    wins). No other line's value is kept."""
+    found = {}
+    for name, value in _dotenv_lines(path):
+        if name in names:
+            value = value.strip()
+            quote = value[:1]
+            value = re.sub(r"^(['\"`])([\s\S]*)\1$", r"\2", value, flags=re.MULTILINE)
+            if quote == '"':
+                value = value.replace("\\n", "\n").replace("\\r", "\r")
+            found[name] = value
+    return found
+
+
+def key_names() -> set[str]:
+    """The API key names of the providers judgekeeper knows."""
+    return {n for p in PROVIDERS.values() for alt in p.keys for n in alt}
+
+
+def number_settings(family: str | None) -> set[str]:
+    """The settings of a provider that are a number (temperature, max tokens, top p)."""
+    p = PROVIDERS.get(family or "")
+    return {n for n in (p.settings if p else ()) if n.endswith(NUMBER_SUFFIXES)}
+
+
+def _from_files(tool: str, folder: Path, names) -> dict[str, str]:
+    """The values of `names` in the .env files `tool` reads in `folder`, in the tool's own
+    order (DeepEval: .env, then .env.<APP_ENV>, then .env.local wins)."""
+    folder = Path(folder)
+    if tool == "deepeval":
+        files = [folder / ".env"]
+        if os.environ.get("APP_ENV"):
+            files.append(folder / f".env.{os.environ['APP_ENV'].strip()}")
+        files.append(folder / ".env.local")
+    else:
+        files = [_nearest_env(folder) if tool == "inspect" else folder / ".env"]
+    found: dict[str, str] = {}
+    for path in files:
+        found.update(env_values(path, names))
+    return found
+
+
+def passed_on(tool: str, folder: Path, names, numbers=()) -> dict[str, str]:
+    """The values of `names` (key names) and `numbers` (number_settings, kept only when
+    written as a plain number) that the .env files `tool` reads would give it, leaving out a
+    name the shell sets: the shell's own wins, as in the tool. judgekeeper passes these on
+    itself, since the tool reads no .env when judgekeeper runs it. Each value is registered
+    with `redact`."""
+    found = _from_files(tool, folder, set(names) | set(numbers))
+    found = {k: v for k, v in found.items() if k not in os.environ
+             and (k in names or PLAIN_NUMBER.fullmatch(v.strip()))}
+    for name, value in found.items():
+        register_secret(name, value)
+    return found
+
+
+def not_passed_line(names: list[str]) -> str:
+    """What the plan says about settings a .env sets that judgekeeper does not pass on."""
+    one = len(names) == 1
+    it = "it" if one else "them"
+    return (f"{_and(names)} {'is' if one else 'are'} set in .env, which judgekeeper does not "
+            f"pass on: your LLM-as-a-judge is asked without {it}. To use {it}, set {it} in your "
+            "shell.")
+
+
+def not_passed_why(names: list[str]) -> str:
+    """The reason a plan is a close copy when a .env sets a name judgekeeper does not pass on."""
+    return f"your .env sets {_and(names)}, which judgekeeper does not pass on"
 
 
 def config_env_names(config: Path | None) -> set[str]:
@@ -291,6 +377,7 @@ class KeyCheck:
     lines: list[str]
     settings: list[str] = field(default_factory=list)  # setting names that are set
     step: str | None = None  # when not ok: "set NAME in your shell or in .env", a Next: step
+    not_passed: list[str] = field(default_factory=list)  # set only in a .env, not passed on
 
 
 def check(model: str | None, tool: str, folder: Path, provider: str | None = None,
@@ -303,22 +390,33 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
     folder = Path(folder)
     family = provider_of(model, provider)
     src = Sources.read(tool, folder, config)
-    settings = sorted({n for n in (*(PROVIDERS[family].settings if family else ()),
-                                   *TOOL_SETTINGS.get(tool, ()))
-                       if src.anywhere(n)})
+    changing = {*(PROVIDERS[family].settings if family else ()), *TOOL_SETTINGS.get(tool, ())}
+    not_passed = []
+    if tool in KEYS_ONLY:  # what only a .env sets is not passed on, but a plain number
+        changing |= {*ALSO_CHANGES,
+                  *CREDENTIAL_FILES.get(PROVIDERS[family].credentials if family else "", ())}
+        numbers = number_settings(family) if tool == "promptfoo" else set()
+        values = _from_files(tool, folder, numbers)
+        not_passed = sorted(n for n in changing if n in src.in_files and not src.shell(n)
+                            and n not in src.in_config
+                            and not PLAIN_NUMBER.fullmatch(values.get(n, "").strip()))
+    settings = sorted(n for n in changing if src.anywhere(n) and n not in not_passed)
     setting_lines = []
     if settings:
         verb = "is" if len(settings) == 1 else "are"
         pronoun = "it changes" if len(settings) == 1 else "they change"
         setting_lines = [f"{_and(settings)} {verb} set; {pronoun} your LLM-as-a-judge."]
+    if not_passed:
+        setting_lines.append(not_passed_line(not_passed))
     if family is None:
         unknown = (f"I can't tell which key your LLM-as-a-judge needs (its model is {model}); your "
                    "tool looks for it itself.")
-        return KeyCheck(None, None, True, [unknown, *setting_lines], settings)
+        return KeyCheck(None, None, True, [unknown, *setting_lines], settings,
+                        not_passed=not_passed)
     p = PROVIDERS[family]
     if family == "ollama":
         return KeyCheck(family, None, True, ["Your LLM-as-a-judge runs on Ollama; it needs no key.",
-                                             *setting_lines], settings)
+                                             *setting_lines], settings, not_passed=not_passed)
     alternatives = [(key_env,)] if key_env else list(p.keys)
     loader = TOOLS.get(tool, tool)
     for alt in alternatives:
@@ -342,22 +440,24 @@ def check(model: str | None, tool: str, folder: Path, provider: str | None = Non
                     "not load .env files"
                     + (" when judgekeeper runs it" if tool == "inspect" else "")
                     + f": set it in your shell ({how}).", *setting_lines], settings,
-                    step=f"set {name} in your shell")
+                    step=f"set {name} in your shell", not_passed=not_passed)
             where = f"in {file} {here}; {loader} loads it"
         if where:
             return KeyCheck(family, name, True, [
                 f"Your LLM-as-a-judge will use your {p.label} key ({name}, {where}).",
                 *setting_lines],
-                settings)
+                settings, not_passed=not_passed)
     creds = _credentials(p.credentials)
     if creds:
-        return KeyCheck(family, None, True, [creds, *setting_lines], settings)
+        return KeyCheck(family, None, True, [creds, *setting_lines], settings,
+                        not_passed=not_passed)
     names = [" + ".join(alt) for alt in alternatives]
     needed = names[0] + (f" (or {' or '.join(names[1:])})" if len(names) > 1 else "")
     return KeyCheck(family, names[0], False, [
         f"Your LLM-as-a-judge needs {needed}. It is not set in your shell or in .env.",
         *setting_lines],
-        settings, step=f"set {names[0]} in your shell" + (" or in .env" if loads_env else ""))
+        settings, step=f"set {names[0]} in your shell" + (" or in .env" if loads_env else ""),
+        not_passed=not_passed)
 
 
 # promptfoo's default grader ------------------------------------------------------------------

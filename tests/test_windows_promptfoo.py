@@ -8,6 +8,8 @@ argument list. Windows is faked with sys.platform; no promptfoo runs.
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
 from types import SimpleNamespace
 
@@ -111,3 +113,27 @@ def test_a_real_cmd_in_a_folder_with_a_space_starts(tmp_path, monkeypatch):
     (folder / "promptfoo").write_text("#!/bin/sh\necho 9.9.9\n", encoding="utf-8")
     (folder / "promptfoo.cmd").write_text("@echo off\r\necho 0.123.1\r\n", encoding="utf-8")
     assert pf._installed(root) == (str(folder / "promptfoo.cmd"), "0.123.1")
+
+
+@pytest.mark.parametrize("honoured", [True, False])  # Python 3.12 on honours the setting; 3.11 not
+def test_a_promptfoo_in_the_current_folder_is_never_found_on_windows(tmp_path, monkeypatch,
+                                                                     honoured):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("NoDefaultCurrentDirectoryInExePath", raising=False)
+    (tmp_path / "promptfoo.cmd").write_text("", encoding="utf-8")
+
+    def which(name, mode=os.F_OK | os.X_OK, path=None):  # Windows: the current folder first
+        if honoured and "NoDefaultCurrentDirectoryInExePath" in os.environ:
+            return None
+        return os.path.join(".", f"{name}.CMD")
+
+    monkeypatch.setattr(shutil, "which", which)
+    assert again.which("promptfoo") is None
+    assert again.which("npx") is None
+    assert "NoDefaultCurrentDirectoryInExePath" not in os.environ  # only for the lookup
+
+
+def test_a_promptfoo_inside_the_project_is_named_as_the_projects_own(tmp_path):
+    command = str(tmp_path / "tools" / "promptfoo.cmd")
+    assert start_export._question(tmp_path, command) == start_export.QUESTION.format(
+        program="tools/promptfoo.cmd")

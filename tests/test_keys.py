@@ -204,7 +204,7 @@ def test_an_unknown_provider_is_said(clean, tmp_path):
 def test_setting_variables_are_named(clean, tmp_path):
     clean.setenv("OPENAI_API_KEY", FAKE)
     clean.setenv("OPENAI_TEMPERATURE", "0.7")
-    (tmp_path / ".env").write_text("OPENAI_BASE_URL=http://proxy\n", encoding="utf-8")
+    clean.setenv("OPENAI_BASE_URL", "http://proxy")
     k = check("openai:gpt-4.1-mini", "promptfoo", tmp_path)
     assert k.settings == ["OPENAI_BASE_URL", "OPENAI_TEMPERATURE"]
     assert "OPENAI_BASE_URL and OPENAI_TEMPERATURE are set; they change your LLM-as-a-judge." in k.lines

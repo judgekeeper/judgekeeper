@@ -11,6 +11,7 @@ from __future__ import annotations
 import builtins
 import json
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -553,14 +554,24 @@ def test_a_template_file_in_the_project_is_still_asked(tmp_path, stubs, template
     assert p.status != "cant", p.why
 
 
-def test_the_inspect_worker_reports_its_env_loader(tmp_path, stubs, monkeypatch):
-    out = again.run_worker("inspect", sys.executable, {"mode": "dry",
-                                                       "scorer": "model_graded_qa"}, tmp_path)
-    assert out["dotenv"] is True
-    monkeypatch.setenv("STUB_NO_DOTENV", "1")
-    out = again.run_worker("inspect", sys.executable, {"mode": "dry",
-                                                       "scorer": "model_graded_qa"}, tmp_path)
-    assert out["ok"] is True and out["dotenv"] is False
+@pytest.mark.parametrize("template", ["~/x", "~/a b.txt", "file:/etc/hosts", "local:/etc/hosts",
+                                      "file:~/x", "C:x",
+                                      "~/{answer}"])
+def test_a_template_inspect_would_read_from_outside_is_not_asked(tmp_path, stubs, template):
+    # Each is made inside the project too, where the system allows its name, so the project
+    # can't vouch for it: Inspect reads the home folder, the root or the drive instead
+    ws = _checked(tmp_path, inspect_project)
+    try:
+        if Path(template).drive or Path(template).is_absolute():
+            raise OSError  # Windows: not a name inside the project
+        (tmp_path / template).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / template).write_text("Grade {answer}", encoding="utf-8")
+    except OSError:
+        pass
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template=template))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and template in p.why, p.why
 
 
 # MLflow --------------------------------------------------------------------------------------
@@ -736,7 +747,7 @@ def _openai_grader(root):
     (root / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
 
 
-def test_inspect_loads_env_with_its_own_loader(tmp_path, stubs, monkeypatch):
+def test_an_inspect_key_in_dotenv_is_found(tmp_path, stubs, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     ws = _checked(tmp_path, inspect_project)
     _openai_grader(tmp_path)
@@ -752,11 +763,3 @@ def test_inspect_finds_the_nearest_env_upward_as_inspect_does(tmp_path, stubs, m
     (project / ".env").unlink()
     (tmp_path / ".env").write_text("OPENAI_API_KEY=x\n", encoding="utf-8")
     assert make_plan(ws, PY).key_ok
-
-
-def test_without_inspects_loader_the_key_must_be_in_the_shell(tmp_path, stubs, monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    ws = _checked(tmp_path, inspect_project)
-    _openai_grader(tmp_path)
-    monkeypatch.setenv("STUB_NO_DOTENV", "1")
-    assert not make_plan(ws, PY).key_ok

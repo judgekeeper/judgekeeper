@@ -268,8 +268,9 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
         """The old rule grades as saved; the new rule grades as the person marked."""
         fake = holder.setdefault("fake", FakePromptfoo(Workspace(root), version="0.124.1"))
         if "eval" in argv:
-            config = json.loads((cwd / argv[argv.index("-c") + 1]).read_text(encoding="utf-8"))
-            tests = json.loads((cwd / config["tests"].removeprefix("file://"))
+            path = cwd / argv[argv.index("-c") + 1]
+            config = json.loads(path.read_text(encoding="utf-8"))
+            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
                                .read_text(encoding="utf-8"))
             fake.flips = set()
             for t in tests:

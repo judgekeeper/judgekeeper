@@ -33,6 +33,7 @@ from judgekeeper import (
     batches,
     find,
     judge_setup,
+    keys,
     marks,
     start,
     targets,
@@ -513,6 +514,8 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
                                  n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),
                                  download=downloads(plan)))
+    if plan.not_passed:
+        _wrap(said, keys.not_passed_line(plan.not_passed))
     if _can_write(setup):
         said.say(CAN_WRITE)
     answer = _go_ahead(yes)
