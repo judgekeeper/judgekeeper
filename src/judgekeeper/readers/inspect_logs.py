@@ -106,8 +106,7 @@ HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
 HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
 # values (a comma or an opening bracket) in one part: inspect_ai takes GBs to read a few KB
 # that unpack to `[0,0,...]` with millions of zeros. A part that grows with the samples may
-# hold VALUES_PER_SAMPLE more per sample in the log. The summaries are not counted: inspect_ai
-# never reads them for judgekeeper.
+# hold VALUES_PER_SAMPLE more per sample in the log.
 VALUE_LIMIT = 2_000_000
 VALUES_PER_SAMPLE = 1_000
 UNPACKS_TOO_BIG = ("{path} would unpack to more than {limit} for {part}, the most judgekeeper "
@@ -257,19 +256,6 @@ def _too_big(path: Path, sizes, whole: bool) -> None:
 
 
 EOCD, EOCD64, LOCATOR = b"PK\x05\x06", b"PK\x06\x06", b"PK\x06\x07"  # zip end records
-TAIL = 2**16 + 22 + 20 + 56  # bytes at a zip's end where any reader may look for its end
-
-
-def _found(f, start: int, end: int, marks) -> list[int]:
-    """How often each of `marks` (4 bytes) is in the file `f` from `start` to `end`."""
-    counts, keep, at = [0] * len(marks), b"", start
-    f.seek(start)
-    while at < end:
-        data = keep + f.read(min(STEP, end - at))
-        at += len(data) - len(keep)
-        counts = [c + data.count(m) for c, m in zip(counts, marks, strict=True)]
-        keep = data[-3:]
-    return counts
 
 
 def _one_table(f, parts) -> bool:
@@ -278,8 +264,7 @@ def _one_table(f, parts) -> bool:
     moves every offset by how far that is from where the end record says; inspect_ai takes
     the end record as written. So: the end record ends the file, with no comment; a zip64 end
     record sits right before it, saying the same; the table ends right where these start, at
-    the place they name; the first part starts the file; and no other end record is near the
-    end, where a reader may search."""
+    the place they name; and the first part starts the file."""
     import struct
 
     size = f.seek(0, 2)
@@ -306,11 +291,8 @@ def _one_table(f, parts) -> bool:
         (count, length, offset), end = big, at
     elif count == 0xFFFF or 0xFFFFFFFF in (length, offset):
         return False
-    if offset + length != end or count != len(parts) or min(
-            (p.header_offset for p in parts), default=offset) != 0:
-        return False
-    return _found(f, min(offset, max(0, size - TAIL)), size, (EOCD, EOCD64, LOCATOR)) == (
-        [1, 1, 1] if zip64 else [1, 0, 0])
+    return offset + length == end and count == len(parts) and min(
+        (p.header_offset for p in parts), default=offset) == 0
 
 
 def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> None:
@@ -339,8 +321,6 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> No
             most, values = (
                 (SAMPLE_LIMIT, VALUE_LIMIT) if p.filename.startswith("samples/")
                 else (HEADER_LIMIT, VALUE_LIMIT) if p.filename in HEADER_PARTS
-                else (WHOLE_LIMIT, math.inf) if p.filename == "summaries.json"
-                or p.filename.startswith("_journal/summaries/")
                 else (WHOLE_LIMIT, VALUE_LIMIT + VALUES_PER_SAMPLE * n_samples))
             try:
                 yield p.filename, _unpacks_to(f, p, most, values)

@@ -632,6 +632,21 @@ def test_a_log_with_a_second_end_record_is_refused_unread(tmp_path, monkeypatch)
     _refused_unread(path, calls)
 
 
+def test_end_record_bytes_inside_a_part_are_no_second_end_record(tmp_path):
+    """Packed data can hold an end record's bytes by chance; only the record ending the file
+    is the end record."""
+    import zipfile
+
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.readers import read_inspect
+
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(_zipped(_old_parts()))
+    with zipfile.ZipFile(path, "a", zipfile.ZIP_STORED) as z:
+        z.writestr("notes.bin", b"PK\x05\x06 PK\x06\x06 PK\x06\x07" * 3)
+    assert len(read_inspect(path)) == len(read_inspect(OLD_EVAL))
+
+
 def test_a_log_zipfile_cannot_open_is_never_handed_to_inspect(tmp_path, monkeypatch):
     calls = _watched(monkeypatch)
     path = tmp_path / "2026-10-21_qa.eval"
@@ -645,6 +660,7 @@ def test_a_log_zipfile_cannot_open_is_never_handed_to_inspect(tmp_path, monkeypa
     ("header.json", "more than 2,000,000 values for the header"),
     ("samples/1_epoch_1.json", "more than 2,000,000 values for one sample"),
     ("reductions.json", "more than 2,002,000 values for the header"),
+    ("summaries.json", "more than 2,002,000 values for the header"),
 ])
 def test_an_eval_log_with_a_wide_part_is_refused_unread(tmp_path, monkeypatch, part, said):
     """A few KB can hold `"zz": [0,0,...]` with millions of zeros, which inspect_ai would
