@@ -14,7 +14,8 @@ the Feedback's value and rationale, or its error. The traces are only read
 the user's store. MLflow's telemetry is off. A registered judge's stored form is read before it
 is got back: one that holds its own code (a custom `@scorer`) is never loaded, since MLflow
 loads it by running that code, and MLflow's switch that allows this is taken out of the
-environment.
+environment. Nor is one whose `inference_params` (MLflow passes them on with every call) hold a
+setting other than SAFE_PARAMS: `api_base` there would send the call and the key elsewhere.
 """
 
 import inspect
@@ -31,6 +32,9 @@ os.environ.pop("MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS", None)  # MLflow would run 
 TRACE_ID = re.compile(r"tr-[0-9a-f]+|[0-9a-f]{32}")  # MLflow 3's trace ids, MLflow 2's
 # In a scorer's stored form: a custom @scorer's own code, which MLflow runs to load it
 CODE_FIELDS = ("call_source", "call_signature", "original_func_name")
+# The model settings a stored judge's inference_params may hold; any other stops it loading
+SAFE_PARAMS = frozenset({"temperature", "max_tokens", "max_completion_tokens", "top_p",
+                         "top_k", "seed", "stop", "n", "presence_penalty", "frequency_penalty"})
 
 
 def emit(path, record):
@@ -74,6 +78,29 @@ def holds_code(form):
     return False
 
 
+def other_setting(params):
+    """The first key in `params`, at any depth, that is not in SAFE_PARAMS, else None."""
+    if isinstance(params, dict):
+        for key, value in params.items():
+            found = (str(key)[:60] or '""') if key not in SAFE_PARAMS else other_setting(value)
+            if found:
+                return found
+    if isinstance(params, list):
+        return next((f for f in map(other_setting, params) if f), None)
+    return None
+
+
+def unsafe_param(form):
+    """The first setting in a scorer's stored inference_params, also inside another scorer's,
+    that is not in SAFE_PARAMS, else None."""
+    if isinstance(form, dict):
+        found = other_setting(form.get("inference_params"))
+        return found or next((f for f in map(unsafe_param, form.values()) if f), None)
+    if isinstance(form, list):
+        return next((f for f in map(unsafe_param, form) if f), None)
+    return None
+
+
 def stored(name, experiment, version):
     """A registered scorer's stored form, as the store keeps it, read without loading the
     scorer. Raises when it is not registered or can't be read."""
@@ -87,8 +114,13 @@ def stored(name, experiment, version):
 def build(judge, scorers):
     model = judge.get("model") if judge.get("model") not in (None, "default") else None
     if judge["kind"] == "registered":
-        if holds_code(stored(judge["name"], judge.get("experiment"), judge.get("version"))):
+        form = stored(judge["name"], judge.get("experiment"), judge.get("version"))
+        if holds_code(form):
             raise ValueError("your LLM-as-a-judge is a custom @scorer, which runs your own code")
+        param = unsafe_param(form)
+        if param:
+            raise ValueError(f"your stored LLM-as-a-judge sets `{param}`, which judgekeeper "
+                             "does not pass on")
         kwargs = {"name": judge["name"], "experiment_id": judge.get("experiment")}
         if judge.get("version"):
             kwargs["version"] = int(judge["version"])
@@ -238,17 +270,19 @@ def main(job_path, out_path):
         return 0
     if job.get("uri"):
         mlflow.set_tracking_uri(job["uri"])
-    registered, code = False, False
+    registered, code, param = False, False, None
     try:
-        code = holds_code(stored(job["name"], job.get("experiment"), job.get("version")))
+        form = stored(job["name"], job.get("experiment"), job.get("version"))
+        code, param = holds_code(form), unsafe_param(form)
         kwargs = {"name": job["name"], "experiment_id": job.get("experiment")}
         if job.get("version"):
             kwargs["version"] = int(job["version"])
-        registered = code or scorers.get_scorer(**kwargs) is not None  # never loaded with code
+        # never loaded with code, or with a setting that is not passed on
+        registered = code or bool(param) or scorers.get_scorer(**kwargs) is not None
     except Exception:  # noqa: BLE001 - not registered, or no registry here
-        registered, code = False, False
+        registered, code, param = False, False, None
     emit(out_path, {"ok": True, "version": version,
-                    "registered": registered, "code": code,
+                    "registered": registered, "code": code, "param": param,
                     "builtin": is_builtin(scorers, job["name"], job.get("instructions"))})
     return 0
 

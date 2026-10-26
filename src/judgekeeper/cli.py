@@ -36,6 +36,7 @@ from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.textio import (
     describe_os_error,
+    flush_stdout,
     held_lines,
     is_windows,
     lenient_streams,
@@ -126,7 +127,8 @@ def version_lines(stream=None) -> list[str]:
     """What `--version` prints. In a terminal it is the install check: the install is ready,
     and what to run next. Piped (a script, CI), exactly `judgekeeper <version>`.
 
-    When the `judgekeeper` command is not on the PATH, the next step names the form that works.
+    When the `judgekeeper` command is not on the PATH, the next step names the form that works,
+    with -P so Python keeps this folder off the import path (a project's re.py never runs).
     """
     stream = sys.stdout if stream is None else stream
     try:
@@ -138,7 +140,7 @@ def version_lines(stream=None) -> list[str]:
     if started_by_uvx() or shutil.which("judgekeeper"):
         command = program()
     else:
-        command = f"{'py' if is_windows() else 'python3'} -m judgekeeper"
+        command = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
     return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
 
 
@@ -403,29 +405,19 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        return _main(argv)
+        code = _main(argv)
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
-        _quiet_stdout()
-        return EXIT_OK
+        code = EXIT_OK
     except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
         return _stopped(command_first(sys.argv[1:] if argv is None else argv))
+    flush_stdout()  # a closed pipe shows here, not in Python's own flush at exit: the code stays
+    return code
 
 
 def _stopped(args_list: list[str]) -> int:
     print("\nStopped.")
     _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
     return EXIT_STOPPED
-
-
-def _quiet_stdout() -> None:
-    """Point stdout at the null device, so Python's own flush at exit can't fail again."""
-    import os
-
-    try:
-        with open(os.devnull, "w", encoding="utf-8") as null:
-            os.dup2(null.fileno(), sys.stdout.fileno())
-    except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is an OSError
-        pass
 
 
 def _main(argv: list[str] | None) -> int:

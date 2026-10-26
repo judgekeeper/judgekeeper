@@ -14,7 +14,7 @@ from html import escape, unescape
 import pytest
 
 from judgekeeper import page, report_page, start_label
-from judgekeeper.cli import main
+from judgekeeper.cli import main, parse_args
 from judgekeeper.start_label import StartSession, Workspace
 from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
@@ -41,6 +41,29 @@ def _mark_all(ws: Workspace) -> None:
     session = StartSession(ws)
     for q in ws.data()["queue"]:
         session.update({"id": q["id"], "label": q["group"], "seconds": 7})
+
+
+@pytest.mark.parametrize("flip", [0, 3], ids=["agrees", "needs-work"])
+def test_every_command_the_measure_step_prints_parses(project, capsys, flip):
+    """Each command the result names, copied as printed, is one its command takes: `fix` and
+    `check` never get the page's flags. `flip`: every flip-th mark says the other way."""
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    ws = Workspace(project)
+    session = StartSession(ws)
+    for i, q in enumerate(ws.data()["queue"]):
+        label = q["group"] if not flip or i % flip else {"pass": "fail", "fail": "pass"}[
+            q["group"]]
+        session.update({"id": q["id"], "label": label, "seconds": 7})
+    capsys.readouterr()
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    commands = re.findall(r"`(judgekeeper [^`]*)`", out)
+    assert any(c.startswith("judgekeeper fix") for c in commands) == bool(flip), out
+    for command in commands:
+        try:
+            parse_args(shlex.split(command)[1:])
+        except SystemExit:
+            pytest.fail(f"`{command}` does not run: {capsys.readouterr().err}")
 
 
 def test_the_result_names_only_the_command_that_was_run(project, capsys):

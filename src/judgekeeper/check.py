@@ -22,7 +22,6 @@ import os
 import re
 import shutil
 import stat
-import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,6 +42,7 @@ from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import (
+    flush_stdout,
     held_lines,
     make_private,
     old_hook,
@@ -1554,7 +1554,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
 
 def _print(text: str = "") -> None:
     print(one_line(scrub(text)))
-    sys.stdout.flush()
+    flush_stdout()
 
 
 class _Printed(Said):

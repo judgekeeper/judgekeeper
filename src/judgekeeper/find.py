@@ -187,7 +187,7 @@ def table_columns(path: Path) -> list[str]:
     if path.suffix.lower() in JSONL_SUFFIXES:
         try:
             row = json.loads(first)
-        except ValueError:
+        except (ValueError, RecursionError):  # nested too deep: not a table, skipped
             return []
         return [column_name(c) for c in row] if isinstance(row, dict) else []
     try:

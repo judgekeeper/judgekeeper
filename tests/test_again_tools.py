@@ -610,7 +610,7 @@ def test_the_mlflow_worker_dry_run(tmp_path, stubs, monkeypatch):
                            {"mode": "dry", "name": "tone", "version": "2"}, tmp_path,
                            env=mf.WORKER_ENV)
     assert out == {"ok": True, "version": "3.16.1", "registered": True, "builtin": False,
-                   "code": False}
+                   "code": False, "param": None}
     out = again.run_worker("mlflow", sys.executable, {"mode": "dry", "name": "safety"},
                            tmp_path, env=mf.WORKER_ENV)
     assert out["registered"] is False and out["builtin"] is True
@@ -642,6 +642,43 @@ def test_a_registered_custom_scorer_is_not_loaded(tmp_path, stubs, monkeypatch, 
     assert not again.run_worker("mlflow", sys.executable, job, tmp_path,
                                 env=mf.WORKER_ENV).get("ok")
     assert stubs("get_scorer") == []
+
+
+def _with_params(params: dict) -> dict:
+    """A make_judge's stored form whose model settings are `params`."""
+    return {"name": "mine", "instructions_judge_pydantic_data": {
+        "instructions": "Is {{ outputs }} kind?", "model": "openai:/gpt-4.1-mini",
+        "inference_params": params}}
+
+
+@pytest.mark.parametrize("params", [{"api_base": "http://127.0.0.1:9/v1"},
+                                    {"temperature": 0, "extra_body": {"api_base": "x"}}])
+def test_a_registered_judge_that_names_a_server_is_not_loaded(tmp_path, stubs, monkeypatch,
+                                                              params):
+    monkeypatch.setenv("STUB_REGISTERED", "mine")
+    stubs.plan(stored={"mine": _with_params(params)})
+    out = again.run_worker("mlflow", sys.executable,
+                           {"mode": "dry", "name": "mine", "experiment": "1", "version": "1"},
+                           tmp_path, env=mf.WORKER_ENV)
+    assert out["registered"] is True
+    setting = next(k for k in params if k != "temperature")
+    why = f"your stored LLM-as-a-judge sets `{setting}`, which judgekeeper does not pass on"
+    assert mf.classify(_info(scorer_name="mine", scorer_version="1"), out) == ("cant", why)
+    job = {"mode": "run", "uri": None, "times": 1, "answers": [], "judge": {
+        "kind": "registered", "name": "mine", "experiment": "1", "version": "1"}}
+    assert not again.run_worker("mlflow", sys.executable, job, tmp_path,
+                                env=mf.WORKER_ENV).get("ok")
+    assert stubs("get_scorer") == []
+
+
+def test_a_registered_judge_with_only_a_temperature_is_loaded(tmp_path, stubs, monkeypatch):
+    monkeypatch.setenv("STUB_REGISTERED", "mine")
+    stubs.plan(stored={"mine": _with_params({"temperature": 0, "max_tokens": 200})})
+    out = again.run_worker("mlflow", sys.executable,
+                           {"mode": "dry", "name": "mine", "experiment": "1", "version": "1"},
+                           tmp_path, env=mf.WORKER_ENV)
+    assert mf.classify(_info(scorer_name="mine", scorer_version="1"), out)[0] == "exact"
+    assert len(stubs("get_scorer")) == 1
 
 
 def test_the_mlflow_plan_refuses_a_registered_custom_scorer(tmp_path, stubs, monkeypatch):

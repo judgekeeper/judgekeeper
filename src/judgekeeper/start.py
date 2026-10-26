@@ -64,7 +64,7 @@ from judgekeeper.table import (
     read_table,
     sheet_id,
 )
-from judgekeeper.textio import held_lines, plural, quote_arg, read_utf8, tick
+from judgekeeper.textio import flush_stdout, held_lines, plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -197,7 +197,7 @@ class Talk:
         print(said(text))
         for line in held_lines(text):  # a name left out of the command above, as data
             print(said(line))
-        sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
+        flush_stdout()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
     def choose(self, title: str, options: list[str], flag_hint: str,
@@ -978,7 +978,7 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
         talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
         talk.say("  No promptfoo results file in this folder. promptfoo keeps them in its own "
                  "database.")
-    outcome = start_export.offer(talk, root)
+    outcome = start_export.offer(talk, root, config)
     if outcome == "done":
         return _locate(talk, path, tool)
     if outcome == "commands" and screens:
@@ -1374,21 +1374,18 @@ def _promptfoo_configs(root: Path) -> dict[str, str | None]:
     return found
 
 
-def _project_description(root: Path) -> str | None:
-    """The top-level `description:` of the project's promptfoo config: a line scan, no YAML."""
-    for name in find.PROMPTFOO_CONFIGS:
-        path = root / name
-        if not path.is_file() or path.is_symlink():
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if name.endswith(".json"):
-            try:
-                value = json.loads(text).get("description")
-            except (ValueError, AttributeError, RecursionError):
-                return None
-            return value.strip() if isinstance(value, str) else None
-        return yaml_description(text)
-    return None
+def config_description(path: Path) -> str | None:
+    """The top-level `description:` of the promptfoo config at `path`: a line scan, no YAML."""
+    if not path.is_file() or path.is_symlink():
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if path.suffix.lower() == ".json":
+        try:
+            value = json.loads(text).get("description")
+        except (ValueError, AttributeError, RecursionError):
+            return None
+        return value.strip() if isinstance(value, str) else None
+    return yaml_description(text)
 
 
 def _judges(records, kind: str | None = None) -> Counter:

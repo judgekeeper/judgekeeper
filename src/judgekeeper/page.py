@@ -283,7 +283,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
         return None
     say(RESULT_LINK if result else LINK)
     print(url)  # the link whole: printed by hand, never by say
-    sys.stdout.flush()
+    textio.flush_stdout()
     return TERMINAL if at_terminal else PRINTED
 
 
