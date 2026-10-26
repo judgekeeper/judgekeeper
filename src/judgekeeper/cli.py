@@ -152,10 +152,11 @@ class _Version(argparse.Action):
 
 
 def _say(text: str, file=None, end: str = "\n") -> None:
-    """Print text that may quote an input file: control characters are dropped."""
-    print(printable(text), file=file, end=end)
+    """Print text that may quote an input file as one line: control characters are dropped,
+    line breaks become spaces."""
+    print(one_line(text), file=file, end=end)
     for line in held_lines(text):  # a name left out of the command above, as data
-        print(printable(line), file=file)
+        print(one_line(line), file=file)
 
 
 def _error(message: str) -> None:
@@ -455,7 +456,7 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_NEEDS_YOU
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
-            _say(scrub(_frames(e)), file=sys.stderr, end="")
+            print(printable(scrub(_frames(e))), file=sys.stderr, end="")
         workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
         if workspace:
             _error(workspace[0])

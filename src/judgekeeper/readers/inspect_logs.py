@@ -100,6 +100,15 @@ TOO_BIG = ("{path} is {size}. This Inspect AI version reads a log whole, so judg
 # bytes: one sample of a .eval log unpacked, its events included. Far above real samples, so
 # only a damaged or crafted log reaches it (inspect_ai unpacks a sample whole).
 SAMPLE_LIMIT = 200 * 2**20
+# The parts of a .eval log that stay small however many samples it holds; the others (samples
+# aside) grow with them: summaries.json, reductions.json, _journal/summaries/...
+HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
+HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
+# values (a comma or an opening bracket) in one part: inspect_ai takes GBs to read a few KB
+# that unpack to `[0,0,...]` with millions of zeros. A part that grows with the samples may
+# hold VALUES_PER_SAMPLE more per sample in the log.
+VALUE_LIMIT = 2_000_000
+VALUES_PER_SAMPLE = 1_000
 UNPACKS_TOO_BIG = ("{path} would unpack to more than {limit} for {part}, the most judgekeeper "
                    "reads for {part} of an Inspect AI log, so it did not read it. The log may be "
                    "damaged, or not an Inspect AI log.")
@@ -137,14 +146,20 @@ class TooDeep(ValueError):
     """A part of a .eval log nests lists and objects deeper than MAX_NESTING."""
 
 
-class _Depth:
-    """How deep the lists and objects of JSON text go, fed a step at a time, with regex and
-    bytes methods only: escapes are taken out, the text between quotes (the strings) left
-    out, and the brackets left added up. Whether a string, or an escape, goes on into the
-    next step is carried. TooDeep once past MAX_NESTING."""
+class TooWide(ValueError):
+    """A part of a .eval log holds more values than it may."""
 
-    def __init__(self):
+
+class _Depth:
+    """How deep the lists and objects of JSON text go, and how many values it holds, fed a step
+    at a time, with regex and bytes methods only: escapes are taken out, the text between
+    quotes (the strings) left out, and the brackets left added up; commas and opening brackets
+    count as values. Whether a string, or an escape, goes on into the next step is carried.
+    TooDeep once past MAX_NESTING, TooWide once past `values` values."""
+
+    def __init__(self, values: float = math.inf):
         self.depth, self.in_string, self.escaped = 0, False, False
+        self.values, self.most_values = 0, values
 
     def feed(self, text: bytes) -> None:
         if self.escaped:  # the step before ended on a backslash: this byte is escaped
@@ -162,15 +177,19 @@ class _Depth:
                 map(_DEPTH_STEP.__getitem__, brackets), initial=self.depth)) > MAX_NESTING:
             raise TooDeep("nested too deep")
         self.depth += 2 * opens - len(brackets)
+        self.values += opens + outside.count(b",")
+        if self.values > self.most_values:
+            raise TooWide("too many values")
 
 
-def _unpacks_to(f, part, most: int) -> int:
+def _unpacks_to(f, part, most: int, values: float = math.inf) -> int:
     """How many bytes the zip `part` unpacks to, counted by unpacking it STEP bytes at a time
     and keeping none; the count stops once past `most`. What it unpacks to is also looked at
-    for how deep it nests (_Depth): TooDeep past MAX_NESTING, as inspect_ai would take many GB
-    to read a few KB nested 100,000 deep. Never through zipfile.open(): for zstd it unpacks a
-    whole chunk at once, and it trusts the size the zip declares. ValueError for a part
-    inspect_ai never writes: another compression, or encrypted."""
+    for how deep it nests and how many values it holds (_Depth): TooDeep past MAX_NESTING, as
+    inspect_ai would take many GB to read a few KB nested 100,000 deep, and TooWide past
+    `values`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
+    trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
+    compression, or encrypted."""
     import struct
     import zipfile
     import zlib
@@ -181,7 +200,7 @@ def _unpacks_to(f, part, most: int) -> int:
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth()
+    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values)
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
@@ -209,51 +228,115 @@ def _unpacks_to(f, part, most: int) -> int:
     raise ValueError("not a compression inspect_ai writes")
 
 
+def _what(name: str) -> str:
+    return "one sample" if name.startswith("samples/") else "the header"
+
+
 def _too_big(path: Path, sizes, whole: bool) -> None:
-    """RecordsError at the first of `sizes` (is it a sample, its bytes unpacked; per part)
-    that passes a limit: the header parts together WHOLE_LIMIT, one sample SAMPLE_LIMIT, and
-    with `whole` (a log read whole) all of it WHOLE_LIMIT."""
-    header = total = 0
-    for is_sample, n in sizes:
+    """RecordsError at the first of `sizes` (part name, its bytes unpacked) that passes a
+    limit: one of HEADER_PARTS HEADER_LIMIT, the other header parts (they grow with the
+    samples) together WHOLE_LIMIT, one sample SAMPLE_LIMIT, and with `whole` (a log read
+    whole) all of it WHOLE_LIMIT."""
+    growing = total = 0
+    for name, n in sizes:
         total += n
-        header += 0 if is_sample else n
         if whole and total > WHOLE_LIMIT:
             raise RecordsError(TOO_BIG.format(path=path, size=f"more than {_size(WHOLE_LIMIT)} "
                                               "unpacked", limit=_size(WHOLE_LIMIT)))
-        for part, size, limit in (("the header", header, WHOLE_LIMIT),
-                                  ("one sample", n if is_sample else 0, SAMPLE_LIMIT)):
-            if size > limit:
-                raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=part,
-                                                          limit=_size(limit)))
+        if name.startswith("samples/"):
+            size, limit = n, SAMPLE_LIMIT
+        elif name in HEADER_PARTS:
+            size, limit = n, HEADER_LIMIT
+        else:
+            growing += n
+            size, limit = growing, WHOLE_LIMIT
+        if size > limit:
+            raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=_what(name),
+                                                      limit=_size(limit)))
+
+
+EOCD, EOCD64, LOCATOR = b"PK\x05\x06", b"PK\x06\x06", b"PK\x06\x07"  # zip end records
+
+
+def _one_table(f, parts) -> bool:
+    """Whether every zip reader finds the same table of contents (central directory) in the
+    zip `f`, and so the same `parts`. zipfile looks for it right before the end record and
+    moves every offset by how far that is from where the end record says; inspect_ai takes
+    the end record as written. So: the end record ends the file, with no comment; a zip64 end
+    record sits right before it, saying the same; the table ends right where these start, at
+    the place they name; and the first part starts the file."""
+    import struct
+
+    size = f.seek(0, 2)
+    if size < 22:
+        return False
+    f.seek(size - 22)
+    sig, disk, start, here, count, length, offset, comment = struct.unpack("<4s4H2LH", f.read(22))
+    if sig != EOCD or disk or start or comment or here != count:
+        return False
+    end, zip64 = size - 22, False
+    if end >= 76:
+        f.seek(end - 20)
+        sig, disk, at, disks = struct.unpack("<4sLQL", f.read(20))
+        zip64 = sig == LOCATOR
+    if zip64:
+        if disk or disks != 1 or at != end - 76:
+            return False
+        f.seek(at)
+        sig, record, _, _, disk, start, here, *big = struct.unpack("<4sQ2H2L4Q", f.read(56))
+        if sig != EOCD64 or record != 44 or disk or start or here != big[0] or any(
+                small not in (wide, full) for small, wide, full in zip(
+                    (count, length, offset), big, (0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF), strict=True)):
+            return False
+        (count, length, offset), end = big, at
+    elif count == 0xFFFF or 0xFFFFFFFF in (length, offset):
+        return False
+    return offset + length == end and count == len(parts) and min(
+        (p.header_offset for p in parts), default=offset) == 0
 
 
 def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> None:
-    """Refuse a .eval log (a zip) whose parts unpack too big (_too_big), before inspect_ai
-    reads it: first by the sizes the zip declares, then by what each part really unpacks to
-    (_unpacks_to), as a zip can declare any size. Nothing unpacked is kept, so memory stays
-    low. `samples=False`: the header parts only. A file that isn't a zip is left to
-    inspect_ai, which says so."""
+    """Refuse a .eval log (a zip) that zipfile can't open, or where it and inspect_ai could
+    find different parts (_one_table), or whose parts unpack too big (_too_big) or hold too
+    many values, before inspect_ai reads it: first by the sizes the zip declares, then by what
+    each part really unpacks to (_unpacks_to), as a zip can declare any size. Nothing unpacked
+    is kept, so memory stays low. `samples=False`: the header parts only."""
     import zipfile
 
+    unreadable = damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
+                                             "Inspect AI log")
     try:
-        with zipfile.ZipFile(path) as z:
+        with zipfile.ZipFile(path) as z, path.open("rb") as f:
             parts = z.infolist()
+            if not _one_table(f, parts):
+                raise unreadable
     except (OSError, ValueError, zipfile.BadZipFile):
-        return
+        raise unreadable from None
+    n_samples = sum(p.filename.startswith("samples/") for p in parts)
     parts = [p for p in parts if samples or not p.filename.startswith("samples/")]
-    _too_big(path, ((p.filename.startswith("samples/"), p.file_size) for p in parts), whole)
+    _too_big(path, ((p.filename, p.file_size) for p in parts), whole)
+
+    def unpacked(f):
+        for p in parts:
+            most, values = (
+                (SAMPLE_LIMIT, VALUE_LIMIT) if p.filename.startswith("samples/")
+                else (HEADER_LIMIT, VALUE_LIMIT) if p.filename in HEADER_PARTS
+                else (WHOLE_LIMIT, VALUE_LIMIT + VALUES_PER_SAMPLE * n_samples))
+            try:
+                yield p.filename, _unpacks_to(f, p, most, values)
+            except TooWide:
+                raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=_what(p.filename),
+                                                          limit=f"{values:,} values")) from None
+
     try:
         with path.open("rb") as f:
-            _too_big(path, ((p.filename.startswith("samples/"), _unpacks_to(
-                f, p, SAMPLE_LIMIT if p.filename.startswith("samples/") else WHOLE_LIMIT))
-                for p in parts), whole)
+            _too_big(path, unpacked(f), whole)
     except RecordsError:
         raise
     except TooDeep:
         raise damaged(path, "Inspect AI", NESTED) from None
     except Exception:  # noqa: BLE001 - a part that can't be unpacked: never read
-        raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
-                                          "Inspect AI log") from None
+        raise unreadable from None
 
 
 def _by_sample(path: Path, read_eval_log, read_samples) -> dict:

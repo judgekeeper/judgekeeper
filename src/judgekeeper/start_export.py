@@ -26,6 +26,7 @@ import tempfile
 from pathlib import Path
 
 from judgekeeper import again, textio
+from judgekeeper.again.fresh import AgainError
 from judgekeeper.redact import scrub
 
 LATEST = ".judgekeeper/promptfoo-latest.json"
@@ -45,13 +46,19 @@ def _promptfoo(root: Path) -> str | None:
 
 
 def _question(root: Path, command: str) -> str:
-    """The export question, naming `command`: the project's own promptfoo (any inside the
-    project, also one the PATH leads to), or one on the PATH."""
-    try:
-        inside = Path(command).resolve().relative_to(Path(root).resolve())
-    except ValueError:
-        return PATH_QUESTION.format(program=command)
-    return QUESTION.format(program=inside.as_posix())
+    """The export question, naming `command`: the project's own promptfoo (node_modules/.bin,
+    even when it links out of the project, as in an npm workspace; or any inside the project,
+    as written or once its links are followed: also one the PATH leads to), or one on the
+    PATH."""
+    if command == again.node_bin(root, "promptfoo"):
+        return QUESTION.format(program=Path(command).relative_to(root).as_posix())
+    for path, folder in ((Path(command).absolute(), Path(root).absolute()),
+                         (Path(command).resolve(), Path(root).resolve())):
+        try:
+            return QUESTION.format(program=path.relative_to(folder).as_posix())
+        except ValueError:
+            pass
+    return PATH_QUESTION.format(program=command)
 
 
 def _prompts(config: dict) -> list[str]:
@@ -104,9 +111,14 @@ def offer(talk, root: Path, config: str | None) -> str:
         return "commands"
     make_folder(Workspace(root))
     out = root / LATEST
-    with tempfile.TemporaryDirectory(prefix="judgekeeper-", ignore_cleanup_errors=True) as tmp:
-        proc = again.run_process([command, "export", "eval", "latest", "-o", str(out)],
-                                 cwd=Path(tmp), env={**os.environ, **ENV}, timeout=300)
+    try:
+        with tempfile.TemporaryDirectory(prefix="judgekeeper-",
+                                         ignore_cleanup_errors=True) as tmp:
+            proc = again.run_process([command, "export", "eval", "latest", "-o", str(out)],
+                                     cwd=Path(tmp), env={**os.environ, **ENV}, timeout=300)
+    except AgainError as e:  # a folder path cmd.exe would run part of (run_process)
+        talk.say(f"promptfoo export did not start: {e}.")
+        return "commands"
     if proc.returncode != 0 or not out.is_file():
         tail = [x for x in (proc.stderr or proc.stdout or "").strip().splitlines() if x.strip()]
         talk.say(f"promptfoo export did not work: {scrub(tail[-1]) if tail else 'no file'}")

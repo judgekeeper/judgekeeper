@@ -33,6 +33,7 @@ from judgekeeper import (
 )
 from judgekeeper.again import AgainOptions, make_plan
 from judgekeeper.cli import main
+from judgekeeper.redact import one_line
 from tests.start_projects import promptfoo_project, split
 from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
 from tests.test_fix import _write_rule, judge, project  # noqa: F401
@@ -553,7 +554,7 @@ def test_the_page_never_drops_a_connection_on_a_bad_reasons_json(here, monkeypat
     from tests.test_reasons import _post
 
     ws, passes, _, _ = _ready(here)
-    server = page.page_server(ws, 0, "judgekeeper mark")
+    server = page.page_server(ws, 0)
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     try:
@@ -769,7 +770,7 @@ def test_a_note_before_the_result_says_the_same_whatever_the_judge_said(here):
     split, m = fix.read_split(ws), fix.Marks(ws)
     agreed = next(i for i in split.seen if m.judge[i] == "pass" and m.person[i] == "pass")
     disagreed = next(i for i in split.seen if m.judge[i] == "fail" and m.person[i] == "pass")
-    server = page.page_server(ws, 0, "judgekeeper mark")
+    server = page.page_server(ws, 0)
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     try:
@@ -828,7 +829,7 @@ def test_a_trailing_backslash_does_not_escape_the_closing_quote_on_windows(monke
 def test_a_name_no_quotes_keep_as_text_is_left_out_on_windows(monkeypatch, name):
     monkeypatch.setattr(sys, "platform", "win32")
     assert textio.quote_arg(name) == "NAME"
-    assert textio.held_lines("Next: run `judgekeeper NAME`.") == [f"  NAME: {name}"]
+    assert textio.held_lines("Next: run `judgekeeper NAME`.") == [one_line(f"  NAME: {name}")]
     assert textio.held_lines("Next: run `judgekeeper NAME`.") == []  # said once
 
 
@@ -874,17 +875,17 @@ def test_held_back_values_from_one_command_never_reach_the_next(monkeypatch, cap
     assert seen == [{}, {}]
 
 
-def test_a_command_kept_in_a_file_or_page_holds_the_value_not_name(monkeypatch):
+def test_a_command_kept_in_a_file_or_page_keeps_the_value_beside_name(monkeypatch):
     from types import SimpleNamespace
 
-    from judgekeeper import front
+    from judgekeeper import front, start
 
     monkeypatch.setattr(sys, "platform", "win32")
     talk = SimpleNamespace(path="C:\\work\\100% done", answers={}, store=None,
                            options={"port": 8765, "no_browser": False, "pass_if": "x>=0.5"})
-    command = front._command_of(talk, True, "mark", kept=True)
-    assert "NAME" not in command
-    assert command.endswith("mark 'C:\\work\\100% done' --pass-if \"x>=0.5\"")
+    flags = front._flags_of(talk, True)
+    assert start.command_from(flags, "mark", kept=True).endswith('mark NAME --pass-if "x>=0.5"')
+    assert start.held_values(flags) == ["C:\\work\\100% done"]
     assert textio._held == {}
 
 

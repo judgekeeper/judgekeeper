@@ -20,7 +20,6 @@ import faulthandler
 import hashlib
 import json
 import os
-import re
 import secrets
 import sys
 import time
@@ -29,7 +28,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from judgekeeper import background, marks, start_label, textio
+from judgekeeper import background, marks, start, start_label, textio
 from judgekeeper.label import (
     DEFAULT_PORT,
     HOST,
@@ -55,7 +54,6 @@ _clock = time.monotonic
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
 OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
-_PORT_FLAG = re.compile(r" --port \d+")
 
 
 def port_free(port: int) -> bool:
@@ -99,43 +97,41 @@ def marking_session(ws: Workspace, run: str | None = None) -> StartSession:
     return StartSession(ws, status=lambda session: marking_status(session, run))
 
 
-def page_key(ws: Workspace, command: str, start_command: str) -> dict:
-    """What a page shows besides the marks: the two commands (but the port they ask for: the
-    open page keeps its own), and the check it is for."""
+def page_key(ws: Workspace, flags: dict | None) -> dict:
+    """What a page shows besides the marks: the commands its flags make (but the port they
+    ask for: the open page keeps its own), and the check it is for."""
     try:
         about = hashlib.sha256(ws.start.read_bytes()).hexdigest()
     except OSError:
         about = None
-    return {"command": _PORT_FLAG.sub("", command),
-            "start_command": _PORT_FLAG.sub("", start_command), "start": about}
+    flags = {k: v for k, v in start.saved_flags(flags).items() if k != "port"}
+    return {"flags": flags, "start": about}
 
 
-def page_server(ws: Workspace, port: int, command: str,
-                start_command: str | None = None, token: str | None = None,
-                stamp: str | None = None):
+def page_server(ws: Workspace, port: int, flags: dict | None = None,
+                token: str | None = None, stamp: str | None = None):
     """The marking page: marking, and the result. Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
-    /stop, Ctrl-C or 30 minutes idle. `command` is how to come back to it; the result keeps
-    `start_command`. `token`: the one the command made (default: a new one). `stamp`: how the
-    page with the same token was stamped before (marks.LINKS), so its marks are stamped so."""
-    start_command = start_command or textio.program()
-    session = marking_session(ws, start_command)
+    /stop, Ctrl-C or 30 minutes idle. `flags` (start.run_flags, of the run that opened it):
+    the result keeps them, and `judgekeeper mark` with them is how to come back to it.
+    `token`: the one the command made (default: a new one). `stamp`: how the page with the
+    same token was stamped before (marks.LINKS), so its marks are stamped so."""
+    session = marking_session(ws, start.command_from(flags, kept=True))
     if stamp in marks.LINKS:
         session.link = stamp
 
     def result(session: StartSession, back: str) -> str:
-        return start_label.live_result(ws, session, start_command, back)
+        return start_label.live_result(ws, session, flags, back)
 
-    return make_server(session, port, result=result,
-                       page=start_label.page_template(ws.data(), command), lock=ws.dir,
-                       stays=True, token=token,
-                       settings=page_key(ws, command, start_command))
+    template = start_label.page_template(ws.data(), start.command_from(flags, "mark", kept=True),
+                                         start.held_values(flags))
+    return make_server(session, port, result=result, page=template, lock=ws.dir, stays=True,
+                       token=token, settings=page_key(ws, flags))
 
 
 def server_for(ws: Workspace, settings: dict, token: str):
     """The marking page `settings` ask for."""
-    return page_server(ws, int(settings["port"]), str(settings["command"]),
-                       str(settings["start_command"]), token=token,
+    return page_server(ws, int(settings["port"]), settings.get("flags"), token=token,
                        stamp=settings.get("link"))
 
 
@@ -153,8 +149,8 @@ class Page:
         return self.url.replace("/?token=", "/result?token=", 1)
 
 
-def open_new(ws: Workspace, port: int, command: str, start_command: str,
-             here: bool = False, say=lambda line: None) -> Page | None:
+def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
+             say=lambda line: None) -> Page | None:
     """The page for this project, with the token of the one open (a new token when none is):
     the open page itself, on its port, when it shows the same (page_key); else it is
     closed and a page started (on its port when free, else on a free port when the default
@@ -165,7 +161,7 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
         if (old is not None and not here
-                and old["settings"] == page_key(ws, command, start_command)):
+                and old["settings"] == page_key(ws, flags)):
             return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
             background.stop(ws.dir)
@@ -178,11 +174,10 @@ def open_new(ws: Workspace, port: int, command: str, start_command: str,
         for _ in range(PICKS):
             try:
                 if here:
-                    server = page_server(ws, port, command, start_command, token=token,
-                                         stamp=stamp)
+                    server = page_server(ws, port, flags, token=token, stamp=stamp)
                     return Page(server.url, server.port, server.token, server)
-                settings = {"root": str(ws.root.resolve()), "port": port, "command": command,
-                            "start_command": start_command, "link": stamp}
+                settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
+                            "link": stamp}
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None
@@ -319,14 +314,13 @@ def _watch() -> None:
 
 def main() -> int:
     """`python -m judgekeeper.page`, as background.start runs it: one JSON line on stdin holds
-    the token, the project's root, the port and the two commands the page shows. Errors go to
-    stderr (page.log), never the token."""
+    the token, the project's root, the port and the flags of the run that opened it. Errors
+    go to stderr (page.log), never the token."""
     _watch()
     try:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
-        settings = {"port": int(given["port"]), "command": str(given["command"]),
-                    "start_command": str(given["start_command"]),
+        settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
                     "link": given.get("link")}
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()

@@ -332,9 +332,9 @@ def coach_project(root: Path, **kwargs) -> Path:
     return path
 
 
-def save_result(ws, session, say=None, command: str | None = None) -> dict:
+def save_result(ws, session, say=None, flags: dict | None = None) -> dict:
     """The result of the marks so far, as `judgekeeper` makes it (start_label.store_result);
     `say` is not used: the result is said by the command, not here."""
     from judgekeeper import start_label
 
-    return start_label.store_result(ws, session, command)
+    return start_label.store_result(ws, session, flags)

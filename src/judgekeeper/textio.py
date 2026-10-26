@@ -88,16 +88,28 @@ def started_by_uvx() -> bool:
         sys.prefix.replace("\\", "/")).parent.name.startswith("archive-v")
 
 
+def started_with_python_m() -> bool:
+    """Whether this process is `python -m judgekeeper`."""
+    spec = getattr(sys.modules.get("__main__"), "__spec__", None)
+    return getattr(spec, "name", None) == "judgekeeper.__main__"
+
+
 def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper@<version>` when uvx started
     it (uvx and pip skip betas unless the version is named, and uvx puts no `judgekeeper`
-    command on the PATH), with the extras it was started with (uvx_with); else
-    `judgekeeper`; then the subcommand."""
+    command on the PATH), with the extras it was started with (uvx_with); `python3 -P -m
+    judgekeeper` (`py` on Windows) when `python -m` started it and the `judgekeeper` command
+    is not on the PATH (-P: a project's json.py never runs); else `judgekeeper`; then the
+    subcommand."""
+    import shutil
+
     from judgekeeper import __version__
 
     name = "judgekeeper"
     if started_by_uvx():
         name = uvx_with() if extras_here() else f"uvx judgekeeper@{__version__}"
+    elif started_with_python_m() and not shutil.which("judgekeeper"):
+        name = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
     return f"{name} {subcommand}" if subcommand else name
 
 
@@ -572,16 +584,15 @@ def quote_arg(arg: str | Path, kept: bool = False) -> str:
     """`arg` as one argument of a command the user pastes; quoted only when it needs it. On
     Windows an argument quotes can't keep as text stays out of the command: PLACEHOLDER
     stands in its place, and `held_lines` says it as data under the line that shows it.
-    `kept`: the command is kept in a file or on the page, where no line under it says the
-    value, so a held-back value is written in single quotes (its POSIX form) instead."""
+    `kept`: the command is kept in a file or on the page, which say the value beside it
+    themselves (start.held_values), so no line here says it."""
     text = str(arg)
     if is_windows():
         if _plain_on_windows(text):
             return subprocess.list2cmdline([text])  # double quotes: cmd.exe and PowerShell
-        if held_back(text) and kept:
-            return shlex.quote(text)
         if held_back(text):
-            _held[text] = None
+            if not kept:
+                _held[text] = None
             return PLACEHOLDER
         backslashes = text[len(text.rstrip("\\")):]  # doubled: they don't escape the quote
         return f'"{text}{backslashes}"'
@@ -593,12 +604,13 @@ def quote_arg(arg: str | Path, kept: bool = False) -> str:
 
 def held_lines(text: str) -> list[str]:
     """A line for each value `quote_arg` left out of a command, as data, once `text` (a line
-    about to be said) shows PLACEHOLDER; scrubbed, as every line said is. Each is said once."""
-    from judgekeeper.redact import scrub
+    about to be said) shows PLACEHOLDER; scrubbed, as every line said is, and on one line, so
+    a value can't start a line of its own. Each is said once."""
+    from judgekeeper.redact import one_line, scrub
 
     if not _held or not re.search(rf"\b{PLACEHOLDER}\b", text):
         return []
-    lines = [scrub(f"  {PLACEHOLDER}: {v}") for v in _held]
+    lines = [one_line(scrub(f"  {PLACEHOLDER}: {v}")) for v in _held]
     _held.clear()
     return lines
 

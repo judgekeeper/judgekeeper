@@ -24,7 +24,7 @@ def ws(tmp_path):
 
 @pytest.fixture
 def served(ws):
-    server = page.page_server(ws, 0, "judgekeeper")
+    server = page.page_server(ws, 0)
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     yield server, thread, Client(server)

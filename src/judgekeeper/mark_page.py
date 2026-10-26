@@ -184,7 +184,7 @@ __TOP__
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
     <button type="button" class="go" id="again" hidden>Look at them</button></section>
-  <p class="foot">Come back any time: <code>__COMMAND__</code></p>
+  <p class="foot">Come back any time: <code>__COMMAND__</code>__HELD__</p>
 </main>
 </div>
 </div>
@@ -515,19 +515,23 @@ def _progress() -> str:
 
 
 def label_page(description: str | None, command: str | None = None,
-               model: str | None = None, tool: str | None = None) -> str:
-    """The marking page. `command` is what the person runs to come back; `model` and `tool`
-    name the judge in the top bar, without hidden characters (redact.visible). `description`
-    (the app the answers came from, as the results name it) is not shown: the results name
-    one source, the same on every answer.
+               model: str | None = None, tool: str | None = None,
+               held: list[str] | None = None) -> str:
+    """The marking page. `command` is what the person runs to come back, with a line under
+    it for each value it shows as NAME (`held`, on Windows); `model` and `tool` name the
+    judge in the top bar, without hidden characters (redact.visible). `description` (the app
+    the answers came from, as the results name it) is not shown: the results name one
+    source, the same on every answer.
     The server fills in __DATA__, __TOKEN__ and __NONCE__."""
-    from judgekeeper.textio import program
+    from judgekeeper.textio import PLACEHOLDER, program
 
     command = command or program("mark")
     left = look.meta(_text(visible(model)) if model else None,
                      _text(visible(tool)) if tool else None)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__COMMAND__", _text(command))
+            .replace("__HELD__", "".join(f"<br><code>{_text(f'{PLACEHOLDER}: {v}')}</code>"
+                                         for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST))
             .replace("__SEGMENTS__", str(SEGMENTS))
