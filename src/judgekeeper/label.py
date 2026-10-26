@@ -274,9 +274,16 @@ def live_lock(folder: Path) -> dict | None:
 def _answer(port: int, method: str, path: str, query: dict, body: dict | None = None,
             wait: bool = False) -> tuple[int, bytes] | None:
     """The status and body the page on `port` answers with, or None when nothing answers.
-    Never through a proxy. `wait`: an answer that does not come within PROBE_TIMEOUT raises
-    PageBusy."""
+    Never through a proxy. `wait`: an answer that does not come within PROBE_TIMEOUT once
+    connected raises PageBusy. A connection that fails or times out is nobody there: a live
+    page accepts at once, even when busy, and Windows tries a port nobody listens on again
+    for about 2 seconds before it refuses."""
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
+    try:
+        conn.connect()
+    except (OSError, ValueError):
+        conn.close()
+        return None
     try:
         data = None if body is None else json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}

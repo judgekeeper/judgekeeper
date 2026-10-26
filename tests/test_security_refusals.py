@@ -985,3 +985,20 @@ def test_a_lock_whose_page_answers_too_late_stays_and_no_second_page_starts(
     finally:
         slow.shutdown()
         slow.server_close()
+
+
+def test_a_connect_that_times_out_counts_as_nobody_there(tmp_path, monkeypatch):
+    """Windows tries a localhost port nobody listens on again for about 2 seconds before it
+    refuses: a page that is gone, not a busy one. Its lock is removed."""
+    import http.client
+
+    def slow_refusal(self):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", slow_refusal)
+    folder = tmp_path / "proj" / ".judgekeeper"
+    folder.mkdir(parents=True)
+    (folder / label.LOCK).write_text(json.dumps({
+        "pid": os.getpid(), "port": 9, "stop": "s", "token": "t" * 32}), encoding="utf-8")
+    assert not label.is_open(folder)
+    assert not (folder / label.LOCK).exists()
