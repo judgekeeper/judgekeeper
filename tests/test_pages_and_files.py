@@ -25,6 +25,7 @@ import pytest
 
 from judgekeeper import fix, label, look, mark_page, redact, report_page, start_label
 from judgekeeper.start_label import Workspace
+from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
 from tests.test_front import run
 from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _result, _text
@@ -421,19 +422,23 @@ def test_the_old_link_page_runs_no_script():
 
 # The Next step on the page, every answer marked ---------------------------------------------
 
-READING = ("judgekeeper --tool mlflow --experiment 7 --tracking-uri sqlite:///m.db --metric tone "
-           "--fields question,answer --judge-model gpt-4.1")  # every flag that reads results
+READING = {"tool": "mlflow", "experiment": "7", "tracking_uri": "sqlite:///m.db",
+           "metric": "tone", "fields": "question,answer", "judge_model": "gpt-4.1"}
+READ = ("judgekeeper mark --tool mlflow --metric tone --experiment 7 --tracking-uri "
+        f"sqlite:///m.db --judge-model gpt-4.1 --fields {quote_arg('question,answer')}")
+# every flag that reads results, in start.REPEATED's order, quoted for the system in use
 
 
 @pytest.mark.parametrize(("run", "new"), [
-    ("judgekeeper --port 8801 --no-browser", "judgekeeper mark"),
-    ("judgekeeper results.csv --port 8801 --no-browser", "judgekeeper mark results.csv"),
-    ("judgekeeper r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5' --port 8801",
-     "judgekeeper mark r.csv --label-map ok=pass,no=fail --pass-if 'score>=0.5'"),
-    (f"{READING} --no-browser", READING.replace("judgekeeper", "judgekeeper mark", 1)),
+    ({"port": 8801, "no_browser": True}, "judgekeeper mark"),
+    ({"path": "results.csv", "port": 8801, "no_browser": True}, "judgekeeper mark results.csv"),
+    ({"path": "r.csv", "label_map": "ok=pass,no=fail", "pass_if": "score>=0.5", "port": 8801},
+     (f"judgekeeper mark r.csv --pass-if {quote_arg('score>=0.5')} --label-map "
+      f"{quote_arg('ok=pass,no=fail')}")),
+    ({**READING, "no_browser": True}, READ),
 ])
 def test_every_answer_marked_names_judgekeeper_mark_without_the_page_flags(run, new):
-    r = _result(*TOO_FEW, command=run, left=0)
+    r = _result(*TOO_FEW, flags=run, left=0)
     assert r["check"] == "too_few"
     for name, html in (("result page", start_label.result_html(r, back="/?token=t")),
                        ("report.html", start_label.result_html(r))):

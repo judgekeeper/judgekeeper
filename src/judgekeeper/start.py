@@ -159,6 +159,50 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
     return tuple(words)
 
 
+def run_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
+              **values) -> dict:
+    """The path and the flags a printed command repeats (repeated_flags), as data: what
+    result.json and the page keep, so each command they show is rebuilt (command_from)."""
+    flags = {"path": str(path), "port": port, "no_browser": no_browser}
+    flags.update({name: str(values[name]) for name, _ in REPEATED
+                  if values.get(name) is not None})
+    return flags
+
+
+def saved_flags(flags) -> dict:
+    """`flags` (run_flags) as read back from a file: only what run_flags writes, each of its
+    kind and on one line; anything else is left out."""
+    if not isinstance(flags, dict):
+        return {}
+
+    def ok(value) -> bool:
+        return isinstance(value, str) and value.isprintable()
+
+    port = flags.get("port")
+    out = {"path": flags["path"]} if ok(flags.get("path")) else {}
+    if isinstance(port, int) and not isinstance(port, bool) and 0 <= port <= 65535:
+        out["port"] = port
+    if flags.get("no_browser") is True:
+        out["no_browser"] = True
+    out.update({name: flags[name] for name, _ in REPEATED if ok(flags.get(name))})
+    return out
+
+
+def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
+    """textio.program(subcommand) and the flags `flags` keep (run_flags, checked by
+    saved_flags), written again by repeated_flags: never a command's text read from a file."""
+    return " ".join((textio.program(subcommand),
+                     *repeated_flags(kept=kept, **saved_flags(flags))))
+
+
+def held_values(flags) -> list[str]:
+    """The values a kept command made from `flags` shows as NAME (quote_arg), in order: on
+    Windows, each is said beside it as data."""
+    flags = saved_flags(flags)
+    values = [flags.get("path", "."), *(flags[name] for name, _ in REPEATED if name in flags)]
+    return list(dict.fromkeys(v for v in values if v != "." and textio.held_back(v)))
+
+
 class Talk:
     """What finding the judge says, and the questions it asks when there is a person to
     answer. `flags` (repeated_flags) are what every printed command repeats."""

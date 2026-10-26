@@ -89,7 +89,7 @@ def served():
     started = []
 
     def start(ws):
-        server = page.page_server(ws, 0, "judgekeeper mark")
+        server = page.page_server(ws, 0)
         thread = threading.Thread(target=server.serve, daemon=True)
         thread.start()
         started.append((server, thread))

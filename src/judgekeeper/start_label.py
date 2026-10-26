@@ -641,7 +641,10 @@ def sentences(r: dict) -> list[str]:
     place a count is said: it explains a stop, it is not a target)."""
     if r["check"] == "too_few":
         if all_labeled(r):
-            return all_marked_lines(r["labels"], mark_command(r.get("command")))
+            from judgekeeper.start import command_from
+
+            return all_marked_lines(r["labels"],
+                                    mark_command(command_from(r.get("flags"), kept=True)))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
 
@@ -711,15 +714,16 @@ def next_marks(ws: Workspace, step: str) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
     "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
     there is nothing left to mark until the eval runs on more questions. The one place this is
-    decided."""
+    decided. Its command is made again from the flags result.json keeps, never its text."""
+    from judgekeeper.start import command_from
+
     if not every_marked(ws):
         return step
     try:
-        command = json.loads(ws.result_json.read_text(encoding="utf-8")).get("command")
+        flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
-        command = None
-    return NEXT_ALL_MARKED.format(command=mark_command(command if isinstance(command, str)
-                                                       else None))
+        flags = None
+    return NEXT_ALL_MARKED.format(command=mark_command(command_from(flags)))
 
 
 _plural = plural  # textio.plural
@@ -857,18 +861,19 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
                                                     worse=worse, last=_last_check(ws, worse)))
 
 
-def live_result(ws: Workspace, session: StartSession, command: str | None = None,
+def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
                 back: str = "/") -> str:
     """The result page the marking page serves at /result: the result from the marks so far,
-    with the reason boxes."""
-    r = store_result(ws, session, command)
+    with the reason boxes. `flags`: start.run_flags of the run that opened the page."""
+    r = store_result(ws, session, flags)
     return result_html(_scrubbed(_now(ws, r)), back, fixing=_fixing(ws))
 
 
-def page_template(about: dict | None = None, command: str | None = None) -> str:
+def page_template(about: dict | None = None, command: str | None = None,
+                  held: list[str] | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's model and tool
     are shown in the top bar; nothing else from it is (not its rule). `command`: what the
-    person runs to continue."""
+    person runs to continue; `held`: the values it shows as NAME (start.held_values)."""
     from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
@@ -876,7 +881,8 @@ def page_template(about: dict | None = None, command: str | None = None) -> str:
     about = about or {}
     return label_page(about.get("description") or about.get("app_version"), command,
                       model=(about.get("fingerprint") or {}).get("model"),
-                      tool=tool_name(about.get("tool"), about.get("results_files")))
+                      tool=tool_name(about.get("tool"), about.get("results_files")),
+                      held=held)
 
 
 def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
@@ -982,10 +988,8 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
     if not isinstance(saved, dict) or "labels" not in saved or \
             saved.get("numbers_version") == NUMBERS_VERSION:
         return False
-    command = saved.get("command")
     try:
-        store_result(ws, StartSession(ws), command if isinstance(command, str) else None,
-                     worse=worse)
+        store_result(ws, StartSession(ws), saved.get("flags"), worse=worse)
     except (OSError, ValueError, KeyError, TypeError, marks.MarksError):
         return False
     return True
@@ -1011,15 +1015,18 @@ def history_line(ws: Workspace, r: dict) -> dict:
 
 
 def store_result(ws: Workspace, session: StartSession,
-                 command: str | None = None, worse: str | None = None,
+                 flags: dict | None = None, worse: str | None = None,
                  redraw: bool = False) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
     result moves to history/; a result.html from before goes), and a line in history.jsonl.
-    `command` (start.Talk.command) is kept in it: every next command it shows starts with it.
+    `flags` (start.run_flags) are kept in it, and the command they make (start.command_from):
+    every next command it shows is made again from them.
     With no new marks since the saved result, that result stays as it is, and history.jsonl
     gets no line; `redraw` draws its report.html again. `worse`: the next step after a check
     found the new judge worse (check.worse_step), on report.html."""
-    command = command or program()
+    from judgekeeper.start import command_from, saved_flags
+
+    flags = saved_flags(flags)
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
@@ -1027,7 +1034,8 @@ def store_result(ws: Workspace, session: StartSession,
             write_report(ws, worse=worse)
         return same
     r = compute(ws, session)
-    r["command"] = command
+    r["command"] = command_from(flags, kept=True)
+    r["flags"] = flags
     r["marks_sha256"] = digest
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
                 "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],

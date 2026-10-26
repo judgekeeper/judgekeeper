@@ -23,6 +23,8 @@ FLAGS = ["--label-map", "good=pass,bad=fail", "--port", "0", "--no-browser"]
 MAP = quote_arg("good=pass,bad=fail")  # in double quotes on Windows
 BASE = f"judgekeeper evals/results.csv --label-map {MAP} --port 0 --no-browser"
 MARK = f"judgekeeper mark evals/results.csv --label-map {MAP}"  # no page flags
+RUN = {"path": "evals/results.csv", "label_map": "good=pass,bad=fail", "port": 0,
+       "no_browser": True}  # BASE, as result.json and the page keep it
 GONE = ("judgekeeper start", "--review", "--ask-again", "--try-new-judge", "--label-more",
         "--fix", "--rule-file", "--test-pass-mark")
 
@@ -95,7 +97,7 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
 
 
 def test_every_marked_line_names_the_runs_command():
-    r = {"check": "too_few", "left": 0, "labels": {"correct": 20, "wrong": 4}, "command": BASE}
+    r = {"check": "too_few", "left": 0, "labels": {"correct": 20, "wrong": 4}, "flags": RUN}
     assert f"`{MARK}`" in start_label.sentences(r)[1]  # the reading flags, not the page's
 
 
@@ -121,7 +123,7 @@ def test_marked_line_is_the_same_everywhere(
     assert f"then run `{MARK}`: the new answers join the ones you marked." in terminal
     assert main(["--stop"]) == 0  # the page that run opened: this test opens its own
     capsys.readouterr()
-    server = page.page_server(ws, 0, BASE.replace("judgekeeper", "judgekeeper mark", 1), BASE)
+    server = page.page_server(ws, 0, RUN)
     try:
         card = server.session.state()["status"]["done"][1]
         html = server.result(server.session, "/?token=t")
