@@ -13,6 +13,7 @@ model_graded_qa values:
 import hashlib
 import json
 import sys
+import zipfile
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -200,7 +201,8 @@ def test_eval_is_read_with_read_eval_log_when_installed(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "inspect_ai", pkg)
     monkeypatch.setitem(sys.modules, "inspect_ai.log", log_mod)
     path = tmp_path / "2026-09-30_qa.eval"
-    path.write_bytes(b"zip")
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("header.json", "{}")
     records = read_inspect(path)
     assert seen == [str(path)]
     assert len([r for r in records if r.name == "model_graded_qa"]) == 18 + 1

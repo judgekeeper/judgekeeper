@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+import zipfile
 
 from judgekeeper import start
 from judgekeeper.cli import main
@@ -57,7 +58,8 @@ def test_an_eval_log_is_read_with_inspect_for_its_task_file(tmp_path, monkeypatc
     monkeypatch.setitem(sys.modules, "inspect_ai.log", log)
     path = tmp_path / "logs" / "2026-10-06_quiz.eval"
     path.parent.mkdir()
-    path.write_bytes(b"PK\x03\x04")
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("header.json", "{}")
     from judgekeeper.readers.inspect_logs import eval_header
 
     assert eval_header(path)["task_file"] == "quiz.py"
