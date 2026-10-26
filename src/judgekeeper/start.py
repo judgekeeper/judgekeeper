@@ -64,7 +64,7 @@ from judgekeeper.table import (
     read_table,
     sheet_id,
 )
-from judgekeeper.textio import plural, quote_arg, read_utf8, tick
+from judgekeeper.textio import held_lines, plural, quote_arg, read_utf8, tick
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -195,6 +195,8 @@ class Talk:
         if self.quiet or (not text and self._blank):
             return
         print(said(text))
+        for line in held_lines(text):  # a name left out of the command above, as data
+            print(said(line))
         sys.stdout.flush()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 

@@ -229,18 +229,23 @@ TEMPLATE_COLUMNS = {SINGLE: ("id", "input", "output", "human_label", "notes"),
                     PAIRWISE: ("id", "input", "output_a", "output_b", "human_label", "notes")}
 
 
-# A cell starting with one of these runs as a formula in Excel, Google Sheets and LibreOffice.
-FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# A cell starting with one of these runs as a formula in Excel, Google Sheets and LibreOffice;
+# some read the full-width forms, or spaces before them, as the same.
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\uff1d", "\uff0b", "\uff0d", "\uff20")
+
+
+def _formula(text: str) -> bool:
+    return text.lstrip(" ").startswith(FORMULA_PREFIXES)
 
 
 def guard_cell(text: str) -> str:
     """Prefix a would-be formula with a quote, the way Excel marks a cell as text."""
-    return "'" + text if text.startswith(FORMULA_PREFIXES) else text
+    return "'" + text if _formula(text) else text
 
 
 def unguard_cell(text: str) -> str:
     """Undo `guard_cell` when reading a sheet judgekeeper wrote."""
-    return text[1:] if text.startswith("'") and text[1:].startswith(FORMULA_PREFIXES) else text
+    return text[1:] if text.startswith("'") and _formula(text[1:]) else text
 
 
 def _plain(value) -> str:

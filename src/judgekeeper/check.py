@@ -43,6 +43,7 @@ from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
 from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import (
+    held_lines,
     make_private,
     old_hook,
     plural,
@@ -507,6 +508,7 @@ def ask(state: State, found, setup: dict, ids: list[str], said, yes: bool,
     if wrong:  # (a): what judgekeeper would hand the eval tool is not the new judge
         out.wrong_model = wrong
         return out
+    marks.refuse_links_in(ws.dir)  # the run folder goes in checks/: never through a link
     said.say()
     _wrap(said, ASK_FIRST.format(which="the other " if rest else "your ",
                                  n=_n(len(ids), "marked answer"), calls=_n(plan.calls, "AI call"),
@@ -867,10 +869,12 @@ class Said:
         text = one_line(text)
         if not text.startswith("Next:") and len(text) <= 80:
             self.lines.append(text)
-            return
-        indent = text[:len(text) - len(text.lstrip())]
-        for line in wrap(text.strip(), indent=indent):
-            self._say(line)
+        else:
+            indent = text[:len(text) - len(text.lstrip())]
+            for line in wrap(text.strip(), indent=indent):
+                self._say(line)
+        for line in held_lines(text):  # a name left out of the command above, as data
+            self._say(one_line(line))
 
     def _say(self, line: str) -> None:
         self.lines.append(line)
@@ -1559,6 +1563,8 @@ class _Printed(Said):
     def say(self, text: str = "") -> None:
         if not text.startswith("Next:") and len(one_line(text)) <= 80:
             _print(text)
+            for line in held_lines(text):  # a name left out of the command above, as data
+                _print(line)
         else:
             super().say(text)
 

@@ -51,7 +51,11 @@ MAX_FILE = 64 * 1024  # bytes of reasons.json read: MAX_OWN buttons are far less
 MAX_PARTS = 6
 PART_CHARS = 60
 TWICE = 2  # taps that make a clue line or a suggested rule line
-KEPT_ASIDE = "this answer is kept aside to test a new rule fairly"
+# The one refusal for an answer the result page lists no reason box for: kept aside, graded
+# as the person marked it, or no result shown yet. Which of them it is would tell the judge's
+# hidden grade, or which marks are kept aside.
+NOT_LISTED = ("this answer is not on your result page yet: reasons are only for the "
+              "disagreements it lists")
 QUESTION = "Why did you mark it {mark}?"
 PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
                  "fail": "Which part did your LLM-as-a-judge get wrong?"}
@@ -250,27 +254,36 @@ def grades_shown(ws) -> bool:
 
 # Checking a post ------------------------------------------------------------------------------
 
+def _disagreements_shown(ws) -> bool:
+    """Whether the judge's grades on single answers were shown: `fix` wrote mistakes.md, or
+    the page of the saved result lists the disagreements. Before that, no answer has a
+    reason box."""
+    from judgekeeper import fix
+    from judgekeeper.report_page import shows_disagreements
+
+    if (ws.dir / fix.FOLDER / fix.MISTAKES).is_file():
+        return True
+    try:
+        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        return isinstance(r, dict) and shows_disagreements(r)
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return False
+
+
 def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
           before: dict | None = None) -> dict:
     """The fields of a reason line from a post (`body`: "reasons", "note", "rule_parts",
     "spans"), checked; a ValueError says what is wrong. A field the post leaves out keeps its
     value in `before` (the answer's line now). Only for an answer marked Pass or Fail that the
-    judge graded the other way, on the marks the person can see: the marks are set aside first
-    when the result page hasn't done it yet (fix.prepare_split)."""
+    judge graded the other way, on the marks the person can see, once the disagreements were
+    shown; every other answer gets the same NOT_LISTED."""
     from judgekeeper import fix
 
-    split = fix.read_split(ws)
-    if split is None:
-        fix.prepare_split(ws)
-        split = fix.read_split(ws)
-    if split is not None and item_id in split.hidden:
-        raise ValueError(KEPT_ASIDE)
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
-    if judge == mark:
-        raise ValueError("reasons are only for answers you and your LLM-as-a-judge disagree on")
-    if split is None or item_id not in split.seen:
-        raise ValueError("this answer is not on your result page yet: open it again")
+    split = fix.read_split(ws) if _disagreements_shown(ws) else None  # before any grade
+    if split is None or item_id in split.hidden or item_id not in split.seen or judge == mark:
+        raise ValueError(NOT_LISTED)
     data = ws.data()
     own = {c["id"] for c in own_chips(ws)}
     saved = of_line(before)

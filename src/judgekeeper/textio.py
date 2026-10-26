@@ -534,14 +534,54 @@ def unwritable_file(path: str | Path) -> str | None:
 
 # Commands for the shell in use ---------------------------------------------------------------
 
+# On Windows, letters, digits, spaces and these go in a command as they are (list2cmdline).
+_WINDOWS_PLAIN = re.compile(r"[^\W_]|[ _.\-:/\\]")
+# Inside double quotes cmd.exe still expands % and !, and PowerShell $ and the backtick; it
+# also ends the quotes at a curly double quote.
+_WINDOWS_EXPANDS = re.compile('["%!$`\u201c\u201d\u201e]')
+PLACEHOLDER = "NAME"
+_held: dict[str, None] = {}  # what quote_arg left out, in order, until a line shows NAME
+
+
+def _plain_on_windows(arg: str) -> bool:
+    return all(_WINDOWS_PLAIN.fullmatch(c) for c in arg)
+
+
+def held_back(arg: str | Path) -> bool:
+    """Whether `quote_arg` leaves `arg` out of a command: on Windows, when cmd.exe or
+    PowerShell would act on it inside double quotes, or it holds a control character or line
+    break."""
+    return is_windows() and (bool(_WINDOWS_EXPANDS.search(str(arg)))
+                             or not str(arg).isprintable())
+
+
 def quote_arg(arg: str | Path) -> str:
-    """`arg` as one argument of a command the user pastes; quoted only when it needs it."""
+    """`arg` as one argument of a command the user pastes; quoted only when it needs it. On
+    Windows an argument quotes can't keep as text stays out of the command: PLACEHOLDER
+    stands in its place, and `held_lines` says it as data under the line that shows it."""
+    text = str(arg)
     if is_windows():
-        return subprocess.list2cmdline([str(arg)])  # double quotes: cmd.exe and PowerShell
-    if "`" in str(arg):  # $'...' with \x60: no backtick, so it survives inside `...`
-        escaped = str(arg).replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
+        if _plain_on_windows(text):
+            return subprocess.list2cmdline([text])  # double quotes: cmd.exe and PowerShell
+        if held_back(text):
+            _held[text] = None
+            return PLACEHOLDER
+        backslashes = text[len(text.rstrip("\\")):]  # doubled: they don't escape the quote
+        return f'"{text}{backslashes}"'
+    if "`" in text:  # $'...' with \x60: no backtick, so it survives inside `...`
+        escaped = text.replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\x60")
         return f"$'{escaped}'"
-    return shlex.quote(str(arg))
+    return shlex.quote(text)
+
+
+def held_lines(text: str) -> list[str]:
+    """A line for each value `quote_arg` left out of a command, as data, once `text` (a line
+    about to be said) shows PLACEHOLDER. Each is said once."""
+    if not _held or not re.search(rf"\b{PLACEHOLDER}\b", text):
+        return []
+    lines = [f"  {PLACEHOLDER}: {v}" for v in _held]
+    _held.clear()
+    return lines
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split

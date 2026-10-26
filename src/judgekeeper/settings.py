@@ -163,7 +163,12 @@ def merged(text: str | None, s: StartSettings) -> str:
 
 
 def save(root: str | Path, s: StartSettings) -> None:
+    """Write the [start] table into judgekeeper.toml; a MarksError when that file is a link,
+    which is never written through."""
+    from judgekeeper.marks import refuse_link
+
     path = Path(root) / FILE
+    refuse_link(path)
     text = read_utf8(path, SettingsError) if path.is_file() else None
     write_keeping(path, merged(text, s))
 

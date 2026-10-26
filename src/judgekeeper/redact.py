@@ -69,8 +69,9 @@ _HIDDEN = ("\u00ad\u034f\u0600-\u0605\u061c\u06dd\u070f\u0890\u0891\u08e2\u115f\
            "\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\U000110bd\U000110cd\U00013430-\U0001343f"
            "\U0001bca0-\U0001bca3\U0001d173-\U0001d17a\U000e0000-\U000e0fff")
 _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
-# What can hide inside a credential: _CONTROL but tab and the line breaks
-_SPLITTERS = re.compile(f"[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
+# What can hide inside a credential: every character `printable` drops (a carriage return
+# too), so a key split by one is never joined back when it prints
+_SPLITTERS = _CONTROL
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
 _UNSEEN = re.compile(f"(?![\\u200c\\u200d])[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")

@@ -33,6 +33,7 @@ from judgekeeper.links import link, said
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.textio import (
+    held_lines,
     jsonl_lines,
     make_private,
     old_hook,
@@ -724,6 +725,8 @@ class Talk:
 
     def say(self, text: str = "") -> None:
         print(said(text))
+        for line in held_lines(text):  # a name left out of the command above, as data
+            print(said(line))
 
     def para(self, text: str, indent: str = "") -> None:
         for line in wrap(text, indent=indent):
@@ -1033,6 +1036,7 @@ def _ask_both(ws: Workspace, m: Marks, split: Split, rule: str, talk: Talk, yes:
         else:
             talk.next(f"run `{talk.command()}` again once your LLM-as-a-judge can be asked here.")
         return EXIT_NEEDS_YOU
+    marks.refuse_links_in(ws.dir)  # the run folders go in fix/runs/: never through a link
     calls = sum(p.calls for p in plans)
     talk.para(ASK.format(n=len(split.hidden), calls=plural(calls, "AI call"))
               + downloads(plans[0]))

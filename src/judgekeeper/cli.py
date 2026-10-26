@@ -5,7 +5,7 @@ it with no AI call, opens the marking page, and prints the result once there are
 `mark` (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on
 the marks (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps hidden.
 `check` and `fix` ask before any call to the LLM-as-a-judge. Exit codes: 0 success, 2 usage
-error, 3 the person is needed, 130 Ctrl-C.
+error, 3 the person is needed (a link where judgekeeper writes, too), 130 Ctrl-C.
 
 Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
 with no better message never prints its own text, which can hold an answer's text: one line
@@ -28,6 +28,7 @@ from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
 from judgekeeper.label import LabelError
 from judgekeeper.mapper import MapError
+from judgekeeper.marks import MarksError
 from judgekeeper.normalise import NormaliseError
 from judgekeeper.redact import one_line, printable, scrub
 from judgekeeper.settings import SettingsError
@@ -35,6 +36,7 @@ from judgekeeper.start import StartError
 from judgekeeper.table import TableError
 from judgekeeper.textio import (
     describe_os_error,
+    held_lines,
     is_windows,
     lenient_streams,
     program,
@@ -45,6 +47,7 @@ from judgekeeper.textio import (
 
 EXIT_OK = 0
 EXIT_USAGE = 2
+EXIT_NEEDS_YOU = 3
 EXIT_STOPPED = 130  # Ctrl-C, as shells report it
 ISSUES = "https://github.com/judgekeeper/judgekeeper/issues"
 UNEXPECTED = ("judgekeeper hit a problem it didn't expect reading {what}. Please report it: "
@@ -56,6 +59,7 @@ NEXT_UNEXPECTED = NEXT_REPORT + " `--debug` shows where it went wrong, without y
 NEXT_WRITE = ("make this folder writable (judgekeeper keeps its files in .judgekeeper/ here), "
               "then run `{command}`.")
 NEXT_PATH = "check the path, then run `{command}`."
+NEXT_LINK = "remove that link, then run `{command}`."
 NEXT_HELP = "run `{command}` to see the options."
 NEXT_REMOVED = "run `{command}` in your project."
 NEXT_STOPPED = "run `{command}` to carry on."
@@ -147,6 +151,8 @@ class _Version(argparse.Action):
 def _say(text: str, file=None, end: str = "\n") -> None:
     """Print text that may quote an input file: control characters are dropped."""
     print(printable(text), file=file, end=end)
+    for line in held_lines(text):  # a name left out of the command above, as data
+        print(printable(line), file=file)
 
 
 def _error(message: str) -> None:
@@ -445,6 +451,10 @@ def _main(argv: list[str] | None) -> int:
         _next(_step(getattr(e, "next_step", None) or NEXT_FIX, args_list,
                     getattr(e, "drop", None)))
         return EXIT_USAGE
+    except MarksError as e:  # a link where judgekeeper writes: it says which
+        _error(str(e))
+        _next(_step(NEXT_LINK, args_list))
+        return EXIT_NEEDS_YOU
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
             _say(scrub(_frames(e)), file=sys.stderr, end="")
