@@ -418,3 +418,58 @@ def test_on_a_wide_screen_the_card_does_not_scroll():
     """Next to the list, the card is already in view: focus moves without a scroll."""
     got = _run(_PICK, before=_phone(1400))
     assert got == {"at": "Question 4?", "scrolled": []}
+
+
+# The input shows once -------------------------------------------------------------------------
+
+SHOWN = """
+  function parts(e) { return e.children.map(function (c) { return [c.className, c.textContent]; }); }
+  var side = ids["queue"].children[0].children[0].children.filter(function (c) {
+    return c.className === "q"; })[0];
+  console.log(JSON.stringify({heading: ids["q-label"].textContent, hidden: ids["q-row"].hidden,
+    text: ids["q-text"].textContent, parts: parts(ids["q-text"]),
+    answer: ids["a-text"].textContent, side: side.textContent}));"""
+
+
+def _input(value, output: str) -> dict:
+    data = _data(1)
+    data["items"][0].update(input=value, output=output)
+    return data
+
+
+def test_a_part_that_is_the_answer_is_left_out_and_one_part_shows_as_plain_text():
+    got = _run(SHOWN, data=_input([["question", "Q"], ["answer", " A "]], "A"))
+    assert got["heading"] == "Question" and got["hidden"] is False
+    assert got["text"] == "Q" and got["parts"] == [] and got["answer"] == "A"
+    assert got["side"] == "Q"
+
+
+def test_two_parts_left_show_under_input_with_their_names():
+    got = _run(SHOWN, data=_input([["question", "Q"], ["context", "C"]], "X"))
+    assert got["heading"] == "Input" and got["hidden"] is False
+    assert got["parts"] == [["field-name", "question"], ["field", "Q"],
+                            ["field-name", "context"], ["field", "C"]]
+    assert got["side"] == "Q"
+
+
+def test_an_input_that_is_only_the_answer_hides_the_question_row():
+    got = _run(SHOWN, data=_input([["answer", "A"]], "A"))
+    assert got["hidden"] is True and got["text"] == "" and got["answer"] == "A"
+    assert got["side"] == ""
+
+
+def test_a_plain_text_input_is_unchanged():
+    got = _run(SHOWN, data=_input("Is it A?\nSecond line", "A"))
+    assert got["heading"] == "Question" and got["hidden"] is False
+    assert got["text"] == "Is it A?\nSecond line" and got["side"] == "Is it A?"
+
+
+def test_the_next_answer_sets_the_heading_and_row_again():
+    data = _data(2)
+    data["items"][0].update(input=[["answer", "A"]], output="A")
+    data["items"][1].update(input=[["question", "Q"], ["context", "C"]], output="X")
+    got = _run("""
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({heading: ids["q-label"].textContent,
+        hidden: ids["q-row"].hidden}));""", data=data)
+    assert got == {"heading": "Input", "hidden": False}

@@ -245,7 +245,7 @@ def test_the_marking_page_words():
                  "Mark a few more answers", "The question", "customer", "of 40", "..."):
         assert gone not in text, gone
     page = _marking()
-    assert ('<div class="row row-q"><div><div class="label">Question</div>'
+    assert ('<div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div>'
             '<h1 class="question" id="q-text"></h1></div>'
             '<div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>'
             ) in page  # the state: one quiet line at the top right of the question row

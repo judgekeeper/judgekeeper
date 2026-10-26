@@ -34,7 +34,7 @@ from judgekeeper import (
 from judgekeeper.again import AgainOptions, make_plan
 from judgekeeper.cli import main
 from judgekeeper.redact import one_line
-from tests.start_projects import promptfoo_project
+from tests.start_projects import promptfoo_project, split
 from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
 from tests.test_fix import _write_rule, judge, project  # noqa: F401
 from tests.test_fix import run as run_fix
@@ -443,6 +443,17 @@ def test_every_format_and_ignorable_character_is_removed():
             assert redact.printable(f"a{c}b") == "ab", hex(n)
 
 
+def test_the_marking_pages_top_bar_shows_no_hidden_character():
+    from judgekeeper import mark_page
+
+    hidden = "\u202e\u2066\u200b\x1b[31m"
+    shown = mark_page.label_page(None, "judgekeeper mark", model=f"openai:gpt{hidden}-4.1-mini",
+                                 tool=f"prompt{hidden}foo")
+    for c in ("\u202e", "\u2066", "\u200b", "\x1b"):
+        assert c not in shown, hex(ord(c))
+    assert "openai:gpt[31m-4.1-mini" in shown and "prompt[31mfoo" in shown
+
+
 @pytest.mark.parametrize("c", MORE_HIDDEN)
 def test_a_rule_line_and_mistakes_md_drop_the_other_invisible_marks(c):
     from judgekeeper.links import said
@@ -583,6 +594,40 @@ def test_a_lock_naming_another_programs_listener_is_not_used(tmp_path):
             "pid": os.getpid(), "port": other.server_address[1], "stop": "s",
             "token": "ATTACKER-TOKEN-VALUE"}), encoding="utf-8")
         assert label.live_lock(folder) is None
+    finally:
+        other.shutdown()
+        other.server_close()
+
+
+def test_a_lock_naming_another_programs_listener_is_removed_and_never_stopped(tmp_path):
+    from judgekeeper import background
+
+    seen = []
+
+    class Kept(_Yes):
+        def do_GET(self):
+            seen.append(("GET", self.path))
+            super().do_GET()
+
+        def do_POST(self):
+            seen.append(("POST", self.path))
+            super().do_GET()
+
+    other = HTTPServer(("127.0.0.1", 0), Kept)
+    thread = threading.Thread(target=other.serve_forever, daemon=True)
+    thread.start()
+    try:
+        folder = tmp_path / "proj" / ".judgekeeper"
+        folder.mkdir(parents=True)
+        lock = json.dumps({"pid": os.getpid(), "port": other.server_address[1],
+                           "stop": "STOP-FROM-PROJECT", "token": "ATTACKER-TOKEN-VALUE"})
+        for name in (label.LOCK, label.LOCK_COPY):
+            (folder / name).write_text(lock, encoding="utf-8")
+        assert not label.is_open(folder)
+        assert not background.stop(folder, timeout=1)
+        assert not (folder / label.LOCK).exists() and not (folder / label.LOCK_COPY).exists()
+        assert [m for m, _ in seen if m == "POST"] == []
+        assert not [path for _, path in seen if "STOP-FROM-PROJECT" in path]
     finally:
         other.shutdown()
         other.server_close()
@@ -880,3 +925,81 @@ def test_a_key_split_by_any_dropped_character_stays_hidden(monkeypatch):
 def test_a_cell_that_could_run_as_a_formula_is_guarded(cell):
     assert table.guard_cell(cell) == "'" + cell
     assert table.unguard_cell(table.guard_cell(cell)) == cell
+
+
+# A lock whose page does not answer in time ----------------------------------------------------
+
+class _Slow(BaseHTTPRequestHandler):
+    """A page that is busy: it answers each request after SLOW seconds."""
+    seen: list
+
+    def _later(self):
+        self.seen.append((self.command, self.path))
+        time.sleep(_Slow.SLOW)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+        except OSError:  # the asker stopped waiting
+            pass
+
+    do_GET = do_POST = _later
+
+    def log_message(self, *args):
+        pass
+
+
+_Slow.SLOW = 1.0
+
+
+def test_a_lock_whose_page_answers_too_late_stays_and_no_second_page_starts(
+        tmp_path, monkeypatch, capsys, pages):
+    from http.server import ThreadingHTTPServer
+
+    monkeypatch.setattr(label, "PROBE_TIMEOUT", 0.2)
+    seen = []
+    slow = ThreadingHTTPServer(("127.0.0.1", 0), type("Kept", (_Slow,), {"seen": seen}))
+    slow.daemon_threads = True
+    thread = threading.Thread(target=slow.serve_forever, daemon=True)
+    thread.start()
+    try:
+        here = tmp_path / "proj"
+        here.mkdir()
+        monkeypatch.chdir(here)
+        promptfoo_project(here, split(20, 16))
+        folder = here / ".judgekeeper"
+        folder.mkdir(exist_ok=True)
+        lock = json.dumps({"pid": os.getpid(), "port": slow.server_address[1],
+                           "stop": "STOP-OF-THE-BUSY-PAGE", "token": "TOKEN-OF-THE-BUSY-PAGE"})
+        (folder / label.LOCK).write_text(lock, encoding="utf-8")
+        code = main(["--no-browser", "--port", "0"])
+        out, err = capsys.readouterr()
+        assert code == 3, out + err
+        assert out.splitlines()[-2:] == [
+            ("A marking page for this folder is open but not answering. Try again in a moment. "
+             "If no judgekeeper page is open, delete .judgekeeper/server.json."),
+            "Next: run `judgekeeper --no-browser --port 0` again."], out + err
+        assert (folder / label.LOCK).read_text(encoding="utf-8") == lock  # kept
+        assert pages[0] == []  # no second page
+        assert not [s for s in seen if s[0] == "POST" or "BUSY-PAGE" in s[1]]
+    finally:
+        slow.shutdown()
+        slow.server_close()
+
+
+def test_a_connect_that_times_out_counts_as_nobody_there(tmp_path, monkeypatch):
+    """Windows tries a localhost port nobody listens on again for about 2 seconds before it
+    refuses: a page that is gone, not a busy one. Its lock is removed."""
+    import http.client
+
+    def slow_refusal(self):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", slow_refusal)
+    folder = tmp_path / "proj" / ".judgekeeper"
+    folder.mkdir(parents=True)
+    (folder / label.LOCK).write_text(json.dumps({
+        "pid": os.getpid(), "port": 9, "stop": "s", "token": "t" * 32}), encoding="utf-8")
+    assert not label.is_open(folder)
+    assert not (folder / label.LOCK).exists()

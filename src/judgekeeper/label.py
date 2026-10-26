@@ -71,6 +71,10 @@ class LabelError(Exception):
     """The items or the output file cannot be used: a usage error."""
 
 
+class PageBusy(LabelError):
+    """The page named in the project's lock did not answer in time (BUSY)."""
+
+
 def _text(value) -> str:
     return "" if _blank(value) else _plain(value)
 
@@ -205,6 +209,8 @@ MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
+BUSY = ("A marking page for this folder is open but not answering. Try again in a moment. "
+        f"If no judgekeeper page is open, delete .judgekeeper/{LOCK}.")
 RELEASE_TRIES = 40  # times to try removing the lock, RELEASE_PAUSE seconds apart
 RELEASE_PAUSE = 0.05
 
@@ -236,31 +242,48 @@ def read_lock(folder: Path) -> dict | None:
     return None
 
 
-def live_lock(folder: Path) -> dict | None:
-    """The project's lock when its page answers to its stop secret and to its token, and as
-    judgekeeper's page for this project does (`is_page`, and /project names the project's
-    folder), else None. A lock whose page is gone is removed: its token is no use to anyone.
-    One that names another program's listener is left: judgekeeper never vouches for it."""
+def own_lock(folder: Path) -> dict | None:
+    """The project's lock when the port it names is judgekeeper's page for this project
+    (`is_page`, and /project names the project's folder) and that page answers to its stop
+    secret, else None. Nothing from the lock is sent before the first two checks. A lock that
+    fails them is removed: its page is gone, or another program listens on its port (a lock
+    shipped with the project, or a port taken over), which never gets a token or a /stop. A
+    page that does not answer in time may be busy: its lock stays, and PageBusy is raised."""
     lock = read_lock(folder)
     if lock is None:
         return None
-    if ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) != 200:
-        for name in (LOCK, LOCK_COPY):
-            try:
-                (Path(folder) / name).unlink()
-            except OSError:
-                pass
-        return None
     project = Path(folder).absolute().parent.name
-    own = is_page(lock["port"]) and page_folder(lock["port"]) == project
-    return lock if own and lock["token"] and answers(lock["port"], lock["token"]) else None
+    port = lock["port"]
+    if (is_page(port, wait=True) and page_folder(port, wait=True) == project
+            and ask(port, "GET", "/alive", {"stop": lock["stop"]}, wait=True) == 200):
+        return lock
+    for name in (LOCK, LOCK_COPY):
+        try:
+            (Path(folder) / name).unlink()
+        except OSError:
+            pass
+    return None
 
 
-def _answer(port: int, method: str, path: str, query: dict,
-            body: dict | None = None) -> tuple[int, bytes] | None:
+def live_lock(folder: Path) -> dict | None:
+    """The project's lock (`own_lock`) when its page answers to its token too, else None."""
+    lock = own_lock(folder)
+    return lock if lock and lock["token"] and answers(lock["port"], lock["token"]) else None
+
+
+def _answer(port: int, method: str, path: str, query: dict, body: dict | None = None,
+            wait: bool = False) -> tuple[int, bytes] | None:
     """The status and body the page on `port` answers with, or None when nothing answers.
-    Never through a proxy."""
+    Never through a proxy. `wait`: an answer that does not come within PROBE_TIMEOUT once
+    connected raises PageBusy. A connection that fails or times out is nobody there: a live
+    page accepts at once, even when busy, and Windows tries a port nobody listens on again
+    for about 2 seconds before it refuses."""
     conn = http.client.HTTPConnection(HOST, port, timeout=PROBE_TIMEOUT)
+    try:
+        conn.connect()
+    except (OSError, ValueError):
+        conn.close()
+        return None
     try:
         data = None if body is None else json.dumps(body).encode()
         headers = {"Content-Type": "application/json"}
@@ -269,22 +292,28 @@ def _answer(port: int, method: str, path: str, query: dict,
         conn.request(method, f"{path}?{urlencode(query)}", body=data, headers=headers)
         response = conn.getresponse()
         return response.status, response.read()
+    except TimeoutError:
+        if wait:
+            raise PageBusy(BUSY) from None
+        return None
     except (OSError, ValueError, http.client.HTTPException):
         return None
     finally:
         conn.close()
 
 
-def ask(port: int, method: str, path: str, query: dict, body: dict | None = None) -> int | None:
-    """The status the page on `port` answers with, or None when nothing answers."""
-    answer = _answer(port, method, path, query, body)
+def ask(port: int, method: str, path: str, query: dict, body: dict | None = None,
+        wait: bool = False) -> int | None:
+    """The status the page on `port` answers with, or None when nothing answers (`wait`:
+    _answer)."""
+    answer = _answer(port, method, path, query, body, wait)
     return None if answer is None else answer[0]
 
 
-def is_page(port: int) -> bool:
+def is_page(port: int, wait: bool = False) -> bool:
     """Whether a judgekeeper page listens on `port`: it refuses a request without its token in
-    its own words."""
-    answer = _answer(port, "GET", "/alive", {})
+    its own words (`wait`: _answer)."""
+    answer = _answer(port, "GET", "/alive", {}, wait=wait)
     try:
         return answer is not None and answer[0] == 403 and \
             json.loads(answer[1]) == {"error": "missing or wrong token"}
@@ -293,17 +322,16 @@ def is_page(port: int) -> bool:
 
 
 def is_open(folder: Path) -> bool:
-    """Whether the page named in the project's lock (in `folder`) answers to its stop secret;
-    a lock nobody answers is stale. Asking the page, not the process, works the same
-    everywhere: on Windows a process can't be looked at without the standard library's
-    os.kill, which ends it."""
-    lock = read_lock(folder)
-    return lock is not None and ask(lock["port"], "GET", "/alive", {"stop": lock["stop"]}) == 200
+    """Whether the project's lock (in `folder`) names its open page (`own_lock`: PageBusy
+    when it does not answer in time); any other lock is stale. Asking the page, not the process, works the same everywhere: on Windows a
+    process can't be looked at without the standard library's os.kill, which ends it."""
+    return own_lock(folder) is not None
 
 
-def page_folder(port: int) -> str | None:
-    """The name of the project folder whose judgekeeper page listens on `port`, or None."""
-    answer = _answer(port, "GET", "/project", {})
+def page_folder(port: int, wait: bool = False) -> str | None:
+    """The name of the project folder whose judgekeeper page listens on `port`, or None
+    (`wait`: _answer)."""
+    answer = _answer(port, "GET", "/project", {}, wait=wait)
     try:
         folder = json.loads(answer[1]).get("folder") if answer and answer[0] == 200 else None
     except (ValueError, AttributeError):

@@ -1,10 +1,10 @@
 """Scrub credentials out of text before it is written to disk or shown to the user.
 
 Two layers. First, the current value of every credential environment variable this process
-can see (the known names, every key name `keys.py` found, and any name ending in _API_KEY,
-_TOKEN or _SECRET); values shorter than 8 characters are ignored, since they would match
-ordinary text. Second, as a backstop for keys not in the environment, strings shaped like a
-key (_KEY_SHAPES), Bearer and Basic headers, and the user:password part of a URL.
+can see (the known names, every provider key name `keys.py` knows or found, and any name
+ending in _API_KEY, _TOKEN or _SECRET); values shorter than 8 characters are ignored, since
+they would match ordinary text. Second, as a backstop for keys not in the environment, strings
+shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the user:password part of a URL.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -15,6 +15,7 @@ anything there.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 
@@ -120,8 +121,17 @@ def register_secret(name: str, value: str) -> None:
 
 
 def _is_credential_var(name: str) -> bool:
-    return (name in CREDENTIAL_VARS or name in _named_vars
+    return (name in CREDENTIAL_VARS or name in _named_vars or name in _key_names()
             or name.upper().endswith(CREDENTIAL_SUFFIXES))
+
+
+@functools.cache
+def _key_names() -> frozenset[str]:
+    """The API key names of the providers judgekeeper knows (AWS_BEARER_TOKEN_BEDROCK among
+    them): each is passed on to the judge's tool."""
+    from judgekeeper.keys import key_names  # keys imports this module
+
+    return frozenset(key_names())
 
 
 _cached: tuple = (None, [])  # (the environment and named variables read, their secrets)

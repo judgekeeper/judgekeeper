@@ -17,8 +17,10 @@ import os
 import stat
 import subprocess
 import sys
+import threading
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -243,3 +245,65 @@ def test_a_page_started_by_hand_gets_no_token_from_the_command_line(here):
                        capture_output=True, text=True, timeout=60, check=False)
     assert p.returncode != 0
     assert not label.is_open(here / ".judgekeeper")
+
+
+class _Any(BaseHTTPRequestHandler):
+    """Another program on this machine: 200 to every request, each one kept in `seen` (set by
+    `listener`)."""
+    seen: list
+
+    def _yes(self):
+        size = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(size).decode(errors="replace") if size else ""
+        self.seen.append((self.command, self.path, body))
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    do_GET = do_POST = _yes
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def listener():
+    seen = []
+    other = ThreadingHTTPServer(("127.0.0.1", 0), type("Kept", (_Any,), {"seen": seen}))
+    thread = threading.Thread(target=other.serve_forever, daemon=True)
+    thread.start()
+    yield other.server_address[1], seen
+    other.shutdown()
+    other.server_close()
+
+
+def _ended_pid() -> int:
+    proc = subprocess.Popen([sys.executable, "-c", ""])
+    proc.wait()
+    return proc.pid
+
+
+def test_a_lock_naming_another_programs_listener_gets_nothing(here, capsys, listener):
+    """A server.json in the project names a port where another program answers 200: it gets
+    no token and no /stop, and the page judgekeeper starts is the one linked."""
+    from judgekeeper import page
+
+    port, seen = listener
+    folder = here / ".judgekeeper"
+    folder.mkdir(exist_ok=True)
+    (folder / label.LOCK).write_text(json.dumps({
+        "pid": _ended_pid(), "port": port, "stop": "STOP-FROM-PROJECT",
+        "token": "TOKEN-FROM-PROJECT-" + "x" * 32, "settings": {}, "link": None}),
+        encoding="utf-8")
+    code, out, err = _run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    lines = out.splitlines()
+    url = lines[lines.index(page.LINK) + 1]
+    base, token = _split(url)
+    lock = label.read_lock(folder)
+    assert lock is not None and lock["port"] != port and lock["token"] == token
+    assert base == f"http://127.0.0.1:{lock['port']}" and label.is_page(lock["port"])
+    assert _status(base, f"/state?token={token}") == 200
+    assert not [s for s in seen if token in s[1] + s[2]]
+    assert not [s for s in seen if s[0] == "POST" or "STOP-FROM-PROJECT" in s[1]]

@@ -7,11 +7,13 @@ current folder on its path (-P) or the PYTHON* variables (-E), and away from the
 `json.py` or other file in the project can run in it; the user site stays, for a user install of
 judgekeeper. The page's token and settings go to it as one JSON line on its stdin, a pipe closed
 right after: never in its arguments or environment. Errors go to .judgekeeper/page.log (never
-answer text or the token). It returns the page's link once the page answers to that token,
-within WAIT seconds; else None, and the process is ended.
+answer text or the token). It returns the page's link once the lock holds that token (so the
+page just started wrote it), names judgekeeper's page for this project (label.own_lock) and
+the page answers to the token, within WAIT seconds; else None, and the process is ended.
 
-`stop` closes the open page with a POST to /stop with the lock's stop secret, which works the
-same on every system, and waits until it is gone.
+`stop` closes the open page (label.own_lock: never another program named in a lock) with a
+POST to /stop with the lock's stop secret, which works the same on every system, and waits
+until it is gone.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from judgekeeper.label import answers, ask, is_open, link, read_lock
+from judgekeeper.label import PageBusy, answers, ask, link, own_lock, read_lock
 from judgekeeper.textio import open_private
 
 WAIT = 10  # seconds
@@ -59,14 +61,19 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
     deadline = time.monotonic() + timeout
     try:
         while time.monotonic() < deadline:
-            lock = read_lock(folder)
-            if lock is not None and answers(lock["port"], token):
+            lock = read_lock(folder)  # the token: written by the page just started
+            if lock is not None and lock["token"] == token and _own(folder) \
+                    and answers(lock["port"], token):
                 return link(lock["port"], token)
             if proc.poll() is not None:
                 return None
             time.sleep(0.1)
     except KeyboardInterrupt:  # Ctrl-C before the link was printed: the page stops too
-        if not stop(folder, timeout=2):
+        try:
+            stopped = stop(folder, timeout=2)
+        except PageBusy:
+            stopped = False
+        if not stopped:
             proc.kill()
         raise
     proc.kill()
@@ -76,16 +83,26 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
 def stop(folder: Path, timeout: float = WAIT) -> bool:
     """Close the page open for this project. False when none is open, or it did not close."""
     folder = Path(folder)
-    lock = read_lock(folder)
-    if lock is None or not is_open(folder):
+    lock = own_lock(folder)
+    if lock is None:
         return False
     ask(lock["port"], "POST", "/stop", {"stop": lock["stop"]})
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not is_open(folder) and (read_lock(folder) != lock or not _running(lock["pid"])):
+        if not _own(folder, busy=True) and (read_lock(folder) != lock
+                                             or not _running(lock["pid"])):
             return True
         time.sleep(0.1)
     return False
+
+
+def _own(folder: Path, busy: bool = False) -> bool:
+    """Whether the project's lock names its open page (label.own_lock); `busy` when the page
+    does not answer in time (it may be starting, or closing)."""
+    try:
+        return own_lock(folder) is not None
+    except PageBusy:
+        return busy
 
 
 def _running(pid: int) -> bool:

@@ -186,3 +186,57 @@ def test_an_aws_secret_is_redacted_after_its_name_or_next_to_its_key(text, expec
 ])
 def test_a_bare_40_character_string_stays(text):
     assert AWS_SECRET in scrub(text)
+
+
+# Every key name judgekeeper passes on, and the checked apiKeyEnvar --------------------------
+
+BEDROCK = "bedrock-bearer-value-0123456789"  # no shape of its own, no credential suffix
+
+
+def test_a_bedrock_token_in_the_shell_is_redacted(monkeypatch):
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", BEDROCK)
+    assert scrub(f"error: bad token {BEDROCK}") == f"error: bad token {REDACTED}"
+
+
+def test_every_key_name_passed_on_is_redacted():
+    from judgekeeper import keys
+
+    for name in sorted(keys.key_names()):
+        value = f"value-of-{name}-0123456789"
+        redact.register_secret(name, value)
+        assert scrub(f"x {value} y") == f"x {REDACTED} y", name
+
+
+def test_a_checked_api_key_envar_is_redacted():
+    from judgekeeper.again import promptfoo
+
+    names = promptfoo._passed_on([{"id": "openai:gpt-4.1-mini",
+                                   "config": {"apiKeyEnvar": "MY_JUDGE_CRED"}}])
+    assert "MY_JUDGE_CRED" in names
+    redact.register_secret("MY_JUDGE_CRED", "judge-credential-0123456789")
+    assert scrub("judge-credential-0123456789") == REDACTED
+
+
+# Scrub the whole text, then wrap ------------------------------------------------------------
+
+def _cued(pad: int) -> str:
+    return (f"m {'q' * pad} x Bearer FAKEBEARER1fffffffff1ffff aws_secret_access_key "
+            f"{AWS_SECRET} user AKIAIOSFODNN7EXAMPLE then {AWS_SECRET[::-1]}.")
+
+
+def test_a_wrapped_line_never_splits_a_secret_from_its_cue():
+    from judgekeeper.textio import wrap
+
+    for pad in range(65):
+        shown = "\n".join(wrap(_cued(pad)))
+        for secret in ("FAKEBEARER1", AWS_SECRET, AWS_SECRET[::-1], "AKIAIOSFODNN7EXAMPLE"):
+            assert secret not in shown, (pad, secret)
+
+
+def test_a_wrapped_paragraph_prints_no_secret(capsys):
+    from judgekeeper import fix
+
+    for pad in range(65):
+        fix.Talk(".").para(_cued(pad))
+    out = capsys.readouterr().out
+    assert "FAKEBEARER1" not in out and AWS_SECRET not in out and AWS_SECRET[::-1] not in out

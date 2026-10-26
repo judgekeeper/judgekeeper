@@ -623,13 +623,15 @@ WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     """`text` as lines of at most `width` characters (a longer command stays whole on its
     own line), each starting with `indent`. Only a text that starts with "Next:" gives a line
-    that starts with it: a name read from a file can't pass for judgekeeper's Next: line."""
+    that starts with it: a name read from a file can't pass for judgekeeper's Next: line. The
+    whole text is scrubbed first (links.said): a line break between "Bearer" and its token
+    would hide the token from a scrub of each line."""
     import re
     import textwrap
 
-    from judgekeeper.links import stand_ins
+    from judgekeeper.links import said, stand_ins
 
-    text, links_back = stand_ins(text)
+    text, links_back = stand_ins(said(text))
     keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))
