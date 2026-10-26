@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.start_projects import promptfoo_project, split
 from tests.test_front import run
 
 
@@ -33,3 +34,14 @@ def test_json_nested_too_deep_is_said_in_plain_words(here, capsys, name, head, g
     assert "RecursionError" not in out + err
     assert f"{path.name} is nested more than 500 levels deep. Save it again" in err
     assert path.name in err
+
+
+def test_a_deep_jsonl_file_next_to_a_project_is_skipped(here, capsys):
+    """Find only peeks at a .jsonl it passes: one nested too deep is skipped, not an error."""
+    promptfoo_project(here, split(20, 16))
+    deep = here / "data" / "notes.jsonl"
+    deep.parent.mkdir()
+    deep.write_text('{"notes": ' + "[" * 60_000 + "]" * 60_000 + "}\n", encoding="utf-8")
+    code, out, err = run(capsys)
+    assert code == 0, out + err
+    assert "File:            results.json" in out

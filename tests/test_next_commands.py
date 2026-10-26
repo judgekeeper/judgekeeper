@@ -14,7 +14,7 @@ from html import escape, unescape
 import pytest
 
 from judgekeeper import page, report_page, start_label
-from judgekeeper.cli import main
+from judgekeeper.cli import main, parse_args
 from judgekeeper.start_label import StartSession, Workspace
 from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
@@ -41,6 +41,35 @@ def _mark_all(ws: Workspace) -> None:
     session = StartSession(ws)
     for q in ws.data()["queue"]:
         session.update({"id": q["id"], "label": q["group"], "seconds": 7})
+
+
+@pytest.mark.parametrize("flips", [{}, {"pass": 15, "fail": 5}], ids=["agrees", "needs-work"])
+def test_every_command_the_measure_step_prints_parses(tmp_path, monkeypatch, capsys, flips):
+    """Each command the result names, copied as printed, is one its command takes: `fix` and
+    `check` never get the page's flags. `flips`: how many of the answers the judge passed, or
+    failed, are marked the other way."""
+    table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="evals/results.csv")
+    monkeypatch.chdir(tmp_path)
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    ws = Workspace(tmp_path)
+    session, needs_work = StartSession(ws), bool(flips)
+    for q in ws.data()["queue"]:
+        label = q["group"]
+        if flips.get(label):
+            flips[label] -= 1
+            label = {"pass": "fail", "fail": "pass"}[label]
+        session.update({"id": q["id"], "label": label, "seconds": 7})
+    capsys.readouterr()
+    assert main(["evals/results.csv", *FLAGS, "--yes"]) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    commands = re.findall(r"`(judgekeeper [^`]*)`", out)
+    assert ("needs work" in out) == needs_work, out
+    assert any(c.startswith("judgekeeper fix") for c in commands) == needs_work, out
+    for command in commands:
+        try:
+            parse_args(shlex.split(command)[1:])
+        except SystemExit:
+            pytest.fail(f"`{command}` does not run: {capsys.readouterr().err}")
 
 
 def test_the_result_names_only_the_command_that_was_run(project, capsys):

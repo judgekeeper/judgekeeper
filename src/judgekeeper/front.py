@@ -1439,6 +1439,11 @@ def _check_command(talk: FrontTalk) -> str:
     return " ".join((program("check"), *path))
 
 
+def _fix_command(talk: FrontTalk) -> str:
+    """`judgekeeper fix`, with the path when it is not this folder: `fix` takes no other flag."""
+    return _check_command(talk).replace(program("check"), program("fix"), 1)
+
+
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
             head: list[str], check: bool = False) -> int:
     """Step 3: the result from the marks, saved; whether the page is open. `check`: the
@@ -1483,7 +1488,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(start_label.SAY_WHY_RUN.format(
                 n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
             if step != "mark":  # fix is never a step while it is too early to tell
-                talk.para(start_label.SAY_WHY_FIX.format(fix=_command_of(talk, False, "fix")))
+                talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
         talk.say()
         for line in estimate_lines(r):
@@ -1526,8 +1531,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix":
-        next_step = NEXT_FIX.format(command=_check_command(talk).replace(
-            program("check"), program("fix"), 1))
+        next_step = NEXT_FIX.format(command=_fix_command(talk))
     else:
         next_step = NEXT_RESULT.format(command=_check_command(talk))
     talk.para("Next: " + next_step)

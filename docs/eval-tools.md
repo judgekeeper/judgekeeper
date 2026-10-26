@@ -37,7 +37,7 @@ promptfoo eval -o results.json
 judgekeeper
 ```
 
-Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`; when results are only in promptfoo's database, it prints the export commands. At a terminal it also asks to run the export (Enter is No); a yes runs the project's promptfoo. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` swaps in is the assertion's `value`, unless it differs per test. Ids are the test's `description` when each is unique, else a hash of its vars.
+Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`; when results are only in promptfoo's database, it prints the export commands. At a terminal it also asks to run the export (Enter is No); a yes runs the project's promptfoo, or the one on your PATH, in an empty temp folder. The run is kept only when it matches the promptfoo config judgekeeper found. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` swaps in is the assertion's `value`, unless it differs per test. Ids are the test's `description` when each is unique, else a hash of its vars.
 
 To ask again, it runs the promptfoo version your results were made with (the project's, the one on your PATH, or `npx promptfoo@<version>`, part of the same `Go ahead?` question). It takes that version from a results file only when it reads as a plain version number. It asks again only when the grader is a model provider promptfoo calls over HTTP, from a fixed list (`openai:`, `anthropic:`, `azure:`, `bedrock:`, `vertex:`, `google:`, `mistral:`, `ollama:` and others like them, in any case). It won't when the grader runs an agent with tools (`anthropic:claude-agent-sdk`, `anthropic:claude-code`, `openai:codex-sdk`, `openai:agents:...`, an assistant) or is any other kind (`package:`, `exec:`, `python:`, `file://`, a URL, `webhook:`, a name it doesn't know), also inside a grader written by output type (`{"text": ...}`), or when the rule loads code (`package:`, `file://`, `exec:`) or there is a `transform`.
 
@@ -83,7 +83,7 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
 - **`--no-log-samples`** logs cannot be read.
-- **Very big parts.** A `.eval` log whose header would unpack to more than 500 MB, or one sample to more than 200 MB, is not read. judgekeeper counts what each part really unpacks to before Inspect AI reads the log, and keeps none of it.
+- **Very big parts.** A `.eval` log whose header would unpack to more than 500 MB, or one sample to more than 200 MB, is not read. Nor is one with a part nested more than 500 levels deep. judgekeeper counts what each part really unpacks to, and how deep it nests, before Inspect AI reads the log, and keeps none of it.
 
 ## MLflow
 

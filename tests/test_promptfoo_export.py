@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from judgekeeper import again, start
+from judgekeeper import again, start, start_export
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_data, split
 
@@ -28,10 +28,12 @@ def _config(root, description="support bot", prompt="Answer: {{question}}"):
 def export(monkeypatch):
     """promptfoo on the PATH; `export` writes `data` to the -o file."""
     state = SimpleNamespace(calls=[], data=promptfoo_data(split(20, 16)), code=0, stderr="",
-                            installed=True)
+                            installed=True, ran_config=False)
 
     def run_process(argv, cwd, env=None, timeout=None):
         state.calls.append(SimpleNamespace(argv=list(argv), cwd=cwd, env=dict(env or {})))
+        if (cwd / "promptfooconfig.js").is_file():  # promptfoo loads it from where it runs
+            state.ran_config = True
         if state.code == 0:
             out = cwd / argv[argv.index("-o") + 1]
             out.write_text(json.dumps(state.data), encoding="utf-8")
@@ -92,16 +94,64 @@ def test_matching_prompts_carry_on_without_a_description(tmp_path, capsys, expor
     assert (tmp_path / "promptfoo-results.json").is_file()
 
 
+def test_the_export_runs_no_config_from_the_project(tmp_path, capsys, export, terminal):
+    """A promptfoo on the PATH loads a promptfooconfig.js from where it runs: the export runs
+    in a temp folder of its own, and its file still lands in the project."""
+    (tmp_path / "evals").mkdir()
+    _config(tmp_path / "evals", description=None)
+    (tmp_path / "promptfooconfig.js").write_text(
+        "module.exports = {prompts: ['Answer: {{question}}']};\n", encoding="utf-8")
+    export.data["config"] = {"prompts": ["Answer: {{question}}"]}
+    terminal += ["y", "n"]
+    run(capsys, tmp_path)
+    assert export.ran_config is False
+    [call] = export.calls
+    assert not call.cwd.exists() and not call.cwd.is_relative_to(tmp_path)
+    assert (tmp_path / "promptfoo-results.json").is_file()
+
+
+@pytest.mark.parametrize("described", [True, False], ids=["description", "prompts"])
+def test_a_config_in_a_subfolder_keeps_the_projects_own_run(tmp_path, capsys, export, terminal,
+                                                             described):
+    """The run is checked against the config Find found, wherever it is (evals/ here)."""
+    (tmp_path / "evals").mkdir()
+    _config(tmp_path / "evals", description="support bot" if described else None)
+    export.data["config"] = ({"description": "support bot"} if described
+                             else {"prompts": ["Answer: {{question}}"]})
+    terminal += ["y", "n"]
+    _, out, _ = run(capsys, tmp_path)
+    assert "from another project" not in out
+    assert (tmp_path / "promptfoo-results.json").is_file()
+
+
+def test_a_run_unlike_the_config_in_a_subfolder_is_not_kept(tmp_path, capsys, export, terminal):
+    (tmp_path / "evals").mkdir()
+    _config(tmp_path / "evals", description=None)
+    export.data["config"] = {"prompts": ["Something else: {{x}}"]}
+    terminal += ["y"]
+    _, out, _ = run(capsys, tmp_path)
+    assert ("That was your last promptfoo run, from another project. Find yours with promptfoo "
+            "list evals -n 10, then run promptfoo export eval <id> -o promptfoo-results.json."
+            ) in out
+    assert not (tmp_path / "promptfoo-results.json").exists()
+    assert not (tmp_path / ".judgekeeper" / "promptfoo-latest.json").exists()
+
+
+def test_with_no_config_found_no_run_is_this_projects(tmp_path):
+    data = {"config": {"prompts": ["Answer: {{question}}"]}}
+    assert start_export._this_project(None, data) is False
+    assert start_export._this_project(tmp_path / "promptfooconfig.yaml", data) is False
 
 
 def _marking_promptfoo(root):
     """The project's own promptfoo, as a folder could ship it: it leaves `ran-promptfoo`."""
     folder = root / "node_modules" / ".bin"
     folder.mkdir(parents=True)
-    (folder / "promptfoo").write_text("#!/bin/sh\necho ran > ran-promptfoo\nexit 1\n",
+    ran = root / "ran-promptfoo"
+    (folder / "promptfoo").write_text(f"#!/bin/sh\necho ran > '{ran}'\nexit 1\n",
                                       encoding="utf-8")
     (folder / "promptfoo").chmod(0o755)
-    (folder / "promptfoo.cmd").write_text("@echo ran> ran-promptfoo\r\n@exit /b 1\r\n",
+    (folder / "promptfoo.cmd").write_text(f'@echo ran> "{ran}"\r\n@exit /b 1\r\n',
                                           encoding="utf-8")
     return root / "ran-promptfoo"
 

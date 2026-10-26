@@ -22,6 +22,7 @@ import re
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
+from itertools import accumulate
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
@@ -29,6 +30,7 @@ from judgekeeper.records import (
     CODE,
     HUMAN,
     LLM,
+    NESTED,
     Mark,
     RecordList,
     RecordsError,
@@ -39,7 +41,7 @@ from judgekeeper.records import (
     load_json,
     read_rows,
 )
-from judgekeeper.textio import error_type, get_extra, read_json
+from judgekeeper.textio import MAX_NESTING, error_type, get_extra, read_json
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
 # Inspect's scorers that check text in code, never with a model: not judges, left out
@@ -124,11 +126,51 @@ class _Packed:
         return data
 
 
+# In a part's JSON: an escape in a string (its backslash and the byte after it); the bytes that
+# are no list or object bracket; how each bracket changes the depth
+_ESCAPE = re.compile(rb"\\.", re.DOTALL)
+_NOT_BRACKETS = bytes(b for b in range(256) if b not in b"[]{}")
+_DEPTH_STEP = tuple(1 if b in b"[{" else -1 if b in b"]}" else 0 for b in range(256))
+
+
+class TooDeep(ValueError):
+    """A part of a .eval log nests lists and objects deeper than MAX_NESTING."""
+
+
+class _Depth:
+    """How deep the lists and objects of JSON text go, fed a step at a time, with regex and
+    bytes methods only: escapes are taken out, the text between quotes (the strings) left
+    out, and the brackets left added up. Whether a string, or an escape, goes on into the
+    next step is carried. TooDeep once past MAX_NESTING."""
+
+    def __init__(self):
+        self.depth, self.in_string, self.escaped = 0, False, False
+
+    def feed(self, text: bytes) -> None:
+        if self.escaped:  # the step before ended on a backslash: this byte is escaped
+            text, self.escaped = text[1:], False
+        if b"\\" in text:
+            text = _ESCAPE.sub(b"", text)
+            if text.endswith(b"\\"):  # its byte is in the next step
+                text, self.escaped = text[:-1], True
+        pieces = text.split(b'"')  # inside and outside strings in turn
+        outside = b"".join(pieces[1 if self.in_string else 0::2])
+        self.in_string ^= len(pieces) % 2 == 0
+        brackets = outside.translate(None, _NOT_BRACKETS)
+        opens = brackets.count(b"[") + brackets.count(b"{")
+        if self.depth + opens > MAX_NESTING and max(accumulate(
+                map(_DEPTH_STEP.__getitem__, brackets), initial=self.depth)) > MAX_NESTING:
+            raise TooDeep("nested too deep")
+        self.depth += 2 * opens - len(brackets)
+
+
 def _unpacks_to(f, part, most: int) -> int:
     """How many bytes the zip `part` unpacks to, counted by unpacking it STEP bytes at a time
-    and keeping none; the count stops once past `most`. Never through zipfile.open(): for zstd
-    it unpacks a whole chunk at once, and it trusts the size the zip declares. ValueError for a
-    part inspect_ai never writes: another compression, or encrypted."""
+    and keeping none; the count stops once past `most`. What it unpacks to is also looked at
+    for how deep it nests (_Depth): TooDeep past MAX_NESTING, as inspect_ai would take many GB
+    to read a few KB nested 100,000 deep. Never through zipfile.open(): for zstd it unpacks a
+    whole chunk at once, and it trusts the size the zip declares. ValueError for a part
+    inspect_ai never writes: another compression, or encrypted."""
     import struct
     import zipfile
     import zlib
@@ -139,9 +181,12 @@ def _unpacks_to(f, part, most: int) -> int:
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n = _Packed(f, part.compress_size), 0
+    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth()
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
-        return part.compress_size
+        while n <= most and (out := packed.read(STEP)):
+            n += len(out)
+            depth.feed(out)
+        return n
     if part.compress_type == zipfile.ZIP_DEFLATED:
         unpack = zlib.decompressobj(-15)
         while n <= most and not unpack.eof:
@@ -150,6 +195,7 @@ def _unpacks_to(f, part, most: int) -> int:
             if not data and not out:
                 break
             n += len(out)
+            depth.feed(out)
         return n
     if part.compress_type == ZSTD:
         import zstandard
@@ -158,6 +204,7 @@ def _unpacks_to(f, part, most: int) -> int:
             packed, read_size=STEP, read_across_frames=True, closefd=False)
         while n <= most and (out := reader.read(STEP)):
             n += len(out)
+            depth.feed(out)
         return n
     raise ValueError("not a compression inspect_ai writes")
 
@@ -202,6 +249,8 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> No
                 for p in parts), whole)
     except RecordsError:
         raise
+    except TooDeep:
+        raise damaged(path, "Inspect AI", NESTED) from None
     except Exception:  # noqa: BLE001 - a part that can't be unpacked: never read
         raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
                                           "Inspect AI log") from None

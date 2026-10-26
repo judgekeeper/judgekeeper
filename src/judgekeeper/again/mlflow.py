@@ -100,6 +100,9 @@ def classify(info: dict, worker: dict) -> tuple[str, str]:
     if info.get("scorer_name") and worker.get("registered"):
         if worker.get("code"):  # the worker found its code in the store and did not load it
             return CANT, "your LLM-as-a-judge is a custom @scorer, which runs your own code"
+        if worker.get("param"):  # a setting such as api_base, found and not loaded
+            return CANT, (f"your stored LLM-as-a-judge sets `{worker['param']}`, which "
+                          "judgekeeper does not pass on")
         if info.get("scorer_version"):
             return EXACT, (f"MLflow calls your registered LLM-as-a-judge {name}, version "
                            f"{info['scorer_version']}")

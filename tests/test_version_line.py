@@ -8,6 +8,7 @@ In a terminal it says the install is ready and what to run next; piped, it print
 from __future__ import annotations
 
 import io
+import subprocess
 import sys
 
 import pytest
@@ -67,7 +68,19 @@ def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
 
 def test_without_the_command_on_path_it_names_python_m(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal(), which=None)
-    assert lines[1] == "Next: run python3 -m judgekeeper"
+    assert lines[1] == "Next: run python3 -P -m judgekeeper"
+
+
+def test_the_python_m_it_names_runs_nothing_from_this_folder(monkeypatch, plain_env, tmp_path):
+    """-P keeps this folder off the import path: a project's re.py or json.py never runs."""
+    command = _version(monkeypatch, Terminal(), which=None)[1].removeprefix("Next: run ")
+    for name in ("re", "json"):
+        (tmp_path / f"{name}.py").write_text(
+            f"open({str(tmp_path / 'ran')!r}, 'a').write({name!r})\n", encoding="utf-8")
+    done = subprocess.run([sys.executable, *command.split()[1:], "--version"], cwd=tmp_path,
+                          capture_output=True, text=True, timeout=60, check=False)
+    assert not (tmp_path / "ran").exists()
+    assert done.returncode == 0 and done.stdout == f"judgekeeper {__version__}\n", done.stderr
 
 
 def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain_env):
@@ -75,7 +88,7 @@ def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain
     monkeypatch.setenv("WT_SESSION", "1")
     lines = _version(monkeypatch, Terminal(), which=None)
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: run py -m judgekeeper"]
+                     "Next: run py -P -m judgekeeper"]
 
 
 def test_the_tick_needs_an_encoding_that_has_it(plain_env):

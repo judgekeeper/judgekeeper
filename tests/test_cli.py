@@ -1,5 +1,9 @@
 """The command line: exit codes, and no terminal escape sequences in anything it prints."""
 
+import os
+import subprocess
+import sys
+
 import pytest
 
 from judgekeeper.cli import main
@@ -49,3 +53,28 @@ def test_a_port_out_of_range_is_a_usage_error_before_anything_is_written(tmp_pat
     assert main([str(tmp_path), "--port", port]) == 2
     assert "is not a port: give a number from 1 to 65535" in capsys.readouterr().err
     assert not (tmp_path / ".judgekeeper").exists()
+
+
+# --- a closed output pipe ---------------------------------------------------------------------
+
+def _closed_stdout(cwd, *args) -> subprocess.CompletedProcess:
+    """judgekeeper with stdout a pipe whose reader already stopped (`| head` that is done)."""
+    read, write = os.pipe()
+    os.close(read)
+    try:
+        return subprocess.run([sys.executable, "-P", "-m", "judgekeeper", *args], cwd=cwd,
+                              stdin=subprocess.DEVNULL, stdout=write, stderr=subprocess.PIPE,
+                              text=True, timeout=60, check=False)
+    finally:
+        os.close(write)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows says a closed pipe another way")
+@pytest.mark.parametrize("args, code", [(["--help"], 0), (["--version"], 0),
+                                        (["mark", "--help"], 0), (["nosuchcmd"], 2)])
+def test_a_closed_output_pipe_keeps_the_exit_code(tmp_path, args, code):
+    done = _closed_stdout(tmp_path, *args)
+    assert done.returncode == code, done.stderr
+    assert "BrokenPipeError" not in done.stderr and "Exception ignored" not in done.stderr
+    if code == 0:
+        assert done.stderr == ""

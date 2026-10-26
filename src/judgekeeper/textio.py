@@ -67,6 +67,19 @@ def lenient_streams() -> None:
             pass
 
 
+def flush_stdout() -> None:
+    """Flush stdout. When the program reading it stopped (`| head`), the rest of the output
+    goes to the null device from here on and the command carries on to its own exit code."""
+    try:
+        sys.stdout.flush()
+    except BrokenPipeError:
+        try:
+            with open(os.devnull, "w", encoding="utf-8") as null:
+                os.dup2(null.fileno(), sys.stdout.fileno())
+        except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is an OSError
+            pass
+
+
 def started_by_uvx() -> bool:
     """uvx sets UV and runs judgekeeper from a folder `archive-v<N>/<id>` in uv's cache, on
     every system and with a cache folder of the person's own. `uv run` and `uv tool install`

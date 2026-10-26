@@ -4,13 +4,16 @@ promptfoo it runs: the project's own (node_modules/.bin, code from the folder) o
 PATH. Without a terminal, or on No, it prints the commands.
 
 The export reads promptfoo's database in the home folder and writes one file; it runs no
-tests and calls no model. It runs with promptfoo's telemetry, update check and logs off:
+tests and calls no model. It runs with promptfoo's telemetry, update check and logs off, in an
+empty temp folder (promptfoo would load a promptfooconfig.js from the folder it runs in):
 
-    promptfoo export eval latest -o .judgekeeper/promptfoo-latest.json
+    promptfoo export eval latest -o <project>/.judgekeeper/promptfoo-latest.json
 
 "latest" is the user's last promptfoo run, which may be from another project, so the file is
-checked against this project's config: its `config.description`, else its prompts. A run from
-another project is deleted with a message saying how to find the right one. A match moves to
+checked against the promptfoo config Find found (evals/promptfooconfig.yaml, say): its
+`config.description`, else its prompts. With no config found it can't be told, so it counts as
+another project's. A run from another project is deleted with a message saying how to find the
+right one. A match moves to
 `promptfoo-results.json` in the project (asking first if that name is taken) and judgekeeper
 carries on.
 """
@@ -19,9 +22,10 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
-from judgekeeper import again, find, textio
+from judgekeeper import again, textio
 from judgekeeper.redact import scrub
 
 LATEST = ".judgekeeper/promptfoo-latest.json"
@@ -61,32 +65,36 @@ def _prompts(config: dict) -> list[str]:
     return out
 
 
-def _this_project(root: Path, data: dict) -> bool:
-    """Whether an exported run is of this project's config: the same description when both
-    have one, else one of its prompts in the config file."""
-    from judgekeeper.start import _project_description
+def _this_project(path: Path | None, data: dict) -> bool:
+    """Whether an exported run is of the promptfoo config at `path` (the one Find found): the
+    same description when both have one, else one of its prompts in the config file. No
+    config: no."""
+    from judgekeeper.start import config_description
 
+    if path is None or not path.is_file():
+        return False
     config = data.get("config") if isinstance(data.get("config"), dict) else {}
     theirs = config.get("description")
-    mine = _project_description(root)
+    mine = config_description(path)
     if isinstance(theirs, str) and theirs.strip() and mine:
         return theirs.strip() == mine
     prompts = _prompts(config)
-    path = next((root / n for n in find.PROMPTFOO_CONFIGS if (root / n).is_file()), None)
-    if not prompts or path is None:
+    if not prompts:
         return True
     text = path.read_text(encoding="utf-8", errors="replace")
     return any(p in text for p in prompts)
 
 
-def offer(talk, root: Path) -> str:
-    """Offer to export promptfoo's last run. Returns "done" (promptfoo-results.json is now in
-    the project), "stop" (said what to do instead) or "commands" (print the commands)."""
+def offer(talk, root: Path, config: str | None) -> str:
+    """Offer to export promptfoo's last run, for the promptfoo config Find found (`config`,
+    in `root`). Returns "done" (promptfoo-results.json is now in the project), "stop" (said
+    what to do instead) or "commands" (print the commands)."""
     from judgekeeper.start import _interactive
     from judgekeeper.start_label import Workspace, make_folder
 
     if not _interactive():
         return "commands"
+    root = Path(root).absolute()  # the export runs in another folder
     command = _promptfoo(root)
     if command is None:
         talk.say("promptfoo was not found here, so judgekeeper can't run the export for you.")
@@ -96,8 +104,9 @@ def offer(talk, root: Path) -> str:
         return "commands"
     make_folder(Workspace(root))
     out = root / LATEST
-    proc = again.run_process([command, "export", "eval", "latest", "-o", LATEST], cwd=root,
-                             env={**os.environ, **ENV}, timeout=300)
+    with tempfile.TemporaryDirectory(prefix="judgekeeper-", ignore_cleanup_errors=True) as tmp:
+        proc = again.run_process([command, "export", "eval", "latest", "-o", str(out)],
+                                 cwd=Path(tmp), env={**os.environ, **ENV}, timeout=300)
     if proc.returncode != 0 or not out.is_file():
         tail = [x for x in (proc.stderr or proc.stdout or "").strip().splitlines() if x.strip()]
         talk.say(f"promptfoo export did not work: {scrub(tail[-1]) if tail else 'no file'}")
@@ -107,7 +116,8 @@ def offer(talk, root: Path) -> str:
         data = json.loads(out.read_text(encoding="utf-8"))
     except ValueError:
         data = {}
-    if not isinstance(data, dict) or not _this_project(root, data):
+    found = root / config if config else None
+    if not isinstance(data, dict) or not _this_project(found, data):
         out.unlink()
         talk.say(ANOTHER)
         return "stop"
