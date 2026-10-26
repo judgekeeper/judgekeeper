@@ -976,7 +976,8 @@ def test_a_lock_whose_page_answers_too_late_stays_and_no_second_page_starts(
         out, err = capsys.readouterr()
         assert code == 3, out + err
         assert out.splitlines()[-2:] == [
-            "A marking page for this folder is open but not answering. Try again in a moment.",
+            ("A marking page for this folder is open but not answering. Try again in a moment. "
+             "If no judgekeeper page is open, delete .judgekeeper/server.json."),
             "Next: run `judgekeeper --no-browser --port 0` again."], out + err
         assert (folder / label.LOCK).read_text(encoding="utf-8") == lock  # kept
         assert pages[0] == []  # no second page

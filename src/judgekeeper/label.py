@@ -209,7 +209,8 @@ MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
 ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
-BUSY = "A marking page for this folder is open but not answering. Try again in a moment."
+BUSY = ("A marking page for this folder is open but not answering. Try again in a moment. "
+        f"If no judgekeeper page is open, delete .judgekeeper/{LOCK}.")
 RELEASE_TRIES = 40  # times to try removing the lock, RELEASE_PAUSE seconds apart
 RELEASE_PAUSE = 0.05
 
