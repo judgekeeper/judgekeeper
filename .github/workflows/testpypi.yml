@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.hashes.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -60,6 +61,15 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: ls dist/judgekeeper-"$VERSION"-py3-none-any.whl
+      - name: Record the sha256 of each file for publish to check
+        id: hashes
+        working-directory: dist
+        run: |
+          {
+            echo "sha256<<HASHES"
+            sha256sum -- *
+            echo "HASHES"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: dist
@@ -114,6 +124,14 @@ jobs:
         with:
           name: dist
           path: dist/
+      - name: Check these are the files build made, with the same sha256
+        working-directory: dist
+        env:
+          BUILT: ${{ needs.build.outputs.sha256 }}
+        run: |
+          printf '%s\n' "$BUILT" > "$RUNNER_TEMP/built.sha256"
+          sha256sum -- * > "$RUNNER_TEMP/downloaded.sha256"
+          diff "$RUNNER_TEMP/built.sha256" "$RUNNER_TEMP/downloaded.sha256"
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
         with:
           repository-url: https://test.pypi.org/legacy/

@@ -152,6 +152,28 @@ def test_only_the_hash_pinned_build_tools_run_before_the_upload(name):
     assert set(jobs["publish"]["needs"]) == {"build", "test"}
 
 
+@pytest.mark.parametrize("name", ["release.yml", "testpypi.yml"])
+def test_publish_uploads_only_the_files_build_hashed(name):
+    """The test job installs unpinned packages: before the upload, publish checks it got the
+    same files, with the same sha256, as the build job made."""
+    jobs = _workflow(name)["jobs"]
+    build = jobs["build"]["steps"]
+    (record,) = [i for i, s in enumerate(build) if s.get("id") == "hashes"]
+    (made,) = [i for i, s in enumerate(build) if "python -m build" in s.get("run", "")]
+    (kept,) = [i for i, s in enumerate(build) if "upload-artifact@" in s.get("uses", "")]
+    assert made < record < kept
+    assert "sha256sum" in build[record]["run"] and "$GITHUB_OUTPUT" in build[record]["run"]
+    assert jobs["build"]["outputs"]["sha256"] == "${{ steps.hashes.outputs.sha256 }}"
+    publish = jobs["publish"]["steps"]
+    (got,) = [i for i, s in enumerate(publish) if "download-artifact@" in s.get("uses", "")]
+    (check,) = [i for i, s in enumerate(publish) if "sha256sum" in s.get("run", "")]
+    (upload,) = [i for i, s in enumerate(publish)
+                 if "pypa/gh-action-pypi-publish" in s.get("uses", "")]
+    assert got < check < upload
+    assert publish[check]["env"] == {"BUILT": "${{ needs.build.outputs.sha256 }}"}
+    assert "diff " in publish[check]["run"]  # an extra, missing or changed file fails
+
+
 def test_the_release_build_tools_are_pinned_with_hashes():
     text = RELEASE_REQUIREMENTS.read_text(encoding="utf-8")
     command = text.splitlines()[1]  # the command that made the file, under uv's header
