@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -324,3 +325,165 @@ def test_a_big_experiment_is_read_up_to_the_newest_traces_and_said(made, tmp_pat
 
 def test_the_limit_is_thirty_thousand():
     assert mlflow_store.MAX_TRACES == 30_000
+
+
+# Reading a folder store reads only its own files --------------------------------------------
+
+
+@pytest.fixture
+def listener():
+    """A local HTTP server that keeps every request it gets: (path, Authorization)."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    asked = []
+
+    class Keep(BaseHTTPRequestHandler):
+        def do_GET(self):
+            asked.append((self.path, self.headers.get("Authorization")))
+            self.send_response(404)
+            self.end_headers()
+
+        do_HEAD = do_POST = do_PUT = do_GET
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Keep)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}", asked
+    server.shutdown()
+    server.server_close()
+
+
+def test_a_missing_trace_file_is_never_fetched_from_where_the_store_points(folder_only,
+                                                                           listener):
+    """A trace without its traces.json whose mlflow.artifactLocation names a server: MLflow
+    would download it from there, with the MLflow login in the environment. It is left out."""
+    address, asked = listener
+    trace = _trace_files(folder_only)[0].parent.parent
+    (trace / "artifacts" / "traces.json").unlink()
+    (trace / "tags" / "mlflow.artifactLocation").write_text(f"{address}/{trace.name}",
+                                                            encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k not in (ALLOW, HINT)}
+    env.update(PYTHONPATH=str(ROOT / "src"), MLFLOW_TRACKING_USERNAME="someone",
+               MLFLOW_TRACKING_PASSWORD="not-a-real-password", NO_PROXY="127.0.0.1",
+               no_proxy="127.0.0.1")
+    result = subprocess.run([sys.executable, "-m", "judgekeeper", str(folder_only),
+                             "--no-browser"], capture_output=True, text=True, env=env,
+                            stdin=subprocess.DEVNULL, timeout=300, check=False)
+    out = " ".join((result.stdout + result.stderr).split())
+    assert asked == []
+    assert "1 answer was left out: their trace files are missing from mlruns/." in out, out
+
+
+class _Page(list):
+    token = None
+
+
+class _Client:
+    """search_traces (without spans) finds traces with these ids; get_trace is kept."""
+
+    def __init__(self, ids):
+        self.ids, self.fetched = ids, []
+
+    def search_traces(self, locations, max_results=100, page_token=None, include_spans=True):
+        return _Page(SimpleNamespace(info=SimpleNamespace(trace_id=i)) for i in self.ids)
+
+    def get_trace(self, trace_id):
+        self.fetched.append(trace_id)
+        raise LookupError(trace_id)
+
+
+GOOD_ID = "tr-" + "0123456789abcdef" * 2
+OLD_ID = "fedcba9876543210" * 2  # MLflow 2's request ids
+OUTSIDE = "outside the experiment"  # stands for the absolute path of a folder outside it
+
+
+def _plant(experiment, trace_id):
+    path = experiment.joinpath("traces", trace_id, "artifacts", "traces.json")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:  # a name this system can't hold (Windows: tr-*): nothing to plant
+        return
+    path.write_text('{"spans": []}', encoding="utf-8")
+
+
+@pytest.mark.parametrize("trace_id", ["../../../outside", "..\\..\\..\\outside", OUTSIDE,
+                                      "tr-0a/../../../outside", "tr-*", "TR-0A", "tr-"])
+def test_a_trace_id_is_a_path_only_in_mlflow_shape(tmp_path, trace_id):
+    """A trace id from the store that is not MLflow's shape (tr- and hex, or 32 hex) is never
+    joined into a path, on any system: the trace is left out, even when a file is where it
+    points. The traces beside it are read."""
+    pytest.importorskip("mlflow")
+    if trace_id == OUTSIDE:
+        trace_id = str(tmp_path / "outside")
+    experiment = tmp_path / "mlruns" / "1"
+    for each in (trace_id, GOOD_ID, OLD_ID):
+        _plant(experiment, each)
+    client, missing = _Client([trace_id, GOOD_ID, OLD_ID]), []
+    read = mlflow_store._traces(client, "1", tmp_path / "mlruns", missing)
+    assert [t.info.trace_id for t in read] == [GOOD_ID, OLD_ID]
+    assert missing == [trace_id] and client.fetched == []
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symbolic links")
+def test_a_trace_folder_that_leads_outside_the_experiment_is_left_out(tmp_path):
+    pytest.importorskip("mlflow")
+    outside = tmp_path / "outside" / "artifacts"
+    outside.mkdir(parents=True)
+    (outside / "traces.json").write_text('{"spans": []}', encoding="utf-8")
+    traces = tmp_path / "mlruns" / "1" / "traces"
+    traces.mkdir(parents=True)
+    try:
+        (traces / GOOD_ID).symlink_to(tmp_path / "outside", target_is_directory=True)
+    except OSError:
+        pytest.skip("symbolic links need rights here")
+    client, missing = _Client([GOOD_ID]), []
+    assert list(mlflow_store._traces(client, "1", tmp_path / "mlruns", missing)) == []
+    assert missing == [GOOD_ID] and client.fetched == []
+
+
+def _worker():
+    spec = importlib.util.spec_from_file_location(
+        "mlflow_worker", ROOT / "src" / "judgekeeper" / "again" / "workers" / "mlflow_worker.py")
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+    return worker
+
+
+class _WorkerClient(_Client):
+    def search_traces(self, locations, max_results=100, page_token=None, include_spans=True):
+        return _Page(SimpleNamespace(trace_id=i) for i in self.ids)
+
+
+@pytest.mark.parametrize("trace_id", ["../../outside", "..\\..\\outside", "*"])
+def test_the_worker_uses_a_trace_id_in_a_path_only_in_mlflow_shape(tmp_path, trace_id):
+    pytest.importorskip("mlflow")
+    store = tmp_path / "mlruns"
+    (store / "1" / "traces" / GOOD_ID / "artifacts").mkdir(parents=True)
+    (store / "1" / "traces" / GOOD_ID / "artifacts" / "traces.json").write_text(
+        '{"spans": []}', encoding="utf-8")
+    if trace_id != "*":
+        planted = store.joinpath("1", "traces", trace_id, "artifacts", "traces.json")
+        planted.parent.mkdir(parents=True, exist_ok=True)
+        planted.write_text('{"spans": []}', encoding="utf-8")
+    with pytest.raises(LookupError):
+        _worker().get_trace(_WorkerClient([trace_id]), str(store), trace_id, {})
+
+
+# A damaged store ---------------------------------------------------------------------------
+
+
+def test_a_meta_yaml_mlflow_refuses_is_a_damaged_store(folder_only, capsys):
+    """MLflow reads meta.yaml with yaml.safe_load: a python tag is refused (never run). The
+    words and exit code of a damaged mlflow.db (a file it can't read)."""
+    experiment = next(p for p in (folder_only / "mlruns").iterdir()
+                      if p.is_dir() and p.name not in ("0", ".trash"))
+    (experiment / "meta.yaml").write_text(
+        "artifact_location: !!python/object/apply:os.getcwd []\nname: qa-folder\n",
+        encoding="utf-8")
+    code, out = run(capsys, folder_only, "--no-browser")
+    assert code == 2, out
+    assert "mlruns can't be read: it's damaged. Save it again from MLflow." in out
+    assert "please report" not in out.lower() and "didn't expect" not in out

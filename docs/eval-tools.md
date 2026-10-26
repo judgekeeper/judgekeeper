@@ -79,6 +79,7 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
 - **`--no-log-samples`** logs cannot be read.
+- **Very big parts.** A `.eval` log whose header would unpack to more than 500 MB, or one sample to more than 200 MB, is not read. judgekeeper counts what each part really unpacks to before Inspect AI reads the log, and keeps none of it.
 
 ## MLflow
 
@@ -96,7 +97,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 - **The rule.** Only `make_judge` (MLflow 3.14+) saves its instructions; for other scorers the prompt hash and temperature are unknown.
 - **Errors** are no decision; the reason is the error's code, never its message.
 - **Code scorers** (a bare bool or number) and assessments on spans are left out, unless `--metric` names a span-only one.
-- **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder.
+- **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder, never from where they point. A trace whose files are not there is left out, and said.
 - **MLflow's own problems, not judgekeeper's.** `mlflow.genai.evaluate` on `mlflow.db` can drop traces and still say it completed; `MLFLOW_GENAI_EVAL_MAX_WORKERS=4` avoids it.
 
 ## A CSV or JSONL file

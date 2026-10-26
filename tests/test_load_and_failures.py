@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from judgekeeper import marks, start, start_label, weighted
 from judgekeeper.start_label import StartSession
 from tests.start_projects import table_project
@@ -257,6 +259,176 @@ def test_a_real_eval_log_reads_the_same_as_its_json(tmp_path):
 
     assert len(seen(read_inspect(path))) == 6
     assert seen(read_inspect(path)) == seen(read_inspect(as_json))
+
+
+def _declare(path, name, size):
+    """Make the zip at `path` say its part `name` unpacks to `size` bytes, in both places a
+    zip keeps it: the file stays as small as it was, as a zip bomb's does."""
+    import struct
+    import zipfile
+
+    data = bytearray(path.read_bytes())
+    with zipfile.ZipFile(path) as z:
+        struct.pack_into("<I", data, z.getinfo(name).header_offset + 22, size)
+    at = data.find(b"PK\x01\x02")
+    while at != -1:
+        length = struct.unpack_from("<H", data, at + 28)[0]
+        if data[at + 46:at + 46 + length] == name.encode():
+            struct.pack_into("<I", data, at + 24, size)
+        at = data.find(b"PK\x01\x02", at + 4)
+    path.write_bytes(bytes(data))
+    with zipfile.ZipFile(path) as z:
+        assert z.getinfo(name).file_size == size
+
+
+def _bomb(tmp_path, monkeypatch, part, size):
+    """A real .eval log whose `part` says it unpacks to `size` bytes, and the calls made to
+    inspect_ai's readers while it is read."""
+    import zipfile
+
+    import pytest
+
+    pytest.importorskip("inspect_ai")
+    import inspect_ai.log
+    from inspect_ai.log import write_eval_log
+
+    from judgekeeper.readers import read_inspect
+
+    path = tmp_path / "2026-10-21_qa.eval"
+    write_eval_log(_real_log(tmp_path, n=2), str(path))
+    assert len(read_inspect(path)) == 2  # read as it is
+    with zipfile.ZipFile(path) as z:
+        name = next(n for n in z.namelist() if n == part or n.startswith(part))
+        sizes = {i.filename: i.file_size for i in z.infolist()}
+    _declare(path, name, size)
+    calls = []
+    for reader in ("read_eval_log", "read_eval_log_samples"):
+        real = getattr(inspect_ai.log, reader)
+        monkeypatch.setattr(inspect_ai.log, reader,
+                            lambda *a, _real=real, _name=reader, **k: (
+                                calls.append(_name), _real(*a, **k))[1])
+    return path, calls, sizes
+
+
+def test_an_eval_log_whose_header_unpacks_too_big_is_refused_unread(tmp_path, monkeypatch):
+    import tracemalloc
+
+    import pytest
+
+    from judgekeeper.readers import inspect_logs, read_inspect
+    from judgekeeper.records import RecordsError
+
+    path, calls, _ = _bomb(tmp_path, monkeypatch, "header.json", 3 * 2**30)
+    assert path.stat().st_size < 100_000
+    tracemalloc.start()
+    try:
+        with pytest.raises(RecordsError) as e:
+            read_inspect(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    said = str(e.value)
+    assert "more than 500 MB for the header" in said, said
+    assert calls == [] and peak < 20 * 2**20
+    assert inspect_logs.eval_header(path) == {} and calls == []
+
+
+def test_an_eval_log_with_one_sample_too_big_is_refused_unread(tmp_path, monkeypatch):
+    import pytest
+
+    from judgekeeper.readers import read_inspect
+    from judgekeeper.records import RecordsError
+
+    path, calls, _ = _bomb(tmp_path, monkeypatch, "samples/", 2**30)
+    with pytest.raises(RecordsError) as e:
+        read_inspect(path)
+    assert "more than 200 MB for one sample" in str(e.value) and calls == []
+
+
+@pytest.mark.parametrize("part", ["header.json", "samples/"])
+def test_an_eval_log_that_says_a_part_is_smaller_than_it_is_is_counted(tmp_path, monkeypatch,
+                                                                       part):
+    """A zip can declare any size: each part is counted as it really unpacks (here in
+    inspect_ai's own compression), and the log refused once a part passes its limit."""
+    from judgekeeper.readers import inspect_logs, read_inspect
+    from judgekeeper.records import RecordsError
+
+    path, calls, sizes = _bomb(tmp_path, monkeypatch, part, 100)
+    if part == "header.json":  # the header's parts would pass as they say, not as they are
+        limit = sum(n for name, n in sizes.items() if not name.startswith("samples/")) - 1
+        monkeypatch.setattr(inspect_logs, "WHOLE_LIMIT", limit)
+    else:
+        limit = max(n for name, n in sizes.items() if name.startswith("samples/")) - 1
+        monkeypatch.setattr(inspect_logs, "SAMPLE_LIMIT", limit, raising=False)
+    with pytest.raises(RecordsError) as e:
+        read_inspect(path)
+    said = str(e.value)
+    what = "the header" if part == "header.json" else "one sample"
+    assert f"more than {inspect_logs._size(limit)} for {what}" in said, said
+    assert calls == []
+
+
+def _zip(path, parts, compression):
+    import zipfile
+
+    with zipfile.ZipFile(path, "w", compression) as z:
+        for name, text in parts.items():
+            z.writestr(name, text)
+
+
+def test_a_deflated_part_that_says_it_is_smaller_is_counted(tmp_path, monkeypatch):
+    import zipfile
+
+    from judgekeeper.readers import inspect_logs
+    from judgekeeper.records import RecordsError
+
+    calls = _fake_inspect(monkeypatch, _log_data())
+    monkeypatch.setattr(inspect_logs, "SAMPLE_LIMIT", 1000, raising=False)
+    path = tmp_path / "2026-10-21_qa.eval"
+    _zip(path, {"header.json": "{}", "samples/1_epoch_1.json": "{}" + " " * 5000},
+         zipfile.ZIP_DEFLATED)
+    _declare(path, "samples/1_epoch_1.json", 100)
+    with pytest.raises(RecordsError) as e:
+        inspect_logs._load(path)
+    assert "more than 1000 bytes for one sample" in str(e.value) and calls == []
+
+
+def test_a_part_in_a_compression_inspect_never_writes_is_refused(tmp_path, monkeypatch):
+    import zipfile
+
+    from judgekeeper.readers import inspect_logs
+    from judgekeeper.records import RecordsError
+
+    calls = _fake_inspect(monkeypatch, _log_data())
+    path = tmp_path / "2026-10-21_qa.eval"
+    _zip(path, {"header.json": "{}", "samples/1_epoch_1.json": "{}"}, zipfile.ZIP_BZIP2)
+    with pytest.raises(RecordsError) as e:
+        inspect_logs._load(path)
+    assert "can't be read" in str(e.value) and calls == []
+
+
+def test_without_sample_reading_a_log_that_unpacks_too_big_stops(tmp_path, monkeypatch):
+    """An Inspect AI that reads a log whole: what the log unpacks to counts, not its size."""
+    import zipfile
+
+    import pytest
+
+    from judgekeeper.readers import inspect_logs
+    from judgekeeper.records import RecordsError
+
+    calls = _fake_inspect(monkeypatch, _log_data(), stream=False)
+    monkeypatch.setattr(inspect_logs, "WHOLE_LIMIT", 1000)
+    path = tmp_path / "2026-10-21_qa.eval"
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("header.json", "{}" + " " * 100)
+        for n in range(4):
+            z.writestr(f"samples/{n}_epoch_1.json", "{}" + " " * 800)
+    assert path.stat().st_size < 1000
+    with pytest.raises(RecordsError) as e:
+        inspect_logs._load(path)
+    assert "more than 1000 bytes unpacked" in str(e.value)
+    assert "reads Inspect logs up to" in str(e.value)
+    assert calls == []
 
 
 # One failed judge call, and its text ---------------------------------------------------------
