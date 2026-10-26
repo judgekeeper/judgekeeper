@@ -26,7 +26,7 @@ from judgekeeper import __version__, textio
 from judgekeeper.anchors import AnchorError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
-from judgekeeper.label import LabelError
+from judgekeeper.label import LabelError, PageBusy
 from judgekeeper.mapper import MapError
 from judgekeeper.marks import MarksError
 from judgekeeper.normalise import NormaliseError
@@ -64,6 +64,7 @@ NEXT_LINK = "remove that link, then run `{command}`."
 NEXT_HELP = "run `{command}` to see the options."
 NEXT_REMOVED = "run `{command}` in your project."
 NEXT_STOPPED = "run `{command}` to carry on."
+NEXT_BUSY = "run `{command}` again."
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
@@ -438,6 +439,10 @@ def _main(argv: list[str] | None) -> int:
         return _stopped(args_list)
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
+    except PageBusy as e:  # its page may be busy: never a second page for the project
+        _say(str(e))
+        _next(_step(NEXT_BUSY, args_list), file=sys.stdout)
+        return EXIT_NEEDS_YOU
     except (AnchorError, JudgmentsError, NormaliseError, TableError,
             LabelError, StartError, SettingsError, MapError) as e:
         _error(str(e))

@@ -26,7 +26,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from judgekeeper.label import answers, ask, is_open, link, own_lock, read_lock
+from judgekeeper.label import PageBusy, answers, ask, link, own_lock, read_lock
 from judgekeeper.textio import open_private
 
 WAIT = 10  # seconds
@@ -62,14 +62,18 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
     try:
         while time.monotonic() < deadline:
             lock = read_lock(folder)  # the token: written by the page just started
-            if (lock is not None and lock["token"] == token and own_lock(folder) is not None
-                    and answers(lock["port"], token)):
+            if lock is not None and lock["token"] == token and _own(folder) \
+                    and answers(lock["port"], token):
                 return link(lock["port"], token)
             if proc.poll() is not None:
                 return None
             time.sleep(0.1)
     except KeyboardInterrupt:  # Ctrl-C before the link was printed: the page stops too
-        if not stop(folder, timeout=2):
+        try:
+            stopped = stop(folder, timeout=2)
+        except PageBusy:
+            stopped = False
+        if not stopped:
             proc.kill()
         raise
     proc.kill()
@@ -85,10 +89,20 @@ def stop(folder: Path, timeout: float = WAIT) -> bool:
     ask(lock["port"], "POST", "/stop", {"stop": lock["stop"]})
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not is_open(folder) and (read_lock(folder) != lock or not _running(lock["pid"])):
+        if not _own(folder, busy=True) and (read_lock(folder) != lock
+                                             or not _running(lock["pid"])):
             return True
         time.sleep(0.1)
     return False
+
+
+def _own(folder: Path, busy: bool = False) -> bool:
+    """Whether the project's lock names its open page (label.own_lock); `busy` when the page
+    does not answer in time (it may be starting, or closing)."""
+    try:
+        return own_lock(folder) is not None
+    except PageBusy:
+        return busy
 
 
 def _running(pid: int) -> bool:

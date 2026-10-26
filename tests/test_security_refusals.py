@@ -33,7 +33,7 @@ from judgekeeper import (
 )
 from judgekeeper.again import AgainOptions, make_plan
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project
+from tests.start_projects import promptfoo_project, split
 from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
 from tests.test_fix import _write_rule, judge, project  # noqa: F401
 from tests.test_fix import run as run_fix
@@ -924,3 +924,63 @@ def test_a_key_split_by_any_dropped_character_stays_hidden(monkeypatch):
 def test_a_cell_that_could_run_as_a_formula_is_guarded(cell):
     assert table.guard_cell(cell) == "'" + cell
     assert table.unguard_cell(table.guard_cell(cell)) == cell
+
+
+# A lock whose page does not answer in time ----------------------------------------------------
+
+class _Slow(BaseHTTPRequestHandler):
+    """A page that is busy: it answers each request after SLOW seconds."""
+    seen: list
+
+    def _later(self):
+        self.seen.append((self.command, self.path))
+        time.sleep(_Slow.SLOW)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+        except OSError:  # the asker stopped waiting
+            pass
+
+    do_GET = do_POST = _later
+
+    def log_message(self, *args):
+        pass
+
+
+_Slow.SLOW = 1.0
+
+
+def test_a_lock_whose_page_answers_too_late_stays_and_no_second_page_starts(
+        tmp_path, monkeypatch, capsys, pages):
+    from http.server import ThreadingHTTPServer
+
+    monkeypatch.setattr(label, "PROBE_TIMEOUT", 0.2)
+    seen = []
+    slow = ThreadingHTTPServer(("127.0.0.1", 0), type("Kept", (_Slow,), {"seen": seen}))
+    slow.daemon_threads = True
+    thread = threading.Thread(target=slow.serve_forever, daemon=True)
+    thread.start()
+    try:
+        here = tmp_path / "proj"
+        here.mkdir()
+        monkeypatch.chdir(here)
+        promptfoo_project(here, split(20, 16))
+        folder = here / ".judgekeeper"
+        folder.mkdir(exist_ok=True)
+        lock = json.dumps({"pid": os.getpid(), "port": slow.server_address[1],
+                           "stop": "STOP-OF-THE-BUSY-PAGE", "token": "TOKEN-OF-THE-BUSY-PAGE"})
+        (folder / label.LOCK).write_text(lock, encoding="utf-8")
+        code = main(["--no-browser", "--port", "0"])
+        out, err = capsys.readouterr()
+        assert code == 3, out + err
+        assert out.splitlines()[-2:] == [
+            "A marking page for this folder is open but not answering. Try again in a moment.",
+            "Next: run `judgekeeper --no-browser --port 0` again."], out + err
+        assert (folder / label.LOCK).read_text(encoding="utf-8") == lock  # kept
+        assert pages[0] == []  # no second page
+        assert not [s for s in seen if s[0] == "POST" or "BUSY-PAGE" in s[1]]
+    finally:
+        slow.shutdown()
+        slow.server_close()
