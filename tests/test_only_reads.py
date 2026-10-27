@@ -378,6 +378,16 @@ def test_unseen_characters_before_a_formula_still_guard_it(cell):
     assert table.unguard_cell(table.guard_cell(cell)) == cell
 
 
+@pytest.mark.parametrize("space", ["\u00a0", "\u1680", "\u2000", "\u2005", "\u200a", "\u202f",
+                                   "\u205f", "\u3000", "\u2028", "\u2029", "\n", "\r\n",
+                                   "\x0b", "\x0c", "\x85"])
+@pytest.mark.parametrize("start", ["=", "+", "-", "@"])
+def test_any_space_or_line_break_before_a_formula_still_guards_it(space, start):
+    cell = f"{space}{start}HYPERLINK(\"http://127.0.0.1:9/x\") Answer"
+    assert table.guard_cell(cell) == "'" + cell
+    assert table.unguard_cell(table.guard_cell(cell)) == cell
+
+
 def test_marked_answers_hide_keys_and_guard_formulas(here, capsys, monkeypatch):
     texts = {i: SNEAKY.get(i, (question(i), answer(i))) for i in range(N)}
     (here / "results.jsonl").write_text("".join(json.dumps(
