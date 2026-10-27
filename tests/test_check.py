@@ -320,9 +320,9 @@ def test_a_verdicts_folder_that_is_a_link_is_not_written_through(here, capsys,
         pytest.skip("this system cannot make links")
     code = main(["check"])
     out, err = capsys.readouterr()
-    assert code == 3
+    assert code == 2
     assert list(outside.iterdir()) == []
-    assert f"error: {os.path.join('.judgekeeper', check.VERDICTS)} is a link." in err
+    assert f"error: .judgekeeper/{check.VERDICTS} is a link to another folder." in err
     assert "didn't expect" not in out + err
 
 

@@ -567,9 +567,9 @@ def test_a_link_in_the_fix_folder_stops_fix_before_it_writes(here, capsys, tmp_p
         pytest.skip("this system cannot make links")
     code = main(["fix"])
     out, err = capsys.readouterr()
-    assert code == 3
+    assert code == 2
     assert list(outside.iterdir()) == []
-    assert f"error: {os.path.join('.judgekeeper', 'fix', 'runs')} is a link." in err
+    assert "error: .judgekeeper/fix/runs is a link to another folder." in err
     assert "didn't expect" not in out + err
 
 

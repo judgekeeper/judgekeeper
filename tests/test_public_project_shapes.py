@@ -134,7 +134,9 @@ def test_several_verdict_columns_are_listed_as_judges_judge_first(here, capsys):
     assert out.index("check_verdict (60 answers)") < out.index("verdict (69 answers)")
     line = assert_one_next_at_the_end(out)
     assert "--metric NAME" in line
-    assert "'judge_verdict', 'check_verdict', 'verdict', 'all'" in flat(line)  # quoted alike
+    quote = '"' if sys.platform == "win32" else "'"  # quoted alike, as each shell reads
+    assert ", ".join(f"{quote}{n}{quote}" for n in ("judge_verdict", "check_verdict",
+                                                    "verdict", "all")) in flat(line)
 
 
 def test_the_chosen_judge_column_is_read_alone(here, capsys):

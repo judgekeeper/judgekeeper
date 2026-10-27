@@ -247,21 +247,28 @@ class Talk:
 
     def choose(self, title: str, options: list[str], flag_hint: str,
                ask: str = "Which one?", flag: str | None = None, values=(),
-               what: str | None = None) -> int:
+               what: str | None = None, keep: int = 0) -> int:
         """The index of the option the person picks. Without a terminal: the hint, exit 8.
         `flag` (with `values`, one per option) answers it, and `what` says what is chosen;
-        `judgekeeper` (front.py) words its Next: line from them."""
+        `judgekeeper` (front.py) words its Next: line from them. A choice of names (a name
+        flag) shows the first LIST_LIMIT, and the last `keep` options, which are not names."""
         if not _interactive():
             for line in flag_hint.splitlines():
                 self.say(line)
             raise Stop(EXIT_QUESTION)
         self.say(title)
-        for n, option in enumerate(options, 1):
-            self.say(f"  {n}. {option}")
+        shown = list(range(len(options)))
+        left = len(options) - keep - LIST_LIMIT
+        if names_flag(flag) and left > 0:  # any other name is chosen with its flag
+            shown = shown[:LIST_LIMIT] + shown[len(options) - keep:]
+        for n, i in enumerate(shown, 1):
+            self.say(f"  {n}. {options[i]}")
+            if n == LIST_LIMIT and len(shown) < len(options):
+                self.say(f"  {more(left)}: choose one of them with {flag} NAME")
         while True:
-            answer = self._input(f"{ask} [1-{len(options)}]: ")
-            if answer.isdigit() and 1 <= int(answer) <= len(options):
-                return int(answer) - 1
+            answer = self._input(f"{ask} [1-{len(shown)}]: ")
+            if answer.isdigit() and 1 <= int(answer) <= len(shown):
+                return shown[int(answer) - 1]
 
     def confirm(self, question: str, default: bool, hint: str, with_yes: bool) -> bool:
         """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 8."""
@@ -940,6 +947,34 @@ def _or(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
 
 
+LIST_LIMIT = 20  # names said at most in one list (metrics, an Inspect score's keys)
+
+
+def more(n: int) -> str:
+    """What stands for the names a list leaves out: "and 4,980 more"."""
+    return f"and {n:,} more"
+
+
+def names_flag(flag: str | None) -> bool:
+    """A flag that takes a name (--metric, --experiment, --tool): its choice lists at most
+    LIST_LIMIT names. A path, or a choice with no flag, shows every option."""
+    return flag is not None and flag != "PATH"
+
+
+def by_use(names: list[str], counts) -> list[str]:
+    """`names` as they are; more than LIST_LIMIT, the most used first (`counts[name]`), so
+    the main ones are among those listed."""
+    return names if len(names) <= LIST_LIMIT else sorted(names, key=lambda n: -counts[n])
+
+
+def some(items: list[str], last: str = "or") -> str:
+    """At most LIST_LIMIT of `items`, then how many more: a results file can name thousands
+    of judges, and a list must not push the Next: line off the screen."""
+    if len(items) <= LIST_LIMIT:
+        return _or(items) if last == "or" else ", ".join(items)
+    return f"{', '.join(items[:LIST_LIMIT])} {more(len(items) - LIST_LIMIT)}"
+
+
 def _and(items: list[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
@@ -1514,7 +1549,7 @@ def _note(talk: Talk, text: str) -> None:
 def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
                    prefer: str | None = None, kind: str | None = None) -> str:
     counts = _judges(newest.records, kind)
-    names = sorted(counts)
+    names = by_use(sorted(counts), counts)
     if not names:
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
@@ -1522,7 +1557,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     if metric is not None:
         if metric not in counts:
             raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
-                             f"{', '.join(repr(n) for n in names)}",
+                             f"{some([repr(n) for n in names], last=',')}",
                              f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
         return metric
     if len(names) == 1:
@@ -1531,7 +1566,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
     name = names[talk.choose(
         "These results hold more than one LLM-as-a-judge:", options,
         "Several LLM-as-a-judge metrics found; choose one with "
-        f"{_or([f'--metric {quote_arg(n)}' for n in names])}",
+        f"{some([f'--metric {quote_arg(n)}' for n in names])}",
         flag="--metric", values=names, what="which LLM-as-a-judge to check")]
     _next_time(talk, "--metric", name)
     return name
