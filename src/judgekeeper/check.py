@@ -96,6 +96,8 @@ NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judg
                "error).")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text.")
+EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-judge, only from "
+           "one before it, so judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
@@ -479,6 +481,9 @@ def _old_verdicts(state: State, old: dict) -> dict[str, str]:
     setup_hash = judge_setup.hash_of(old)
     if setup_hash != state.saved["setup_hash"]:
         pool.update((data.get("picked") or {}).get("groups") or {})
+    else:  # never an earlier judge's grade as this one's
+        for i in data.get("earlier_grades") or []:
+            pool.pop(i, None)
     return {**pool, **_read_verdicts(state.ws, setup_hash)}
 
 
@@ -1151,7 +1156,8 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     grades (on the marks re-checked and the answers in the newest results), its rule, model
     and fingerprint, and pool-judge.jsonl its grades and reasons, so the result and `fix` are
     about the judge in the newest results. The groups the marks were picked from, and those
-    groups' sizes, stay in `picked` (start_label.picked_numbers)."""
+    groups' sizes, stay in `picked` (start_label.picked_numbers). The answers it has no grade
+    on keep an earlier judge's: `earlier_grades` names them, and no comparison uses those."""
     from judgekeeper.fingerprint import JudgeFingerprint
     from judgekeeper.judgments import judgment_to_record, read_run, write_run
     from judgekeeper.runners.base import Judgment
@@ -1167,8 +1173,12 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                                     "groups": {q["id"]: q["group"] for q in queue}}
     for q in queue:  # a batch added since the last check: picked by the grades it has now
         picked["groups"].setdefault(q["id"], q["group"])
+    earlier = sorted(q["id"] for q in queue if q["id"] not in now)
     queue = [{**q, "group": now.get(q["id"], q["group"])} for q in queue]
     kinds = [q["group"] for q in queue]
+    data.pop("earlier_grades", None)
+    if earlier:
+        data["earlier_grades"] = earlier
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
                 judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
                 pass_mark=found.pass_mark, results_files=list(found.used),
@@ -1338,6 +1348,11 @@ def full(path: str, said: Said) -> int:
                                      every=every_marked(state.ws)):
                 said.say(line)
             said.say()
+    left = sum(i in state.marks and i not in old_verdicts for i in tested)
+    if left:  # graded before the last check took on the old judge (_adopt)
+        said.say(EARLIER.format(k=left, have="has" if left == 1 else "have",
+                                them="it" if left == 1 else "them"))
+        said.say()
     said.say(ONE_RUN)
     said.say()
     drop = targets.smallest_drop(g["passed"]["n"], g["failed"]["n"], g["passed"]["old"],
@@ -1539,6 +1554,24 @@ def back_to_marked(ws: Workspace, found) -> str | None:
     return BACK.format(model=", ".join(names) or "model not named")
 
 
+def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
+    """The judge the marks test now graded answers that had only an earlier judge's grade
+    (`earlier_grades`): start.json keeps its `grades` on them from now on."""
+    from judgekeeper.start_label import _write_json
+
+    data = ws.data()
+    data["queue"] = [{**q, "group": grades.get(q["id"], q["group"])}
+                     for q in data.get("queue") or []]
+    kinds = [q["group"] for q in data["queue"]]
+    data["pool"] = {**(data.get("pool") or {}), "pass": kinds.count("pass"),
+                    "fail": kinds.count("fail")}
+    left = [i for i in data.get("earlier_grades") or [] if i not in grades]
+    data.pop("earlier_grades", None)
+    if left:
+        data["earlier_grades"] = left
+    _write_json(ws.start, data)
+
+
 def _restore(ws: Workspace, found, setup: dict) -> None:
     """The marks test the judge they were made on again (`found`, its `setup`): start.json
     takes back the grades the marks were picked by, judge.json that judge, and the result is
@@ -1552,7 +1585,7 @@ def _restore(ws: Workspace, found, setup: dict) -> None:
     data = ws.data()
     data["queue"] = [{**q, "group": groups.get(q["id"], q["group"])} for q in data["queue"]]
     data["pool"] = picked.get("pool") or data.get("pool")
-    for key in ("picked", "checked_at"):
+    for key in ("picked", "checked_at", "earlier_grades"):  # every grade is that judge's again
         data.pop(key, None)
     _write_json(ws.start, data)
     judge_setup.save(ws, setup, found.metric)
