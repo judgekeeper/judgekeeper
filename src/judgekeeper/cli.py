@@ -21,6 +21,7 @@ import shutil
 import sys
 import textwrap
 import traceback
+from pathlib import Path
 
 from judgekeeper import __version__, textio
 from judgekeeper.anchors import AnchorError
@@ -351,6 +352,16 @@ def cmd_front(args) -> int:
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
+
+
+def refuse_linked_folder(path: str) -> None:
+    """Stop (StartError) when the project's .judgekeeper/, or anything in it, is a link: once,
+    before any command does its work, so none writes through it (`fix` writes in fix/)."""
+    from judgekeeper import start_again, start_label
+
+    given = Path(path)
+    if given.exists():
+        start_label.refuse_links(start_label.Workspace(start_again._project(given)))
 # The options that take a value: the word after one is never the command
 VALUED = ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if", "--label-map",
           "--judge-model", "--fields", "--port")
@@ -435,6 +446,7 @@ def _main(argv: list[str] | None) -> int:
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:
+        refuse_linked_folder(args.path)
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         return _stopped(args_list)

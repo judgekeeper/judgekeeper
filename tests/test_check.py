@@ -420,10 +420,10 @@ def test_a_checks_folder_that_is_a_link_stops_check_before_any_call(here, capsys
         pytest.skip("this system cannot make links")
     code = main(["check", "--yes"])
     out, err = capsys.readouterr()
-    assert code == 3
+    assert code == 2
     assert list(outside.iterdir()) == []
     assert _evals(judge) == 0
-    assert f"error: {os.path.join('.judgekeeper', 'checks')} is a link." in err
+    assert "error: .judgekeeper/checks is a link to another folder." in err
     assert "didn't expect" not in out + err
     assert _history(ws) == []
 
