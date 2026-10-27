@@ -419,14 +419,23 @@ def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
             f"LLM-as-a-judge passed {mono(judge_passed)} and failed {mono(judge_failed)}.")
 
 
+def own_line(did: str, n: int) -> str:
+    """"You passed 15 answers.", the number in mono: before a result, the person's own count
+    only, so marking an answer and taking it back never shows the judge's grade on it."""
+    return f'You {did} <span class="mono">{n}</span> {"answer" if n == 1 else "answers"}.'
+
+
 def _counts(r: dict, c: dict) -> str:
-    """The two counts, and the answers the judge gave no Pass or Fail on (left out), if any."""
+    """The two counts (before a result, the person's own only), and the answers the judge gave
+    no Pass or Fail on (left out), if any."""
     from judgekeeper.judge_check import NO_DECISION
 
-    row = ('<div class="counts">'
-           f'<p>{count_line("passed", c["passed"], c["passed"] - c["strict"], c["strict"])}</p>'
-           f'<p>{count_line("failed", c["failed"], c["easy"], c["failed"] - c["easy"])}</p>'
-           "</div>")
+    if r["check"] == "too_few":
+        lines = [own_line("passed", c["passed"]), own_line("failed", c["failed"])]
+    else:
+        lines = [count_line("passed", c["passed"], c["passed"] - c["strict"], c["strict"]),
+                 count_line("failed", c["failed"], c["easy"], c["failed"] - c["easy"])]
+    row = '<div class="counts">' + "".join(f"<p>{x}</p>" for x in lines) + "</div>"
     left = batches.line(r.get("batches"))
     if left:
         row += f'<p class="left-out band">{_e(left)}</p>'

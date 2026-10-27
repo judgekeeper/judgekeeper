@@ -1399,10 +1399,13 @@ def _pct(x: float) -> str:
 
 def agreement_lines(r: dict) -> list[str]:
     """Under the verdict, as on the result page: how many answers you and your judge
-    disagreed on, then the two counts, indented."""
+    disagreed on, then the two counts, indented; before a result, your two counts only."""
     from judgekeeper.report_page import counts
 
     c = counts(r)
+    if r["check"] == "too_few":  # before a result, the person's own counts only (as the page)
+        return [f"  You passed {_n(c['passed'], 'answer')}.",
+                f"  You failed {_n(c['failed'], 'answer')}."]
     n, d = c["passed"] + c["failed"], c["strict"] + c["easy"]
     first = (f"You and your LLM-as-a-judge disagreed on {d} of {_n(n, 'answer')}." if d else
              f"You and your LLM-as-a-judge agreed on all {_n(n, 'answer')}.")

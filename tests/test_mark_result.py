@@ -136,3 +136,27 @@ def test_no_answer_text_or_ids_in_the_history(ws):
     assert "SECRET-TEXT" not in text and "Question" not in text
     for q in ws.data()["queue"]:
         assert q["id"] not in text
+
+
+# Before a result: nothing on the page tells the LLM-as-a-judge's grade ------------------------
+
+def test_marking_an_answer_and_taking_it_back_shows_nothing_of_its_grade(ws):
+    """Mark the next answer Pass, read /result, take the mark back: the page reads the same
+    for an answer the LLM-as-a-judge passed as for one it failed."""
+    from tests.test_product_pages import _text
+
+    session = _mark(ws, 8)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    seen = {}
+    for item in [i for i in session.items if not i["label"]][:10]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 3})
+        seen.setdefault(groups[item["id"]], set()).add(
+            _text(start_label.live_result(ws, session)))
+        session.update({"id": item["id"], "label": None, "seconds": 1})
+    assert set(seen) == {"pass", "fail"}  # both kinds were peeked at
+    assert seen["pass"] == seen["fail"] and len(seen["pass"]) == 1
+    (text,) = seen["pass"]
+    assert "Of those" not in text and "disagreed" not in text
+    said = [i["label"] for i in session.items if i["label"]]  # the 8, as the page's order gave
+    assert (f"You passed {said.count('pass') + 1} answers. You failed {said.count('fail')} "
+            "answers.") in text

@@ -481,7 +481,7 @@ def test_the_numbers_in_the_counts_and_the_lead_are_mono_at_500():
 
 
 def test_the_counts_row_in_every_state():
-    for counts in (GATE, CHECK, NOT_GATE_TNR, TOO_EARLY, TOO_FEW):
+    for counts in (GATE, CHECK, NOT_GATE_TNR, TOO_EARLY):
         r = _result(*counts)
         c = report_page.counts(r)
         text = _text(start_label.result_html(r))
@@ -489,6 +489,11 @@ def test_the_counts_row_in_every_state():
                 f"{c['passed'] - c['strict']} and failed {c['strict']}.") in text, counts
         assert (f"You failed {c['failed']} answers. Of those, your LLM-as-a-judge passed {c['easy']} "
                 f"and failed {c['failed'] - c['easy']}.") in text, counts
+    r = _result(*TOO_FEW)  # before a result: the person's own counts only
+    c = report_page.counts(r)
+    text = _text(start_label.result_html(r))
+    assert f"You passed {c['passed']} answers. You failed {c['failed']} answers." in text
+    assert "Of those" not in text
     html = start_label.result_html(_result(*NOT_GATE_TNR))
     assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. Of those, '
             'your LLM-as-a-judge passed <span class="mono">22</span> and failed <span class="mono">2'
