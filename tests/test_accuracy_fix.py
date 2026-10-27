@@ -222,7 +222,8 @@ def test_the_result_keeps_how_many_changes_the_marks_helped_pick(tmp_path, monke
     assert saved["picks"] == []  # two picks: no warning yet, so nothing is said
 
 
-def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
+def test_fix_new_does_not_count_the_picks_again(tmp_path, monkeypatch):
+    """`fix --new` makes no new marks: the picks made on these marks still count."""
     import time
 
     from judgekeeper import check
@@ -234,7 +235,7 @@ def test_fix_new_counts_the_picks_again(tmp_path, monkeypatch):
     assert check.picks(ws)["n"] == 3
     time.sleep(1.1)
     fix.current_split(ws, fix.Marks(ws), new=True)
-    assert check.picks(ws)["n"] == 0
+    assert check.picks(ws)["n"] == 3
 
 
 # After a rule change: numbers on marks made after it ---------------------------------------------

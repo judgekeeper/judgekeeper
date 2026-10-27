@@ -881,14 +881,10 @@ def from_fix(ws: Workspace, old: dict, new: dict) -> bool:
 
 def picks(ws: Workspace, now: bool = False) -> dict:
     """{"n": picks, "new_marks": marks made after the last, "ask": whether to ask for
-    PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start, or `fix --new`).
-    `now`: this run is a pick too."""
-    from judgekeeper import fix
-
+    PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start). `now`: this run
+    is a pick too."""
     read = marks.read(ws.marks)
-    split = fix.read_split(ws)
-    since = max(str((read.header or {}).get("created_at") or ""),
-                str(split.reset_at if split else ""))
+    since = str((read.header or {}).get("created_at") or "")
     times = [str(x.get("time") or "") for x in _history_all(ws) if is_pick(x)]
     times = [t for t in times if t >= since] + ([utc_now()] if now else [])
     last = max(times) if times else None

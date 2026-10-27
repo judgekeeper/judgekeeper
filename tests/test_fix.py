@@ -155,8 +155,18 @@ def test_the_split_hides_half_of_each_group(here, capsys):
     assert sum(marks.person[i] == "fail" for i in hidden) >= 5
 
 
+def _mark_more(ws, k: int, n: int = 80) -> list[str]:
+    """Mark the next `k` answers not marked yet, as the person sees them."""
+    session = StartSession(ws)
+    todo = [i for i in session.items if not i["label"]][:k]
+    for item in todo:
+        label = "pass" if _person(question(_index(ws, item["id"])), n // 2) else "fail"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return [i["id"] for i in todo]
+
+
 def test_the_split_stays_until_new(here, capsys):
-    ws = project(here)
+    ws = project(here, n=80, marked=60)
     run(capsys)
     first = _split(ws)
     run(capsys)
@@ -164,9 +174,34 @@ def test_the_split_stays_until_new(here, capsys):
     assert main(["check"]) in (0, 3)
     capsys.readouterr()
     assert _split(ws)["hidden"] == first["hidden"]
-    code, _ = run(capsys, "--new")
-    assert code == 0
-    assert _split(ws)["seed"] != first["seed"]
+    code, out = run(capsys, "--new")
+    flat = " ".join(out.split())
+    assert code == 3, out
+    assert "You asked for a new set of marks kept aside (`judgekeeper fix --new`)." in flat
+    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
+                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
+    split = _split(ws)
+    assert split["hidden"] == [] and split["set"] == 1
+    assert sorted(split["visible"]) == sorted(first["visible"] + first["hidden"])
+    new = _mark_more(ws, 10)
+    assert run(capsys)[0] == 0
+    split = _split(ws)
+    assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2  # never a seen mark
+
+
+def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    for k in range(3):
+        new = regraded(here, rule=f"Rule number {k}.", grade=lambda i: i < 40,
+                       name=f"rule{k}.json", n=80)
+        assert run(capsys, new.name)[0] == 0
+    before = _split(ws)
+    code, out = run(capsys, "--new")
+    assert code == 3 and "You have tested 3 rules" in " ".join(out.split())
+    after = _split(ws)
+    assert after["tests"] == before["tests"] and after["set"] == 1  # the same marks: no new set
+    assert after["fresh"] == {"want": 10} and after["hidden"] == []
 
 
 # Screen 5a -----------------------------------------------------------------------------------
@@ -475,15 +510,11 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
                          "`judgekeeper fix` again: they become a new set of marks kept aside, "
                          "and your new results are tested on them.")
-    session = StartSession(ws)
-    todo = [i for i in session.items if not i["label"]][:10]
-    for item in todo:
-        label = "pass" if _person(question(_index(ws, item["id"])), 40) else "fail"
-        session.update({"id": item["id"], "label": label, "seconds": 5})
+    todo = _mark_more(ws, 10)
     code, out = run(capsys, new.name)
     assert code == 0, out
     split = _split(ws)
-    assert sorted(split["hidden"]) == sorted(i["id"] for i in todo) and split["set"] == 2
+    assert sorted(split["hidden"]) == sorted(todo) and split["set"] == 2
     assert [t["kind"] for t in split["tests"]] == ["rule"]
 
 

@@ -281,7 +281,7 @@ def _parser() -> argparse.ArgumentParser:
                     help="the results of grading your marked answers again with a new rule, "
                          "or your project folder (default: this folder)")
     fx.add_argument("--new", action="store_true",
-                    help="keep a new set of your marks aside to test rules on")
+                    help="start a new set of marks kept aside, made of the next marks you make")
     p.commands["fix"] = fx
     return p
 

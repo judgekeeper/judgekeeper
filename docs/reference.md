@@ -74,7 +74,7 @@ judgekeeper fix [PATH] [--new]
 | Flag | What it does |
 |---|---|
 | `PATH` | The results of grading your marked answers again with a new rule, or your project folder (default: this folder) |
-| `--new` | Keep a new set of your marks aside to test rules on |
+| `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the next 10 you make become the new set. A mark you have seen is never kept aside again |
 
 **Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. Write a better rule from it, or hand it to a coding agent.
 

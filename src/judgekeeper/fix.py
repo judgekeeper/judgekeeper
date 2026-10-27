@@ -266,14 +266,14 @@ class Split:
     made_at: str = ""
     tests: list[dict] = field(default_factory=list)
     pass_mark: dict | None = None
-    fresh: dict | None = None  # {"want"}: after MAX_RULES rules, new marks make a new set
+    fresh: dict | None = None  # {"want"}: after MAX_RULES rules or `fix --new` ("asked"), new
+    # marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a new set
-    reset_at: str = ""  # `fix --new`: the picks are counted again from here (check.picks)
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
                 "visible": self.seen, "hidden": self.hidden, "tests": self.tests,
-                "pass_mark": self.pass_mark, "fresh": self.fresh, "reset_at": self.reset_at}
+                "pass_mark": self.pass_mark, "fresh": self.fresh}
 
     def rules(self) -> list[str]:
         """The LLM-as-a-judge setups tested on this set (test_key), once each."""
@@ -296,8 +296,7 @@ def read_split(ws: Workspace) -> Split | None:
         return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
                      set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
                      tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
-                     fresh=d.get("fresh"),
-                     reset_at=str(d.get("reset_at") or ""))
+                     fresh=d.get("fresh"))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -311,15 +310,17 @@ def save_split(ws: Workspace, split: Split) -> None:
 
 def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     """The saved split with marks made since it split the same way; a new one when there is
-    none (or with `new`)."""
-    split = None if new else read_split(ws)
+    none. `new` retires the saved one: a mark once seen is never kept aside again, so only
+    marks made after it make the next set."""
+    split = read_split(ws)
     if split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
-        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now(),
-                      reset_at=utc_now() if new else "")
-    if not split.fresh and (len(split.rules()) >= MAX_RULES or _adopted(ws, split)):
+        split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
+    elif not split.fresh and (len(split.rules()) >= MAX_RULES or _adopted(ws, split)):
         retire(split)
+    elif new and not split.fresh:
+        retire(split, asked=True)
     known = set(split.seen) | set(split.hidden)
     new_ids = [i for i in m.order if i not in known]
     if split.fresh:  # MAX_RULES rules tested: the next FRESH new marks are a new set
@@ -360,12 +361,12 @@ def _adopted(ws: Workspace, split: Split) -> bool:
     return False
 
 
-def retire(split: Split) -> None:
+def retire(split: Split, asked: bool = False) -> None:
     """The set's hidden marks are seen like the others from now on; the next FRESH new marks
-    make a new set."""
+    make a new set. `asked`: by `fix --new`, not after MAX_RULES rules."""
     split.seen = sorted(set(split.seen) | set(split.hidden))
     split.hidden = []
-    split.fresh = {"want": FRESH}
+    split.fresh = {"want": FRESH, **({"asked": True} if asked else {})}
 
 
 def prepare_split(ws: Workspace) -> None:
@@ -796,9 +797,13 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     first. The clues show as on a first run (every mark is seen now). `tested`: new results
     were given, and wait for that set."""
     want = split.fresh["want"]
-    talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
-              "aside. More tests on the same marks would make a coincidence look like a "
-              "better rule.")
+    if split.fresh.get("asked"):
+        talk.para(f"You asked for a new set of marks kept aside (`{program('fix')} --new`). The "
+                  "marks you have made are all seen now, so the new set is made of new marks.")
+    else:
+        talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
+                  "aside. More tests on the same marks would make a coincidence look like a "
+                  "better rule.")
     n = refresh_mistakes(ws, always=True)  # none is kept aside now: every mark is seen
     if n:
         talk.say()
