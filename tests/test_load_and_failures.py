@@ -935,3 +935,23 @@ def test_a_body_far_over_the_limit_gets_its_413_before_it_is_read(tmp_path, monk
     finally:
         server.stop()
         thread.join(timeout=10)
+
+
+# A long --label-map ------------------------------------------------------------------------
+
+def test_a_label_map_of_ten_thousand_entries_reads_in_under_a_second(tmp_path, monkeypatch,
+                                                                       capsys, pages):
+    import time
+
+    from judgekeeper.cli import main
+    from tests.start_projects import promptfoo_project, split
+
+    promptfoo_project(tmp_path, split(20, 16))
+    monkeypatch.chdir(tmp_path)
+    given = ",".join(f"value {i}=pass" for i in range(10_000))
+    began = time.perf_counter()
+    code = main(["--label-map", given, "--yes", "--no-browser"])
+    took = time.perf_counter() - began
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert took < 1, took
