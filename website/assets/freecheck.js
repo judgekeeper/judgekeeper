@@ -38,6 +38,13 @@
   };
 
   var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your project.";
+  // a table whose columns it can't place: the columns it found, and those it reads
+  function NOT_COLUMNS(columns) {
+    var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
+    return "judgekeeper can't tell which columns hold the question, the answer and the grade" +
+      (shown.length ? ' (this file has ' + andList(shown) + (columns.length > 6 ? ' and more' : '') + ')' : '') + '. ' + READ_NAMES +
+      ' The tool reads other names too: run uvx judgekeeper in your project.';
+  }
   var IN_PROJECT = ' This page does not read it: run uvx judgekeeper in your project for this file.';
   var RECORDS = 'This is a judgekeeper.record() file.' + IN_PROJECT;
   var SETTINGS = "This is judgekeeper's settings file (judgekeeper.toml)." + IN_PROJECT;
@@ -694,6 +701,46 @@
     return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, humanFor: verdicts[0], perMetric: {},
       scoreJudge: false, order: verdicts, readRows: readRows };
   }
+  // mapper.guess by the columns' names: a file with one question, one answer and one grade
+  // column under another common name (question, answer, grade) is read as the tool reads it,
+  // when every grade is a Pass or Fail word. {rows, header, named} or null.
+  var INPUT_WORDS = ['input', 'prompt', 'question', 'query', 'instruction', 'message', 'request'];
+  var OUTPUT_WORDS = ['output', 'outputs', 'answer', 'answers', 'response', 'responses', 'completion', 'reply', 'generation'];
+  var SCORE_WORDS = ['score', 'verdict', 'passed', 'pass', 'label', 'success', 'grade', 'rating', 'judgment', 'judgement'];
+  var REASON_WORDS = ['reason', 'reasoning', 'explanation', 'rationale', 'comment', 'feedback', 'justification', 'why'];
+  var READ_NAMES = 'In the browser it reads a CSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
+  function commonNames(rows, header) {
+    var one = function (list) {
+      var found = header.filter(function (h) { return isStr(h) && list.indexOf(h.trim().toLowerCase()) >= 0; });
+      return found.length === 1 ? found[0] : null;
+    };
+    var key = function (h) { return h === null ? null : columnName(h); };  // as knownNames wrote it
+    var q = one(INPUT_WORDS), a = one(OUTPUT_WORDS), g = one(SCORE_WORDS), why = one(REASON_WORDS);
+    if (!q || !a || !g || !rows.length) return null;
+    var kq = key(q), ka = key(a), kg = key(g), kw = key(why);
+    var grades = rows.filter(function (row) { return !noScore(row[kg]); });
+    if (!grades.length || !grades.every(function (row) {
+      var v = row[kg];
+      return typeof v === 'boolean' || (isStr(v) && VERDICT_VALUES.indexOf(v.trim().toLowerCase()) >= 0);
+    })) return null;
+    var named = { input: q, output: a, verdict: g };
+    if (why) named.reason = why;
+    var out = rows.map(function (row) {
+      var r = { input: row[kq], output: row[ka], verdict: row[kg] };
+      if (why) r.reason = row[kw];
+      if (row.model !== undefined) r.model = row.model;
+      return r;
+    });
+    return { rows: out, header: Object.keys(named).concat(header.indexOf('model') >= 0 ? ['model'] : []), named: named };
+  }
+  function readCommon(found, kindWord) {
+    var r = readTable(found.rows, found.header, kindWord);
+    if (r.error) return r;
+    var said = [['question', 'the ' + clean(found.named.input, 40) + ' column'], ['answer', 'the ' + clean(found.named.output, 40) + ' column'],
+      ['grade', 'the ' + clean(found.named.verdict, 40) + ' column']];  // the reason is read, not listed, as the tool says
+    r.readRows = { verdict: said };
+    return r;
+  }
   function andList(items) { return items.length === 1 ? items[0] : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
 
   /* ---------- normalise.py: whatever a judge returned, as a decision ---------- */
@@ -994,12 +1041,16 @@
     if (isObj(first)) {
       var cols = Object.keys(first).map(columnName);
       if (isRecordsFile(cols)) return fail('records', RECORDS);
+      var jsonlKind = /\.ndjson$/.test(lower) ? 'NDJSON' : 'JSONL';
       if (isTable(cols)) {
         var rows = jsonlRows(fileText);
         if (!rows) return fail('bad-line', TABLE_FAIL.message);
-        return readTable(rows, cols, /\.ndjson$/.test(lower) ? 'NDJSON' : 'JSONL');
+        return readTable(rows, cols, jsonlKind);
       }
-      return fail('not-recognised', NOT_RECOGNISED);
+      var flat = Object.keys(first).every(function (k) { return !isObj(first[k]) && !Array.isArray(first[k]); });
+      var lines = flat ? jsonlRows(fileText) : null, common = lines && commonNames(lines, Object.keys(first));
+      if (common) return readCommon(common, jsonlKind);
+      return fail('not-recognised', flat ? NOT_COLUMNS(Object.keys(first)) : NOT_RECOGNISED);  // a row of a table, or not
     }
     if (!parsed) {
       // CSV or TSV: the header names input, output and a verdict column
@@ -1012,6 +1063,11 @@
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
       if (/^\s*[\[{]/.test(fileText)) return fail('not-json', NOT_JSON);
+      if (header.length >= 2 && openQuote(fileText, d) === null) {
+        var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
+        if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
+        return fail('not-recognised', NOT_COLUMNS(t2.header));
+      }
     }
     return fail('not-recognised', NOT_RECOGNISED);
   }
