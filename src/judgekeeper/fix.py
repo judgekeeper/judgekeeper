@@ -499,7 +499,8 @@ def report_section(ws: Workspace) -> dict | None:
                           "answer": cut_words(reasons.canonical(r["output"]), cut),
                           "reason": cut_words(r["reason"], cut), "why": why(r)}
                          for r in wrong],
-            "parts": m.parts, "own": list(m.own.values())}
+            "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
+            "own": list(m.own.values())}
 
 
 def cut_words(text: str, width: int) -> str:

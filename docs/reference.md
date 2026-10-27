@@ -48,7 +48,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 
 The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
 
-On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`.
+On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`. The parts of your rule are buttons too: at most 6, the first five and the last; for a part with no button, use “Other…”.
 
 ## mark: mark more answers
 
