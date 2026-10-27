@@ -937,13 +937,23 @@ def _rows(ws: Workspace) -> dict:
         return {}
 
 
+def _same_answer(a, row: dict) -> bool:
+    """Whether the answer (or record) `a` is the marked answer pool.jsonl keeps as `row`: the
+    same answer text, and the same question when `a` holds one."""
+    text = _text(row.get("output"))
+    asked = _questions(a.input)
+    return bool(text) and _text(a.output) == text and (
+        not asked or bool(asked & _questions(row.get("input"))))
+
+
 def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     """({id: the new judge's answer} for the marked answers `marked` found in the results, the
     ids found there with different grades). For a judge whose results are many files, in
-    every file of the newest judge. Found by id (the same question and answer, word for word),
-    else by the exact answer text, with the same question when the results hold one. An
-    answer found with different grades counts against the judge: the grade that disagrees
-    with the mark (`marked` a dict of marks; a list of ids leaves such an answer out)."""
+    every file of the newest judge. Found by the exact answer text, with the same question
+    when the results hold one: by id only where that row holds them too (a table's own ids
+    are often a new numbering). An answer found with different grades counts against the
+    judge: the grade that disagrees with the mark (`marked` a dict of marks; a list of ids
+    leaves such an answer out)."""
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
     answers = [a for a in found.pool.answers if a.source in newest]
     repeat_of = {f"{key}#{k}": key for key, (n, _, _) in found.pool.split.items()
@@ -951,6 +961,7 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     by_id: dict[str, list] = {}
     for a in answers:
         by_id.setdefault(repeat_of.get(a.id, a.id), []).append(a)
+    rows = _rows(ws)
     out, mixed = {}, set()
 
     def take(i, same):
@@ -963,15 +974,15 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
             mixed.add(i)
 
     for i in marked:
-        if i in by_id:
-            take(i, by_id[i])
-    left = [i for i in marked if i not in out and i not in by_id]
+        same = [a for a in by_id.get(i, []) if _same_answer(a, rows.get(i) or {})]
+        if same:
+            take(i, same)
+    left = [i for i in marked if i not in out and i not in mixed]
     if not left:
         return out, mixed
     by_text: dict[str, list] = {}
     for a in answers:
         by_text.setdefault(_text(a.output), []).append(a)
-    rows = _rows(ws)
     for i in left:
         row = rows.get(i) or {}
         text = _text(row.get("output"))
