@@ -241,6 +241,8 @@ def read_given(state: State, path: Path):
     except (start.Stop, RecordsError, OSError, ValueError):
         return None, (f"judgekeeper can't read {shown} as {name} results with your "
                       f"LLM-as-a-judge {metric}.")
+    if saved is None:  # the project is where .judgekeeper/ is, not the file's folder
+        found = start.rebased(found, state.ws.root)
     if found.tool != tool:
         return None, _other_tool(shown, found.tool, name)
     if found.metric != metric:

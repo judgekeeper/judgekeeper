@@ -193,8 +193,7 @@ def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
     ws = project(here, n=80, marked=60)
     run(capsys)
     for k in range(3):
-        new = regraded(here, rule=f"Rule number {k}.", grade=lambda i: i < 40,
-                       name=f"rule{k}.json", n=80)
+        new = regraded(here, rule=f"Rule number {k}.", name=f"rule{k}.json", n=80)
         assert run(capsys, new.name)[0] == 0
     before = _split(ws)
     code, out = run(capsys, "--new")
@@ -498,8 +497,7 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     ws = project(here, n=80, marked=60)
     run(capsys)
     for k in range(3):
-        new = regraded(here, rule=f"Rule number {k}.", grade=lambda i: i < 40,
-                       name=f"rule{k}.json", n=80)
+        new = regraded(here, rule=f"Rule number {k}.", name=f"rule{k}.json", n=80)
         assert run(capsys, new.name)[0] == 0
     assert len(_split(ws)["tests"]) == 3
     new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80)
@@ -511,8 +509,11 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
                          "`judgekeeper fix` again: they become a new set of marks kept aside, "
                          "and your new results are tested on them.")
     todo = _mark_more(ws, 10)
+    first = _index(ws, todo[0])  # graded unlike the old rule, so the new rule changes a grade
+    new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80,
+                   grade=lambda i: i >= 40 if i == first else _person(question(i), 40))
     code, out = run(capsys, new.name)
-    assert code == 0, out
+    assert code in (0, 1), out
     split = _split(ws)
     assert sorted(split["hidden"]) == sorted(todo) and split["set"] == 2
     assert [t["kind"] for t in split["tests"]] == ["rule"]
@@ -589,3 +590,14 @@ def test_the_result_page_shows_the_input_as_the_marking_page_does(value, output,
 
     m = SimpleNamespace(rows={"a": {"input": value}})
     assert fix._question(m, {"id": "a", "output": output}) == shown
+
+
+def test_a_new_rule_that_changes_no_grade_kept_aside_gets_no_verdict(here, capsys):
+    ws = project(here)
+    run(capsys)
+    code, out = run(capsys, regraded(here, grade=lambda i: i < N // 2).name)
+    flat = " ".join(out.split())
+    assert code == 3, out
+    n = len(_split(ws)["hidden"])
+    assert fix.UNCHANGED.format(n=n) in flat and "Result" not in flat
+    assert _split(ws)["tests"] == []

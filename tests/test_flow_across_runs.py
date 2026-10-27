@@ -121,6 +121,7 @@ def _rubric(root, verdicts, rule, name="results.json", only=None, model=MODEL):
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
 RULE_C = "Is correct, polite and kind."
+AS_MARKED = [8 <= i < 24 for i in range(40)]  # graded as the person marks them (_all_marked...)
 
 
 def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
@@ -132,7 +133,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     _mark(Workspace(here), person)
     said = [_jk(capsys)[1]]
     said.append(_jk(capsys, "fix")[1])
-    _rubric(here, split(20, 20), RULE_B, name="regraded.json")  # the marked answers, graded again
+    _rubric(here, AS_MARKED, RULE_B, name="regraded.json")  # the marked answers, graded again
     said.append(_jk(capsys, "fix", "regraded.json")[1])
     (here / "regraded.json").unlink()  # not the eval's newest results from here on
     _rubric(here, split(20, 20), RULE_B)  # the rule copied into the config, the eval run
@@ -462,7 +463,7 @@ def test_fix_with_a_rule_it_tested_shows_that_result(here, capsys):
 
     ws = _all_marked_promptfoo(here, capsys)
     _jk(capsys, "fix")
-    _rubric(here, split(20, 20), RULE_B, name="regraded.json")
+    _rubric(here, AS_MARKED, RULE_B, name="regraded.json")
     code, first = _jk(capsys, "fix", "regraded.json")
     assert code == 0, first
     result = next(line for line in first.splitlines() if line.startswith("Result:"))

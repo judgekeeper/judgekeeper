@@ -295,3 +295,50 @@ def test_plain_check_on_new_results_without_the_marked_answers_says_so_each_time
         code, out = run(capsys, "check")
         assert code == 3, out
         assert "None of your 60 marked answers is in your new results." in out
+
+
+# An eval tool version pinned in the project ------------------------------------------------------
+
+def test_the_original_file_with_a_pinned_version_is_the_same_grades(here, capsys):
+    """DeepEval pinned in pyproject.toml, results in a folder: the pin is the project's, read
+    the same for the file given back as for the project."""
+    from tests.start_projects import deepeval_project
+
+    (here / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "0"\ndependencies = ["deepeval==4.3.1"]\n',
+        encoding="utf-8")
+    verdicts = [True] * 25 + [False] * 25
+    results = deepeval_project(here, verdicts,
+                               name="deepeval-results/test_run_20261027_100000.json")
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        ws = Workspace(here)
+        closed(ws)
+        session = StartSession(ws)
+        for n, item in enumerate(session.items):
+            label = session.groups[item["id"]]
+            if n % 5 == 0:
+                label = {"pass": "fail", "fail": "pass"}[label]
+            session.update({"id": item["id"], "label": label, "seconds": 5})
+        assert main(["fix"]) == 0
+    capsys.readouterr()
+    given = results.relative_to(here)
+    code, out = run(capsys, "fix", given)
+    assert code == 3, out
+    assert "These are the same grades as when you marked" in out
+    assert json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))["tests"] == []
+    code, out = run(capsys, "check", given)
+    assert code == 0, out
+    assert "has not changed" in out and "version unknown" not in out
+
+
+def test_a_new_rule_that_changes_no_grade_is_not_safe_to_try(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    old = {r["output"]: r["verdict"] for r in (_row(i) for i in range(N))}
+    rows = regraded(ws, grade=lambda a: old[a])
+    for r in rows:
+        r["reason"] = "Another rule, the same grades."
+    code, out = run(capsys, "fix", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "Result" not in out and "safe to try" not in out

@@ -85,6 +85,8 @@ REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then 
                 f"`{{command}} {NEW_RESULTS}`.")
 SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
                "change.")
+UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade the old one "
+             "gave, so it changes nothing there to test.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
     "promptfoo": (f"promptfoo: use {ANSWERS} as your tests with the `echo` provider and your new "
@@ -998,8 +1000,9 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
     old = m.judge
-    if _same_grades(ws, setup, setup_hash, old, new, ids):
-        talk.para(SAME_GRADES)
+    if all(new[i] == old.get(i) for i in ids):  # nothing changed: nothing to tell apart
+        talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
+                  UNCHANGED.format(n=len(ids)))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
     before = next((t for t in split.tests if t.get("kind") == "rule"
@@ -1053,15 +1056,11 @@ def _missing_why(gone: int, errors: int) -> str:
     return f": {' and '.join(parts)}" if parts else ""
 
 
-def _same_grades(ws: Workspace, setup: dict, setup_hash: str, old: dict, new: dict,
-                 ids: list[str]) -> bool:
-    """Whether the new results give the answers kept aside the grades judgekeeper already has,
-    from the LLM-as-a-judge the marks were made with (or from results that hold no rule, which
-    can't tell one rule from another): no rule was changed."""
+def _same_rule(ws: Workspace, setup: dict, setup_hash: str) -> bool:
+    """Whether the new results come from the LLM-as-a-judge the marks were made with (or from
+    results that hold no rule, which can't tell one rule from another)."""
     from judgekeeper import judge_setup
 
-    if any(new[i] != old.get(i) for i in ids):
-        return False
     saved = judge_setup.read(ws) or {}
     return not setup.get("rule_hash") or saved.get("setup_hash") == setup_hash
 
