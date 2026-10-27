@@ -27,8 +27,12 @@ import inspect
 import json
 import logging
 import os
+import platform
 import re
 import shutil
+import stat
+import struct
+import sys
 import tempfile
 import threading
 from collections import Counter
@@ -54,7 +58,9 @@ from judgekeeper.records import (
 from judgekeeper.textio import get_extra, quoted_name, reading
 
 # The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
-LOGGERS = ("mlflow", "alembic", "sqlalchemy")
+# MLflow's loggers, the database layers' under it, and Python's root logger, which MLflow's
+# folder store logs a broken experiment folder to, with tracebacks
+LOGGERS = ("mlflow", "alembic", "sqlalchemy", "")
 
 NEEDS_EXTRA = "reading MLflow needs mlflow. To read it, {get}."
 KINDS = {"LLM_JUDGE": LLM, "AI_JUDGE": LLM, "HUMAN": HUMAN, "CODE": CODE}
@@ -95,6 +101,9 @@ IN_DATABASE = "TRACKING_STORE"
 ARCHIVED = "ARCHIVE_REPO"
 # In a copy's folder, never made: where the copy points a trace's data kept elsewhere
 ELSEWHERE = "stored-elsewhere"
+SPANS_FILE = "traces.json"  # where MLflow keeps a trace's spans in its location
+# A trace's spans are KBs, a long agent's a few MB: a bigger traces.json is not read
+TRACE_LIMIT = 100 * 2**20
 # The MLflow login and TLS settings, for a tracking server: a local store never needs them
 LOGIN = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD", "MLFLOW_TRACKING_TOKEN",
          "MLFLOW_TRACKING_CLIENT_CERT_PATH", "MLFLOW_TRACKING_SERVER_CERT_PATH",
@@ -163,9 +172,26 @@ def kept_location(value, home: Path) -> Path | None:
         return None
     try:
         path = (Path(home) / text).resolve()
-        return path if path.is_relative_to(Path(home).resolve()) else None
+        if not path.is_relative_to(Path(home).resolve()):
+            return None
+        return path if _plain_trace_file(path) else None
     except (OSError, ValueError, RuntimeError):
         return None
+
+
+def _plain_trace_file(location: Path) -> bool:
+    """Whether MLflow may read the trace file at `location` (its folder's traces.json, or the
+    location itself when it is a file): none there yet, or a regular file of at most
+    TRACE_LIMIT. A named pipe would wait forever, and a huge (or sparse) file would be read
+    whole: such a location counts as stored elsewhere."""
+    try:
+        where = location / SPANS_FILE if stat.S_ISDIR(os.lstat(location).st_mode) else location
+        found = os.lstat(where)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return stat.S_ISREG(found.st_mode) and found.st_size <= TRACE_LIMIT
 
 
 TRIGGERS = "select name from sqlite_master where type = 'trigger'"
@@ -300,38 +326,66 @@ def is_folder_store(uri) -> bool:
 
 
 @contextmanager
+def _platform_answered() -> Iterator[None]:
+    """Python's platform answers given without starting a program: MLflow asks for
+    platform.platform() as it loads (for its usage report, which judgekeeper switches off),
+    and Python runs `uname -p` and `file -b` to answer it. The system, its release and the
+    machine come from os.uname(), which starts nothing. Put back afterwards."""
+    saved = platform.platform, platform.processor, platform.architecture
+    size = f"{struct.calcsize('P') * 8}bit"
+    plain = "-".join(p for p in (platform.system(), platform.release(), platform.machine()) if p)
+
+    def architecture(executable=sys.executable, bits="", linkage=""):
+        return bits or size, linkage
+
+    platform.platform = lambda aliased=False, terse=False: plain
+    platform.processor = lambda: ""
+    platform.architecture = architecture
+    try:
+        yield
+    finally:
+        platform.platform, platform.processor, platform.architecture = saved
+
+
+@contextmanager
 def quiet() -> Iterator[None]:
     """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
     coding agents (logged on `import mlflow` when an agent runs it) is switched off with
-    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (and the database layers' under it) show
-    only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
+    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (LOGGERS, Python's root logger among them)
+    show only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
     holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
     afterwards, also after an error; a value the user set is left as it is. Never for the
     user's shell, never in a file.
 
     MLflow's usage tracking is switched off before `import mlflow` (TELEMETRY_OFF, a
     DO_NOT_TRACK the user set kept), and stays off for the rest of judgekeeper's process:
-    MLflow decides on import, once per process."""
+    MLflow decides on import, once per process. While MLflow loads and runs, Python's
+    platform answers start no program (_platform_answered)."""
     os.environ["MLFLOW_DISABLE_TELEMETRY"] = TELEMETRY_OFF["MLFLOW_DISABLE_TELEMETRY"]
     os.environ.setdefault("DO_NOT_TRACK", TELEMETRY_OFF["DO_NOT_TRACK"])
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
-    try:
-        import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
-    except ImportError:
-        pass
-    loggers = [logging.getLogger(name) for name in LOGGERS]
-    levels = [logger.level for logger in loggers]
-    for logger in loggers:
-        logger.setLevel(logging.CRITICAL)
-    try:
-        yield
-    finally:
-        for logger, level in zip(loggers, levels):
-            logger.setLevel(level)
-        if set_hint:
-            os.environ.pop(HINT, None)
+    with _platform_answered():
+        try:
+            import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
+        except ImportError:
+            pass
+        loggers = [logging.getLogger(name) for name in LOGGERS]
+        levels = [logger.level for logger in loggers]
+        handlers = list(logging.root.handlers)  # logging.warning() adds one when there is none
+        for logger in loggers:
+            logger.setLevel(logging.CRITICAL)
+        try:
+            yield
+        finally:
+            for logger, level in zip(loggers, levels):
+                logger.setLevel(level)
+            for handler in logging.root.handlers[:]:
+                if handler not in handlers:
+                    logging.root.removeHandler(handler)
+            if set_hint:
+                os.environ.pop(HINT, None)
 
 
 @contextmanager
@@ -429,13 +483,29 @@ def _experiment(client, name_or_id: str):
     return exp
 
 
+# Experiments asked for per page: MLflow's own most (it returns 1,000 when given none)
+EXPERIMENT_PAGE = 1000
+
+
+def all_experiments(client) -> list:
+    """Every experiment in the store `client` reads, page after page (one call returns at most
+    a page)."""
+    found, token = [], None
+    while True:
+        page = client.search_experiments(max_results=EXPERIMENT_PAGE, page_token=token)
+        found.extend(page)
+        token = getattr(page, "token", None)
+        if not token:
+            return found
+
+
 def experiments_with_traces(uri: str) -> list[str]:
     """The names of the experiments in the store at `uri` that hold at least one trace, in
     MLflow's order. Call it inside folder_store_allowed and quiet."""
     client = _client(uri)
     names = []
     with logged_out(uri):
-        for exp in client.search_experiments():
+        for exp in all_experiments(client):
             scope = _trace_scope(client.search_traces, exp.experiment_id)
             if "include_spans" in inspect.signature(client.search_traces).parameters:
                 scope["include_spans"] = False
@@ -554,7 +624,8 @@ def _with_spans(trace, experiment_folder: Path):
         return None
     path = experiment_folder.joinpath(TRACE_FILE[0], trace_id, *TRACE_FILE[1:])
     try:
-        if not path.resolve().is_relative_to(experiment_folder.resolve()) or not path.is_file():
+        if (not path.resolve().is_relative_to(experiment_folder.resolve())
+                or not path.is_file() or not _plain_trace_file(path)):
             return None
         return Trace(trace.info, TraceData.from_dict(json.loads(
             path.read_text(encoding="utf-8"))))

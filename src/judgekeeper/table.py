@@ -18,7 +18,7 @@ from pathlib import Path
 
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
-from judgekeeper.redact import printable
+from judgekeeper.redact import one_line, printable, scrub
 from judgekeeper.textio import lone_surrogate, make_private, read_utf8, write_replacing
 
 ID_LENGTH = 16
@@ -27,6 +27,10 @@ ID_LENGTH = 16
 MAX_ROWS = 100_000
 CAPPED = "Read the first {n:,} answers of {file}; the rest are left out."
 _said_capped: set[str] = set()  # the tables CAPPED was said for, in this process
+# Columns in one table at most: real tables have tens, and each cell of each row costs memory
+# though an empty one is one byte on disk (100,000 rows of 200 take near 1 GB to read)
+MAX_COLUMNS = 200
+WIDE = "{file} has {n:,} columns; judgekeeper reads tables of up to {most:,}."
 # A long answer or a RAG context fills one cell: Python's csv stops at 131,072 characters
 csv.field_size_limit(2**31 - 1)  # the largest every platform takes (a C long on Windows)
 _MAX_LISTED = 20
@@ -118,6 +122,15 @@ def csv_numbered(text: str, suffix: str, limit: int | None = None) -> list[tuple
     return out
 
 
+def header(text: str, suffix: str) -> list[str]:
+    """The first row of a CSV or TSV text: its column names."""
+    try:
+        return next(csv.reader(io.StringIO(text, newline=""),
+                               delimiter=_delimiter(text, suffix)), [])
+    except csv.Error:  # said when the rows are read
+        return []
+
+
 def _lines(text: str):
     """(line number, line) of JSONL text, split at "\n" only (textio.jsonl_lines), one at a
     time: a big file is never held as a list of lines."""
@@ -130,6 +143,13 @@ def _lines(text: str):
         start = end + 1
 
 
+def too_wide(columns, path: str | Path, error: type[Exception]) -> None:
+    """Raise `error` (WIDE) when a table's header or row has more than MAX_COLUMNS columns."""
+    if len(columns) > MAX_COLUMNS:
+        raise error(WIDE.format(file=Path(path).name, n=len(columns), most=MAX_COLUMNS) +
+                    " Save a copy without the columns you don't need.")
+
+
 def capped(rows: list, path: str | Path, say: bool = True) -> list:
     """`rows` cut to MAX_ROWS; CAPPED is said once for `path` (on stderr, as the reading
     lines are) when that leaves rows out."""
@@ -138,7 +158,8 @@ def capped(rows: list, path: str | Path, say: bool = True) -> list:
     key = str(Path(path).resolve())
     if say and key not in _said_capped:
         _said_capped.add(key)
-        print(CAPPED.format(n=MAX_ROWS, file=Path(path).name), file=sys.stderr, flush=True)
+        line = CAPPED.format(n=MAX_ROWS, file=Path(path).name)
+        print(one_line(scrub(line)), file=sys.stderr, flush=True)  # as every line said
     return rows[:MAX_ROWS]
 
 
@@ -155,6 +176,7 @@ def read_table(path: str | Path, say: bool = True) -> list[dict]:
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
+        too_wide(header(text, suffix), path, TableError)
         rows = [r for _, r in csv_numbered(text, suffix, MAX_ROWS)]
         return [_known_names(r) for r in capped(rows, path, say)]
     if suffix in (".jsonl", ".ndjson", ".json"):
@@ -171,6 +193,7 @@ def read_table(path: str | Path, say: bool = True) -> list[dict]:
             if lone_surrogate(row):
                 raise TableError(f"{path.name}: line {n} holds a character that isn't text (a "
                                  "lone surrogate such as \\ud800), so it can't be read.")
+            too_wide(row, path, TableError)
             rows.append(_known_names(row))
             if len(rows) > MAX_ROWS:
                 break
@@ -180,11 +203,19 @@ def read_table(path: str | Path, say: bool = True) -> list[dict]:
 
 def problem(path: str | Path) -> str | None:
     """Why a table found in a folder can't be read as one, in a few words, or None. Read as
-    `judgekeeper` reads it (read_table, open_quote), nothing said."""
+    `judgekeeper` reads it (read_table, open_quote), nothing said; of a CSV or TSV only the
+    first row is made, as read_table makes them (the time goes in making every row)."""
+    path = Path(path)
+    suffix = path.suffix.lower()
     try:
         if open_quote(path) is not None:
             return "has a quote that never closes"
-        if not read_table(path, say=False):
+        if suffix in (".csv", ".tsv"):
+            text = read_utf8(path, TableError)
+            too_wide(header(text, suffix), path, TableError)
+            if not csv_numbered(text, suffix, 0):
+                return "has no rows"
+        elif not read_table(path, say=False):
             return "has no rows"
     except TableError as e:
         return "is not saved as UTF-8" if "UTF-8" in str(e) else "can't be read"

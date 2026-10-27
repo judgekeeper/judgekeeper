@@ -402,3 +402,81 @@ def test_a_store_holding_a_view_is_damaged(made, tmp_path, listener, view):
 def test_a_location_that_is_not_text_counts_as_elsewhere(tmp_path, value):
     """SQLite keeps any kind of value: a BLOB is not a path in the project."""
     assert mlflow_store.kept_location(value, tmp_path) is None
+
+
+# What a kept location holds -------------------------------------------------------------------
+
+def _traces_files(root: Path, kind: str) -> int:
+    """Each trace's traces.json under mlartifacts/ made a named pipe, or a 2 GB sparse file."""
+    files = list((root / "mlartifacts").rglob("traces.json"))
+    for path in files:
+        path.unlink()
+        _traces_files_at(path, kind)
+    return len(files)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes here")
+@pytest.mark.parametrize("kind", ["pipe", "sparse"])
+def test_a_kept_location_holding_a_pipe_or_a_huge_file_is_read_from_previews(made, tmp_path,
+                                                                            listener, kind):
+    import threading
+    import time
+
+    root = _project(made, tmp_path)
+    edit(root / "mlflow.db", "delete from trace_tags where key = 'mlflow.trace.spansLocation'",
+         "delete from spans")
+    assert _traces_files(root, kind) == N
+    done = {}
+    start_at = time.monotonic()
+    reader = threading.Thread(target=lambda: done.update(found=start.find_judge(root)),
+                              daemon=True)
+    reader.start()
+    reader.join(60)
+    assert "found" in done, "the read did not finish"
+    assert time.monotonic() - start_at < 20
+    assert len(done["found"].pool.answers) == N  # from the previews
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes here")
+def test_a_location_is_kept_only_with_a_small_regular_traces_file(tmp_path):
+    import time
+
+    inside = tmp_path / "mlartifacts" / "traces" / "tr-1" / "artifacts"
+    inside.mkdir(parents=True)
+    assert mlflow_store.kept_location(str(inside), tmp_path) == inside.resolve()  # none yet
+    (inside / "traces.json").write_text("{}", encoding="utf-8")
+    assert mlflow_store.kept_location(str(inside), tmp_path) == inside.resolve()
+    (inside / "traces.json").unlink()
+    os.mkfifo(inside / "traces.json")
+    start_at = time.monotonic()
+    assert mlflow_store.kept_location(str(inside), tmp_path) is None
+    (inside / "traces.json").unlink()
+    with (inside / "traces.json").open("wb") as f:
+        f.truncate(mlflow_store.TRACE_LIMIT + 1)
+    assert mlflow_store.kept_location(str(inside), tmp_path) is None
+    assert time.monotonic() - start_at < 2
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no named pipes here")
+@pytest.mark.parametrize("kind", ["pipe", "sparse"])
+def test_a_folder_stores_trace_file_that_is_a_pipe_or_huge_is_left_out(tmp_path, kind):
+    import time
+    from types import SimpleNamespace
+
+    pytest.importorskip("mlflow")
+    trace = SimpleNamespace(info=SimpleNamespace(trace_id="tr-" + "a" * 32))
+    folder = tmp_path / "mlruns" / "1"
+    (folder / "traces" / trace.info.trace_id / "artifacts").mkdir(parents=True)
+    _traces_files_at(folder.joinpath(*mlflow_store.TRACE_FILE[:1], trace.info.trace_id,
+                                     *mlflow_store.TRACE_FILE[1:]), kind)
+    start_at = time.monotonic()
+    assert mlflow_store._with_spans(trace, folder) is None
+    assert time.monotonic() - start_at < 2
+
+
+def _traces_files_at(path: Path, kind: str) -> None:
+    if kind == "pipe":
+        os.mkfifo(path)
+    else:
+        with path.open("wb") as f:
+            f.truncate(2 * 2**30)

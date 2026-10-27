@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from judgekeeper import table
 from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
     LLM,
@@ -140,6 +141,7 @@ def read_deepeval(path: str | Path) -> RecordList:
     strict: set[str] = set()  # metrics in strict mode: a score of 1 or 0, the threshold fixed
     cases = [(c, False) for c in _listed(data.get("testCases"))]
     cases += [(c, True) for c in _listed(data.get("conversationalTestCases"))]
+    cases = table.capped(cases, path)
 
     def read_case(row: tuple[dict, bool]) -> None:
         case, conversational = row

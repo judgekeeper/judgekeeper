@@ -521,7 +521,7 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     listed = re.findall(r'<li><a href="[^"]*">([\w-]+)</a>', index)
-    assert listed == ["jailbreakbench", "probes", "ragtruth", "real-data-check", "site-example"]
+    assert listed == ["jailbreakbench", "kept-aside", "probes", "ragtruth", "real-data-check", "site-example"]
     # a folder with no report.html links to its report.md on GitHub
     assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
             'probes/report.md"') in index

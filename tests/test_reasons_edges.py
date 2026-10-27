@@ -10,7 +10,8 @@ import subprocess
 import sys
 
 from judgekeeper import label, marks, reasons, start_label, textio
-from tests.test_fix import N, project
+from tests.start_projects import question
+from tests.test_fix import N, _index, _person, project
 from tests.test_fix import run as run_fix
 from tests.test_front import assert_one_next_at_the_end
 from tests.test_reasons import _ready, _run, _say, here, served  # noqa: F401
@@ -75,7 +76,13 @@ def test_overlapping_marked_parts_are_joined_in_suggestions_md():
 
 def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, pages,  # noqa: F811
                                                                   no_browser):
-    project(here, marked=N - 4)  # a result with disagreements, answers left, the page closed
+    ws = project(here, marked=0)  # a result with disagreements, answers left, the page closed
+    session = start_label.StartSession(ws)
+    labels = {i["id"]: "pass" if _person(question(_index(ws, i["id"])), N // 2) else "fail"
+              for i in session.items}
+    left = [i for i in labels if labels[i] == "fail"][:4]  # never a Pass: 18 Pass for any order
+    for i in labels.keys() - set(left):
+        session.update({"id": i, "label": labels[i], "seconds": 5})
     for _ in range(2):  # the second time with the reasons asked on the result page
         code, out = _run(capsys)
         assert code == 0, out

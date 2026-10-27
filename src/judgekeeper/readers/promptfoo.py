@@ -22,6 +22,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from judgekeeper import table
 from judgekeeper.anchors import canonical_json
 from judgekeeper.judge_check import MODEL_FAILED
 from judgekeeper.records import (
@@ -375,7 +376,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     path = Path(path)
     data = _load(path)
     summary = data["results"]
-    numbered = list(enumerate(summary["results"], 1))
+    numbered = table.capped(list(enumerate(summary["results"], 1)), path)
     good = [(n, r) for n, r in numbered if _shaped(r)]  # each other row is left out
     rows = [r for _, r in good]
     config = data.get("config")

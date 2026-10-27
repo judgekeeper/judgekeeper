@@ -868,3 +868,14 @@ def test_a_damaged_mlflow_assessment_leaves_out_its_trace(tmp_path, monkeypatch,
     code, text = run(capsys, "--no-browser", "--metric", "correctness")
     assert_rules(code, text)
     assert f"1 answer in mlflow.db was left out: trace {trace} has a damaged field." in flat(text)
+
+
+def test_own_format_file_with_a_lone_surrogate_is_refused_plainly(project, capsys):
+    path = _own(project, capsys)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[DAMAGED_ROW] = lines[DAMAGED_ROW].replace('"model_answer": "', '"model_answer": "\\ud800 ')
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, text = run(capsys, "--no-browser")
+    assert_rules(code, text)
+    assert code == 2, text
+    assert "graded.jsonl holds a character that isn't text" in flat(text), text

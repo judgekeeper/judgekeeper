@@ -274,8 +274,13 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     said = " ".join(out.split())
     assert (f"Result: can't tell. 1 of the {len(kept)} answers kept aside has no grade in your "
             "new results: 1 is not in the file.") in said
-    again = fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv"  # a new run there
-    assert again in said[said.rindex("Next:"):]
+    then = said[said.rindex("Next:"):]
+    if tool == "inspect":  # the log is scored again, not marked-answers.csv
+        assert then == (f"Next: score your log again with your new rule: run "
+                        f"`{fix.INSPECT_SCORE}` with `--output-file {fix.new_log(ws)}`, then "
+                        f"run `judgekeeper fix {fix.new_log(ws)}`.")
+    else:  # MLflow: a new run in its store
+        assert (fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv") in then
     assert fix.read_split(ws).tests == []
 
     new = write_results(tool, here / NEW[tool], {i: person(i) for i in range(N)}, regraded=True)
@@ -520,7 +525,6 @@ finally:
         json.dump(seen, f)
 sys.exit(code)
 """
-MLFLOW_TOOLS = {"uname", "file"}  # MLflow's own library runs these as it loads
 
 
 @pytest.mark.parametrize("tool", ["mlflow", "jsonl"])
@@ -542,7 +546,7 @@ def test_fix_and_check_start_no_program_in_a_fresh_process(tool, here, capsys, m
         seen = json.loads(seen_file.read_text(encoding="utf-8"))
         assert [s for s in seen if s[0] == "network"] == [], (argv, seen)
         programs = {s[1] for s in seen if s[0] == "program"}
-        assert programs <= (MLFLOW_TOOLS if tool == "mlflow" else set()), (argv, programs)
+        assert programs == set(), (argv, programs)
     assert ws.dir.is_dir()
 
 
@@ -565,3 +569,30 @@ def test_main_command_names_the_judge_of_the_result_and_points_to_check(here, ca
     assert "This result is about your LLM-as-a-judge as it was" in said
     assert "openai:gpt-4.1-mini" in said
     assert re.search(r"Next: .*`judgekeeper check`", said), said
+
+
+def test_fix_takes_another_model_rule_and_provider_but_not_another_judge(here, capsys,
+                                                                         monkeypatch):
+    """As reference.md says: the eval tool and the LLM-as-a-judge's name must match the marks;
+    its model, its rule and the provider that gave the answers may differ."""
+    said = " ".join((Path(__file__).parents[1] / "docs" / "reference.md").read_text(
+        encoding="utf-8").split())
+    assert ("must come from the same eval tool as your marks and hold an LLM-as-a-judge of the "
+            "same name (its metric or scorer)") in said
+    assert ("Its model and rule may differ, as may the model that gave the answers (promptfoo's "
+            "`echo` provider, for one)") in said
+    project("promptfoo", here, monkeypatch)
+    capsys.readouterr()
+    run(capsys, "fix")
+    verdicts = [person(i) for i in range(N)]
+    for name, kwargs in (("other.json", {"metric": "tone"}),
+                         ("echo.json", {"model": "openai:gpt-5", "rubric": "A new rule."})):
+        data = promptfoo_data(verdicts, **kwargs)
+        for row, i in zip(data["results"]["results"], range(N), strict=True):
+            row["vars"] = row["testCase"]["vars"] = {"question": question(i), "answer": answer(i)}
+            row["provider"] = {"id": "echo", "label": ""}
+        (here / name).write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, "fix", "other.json")
+    assert code == 2 and "no LLM-as-a-judge named 'llm-rubric'" in " ".join(out.split()), out
+    code, out = run(capsys, "fix", "echo.json")
+    assert code == 0 and "Result:" in out, out

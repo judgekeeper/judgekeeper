@@ -31,6 +31,7 @@ from judgekeeper.textio import (
     is_link,
     jsonl_lines,
     link_in,
+    loads,
     open_private,
     write_replacing,
 )
@@ -206,7 +207,7 @@ def read(path: str | Path) -> Marks:
         if not raw.strip():
             continue
         try:
-            x = json.loads(raw)
+            x = loads(raw)
         except ValueError:
             out.not_counted += 1
             continue

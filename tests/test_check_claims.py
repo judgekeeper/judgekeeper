@@ -22,7 +22,8 @@ import sys
 
 from judgekeeper import judge_setup
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_data
+from judgekeeper.start_label import StartSession, Workspace
+from tests.start_projects import answer, promptfoo_data, table_project
 from tests.test_check import (  # noqa: F401
     HAIKU,
     LENIENT,
@@ -61,6 +62,38 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
         "Same model, same rule, same eval tool.", "",
         "Next: nothing to do. Run `judgekeeper check` again after you",
         "change your LLM-as-a-judge."]
+
+
+def test_a_rerun_with_new_text_says_how_many_marked_answers_it_holds(here, capsys):
+    """An eval run again with new answers: same setup, but most marked answers are not in it."""
+    _marked(here)
+    outs = [answer(i, TAG) if i % 25 < 15 else f"A new answer {i}." for i in range(50)]
+    _results(here, MARKED, outputs=outs, created="2026-10-20T09:00:00Z")
+    for given in ((), ("results.json",)):
+        code, out = run(capsys, *given)
+        said = _flat(out)
+        assert code == 0 and "nothing to do" not in said, out
+        assert ("20 of your 50 marked answers had no grade in your new results, so judgekeeper "
+                "left them out.") in said
+        command = " ".join(("judgekeeper check", *given))
+        assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results: "
+                              f"they join your marks as a new batch. Then run `{command}` again.")
+
+
+def test_a_table_with_no_rule_never_says_same_rule(tmp_path, monkeypatch, capsys):
+    table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="results.csv")
+    monkeypatch.chdir(tmp_path)
+    flags = ["--label-map", "good=pass,bad=fail", "--port", "0", "--no-browser", "--yes"]
+    assert main(["results.csv", *flags]) == 0
+    ws = Workspace(tmp_path)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 7})
+    capsys.readouterr()
+    code, out = run(capsys, "results.csv")
+    said = _flat(out)
+    assert code == 0 and "same rule" not in said, out
+    assert "Same model, same grades on your marked answers, same eval tool." in said
 
 
 def test_settings_changed_after_the_last_eval_run(here, capsys):
