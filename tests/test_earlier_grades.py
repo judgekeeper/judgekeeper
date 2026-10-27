@@ -104,3 +104,18 @@ def test_plain_fix_shows_no_mistake_of_an_earlier_judge(adopted):
     md = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert not any(f"Question {i}?" in md for i in LATER)  # the first rule's mistakes
     assert fix.where_wrong(ws)[1] == 0
+
+
+# The new set's answers are in marked-answers.csv ----------------------------------------------
+
+def test_a_new_set_writes_marked_answers_csv_again(adopted):
+    ws, capsys = adopted
+    code, out = _jk(capsys, "fix")  # nothing to fix on the marks seen; the new set is made
+    split = fix.read_split(ws)
+    assert code == 0 and split.set == 2, out
+    rows = (ws.dir / "fix" / "marked-answers.csv").read_text(encoding="utf-8")
+    assert all(f"Question {i}?" in rows for i in LATER)  # the answers the new set needs
+    said = flat(out)
+    assert "20 of your marks are kept aside to test your new rule fairly." in said
+    assert said.endswith("then run `judgekeeper fix <new results file>`.")
+    assert ".judgekeeper/fix/marked-answers.csv" in said[said.rindex("Next:"):]

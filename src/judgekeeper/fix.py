@@ -1011,14 +1011,24 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     data = m.data
     seen_rows = [m.row(i) for i in split.seen]
     wrong = mistakes(seen_rows)
+    pm = data.get("pass_mark")
+    mark = pm["mark"] if pm and pm.get("follows") else None
+    rule = data.get("rule") if data.get("one_rule", True) else None
     if not wrong:
         talk.para("Your LLM-as-a-judge agrees with every mark you can see, so there is nothing to "
                   "fix.")
-        talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval tool, "
-                  f"run `{talk.command('check')}`.")
+        if not split.hidden:
+            talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval "
+                      f"tool, run `{talk.command('check')}`.")
+            return EXIT_OK
+        _write_mistakes(ws, rule, seen_rows, mark)  # both files fit the set kept aside now
+        n = write_answers(ws, m)
+        talk.say()
+        talk.para(_answers_line(ws, split, n))
+        talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "
+                  f"{_file(ws, ANSWERS)} again with it, then run "
+                  f"`{talk.command()} {NEW_RESULTS}`.")
         return EXIT_OK
-    pm = data.get("pass_mark")
-    mark = pm["mark"] if pm and pm.get("follows") else None
     found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
     if found:
         talk.say(WHERE_WRONG)
@@ -1026,13 +1036,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             for sentence in p:
                 talk.para(sentence, indent="  ")
         talk.say()
-    rule = data.get("rule") if data.get("one_rule", True) else None
     tested = test_pass_mark(m, split)
     save_split(ws, split)
-    path = _folder(ws) / MISTAKES
-    marks._refuse_links(path)
-    make_private(path.parent)
-    write_replacing(path, mistakes_md(rule, seen_rows, mark))
+    _write_mistakes(ws, rule, seen_rows, mark)
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
@@ -1055,13 +1061,26 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
-    if split.hidden:
-        talk.para(f"{len(split.hidden)} of your marks {'is' if len(split.hidden) == 1 else 'are'} "
-                  "kept aside to test your new rule fairly.")
-    talk.para(f"{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
-              "answers only, so you can't tell which are kept aside.")
+    talk.para(_answers_line(ws, split, n))
     _next_regrade(talk, ws, tool)
     return EXIT_OK
+
+
+def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
+                    mark: float | None) -> None:
+    path = _folder(ws) / MISTAKES
+    marks._refuse_links(path)
+    make_private(path.parent)
+    write_replacing(path, mistakes_md(rule, rows, mark))
+
+
+def _answers_line(ws: Workspace, split: Split, n: int) -> str:
+    """How many marks are kept aside, and that marked-answers.csv holds all `n`."""
+    k = len(split.hidden)
+    aside = f"{k} of your marks {'is' if k == 1 else 'are'} kept aside to test your new rule " \
+        "fairly. " if k else ""
+    return (f"{aside}{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
+            "answers only, so you can't tell which are kept aside.")
 
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------

@@ -327,7 +327,12 @@ def test_a_judge_with_no_mistakes(here, capsys):
     assert code == 0
     assert "Your LLM-as-a-judge agrees with every mark you can see, so there is nothing to fix." in \
         " ".join(out.split())
-    assert "Next: nothing to do." in out
+    assert " ".join(out.split()).endswith(
+        "Next: nothing to fix. To test another rule anyway, grade the answers in "
+        ".judgekeeper/fix/marked-answers.csv again with it, then run `judgekeeper fix "
+        "<new results file>`.")
+    assert (ws.dir / "fix" / "marked-answers.csv").is_file()
+    assert (ws.dir / "fix" / "mistakes.md").is_file()
 
 
 def test_fix_needs_a_result_first(here, capsys):
