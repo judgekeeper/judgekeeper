@@ -95,7 +95,8 @@ def test_a_path_that_does_not_exist(here, capsys):
     code, out = run(capsys, "nope.json")
     assert code == 2
     assert "There is no file or folder named nope.json here." in out
-    assert _next(out) == "Next: run `judgekeeper check` in your project folder."
+    assert _next(out) == ("Next: give `judgekeeper check` your new results file, or run it in "
+                          "your project folder.")
 
 
 def test_a_folder_inside_the_project_finds_the_marks(here, capsys, monkeypatch):

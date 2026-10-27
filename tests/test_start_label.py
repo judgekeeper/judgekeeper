@@ -258,7 +258,9 @@ def test_see_my_result_works_before_everything_is_labeled(workspace):
         assert resp.getheader("Content-Security-Policy") == f"{LIVE_CSP}; frame-ancestors 'none'"
         assert "font-src data:" in resp.getheader("Content-Security-Policy")
         html = payload.decode()
-        assert '<h1 id="verdict-h" class="plain">Too early to tell.</h1>' in html
+        assert ('<h1 id="verdict-h" class="plain">Mark a few more answers to see your '
+                "result.</h1>") in html  # what the terminal says before 15 Pass and 15 Fail
+        assert "Too early to tell" not in html
         assert f'<a href="/?token={server.token}">Mark more answers to get a result.</a>' in html
         assert thread.is_alive()  # answers are left: the person may go on
     finally:

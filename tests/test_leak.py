@@ -136,3 +136,65 @@ def test_the_sentinels_are_credentials_to_redact(env):
     """The custom variable is caught by its name's ending, not by being named on a flag."""
     for value in SENTINELS.values():
         assert redact.scrub(f"x {value} y") == f"x {redact.REDACTED} y"
+
+
+# A name or rule that key hiding changes is still the same name or rule ------------------------
+
+URL_METRIC = "helpfulness, see https://wiki:S3cretWikiPass@wiki.example.com/rubric"
+KEY_RULE = "Be polite. sk-ant-api03-FAKERULEaaaaaaaaaaaaaaaa"
+
+
+def _records(root: Path, metric: str, rule: str, n: int = 40) -> None:
+    """judgekeeper.record()'s lines: the LLM-as-a-judge passes the first half."""
+    from tests.start_projects import answer, question
+
+    folder = root / ".judgekeeper" / "records"
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "helpfulness-2026-10-05-1.jsonl").open("w", encoding="utf-8") as f:
+        for i in range(n):
+            f.write(json.dumps({
+                "schema_version": 2, "target_id": None, "name": metric, "annotator_kind": "LLM",
+                "label": "pass" if i < n // 2 else "fail", "score": None,
+                "explanation": f"reason {i}", "run": None, "input": question(i),
+                "output": answer(i), "evaluator": {"model": "claude-opus-5", "rule": rule},
+                "created_at": "2026-10-05T10:00:00Z"}) + "\n")
+
+
+def _marked_records(root: Path, capsys, metric: str, rule: str) -> str:
+    """Every answer marked (four the other way), then `judgekeeper` again: what it says."""
+    from judgekeeper.start_label import StartSession, Workspace
+    from tests.test_fix import closed
+
+    _records(root, metric, rule)
+    assert main(["--no-browser"]) == 0
+    ws = Workspace(root)
+    closed(ws)
+    session = StartSession(ws)
+    for n, item in enumerate(session.items):
+        label = session.groups[item["id"]]
+        if n < 4:
+            label = {"pass": "fail", "fail": "pass"}[label]
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    capsys.readouterr()
+    code = main(["--no-browser"])
+    closed(ws)
+    out, err = capsys.readouterr()
+    assert code in (0, 3), out + err  # 3: too early to tell
+    return " ".join((out + err).split())
+
+
+def test_a_metric_name_with_a_url_login_reaches_a_result(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    said = _marked_records(tmp_path, capsys, URL_METRIC, "Be polite.")
+    assert "Your marks are for other results" not in said
+    assert "Result:" in said and "S3cretWikiPass" not in said
+    code = main(["check"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert code == 0 and "You have not marked enough answers" not in out, out
+
+
+def test_a_key_in_the_rule_is_not_a_rule_change(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    said = _marked_records(tmp_path, capsys, "helpfulness", KEY_RULE)
+    assert "This result is about your LLM-as-a-judge as it was" not in said
+    assert "Result:" in said and "FAKERULE" not in said

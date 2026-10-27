@@ -327,8 +327,8 @@ def _formula(text: str) -> bool:
     for i, ch in enumerate(text):
         if text.startswith(FORMULA_PREFIXES, i):
             return True
-        if ch != " " and printable(ch):  # printable drops the unseen characters
-            return False
+        if not ch.isspace() and printable(ch):  # any space or line break before it, and
+            return False  # the unseen characters printable drops
     return False
 
 

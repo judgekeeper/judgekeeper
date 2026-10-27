@@ -262,24 +262,29 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
     assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
-    file = fix.NEW_LOG if tool == "inspect" else fix.NEW_RESULTS
+    file = fix.new_log(ws) if tool == "inspect" else fix.NEW_RESULTS
     assert f"fix {file}" in " ".join(out.split())
 
-    gone = kept[0]  # not graded again: counted, said, left out
+    gone = kept[0]  # not graded again: said, and no verdict without it
     new = write_results(tool, here / NEW[tool],
                         {i: person(i) for i in range(N) if i != gone}, regraded=True)
     with only_reads(monkeypatch):
         code, out = run(capsys, "fix", new.relative_to(here))
-    assert code == 0, out
+    assert code == 3, out
     said = " ".join(out.split())
-    assert f"tested on the {len(kept) - 1} marks kept aside" in said
-    assert (f"1 of the {len(kept)} answers kept aside is not in your new results. Grade the "
-            "same answers again (.judgekeeper/fix/marked-answers.csv).") in said
+    assert (f"Result: can't tell. 1 of the {len(kept)} answers kept aside has no grade in your "
+            "new results: 1 is not in the file.") in said
     assert "marked-answers.csv" in said[said.rindex("Next:"):]
-    assert "Result:" in said
+    assert fix.read_split(ws).tests == []
+
+    new = write_results(tool, here / NEW[tool], {i: person(i) for i in range(N)}, regraded=True)
+    with only_reads(monkeypatch):
+        code, out = run(capsys, "fix", new.relative_to(here))
+    assert code == 0, out
+    assert f"tested on the {len(kept)} marks kept aside" in " ".join(out.split())
     test = fix.read_split(ws).tests[-1]
-    assert test["n"] == len(kept) - 1 and test["broke"] == 0
-    assert test["fixed"] == len(WRONG & set(kept)) - (gone in WRONG)
+    assert test["n"] == len(kept) and test["broke"] == 0
+    assert test["fixed"] == len(WRONG & set(kept))
     if os.name != "nt":
         assert all(mode(p) == 0o600 for p in folder.iterdir() if p.is_file())
 
@@ -369,6 +374,16 @@ SNEAKY = {  # {index: (question, answer)}: each would run as a formula in a spre
 @pytest.mark.parametrize("cell", ["\u200b=1", "\u2060 @SUM(A1)", "\ufeff+1", " \u200d-2",
                                   "\u00ad\t1", "\x00=1"])
 def test_unseen_characters_before_a_formula_still_guard_it(cell):
+    assert table.guard_cell(cell) == "'" + cell
+    assert table.unguard_cell(table.guard_cell(cell)) == cell
+
+
+@pytest.mark.parametrize("space", ["\u00a0", "\u1680", "\u2000", "\u2005", "\u200a", "\u202f",
+                                   "\u205f", "\u3000", "\u2028", "\u2029", "\n", "\r\n",
+                                   "\x0b", "\x0c", "\x85"])
+@pytest.mark.parametrize("start", ["=", "+", "-", "@"])
+def test_any_space_or_line_break_before_a_formula_still_guards_it(space, start):
+    cell = f"{space}{start}HYPERLINK(\"http://127.0.0.1:9/x\") Answer"
     assert table.guard_cell(cell) == "'" + cell
     assert table.unguard_cell(table.guard_cell(cell)) == cell
 
