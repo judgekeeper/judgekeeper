@@ -16,6 +16,7 @@ No AI call and no key. Exit codes: 0 done, 3 the person is needed, 2 usage error
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -318,10 +319,24 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
         found = start.rebased(found, root)
         _folder_chosen(talk, found, path.resolve().parent)
-    elif root != path.resolve():  # a folder in the project that holds the marks
+    elif root != path.resolve() and _log_folder_of(root, found):  # in the marked project
         found = start.rebased(found, root, path)
         _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _log_folder_of(root: Path, found: start.Found) -> bool:
+    """Whether `found` is read from a folder of logs (DeepEval, Inspect AI) of the eval tool the
+    project in `root` marks: the project's choice of folder, not a project of its own."""
+    from judgekeeper import start_label
+
+    if found.tool not in ("deepeval", "inspect"):
+        return False
+    try:
+        data = json.loads(start_label.Workspace(root).start.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return False
+    return isinstance(data, dict) and data.get("tool") == found.tool
 
 
 def _folder_chosen(talk: FrontTalk, found: start.Found, folder: Path) -> None:
