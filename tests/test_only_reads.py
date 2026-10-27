@@ -262,7 +262,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
     assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
-    file = fix.NEW_LOG if tool == "inspect" else fix.NEW_RESULTS
+    file = {"inspect": fix.NEW_LOG, "mlflow": fix.mlflow_store(ws)}.get(tool, fix.NEW_RESULTS)
     assert f"fix {file}" in " ".join(out.split())
 
     gone = kept[0]  # not graded again: counted, said, left out
@@ -275,7 +275,8 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     assert f"tested on the {len(kept) - 1} marks kept aside" in said
     assert (f"1 of the {len(kept)} answers kept aside is not in your new results. Grade the "
             "same answers again (.judgekeeper/fix/marked-answers.csv).") in said
-    assert "marked-answers.csv" in said[said.rindex("Next:"):]
+    again = fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv"  # a new run there
+    assert again in said[said.rindex("Next:"):]
     assert "Result:" in said
     test = fix.read_split(ws).tests[-1]
     assert test["n"] == len(kept) - 1 and test["broke"] == 0
