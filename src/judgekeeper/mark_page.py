@@ -2,8 +2,10 @@
 
 One self-contained page (look.py: nothing loaded from anywhere else). It shows one answer at a
 time with the person's own marks and never anything the LLM-as-a-judge decided: no grade, no
-reason, no agreement, not even its rule. Text reaches it through textContent. The server fills
-in __DATA__ (start_label.StartSession.state), __TOKEN__ and __NONCE__.
+reason, no agreement. What it grades is shown: the metric's name above the answer, and its
+rule behind a "Show the rule" button when the results hold one. Text reaches it through
+textContent. The server fills in __DATA__ (start_label.StartSession.state), __TOKEN__ and
+__NONCE__.
 
 So that each mark comes from a real look at the answer: Fail and Pass look the same but for
 their colour; after each mark the page ignores input for about 400 ms, and it ignores a held
@@ -18,13 +20,14 @@ from __future__ import annotations
 from html import escape
 
 from judgekeeper import look, targets
-from judgekeeper.redact import visible
+from judgekeeper.redact import scrub, visible
 
 # Answers looked at that fill the bar: about what a first result takes (enough of each kind)
 FIRST = 2 * targets.ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
+RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 
 CROSS = ('<svg class="btn-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
          '<path d="M4 4l8 8M12 4l-8 8"/></svg>')
@@ -98,6 +101,16 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   letter-spacing: 0; }
 .question .field { display: block; }
 .question .field + .field-name { margin-top: 10px; }
+.graded { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  margin-bottom: 14px; }
+.graded .label { margin: 0; }
+.metric-name { font-family: var(--mono); font-size: 13px; color: var(--text);
+  overflow-wrap: anywhere; min-width: 0; }
+.rule-btn { padding: 6px 10px; font-size: 13px; margin-left: auto; }
+.rule { margin: 0 0 18px; padding: 12px 16px; border-left: 2px solid var(--line);
+  background: var(--hover); }
+.rule-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); max-width: 70ch;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
 .answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; white-space: pre-wrap;
   overflow-wrap: anywhere; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
@@ -173,7 +186,7 @@ __TOP__
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
     <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text"></h1></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
-    <div class="row row-a"><div class="label">Answer</div><p class="answer" id="a-text"></p></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="answer" id="a-text"></p></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
@@ -217,6 +230,16 @@ __TOP__
     into.textContent = "";
     String(text).split("`").forEach(function (part, k) {
       if (part) { into.appendChild(k % 2 ? el("code", null, part) : document.createTextNode(part)); }
+    });
+  }
+  // The rule, behind its button: shown when asked for, the same for every answer.
+  if ($("rule-btn")) {
+    $("rule-btn").addEventListener("mousedown", function (e) { e.preventDefault(); });
+    $("rule-btn").addEventListener("click", function () {
+      var show = $("rule").hidden;
+      $("rule").hidden = !show;
+      $("rule-btn").setAttribute("aria-expanded", String(show));
+      setText("rule-btn", show ? "Hide the rule" : "Show the rule");
     });
   }
   function el(tag, cls, text) {
@@ -514,14 +537,39 @@ def _progress() -> str:
             '<a class="see" id="see" href="#" hidden>See your result</a></div>')
 
 
+def _shown(value: str) -> str:
+    """A value for the page: scrubbed of credentials, without hidden characters, escaped."""
+    return _text(visible(scrub(value) or ""))
+
+
+def _graded(metric: str | None, rule: str | None) -> str:
+    """Above the answer: the metric's name, and the "Show the rule" button with the rule
+    (cut at RULE_CHARS) when there is one. Nothing without a metric."""
+    if not metric:
+        return ""
+    button = box = ""
+    rule = visible(scrub(rule) or "").strip() if rule else ""
+    if rule:
+        if len(rule) > RULE_CHARS:
+            rule = rule[:RULE_CHARS].rstrip() + "…"
+        button = ('<button type="button" class="quiet rule-btn" id="rule-btn" '
+                  'aria-expanded="false" aria-controls="rule">Show the rule</button>')
+        box = (f'<div class="rule" id="rule" hidden><p class="rule-text" id="rule-text">'
+               f"{_text(rule)}</p></div>")
+    return (f'<div class="graded"><span class="label">Metric</span><span class="metric-name" '
+            f'id="metric-name">{_shown(metric)}</span>{button}</div>{box}')
+
+
 def label_page(description: str | None, command: str | None = None,
                model: str | None = None, tool: str | None = None,
-               held: list[str] | None = None) -> str:
+               held: list[str] | None = None, metric: str | None = None,
+               rule: str | None = None) -> str:
     """The marking page. `command` is what the person runs to come back, with a line under
-    it for each value it shows as NAME (`held`, on Windows); `model` and `tool` name the
-    judge in the top bar, without hidden characters (redact.visible). `description` (the app
-    the answers came from, as the results name it) is not shown: the results name one
-    source, the same on every answer.
+    it for each value it shows as NAME (`held`, on Windows), both scrubbed of credentials;
+    `model` and `tool` name the judge in the top bar, without hidden characters
+    (redact.visible). `metric` and `rule`: what the LLM-as-a-judge grades, shown above the
+    answer (_graded). `description` (the app the answers came from, as the results name it)
+    is not shown: the results name one source, the same on every answer.
     The server fills in __DATA__, __TOKEN__ and __NONCE__."""
     from judgekeeper.textio import PLACEHOLDER, program
 
@@ -529,8 +577,9 @@ def label_page(description: str | None, command: str | None = None,
     left = look.meta(_text(visible(model)) if model else None,
                      _text(visible(tool)) if tool else None)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
-            .replace("__COMMAND__", _text(command))
-            .replace("__HELD__", "".join(f"<br><code>{_text(f'{PLACEHOLDER}: {v}')}</code>"
+            .replace("__GRADED__", _graded(metric, rule))
+            .replace("__COMMAND__", _shown(command))
+            .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST))

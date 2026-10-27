@@ -872,17 +872,20 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
 def page_template(about: dict | None = None, command: str | None = None,
                   held: list[str] | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's model and tool
-    are shown in the top bar; nothing else from it is (not its rule). `command`: what the
+    are shown in the top bar, its metric above the answer and its rule behind a button (only
+    when every answer was graded by the same rule); never a grade. `command`: what the
     person runs to continue; `held`: the values it shows as NAME (start.held_values)."""
     from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
     command = command or program("mark")
     about = about or {}
+    rule = about.get("rule") if about.get("one_rule", True) else None
     return label_page(about.get("description") or about.get("app_version"), command,
                       model=(about.get("fingerprint") or {}).get("model"),
                       tool=tool_name(about.get("tool"), about.get("results_files")),
-                      held=held)
+                      held=held, metric=about.get("metric"),
+                      rule=rule if isinstance(rule, str) else None)
 
 
 def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,

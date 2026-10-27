@@ -340,10 +340,12 @@ def test_a_rule_with_one_part_gives_only_the_general_buttons(here):
     assert "data-part=" not in box and 'data-reason="wrong_fact"' in box
 
 
-def test_the_rule_is_never_shown_on_the_marking_page(here):
+def test_the_rule_is_shown_on_the_marking_page_only_behind_its_button(here):
     ws, _, _, _ = _ready(here)
     marking = start_label.page_template(ws.data())
-    assert "supported by the article" not in marking
+    box = marking.split('<div class="rule" id="rule" hidden>', 1)[1].split("</div>", 1)[0]
+    assert "supported by the article" in box
+    assert marking.count("supported by the article") == 1
 
 
 def test_rule_parts_are_saved_by_index_with_the_rules_hash(here):
