@@ -165,6 +165,23 @@ def test_a_mark_taken_back_below_a_result_takes_the_saved_result_back(ws, monkey
     assert "needs work" not in page and start_label.VERDICTS[None] in page
 
 
+def test_grades_are_seen_only_when_the_page_lists_a_disagreement(ws):
+    """/result before a result (10 Pass and 10 Fail, 3 of each the other way): the page lists
+    no disagreement, so no change later is said to follow the grades, and none is kept aside."""
+    from judgekeeper import reasons
+    from tests.test_product_pages import _text
+
+    session = start_label.StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for want in ("pass", "fail"):
+        for k, item in enumerate([i for i in session.items if groups[i["id"]] == want][:10]):
+            other = "fail" if want == "pass" else "pass"
+            session.update({"id": item["id"], "label": other if k < 3 else want, "seconds": 5})
+    page = _text(start_label.live_result(ws, session))
+    assert "your LLM-as-a-judge said" not in page  # no disagreement listed
+    assert not reasons.grades_shown(ws) and not (ws.dir / "fix" / "split.json").exists()
+
+
 def test_marking_an_answer_and_taking_it_back_shows_nothing_of_its_grade(ws):
     """Mark the next answer Pass, read /result, take the mark back: the page reads the same
     for an answer the LLM-as-a-judge passed as for one it failed."""
