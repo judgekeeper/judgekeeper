@@ -165,12 +165,15 @@ def kept_location(value, home: Path) -> Path | None:
 
 
 TRIGGERS = "select name from sqlite_master where type = 'trigger'"
+VIEWS = "select 1 from sqlite_master where type = 'view'"  # MLflow makes none
 LOCATIONS = "select request_id, key, value from trace_tags where key in (?, ?)"
 
 
 def _locations(con) -> list:
-    """The location rows of a store: none when it holds no trace tags."""
-    if con.execute("select 1 from sqlite_master where name = 'trace_tags'").fetchone() is None:
+    """The location rows of a store: none when it holds no trace tags. SQLite finds a table
+    whatever the case of its name, as MLflow's queries do."""
+    if con.execute("select 1 from sqlite_master where name = 'trace_tags' collate nocase"
+                   ).fetchone() is None:
         return []
     return con.execute(LOCATIONS, LOCATION_TAGS).fetchall()
 
@@ -181,7 +184,9 @@ def _keep_local(copy: Path, home: Path) -> None:
     location back when MLflow writes to the copy; MLflow's own, on its secrets table, guards
     a table judgekeeper never writes), and each trace location kept_location keeps becomes its
     full path, every other one pointing into the copy's own folder, where nothing is, so
-    MLflow can't fetch it. A copy that can't be made so is damaged. One with no trigger and
+    MLflow can't fetch it. A copy that can't be made so is damaged, and so is one that holds
+    a view: MLflow makes none, and a view can show MLflow other rows than this check reads
+    (one that reads MLflow's own SQLite settings, say). One with no trigger and
     nothing to change is left byte for byte as it is (read read-only, which never folds in or
     removes its -wal file); one SQLite can't read at all is left to MLflow, which says so."""
     import sqlite3
@@ -193,34 +198,41 @@ def _keep_local(copy: Path, home: Path) -> None:
         kept = kept_location(value, home)
         return kept.as_uri() if kept is not None else elsewhere
 
+    damaged = damaged_db(f"sqlite:///{copy.as_posix()}")
     triggers = rows = None  # unknown until read: then read, and changed, read-write
+    views = False
     try:
         with closing(sqlite3.connect(f"{copy.as_uri()}?mode=ro", uri=True)) as con:
+            views = con.execute(VIEWS).fetchone() is not None
             triggers = con.execute(TRIGGERS).fetchall()
             rows = _locations(con)
     except sqlite3.OperationalError:  # not opened read-only, or a table not read
         pass
     except sqlite3.DatabaseError:  # not a database, or its tables can't be read
-        if triggers is None:
+        if triggers is None and not views:
             return  # MLflow can't read it either, and says so
+    if views:
+        raise damaged
     if triggers == [] and rows is not None and all(wanted(v) == v for _, _, v in rows):
         return
+    want = after = left = None
     with closing(sqlite3.connect(copy)) as con:
         try:
-            for (name,) in con.execute(TRIGGERS).fetchall():
-                con.execute('drop trigger "{}"'.format(str(name).replace('"', '""')))
-            want = {(trace, key): wanted(value) for trace, key, value in _locations(con)}
-            con.executemany("update trace_tags set value = ? where request_id = ? and key = ?",
-                            [(v, trace, key) for (trace, key), v in want.items()])
-            con.commit()
-            after = {(t, k): v for t, k, v in _locations(con)}
-            left = con.execute(TRIGGERS).fetchall()
+            if con.execute(VIEWS).fetchone() is None:
+                for (name,) in con.execute(TRIGGERS).fetchall():
+                    con.execute('drop trigger "{}"'.format(str(name).replace('"', '""')))
+                want = {(trace, key): wanted(value) for trace, key, value in _locations(con)}
+                con.executemany(
+                    "update trace_tags set value = ? where request_id = ? and key = ?",
+                    [(v, trace, key) for (trace, key), v in want.items()])
+                con.commit()
+                after = {(t, k): v for t, k, v in _locations(con)}
+                left = con.execute(TRIGGERS).fetchall()
         except sqlite3.Error:
             if triggers is None:
                 return  # not a database SQLite reads: MLflow can't read it either
-            after, left = None, None
-    if after != want or left != []:
-        raise damaged_db(f"sqlite:///{copy.as_posix()}")
+    if want is None or after != want or left != []:
+        raise damaged
 
 
 def _local_again(client, experiment_id) -> None:

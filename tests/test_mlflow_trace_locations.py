@@ -33,6 +33,7 @@ from judgekeeper import again, keys, start, start_label
 from judgekeeper.again import AgainOptions
 from judgekeeper.again import mlflow as mf
 from judgekeeper.readers import mlflow_store
+from judgekeeper.records import Damaged
 from judgekeeper.start_label import StartSession
 from tests.start_projects import save_result
 
@@ -389,3 +390,46 @@ def test_a_location_written_after_the_copy_is_made_is_never_fetched(made, tmp_pa
     assert len(found.pool.answers) == N
     mf.assessment_info(start_label.Workspace(root), "correctness")
     assert asked == []
+
+
+# A store that hides its locations ----------------------------------------------------------------
+
+def test_a_trace_tags_table_named_in_capitals_is_kept_local(made, tmp_path, listener):
+    """SQLite finds a table whatever the case of its name, as MLflow's queries do."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    _elsewhere(root / "mlflow.db", address)
+    edit(root / "mlflow.db", "alter table trace_tags rename to tags_for_now",
+         "alter table tags_for_now rename to TRACE_TAGS")
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+
+
+FK_ON = "(select foreign_keys from pragma_foreign_keys) = 1"  # MLflow switches it on
+
+
+@pytest.mark.parametrize("view", [
+    # what MLflow reads differs from what judgekeeper's own check reads
+    ("select key, value, request_id from real_tags where not (key = 'mlflow.artifactLocation' "
+     f"and {FK_ON}) union all select 'mlflow.artifactLocation', '{{address}}/view/', "
+     f"request_id from trace_info where {FK_ON}"),
+    # a view over a table that is gone: it can't be read at all
+    "select key, value, request_id from gone",
+])
+def test_a_store_holding_a_view_is_damaged(made, tmp_path, listener, view):
+    """Also with no trigger in the store (MLflow 3.1 makes none)."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    edit(root / "mlflow.db", "drop trigger if exists prevent_secrets_aad_mutation",
+         "delete from trace_tags where key = 'mlflow.trace.spansLocation'",
+         "delete from spans", "alter table trace_tags rename to real_tags",
+         "create table gone (key, value, request_id)",
+         f"create view trace_tags as {view.format(address=address)}", "drop table gone")
+    try:
+        with pytest.raises(Damaged, match="mlflow.db can't be read: it's damaged"):
+            start.find_judge(root)
+    finally:
+        assert asked == []
