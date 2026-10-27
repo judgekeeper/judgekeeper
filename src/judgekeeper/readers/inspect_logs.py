@@ -361,13 +361,58 @@ def _apart(f, parts, table: int) -> bool:
     return all(end <= after for (_, end), (after, _) in pairwise(sorted(spans) + [(table, 0)]))
 
 
+UPATH = 0x7075  # zip's Unicode Path extra field: zipfile names a part from it, inspect_ai never
+
+
+def _kinds(extra: bytes) -> list[int]:
+    """The kind of each extra field in a part's `extra` bytes."""
+    import struct
+
+    kinds, at = [], 0
+    while at + 4 <= len(extra):
+        kind, size = struct.unpack_from("<HH", extra, at)
+        kinds.append(kind)
+        at += 4 + size
+    return kinds
+
+
+def _same_names(f, parts, table: int) -> bool:
+    """Whether zipfile and inspect_ai give each of `parts` the same name. inspect_ai reads it
+    from its raw bytes in the table of contents at `table`, as UTF-8; zipfile may read them
+    as cp437, cut them at a NUL, or take a Unicode Path extra field (UPATH) over them. So:
+    each raw name reads as UTF-8 to zipfile's name, and no part has a UPATH field, in the
+    table or in its own header. A name may still repeat (_apart): both read its last part."""
+    import struct
+
+    f.seek(table)
+    for p in parts:  # the table lists them in zipfile's order
+        head = f.read(46)
+        if len(head) < 46 or head[:4] != b"PK\x01\x02":
+            return False
+        name, extra, comment = struct.unpack_from("<3H", head, 28)
+        raw, kinds = f.read(name), _kinds(f.read(extra))
+        f.seek(comment, 1)
+        if raw.decode("utf-8", "replace") != p.filename or UPATH in kinds:
+            return False
+    for p in parts:
+        f.seek(p.header_offset + 26)
+        name, extra = struct.unpack("<HH", f.read(4))
+        f.seek(name, 1)
+        if UPATH in _kinds(f.read(extra)):
+            return False
+    return True
+
+
 def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> dict[str, int]:
     """Refuse a .eval log (a zip) that zipfile can't open, or where it and inspect_ai could
-    find different parts (_one_table), or whose parts share bytes (_apart), or whose
-    parts unpack too big (_too_big) or hold too many values, each or all together, before
-    inspect_ai reads it: first by the sizes the zip declares, then by what each part really
-    unpacks to (_unpacks_to), as a zip can declare any size. A sample may also unpack to at
-    most PACKED_RATIO times its packed size. Nothing unpacked is kept, so memory stays low.
+    find different parts (_one_table) or name a part differently (_same_names), or whose
+    parts share bytes (_apart), or whose parts unpack too big (_too_big) or hold too many
+    values, each or all together, before inspect_ai reads it: first by the sizes the zip
+    declares, then by what each part really unpacks to (_unpacks_to), as a zip can declare
+    any size. A sample may also unpack to at most PACKED_RATIO times its packed size and hold
+    no text longer than MAX_STRING, and all samples together at most VALUES_PER_BYTE values
+    for each byte they pack to. Each part is checked, a repeated name's every part too.
+    Nothing unpacked is kept, so memory stays low.
     `samples=False`: the header parts only. Returns what each part really unpacks to, by name
     (a repeated name: its last part, the one inspect_ai reads)."""
     import zipfile
@@ -377,7 +422,8 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
     try:
         with zipfile.ZipFile(path) as z, path.open("rb") as f:
             parts = z.infolist()
-            if not _one_table(f, parts) or not _apart(f, parts, z.start_dir):
+            if not (_one_table(f, parts) and _apart(f, parts, z.start_dir)
+                    and _same_names(f, parts, z.start_dir)):
                 raise unreadable
     except (OSError, ValueError, zipfile.BadZipFile):
         raise unreadable from None
