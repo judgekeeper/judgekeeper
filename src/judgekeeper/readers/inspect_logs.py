@@ -76,17 +76,24 @@ def _mark(score: dict, label) -> Mark:
     return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
 
+# inspect_ai's loggers, and asyncio's: a read stopped by Ctrl-C leaves inspect_ai's tasks, and
+# asyncio logs each one's error as it is let go
+QUIET_LOGGERS = ("inspect_ai", "asyncio")
+
+
 @contextmanager
 def quiet() -> Iterator[None]:
     """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
     said here, in plain words, never with its text). Put back afterwards."""
-    logger = logging.getLogger("inspect_ai")
-    level = logger.level
-    logger.setLevel(logging.CRITICAL)
+    loggers = [logging.getLogger(name) for name in QUIET_LOGGERS]
+    levels = [logger.level for logger in loggers]
+    for logger in loggers:
+        logger.setLevel(logging.CRITICAL)
     try:
         yield
     finally:
-        logger.setLevel(level)
+        for logger, level in zip(loggers, levels, strict=True):
+            logger.setLevel(level)
 
 
 # What judgekeeper reads of a sample (and of its output, the completion only).
@@ -105,6 +112,13 @@ SAMPLE_LIMIT = 200 * 2**20
 # aside) grow with them: summaries.json, reductions.json, _journal/summaries/...
 HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
 HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
+# bytes: one text (a JSON string) in a sample. inspect_ai's read takes time that grows with the
+# square of a text's length (an 8 MB text about 0.7 s, 20 MB about 3 s, 100 MB over a minute)
+# and with the sample's size: a sample of 200 MB in 8 MB texts reads in about 11 s. Above a
+# screenshot as base64, which is often under 1 MB.
+MAX_STRING = 8 * 2**20
+STRING_TOO_LONG = ("{path} is too big for judgekeeper to read: one text in it is longer than "
+                   "{limit}, the most judgekeeper reads in one text of an Inspect AI log.")
 # values (a comma or an opening bracket) in one part: inspect_ai takes GBs to read a few KB
 # that unpack to `[0,0,...]` with millions of zeros. A part that grows with the samples may
 # hold VALUES_PER_SAMPLE more per sample in the log.
@@ -119,6 +133,14 @@ SAMPLES_LIMIT = 4 * 2**30
 ALL_VALUES_LIMIT = 200_000_000
 ALL_TOO_BIG = ("{path} is too big for judgekeeper to read: it would unpack to more than "
                "{limit} in all, the most judgekeeper reads of one Inspect AI log.")
+# Values in all the samples, for each byte they pack to: honest logs hold about 0.15. Each
+# sample under RATIO_FLOOR passes PACKED_RATIO, and inspect_ai reads about a million values a
+# second, so without it 400 samples in 1 MB would take minutes. A log may always hold
+# VALUE_LIMIT values in its samples.
+VALUES_PER_BYTE = 10
+PACKED_VALUES = ("{path} is too big for judgekeeper to read: its samples would unpack to more "
+                 "than {ratio} values for each byte they pack to, the most judgekeeper reads of "
+                 "an Inspect AI log.")
 # A sample unpacks to at most PACKED_RATIO times its packed size (honest ones: under 30), once
 # past RATIO_FLOOR bytes: so what is read grows with the file, never 1,000 times over. Not the
 # summaries and reductions: their repeats pack 100 to 200 times, and they have their limits.
@@ -150,9 +172,9 @@ class _Packed:
         return data
 
 
-# In a part's JSON: an escape in a string (its backslash and the byte after it); the bytes that
-# are no list or object bracket; how each bracket changes the depth
-_ESCAPE = re.compile(rb"\\.", re.DOTALL)
+# In a part's JSON: an escape in a string (its backslash and the byte after it, or a whole
+# \uXXXX); the bytes that are no list or object bracket; how each bracket changes the depth
+_ESCAPE = re.compile(rb"\\(?:u[0-9A-Fa-f]{4}|.)", re.DOTALL)
 _NOT_BRACKETS = bytes(b for b in range(256) if b not in b"[]{}")
 _DEPTH_STEP = tuple(1 if b in b"[{" else -1 if b in b"]}" else 0 for b in range(256))
 
@@ -165,26 +187,33 @@ class TooWide(ValueError):
     """A part of a .eval log holds more values than it may."""
 
 
-class _Depth:
-    """How deep the lists and objects of JSON text go, and how many values it holds, fed a step
-    at a time, with regex and bytes methods only: escapes are taken out, the text between
-    quotes (the strings) left out, and the brackets left added up; commas and opening brackets
-    count as values. Whether a string, or an escape, goes on into the next step is carried.
-    TooDeep once past MAX_NESTING, TooWide once past `values` values."""
+class TooLong(ValueError):
+    """A part of a .eval log holds a text (a JSON string) longer than it may."""
 
-    def __init__(self, values: float = math.inf):
+
+class _Depth:
+    """How deep the lists and objects of JSON text go, how many values it holds and how long
+    its longest string is, fed a step at a time, with regex and bytes methods only: each escape
+    becomes one byte, the text between quotes (the strings) is measured and left out, and the
+    brackets left added up; commas and opening brackets count as values. Whether a string,
+    or an escape, goes on into the next step is carried. TooDeep once past MAX_NESTING,
+    TooWide once past `values` values, TooLong once a string is longer than `longest`."""
+
+    def __init__(self, values: float = math.inf, longest: float = math.inf):
         self.depth, self.in_string, self.escaped = 0, False, False
         self.values, self.most_values = 0, values
+        self.string, self.longest = 0, longest  # the open string's length so far
 
     def feed(self, text: bytes) -> None:
         if self.escaped:  # the step before ended on a backslash: this byte is escaped
-            text, self.escaped = text[1:], False
+            text, self.escaped = b"x" + text[1:], False
         if b"\\" in text:
-            text = _ESCAPE.sub(b"", text)
+            text = _ESCAPE.sub(b"x", text)  # one character, as it reads
             if text.endswith(b"\\"):  # its byte is in the next step
                 text, self.escaped = text[:-1], True
         pieces = text.split(b'"')  # inside and outside strings in turn
         outside = b"".join(pieces[1 if self.in_string else 0::2])
+        self._measure(pieces)
         self.in_string ^= len(pieces) % 2 == 0
         brackets = outside.translate(None, _NOT_BRACKETS)
         opens = brackets.count(b"[") + brackets.count(b"{")
@@ -196,13 +225,27 @@ class _Depth:
         if self.values > self.most_values:
             raise TooWide("too many values")
 
+    def _measure(self, pieces: list[bytes]) -> None:
+        """The strings in this step's `pieces` (split at quotes): the first goes on from the
+        step before when one was open, the last into the next when it stays open."""
+        inside = pieces[0 if self.in_string else 1::2]
+        if not inside:
+            return
+        first = len(inside[0]) + (self.string if self.in_string else 0)
+        longest = max(first, max(map(len, inside[1:]), default=0))
+        if longest > self.longest:
+            raise TooLong("a string too long")
+        still_open = self.in_string ^ (len(pieces) % 2 == 0)
+        self.string = (first if len(inside) == 1 else len(inside[-1])) if still_open else 0
 
-def _unpacks_to(f, part, most: int, values: float = math.inf) -> tuple[int, int]:
+
+def _unpacks_to(f, part, most: int, values: float = math.inf,
+                longest: float = math.inf) -> tuple[int, int]:
     """How many bytes the zip `part` unpacks to and how many values it holds, counted by
     unpacking it STEP bytes at a time and keeping none; the count stops once past `most`.
     What it unpacks to is also looked at for how deep it nests (_Depth): TooDeep past
     MAX_NESTING, as inspect_ai would take many GB to read a few KB nested 100,000 deep, and
-    TooWide past `values`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
+    TooWide past `values`, TooLong for a string over `longest`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
     trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
     compression, or encrypted."""
     import struct
@@ -215,7 +258,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf) -> tuple[int, int]
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values)
+    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values, longest)
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
@@ -361,13 +404,58 @@ def _apart(f, parts, table: int) -> bool:
     return all(end <= after for (_, end), (after, _) in pairwise(sorted(spans) + [(table, 0)]))
 
 
+UPATH = 0x7075  # zip's Unicode Path extra field: zipfile names a part from it, inspect_ai never
+
+
+def _kinds(extra: bytes) -> list[int]:
+    """The kind of each extra field in a part's `extra` bytes."""
+    import struct
+
+    kinds, at = [], 0
+    while at + 4 <= len(extra):
+        kind, size = struct.unpack_from("<HH", extra, at)
+        kinds.append(kind)
+        at += 4 + size
+    return kinds
+
+
+def _same_names(f, parts, table: int) -> bool:
+    """Whether zipfile and inspect_ai give each of `parts` the same name. inspect_ai reads it
+    from its raw bytes in the table of contents at `table`, as UTF-8; zipfile may read them
+    as cp437, cut them at a NUL, or take a Unicode Path extra field (UPATH) over them. So:
+    each raw name reads as UTF-8 to zipfile's name, and no part has a UPATH field, in the
+    table or in its own header. A name may still repeat (_apart): both read its last part."""
+    import struct
+
+    f.seek(table)
+    for p in parts:  # the table lists them in zipfile's order
+        head = f.read(46)
+        if len(head) < 46 or head[:4] != b"PK\x01\x02":
+            return False
+        name, extra, comment = struct.unpack_from("<3H", head, 28)
+        raw, kinds = f.read(name), _kinds(f.read(extra))
+        f.seek(comment, 1)
+        if raw.decode("utf-8", "replace") != p.filename or UPATH in kinds:
+            return False
+    for p in parts:
+        f.seek(p.header_offset + 26)
+        name, extra = struct.unpack("<HH", f.read(4))
+        f.seek(name, 1)
+        if UPATH in _kinds(f.read(extra)):
+            return False
+    return True
+
+
 def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> dict[str, int]:
     """Refuse a .eval log (a zip) that zipfile can't open, or where it and inspect_ai could
-    find different parts (_one_table), or whose parts share bytes (_apart), or whose
-    parts unpack too big (_too_big) or hold too many values, each or all together, before
-    inspect_ai reads it: first by the sizes the zip declares, then by what each part really
-    unpacks to (_unpacks_to), as a zip can declare any size. A sample may also unpack to at
-    most PACKED_RATIO times its packed size. Nothing unpacked is kept, so memory stays low.
+    find different parts (_one_table) or name a part differently (_same_names), or whose
+    parts share bytes (_apart), or whose parts unpack too big (_too_big) or hold too many
+    values, each or all together, before inspect_ai reads it: first by the sizes the zip
+    declares, then by what each part really unpacks to (_unpacks_to), as a zip can declare
+    any size. A sample may also unpack to at most PACKED_RATIO times its packed size and hold
+    no text longer than MAX_STRING, and all samples together at most VALUES_PER_BYTE values
+    for each byte they pack to. Each part is checked, a repeated name's every part too.
+    Nothing unpacked is kept, so memory stays low.
     `samples=False`: the header parts only. Returns what each part really unpacks to, by name
     (a repeated name: its last part, the one inspect_ai reads)."""
     import zipfile
@@ -377,7 +465,8 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
     try:
         with zipfile.ZipFile(path) as z, path.open("rb") as f:
             parts = z.infolist()
-            if not _one_table(f, parts) or not _apart(f, parts, z.start_dir):
+            if not (_one_table(f, parts) and _apart(f, parts, z.start_dir)
+                    and _same_names(f, parts, z.start_dir)):
                 raise unreadable
     except (OSError, ValueError, zipfile.BadZipFile):
         raise unreadable from None
@@ -386,9 +475,11 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
     _too_big(path, ((p.filename, p.file_size) for p in parts), whole)
 
     sizes: dict[str, int] = {}
+    packed_values = max(VALUE_LIMIT, VALUES_PER_BYTE * sum(
+        p.compress_size for p in parts if p.filename.startswith("samples/")))
 
     def unpacked(f):
-        all_values = sample_bytes = 0
+        all_values = sample_bytes = sample_values = 0
         for p in parts:
             sample = p.filename.startswith("samples/")
             most, values = (
@@ -397,9 +488,17 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
                 else (WHOLE_LIMIT, VALUE_LIMIT + VALUES_PER_SAMPLE * n_samples))
             tight = max(PACKED_RATIO * p.compress_size, RATIO_FLOOR) if sample else math.inf
             left = ALL_VALUES_LIMIT - all_values
+            packed_left = packed_values - sample_values if sample else math.inf
             try:
-                n, counted = _unpacks_to(f, p, min(most, tight), min(values, left))
+                n, counted = _unpacks_to(f, p, min(most, tight), min(values, left, packed_left),
+                                         MAX_STRING if sample else math.inf)
+            except TooLong:
+                raise RecordsError(STRING_TOO_LONG.format(path=path, limit=_size(MAX_STRING))
+                                   ) from None
             except TooWide:
+                if packed_left < min(values, left):
+                    raise RecordsError(PACKED_VALUES.format(path=path, ratio=VALUES_PER_BYTE)
+                                       ) from None
                 if left < values:
                     raise RecordsError(ALL_TOO_BIG.format(
                         path=path, limit=f"{ALL_VALUES_LIMIT:,} values")) from None
@@ -409,6 +508,7 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
                 raise RecordsError(PACKED_TOO_TIGHT.format(path=path, ratio=PACKED_RATIO))
             all_values += counted
             sample_bytes += n if sample else 0
+            sample_values += counted if sample else 0
             sizes[p.filename] = n
             yield p.filename, n
 
@@ -433,8 +533,8 @@ BATCH, BATCH_BYTES = 100, 64 * 2**20
 def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     """(id, epoch) of each sample the log holds a part for, in the order inspect_ai reads
     them: by the ids the header lists, then by epoch up to the header's epochs. Only parts
-    that are there: inspect_ai would ask for every id in every epoch the header names, a
-    billion epochs in a 7 KB log."""
+    that are there, each once: inspect_ai would ask for every id in every epoch the header
+    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it."""
     dataset, config = spec.get("dataset") or {}, spec.get("config") or {}
     ids, most = dataset.get("sample_ids"), config.get("epochs") or 1
     if not isinstance(ids, list):
@@ -443,7 +543,12 @@ def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     for name in sizes:
         if m := _SAMPLE_PART.fullmatch(name):
             epochs.setdefault(m[1], []).append(int(m[2]))
-    return [(i, epoch) for i in ids for epoch in sorted(epochs.get(str(i), ())) if epoch <= most]
+    held, parts = [], sum(map(len, epochs.values()))
+    for i in ids:
+        if len(held) == parts:  # every part named once
+            break
+        held += [(i, epoch) for epoch in sorted(epochs.pop(str(i), ())) if epoch <= most]
+    return held
 
 
 def _batches(wanted, sizes: dict[str, int]):
@@ -720,7 +825,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
         return _read(path, data, samples, with_errors)
     finally:
         if isinstance(samples, Iterator):
-            samples.close()
+            with quiet():  # a read Ctrl-C stopped: asyncio says nothing of it
+                samples.close()
 
 
 def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
