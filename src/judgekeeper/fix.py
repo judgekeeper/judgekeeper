@@ -88,9 +88,12 @@ SAME_GRADES = ("These are the same grades as when you marked: give the results f
 REGRADE = {
     "promptfoo": (f"promptfoo: use {ANSWERS} as your tests with the `echo` provider and your new "
                   "rule; save with `-o`."),
-    "inspect": ("Inspect AI: grade your log again with the new scorer, no new answers needed. "
-                "`--action overwrite` keeps the new grades under your scorer's name, and "
-                "`--output-file` writes them to a new log, so yours stays as it was."),
+    "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
+                "`-S instructions=` takes a rule with no comma (Inspect cuts `-S` values at "
+                "commas); else grade it with Inspect's score() in Python, as judgekeeper's "
+                "docs/eval-tools.md shows. `--action overwrite` keeps the new grades under "
+                "your scorer's name, and `--output-file` writes them to a new log, so yours "
+                "stays as it was."),
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer."),
     "deepeval": f"DeepEval: build test cases from {ANSWERS} and run the metric.",
 }

@@ -78,6 +78,20 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **A dict value** (`{"accuracy": "C", "tone": "I"}`) is one LLM-as-a-judge per key, like `rubric.tone`.
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
+- **A new rule with a comma.** `inspect score -S instructions="…"` cuts a rule at its commas: Inspect reads `-S` values as YAML, then splits text at commas. Grade the log again with Inspect's `score()` in Python instead, which keeps the whole rule under your scorer's name:
+
+  ```python
+  from pathlib import Path
+  from inspect_ai import score
+  from inspect_ai.log import read_eval_log, write_eval_log
+  from inspect_ai.scorer import model_graded_qa
+
+  log = read_eval_log("logs/<your log>.eval")
+  rule = Path("rule.txt").read_text()  # your new rule
+  write_eval_log(score(log, model_graded_qa(instructions=rule), action="overwrite"), "logs/new.eval")
+  ```
+
+  Then run `judgekeeper fix logs/new.eval`.
 - **`--no-log-samples`** logs cannot be read.
 - **Very big parts.** A `.eval` log is too big for judgekeeper to read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, one sample to more than 200 MB, or all its samples to more than 4 GB together. So is one with a part holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions), more than 200,000,000 values in all its parts, samples holding more than 10 values for each byte they pack to, a sample over 1 MB that unpacks to more than 200 times its packed size, or one text in a sample longer than 8 MB. The message says which limit it passed. A log with a part nested more than 500 levels deep is not read, nor one whose parts share bytes, give a part's size two ways or can be named two ways. judgekeeper counts what each part really unpacks to, how deep it nests, how many values it holds and how long its texts are, before Inspect AI reads the log, and keeps none of it. It then reads only the samples the log holds, each once, a few at a time.
 - **Damaged zips.** A `.eval` log that is not one plain zip (data before its first part, or a second table of contents) is not read.

@@ -169,15 +169,9 @@ def test_check_with_too_few_marked_answers_found_cant_tell(here, capsys, monkeyp
 
 # Inspect AI: the log graded again ----------------------------------------------------------------
 
-def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkeypatch):
-    """The command fix prints for Inspect AI, run for real: the new grades are under the
-    scorer's own name in a new log, fix reads them as the new rule, and the log the marks were
-    made on stays as it was."""
-    pytest.importorskip("inspect_ai")
-    import hashlib
-    import subprocess
-    import sys
-
+def _marked_inspect_log(here, capsys) -> tuple:
+    """An Inspect AI log graded by model_graded_qa (a mock grader), every answer marked, and
+    `judgekeeper fix` run once: (the log, the workspace)."""
     from inspect_ai import Task
     from inspect_ai import eval as run_eval
     from inspect_ai.dataset import Sample
@@ -185,12 +179,11 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     from inspect_ai.scorer import model_graded_qa
     from inspect_ai.solver import generate
 
-    from judgekeeper import judge_setup
     from judgekeeper.cli import main
     from judgekeeper.start_label import StartSession, Workspace
     from tests.test_only_reads import closed
 
-    old_rule, new_rule = "Old rule. GRADE: C or GRADE: I.", "New rule. GRADE: C or GRADE: I."
+    old_rule = "Old rule. GRADE: C or GRADE: I."
     task = Task(dataset=[Sample(input=f"Question {i}?", target=f"Answer {i}") for i in range(N)],
                 solver=generate(), scorer=model_graded_qa(instructions=old_rule))
     grades = [ModelOutput.from_content("mockllm/model", f"GRADE: {'C' if i % 3 else 'I'}")
@@ -209,7 +202,24 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     assert code == 0, out
     said = flat(out)
     assert f"run `{fix.INSPECT_SCORE}`, then run `judgekeeper fix {fix.NEW_LOG}`" in said
+    assert "Inspect cuts `-S` values at commas); else grade it with Inspect's score() in " \
+           "Python" in said, said
+    return log, ws
 
+
+def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkeypatch):
+    """The command fix prints for Inspect AI, run for real: the new grades are under the
+    scorer's own name in a new log, fix reads them as the new rule, and the log the marks were
+    made on stays as it was."""
+    pytest.importorskip("inspect_ai")
+    import hashlib
+    import subprocess
+    import sys
+
+    from judgekeeper import judge_setup
+
+    log, ws = _marked_inspect_log(here, capsys)
+    new_rule = "New rule. GRADE: C or GRADE: I."
     before = hashlib.sha256(log.read_bytes()).hexdigest()
     # Inspect's own command line, with a grader whose reply holds a grade
     cli = ("import sys; from inspect_ai.model._providers.mockllm import MockLLM; "
@@ -230,3 +240,27 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     test = fix.read_split(ws).tests[-1]
     marked_rule = (judge_setup.read(ws) or {})["setup"]["rule_hash"]
     assert test["rule_hash"] and test["rule_hash"] != marked_rule
+
+
+def test_a_rule_with_commas_graded_again_in_python_as_the_docs_show(here, capsys):
+    """`inspect score -S` cuts a rule at its commas (Inspect reads -S values as YAML, then
+    splits text at commas); Inspect's score() in Python, as docs/eval-tools.md shows, keeps
+    the whole rule, and fix reads it as the new rule."""
+    pytest.importorskip("inspect_ai")
+    from inspect_ai import score
+    from inspect_ai.log import read_eval_log, write_eval_log
+    from inspect_ai.model import ModelOutput, get_model
+    from inspect_ai.scorer import model_graded_qa
+
+    from judgekeeper.fingerprint import rule_hash
+
+    log, ws = _marked_inspect_log(here, capsys)
+    new_rule = "New rule, with commas: dates, prices, names. GRADE: C or GRADE: I."
+    grader = get_model("mockllm/model", custom_outputs=[
+        ModelOutput.from_content("mockllm/model", "GRADE: C") for _ in range(N)])
+    write_eval_log(score(read_eval_log(str(log)), model_graded_qa(instructions=new_rule),
+                         model_roles={"grader": grader}, action="overwrite", display="none"),
+                   "logs/new.eval")
+    code, out = run(capsys, "fix", "logs/new.eval")
+    assert code == 0 and "Result:" in out, out
+    assert fix.read_split(ws).tests[-1]["rule_hash"] == rule_hash(new_rule)
