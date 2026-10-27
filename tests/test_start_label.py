@@ -69,6 +69,22 @@ def test_a_fail_is_seen_early_and_late_when_few_answers_fail():
     assert "fail" in tail[-20:]
 
 
+@pytest.mark.parametrize("n_pass, n_fail", [(300, 20), (200, 25), (100, 16), (20, 300)])
+def test_a_first_result_is_in_the_first_30_when_one_kind_is_rare(n_pass, n_fail):
+    """15 of each up front even when the rarer kind has fewer than 30: when every mark agrees
+    with the LLM-as-a-judge, 30 marks reach a first result."""
+    for seed in range(5):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), seed)]
+        assert groups[:30].count("pass") == groups[:30].count("fail") == targets.ROUGH, seed
+        assert "fail" in groups[-20:] and "pass" in groups[-20:], seed
+
+
+def test_a_pool_with_one_kind_only_is_queued():
+    for n_pass, n_fail in ((20, 0), (0, 20), (1, 1)):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), 2)]
+        assert groups.count("pass") == n_pass and groups.count("fail") == n_fail
+
+
 def test_the_whole_pool_is_queued_once():
     answers = _answers(30, 12)
     queue = start_label.build_queue(answers, 5)

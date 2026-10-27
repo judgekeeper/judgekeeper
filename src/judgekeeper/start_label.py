@@ -228,16 +228,16 @@ def build_queue(answers, seed: int) -> list[dict]:
     """[{"id", "group"}] for every answer in the pool, in the order the page shows them.
 
     First the same number of each kind, 5 and 5 to a block: ROUGH of each (what a first
-    result needs), or half the smaller kind when it has fewer than twice that. Then the rest
-    in blocks of about BLOCK, each kind spread evenly over them, its last answer in the last
-    block. Each block is shuffled."""
+    result needs), or all but one of the smaller kind when it has no more than ROUGH, so one
+    is left for the end. Then the rest in blocks of about BLOCK, each kind spread evenly over
+    them, its last answer in the last block. Each block is shuffled."""
     rng = random.Random(seed)
     left = {g: sorted(a.id for a in answers if a.verdict == g) for g in ("pass", "fail")}
     for ids in left.values():
         rng.shuffle(ids)
     half = BLOCK // 2
     blocks = []
-    first = min(ROUGH, *(len(ids) // 2 for ids in left.values()))
+    first = max(0, min(ROUGH, *(len(ids) - 1 for ids in left.values())))
     for start in range(0, first, half):
         blocks.append([(g, i) for g in ("pass", "fail")
                        for i in left[g][start:min(start + half, first)]])
