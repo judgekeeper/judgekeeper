@@ -265,10 +265,15 @@ def test_the_reference_lists_the_key_shapes():
 
 # Joined emoji and scripts -------------------------------------------------------------------
 
-def test_a_page_keeps_the_zero_width_joiners():
+def test_a_page_drops_the_zero_width_joiners_too():
     family = "\U0001F468\u200d\U0001F469\u200d\U0001F467"
-    assert redact.visible(f"Emoji {family} test") == f"Emoji {family} test"
-    assert redact.visible("می\u200cخواهم") == "می\u200cخواهم"  # Persian needs ZWNJ
+    assert redact.visible(f"Emoji {family} test") == "Emoji \U0001F468\U0001F469\U0001F467 test"
+    assert redact.visible("a\u200cb\u200db") == "abb"
+
+
+@pytest.mark.parametrize("c", ["\u2028", "\u2029", "\u00a0", "\u3000"])
+def test_a_page_shows_odd_spaces_and_line_separators_as_a_plain_space(c):
+    assert redact.visible(f"a{c}b") == "a b"
 
 
 def test_a_page_still_drops_the_other_hidden_characters():
