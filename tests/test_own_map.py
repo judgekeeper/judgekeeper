@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import builtins
 import json
+import subprocess
+import sys
 import tomllib
 
 import pytest
@@ -337,3 +339,39 @@ def test_a_new_judgekeeper_toml_uses_plain_newlines(tmp_path, capsys):
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
     assert main([str(tmp_path), "--yes"]) == 0, capsys.readouterr().out
     assert b"\r" not in (tmp_path / "judgekeeper.toml").read_bytes()
+
+
+def test_yes_answers_when_the_input_is_the_empty_device(tmp_path):
+    """`--yes` with input from the empty device (`< NUL` on Windows, `< /dev/null` elsewhere):
+    no person types there, so judgekeeper answers its question and keeps the map."""
+    flat_jsonl(tmp_path / "evals" / "graded.jsonl")
+    run = [sys.executable, "-m", "judgekeeper"]
+    try:
+        done = subprocess.run([*run, str(tmp_path), "--yes", "--no-browser", "--port", "0"],
+                              cwd=tmp_path, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, encoding="utf-8", timeout=120, check=False)
+    finally:
+        subprocess.run([*run, "--stop"], cwd=tmp_path, stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=60, check=False)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "[Y/n]" not in done.stdout
+    toml = tomllib.loads((tmp_path / "judgekeeper.toml").read_text(encoding="utf-8"))
+    assert toml["start"]["source"] == "map"
+
+
+def test_on_windows_input_that_is_not_a_console_is_not_a_terminal(monkeypatch):
+    """Windows says the NUL device is a terminal (isatty); only a console is one there. When
+    judgekeeper cannot ask Windows, it is not one either."""
+
+    class Nul:
+        def isatty(self):
+            return True
+
+        def fileno(self):
+            raise OSError("not a console")
+
+    monkeypatch.setattr(sys, "stdin", Nul())
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert start._interactive() is False
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert start._interactive() is True
