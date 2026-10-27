@@ -74,7 +74,7 @@ judgekeeper fix [PATH] [--new]
 | Flag | What it does |
 |---|---|
 | `PATH` | The results of grading your marked answers again with a new rule, or your project folder (default: this folder) |
-| `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the next 10 you make become the new set. A mark you have seen is never kept aside again |
+| `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the marks you make next (at least 10; about 40 for a clear answer) become the new set. A mark you have seen is never kept aside again |
 
 **Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. Write a better rule from it, or hand it to a coding agent.
 
@@ -88,7 +88,7 @@ judgekeeper fix [PATH] [--new]
 | DeepEval | Build test cases from `marked-answers.csv` and run the metric. |
 | A CSV or JSONL file, or `record()` | Grade `marked-answers.csv` with your own code. |
 
-**The new results** must come from the same eval tool and LLM-as-a-judge as your marks; results from another one stop it (exit 2). An answer kept aside is found by its exact text, and by its question when the results hold one. If some aren't there, or are there with no decision (`error`), it gives no result: it says how many of each and asks you to grade the same answers again (exit 3), as a rule that leaves the hard ones ungraded would look better than it is. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
+**The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options. An answer kept aside is found by its exact text, and by its question when the results hold one. If some aren't there, or are there with no decision (`error`), it gives no result: it says how many of each and asks you to grade the same answers again (exit 3), as a rule that leaves the hard ones ungraded would look better than it is. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
 
 | Result | When |
 |---|---|
@@ -96,7 +96,7 @@ judgekeeper fix [PATH] [--new]
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse, how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
-After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, or once `check` takes on a rule tested on them, 10 new marks become a new set kept aside. Each rule tested is saved in `rules/`.
+After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, or once `check` takes on a rule tested on them, your next marks become a new set kept aside. Mark about 40 more answers for a clear answer (at least 10; with fewer than about 40, the result will often be "can't tell yet"). Each rule tested is saved in `rules/`.
 
 **How many marks:** it depends on how big the change is. In a simulation through `fix`'s own split and test ([report](examples/kept-aside/report.md)), a new rule that fixes about a quarter of the mistakes and breaks few right answers gets a clear answer most of the time from about 80 marks, mostly "Safe to try"; one that fixes almost all of them, from about 50; one that fixes 1 in 10 and breaks 5 in 100 right answers, more than 120. Calling a rule "Better" or "Worse" by mistake is rare but not zero, and happens only for rules close to no change. A worse rule often reads "Can't tell yet", and now and then "Safe to try" (not more than 10 points worse), so with few marks "Can't tell yet" does not mean the new rule is as good.
 
@@ -114,7 +114,7 @@ Run it after you change your LLM-as-a-judge or eval tool and run your eval again
 
 **Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results by their exact text, and takes the new grades from there. A marked answer that isn't there, such as one your eval answered differently, or that is there with no decision (`error`), is counted, said once and left out. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3), also when nothing changed: "has not changed" needs them too.
 
-**How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Mark more answers before acting on one. Unless it is "Worse" (or "Not sure" with a drop over 20 points), your marks now test the new LLM-as-a-judge.
+**How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Mark more answers before acting on one. It exits 1 on "Worse" or "Not sure" when the drop's middle estimate is over 20 points. Unless it is "Worse" (or "Not sure" when the drop's middle estimate is over 20 points), your marks now test the new LLM-as-a-judge.
 
 ## How the numbers are worked out
 
@@ -278,7 +278,7 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 | exit code | meaning | commands |
 |---|---|---|
 | 0 | success: the step is done | all |
-| 1 | the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed (Worse, or Not sure with that drop) | `check` |
+| 1 | Worse or Not sure, when the drop's middle estimate is over 20 points: the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
 | 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
 | 130 | stopped with Ctrl-C: it prints "Stopped." and what was saved stays saved | all |

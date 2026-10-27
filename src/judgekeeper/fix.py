@@ -62,6 +62,9 @@ HIDDEN_TENTHS = 5  # of each group of marks hidden, rounded up
 MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
 FRESH = 10  # new marks that make a new set of hidden marks
+CLEAR = 40  # new marks that most often give a new set a clear answer
+CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}; with fewer "
+              f"than about {CLEAR}, the result will often be \"can't tell yet\").")
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
 STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
@@ -86,6 +89,13 @@ REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then 
                 f"`{{command}} {NEW_RESULTS}`.")
 SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
                "change.")
+EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
+           "is now, only from one before it, so judgekeeper leaves {them} out.")
+TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} answers kept aside it had "
+        "not graded yet: judgekeeper keeps them as its grades.")
+NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge as it is now, "
+                "run `{command} <those results>` so judgekeeper has its grades, then test your "
+                "new rule.")
 UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade the old one "
              "gave, so it changes nothing there to test.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
@@ -160,6 +170,7 @@ class Marks:
         self.batch = batches.of(self.data)
         counted = batches.counted_labels(self.data, self.person)  # a batch too new is left out
         self.judge = {i: groups[i] for i in self.person if i in groups}
+        self.earlier = set(self.data.get("earlier_grades") or [])  # an earlier judge's grade
         self.person = {i: m for i, m in self.person.items() if i in self.judge and i in counted}
         self.order = sorted(self.person, key=lambda i: str(read.last[i].get("at") or ""))
         said = read_cached(ws.pool_judge, _judge_said)
@@ -195,6 +206,7 @@ class Marks:
         taps = [k for k in taps if k in reasons.REASONS or k in self.own]
         same = why["rule_hash"] == rule_hash(self.data.get("rule"))
         return {"id": i, "judge": self.judge[i], "final": self.person[i],
+                "earlier": i in self.earlier,
                 "input": display(raw.get("input")), "output": display(raw.get("output")),
                 "score": self.scores.get(i), "reason": self.reasons.get(i, ""),
                 "why": self.notes.get(i, ""), "reasons": taps,
@@ -474,8 +486,10 @@ def _about(n: float) -> int:
 
 
 def mistakes(rows: list[dict]) -> list[dict]:
-    """The marks the judge got wrong (the person's mark is not the judge's grade)."""
-    return [r for r in rows if r["final"] != r["judge"] and r.get("choice") != "rule_unclear"]
+    """The marks the judge got wrong (the person's mark is not the judge's grade); never on a
+    grade an earlier judge gave (Marks.earlier)."""
+    return [r for r in rows if r["final"] != r["judge"] and r.get("choice") != "rule_unclear"
+            and not r.get("earlier")]
 
 
 def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
@@ -915,13 +929,14 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
         talk.say()
         talk.para(_saved_line(ws, n))
     left = want - len(split.pending)
+    talk.say()
     if split.pending:
-        talk.say()
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
+    talk.para(CLEAR_LINE)
     then = (": they become a new set of marks kept aside, and your new results are tested on "
             "them" if tested else ": they become a new set of marks kept aside")
-    talk.next(next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
-                             f"then run `{talk.command()}` again{then}."))
+    talk.next(next_marks(ws, f"mark more answers with `{program('mark')}` (at least {left} "
+                             f"more), then run `{talk.command()}` again{then}."))
     return EXIT_NEEDS_YOU
 
 
@@ -1001,14 +1016,24 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     data = m.data
     seen_rows = [m.row(i) for i in split.seen]
     wrong = mistakes(seen_rows)
+    pm = data.get("pass_mark")
+    mark = pm["mark"] if pm and pm.get("follows") else None
+    rule = data.get("rule") if data.get("one_rule", True) else None
     if not wrong:
         talk.para("Your LLM-as-a-judge agrees with every mark you can see, so there is nothing to "
                   "fix.")
-        talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval tool, "
-                  f"run `{talk.command('check')}`.")
+        if not split.hidden:
+            talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval "
+                      f"tool, run `{talk.command('check')}`.")
+            return EXIT_OK
+        _write_mistakes(ws, rule, seen_rows, mark)  # both files fit the set kept aside now
+        n = write_answers(ws, m)
+        talk.say()
+        talk.para(_answers_line(ws, split, n))
+        talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "
+                  f"{_file(ws, ANSWERS)} again with it, then run "
+                  f"`{talk.command()} {NEW_RESULTS}`.")
         return EXIT_OK
-    pm = data.get("pass_mark")
-    mark = pm["mark"] if pm and pm.get("follows") else None
     found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
     if found:
         talk.say(WHERE_WRONG)
@@ -1016,13 +1041,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             for sentence in p:
                 talk.para(sentence, indent="  ")
         talk.say()
-    rule = data.get("rule") if data.get("one_rule", True) else None
     tested = test_pass_mark(m, split)
     save_split(ws, split)
-    path = _folder(ws) / MISTAKES
-    marks._refuse_links(path)
-    make_private(path.parent)
-    write_replacing(path, mistakes_md(rule, seen_rows, mark))
+    _write_mistakes(ws, rule, seen_rows, mark)
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
@@ -1045,13 +1066,26 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
-    if split.hidden:
-        talk.para(f"{len(split.hidden)} of your marks {'is' if len(split.hidden) == 1 else 'are'} "
-                  "kept aside to test your new rule fairly.")
-    talk.para(f"{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
-              "answers only, so you can't tell which are kept aside.")
+    talk.para(_answers_line(ws, split, n))
     _next_regrade(talk, ws, tool)
     return EXIT_OK
+
+
+def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
+                    mark: float | None) -> None:
+    path = _folder(ws) / MISTAKES
+    marks._refuse_links(path)
+    make_private(path.parent)
+    write_replacing(path, mistakes_md(rule, rows, mark))
+
+
+def _answers_line(ws: Workspace, split: Split, n: int) -> str:
+    """How many marks are kept aside, and that marked-answers.csv holds all `n`."""
+    k = len(split.hidden)
+    aside = f"{k} of your marks {'is' if k == 1 else 'are'} kept aside to test your new rule " \
+        "fairly. " if k else ""
+    return (f"{aside}{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
+            "answers only, so you can't tell which are kept aside.")
 
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------
@@ -1125,9 +1159,28 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
     old = m.judge
+    earlier = [i for i in ids if i in m.earlier]
+    took = bool(earlier) and bool(setup.get("rule_hash")) and _same_rule(ws, setup, setup_hash)
+    if took:
+        from judgekeeper.check import take_grades  # the judge as it is now graded them
+
+        take_grades(ws, {i: new[i] for i in earlier})
+        old = {**old, **{i: new[i] for i in earlier}}
+        talk.para(TOOK.format(k=len(earlier)))
+        talk.say()
+    elif earlier:  # never compared with another judge's grade
+        k = len(earlier)
+        talk.para(EARLIER.format(k=k, n=len(split.hidden), have=_have(k),
+                                 them="it" if k == 1 else "them"))
+        talk.say()
+        ids = [i for i in ids if i not in m.earlier]
+        if not ids:
+            talk.next(NEXT_EARLIER.format(answers=_file(ws, ANSWERS), command=talk.command()))
+            return EXIT_NEEDS_YOU
     if all(new[i] == old.get(i) for i in ids):  # nothing changed: nothing to tell apart
-        talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
-                  UNCHANGED.format(n=len(ids)))
+        if not took:  # else said: the grades of the judge as it is now
+            talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
+                      UNCHANGED.format(n=len(ids)))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
     before = next((t for t in split.tests if t.get("kind") == "rule"
@@ -1139,7 +1192,12 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         errors = no_decision(found, [i for i in split.hidden if i not in new], ws)
         talk.para(MISSING.format(k=missing, n=len(split.hidden), have=_have(missing),
                                  why=_missing_why(missing - errors, errors)))
-        talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
+        if m.data.get("tool") == "inspect":  # the log itself is scored again
+            log = quote_arg(new_log(ws))
+            talk.next(f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
+                      f"`--output-file {log}`, then run `{talk.command()} {log}`.")
+        else:
+            talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
         return EXIT_NEEDS_YOU
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
@@ -1163,8 +1221,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if len(split.rules()) >= MAX_RULES and v.kind not in ("better", "safe"):
         talk.say()
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
-                  f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
-                  "set kept aside.")
+                  f"aside. Your next marks become a new set kept aside. {CLEAR_LINE}")
     talk.next(_after_step(talk, ws, m, v.kind))
     return EXIT_OK
 

@@ -25,9 +25,10 @@ from judgekeeper.textio import plural
 
 ERROR, UNREADABLE, EMPTY, NOTHING_CHECKED = "error", "unreadable", "empty", "nothing_checked"
 EMPTY_ANSWER_REFUSED = "empty_answer_refused"
+ERROR_GRADE = "error_grade"  # the grade is the word "error": no decision, not a blank one
 NOT_SCORED = "not_scored"  # the run failed before scoring: the judge was never called
 MODEL_FAILED = "model_failed"  # the call to the model under test failed: no answer to judge
-NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, EMPTY)
+NO_DECISION = (ERROR, UNREADABLE, EMPTY_ANSWER_REFUSED, ERROR_GRADE, EMPTY)
 LEFT_OUT = (*NO_DECISION, NOTHING_CHECKED, NOT_SCORED, MODEL_FAILED)  # left out of the pool
 # Said the same by the tool and the website's free check (website/assets/freecheck.js)
 MODEL_FAILED_LINE = ("{n} no answer: the call to the model you test failed, so your LLM-as-a-judge "
@@ -188,6 +189,7 @@ _NO_DECISION_WORDS = {ERROR: ("call failed", "calls failed"),
                       UNREADABLE: ("reply could not be read", "replies could not be read"),
                       EMPTY_ANSWER_REFUSED: ("empty answer it could not judge",
                                              "empty answers it could not judge"),
+                      ERROR_GRADE: ("error", "errors"),
                       EMPTY: ("empty decision", "empty decisions")}
 _COUNTED = {"pass": ("counted it as a pass", "counted them as passes"),
             "fail": ("counted it as a fail", "counted them as fails"),

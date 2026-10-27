@@ -91,6 +91,7 @@
     "error": 0,
     "unreadable": 0,
     "empty_answer_refused": 0,
+    "error_grade": 0,
     "empty": 0,
     "nothing_checked": 0,
     "not_scored": 0,
