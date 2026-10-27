@@ -1,15 +1,18 @@
 """Find the eval tool a project uses and the results it saved. Standard library only.
 
 `search(root)` looks in one folder and nowhere else: never the home folder, never a tool's
-own database, never a `.env` file. It reads only the environment variables that say where a
-tool saves results (DEEPEVAL_RESULTS_FOLDER, INSPECT_LOG_DIR, MLFLOW_TRACKING_URI), and only
-when they point inside the folder.
+own database. It reads only the environment variables that say where a tool saves results
+(DEEPEVAL_RESULTS_FOLDER, INSPECT_LOG_DIR, MLFLOW_TRACKING_URI), and only when they point
+inside the folder. The `.env` files and promptfoo configs it finds are read for one thing:
+the credentials in them are hidden from then on (keys.hide_keys).
 
 It skips hidden folders except `.deepeval` and `.judgekeeper/records/` (where `record()`
 writes), never follows a link, looks in the known places first and then walks four folders
 deep, and stops after MAX_FILES files or MAX_SECONDS seconds and says so. A file is read only
-far enough to tell whether it holds results. A folder below that is a project of its own is
-not walked: its results are its own (`nested`). Nothing is written.
+far enough to tell whether it holds results; a table, whole (table.problem), and one that
+can't be read is left out and said in one note. Only regular files are read: a named pipe
+named like results is skipped. A folder below that is a project of its own is not walked: its
+results are its own (`nested`). Nothing is written.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from judgekeeper import textio
+from judgekeeper import keys, textio
 
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 NAMES = {"records": "judgekeeper.record()", "promptfoo": "promptfoo", "deepeval": "DeepEval",
@@ -115,6 +118,8 @@ class Search:
     nested: list[Path] = field(default_factory=list)  # projects of their own, not walked
     judge_only: list[str] = field(default_factory=list)  # tables of verdicts with no answer text
     no_question: list[str] = field(default_factory=list)  # verdicts and answers, no question
+    # (rel, why, path, size): left out when something else is found, else read and named
+    bad_tables: list[tuple[str, str, Path, int]] = field(default_factory=list)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -195,6 +200,13 @@ def table_columns(path: Path) -> list[str]:
             io.StringIO(first), delimiter=_delimiter(first, path.suffix.lower())), [])]
     except csv.Error:
         return []
+
+
+def table_problem(path: Path) -> str | None:
+    """Why the table at `path` can't be read (table.problem), or None."""
+    from judgekeeper.table import problem
+
+    return problem(path)
 
 
 def is_table(columns) -> bool:
@@ -471,7 +483,11 @@ class _Walk:
             if suffix in JSONL_SUFFIXES and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)
             elif is_table(columns):
-                self.add("table", path, size)
+                why = None if size > MAX_BYTES else table_problem(path)
+                if why is None:
+                    self.add("table", path, size)
+                else:  # one bad table never stops the scan: left out, said in one note
+                    self.search.bad_tables.append((self.rel(path), why, path, size))
             elif title_row(path):
                 self.search.unreadable.append((self.rel(path), TITLE_ROW))
             elif judge_table_without_answers(columns):
@@ -521,6 +537,17 @@ class _Walk:
                         self.edge.append(sub)
                 elif entry.is_file(follow_symlinks=False):
                     self.file(entry)
+                else:
+                    self.odd(entry)
+
+    def odd(self, entry: os.DirEntry) -> None:
+        """A named pipe, socket or device: never opened (a named pipe would wait forever),
+        said in a note when it is named like results."""
+        path = Path(entry.path)
+        if _results_like(path):
+            note = f"{self.rel(path)} {NOT_REGULAR}, so it was left out."
+            if note not in self.search.notes:
+                self.search.notes.append(note)
 
 
 # judgekeeper's own output folders: 0.1's report folder (anchors.jsonl looks like a table)
@@ -623,12 +650,24 @@ def search(root: str | Path) -> Search:
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             if entry.is_file(follow_symlinks=False) and not entry.is_symlink():
                 walk.file(entry)
+            elif not entry.is_symlink() and not entry.is_dir(follow_symlinks=False):
+                walk.odd(entry)
         for folder in known:
             if folder.is_dir() and not folder.is_symlink():
                 walk.folder(folder)
         walk.folder(root)
     except _Stop:
         pass
+    bad = walk.search.bad_tables
+    if bad and not any(walk.search.results.values()):  # all there is: read, so it is named
+        for _, _, path, size in bad:
+            walk.add("table", path, size)
+    elif bad:
+        rel, why = bad[0][:2]
+        walk.search.notes.append(
+            f"{rel} {why}, so it was left out." if len(bad) == 1 else
+            f"{len(bad)} tables can't be read, so they were left out; the first, {rel}, {why}.")
+    keys.hide_keys(root, [root / rel for rel in walk.search.signs.get("promptfoo", [])])
     _prefer_saved_runs(walk.search)
     if not any(walk.search.results.values()) and walk.search.stopped is None:
         _look_deeper(walk)
@@ -637,6 +676,7 @@ def search(root: str | Path) -> Search:
 
 
 LINK = "a link: judgekeeper doesn't follow links"
+NOT_REGULAR = "is not a regular file (a named pipe or a device)"
 ABOVE = "in the folder above"
 NOT_UTF8 = "not saved as UTF-8: save it as UTF-8"
 TITLE_ROW = "has a title row above its header"

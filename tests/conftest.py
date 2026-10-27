@@ -80,6 +80,7 @@ def fresh_key_registry(monkeypatch):
     from judgekeeper import redact
 
     monkeypatch.setattr(redact, "_named_vars", set())
+    monkeypatch.setattr(redact, "_named_values", set())
 
 
 @pytest.fixture(autouse=True)

@@ -8,18 +8,25 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import itertools
 import json
 import math
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
 from judgekeeper.redact import printable
-from judgekeeper.textio import jsonl_lines, make_private, read_utf8, write_replacing
+from judgekeeper.textio import lone_surrogate, make_private, read_utf8, write_replacing
 
 ID_LENGTH = 16
+# Answers read from one table at most: a small file of tiny rows makes one answer per row,
+# and each answer costs far more memory than its row
+MAX_ROWS = 100_000
+CAPPED = "Read the first {n:,} answers of {file}; the rest are left out."
+_said_capped: set[str] = set()  # the tables CAPPED was said for, in this process
 # A long answer or a RAG context fills one cell: Python's csv stops at 131,072 characters
 csv.field_size_limit(2**31 - 1)  # the largest every platform takes (a C long on Windows)
 _MAX_LISTED = 20
@@ -90,10 +97,11 @@ def csv_rows(text: str, suffix: str) -> list[dict]:
     return [row for _, row in csv_numbered(text, suffix)]
 
 
-def csv_numbered(text: str, suffix: str) -> list[tuple[int, dict]]:
+def csv_numbered(text: str, suffix: str, limit: int | None = None) -> list[tuple[int, dict]]:
     """[(line number, row)] of a CSV or TSV text, each row a dict, without the rows where
-    every cell is empty (a spreadsheet's trailing rows). In a `;` file (Excel where the comma
-    is the decimal mark) a cell like 0,42 is the number 0.42, written 0.42."""
+    every cell is empty (a spreadsheet's trailing rows); at most `limit` and one more. In a
+    `;` file (Excel where the comma is the decimal mark) a cell like 0,42 is the number 0.42,
+    written 0.42."""
     delimiter = _delimiter(text, suffix)
     out = []
     reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=delimiter)
@@ -105,14 +113,41 @@ def csv_numbered(text: str, suffix: str) -> list[tuple[int, dict]]:
             row = {k: v.replace(",", ".") if isinstance(v, str) and _DECIMAL_COMMA.fullmatch(v)
                    else v for k, v in row.items()}
         out.append((reader.line_num, row))
+        if limit is not None and len(out) > limit:
+            break
     return out
 
 
-def read_table(path: str | Path) -> list[dict]:
-    """Rows of a CSV, TSV or JSONL file as dicts. CSV values stay strings.
+def _lines(text: str):
+    """(line number, line) of JSONL text, split at "\n" only (textio.jsonl_lines), one at a
+    time: a big file is never held as a list of lines."""
+    start, n = 0, 0
+    while start <= len(text):
+        end = text.find("\n", start)
+        end = len(text) if end < 0 else end
+        n += 1
+        yield n, text[start:end].removesuffix("\r")
+        start = end + 1
+
+
+def capped(rows: list, path: str | Path, say: bool = True) -> list:
+    """`rows` cut to MAX_ROWS; CAPPED is said once for `path` (on stderr, as the reading
+    lines are) when that leaves rows out."""
+    if len(rows) <= MAX_ROWS:
+        return rows
+    key = str(Path(path).resolve())
+    if say and key not in _said_capped:
+        _said_capped.add(key)
+        print(CAPPED.format(n=MAX_ROWS, file=Path(path).name), file=sys.stderr, flush=True)
+    return rows[:MAX_ROWS]
+
+
+def read_table(path: str | Path, say: bool = True) -> list[dict]:
+    """Rows of a CSV, TSV or JSONL file as dicts, MAX_ROWS at most (`capped`: said once,
+    unless `say` is False). CSV values stay strings.
 
     The file must be UTF-8 (a byte order mark is fine); anything else is a TableError that
-    says how to save it.
+    says how to save it. A JSONL line holding a lone surrogate (\\ud800) is one too.
     """
     path = Path(path)
     if not path.is_file():
@@ -120,10 +155,11 @@ def read_table(path: str | Path) -> list[dict]:
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
-        return [_known_names(r) for r in csv_rows(text, suffix)]
+        rows = [r for _, r in csv_numbered(text, suffix, MAX_ROWS)]
+        return [_known_names(r) for r in capped(rows, path, say)]
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
-        for n, line in enumerate(jsonl_lines(read_utf8(path, TableError)), 1):
+        for n, line in _lines(read_utf8(path, TableError)):
             if not line.strip():
                 continue
             try:
@@ -132,9 +168,29 @@ def read_table(path: str | Path) -> list[dict]:
                 raise TableError(f"{path}: line {n}: invalid JSON ({e.msg})") from None
             if not isinstance(row, dict):
                 raise TableError(f"{path}: line {n}: each line must be a JSON object")
+            if lone_surrogate(row):
+                raise TableError(f"{path.name}: line {n} holds a character that isn't text (a "
+                                 "lone surrogate such as \\ud800), so it can't be read.")
             rows.append(_known_names(row))
-        return rows
+            if len(rows) > MAX_ROWS:
+                break
+        return capped(rows, path, say)
     raise TableError(f"{path}: expected a .csv, .tsv or .jsonl file")
+
+
+def problem(path: str | Path) -> str | None:
+    """Why a table found in a folder can't be read as one, in a few words, or None. Read as
+    `judgekeeper` reads it (read_table, open_quote), nothing said."""
+    try:
+        if open_quote(path) is not None:
+            return "has a quote that never closes"
+        if not read_table(path, say=False):
+            return "has no rows"
+    except TableError as e:
+        return "is not saved as UTF-8" if "UTF-8" in str(e) else "can't be read"
+    except (OSError, ValueError, RecursionError, csv.Error):
+        return "can't be read"
+    return None
 
 
 def open_quote(path: str | Path, loose: bool = False) -> int | None:
@@ -154,7 +210,7 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True)
     header, start, verdict = None, 1, None
     try:
-        for row in reader:
+        for row in itertools.islice(reader, MAX_ROWS + 1):  # the rows read_table reads
             if header is None:
                 header = row
                 verdict = next((i for i, c in enumerate(header)
@@ -188,7 +244,8 @@ def derive_id(item: dict) -> str:
     """sha256 of the canonical input plus output(s), first 16 hex characters."""
     keys = ("input", "output_a", "output_b") if kind_of(item) == PAIRWISE else ("input", "output")
     content = {k: item.get(k, "") for k in keys}
-    return hashlib.sha256(canonical_json(content).encode("utf-8")).hexdigest()[:ID_LENGTH]
+    data = canonical_json(content).encode("utf-8", errors="surrogatepass")  # a lone \\ud800
+    return hashlib.sha256(data).hexdigest()[:ID_LENGTH]
 
 
 def make_fingerprint(known: dict | None, created_at: str | None = None) -> JudgeFingerprint:

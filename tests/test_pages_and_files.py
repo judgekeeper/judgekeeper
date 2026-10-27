@@ -246,7 +246,8 @@ def test_the_reference_lists_the_key_shapes():
     line = next(x for x in ref.splitlines() if "anything shaped like" in x)
     for shape in ("`sk-ant-…`", "`AKIA…`", "`ASIA…`", "`aws_secret_access_key`", "`ghp_…`",
                   "`gho_…`", "`ghs_…`", "`ghu_…`", "`github_pat_…`", "`AIza…`", "`xoxb-…`",
-                  "`xoxp-…`", "`Bearer …`"):
+                  "`xoxp-…`", "`gsk_…`", "`hf_…`", "`xai-…`", "a JWT", "`Bearer …`",
+                  "`:password@`"):
         assert shape in line, shape
 
 

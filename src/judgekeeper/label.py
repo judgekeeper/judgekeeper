@@ -9,13 +9,16 @@ Each connection is read in its own thread with a deadline, at most MAX_CONNECTIO
 and requests are handled one at a time (LabelServer.busy). Host and token are checked before a
 body is read; a body over MAX_BODY gets 413. The lock (server.json, owner-only) holds the
 token, so a second run prints the same link, and a separate stop secret that can only ask
-GET /alive or POST /stop. The server stops on Ctrl-C, /stop, IDLE_TIMEOUT without a request,
+GET /alive or POST /stop. GET /project (the project folder's name, for the lock check) takes
+the token or its SHA-256 (`proof`): the check sends the proof, never the lock's token, before
+it knows the page is this project's. The server stops on Ctrl-C, /stop, IDLE_TIMEOUT without a request,
 or soon after the result page once every item is marked (unless it `stays`, as for `mark`).
 """
 
 from __future__ import annotations
 
 import csv
+import hashlib
 import hmac
 import http.client
 import io
@@ -242,10 +245,17 @@ def read_lock(folder: Path) -> dict | None:
     return None
 
 
+def proof(token: str) -> str:
+    """What the lock check sends to /project in place of the token: its SHA-256, which tells
+    nothing usable to a program that is not the page."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def own_lock(folder: Path) -> dict | None:
     """The project's lock when the port it names is judgekeeper's page for this project
-    (`is_page`, and /project names the project's folder) and that page answers to its stop
-    secret, else None. Nothing from the lock is sent before the first two checks. A lock that
+    (`is_page`, and /project, asked with the token's proof, names the project's folder) and
+    that page answers to its stop secret, else None. Nothing from the lock but the token's
+    proof is sent before the first two checks; a lock with no token fails them. A lock that
     fails them is removed: its page is gone, or another program listens on its port (a lock
     shipped with the project, or a port taken over), which never gets a token or a /stop. A
     page that does not answer in time may be busy: its lock stays, and PageBusy is raised."""
@@ -254,7 +264,8 @@ def own_lock(folder: Path) -> dict | None:
         return None
     project = Path(folder).absolute().parent.name
     port = lock["port"]
-    if (is_page(port, wait=True) and page_folder(port, wait=True) == project
+    if (lock["token"] and is_page(port, wait=True)
+            and page_folder(port, lock["token"], wait=True) == project
             and ask(port, "GET", "/alive", {"stop": lock["stop"]}, wait=True) == 200):
         return lock
     for name in (LOCK, LOCK_COPY):
@@ -328,10 +339,10 @@ def is_open(folder: Path) -> bool:
     return own_lock(folder) is not None
 
 
-def page_folder(port: int, wait: bool = False) -> str | None:
-    """The name of the project folder whose judgekeeper page listens on `port`, or None
-    (`wait`: _answer)."""
-    answer = _answer(port, "GET", "/project", {}, wait=wait)
+def page_folder(port: int, token: str, wait: bool = False) -> str | None:
+    """The name of the project folder whose judgekeeper page listens on `port`, asked with
+    `token`'s proof, or None (`wait`: _answer)."""
+    answer = _answer(port, "GET", "/project", {"proof": proof(token)}, wait=wait)
     try:
         folder = json.loads(answer[1]).get("folder") if answer and answer[0] == 200 else None
     except (ValueError, AttributeError):
@@ -598,9 +609,12 @@ def _handler(server: LabelServer):
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
-            if url.path in ("/favicon.ico", "/project") and self.command == "GET":
+            if url.path == "/favicon.ico" and self.command == "GET":
                 return True  # a browser asks for the icon without the token
             query = parse_qs(url.query)
+            if url.path == "/project" and self.command == "GET" and hmac.compare_digest(
+                    query.get("proof", [""])[0].encode(), proof(server.token).encode()):
+                return True  # the lock check (own_lock)
             token = query.get("token", [""])[0]
             if hmac.compare_digest(token.encode(), server.token.encode()):
                 server.last_request = time.monotonic()

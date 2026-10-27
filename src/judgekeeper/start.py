@@ -1274,7 +1274,7 @@ def _read_anyway(talk: Talk, path: Path) -> None:
 def results_description(result: find.Result) -> str | None:
     """The `config.description` of a promptfoo results file, or None."""
     try:
-        data = json.loads(result.path.read_text(encoding="utf-8", errors="replace"))
+        data = json.loads(_text(result.path))
         theirs = (data.get("config") or {}).get("description")
     except (OSError, ValueError, AttributeError, RecursionError):
         return None
@@ -1315,14 +1315,20 @@ CONFIG_SUFFIXES = (".yaml", ".yml", ".json")
 MAX_CONFIGS = 200  # files looked at for promptfoo configs
 
 
+def _text(path: Path) -> str:
+    """A project file's text, read only when it is a regular file (textio.read_regular): a
+    named pipe is OSError, never waited for."""
+    return textio.read_regular(path).decode("utf-8", errors="replace")
+
+
 def _promptfoo_config(path: Path) -> tuple[bool, str | None]:
     """(whether `path` is a promptfoo config: named promptfooconfig.*, or with its keys; its
     top-level `description` or None). YAML by a line scan, no YAML reader."""
     try:
         if path.stat().st_size > find.HEAD_BYTES * 16:
             return False, None
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+        text = _text(path)
+    except OSError:  # a named pipe too: never waited for
         return False, None
     if path.suffix.lower() == ".json":
         try:
@@ -1351,7 +1357,7 @@ def _default_test_has(path: Path, name: str) -> bool:
     from judgekeeper.readers.promptfoo import _in_default
 
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = _text(path)
     except OSError:
         return False
     try:
@@ -1420,7 +1426,10 @@ def config_description(path: Path) -> str | None:
     """The top-level `description:` of the promptfoo config at `path`: a line scan, no YAML."""
     if not path.is_file() or path.is_symlink():
         return None
-    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = _text(path)
+    except OSError:
+        return None
     if path.suffix.lower() == ".json":
         try:
             value = json.loads(text).get("description")
@@ -1631,6 +1640,17 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
+def _hide_keys(root: Path, kind: str) -> None:
+    """The keys in the project's .env files (and its promptfoo configs' `env:` blocks) hidden
+    before anything is read or written, however the results were found (keys.hide_keys)."""
+    from judgekeeper import keys
+
+    folder = root if root.is_dir() else root.parent
+    configs = ([folder / rel for rel in _promptfoo_configs(folder)] if kind == "promptfoo"
+               else [])
+    keys.hide_keys(folder, configs)
+
+
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
                experiment: str | None = None, pass_if: str | None = None,
                label_map: str | dict | None = None, judge_model: str | None = None,
@@ -1664,6 +1684,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
+    _hide_keys(root, kind)
     if only:
         results = [r for r in results if r.rel in only] or results
     if kind == "mlflow":
