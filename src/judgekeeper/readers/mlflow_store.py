@@ -340,19 +340,20 @@ def folder_store_allowed(uri, say=None) -> Iterator[None]:
     MLFLOW_ALLOW_FILE_STORE=true for these calls only (MLflow 3.16 and later open a folder
     store only with it; older versions ignore it), then remove it again, also after an
     error. A value the user set is left as it is. `say` gets FOLDER_NOTE the first time in
-    a run. The variable is never set for mlflow.db or a server, and never written anywhere."""
+    a run that MLflow read the folder (never when it couldn't). The variable is never set for
+    mlflow.db or a server, and never written anywhere."""
     global _noted
     if not is_folder_store(uri) or ALLOW in os.environ:
         yield
         return
-    if say is not None and not _noted:
-        _noted = True
-        say(FOLDER_NOTE)
     os.environ[ALLOW] = "true"
     try:
         yield
     finally:
         os.environ.pop(ALLOW, None)
+    if say is not None and not _noted:
+        _noted = True
+        say(FOLDER_NOTE)
 
 
 def _close_engines(folders: list[Path]) -> None:
@@ -760,8 +761,9 @@ class FolderUnusable(RecordsError):
     """MLflow can't use the folder --tracking-uri names (it writes a .trash folder there):
     said as that folder's problem, never as judgekeeper's own folder's."""
 
-    next_step = ("give --tracking-uri your MLflow folder (mlruns/) or mlflow.db, then run "
-                 "`{command}`.")
+    next_step = ("run `{command} --tracking-uri PATH`, with PATH your MLflow folder (mlruns/) "
+                 "or mlflow.db.")
+    drop = "--tracking-uri"  # the folder it named, left out of the Next: command
 
 
 def folder_problem(error: BaseException, uri) -> FolderUnusable | None:

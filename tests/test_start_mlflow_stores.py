@@ -555,3 +555,7 @@ def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monke
     flat = " ".join(out.split())
     assert f"MLflow couldn't use {locked}" in flat, out
     assert ".judgekeeper" not in out and "make this folder writable" not in out, out
+    assert "Reading your mlruns/ folder" not in flat, out  # it was never read
+    nxt = flat[flat.index("Next:"):]
+    assert locked.as_uri() not in nxt and str(locked) not in nxt, out  # not the same bad flag
+    assert "--tracking-uri PATH" in nxt and "with PATH your MLflow folder" in nxt, out

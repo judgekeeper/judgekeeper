@@ -551,8 +551,10 @@ def unreadable(path: Path, tool: str) -> RecordsError:
 
 
 def usage_error(e: Exception, text: str | None = None) -> StartError:
-    """A reader's error as a usage error, with its Next: line when it has one."""
-    return StartError(str(e) if text is None else text, getattr(e, "next_step", None))
+    """A reader's error as a usage error, with its Next: line and the flag it leaves out
+    when it has them."""
+    return StartError(str(e) if text is None else text, getattr(e, "next_step", None),
+                      getattr(e, "drop", None))
 
 
 def _read(result: find.Result) -> Loaded:
