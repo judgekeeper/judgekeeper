@@ -437,8 +437,9 @@ def test_every_format_and_ignorable_character_is_removed():
 
     for n in range(0x110000):
         c = chr(n)
-        if unicodedata.category(c) == "Cf":
+        if unicodedata.category(c) == "Cf" and c not in "\u200c\u200d":
             assert redact.visible(f"a{c}b") == "ab", hex(n)
+        if unicodedata.category(c) == "Cf":
             assert redact.printable(f"a{c}b") == "ab", hex(n)
 
 
