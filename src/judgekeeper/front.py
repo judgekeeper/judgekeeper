@@ -1243,6 +1243,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
+    if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
+        start_label.store_result(ws, session, _flags_of(talk, saved))
     if every and not enough:  # nothing left to mark, and no result yet
         return _all_marked(talk, ws, counts, saved, head, then)
     return _page(talk, ws, counts, wait, saved, enough, head, marking, first, then)

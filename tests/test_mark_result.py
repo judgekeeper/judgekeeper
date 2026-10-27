@@ -140,6 +140,31 @@ def test_no_answer_text_or_ids_in_the_history(ws):
 
 # Before a result: nothing on the page tells the LLM-as-a-judge's grade ------------------------
 
+def test_a_mark_taken_back_below_a_result_takes_the_saved_result_back(ws, monkeypatch, capsys):
+    """15 Pass and 15 Fail that read "needs work" on /result, then one mark taken back: the
+    next run has no result to measure, and report.html and result.json say so."""
+    from judgekeeper.cli import main
+    from tests.test_fix import closed
+
+    session = start_label.StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for want in ("pass", "fail"):  # the person and the LLM-as-a-judge disagree on 8 of each 15
+        for k, item in enumerate([i for i in session.items if groups[i["id"]] == want][:15]):
+            other = "fail" if want == "pass" else "pass"
+            session.update({"id": item["id"], "label": other if k < 8 else want, "seconds": 5})
+    start_label.live_result(ws, session)
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["verdict_level"] == "not_gate"
+    session.update({"id": next(iter(session.marked())), "label": None, "seconds": 1})
+    monkeypatch.chdir(ws.root)
+    assert main(["--no-browser"]) == 0
+    closed(ws)
+    capsys.readouterr()
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert saved["check"] == "too_few" and saved["labels"]["correct"] + saved["labels"]["wrong"] == 29
+    page = ws.report_html.read_text(encoding="utf-8")
+    assert "needs work" not in page and start_label.VERDICTS[None] in page
+
+
 def test_marking_an_answer_and_taking_it_back_shows_nothing_of_its_grade(ws):
     """Mark the next answer Pass, read /result, take the mark back: the page reads the same
     for an answer the LLM-as-a-judge passed as for one it failed."""
