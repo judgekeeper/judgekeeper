@@ -82,6 +82,9 @@ SIDES = (("passed", "Pass", "pass"), ("failed", "Fail", "fail"))  # group, what 
 CONFIG_NEWER = ("Your LLM-as-a-judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
 SAME = "Same model, same rule, same eval tool."
+SAME_GRADES = "Same model, same grades on your marked answers, same eval tool."  # no rule
+NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
+                    "your marks as a new batch. Then run `{command}` again.")
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
@@ -1285,7 +1288,8 @@ def full(path: str, said: Said) -> int:
     if not changed and not grades:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
-        if found is not None and not Path(path).is_file():
+        held = len(lookup(found, state.marks, state.ws)[0]) if found is not None else None
+        if held == len(state.marks) and not Path(path).is_file():
             _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
@@ -1293,7 +1297,14 @@ def full(path: str, said: Said) -> int:
             said.say(NEXT_EVAL.format(command=_command(state)))
         else:
             said.say(_no_change(state))
-            said.say(SAME)
+            said.say(SAME if new.get("rule_hash") else SAME_GRADES)
+            if held is not None and held < len(state.marks):  # most were run again: new text
+                k = len(state.marks) - held
+                said.say(NOT_IN.format(k=k, n=_n(len(state.marks), "marked answer"),
+                                       them="it" if k == 1 else "them"))
+                said.say()
+                said.say(NEXT_NEW_ANSWERS.format(program=program(), command=_command(state)))
+                return EXIT_OK
             said.say()
             said.say(NEXT_SAME.format(command=_command(state)))
         return EXIT_OK
