@@ -178,8 +178,9 @@ def test_the_split_stays_until_new(here, capsys):
     flat = " ".join(out.split())
     assert code == 3, out
     assert "You asked for a new set of marks kept aside (`judgekeeper fix --new`)." in flat
-    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
+    assert flat.endswith("Next: mark more answers with `judgekeeper mark` (at least 10 more), "
+                         "then run `judgekeeper fix` again: they become a new set of marks kept "
+                         "aside.")
     split = _split(ws)
     assert split["hidden"] == [] and split["set"] == 1
     assert sorted(split["visible"]) == sorted(first["visible"] + first["hidden"])
@@ -510,9 +511,11 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     flat = " ".join(out.split())
     assert code == 3 and len(_split(ws)["tests"]) == 3  # the set is retired: no 4th test
     assert "You have tested 3 rules on these marks kept aside." in flat
-    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again: they become a new set of marks kept aside, "
-                         "and your new results are tested on them.")
+    assert ("Mark about 40 more answers for a clear answer (at least 10; with fewer than about "
+            "40, the result will often be \"can't tell yet\").") in flat  # how many, plainly
+    assert flat.endswith("Next: mark more answers with `judgekeeper mark` (at least 10 more), "
+                         "then run `judgekeeper fix` again: they become a new set of marks kept "
+                         "aside, and your new results are tested on them.")
     todo = _mark_more(ws, 10)
     first = _index(ws, todo[0])  # graded unlike the old rule, so the new rule changes a grade
     new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80,

@@ -74,7 +74,7 @@ judgekeeper fix [PATH] [--new]
 | Flag | What it does |
 |---|---|
 | `PATH` | The results of grading your marked answers again with a new rule, or your project folder (default: this folder) |
-| `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the next 10 you make become the new set. A mark you have seen is never kept aside again |
+| `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the marks you make next (at least 10; about 40 for a clear answer) become the new set. A mark you have seen is never kept aside again |
 
 **Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. Write a better rule from it, or hand it to a coding agent.
 
@@ -96,7 +96,7 @@ judgekeeper fix [PATH] [--new]
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse, how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
-After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, or once `check` takes on a rule tested on them, 10 new marks become a new set kept aside. Each rule tested is saved in `rules/`.
+After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, or once `check` takes on a rule tested on them, your next marks become a new set kept aside. Mark about 40 more answers for a clear answer (at least 10; with fewer than about 40, the result will often be "can't tell yet"). Each rule tested is saved in `rules/`.
 
 ## check: re-check your LLM-as-a-judge after a change
 

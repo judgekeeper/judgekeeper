@@ -61,6 +61,9 @@ HIDDEN_TENTHS = 5  # of each group of marks hidden, rounded up
 MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
 FRESH = 10  # new marks that make a new set of hidden marks
+CLEAR = 40  # new marks that most often give a new set a clear answer
+CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}; with fewer "
+              f"than about {CLEAR}, the result will often be \"can't tell yet\").")
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
 STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
@@ -925,13 +928,14 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
         talk.say()
         talk.para(_saved_line(ws, n))
     left = want - len(split.pending)
+    talk.say()
     if split.pending:
-        talk.say()
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
+    talk.para(CLEAR_LINE)
     then = (": they become a new set of marks kept aside, and your new results are tested on "
             "them" if tested else ": they become a new set of marks kept aside")
-    talk.next(next_marks(ws, f"mark {plural(left, 'more answer')} with `{program('mark')}`, "
-                             f"then run `{talk.command()}` again{then}."))
+    talk.next(next_marks(ws, f"mark more answers with `{program('mark')}` (at least {left} "
+                             f"more), then run `{talk.command()}` again{then}."))
     return EXIT_NEEDS_YOU
 
 
@@ -1211,8 +1215,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if len(split.rules()) >= MAX_RULES and v.kind not in ("better", "safe"):
         talk.say()
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
-                  f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
-                  "set kept aside.")
+                  f"aside. Your next marks become a new set kept aside. {CLEAR_LINE}")
     talk.next(_after_step(talk, ws, m, v.kind))
     return EXIT_OK
 
