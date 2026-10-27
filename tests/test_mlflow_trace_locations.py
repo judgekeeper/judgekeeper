@@ -330,3 +330,62 @@ def test_a_store_with_spans_in_the_database_is_read_in_full(made, tmp_path):
         traces = list(mlflow_store._traces(client, exp))
     assert len(traces) == N and all(t.data.spans for t in traces)
     assert json.loads(json.dumps(traces[0].data.to_dict()))["spans"]
+
+
+# A trigger in the store ------------------------------------------------------------------------
+
+def _no_locations(db: Path, address: str, trigger: str) -> None:
+    """No location rows, the default experiment gone (MLflow adds it again when it opens the
+    store), and a trigger that names `address` as every trace's location when it fires."""
+    edit(db, "delete from trace_tags where key = 'mlflow.artifactLocation'",
+         "delete from experiments where experiment_id = 0",
+         f"create trigger jk_poc {trigger} begin "
+         "delete from trace_tags where key = 'mlflow.trace.spansLocation'; "
+         "insert into trace_tags(key, value, request_id) select 'mlflow.artifactLocation', "
+         f"'{address}/trig', request_id from trace_info; end")
+
+
+def _triggers(db: Path) -> list:
+    with closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True)) as con:
+        return con.execute("select name from sqlite_master where type = 'trigger'").fetchall()
+
+
+def test_a_trigger_in_a_store_with_no_location_rows_fetches_nothing(made, tmp_path, listener):
+    address, asked = listener
+    root = _project(made, tmp_path)
+    _no_locations(root / "mlflow.db", address, "after insert on experiments")
+    before = (root / "mlflow.db").read_bytes()
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+    assert (root / "mlflow.db").read_bytes() == before  # the person's store: same bytes
+
+
+@pytest.mark.parametrize("trigger", [
+    "after insert on experiments", "after update on experiments", "after insert on trace_tags",
+    "after update on trace_tags", "after insert on runs", "after update on runs",
+])
+def test_the_copy_holds_no_trigger(made, tmp_path, trigger):
+    root = _project(made, tmp_path)
+    _no_locations(root / "mlflow.db", "http://127.0.0.1:9", trigger)
+    uri = mlflow_store.store_uri(root / "mlflow.db")
+    assert _triggers(Path(uri.removeprefix("sqlite:///"))) == []
+    assert _triggers(root / "mlflow.db")  # the person's store keeps what it holds
+
+
+def test_a_location_written_after_the_copy_is_made_is_never_fetched(made, tmp_path, listener):
+    """A location that reaches the copy once it was made (MLflow writes to the copy when it
+    opens it) is kept or pointed nowhere again before any trace is read."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    uri = mlflow_store.store_uri(root / "mlflow.db")
+    _elsewhere(Path(uri.removeprefix("sqlite:///")), address)
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+    mf.assessment_info(start_label.Workspace(root), "correctness")
+    assert asked == []
