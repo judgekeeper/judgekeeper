@@ -45,7 +45,15 @@ from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import held_back, old_hook, plural, program, quote_arg, wrap
+from judgekeeper.textio import (
+    held_back,
+    is_windows,
+    old_hook,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+)
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -118,12 +126,14 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 
 def _quoted(value: str) -> str:
     """A judge's name in the line that says to choose one, as it can be pasted: quoted for
-    the shell (quote_arg), in quotes even when it needs none, so the names read alike. One
-    Windows leaves out of commands (held_back) is shown between quotes, as data."""
+    the shell (quote_arg), in its quotes even when it needs none, so the names read alike
+    (double on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of
+    commands (held_back) is shown between single quotes, as data."""
     if held_back(value):
         return f"'{value}'"
     quoted = quote_arg(value)
-    return f"'{value}'" if quoted == value else quoted
+    mark = '"' if is_windows() else "'"
+    return f"{mark}{value}{mark}" if quoted == value else quoted
 
 
 class FrontTalk(start.Talk):

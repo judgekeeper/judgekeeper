@@ -92,3 +92,13 @@ def test_10000_inspect_score_keys_are_quick_and_short(tmp_path, monkeypatch, cap
     assert code == 3
     assert len(out.splitlines()) <= 30, out
     assert "and 9,980 more" in out
+
+
+def test_on_windows_the_names_read_alike_in_double_quotes(tmp_path, monkeypatch, capsys):
+    """cmd.exe and PowerShell read double quotes; a plain name gets them too."""
+    _metrics(tmp_path, ["Answer Relevancy"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "win32")
+    code, out = _run(capsys)
+    assert code == 3
+    assert '("Answer Relevancy", "Correct")' in next_lines(out)[-1], out
