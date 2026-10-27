@@ -132,9 +132,9 @@ Coverage % / average width, before → now.
 | 90% | 0.95 | 0.95 | 25 | 96.9 / 0.03 → 96.9 / 0.02 | 96.7 / 0.64 → 96.7 / 0.55 | 99.4 / 0.23 → 97.9 / 0.16 |
 | 90% | 0.95 | 0.95 | 40 | 98.4 / 0.02 → 98.3 / 0.02 | 98.6 / 0.56 → 98.5 / 0.48 | 99.4 / 0.17 → 98.1 / 0.13 |
 
-## After asking the LLM-as-a-judge again (`weighted.general`)
+## After grading again: new results from your eval tool (`weighted.general`)
 
-A steady LLM-as-a-judge: asked again, it gives the same verdicts. TPR and TNR.
+A steady LLM-as-a-judge: grading again, it gives the same verdicts. TPR and TNR.
 
 Before (stratified bootstrap): lowest cell 53.8, average 94.7. Now (jeffreys): lowest cell 93.6, average 96.2.
 
@@ -338,9 +338,9 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 | 50% | 80% | 95% | 15 + 15 | 2.8 |
 | 50% | 80% | 95% | 25 + 25 | 1.0 |
 
-### After asking again, an LLM-as-a-judge that changes its mind
+### After grading again, an LLM-as-a-judge that changes its mind
 
-1,000 simulated re-checks per row. weighted.general when the LLM-as-a-judge, asked again twice as a paid re-check does, turns round a share of its grades at random each time (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. The first grade counts. How often the ranges hold the asked LLM-as-a-judge's true TPR and TNR, with the wobble the two asks showed (the share of answers whose two grades differ, averaged) and, before, without it. In percent; lowest with the wobble: 93.2.
+1,000 simulated re-checks per row. weighted.general when the LLM-as-a-judge, grading the same answers twice, turns round a share of its grades at random each time (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. The first grade counts. How often the ranges hold the regrading LLM-as-a-judge's true TPR and TNR, with the wobble the two gradings showed (the share of answers whose two grades differ, averaged) and, before, without it. In percent; lowest with the wobble: 93.2.
 
 | pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | TNR before |
 |---|---|---|---|---|---|---|---|---|
@@ -371,7 +371,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### `check` when nothing changed
 
-Worked out exactly for one group of marks: the same LLM-as-a-judge asked again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
+Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
 
 | marks | wobble | Worse | exit 1 |
 |---|---|---|---|
@@ -387,12 +387,12 @@ Worked out exactly for one group of marks: the same LLM-as-a-judge asked again, 
 
 ## Batches
 
-New answers join as batches, and the numbers are stratified by (batch, the LLM-as-a-judge's grade). Two and three batches of different sizes (answers per batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After asking a steady LLM-as-a-judge again: 4,000 draws. The bar: at least 93% in every cell and 95% on average.
+New answers join as batches, and the numbers are stratified by (batch, the LLM-as-a-judge's grade). Two and three batches of different sizes (answers per batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After grading again with a steady LLM-as-a-judge: 4,000 draws. The bar: at least 93% in every cell and 95% on average.
 
 | Ranges | Lowest cell | Average | Passes |
 |---|---|---|---|
 | `judgekeeper` (TPR, TNR, real pass rate) | 93.2 | 95.8 | yes |
-| After asking again (TPR, TNR) | 93.1 | 95.6 | yes |
+| After grading again (TPR, TNR) | 93.1 | 95.6 | yes |
 
 Coverage % / average width.
 
