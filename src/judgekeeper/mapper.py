@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper.textio import NOT_JSON, jsonl_lines, read_utf8
+from judgekeeper.textio import NOT_JSON, NOT_TEXT, jsonl_lines, lone_surrogate, read_utf8
 
 SIDE, JUDGE = "{side}", "{judge}"
 CRITERION = "<criterion>"
@@ -147,7 +147,8 @@ def _is(key: str, words) -> bool:
 def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[int, object]]:
     """[(line number, unit)]: JSONL lines, CSV rows (all values text), or a JSON document
     (its elements, when it is a list); table.MAX_ROWS at most (table.capped: said once).
-    Lines that are not JSON are skipped (their numbers added to `skipped`)."""
+    Lines that are not JSON are skipped (their numbers added to `skipped`). A unit holding a
+    lone surrogate (\\ud800) is a MapError: it can't be written again as text."""
     from judgekeeper.table import MAX_ROWS, capped, csv_numbered, header, open_quote, too_wide
 
     path = Path(path)
@@ -180,7 +181,10 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
                 except (ValueError, RecursionError):
                     if skipped is not None:
                         skipped.append(n)
-    return capped(units, path)
+    units = capped(units, path)
+    if any(lone_surrogate(unit) for _, unit in units):
+        raise MapError(NOT_TEXT.format(file=path.name))
+    return units
 
 
 def load(path: str | Path) -> list:
