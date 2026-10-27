@@ -18,7 +18,7 @@ from pathlib import Path
 
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
-from judgekeeper.redact import printable
+from judgekeeper.redact import one_line, printable, scrub
 from judgekeeper.textio import lone_surrogate, make_private, read_utf8, write_replacing
 
 ID_LENGTH = 16
@@ -138,7 +138,8 @@ def capped(rows: list, path: str | Path, say: bool = True) -> list:
     key = str(Path(path).resolve())
     if say and key not in _said_capped:
         _said_capped.add(key)
-        print(CAPPED.format(n=MAX_ROWS, file=Path(path).name), file=sys.stderr, flush=True)
+        line = CAPPED.format(n=MAX_ROWS, file=Path(path).name)
+        print(one_line(scrub(line)), file=sys.stderr, flush=True)  # as every line said
     return rows[:MAX_ROWS]
 
 
