@@ -65,15 +65,15 @@ def _new_judge_on_a_few(root) -> None:
     (root / "results-new.json").write_text(json.dumps(data), encoding="utf-8")
 
 
-def test_promptfoo_check_on_a_few_answers_tests_only_those(here, capsys):
+def test_promptfoo_check_on_a_few_answers_cant_tell_yet(here, capsys):
     ws = _marked(here)
     _new_judge_on_a_few(here)
     code, out = _check(capsys)
-    assert code == 1, out  # 2 of the 5 were marked Fail: a drop over 20 points
+    assert code == 3, out  # 2 of the 5 were marked Fail: too few to call it a drop
     assert ("45 of your 50 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out)
-    assert "Re-checked on 5 of your 50 marks:" in out
-    assert judge_models(ws) == [MODEL]  # after "Not sure" with a big drop the old judge stays
+    assert "Result: can't tell yet." in out and "Re-checked on" not in out
+    assert judge_models(ws) == [MODEL]  # the old judge stays
 
 
 def judge_models(ws):
@@ -415,7 +415,7 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys):
     _, out = _check(capsys)
     assert ("30 of your 40 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out), out
-    assert "Re-checked on 10 of your 40 marks:" in out
+    assert "Result: can't tell yet." in out
     _rubric(here, split(20, 20), RULE_B)  # then the whole eval
     _, out = _check(capsys)
     assert "You added" not in out, out  # no mark was made since

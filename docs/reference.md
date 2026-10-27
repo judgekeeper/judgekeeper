@@ -83,12 +83,12 @@ judgekeeper fix [PATH] [--new]
 | Eval tool | How to grade the same answers again |
 |---|---|
 | promptfoo | Use `marked-answers.csv` as your tests with the `echo` provider and your new rule; save with `-o`. |
-| Inspect AI | `inspect score <log>` with the new scorer grades the log again without new answers. |
+| Inspect AI | `inspect score <log> --scorer <name> --action overwrite --output-file new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, and your log stays as it was. Then run `judgekeeper fix new.eval`. |
 | MLflow | `mlflow.genai.evaluate()` on the existing traces with the new scorer. |
 | DeepEval | Build test cases from `marked-answers.csv` and run the metric. |
 | A CSV or JSONL file, or `record()` | Grade `marked-answers.csv` with your own code. |
 
-**The new results** must come from the same eval tool and LLM-as-a-judge as your marks; results from another one stop it (exit 2). An answer kept aside is found by its exact text, and by its question when the results hold one. One that isn't there is counted, said once and left out. On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
+**The new results** must come from the same eval tool and LLM-as-a-judge as your marks; results from another one stop it (exit 2). An answer kept aside is found by its exact text, and by its question when the results hold one. If some aren't there, it says how many first and asks you to grade the same answers again; the rest are still tested. An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
 
 | Result | When |
 |---|---|
@@ -110,7 +110,7 @@ Run it after you change your LLM-as-a-judge or eval tool and run your eval again
 |---|---|
 | `PATH` | A new results file, or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
 
-**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results by their exact text, and takes the new grades from there. A marked answer that isn't there, such as one your eval answered differently, is counted, said once and left out.
+**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results by their exact text, and takes the new grades from there. A marked answer that isn't there, such as one your eval answered differently, is counted, said once and left out. An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3).
 
 **How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Mark more answers before acting on one. Unless it is "Worse" (or "Not sure" with a drop over 20 points), your marks now test the new LLM-as-a-judge.
 
@@ -261,7 +261,7 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 
 ## Your API keys
 
-- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only program it starts is its own marking page. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
+- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only program it starts is its own marking page. To read MLflow results it loads MLflow's own library, which runs the system tools `uname` and `file` when it loads; judgekeeper starts nothing else. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
 - judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` files or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.

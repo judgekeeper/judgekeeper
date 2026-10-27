@@ -78,12 +78,19 @@ RESULT = {
 CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
+MISSING = ("{k} of the {n} answers kept aside {are} not in your new results. Grade the same "
+           "answers again ({answers}).")
+REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then run "
+                f"`{{command}} {NEW_RESULTS}`.")
+SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
+               "change.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
     "promptfoo": (f"promptfoo: use {ANSWERS} as your tests with the `echo` provider and your new "
                   "rule; save with `-o`."),
-    "inspect": ("Inspect AI: `inspect score <log>` with the new scorer grades the log again "
-                "without new answers."),
+    "inspect": ("Inspect AI: grade your log again with the new scorer, no new answers needed. "
+                "`--action overwrite` keeps the new grades under your scorer's name, and "
+                "`--output-file` writes them to a new log, so yours stays as it was."),
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer."),
     "deepeval": f"DeepEval: build test cases from {ANSWERS} and run the metric.",
 }
@@ -847,10 +854,18 @@ def regrade_line(tool: str | None) -> str:
     return REGRADE.get(tool or "", OWN)
 
 
+NEW_LOG = "new.eval"
+INSPECT_SCORE = f"inspect score <log> --scorer <name> --action overwrite --output-file {NEW_LOG}"
+
+
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
     talk.para(regrade_line(tool))
+    if tool == "inspect":  # the log itself is graded again
+        talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}`, then run "
+                  f"`{talk.command()} {NEW_LOG}`.")
+        return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "
               f"`{talk.command()} {NEW_RESULTS}`.")
@@ -940,7 +955,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     marks: how the old and the new grades agree with the person's marks, and the verdict from
     the math. A hidden answer not in the file is counted, said once and left out."""
     from judgekeeper import judge_setup
-    from judgekeeper.check import _free, read_given
+    from judgekeeper.check import lookup, mixed_line, read_given, repeats_line
 
     ws = state.ws
     found, problem = read_given(state, path)
@@ -951,7 +966,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         return EXIT_USAGE
     setup = judge_setup.of(found)
     setup_hash = judge_setup.hash_of(setup)
-    new = _free(found, {i: m.person[i] for i in split.hidden}, ws)
+    matched, mixed = lookup(found, {i: m.person[i] for i in split.hidden}, ws)
+    new = {i: a.verdict for i, a in matched.items()}
     ids = [i for i in split.hidden if i in new]
     key = test_key(setup, setup_hash, new, ids)
     missing = len(split.hidden) - len(ids)
@@ -962,12 +978,23 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
                   f"judgekeeper finds them by their exact text.")
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
+    old = m.judge
+    if _same_grades(ws, setup, setup_hash, old, new, ids):
+        talk.para(SAME_GRADES)
+        _next_regrade(talk, ws, m.data.get("tool"))
+        return EXIT_NEEDS_YOU
     before = next((t for t in split.tests if t.get("kind") == "rule"
                    and (t.get("key") or t.get("setup_hash")) == key
-                   and t.get("hidden") == len(split.hidden)), None)
+                   and t.get("hidden") == len(split.hidden) and t.get("n") == len(ids)), None)
     if before is not None:
         return tested_before(talk, ws, m, before)
-    old = m.judge
+    if missing:
+        talk.para(MISSING.format(k=missing, n=len(split.hidden), answers=_file(ws, ANSWERS),
+                                 are="is" if missing == 1 else "are"))
+        talk.say()
+    for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
+        talk.para(line)
+        talk.say()
     fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
     v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
@@ -976,15 +1003,11 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         agreed = sum(grades[i] == m.person[i] for i in ids)
         talk.say(f"  {name} rule: agreed with you on {agreed} of {len(ids)} answers.")
     talk.para(went_line(fixed, broke), indent="  ")
-    if missing:
-        talk.para(f"{plural(missing, 'answer')} kept aside {'is' if missing == 1 else 'are'} not "
-                  "in this file, so " + ("it was" if missing == 1 else "they were")
-                  + " left out.", indent="  ")
     talk.say()
     talk.para(RESULT[v.kind])
     k = next_test(split)
     _keep(ws, split, found, setup, setup_hash, key, v)
-    if v.kind in ("leans better", "same", "leans worse"):
+    if v.kind in ("leans better", "same", "leans worse") and not missing:
         wrong = sum(old[i] != m.person[i] for i in ids)
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
                                    better=_better_needs(len(ids), k)))
@@ -993,8 +1016,22 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
                   f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
                   "set kept aside.")
-    talk.next(_after_step(talk, ws, m, v.kind))
+    talk.next(_after_step(talk, ws, m, v.kind) if not missing else REGRADE_SAME.format(
+        answers=_file(ws, ANSWERS), command=talk.command()))
     return EXIT_OK
+
+
+def _same_grades(ws: Workspace, setup: dict, setup_hash: str, old: dict, new: dict,
+                 ids: list[str]) -> bool:
+    """Whether the new results give the answers kept aside the grades judgekeeper already has,
+    from the LLM-as-a-judge the marks were made with (or from results that hold no rule, which
+    can't tell one rule from another): no rule was changed."""
+    from judgekeeper import judge_setup
+
+    if any(new[i] != old.get(i) for i in ids):
+        return False
+    saved = judge_setup.read(ws) or {}
+    return not setup.get("rule_hash") or saved.get("setup_hash") == setup_hash
 
 
 def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str) -> str:

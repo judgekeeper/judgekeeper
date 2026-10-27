@@ -39,6 +39,7 @@ JUDGE_PASSES = 20  # the LLM-as-a-judge passes answers 0-19 and fails 20-39
 WRONG = set(range(6)) | set(range(20, 24))  # the person disagrees on these
 TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow", "jsonl")
 LOCAL = ("127.0.0.1", "::1", "localhost", "", None)
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def judge(i: int) -> bool:
@@ -261,7 +262,8 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
     assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
-    assert "fix <new results file>" in " ".join(out.split())
+    file = fix.NEW_LOG if tool == "inspect" else fix.NEW_RESULTS
+    assert f"fix {file}" in " ".join(out.split())
 
     gone = kept[0]  # not graded again: counted, said, left out
     new = write_results(tool, here / NEW[tool],
@@ -271,7 +273,9 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     assert code == 0, out
     said = " ".join(out.split())
     assert f"tested on the {len(kept) - 1} marks kept aside" in said
-    assert "1 answer kept aside is not in this file, so it was left out." in said
+    assert (f"1 of the {len(kept)} answers kept aside is not in your new results. Grade the "
+            "same answers again (.judgekeeper/fix/marked-answers.csv).") in said
+    assert "marked-answers.csv" in said[said.rindex("Next:"):]
     assert "Result:" in said
     test = fix.read_split(ws).tests[-1]
     assert test["n"] == len(kept) - 1 and test["broke"] == 0
@@ -406,7 +410,7 @@ def test_marked_answers_hide_keys_and_guard_formulas(here, capsys, monkeypatch):
         code, out = run(capsys, "fix", regraded.name)
     assert code == 0, out
     assert f"tested on the {len(hidden(ws))} marks kept aside" in " ".join(out.split())
-    assert "not in this file" not in out
+    assert "not in your new results" not in out
 
 
 # check ------------------------------------------------------------------------------------------
@@ -468,6 +472,62 @@ def test_removed_flags_are_unknown(argv, here, capsys):
     assert main(argv) == 2
     assert f"unrecognized arguments: {argv[-2] if argv[-1] == 'input' else argv[-1]}" in \
         capsys.readouterr().err
+
+
+# Programs started, in a fresh process -----------------------------------------------------------
+
+WATCH = r"""
+import json, os, sys
+LOCAL = ("127.0.0.1", "::1", "localhost", "", None)
+seen = []
+
+def hook(event, args):
+    if event == "subprocess.Popen":
+        argv = args[1] if isinstance(args[1], (list, tuple)) else [args[1] or args[0]]
+        seen.append(["program", os.path.basename(str(argv[0]))])
+    elif event in ("os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.startfile"):
+        seen.append(["program", event])
+    elif event == "socket.connect":
+        address = args[1]
+        host = address[0] if isinstance(address, tuple) else None
+        if host not in LOCAL:
+            seen.append(["network", str(host)])
+    elif event == "socket.getaddrinfo" and args[0] not in LOCAL:
+        seen.append(["network", str(args[0])])
+
+sys.addaudithook(hook)
+from judgekeeper.cli import main
+try:
+    code = main(sys.argv[2:])
+finally:
+    with open(sys.argv[1], "w", encoding="utf-8") as f:
+        json.dump(seen, f)
+sys.exit(code)
+"""
+MLFLOW_TOOLS = {"uname", "file"}  # MLflow's own library runs these as it loads
+
+
+@pytest.mark.parametrize("tool", ["mlflow", "jsonl"])
+def test_fix_and_check_start_no_program_in_a_fresh_process(tool, here, capsys, monkeypatch,
+                                                            tmp_path):
+    ws = project(tool, here, monkeypatch)
+    new = write_results(tool, here / ("regraded/mlflow.db" if tool == "mlflow"
+                                      else "regraded.jsonl"),
+                        {i: person(i) for i in range(N)}, regraded=True)
+    script = tmp_path / "watch.py"
+    script.write_text(WATCH, encoding="utf-8")
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    for argv in (["fix"], ["fix", str(new.relative_to(here))], ["check"]):
+        seen_file = tmp_path / "seen.json"
+        done = subprocess.run([sys.executable, str(script), str(seen_file), *argv], cwd=here,
+                              env=env, capture_output=True, text=True, timeout=300,
+                              stdin=subprocess.DEVNULL, check=False)
+        assert done.returncode in (0, 1, 3), done.stdout + done.stderr
+        seen = json.loads(seen_file.read_text(encoding="utf-8"))
+        assert [s for s in seen if s[0] == "network"] == [], (argv, seen)
+        programs = {s[1] for s in seen if s[0] == "program"}
+        assert programs <= (MLFLOW_TOOLS if tool == "mlflow" else set()), (argv, programs)
+    assert ws.dir.is_dir()
 
 
 # The main command after a change ----------------------------------------------------------------

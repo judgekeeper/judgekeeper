@@ -335,6 +335,7 @@ class Pool:
     unmapped: list = field(default_factory=list)
     n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
+    n_repeats: int = 0  # repeats of an answer in one file with the same grade, counted once
     n_results: int = 0  # grades read for the chosen judge, repeats counted each
     repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
@@ -438,6 +439,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             pool.repeat_sizes.add(len(judged))
             if passes in (0, len(judged)):  # the same grade every time: one answer
                 pool.n_merged += len(judged) - 1
+                pool.n_repeats += len(judged) - 1
                 judged = judged[-1:]
             else:
                 pool.split[key] = (len(judged), passes, len(judged) - passes)

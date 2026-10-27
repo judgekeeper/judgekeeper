@@ -92,6 +92,8 @@ NEXT_GIVEN = ("Next: give `{command}` your new {tool} results for the LLM-as-a-j
               "test, or run it in your project folder to read the newest results.")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text.")
+TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
+           "{f} you marked Fail; a re-check needs {need} of each.")
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
@@ -935,19 +937,37 @@ def _rows(ws: Workspace) -> dict:
         return {}
 
 
-def _matched(found, marked, ws: Workspace) -> dict:
-    """{id: the new judge's answer} for the marked answers `marked` found in the results
-    (for a judge whose results are many files, in every file of the newest judge): by id (the
-    same question and answer, word for word), else by the exact answer text, with the same
-    question when the results hold one. An answer found there with two different grades is
-    not found."""
+def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
+    """({id: the new judge's answer} for the marked answers `marked` found in the results, the
+    ids found there with different grades). For a judge whose results are many files, in
+    every file of the newest judge. Found by id (the same question and answer, word for word),
+    else by the exact answer text, with the same question when the results hold one. An
+    answer found with different grades counts against the judge: the grade that disagrees
+    with the mark (`marked` a dict of marks; a list of ids leaves such an answer out)."""
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
     answers = [a for a in found.pool.answers if a.source in newest]
-    by_id = {a.id: a for a in answers}
-    out = {i: by_id[i] for i in marked if i in by_id}
-    left = [i for i in marked if i not in out]
+    repeat_of = {f"{key}#{k}": key for key, (n, _, _) in found.pool.split.items()
+                 for k in range(2, n + 1)}  # build_pool's ids for the other grades
+    by_id: dict[str, list] = {}
+    for a in answers:
+        by_id.setdefault(repeat_of.get(a.id, a.id), []).append(a)
+    out, mixed = {}, set()
+
+    def take(i, same):
+        if len({a.verdict for a in same}) == 1:
+            out[i] = same[0]
+            return
+        mark = marked.get(i) if isinstance(marked, dict) else None
+        if mark is not None:
+            out[i] = next(a for a in same if a.verdict != mark)
+            mixed.add(i)
+
+    for i in marked:
+        if i in by_id:
+            take(i, by_id[i])
+    left = [i for i in marked if i not in out and i not in by_id]
     if not left:
-        return out
+        return out, mixed
     by_text: dict[str, list] = {}
     for a in answers:
         by_text.setdefault(_text(a.output), []).append(a)
@@ -960,15 +980,35 @@ def _matched(found, marked, ws: Workspace) -> dict:
         asked = _questions(row.get("input"))
         same = [a for a in by_text.get(text, [])
                 if not _questions(a.input) or _questions(a.input) & asked]
-        if len({a.verdict for a in same}) == 1:
-            out[i] = same[0]
-    return out
+        if same:
+            take(i, same)
+    return out, mixed
+
+
+def _matched(found, marked, ws: Workspace) -> dict:
+    """{id: the new judge's answer} for the marked answers found in the results (lookup)."""
+    return lookup(found, marked, ws)[0]
 
 
 def _free(found, marked, ws: Workspace) -> dict[str, str]:
     """The new judge's verdicts on the marked answers `marked` found in the results
-    (_matched)."""
+    (lookup)."""
     return {i: a.verdict for i, a in _matched(found, marked, ws).items()}
+
+
+MIXED = ("{k} {answers} got different grades in your new results; counted against your "
+         "LLM-as-a-judge.")
+REPEATS = "{k} repeated results in your new results were counted once."
+
+
+def mixed_line(k: int) -> str:
+    return MIXED.format(k=k, answers="answer" if k == 1 else "answers")
+
+
+def repeats_line(found) -> str | None:
+    """How many repeats of an answer with the same grade the results held (counted once)."""
+    k = found.pool.n_repeats if found is not None else 0
+    return REPEATS.format(k=k) if k else None
 
 
 GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
@@ -1160,7 +1200,8 @@ def full(path: str, said: Said) -> int:
         said.say()
         said.say(NEXT_EVAL.format(command=_command(state)))
         return EXIT_OK
-    tested = _free(found, state.marks, state.ws)
+    matched, mixed = lookup(found, state.marks, state.ws)
+    tested = {i: a.verdict for i, a in matched.items()}
     n, total = len(tested), len(state.marks)
     if not tested:
         said.say(NONE_IN.format(n=_n(total, "marked answer")))
@@ -1171,7 +1212,18 @@ def full(path: str, said: Said) -> int:
         k = total - n
         said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
                                else "them"))
+    if mixed:
+        said.say(mixed_line(len(mixed)))
+    if repeats_line(found):
+        said.say(repeats_line(found))
     said.say()
+    kinds = [state.marks[i] for i in tested]
+    if min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH:  # never exit 1 on few
+        said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
+                                need=targets.ROUGH))
+        said.say()
+        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+        return EXIT_NEEDS_YOU
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
     old_verdicts = _old_verdicts(state, old)
     picked, pool = _picks(state)
