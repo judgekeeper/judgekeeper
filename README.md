@@ -42,7 +42,7 @@ judgekeeper only reads files. It never runs your eval tool, makes no AI call and
 
 - **TPR:** of the answers you passed, how many your LLM-as-a-judge passed too.
 - **TNR:** of the answers you failed, how many it failed too.
-- **Kappa:** how much you agree beyond coincidence. It is in the report's details and never decides the result.
+- **Kappa:** how much you agree beyond what agreeing at random would give. It is in the report's details and never decides the result.
 
 Each number comes with a range, for example "about 89% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
 

@@ -128,7 +128,9 @@ Run it after you change your LLM-as-a-judge or eval tool and run your eval again
 
 **The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result.
 
-**The formulas.** The pool holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
+### The maths (you can skip this)
+
+**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
 
 ```
 TPR             = pi a / (pi a + (1 - pi) b)
@@ -188,7 +190,7 @@ judgekeeper's own format: one judged answer per JSONL line, written by you or by
 | `explanation` | the LLM-as-a-judge's reason |
 | `run` | repeat index, or empty |
 | `input`, `output` | the question and answer (text or any JSON) |
-| `evaluator` | the fingerprint: `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
+| `evaluator` | the fingerprint (what tells one LLM-as-a-judge setup from another): `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
 | `created_at` | when the grade was made |
 | `metadata` | anything else; never part of the fingerprint |
 | `trajectory` | for agents: the steps to the output, as OpenAI-style messages |
