@@ -2,7 +2,7 @@
 
 One line per folder: what it is, the commit it ran on, the model and the date.
 
-- **`coverage/`**: how often judgekeeper's ranges hold the true value, on simulated checks. Made by `scripts/coverage_check.py`; numbers from commit `a86ebfd`, run again on `bc0d099` with the same numbers; no model; 2026-10-21 (again 2026-10-25).
+- **`coverage/`**: how often judgekeeper's ranges hold the true value, on simulated checks. Made by `scripts/coverage_check.py`; numbers from commit `a86ebfd`, run again on `bc0d099` with the same numbers; the exit 1 column of `check` when nothing changed worked out again on `afc957f` (`--false-worse`, exact); no model; 2026-10-21 (again 2026-10-25, exit 1 column 2026-10-27).
 - **`jailbreakbench/`**: judgekeeper's steps on JailbreakBench's judge-comparison set, checked against the experts' labels. 100 draws of 100 marks on commit `7ec7a5e`, two batches (250 marks per draw) on `bc0d099`, one round on `6437d85` (first run `e3052c7`); GPT-4 (`openai:gpt-4-0613`), its grades taken from the dataset; 2026-10-27 (two batches 2026-10-25, one round 2026-10-21, first run 2026-10-17).
 - **`probes/`**: broken answers given to the two RAGTruth judges, to see what they do with them. Run on the judges only, with the RAGTruth runs from commit `bc0d099`; Claude Haiku 5.5 and Claude Sonnet 5.5; 2026-10-25.
 - **`ragtruth/`**: two Claude judges on RAGTruth's news summaries, 3 runs each, with RAGTruth's human labels as the marks. Commit `bc0d099`; Claude Haiku 5.5 and Claude Sonnet 5.5; 2026-10-25.
