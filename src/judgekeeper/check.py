@@ -90,6 +90,7 @@ NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked 
            "exact text.")
 NEXT_GIVEN = ("Next: give `{command}` your new {tool} results for the LLM-as-a-judge your marks "
               "test, or run it in your project folder to read the newest results.")
+NEXT_STORE = "Next: run `{command} {store}`: it reads the newest run."
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
@@ -1126,7 +1127,11 @@ def full(path: str, said: Said) -> int:
         if found is None:
             said.say(problem)
             said.say()
-            said.say(NEXT_GIVEN.format(tool=find.NAMES.get(state.data.get("tool"), "your eval"),
+            from judgekeeper.fix import mlflow_store
+
+            store = mlflow_store(state.ws)
+            said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
+                     NEXT_GIVEN.format(tool=find.NAMES.get(state.data.get("tool"), "your eval"),
                                        command=program("check")))
             return EXIT_USAGE
         now = Now(judge_setup.of(found), None, found, found.results[0].path)

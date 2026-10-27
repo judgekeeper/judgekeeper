@@ -852,6 +852,35 @@ def answer_text(value) -> str:
     return scrub(display(value))
 
 
+def mlflow_store(ws: Workspace) -> str | None:
+    """The MLflow store the marks were made on, as a path from where the command runs (the
+    new grades are a new run in it), or None for another eval tool."""
+    import os
+
+    try:
+        data = ws.cached_data()
+    except (OSError, ValueError):
+        return None
+    store = data.get("mlflow_store") if data.get("tool") == "mlflow" else None
+    if not isinstance(store, str) or not store:
+        return None
+    return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
+
+
+def _new_results(ws: Workspace) -> str:
+    """What `fix` is given next: the MLflow store, else NEW_RESULTS."""
+    return mlflow_store(ws) or NEW_RESULTS
+
+
+def _regrade_same(talk: Talk, ws: Workspace) -> str:
+    """The next step when answers kept aside are missing from the new results."""
+    store = mlflow_store(ws)
+    if store:
+        return (f"run your new scorer on all the traces again, then run "
+                f"`{talk.command()} {store}`: it reads the newest run.")
+    return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
+
+
 def regrade_line(tool: str | None) -> str:
     """How to grade the marked answers again with the person's own eval tool."""
     return REGRADE.get(tool or "", OWN)
@@ -868,6 +897,11 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if tool == "inspect":  # the log itself is graded again
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}`, then run "
                   f"`{talk.command()} {NEW_LOG}`.")
+        return
+    store = mlflow_store(ws) if tool == "mlflow" else None
+    if store:  # a new run in the same store
+        talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
+                  f"same traces, then run `{talk.command()} {store}`: it reads the newest run.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "
@@ -1019,8 +1053,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
                   f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
                   "set kept aside.")
-    talk.next(_after_step(talk, ws, m, v.kind) if not missing else REGRADE_SAME.format(
-        answers=_file(ws, ANSWERS), command=talk.command()))
+    talk.next(_after_step(talk, ws, m, v.kind) if not missing else _regrade_same(talk, ws))
     return EXIT_OK
 
 
@@ -1045,7 +1078,7 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str) -> str:
     if kind == "worse":
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "
-                f"run `{talk.command()} {NEW_RESULTS}` again.")
+                f"run `{talk.command()} {_new_results(ws)}` again.")
     return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 
