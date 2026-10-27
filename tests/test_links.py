@@ -206,8 +206,31 @@ def test_the_marks_writer_refuses_a_link_above_the_files_folder(tmp_path):
     outside = tmp_path / "outside"
     (outside / "x").mkdir(parents=True)
     _link(folder / "fix", outside, folder=True)
-    with pytest.raises(marks.MarksError, match="is a link"):
+    with pytest.raises(marks.MarksError, match="is a link to another folder"):
         marks.append(folder / "fix" / "x" / "y.jsonl", {"a": 1})
-    with pytest.raises(marks.MarksError, match="is a link"):
+    with pytest.raises(marks.MarksError, match="is a link to another folder"):
         marks.begin(folder / "fix" / "x" / "y.jsonl", {"a": 1})
     assert list((outside / "x").iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["mistakes.md", "marked-answers.csv", "split.json"])
+def test_a_hard_link_at_a_fix_file_is_refused_as_a_symlink_is(tmp_path, monkeypatch, capsys,
+                                                               name):
+    from tests import test_fix
+
+    monkeypatch.chdir(tmp_path)
+    ws = test_fix.project(tmp_path)
+    assert main(["fix"]) == 0
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    try:
+        os.link(ws.dir / "fix" / name, outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("hard links not allowed here")
+    before = outside.read_bytes()
+    capsys.readouterr()
+    code = main(["fix"])
+    out, err = capsys.readouterr()
+    assert code == 2, out + err
+    assert (f"{name} is linked to another file. judgekeeper does not write through links."
+            in " ".join(err.split()))
+    assert outside.read_bytes() == before

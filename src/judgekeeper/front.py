@@ -43,6 +43,7 @@ from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
+from judgekeeper.redact import scrub
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
@@ -1186,7 +1187,7 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
         tool, metric, judge = data["tool"], data["metric"], data["judge"]
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
-    if (found.tool, found.metric) != (tool, metric):
+    if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
                  f"({tool}), and these results are of {found.judge}.")]
     return [] if talk.new else None
@@ -1242,6 +1243,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
+    if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
+        start_label.store_result(ws, session, _flags_of(talk, saved))
     if every and not enough:  # nothing left to mark, and no result yet
         return _all_marked(talk, ws, counts, saved, head, then)
     return _page(talk, ws, counts, wait, saved, enough, head, marking, first, then)
@@ -1399,10 +1402,13 @@ def _pct(x: float) -> str:
 
 def agreement_lines(r: dict) -> list[str]:
     """Under the verdict, as on the result page: how many answers you and your judge
-    disagreed on, then the two counts, indented."""
+    disagreed on, then the two counts, indented; before a result, your two counts only."""
     from judgekeeper.report_page import counts
 
     c = counts(r)
+    if r["check"] == "too_few":  # before a result, the person's own counts only (as the page)
+        return [f"  You passed {_n(c['passed'], 'answer')}.",
+                f"  You failed {_n(c['failed'], 'answer')}."]
     n, d = c["passed"] + c["failed"], c["strict"] + c["easy"]
     first = (f"You and your LLM-as-a-judge disagreed on {d} of {_n(n, 'answer')}." if d else
              f"You and your LLM-as-a-judge agreed on all {_n(n, 'answer')}.")
@@ -1442,7 +1448,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     """When the judge's rule or model changed since marking started (or since the check that
     moved the marks to a new judge): which judge the result is about, as it was then."""
     data = ws.data()
-    same_rule = rule_hash(data.get("rule")) == rule_hash(found.rule)
+    same_rule = rule_hash(data.get("rule")) == rule_hash(scrub(found.rule))  # as start.json
     if same_rule and not judge_setup.judge_change(data["fingerprint"], found.fingerprint):
         return None
     head = marks.read(ws.marks).header or {}

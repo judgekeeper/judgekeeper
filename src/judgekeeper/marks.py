@@ -96,16 +96,19 @@ def _line(data: dict) -> str:
             .replace("\u2029", "\\u2029") + "\n")
 
 
-def _refused(link: Path) -> MarksError:
-    """The MarksError that names `link`: from this folder when it is inside it."""
+def _refused(link: Path, hard: bool = False) -> MarksError:
+    """The MarksError that names `link` (`hard`: a file with a second name), from this folder
+    when it is inside it, in the words start_label.refuse_links uses."""
     try:
         shown = os.path.relpath(link)
     except ValueError:  # Windows: on another drive
         shown = str(link)
     if shown.startswith(".."):
         shown = str(link)
-    return MarksError(f"{shown} is a link. judgekeeper does not write through links. Remove "
-                      "it, then try again.")
+    what = ("is linked to another file" if hard else
+            f"is a link to another {'folder' if os.path.isdir(link) else 'file'}")
+    return MarksError(f"{shown} {what}. judgekeeper does not write through links. Remove it, "
+                      "then try again.")
 
 
 def refuse_links_in(folder: Path) -> None:
@@ -119,7 +122,7 @@ def refuse_link(path: Path) -> None:
     """A MarksError when the file `path` is a link, or hard linked (a file with a second name
     elsewhere would be written there too)."""
     if os.path.islink(path) or hard_linked(path):
-        raise _refused(path)
+        raise _refused(path, hard=not os.path.islink(path))
 
 
 WORKSPACE = ".judgekeeper"  # start_label.FOLDER

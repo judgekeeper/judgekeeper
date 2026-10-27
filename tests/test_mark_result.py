@@ -136,3 +136,69 @@ def test_no_answer_text_or_ids_in_the_history(ws):
     assert "SECRET-TEXT" not in text and "Question" not in text
     for q in ws.data()["queue"]:
         assert q["id"] not in text
+
+
+# Before a result: nothing on the page tells the LLM-as-a-judge's grade ------------------------
+
+def test_a_mark_taken_back_below_a_result_takes_the_saved_result_back(ws, monkeypatch, capsys):
+    """15 Pass and 15 Fail that read "needs work" on /result, then one mark taken back: the
+    next run has no result to measure, and report.html and result.json say so."""
+    from judgekeeper.cli import main
+    from tests.test_fix import closed
+
+    session = start_label.StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for want in ("pass", "fail"):  # the person and the LLM-as-a-judge disagree on 8 of each 15
+        for k, item in enumerate([i for i in session.items if groups[i["id"]] == want][:15]):
+            other = "fail" if want == "pass" else "pass"
+            session.update({"id": item["id"], "label": other if k < 8 else want, "seconds": 5})
+    start_label.live_result(ws, session)
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["verdict_level"] == "not_gate"
+    session.update({"id": next(iter(session.marked())), "label": None, "seconds": 1})
+    monkeypatch.chdir(ws.root)
+    assert main(["--no-browser"]) == 0
+    closed(ws)
+    capsys.readouterr()
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert saved["check"] == "too_few" and saved["labels"]["correct"] + saved["labels"]["wrong"] == 29
+    page = ws.report_html.read_text(encoding="utf-8")
+    assert "needs work" not in page and start_label.VERDICTS[None] in page
+
+
+def test_grades_are_seen_only_when_the_page_lists_a_disagreement(ws):
+    """/result before a result (10 Pass and 10 Fail, 3 of each the other way): the page lists
+    no disagreement, so no change later is said to follow the grades, and none is kept aside."""
+    from judgekeeper import reasons
+    from tests.test_product_pages import _text
+
+    session = start_label.StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for want in ("pass", "fail"):
+        for k, item in enumerate([i for i in session.items if groups[i["id"]] == want][:10]):
+            other = "fail" if want == "pass" else "pass"
+            session.update({"id": item["id"], "label": other if k < 3 else want, "seconds": 5})
+    page = _text(start_label.live_result(ws, session))
+    assert "your LLM-as-a-judge said" not in page  # no disagreement listed
+    assert not reasons.grades_shown(ws) and not (ws.dir / "fix" / "split.json").exists()
+
+
+def test_marking_an_answer_and_taking_it_back_shows_nothing_of_its_grade(ws):
+    """Mark the next answer Pass, read /result, take the mark back: the page reads the same
+    for an answer the LLM-as-a-judge passed as for one it failed."""
+    from tests.test_product_pages import _text
+
+    session = _mark(ws, 8)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    seen = {}
+    for item in [i for i in session.items if not i["label"]][:10]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 3})
+        seen.setdefault(groups[item["id"]], set()).add(
+            _text(start_label.live_result(ws, session)))
+        session.update({"id": item["id"], "label": None, "seconds": 1})
+    assert set(seen) == {"pass", "fail"}  # both kinds were peeked at
+    assert seen["pass"] == seen["fail"] and len(seen["pass"]) == 1
+    (text,) = seen["pass"]
+    assert "Of those" not in text and "disagreed" not in text
+    said = [i["label"] for i in session.items if i["label"]]  # the 8, as the page's order gave
+    assert (f"You passed {said.count('pass') + 1} answers. You failed {said.count('fail')} "
+            "answers.") in text

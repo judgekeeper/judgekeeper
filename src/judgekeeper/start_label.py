@@ -818,17 +818,22 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
     return visible(page(r, back, fixing, worse, last))
 
 
-def _fixing(ws: Workspace) -> dict | None:
-    """The disagreements, after the hidden marks are set aside (fix.prepare_split): no mistake
-    is shown from a mark that a later test hides. Once they are shown, a mark changed later is
-    stamped (reasons.saw_grades). The answers' ids stay as they are: the page posts them."""
+def _fixing(ws: Workspace, r: dict) -> dict | None:
+    """The disagreements the page for the result `r` lists, after the hidden marks are set
+    aside (fix.prepare_split): no mistake is shown from a mark that a later test hides. Once
+    one is shown, a mark changed later is stamped (reasons.saw_grades). None while the page
+    lists none. The answers' ids stay as they are: the page posts them."""
     from judgekeeper import fix
+    from judgekeeper.report_page import shows_disagreements
 
+    if not shows_disagreements(r):
+        return None
     fix.prepare_split(ws)
     section = fix.report_section(ws)
     if not section:
         return None
-    reasons.saw_grades(ws)
+    if section["mistakes"]:
+        reasons.saw_grades(ws)
     ids = [m["id"] for m in section["mistakes"]]
     section = _scrubbed(section)
     for m, i in zip(section["mistakes"], ids, strict=True):
@@ -878,7 +883,7 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
-        write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws),
+        write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws, r),
                                                     worse=worse, last=_last_check(ws, worse)))
 
 
@@ -887,7 +892,7 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     """The result page the marking page serves at /result: the result from the marks so far,
     with the reason boxes. `flags`: start.run_flags of the run that opened the page."""
     r = store_result(ws, session, flags)
-    return result_html(_scrubbed(_now(ws, r)), back, fixing=_fixing(ws))
+    return result_html(_scrubbed(_now(ws, r)), back, fixing=_fixing(ws, r))
 
 
 def page_template(about: dict | None = None, command: str | None = None,
@@ -1069,7 +1074,7 @@ def store_result(ws: Workspace, session: StartSession,
         write_anchor_file(ws.anchors, _scrubbed(anchors))
     # report.html, the history line, then result.json: stopped half way (Ctrl-C), the saved
     # result is the old one, which the next run sees as not made from these marks (repair)
-    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws), worse=worse,
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws, r), worse=worse,
                                                 last=_last_check(ws, worse)))
     if ws.result_html.is_file() and not ws.result_html.is_symlink():
         ws.result_html.unlink()

@@ -214,3 +214,27 @@ def test_a_long_list_of_folders_names_at_most_20_commands(tmp_path, capsys):
                     values=folders, what="which DeepEval results to check")
     line = next_lines(capsys.readouterr().out)[-1]
     assert "run19" in line and "run20" not in line and "and 10 more" in line, line
+
+
+SPLIT_KEY = "ghp_" + "A" * 18 + "\\u200b" + "B" * 18  # a key split by a zero-width space, as JSON
+
+
+@pytest.mark.parametrize("kind", ["results file", "own table"])
+def test_a_key_split_in_a_name_is_hidden_in_the_list_of_names(tmp_path, monkeypatch, capsys,
+                                                              kind):
+    from tests.start_projects import nested_runs_project
+
+    if kind == "results file":
+        _metrics(tmp_path, ["tone"], rows={0})
+        path = tmp_path / "results.json"
+        name = "tone"
+    else:
+        path = nested_runs_project(tmp_path, rule_rows=0)
+        name = "Plain language"
+    path.write_text(path.read_text(encoding="utf-8").replace(name, f"tone {SPLIT_KEY}"),
+                    encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(capsys, "--metric", "nope", "--yes")
+    error = next(x for x in out.splitlines() if x.startswith("error: no LLM-as-a-judge named"))
+    assert code == 2 and "'tone [REDACTED]'" in error, error
+    assert "A" * 18 not in out and "B" * 18 not in out
