@@ -325,3 +325,57 @@ def test_honest_logs_hold_far_fewer_values_per_byte():
         values = sum(inspect_logs._unpacks_to(f, p, 10**9)[1] for p in samples)
         packed = sum(p.compress_size for p in samples)
     assert values / packed < inspect_logs.VALUES_PER_BYTE / 20
+
+
+# Ctrl-C while samples are read ------------------------------------------------------------------
+
+def test_quiet_silences_inspect_and_asyncio():
+    import logging
+
+    from judgekeeper.readers.inspect_logs import quiet
+
+    with quiet():
+        for name in ("inspect_ai", "asyncio"):
+            assert not logging.getLogger(name).isEnabledFor(logging.ERROR), name
+    assert logging.getLogger("asyncio").level == logging.NOTSET
+
+
+@pytest.mark.skipif(__import__("os").name == "nt", reason="Ctrl-C can't be sent this way")
+def test_ctrl_c_while_samples_are_read_says_only_stopped(tmp_path):
+    """300 samples that take Inspect AI seconds to read; Ctrl-C a second into the read."""
+    import os
+    import signal
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    pytest.importorskip("inspect_ai")
+    old = _old_parts()
+    base = json.loads(old["samples/1_epoch_1.json"])
+    header = json.loads(old["header.json"])
+    header["eval"]["dataset"].update(samples=300, sample_ids=list(range(1, 301)))
+    parts = {"_journal/start.json": old["_journal/start.json"]}
+    for i in range(1, 301):
+        sample = dict(base, id=i, metadata={"fill": os.urandom(10_000).hex(), "pad": [0] * 30_000})
+        parts[f"samples/{i}_epoch_1.json"] = json.dumps(sample)
+    parts.update({name: old[name] for name in ("summaries.json", "reductions.json")})
+    parts["header.json"] = json.dumps(header)
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "2026-10-21_qa.eval").write_bytes(_zipped(parts))
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    env = dict(os.environ, PYTHONPATH=src + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    p = subprocess.Popen([sys.executable, "-u", "-m", "judgekeeper", "--no-browser", "--yes"],
+                         cwd=tmp_path, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True)
+    try:
+        for line in p.stdout:  # reading starts after the step's name
+            if line.startswith("Step 1 of 5: Find"):
+                break
+        time.sleep(1)
+        p.send_signal(signal.SIGINT)
+        out, err = p.communicate(timeout=120)
+    finally:
+        p.kill()
+    assert p.returncode == 130, out + err
+    assert "Stopped." in out
+    assert "Task exception" not in err and "RuntimeError" not in err, err

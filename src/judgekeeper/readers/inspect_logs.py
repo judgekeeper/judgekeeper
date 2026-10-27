@@ -76,17 +76,24 @@ def _mark(score: dict, label) -> Mark:
     return Mark(problem=problem, tool_counted_as=counted if problem else None)
 
 
+# inspect_ai's loggers, and asyncio's: a read stopped by Ctrl-C leaves inspect_ai's tasks, and
+# asyncio logs each one's error as it is let go
+QUIET_LOGGERS = ("inspect_ai", "asyncio")
+
+
 @contextmanager
 def quiet() -> Iterator[None]:
     """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
     said here, in plain words, never with its text). Put back afterwards."""
-    logger = logging.getLogger("inspect_ai")
-    level = logger.level
-    logger.setLevel(logging.CRITICAL)
+    loggers = [logging.getLogger(name) for name in QUIET_LOGGERS]
+    levels = [logger.level for logger in loggers]
+    for logger in loggers:
+        logger.setLevel(logging.CRITICAL)
     try:
         yield
     finally:
-        logger.setLevel(level)
+        for logger, level in zip(loggers, levels, strict=True):
+            logger.setLevel(level)
 
 
 # What judgekeeper reads of a sample (and of its output, the completion only).
@@ -818,7 +825,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
         return _read(path, data, samples, with_errors)
     finally:
         if isinstance(samples, Iterator):
-            samples.close()
+            with quiet():  # a read Ctrl-C stopped: asyncio says nothing of it
+                samples.close()
 
 
 def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
