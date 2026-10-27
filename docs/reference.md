@@ -104,7 +104,7 @@ After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Bett
 judgekeeper check [PATH]
 ```
 
-Run it after you change your LLM-as-a-judge or eval tool and run your eval again. It notices a new model, rule, grading prompt, pass mark or temperature, a panel's voting rule, an agent's settings, the eval tool's version, and the endpoint when the results record one. It can't compare two different eval tools.
+Run it after you change your LLM-as-a-judge or eval tool and grade the answers you marked again the same way as for `fix` (see [Grading answers again](eval-tools.md#grading-answers-again)). It notices a new model, rule, grading prompt, pass mark or temperature, a panel's voting rule, an agent's settings, the eval tool's version, and the endpoint when the results record one. It can't compare two different eval tools.
 
 | Flag | What it does |
 |---|---|

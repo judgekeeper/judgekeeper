@@ -86,18 +86,30 @@ SAME_GRADES = ("These are the same grades as when you marked: give the results f
                "change.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
-    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests with the `echo` provider and your new "
-                  "rule; save with `-o`."),
+    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
+                  "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
+                  "`defaultTest.options.provider` and the same `metric:` with your new rule; "
+                  "the rule's variables are the file's columns, `{{question}}` and "
+                  "`{{answer}}`. Save with `-o`. judgekeeper's docs/eval-tools.md shows the "
+                  "whole config."),
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
-                "`-S instructions=` takes a rule with no comma (Inspect cuts `-S` values at "
-                "commas); else grade it with Inspect's score() in Python, as judgekeeper's "
-                "docs/eval-tools.md shows. `--action overwrite` keeps the new grades under "
-                "your scorer's name, and `--output-file` writes them to a new log, so yours "
-                "stays as it was."),
-    "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer."),
-    "deepeval": f"DeepEval: build test cases from {ANSWERS} and run the metric.",
+                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
+                "give the options you set before again with `-S`. `-S instructions=` takes a "
+                "rule with no comma (Inspect cuts `-S` values at commas); else grade it with "
+                "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
+                "`--action overwrite` replaces the old grades in the new log, so your "
+                "scorer's name holds the new ones, and `--output-file` writes a new log, so "
+                "yours stays as it was."),
+    "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
+               "under the same name."),
+    "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
+                 "`answer` as actual_output); run your metric with its new rule and the same "
+                 "name through `deepeval test run`, which saves a new test_run_<date>.json in "
+                 "your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
+TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
+         "`answer` as its output, and the grade.")
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -884,7 +896,7 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
 
 def regrade_line(tool: str | None) -> str:
     """How to grade the marked answers again with the person's own eval tool."""
-    return REGRADE.get(tool or "", OWN)
+    return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
 
 
 NEW_LOG = "new.eval"
