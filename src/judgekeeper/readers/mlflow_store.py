@@ -146,8 +146,11 @@ def kept_location(value, home: Path) -> Path | None:
     """Where a trace's data is kept (`value`, a location tag's), as a full path, when it is a
     plain local path or a `file:` address with no host that leads inside `home` (the folder
     that holds mlflow.db) once links are followed; else None: a server (http, s3, gs, wasbs,
-    mlflow-artifacts, dbfs...), a host's or network share's path, or a folder elsewhere."""
-    text = str(value or "")
+    mlflow-artifacts, dbfs...), a host's or network share's path, a folder elsewhere, or a
+    value that is not text (SQLite keeps any kind: a BLOB is no path)."""
+    if not isinstance(value, str):
+        return None
+    text = value
     if text.lower().startswith("file:"):
         address = urlparse(text)
         if address.netloc:

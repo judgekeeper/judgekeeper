@@ -433,3 +433,10 @@ def test_a_store_holding_a_view_is_damaged(made, tmp_path, listener, view):
             start.find_judge(root)
     finally:
         assert asked == []
+
+
+@pytest.mark.parametrize("value", [b"mlartifacts/traces/tr-1/artifacts", 7, 1.5,
+                                   bytearray(b"mlartifacts")])
+def test_a_location_that_is_not_text_counts_as_elsewhere(tmp_path, value):
+    """SQLite keeps any kind of value: a BLOB is not a path in the project."""
+    assert mlflow_store.kept_location(value, tmp_path) is None
