@@ -122,14 +122,20 @@ def field(tool: str, rule_field: str | None = None) -> str:
     return FIELDS.get(tool, OWN_CODE)
 
 
-def rule_home(root: Path, tool: str, data: dict) -> str:
-    """Where the eval tool keeps the rule, in words: the field, and the config file when
-    judgekeeper knows it (promptfoo's config, Inspect's task file)."""
+def rule_config(root: Path, tool: str, data: dict) -> str | None:
+    """The config file that holds the rule, when judgekeeper knows it (promptfoo's config,
+    Inspect's task file)."""
     from judgekeeper.find import PROMPTFOO_CONFIGS
 
+    return (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
+            if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
+
+
+def rule_home(root: Path, tool: str, data: dict) -> str:
+    """Where the eval tool keeps the rule, in words: the field, and its config file
+    (rule_config) when judgekeeper knows it."""
     where = field(tool, data.get("rule_field"))
-    config = (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
-              if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
+    config = rule_config(root, tool, data)
     return f"{where} in {file_link(root, config)}" if config else where
 
 
@@ -222,5 +228,5 @@ def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
     return (path, found[1], found[2]) if path else None
 
 
-__all__ = ["fenced", "field", "file_link", "found_rule", "locate_rule", "rule_home", "rule_text",
-           "safe_path"]
+__all__ = ["fenced", "field", "file_link", "found_rule", "locate_rule", "rule_config", "rule_home",
+           "rule_text", "safe_path"]

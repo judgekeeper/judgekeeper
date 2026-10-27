@@ -952,6 +952,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if where:
             talk.say(f"Your LLM-as-a-judge's rule is in {link(ws.root / where[0], where[0])}, "
                      f"line {where[1]}:")
+        elif start_fix_rule.rule_config(ws.root, tool or "", data):
+            talk.para("Your LLM-as-a-judge's rule is in "
+                      f"{start_fix_rule.rule_home(ws.root, tool or '', data)}:")
         else:
             talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
                       f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool or '', data)}:")

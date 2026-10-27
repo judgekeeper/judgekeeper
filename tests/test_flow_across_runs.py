@@ -512,7 +512,8 @@ def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypa
     assert "find.txt" not in out and "run.log" not in out and "copy.md" not in out
 
 
-def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypatch):
+def test_fix_names_the_file_that_holds_the_rule_when_it_cant_find_the_line(tmp_path, capsys,
+                                                                           monkeypatch):
     from tests.test_fix import RULE, project
 
     monkeypatch.chdir(tmp_path)
@@ -521,9 +522,23 @@ def test_fix_says_when_it_cant_tell_where_the_rule_is(tmp_path, capsys, monkeypa
                                                    encoding="utf-8")
     (tmp_path / "notes.txt").write_text(f"{RULE}\n", encoding="utf-8")
     _, out = _jk(capsys, "fix")
-    assert ("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your eval keeps it in "
-            "the `value:` of the llm-rubric assert in promptfooconfig.yaml:") in flat(out), out
-    assert "notes.txt" not in out
+    assert ("Your LLM-as-a-judge's rule is in the `value:` of the llm-rubric assert in "
+            "promptfooconfig.yaml:") in flat(out), out
+    assert "can't tell which file" not in flat(out) and "notes.txt" not in out
+
+
+def test_fix_says_when_it_cant_tell_which_file_holds_the_rule(tmp_path, capsys, monkeypatch):
+    from tests.test_fix import project
+
+    monkeypatch.chdir(tmp_path)
+    ws = project(tmp_path)
+    data = json.loads(ws.start.read_text(encoding="utf-8"))
+    data["tool"] = "deepeval"
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    (tmp_path / "promptfooconfig.yaml").unlink()  # nothing in the project holds the rule
+    _, out = _jk(capsys, "fix")
+    assert ("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your eval keeps "
+            "it in") in flat(out), out
 
 
 # Nested projects -----------------------------------------------------------------------------
