@@ -518,3 +518,17 @@ def test_mlflow_usage_tracking_is_off_in_the_reader(tmp_path):
     seen = json.loads(out.strip().splitlines()[-1])
     assert seen["env"] == {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
     assert seen["client"] is False  # MLflow made no usage-tracking client
+
+
+def test_two_stores_print_nothing_of_mlflows_own(two):
+    """Choosing between mlflow.db and mlruns/ checks for MLflow without importing it before
+    its hint is switched off."""
+    env = {k: v for k, v in os.environ.items() if k not in (ALLOW, HINT)}
+    env.update(CLAUDECODE="1", PYTHONPATH=str(ROOT / "src"))
+    result = subprocess.run([sys.executable, "-m", "judgekeeper", str(two), "--no-browser"],
+                            capture_output=True, text=True, env=env,
+                            stdin=subprocess.DEVNULL, timeout=300, check=False)
+    out = result.stdout + result.stderr
+    assert "MLflow stores found" in out, out
+    assert "MLFLOW_DISABLE_AGENT_HINT" not in out and "skill" not in out, out
+    assert "INFO" not in out and "WARNING" not in out, out

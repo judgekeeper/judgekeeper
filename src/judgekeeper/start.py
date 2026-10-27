@@ -1903,7 +1903,9 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     )
 
     stores = sorted(stores, key=lambda s: (s.path.is_dir(), -s.date().timestamp()))
-    if not _has("mlflow"):  # the same screen as for one store: never a bare error
+    with quiet():  # MLflow imported with its hint and usage tracking off
+        has = _has("mlflow")
+    if not has:  # the same screen as for one store: never a bare error
         raise _needs_extra(talk, "mlflow", _store_name(stores[0]))
     names = []
     for s in stores:
