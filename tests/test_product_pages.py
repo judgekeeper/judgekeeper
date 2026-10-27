@@ -377,9 +377,16 @@ def test_a_narrow_window_stacks_the_bar_and_puts_the_card_before_the_list():
     assert ".side { border-right: 0; border-top: 1px solid var(--line); order: 2; }" in narrow
     assert ".main { order: 1; }" in narrow
     assert ".btn { height: 60px;" in narrow
-    bar = look.BASE.split("@media (max-width: 760px) {")[1].split("\n}\n")[0]
+    # the bar stacks up to 900px, so an iPad held upright shows the whole model name
+    bar = look.BASE.split("@media (max-width: 900px) {")[1].split("\n}\n")[0]
     assert ".meta { grid-row: 1;" in bar and ".brand { grid-row: 2;" in bar  # lines, logo,
     assert ".top .right { grid-row: 3;" in bar                                # then progress
+    phone = look.BASE.split("@media (max-width: 760px) {")[1].split("\n}\n")[0]
+    assert ".meta .k { font-size: 13px; }" in phone and ".meta .v { font-size: 14px; }" in phone
+    # a small phone puts each label above its value, so the model name is shown whole
+    small = look.BASE.split("@media (max-width: 420px) {")[1].split("\n}\n")[0]
+    assert ".meta { grid-template-columns: minmax(0, 1fr); gap: 0; }" in small
+    assert ".meta .v { white-space: normal; overflow-wrap: anywhere; }" in small
     assert "insertBefore" not in mark_page.BODY and "rail" not in mark_page.BODY
 
 
@@ -590,6 +597,7 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
     assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in text
     assert ('<button type="button" class="i" aria-describedby="kappa-tip" '
+            'aria-expanded="false" aria-controls="kappa-tip" '
             'aria-label="What kappa means">ⓘ</button>') in part
     assert "<details" not in html and 'hidden' not in part  # not folded
 
@@ -728,7 +736,12 @@ def test_the_result_page_style():
                  (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
                   ".panel col.d3 { width: 26%; }"),
                  ".panel td { font-size: 17px; padding: 20px 32px 20px 0;",
-                 ".kappa:hover .tip, .kappa:focus-within .tip { display: block; }",
+                 # a tap opens kappa's tip and a second tap closes it; hover only with a mouse
+                 (".kappa .i[aria-expanded=\"true\"] + .tip, "
+                  ".kappa .i:focus-visible:not([data-shut]) + .tip {\n  display: block; }"),
+                 "@media (hover: hover) { .kappa:hover .tip { display: block; } }",
+                 # Safari sized the command box from its 360px floor and let it stick out
+                 "  min-width: 0; }",
                  (".fix { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 48px; "
                   "padding-bottom: 72px; }"),
                  (".fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); "
@@ -742,6 +755,22 @@ def test_the_result_page_style():
     assert ":root { --gutter: 16px; }" in narrow
     assert ".tbl, .tbl tbody, .tbl tr, .tbl td { display: block; }" in narrow
     assert ".tbl td::before { content: attr(data-label);" in narrow
+    # on a phone: "judgekeeper fix" on one line, and no text under 13px
+    for rule in (".cmd code { padding: 16px; }", ".cmd button { font-size: 15px; }",
+                 ".tbl td::before { font-size: 13px; }",
+                 ".panel td[data-label]::before, .panel caption, .note { font-size: 14px; }",
+                 ".kappa .tip { font-size: 15px; }"):
+        assert rule in narrow, rule
+    # on a phone or a touch screen, "Show all" and kappa's ⓘ are big enough to tap (48 and
+    # 44px), with the layout as it was
+    touch = style.split("@media (max-width: 720px), (pointer: coarse) {")[1].split("\n}\n")[0]
+    assert ".more { font-size: 16px; padding: 12px 0; margin: -12px 0; }" in touch
+    assert (".kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }"
+            in touch)
+    # from 300px down (a phone with bigger text), Copy goes under the command
+    tiny = style.split("@media (max-width: 300px) {")[1].split("\n}\n")[0]
+    assert ".cmd { grid-template-columns: 1fr; }" in tiny
+    assert "min-width: min(" not in style
 
 
 def test_the_page_runs_only_its_own_script():
