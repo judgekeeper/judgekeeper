@@ -1396,7 +1396,8 @@ def agreement_lines(r: dict) -> list[str]:
 
 def estimate_lines(r: dict) -> list[str]:
     """How often the judge agrees with you, estimated, as the result page's More details
-    (report_page.estimate): "about 57% (between 37% and 74%)", or too early to tell."""
+    (report_page.estimate): "about 57% (between 37% and 74%)", also while it is too early to
+    tell; too early to tell only with no number yet."""
     from judgekeeper.report_page import estimate
 
     out = [AGREES]
@@ -1497,7 +1498,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
                 n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
-    if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
+    if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
         for line in estimate_lines(r):
             talk.say(line)

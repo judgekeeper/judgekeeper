@@ -179,13 +179,19 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
         assert gone not in out, gone
 
 
-def test_a_side_too_wide_is_too_early_to_tell(project, capsys):
+def test_a_side_too_wide_is_too_early_to_tell_with_both_numbers(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
-    promptfoo_project(project, split(180, 20))  # the judge passes 90%: few answers fail
+    promptfoo_project(project, split(360, 40))  # the judge passes 90%: few answers fail
     out = _measured(project, capsys, lambda g, n: g, limit=30)  # 15 + 15, all agreed
-    assert "Result: too early to tell. Mark more answers to get a result." in out.splitlines()
-    assert "How often" not in out and "When you say" not in out  # no estimates block yet
+    lines = out.splitlines()
+    assert "Result: too early to tell. Mark more answers to get a result." in lines
+    at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
+    assert at > lines.index("Result: too early to tell. Mark more answers to get a result.")
+    for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
+        assert re.fullmatch(rf"  When you say {word}, it also says {word}: (about )?\d+% "
+                            r"\(between \d+% and \d+%\)", line), line
+    assert "too early to tell" not in "\n".join(lines[at:at + 3])
     assert out.rstrip().endswith(
         "Next: run `judgekeeper mark --no-browser` to mark more answers.")
 
