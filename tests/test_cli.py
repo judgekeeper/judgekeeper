@@ -78,3 +78,109 @@ def test_a_closed_output_pipe_keeps_the_exit_code(tmp_path, args, code):
     assert "BrokenPipeError" not in done.stderr and "Exception ignored" not in done.stderr
     if code == 0:
         assert done.stderr == ""
+
+
+# --- a closed or broken stdout or stderr ------------------------------------------------------
+
+POSIX = pytest.mark.skipif(sys.platform == "win32", reason="closes a file descriptor")
+
+
+def _judgekeeper(cwd, *args, close=(), broken=(), script=None) -> subprocess.CompletedProcess:
+    """judgekeeper with the streams in `close` closed and those in `broken` a pipe whose
+    reader already stopped. `script` runs instead of `python -m judgekeeper`."""
+    pipes = {}
+    for fd in broken:
+        read, write = os.pipe()
+        os.close(read)
+        pipes[fd] = write
+
+    def child():
+        for fd in close:
+            os.close(fd)
+
+    argv = [sys.executable, "-P", *(["-c", script] if script else ["-m", "judgekeeper"]), *args]
+    try:
+        return subprocess.run(argv, cwd=cwd, stdin=subprocess.DEVNULL,
+                              stdout=pipes.get(1, subprocess.PIPE),
+                              stderr=pipes.get(2, subprocess.PIPE), preexec_fn=child,
+                              text=True, timeout=60, check=False)
+    finally:
+        for write in pipes.values():
+            os.close(write)
+
+
+@POSIX
+def test_version_with_stdout_closed_exits_0(tmp_path):
+    done = _judgekeeper(tmp_path, "--version", close=[1])
+    assert done.returncode == 0, done.stderr
+    assert "Traceback" not in done.stderr
+
+
+@POSIX
+@pytest.mark.parametrize("how", ["closed", "broken"])
+def test_a_bad_port_with_stderr_gone_still_exits_2(tmp_path, how):
+    stream = {"close": [2]} if how == "closed" else {"broken": [2]}
+    done = _judgekeeper(tmp_path, "--port", "abc", **stream)
+    assert done.returncode == 2
+
+
+CTRL_C = """
+import sys
+from judgekeeper import __main__ as entry, cli
+
+def stopped(argv):
+    raise KeyboardInterrupt  # Ctrl-C while the flags are read
+
+cli._main = stopped
+sys.exit(entry.main(sys.argv[1:]))
+"""
+
+
+@POSIX
+def test_ctrl_c_with_stdout_broken_still_exits_130(tmp_path):
+    done = _judgekeeper(tmp_path, "--port", "1", broken=[1], script=CTRL_C)
+    assert done.returncode == 130, done.stderr
+    assert "Exception ignored" not in done.stderr and "Traceback" not in done.stderr
+
+
+class _FullDisk:
+    """A file on a full disk: every write fails with ENOSPC, until its descriptor is moved to
+    the null device."""
+
+    def __init__(self, path):
+        import io
+
+        self.fd = os.open(path, os.O_WRONLY | os.O_CREAT)
+        raw = type("Raw", (io.RawIOBase,), {
+            "writable": lambda s: True, "fileno": lambda s: self.fd,
+            "write": lambda s, b: self._write(b)})()
+        self.stream = io.TextIOWrapper(io.BufferedWriter(raw), encoding="utf-8")
+
+    def _write(self, data) -> int:
+        null = os.stat(os.devnull)
+        now = os.fstat(self.fd)
+        if (now.st_dev, now.st_ino) != (null.st_dev, null.st_ino):
+            import errno
+
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return os.write(self.fd, bytes(data))
+
+
+@pytest.mark.skipif(not hasattr(os, "dup2") or sys.platform == "win32",
+                    reason="the null device is NUL on Windows")
+@pytest.mark.parametrize("args, code", [(["--version"], 0), (["--port", "abc"], 2)])
+def test_a_full_disk_on_stdout_gives_no_traceback(tmp_path, monkeypatch, args, code):
+    full = _FullDisk(tmp_path / "out.txt")
+    monkeypatch.setattr(sys, "stdout", full.stream)
+    assert main(args) == code
+    full.stream.flush()  # Python's own flush at exit: nothing left to fail
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/full"), reason="no /dev/full here")
+def test_stdout_on_dev_full_exits_0_not_120(tmp_path):
+    with open("/dev/full", "w", encoding="utf-8") as full:
+        done = subprocess.run([sys.executable, "-P", "-m", "judgekeeper", "--version"],
+                              cwd=tmp_path, stdout=full, stderr=subprocess.PIPE, text=True,
+                              timeout=60, check=False)
+    assert done.returncode == 0, done.stderr
+    assert "Traceback" not in done.stderr

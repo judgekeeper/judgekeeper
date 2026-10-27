@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -67,15 +68,20 @@ def lenient_streams() -> None:
             pass
 
 
-def flush_stdout() -> None:
-    """Flush stdout. When the program reading it stopped (`| head`), the rest of the output
-    goes to the null device from here on and the command carries on to its own exit code."""
+def flush_stdout(err: bool = False) -> None:
+    """Flush stdout (`err`: stderr). When it can't take the output (the program reading it
+    stopped, as `| head` does, the disk is full, or it was closed), the rest goes to the null
+    device from here on and the command carries on to its own exit code. A stream closed
+    before judgekeeper started is None: nothing to flush."""
+    stream = sys.stderr if err else sys.stdout
+    if stream is None:
+        return
     try:
-        sys.stdout.flush()
-    except BrokenPipeError:
+        stream.flush()
+    except (OSError, ValueError):  # BrokenPipeError and io.UnsupportedOperation are OSErrors
         try:
             with open(os.devnull, "w", encoding="utf-8") as null:
-                os.dup2(null.fileno(), sys.stdout.fileno())
+                os.dup2(null.fileno(), stream.fileno())
         except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is an OSError
             pass
 
@@ -88,10 +94,15 @@ def started_by_uvx() -> bool:
         sys.prefix.replace("\\", "/")).parent.name.startswith("archive-v")
 
 
+# The marking page's own process runs as `python -m judgekeeper.page`: the command that
+# started it says whether it was `python -m judgekeeper` itself (page.main sets this)
+_python_m = False
+
+
 def started_with_python_m() -> bool:
-    """Whether this process is `python -m judgekeeper`."""
+    """Whether this process is `python -m judgekeeper`, or the marking page of one."""
     spec = getattr(sys.modules.get("__main__"), "__spec__", None)
-    return getattr(spec, "name", None) == "judgekeeper.__main__"
+    return _python_m or getattr(spec, "name", None) == "judgekeeper.__main__"
 
 
 def program(subcommand: str = "") -> str:
@@ -204,6 +215,64 @@ def decode_utf8(data: bytes, path: str | Path, error: type[Exception]) -> str:
         raise error(not_utf8_message(path)) from None
 
 
+class NotAFile(OSError):
+    """A path judgekeeper reads or keeps a file at is a folder, a named pipe (FIFO) or another
+    special file. Reading a named pipe would wait for a writer forever."""
+
+    def __init__(self, path: str | Path, kind: str):
+        super().__init__(errno.EINVAL, f"it is a {kind}, not a file", str(path))
+        self.kind = kind
+
+
+def file_kind(mode: int) -> str | None:
+    """What a path with the stat mode `mode` is, in words, when it is not a regular file."""
+    if stat.S_ISREG(mode):
+        return None
+    if stat.S_ISDIR(mode):
+        return "folder"
+    if stat.S_ISFIFO(mode):
+        return "named pipe"
+    return "special file"
+
+
+def not_a_file(path: str | Path) -> NotAFile | None:
+    """NotAFile when something other than a regular file is at `path` (a link is not
+    followed), else None (a regular file, a link or nothing)."""
+    try:
+        mode = os.lstat(path).st_mode
+    except OSError:
+        return None
+    kind = None if stat.S_ISLNK(mode) else file_kind(mode)
+    return None if kind is None else NotAFile(path, kind)
+
+
+def open_regular(path: str | Path):
+    """`path` opened for reading as bytes, only when it is a regular file; else NotAFile. It
+    is opened without waiting (a named pipe would wait for a writer), then checked."""
+    nonblock = getattr(os, "O_NONBLOCK", 0)  # none on Windows, where a file never waits
+    fd = os.open(path, os.O_RDONLY | nonblock | getattr(os, "O_BINARY", 0))
+    try:
+        kind = file_kind(os.fstat(fd).st_mode)
+        if kind is not None:
+            raise NotAFile(path, kind)
+        if nonblock:
+            os.set_blocking(fd, True)
+    except BaseException:
+        os.close(fd)
+        raise
+    return os.fdopen(fd, "rb")
+
+
+def read_regular(path: str | Path, limit: int = -1) -> bytes:
+    """The bytes of a regular file (open_regular), at most `limit` of them when given."""
+    with open_regular(path) as f:
+        return f.read(limit)
+
+
+def not_a_file_message(path: str | Path, kind: str) -> str:
+    return f"{Path(path).name} is a {kind}, not a file, so judgekeeper can't read it."
+
+
 last_read: str | None = None  # the name of the last file read_utf8 read, for an error
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
 PROGRESS_EVERY = 5  # seconds between those lines
@@ -236,15 +305,23 @@ def reading(n: int, name: str | None = None) -> None:
 def read_utf8(path: str | Path, error: type[Exception]) -> str:
     """The text of a file the user supplied, without a byte order mark.
 
-    Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8.
+    Raises `error` (the caller's usage error) with one plain line when the file is not UTF-8,
+    or is not a regular file (a named pipe would never end).
     """
     global last_read
     last_read = Path(path).name
     _reading.update(since=_clock(), said=None)
-    return decode_utf8(Path(path).read_bytes(), path, error).removeprefix(BOM)
+    try:
+        data = read_regular(path)
+    except NotAFile as e:
+        raise error(not_a_file_message(path, e.kind)) from None
+    return decode_utf8(data, path, error).removeprefix(BOM)
 
 
 NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
+NOT_TEXT = ("{file} holds a character that isn't text (a lone surrogate such as \\ud800), so "
+            "judgekeeper can't read it.")
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
 MAX_NESTING = 500  # lists and objects inside each other; Python before 3.14 stops near 1000
 
 
@@ -259,7 +336,27 @@ def read_json(path: str | Path, error: type[Exception]):
         raise error(NOT_JSON.format(file=path)) from None
     if too_deep(data):
         raise error(NOT_JSON.format(file=path))
+    if lone_surrogate(data):
+        raise error(NOT_TEXT.format(file=Path(path).name))
     return data
+
+
+def lone_surrogate(data) -> bool:
+    """Whether a string in `data` (keys too, inside lists and objects) holds a lone surrogate:
+    a JSON escape such as \\ud800 reads as one, and it can't be written as UTF-8. Walked
+    without recursion."""
+    stack = [data]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, str):
+            if not value.isascii() and _SURROGATE.search(value):
+                return True
+        elif isinstance(value, dict):
+            stack.extend(value.keys())
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+    return False
 
 
 def too_deep(data) -> bool:
@@ -414,7 +511,8 @@ def make_private(folder: str | Path) -> None:
 
 def link_in(folder: str | Path) -> Path | None:
     """`folder` itself, or the first file or folder in it, that is a link (a symlink, or on
-    Windows a junction), or None. Links are not followed."""
+    Windows a junction), or None. Links are not followed. A named pipe or other special file
+    in it is NotAFile: reading it would wait forever."""
     folder = Path(folder)
     if _is_link(folder):
         return folder
@@ -422,6 +520,8 @@ def link_in(folder: str | Path) -> Path | None:
         for name in sorted(dirs + files):
             if _is_link(Path(top) / name):
                 return Path(top) / name
+            if name in files and (odd := not_a_file(Path(top) / name)) is not None:
+                raise odd
     return None
 
 
@@ -456,6 +556,8 @@ WORKSPACE = ".judgekeeper"  # where judgekeeper keeps its files, in the project
 WORKSPACE_FILE = (".judgekeeper is a file, but judgekeeper keeps its files in a .judgekeeper/ "
                   "folder there.")
 WORKSPACE_FILE_NEXT = "move or rename the file .judgekeeper, then run `{command}`."
+NOT_A_FILE = "{path} is a {kind}, but judgekeeper keeps a file of its own there."
+NOT_A_FILE_NEXT = "move or rename {path}, then run `{command}`."
 WORKSPACE_DENIED = ("judgekeeper can't write in .judgekeeper/ (permission denied): it keeps "
                     "its files there.")
 OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, which was removed. "
@@ -501,6 +603,10 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
     folder = Path(*parts[:parts.index(WORKSPACE) + 1])
     if folder.is_file():
         return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
+    if isinstance(e, NotAFile):
+        shown = "/".join(parts[parts.index(WORKSPACE):]).replace("{", "(").replace("}", ")")
+        return (NOT_A_FILE.format(path=shown, kind=e.kind),
+                NOT_A_FILE_NEXT.replace("{path}", shown))
     if isinstance(e, FileBusyError):
         return WORKSPACE_BUSY, WORKSPACE_BUSY_NEXT
     if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
@@ -516,6 +622,8 @@ def describe_os_error(e: OSError) -> str | None:
     if not isinstance(e.filename, str | bytes | os.PathLike):
         return None  # no path, or a file descriptor
     path = os.fsdecode(e.filename)
+    if isinstance(e, NotAFile):
+        return f"{path} is a {e.kind}, not a file. Move or rename it, then try again."
     if isinstance(e, FileBusyError):
         return f"cannot save {path}: another program has it open. Close it, then try again."
     if isinstance(e, FileExistsError):

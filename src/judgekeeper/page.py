@@ -11,7 +11,8 @@ The token is kept in server.json (owner-only, removed when the page stops), so a
 prints the same link and the open tab keeps working: a page already showing the same thing
 (`page_key`) is kept on its own port; else it is stopped and started again with the same token.
 While one run opens a project's page, .judgekeeper/opening is there and a second run waits for
-it (`_opening`).
+it (`one_at_a_time`). A folder or another special file at one of the page's file names (a
+project can ship one) stops the run with a plain message: it could never be replaced.
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ from judgekeeper import background, marks, start, start_label, textio
 from judgekeeper.label import (
     DEFAULT_PORT,
     HOST,
+    LOCK,
+    LOCK_COPY,
     LabelError,
     LabelServer,
     ask,
@@ -177,7 +180,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                     server = page_server(ws, port, flags, token=token, stamp=stamp)
                     return Page(server.url, server.port, server.token, server)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
-                            "link": stamp}
+                            "link": stamp, "python_m": textio.started_with_python_m()}
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None
@@ -193,12 +196,24 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
     return Page(url, urlsplit(url).port, token)
 
 
+# A mark this many seconds in the future is another run's, on a clock a little ahead (a
+# network drive, a second machine); further ahead, it came from a zip or tar, so it is old
+AHEAD = 5
+
+
 @contextmanager
 def one_at_a_time(folder: Path, say):
     """While this run prepares the project's pool or opens its page: .judgekeeper/opening.
     Another run that is doing so is said and waited for (an older mark, left by a run that
     stopped, is not). Two runs at once never write the pool twice, and neither reads a file
-    the other is replacing (Windows refuses that)."""
+    the other is replacing (Windows refuses that). A mark more than AHEAD seconds in the
+    future (a time a zip or tar kept) is old. A folder or special file at the mark's name, or
+    at the lock's (server.json, page.json) or page.log, is textio.NotAFile: it could never be
+    removed or replaced."""
+    for name in (OPENING, LOCK, LOCK_COPY, background.LOG):
+        odd = textio.not_a_file(Path(folder) / name)
+        if odd is not None:
+            raise odd
     path = Path(folder) / OPENING
     wait = 2 * background.WAIT
     said, made = False, False
@@ -206,13 +221,19 @@ def one_at_a_time(folder: Path, say):
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError:
+            odd = textio.not_a_file(path)
+            if odd is not None:  # made meanwhile
+                raise odd from None
             try:
-                old = time.time() - path.stat().st_mtime > wait
+                age = time.time() - path.stat().st_mtime
+                old = not -AHEAD <= age <= wait
             except OSError:
                 old = False  # gone meanwhile: try again
+            if old and not _remove(path):
+                break  # it can't be removed: open it all the same
             if old:
-                _remove(path)
-            elif not said:
+                continue
+            if not said:
                 say(OPENING_NOW)
                 said = True
             time.sleep(0.1)
@@ -228,11 +249,15 @@ def one_at_a_time(folder: Path, say):
             _remove(path)
 
 
-def _remove(path: Path) -> None:
+def _remove(path: Path) -> bool:
+    """Remove `path`; whether it is gone."""
     try:
         path.unlink()
+    except FileNotFoundError:
+        return True
     except OSError:
-        pass
+        return False
+    return True
 
 
 def _stamp(page: Page, how: str = PRINTED) -> bool:
@@ -322,6 +347,7 @@ def main() -> int:
         token, root = str(given["token"]), Path(given["root"])
         settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
                     "link": given.get("link")}
+        textio._python_m = given.get("python_m") is True  # its commands say `python3 -P -m`
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

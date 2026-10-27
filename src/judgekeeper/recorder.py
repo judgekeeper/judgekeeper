@@ -8,8 +8,9 @@ Each call writes one record (see records.py) to the project root's `.judgekeeper
 in one file per process and judge name (`<name>-<date>-<process id>.jsonl`), as coverage.py
 does: appending to one shared file is not safe across processes on Windows or network drives.
 
-It never breaks the user's program: any error inside is caught and it returns nothing. The
-first verdict it can't save is logged at once; later ones are counted and said when the
+It never writes in the home folder: run from there with no project root found, it saves
+nothing and says so once. It never breaks the user's program: any error inside is caught and
+it returns nothing. The first verdict it can't save is logged at once; later ones are counted and said when the
 program ends, so no loss is silent. `JUDGEKEEPER_RECORD=0` turns it off. Standard library
 only, and nothing else of judgekeeper is imported, so `import judgekeeper` stays light.
 """
@@ -45,6 +46,10 @@ _lost: dict[int, int] = {}  # per process: verdicts not saved after the first wa
 
 class _RecordError(ValueError):
     """A value record() cannot write; its message is safe to show."""
+
+
+HOME = ("no project root was found (judgekeeper.toml, pyproject.toml, setup.py, .git or "
+        "requirements*.txt) and judgekeeper never writes in your home folder")
 
 
 def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None, reason=None,
@@ -158,13 +163,23 @@ def project_root(start: Path | None = None) -> Path:
     return here
 
 
+def _home() -> Path | None:
+    try:
+        return Path.home().resolve()
+    except (RuntimeError, OSError):
+        return None
+
+
 def _path(name) -> Path:
     safe = _UNSAFE.sub("-", DEFAULT_NAME if name is None else str(name)).strip("-.")[:60]
     key = (os.getpid(), safe or DEFAULT_NAME)
     with _lock:
         if key not in _paths:
+            root = project_root()
+            if root == _home():
+                raise _RecordError(HOME)
             day = time.strftime("%Y-%m-%d", time.gmtime())
-            _paths[key] = project_root() / FOLDER / f"{key[1]}-{day}-{key[0]}.jsonl"
+            _paths[key] = root / FOLDER / f"{key[1]}-{day}-{key[0]}.jsonl"
         return _paths[key]
 
 

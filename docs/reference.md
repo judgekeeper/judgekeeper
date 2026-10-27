@@ -48,7 +48,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name, and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.
 
-The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon and the project folder's name (`GET /project`). While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
+The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
 
 On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`.
 
@@ -152,7 +152,7 @@ It looks only inside your project folder, four folders deep; a results file outs
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
-- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns;
+- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns. It reads the first 100,000 answers of a table and says so when there are more. A table it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
 
 ## How grades are read
@@ -215,7 +215,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 | `name` | Which LLM-as-a-judge or criterion (default `judge`) |
 | `temperature`, `id`, `metadata` | The temperature, the answer's id (else one is made), and a dict of anything else |
 
-Each call adds a line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` in your project root (the nearest folder up with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or `requirements*.txt`, never your home folder). An answer saved twice counts once, with the newest grade. Errors inside it are logged to the `judgekeeper` logger, never raised. The file holds your inputs and outputs, so use it in eval code, not in code that serves users. `JUDGEKEEPER_RECORD=0` turns it off.
+Each call adds a line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` in your project root (the nearest folder up with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or `requirements*.txt`). It never writes in your home folder: there it saves nothing and logs that once. An answer saved twice counts once, with the newest grade. Errors inside it are logged to the `judgekeeper` logger, never raised. The file holds your inputs and outputs, so use it in eval code, not in code that serves users. `JUDGEKEEPER_RECORD=0` turns it off.
 
 Without the import, or in another language, copy [jk_record.py](examples/records/jk_record.py) (Python) or [jk_record.ts](examples/records/jk_record.ts) (Node.js) into your eval code. They take the same arguments; run them from your project folder.
 
@@ -262,8 +262,8 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 
 - Your key is used only by your own eval tool, when it asks your LLM-as-a-judge, from your machine straight to the provider. A key in promptfoo's config `env:` block counts too.
 - Finding, marking and the result never run your eval's code, unless you say yes to the export question, which runs the project's promptfoo. They make no AI call and need no key. To ask again, `fix` and `check` run your eval tool ([what runs](eval-tools.md#asking-again)). Before any AI call, judgekeeper says how many calls it makes and asks first (`Go ahead? [y/N]`, Enter is No). Without a terminal, only `--yes` says yes.
-- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character.
-- It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `Bearer …`, `Basic …`, and the `user:password@` part of a URL.
+- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` files or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project.
+- It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
 - There is no flag that takes a key, and there never will be.
 

@@ -4,7 +4,9 @@ Two layers. First, the current value of every credential environment variable th
 can see (the known names, every provider key name `keys.py` knows or found, and any name
 ending in _API_KEY, _TOKEN or _SECRET); values shorter than 8 characters are ignored, since
 they would match ordinary text. Second, as a backstop for keys not in the environment, strings
-shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the user:password part of a URL.
+shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the login part of a URL
+(`user:password@`, `:password@`, or a long token alone). A key split by a hidden character is
+looked for with the character dropped.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -37,15 +39,25 @@ _BEARER = re.compile(rf"(\bBearer\s+)(?={_TOKEN_CHARS}*\d){_TOKEN_CHARS}{{16,}}"
 _BASIC = re.compile(r"(\bBasic\s+)[A-Za-z0-9+/]{16,}={0,2}", re.IGNORECASE)
 # The scheme is bounded: unbounded, every word start in "a.a.a.a..." would scan to the end of
 # the run looking for "://", making scrub() quadratic on long dotted text.
-_URL_USERINFO = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)[^/@\s:]+:[^/@\s]*@")
+_URL_USERINFO = re.compile(
+    r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?:[^/@\s:]+:[^/@\s]*|:[^/@\s]+)@")
+# A token as the whole login (`https://<token>@host`): long, with a digit, so `git@` stays
+_URL_TOKEN = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?=[^/@\s:]*\d)"
+                        r"[A-Za-z0-9._~+=-]{20,}@")
+_START = r"(?<![A-Za-z0-9])"  # a key starts after anything but a letter or digit (`key_sk-`)
 _KEY_SHAPES = (
-    re.compile(r"\bsk-ant-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}"),
+    re.compile(rf"{_START}sk-ant-[A-Za-z0-9_-]{{8,}}"),
+    re.compile(rf"{_START}sk-[A-Za-z0-9_-]{{20,}}"),
     re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access keys
     re.compile(r"\bgh[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{30,}"),
     re.compile(r"\bAIza[A-Za-z0-9_-]{30,}"),  # Google API keys
     re.compile(r"\bxox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
+    re.compile(rf"{_START}gsk_[A-Za-z0-9]{{20,}}"),  # Groq
+    re.compile(rf"{_START}hf_[A-Za-z0-9]{{30,}}"),  # Hugging Face
+    re.compile(rf"{_START}xai-[A-Za-z0-9]{{20,}}"),  # xAI
+    # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
+    re.compile(r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
 )
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
@@ -129,6 +141,11 @@ def _is_credential_var(name: str) -> bool:
             or name.upper().endswith(CREDENTIAL_SUFFIXES))
 
 
+def is_credential(name: str) -> bool:
+    """Whether a variable named `name` holds a credential whose value is hidden."""
+    return _is_credential_var(name)
+
+
 @functools.cache
 def _key_names() -> frozenset[str]:
     """The API key names of the providers judgekeeper knows (AWS_BEARER_TOKEN_BEDROCK among
@@ -166,12 +183,12 @@ def scrub(text: str | None) -> str | None:
     too: then the text comes back without its hidden characters."""
     if not text:
         return text
-    text = _scrub(text)
-    if _SPLITTERS.search(text):
-        seen = _SPLITTERS.sub("", text)
-        if _scrub(seen) != seen:
-            return _scrub(seen)
-    return text
+    scrubbed = _scrub(text)
+    if _SPLITTERS.search(text):  # looked for with them dropped, so a key is hidden whole
+        seen = _scrub(_SPLITTERS.sub("", text))
+        if seen != _SPLITTERS.sub("", scrubbed):
+            return seen
+    return scrubbed
 
 
 def _scrub(text: str) -> str:
@@ -180,6 +197,7 @@ def _scrub(text: str) -> str:
     text = _BEARER.sub(rf"\g<1>{REDACTED}", text)
     text = _BASIC.sub(rf"\g<1>{REDACTED}", text)
     text = _URL_USERINFO.sub(rf"\g<1>{REDACTED}@", text)
+    text = _URL_TOKEN.sub(rf"\g<1>{REDACTED}@", text)
     text = _AWS_SECRET.sub(rf"\g<1>{REDACTED}", text)
     if _AWS_KEY_ID.search(text):
         text = _LINE.sub(lambda m: _AWS_SECRET_SHAPE.sub(REDACTED, m[0])

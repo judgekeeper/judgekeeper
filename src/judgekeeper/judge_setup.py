@@ -254,8 +254,10 @@ def from_start(data: dict) -> dict:
 
 
 def _saved(ws) -> dict | None:
-    try:
-        data = json.loads((ws.dir / FILE).read_text(encoding="utf-8"))
+    from judgekeeper.textio import read_regular
+
+    try:  # a named pipe there is never read (it would wait): make_folder then refuses it
+        data = json.loads(read_regular(ws.dir / FILE).decode("utf-8"))
     except (OSError, ValueError):
         return None
     if isinstance(data, dict) and isinstance(data.get("setup"), dict) \

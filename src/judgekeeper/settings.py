@@ -29,6 +29,7 @@ TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 MAP_KEYS = {"each": str, "id": str, "input": str, "output": str, "sides": list, "score": str,
             "reason": str, "kind": str, "judges": list, "model_key": str, "leave_out": bool,
             "pass_mark_key": str}
+NESTED = f"{FILE}: invalid TOML: it is nested too deep to read"
 HEADER = ("# judgekeeper reads this first: where your LLM-as-a-judge's results are and how to "
           "read\n# them, as you answered when it asked. Nothing secret.\n")
 _TABLE = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(#.*)?$")
@@ -67,6 +68,8 @@ def load(root: str | Path) -> StartSettings | None:
         data = tomllib.loads(read_utf8(path, SettingsError))
     except tomllib.TOMLDecodeError as e:
         raise SettingsError(f"{FILE}: invalid TOML: {e}") from None
+    except RecursionError:  # tables or lists thousands deep
+        raise SettingsError(NESTED) from None
     table = data.get("start")
     if table is None:
         return None
@@ -156,6 +159,8 @@ def merged(text: str | None, s: StartSettings) -> str:
         before, after = tomllib.loads(text), tomllib.loads(new)
     except tomllib.TOMLDecodeError as e:
         raise SettingsError(f"{FILE}: invalid TOML: {e}") from None
+    except RecursionError:
+        raise SettingsError(NESTED) from None
     before.pop("start", None)
     if {k: v for k, v in after.items() if k != "start"} != before:
         raise SettingsError(f"{FILE} has a shape judgekeeper does not edit")

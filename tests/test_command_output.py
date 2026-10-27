@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -567,7 +568,9 @@ def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
     (here / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data),
                                                               encoding="utf-8")
     _, out, _ = run(capsys)
-    assert "('Answer Relevancy', 'Faithfulness')" in " ".join(out.split()), out
+    alike = ('("Answer Relevancy", "Faithfulness")' if sys.platform == "win32"
+             else "('Answer Relevancy', 'Faithfulness')")  # each shell's own quotes
+    assert alike in " ".join(out.split()), out
 
 
 def test_one_answer_is_not_each(here, capsys):
@@ -774,7 +777,7 @@ def test_a_browser_that_hangs_still_gets_the_link_printed(here, capsys, monkeypa
 
 # A port held by judgekeeper's page for another folder ----------------------------------------
 
-def test_a_port_held_by_another_projects_page_names_it(tmp_path, monkeypatch, capsys, pages):
+def test_a_port_held_by_another_projects_page_says_so(tmp_path, monkeypatch, capsys, pages):
     from judgekeeper import label
     from tests.test_front import assert_one_next_at_the_end
 
@@ -790,18 +793,27 @@ def test_a_port_held_by_another_projects_page_names_it(tmp_path, monkeypatch, ca
     code, out, _ = run(capsys, "--port", str(port))
     assert code == 3, out
     flat = " ".join(out.split())
-    assert f"Port {port} is in use by judgekeeper's marking page for quiz-bot." in flat
+    assert f"Port {port} is in use by judgekeeper's marking page for another project." in flat
+    assert "quiz-bot" not in flat  # its name is only told with its token
     assert assert_one_next_at_the_end(out) == (
         "Next: run `judgekeeper --stop` there, or `judgekeeper --port 0`.")
 
 
-def test_without_the_token_only_the_folder_name_is_told(here, capsys):
+def test_without_the_token_nothing_is_told(here, capsys):
     from judgekeeper import label
 
     promptfoo_project(here, split(20, 16))
     run(capsys)
-    port = label.read_lock(here / ".judgekeeper")["port"]
-    assert label.page_folder(port) == here.name
+    lock = label.read_lock(here / ".judgekeeper")
+    port = lock["port"]
+    for query in ({}, {"token": "wrong"}, {"proof": label.proof("wrong")},
+                  {"stop": lock["stop"]}, {"proof": lock["token"]}):
+        status, body = label._answer(port, "GET", "/project", query)
+        assert status == 403 and here.name.encode() not in body, query
+    assert label.page_folder(port, lock["token"]) == here.name  # the lock check
+    status, body = label._answer(port, "GET", "/project", {"token": lock["token"]})
+    assert status == 200 and json.loads(body) == {"folder": here.name}
+    assert label.own_lock(here / ".judgekeeper") is not None
     status, body = label._answer(port, "GET", "/state", {})
     assert status == 403 and b"Question" not in body
 

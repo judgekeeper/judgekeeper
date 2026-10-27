@@ -69,14 +69,19 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         linked[found[0]] = line
     assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench/report.md",
                               "probes/report.md", "ragtruth/report.md"]
-    assert "In 20 of 20 draws" in linked["jailbreakbench/report.md"]
-    assert "Each draw marks 250 of the same 300 answers" in linked["jailbreakbench/report.md"]
-    draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "two-batches" / "draws.csv")
+    import json
+
+    draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "hundred-marks" / "draws.csv")
+    summary = json.loads(draws.with_name("summary.json").read_text(encoding="utf-8"))
+    n, each = summary["draws"], summary["inside_each"]
+    jbb = linked["jailbreakbench/report.md"]
+    assert f"In {n} draws with {summary['marks_per_draw']} marks each" in jbb
+    assert (f"TPR in {each['tpr']}, the real TNR in {each['tnr']} and the real kappa in "
+            f"{each['kappa']}; all three at once in {summary['all_three_inside']}") in jbb
     rows = [x.split(",") for x in draws.read_text(encoding="utf-8").splitlines()
             if re.match(r"d\d", x)]
-    assert len(rows) == 20 and {r[8] for r in rows} == {"250"}  # marks_counted
-    summary = draws.with_name("summary.json").read_text(encoding="utf-8")
-    assert '"rows": 300' in summary
+    assert len(rows) == n == 100 and {r[4] for r in rows} == {"100"}  # marks_counted
+    assert summary["rows"] == 300 and summary["every_draw_counted_its_marks_and_showed_no_text"]
     assert "needs work" in linked["ragtruth/report.md"]
     for gone in ("LLMBar", "MT-Bench", "real-data-check"):
         assert gone not in _readme(), gone

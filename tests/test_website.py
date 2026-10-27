@@ -215,14 +215,14 @@ def test_coverage_numbers_match_the_committed_grid():
 def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     """Home's "On public datasets.": each number, and the number it counts up to, comes from
     the committed report its tile links to."""
-    batches = json.loads((ROOT / "docs/examples/jailbreakbench/two-batches/summary.json")
-                         .read_text(encoding="utf-8"))
-    held = batches["all_three_inside"]
-    assert batches["result"] == "PASS"
+    draws = json.loads((ROOT / "docs/examples/jailbreakbench/hundred-marks/summary.json")
+                       .read_text(encoding="utf-8"))
+    held = draws["all_three_inside"]
+    assert draws["every_draw_counted_its_marks_and_showed_no_text"]
     mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
     in_100 = round(mean * 100)
     expected = {
-        "docs/examples/jailbreakbench/report.md": (held, f"{held} of {batches['draws']}"),
+        "docs/examples/jailbreakbench/report.md": (held, f"{held} of {draws['draws']}"),
         "docs/examples/real-data-check/report.md": (in_100, f"{in_100} in 100"),
     }
     tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
@@ -239,7 +239,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
-    assert f"**{held} of {batches['draws']} draws**" in jbb
+    assert f"**{held} of {draws['draws']} draws**" in jbb
     real = (ROOT / "docs/examples/real-data-check/report.md").read_text(encoding="utf-8")
     assert f"in {mean * 100:.1f} checks in 100 on average" in real
 

@@ -162,3 +162,52 @@ def test_a_hard_linked_page_log_is_said_as_the_symlink_case_is(tmp_path, capsys,
             "through links. Remove it, then run judgekeeper again.") in err
     assert "what went wrong is in" not in out + err
     assert victim.read_text(encoding="utf-8") == VICTIM
+
+
+# Every command refuses a linked .judgekeeper/, before it does any work ---------------------------
+
+def _snapshot(folder):
+    return {p.relative_to(folder).as_posix(): p.read_bytes() if p.is_file() else None
+            for p in sorted(folder.rglob("*"))}
+
+
+@pytest.mark.parametrize("command", [[], ["mark"], ["check"], ["fix"], ["fix", "--new"]],
+                         ids=lambda c: " ".join(c) or "judgekeeper")
+def test_every_command_refuses_a_linked_judgekeeper_folder(tmp_path, monkeypatch, capsys,
+                                                           pages, command):
+    from tests import test_fix
+
+    victim = tmp_path / "victim"  # another project, marked enough to fix its judge
+    victim.mkdir()
+    monkeypatch.chdir(victim)
+    test_fix.project(victim)
+    capsys.readouterr()
+    project = tmp_path / "s1"
+    project.mkdir()
+    for name in ("results.json", "promptfooconfig.yaml"):
+        shutil.copy(victim / name, project / name)
+    _link(project / ".judgekeeper", victim / ".judgekeeper", folder=True)
+    before = _snapshot(victim / ".judgekeeper")
+    monkeypatch.chdir(project)
+    code = main([*command, "--yes"] if command[:1] != ["mark"] else [*command, "--no-browser"])
+    out, err = capsys.readouterr()
+    assert code == 2, out + err
+    assert ("error: .judgekeeper is a link to another folder. judgekeeper does not write "
+            "through links. Remove it, then run judgekeeper again.") in err
+    assert "Next:" not in out  # the command never started
+    assert _snapshot(victim / ".judgekeeper") == before
+
+
+def test_the_marks_writer_refuses_a_link_above_the_files_folder(tmp_path):
+    from judgekeeper import marks
+
+    folder = tmp_path / ".judgekeeper"
+    folder.mkdir()
+    outside = tmp_path / "outside"
+    (outside / "x").mkdir(parents=True)
+    _link(folder / "fix", outside, folder=True)
+    with pytest.raises(marks.MarksError, match="is a link"):
+        marks.append(folder / "fix" / "x" / "y.jsonl", {"a": 1})
+    with pytest.raises(marks.MarksError, match="is a link"):
+        marks.begin(folder / "fix" / "x" / "y.jsonl", {"a": 1})
+    assert list((outside / "x").iterdir()) == []

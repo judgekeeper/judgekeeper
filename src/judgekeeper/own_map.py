@@ -85,7 +85,7 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
               else mapper.filled(g.output))
     score = mapper.filled(g.score, side, judge)
     if g.judges:
-        score += f" (LLM-as-a-judge names: {', '.join(g.judges)})"
+        score += f" (LLM-as-a-judge names: {start.some(g.judges, last=',')})"
     if len(g.sides) > 1 and mapper.SIDE in g.score:
         score += f" and the same under {' and '.join(g.sides[1:])}"
     label = "grade:"
@@ -180,20 +180,22 @@ def _count(units: list, g: mapper.Guess, judge: str) -> int:
 def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str | None:
     if not g.judges:
         return None
-    if metric is not None:
-        if metric.lower() in ("*", "all"):
-            return "*"
-        if metric not in g.judges:
-            raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
-                             f"{', '.join(repr(j) for j in g.judges)}")
+    if metric is not None and metric.lower() in ("*", "all"):
+        return "*"
+    if metric in g.judges:
         return metric
-    if len(g.judges) == 1:
+    if metric is None and len(g.judges) == 1:
         return g.judges[0]
-    options = [f"{j} ({plural(_count(units, g, j), 'answer')})" for j in g.judges]
+    counts = {j: _count(units, g, j) for j in g.judges}
+    judges = start.by_use(g.judges, counts)
+    if metric is not None:
+        raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
+                         f"{start.some([repr(j) for j in judges], last=',')}")
+    options = [f"{j} ({plural(counts[j], 'answer')})" for j in judges]
     i = talk.choose("Which LLM-as-a-judge do you want to check?",
                     [*options, "All, one at a time"], "", flag="--metric",
-                    values=[*g.judges, "all"], what="which LLM-as-a-judge to check")
-    return "*" if i == len(g.judges) else g.judges[i]
+                    values=[*judges, "all"], what="which LLM-as-a-judge to check", keep=1)
+    return "*" if i == len(judges) else judges[i]
 
 
 def _given(g: mapper.Guess, pass_if: str | None) -> mapper.Guess:

@@ -39,13 +39,21 @@ from judgekeeper import (
     targets,
 )
 from judgekeeper.fingerprint import rule_hash
-from judgekeeper.label import DEFAULT_PORT, is_open, page_folder
+from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
-from judgekeeper.textio import held_back, old_hook, plural, program, quote_arg, wrap
+from judgekeeper.textio import (
+    held_back,
+    is_windows,
+    old_hook,
+    plural,
+    program,
+    quote_arg,
+    wrap,
+)
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -106,7 +114,7 @@ SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix`
 RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
-PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for {folder}."
+PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
 NEXT_STOP_THERE = "run `{stop}` there, or `{command}`."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 # A tool found here with no saved results: what saves them
@@ -117,6 +125,18 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
 OTHERS = 3  # other projects named when run from a folder that holds several
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _quoted(value: str) -> str:
+    """A judge's name in the line that says to choose one, as it can be pasted: quoted for
+    the shell (quote_arg), in its quotes even when it needs none, so the names read alike
+    (double on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of
+    commands (held_back) is shown between single quotes, as data."""
+    if held_back(value):
+        return f"'{value}'"
+    quoted = quote_arg(value)
+    mark = '"' if is_windows() else "'"
+    return f"{mark}{value}{mark}" if quoted == value else quoted
 
 
 class FrontTalk(start.Talk):
@@ -157,20 +177,28 @@ class FrontTalk(start.Talk):
         self.answers[flag] = chosen
 
     def choose(self, title, options, flag_hint, ask="Which one?", flag=None, values=(),
-               what=None) -> int:
+               what=None, keep=0) -> int:
         if start._interactive():
-            return super().choose(title, options, flag_hint, ask)
+            return super().choose(title, options, flag_hint, ask, flag=flag, values=values,
+                                  keep=keep)
         self.say(title)
-        for option in options:
+        left = len(options) - keep - start.LIST_LIMIT
+        for option in options[:start.LIST_LIMIT] if left > 0 else options:
             self.say(f"  {option}")
+        if left > 0:
+            self.say(f"  {start.more(left)}")
+            for option in options[len(options) - keep:]:
+                self.say(f"  {option}")
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(f"'{v}'" if flag == "--metric" or held_back(v) else quote_arg(str(v))
-                          for v in values)  # names alike; one held back, as data
+        names = ", ".join(_quoted(str(v)) if flag == "--metric" else quote_arg(str(v))
+                          for v in values)
+        if len(values) > start.LIST_LIMIT:  # the list above holds the first ones
+            names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
-            then = start._or(commands)
+            then = start.some(commands)
         else:
             then = f"`{self.command(flag, 'NAME')}`"
         raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")
@@ -1291,9 +1319,8 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             path, options = answered(talk, saved)
             command = " ".join((program(), *start.repeated_flags(path, **{**options,
                                                                           "port": 0})))
-            folder = page_folder(tried)
-            if folder is not None:  # another project's page: it can be closed there
-                talk.para(PORT_PAGE.format(port=tried, folder=folder))
+            if is_page(tried):  # another project's page (its name needs its token): close it
+                talk.para(PORT_PAGE.format(port=tried))
                 raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
                     stop=program("--stop"), command=command))
             talk.say(PORT_TAKEN.format(port=tried))
