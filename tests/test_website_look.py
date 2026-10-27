@@ -79,8 +79,13 @@ def _rule(selector: str, css: str = CSS) -> str:
 
 def _phone(css: str = CSS) -> str:
     """Every rule inside the phone blocks (`@media (max-width: 760px)`), one after another."""
+    return _narrow(760, css)
+
+
+def _narrow(width: int, css: str = CSS) -> str:
+    """Every rule inside the narrow-screen blocks (`@media (max-width: <width>px)`)."""
     inside, at = [], 0
-    while (at := css.find("@media (max-width: 760px) {", at)) != -1:
+    while (at := css.find(f"@media (max-width: {width}px) {{", at)) != -1:
         depth, open_at = 0, css.index("{", at)
         for i in range(open_at, len(css)):
             depth += {"{": 1, "}": -1}.get(css[i], 0)
@@ -103,6 +108,18 @@ def _wide(width: int = 1100, css: str = CSS) -> str:
         inside.append(css[open_at + 1:i])
         at = i
     return "\n".join(inside)
+
+
+def _outside_media(css: str = CSS) -> str:
+    """The rules that apply at every width: the CSS without its @media blocks."""
+    while (at := css.find("@media")) != -1:
+        depth, open_at = 0, css.index("{", at)
+        for i in range(open_at, len(css)):
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            if not depth:
+                break
+        css = css[:at] + css[i + 1:]
+    return css
 
 
 def _rules(css: str = CSS) -> list[tuple[str, str]]:
@@ -345,6 +362,73 @@ def test_tables_and_code_scroll_inside_their_box():
         assert meta.attrs["content"] == "width=device-width, initial-scale=1", page.name
 
 
+def _sizes(declarations: str) -> list[float]:
+    return [float(n) for n in re.findall(r"font(?:-size)?:[^;]*?([\d.]+)px", declarations)]
+
+
+def _phone_rules() -> list[tuple[str, str]]:
+    """(selector, declarations) for every rule in a block for screens 760px wide or less, one
+    pair per selector of a list."""
+    widths = {int(w) for w in re.findall(r"@media \(max-width: (\d+)px\)", CSS)}
+    css = "".join(_narrow(w) for w in widths if w <= 760)
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+    return [(one.strip(), d) for s, d in _rules(css) for one in s.split(",")]
+
+
+def test_on_a_phone_a_long_command_wraps_inside_its_box():
+    """At 600px and below a command wraps (at a space, after a "/", or anywhere) instead of
+    running past the box's edge; Copy still copies it on one line. Handy commands put each
+    comment under its command, and the record() line wraps too."""
+    phone = _narrow(600)
+    for selector in (".cmd code", ".gx-code"):
+        rule = _rule(selector, phone)
+        assert "white-space: pre-wrap" in rule and "overflow-wrap: anywhere" in rule, selector
+    assert "display: block" in _rule(".gm-pre .t-dim", phone)
+    (path,) = [c for c in _all(parse(GUIDE), "code") if "path/" in c.text()]
+    assert len(_all(path, "wbr")) == 2 and path.text() == "judgekeeper path/to/results.json"
+    (record,) = [c for c in _all(parse(GUIDE), "code") if "record(" in c.text()]
+    assert len(_all(record, "wbr")) == 1  # it breaks after "record(", not inside a word
+    assert "code.textContent" in JS  # what Copy copies: the text, never a break
+
+
+def test_on_a_phone_the_demo_terminal_wraps_and_fits_its_text():
+    """At 600px and below the demo's lines wrap at 12px, and the box is as tall as the screen
+    it shows; on a laptop the box keeps its height."""
+    rule = _rule(".term-out", _narrow(600))
+    for part in ("white-space: pre-wrap", "overflow-wrap: anywhere", "height: auto"):
+        assert part in rule, part
+    assert "font-size: 12px" in _rule(".term-out", _phone())
+    assert "height: calc(29 * 1.55em + 40px)" in _rule(".term-out")
+    mid = CSS[CSS.index("@media (max-width: 1100px) {"):]
+    assert "font-size: 12px" in _rule(".term-out", mid[:mid.index("\n}\n")])
+
+
+def test_on_a_phone_no_text_is_smaller_than_12px():
+    """No phone rule sets text under 12px, and every size under 12px is raised on a phone."""
+    phone = _phone_rules()
+    assert not [(s, d) for s, d in phone if any(n < 12 for n in _sizes(d))]
+    small = [s for s, d in _rules(_outside_media()) if any(n < 12 for n in _sizes(d))]
+    assert small
+    raised = {s for s, d in phone if _sizes(d)}
+    assert not [s for s in small if s not in raised]
+
+
+def test_on_a_phone_every_link_and_button_is_44px_tall():
+    """The links and buttons a person taps are 44px tall on a phone: the box itself, or a
+    clear area around a word whose underline must stay close to it. Links inside a sentence
+    are not counted."""
+    phone = {}
+    for selector, declarations in _phone_rules():
+        phone[selector] = phone.get(selector, "") + declarations
+    for selector in (".menu .brand", ".gh", ".foot-r a", ".g-nav a", ".term-replay",
+                     ".term-tabs", ".fc-pick-list .btn", ".fc-clear"):
+        assert "44px" in phone[selector], selector
+    assert "padding: 12px 14px" in phone[".jk-sub button"]  # 21px of text + 24px
+    for word in (".menu-l a", ".five a", ".tf-link", ".jk-again", ".gx-way-h a"):
+        area = phone[word + "::before"]
+        assert "position: absolute" in area and "height: 44px" in area, word
+
+
 # Home --------------------------------------------------------------------------------------
 
 DEMO = [["Can I return a lamp after 60 days?",
@@ -507,7 +591,8 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     bar = _rule(".term-foot")
     assert "height: 38px" in bar and "border-top: 1px solid var(--line)" in bar
     assert "background: var(--term-bar)" in bar and "font-size: 12px" in bar
-    assert "font-size: 11px" in _rule(".term-foot", _phone())
+    assert "min-height: 44px" in _rule(".term-foot", _phone())  # room for its link
+    assert "white-space: normal" in _rule(".tf-text", _phone())  # never cut with "…"
 
 
 def test_the_closing_box_points_to_the_browser_check():
@@ -521,7 +606,8 @@ def test_the_closing_box_points_to_the_browser_check():
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     """A window like the others, titled "your project", with a green border and no glow; a
-    "$" and a blinking cursor wait under the line, 56px below the public datasets."""
+    "$" and a blinking cursor wait under the line, with the same space above it as above
+    "On public datasets." (8 + 17 + 80 = 24 + 1 + 80 on a laptop, 8 + 17 + 56 on a phone)."""
     close = _all(_main(HOME), "section", "close")[0]
     (win,) = _all(close, "div", "close-win")
     (bar,) = _all(win, "div", "rt-bar")
@@ -535,7 +621,8 @@ def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     assert "box-shadow" not in rule
     assert "font-family: var(--mono)" in _rule(".close-win h2")
     assert "font-size: 26px" in _rule(".close-win h2")
-    assert "padding-top: 56px" in _rule(".close")
+    assert "padding-top: 17px" in _rule(".close")
+    assert "padding: 24px 0 8px" in _rule(".real")
     assert "> " not in _flat(win)
 
 
@@ -746,7 +833,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                           "of your marks to be measured. Mark more answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
-                   if "done" not in p.classes() and "gx-small" not in p.classes()]
+                   if not {"done", "gx-small", "gx-tap"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
@@ -779,7 +866,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                     "step-check": [("Changed your LLM-as-a-judge’s model or rule, or moved to a "
                                     "new eval tool?")]}
     assert not _all(_main(GUIDE), "details")  # no fold
-    assert not _all(_by_id(GUIDE, "step-measure"), "a")  # the numbers: in the reference
+    # the numbers: in the reference (the one link opens the picture)
+    assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
     # step 4 opens with when to run fix, then what it saves
     body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
@@ -1120,6 +1208,22 @@ def test_guide_page_pictures_after_first_paragraph():
     assert "width: 100%" in _rule(".gx-shot img")  # the figure draws the border
     # Home stays terminal: no picture there
     assert not _all(_main(HOME), "img") and not _all(_main(HOME), "figure")
+
+
+def test_on_a_phone_the_guides_pictures_open_full_size():
+    """Each picture is a plain link to its file, and a small "Tap to enlarge" under it shows
+    on phones only."""
+    for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
+        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
+        (figure,) = _all(body, "figure", "gx-shot")
+        (link,) = _all(figure, "a")
+        assert link.attrs == {"href": f"assets/shots/{picture}"}, step
+        assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
+        after = [el for el in body.children if isinstance(el, Element)]
+        tap = after[after.index(figure) + 1]
+        assert (tap.tag, tap.classes(), _flat(tap)) == ("p", {"gx-tap"}, "Tap to enlarge")
+    assert "display: none" in _rule(".gx-text .gx-tap")
+    assert "display: block" in _rule(".gx-text .gx-tap", _narrow(600))
 
 
 TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
