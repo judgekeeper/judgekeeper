@@ -668,3 +668,54 @@ def test_the_favicon_is_no_content_and_needs_no_token(tmp_path, serve):
     assert resp.getheader("Content-Length") is None
     resp, _ = client.request("GET", "/favicon.ico", token=False, host="evil.example")
     assert resp.status == 403  # the Host check still holds
+
+
+# Requests no browser sends ----------------------------------------------------------------
+
+def _raw(client, request: bytes) -> bytes:
+    import socket
+
+    with socket.create_connection(("127.0.0.1", client.server.port), timeout=5) as s:
+        s.sendall(request)
+        answer = b""
+        while chunk := s.recv(65536):
+            answer += chunk
+    return answer
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_two_host_headers_get_400(tmp_path, serve, method):
+    out = tmp_path / "labels.csv"
+    client = serve(_items(tmp_path), out)
+    port, token = client.server.port, client.server.token
+    path = "/state" if method == "GET" else "/label"
+    body = b'{"id": "it0", "label": "pass"}' if method == "POST" else b""
+    answer = _raw(client, (f"{method} {path}?token={token} HTTP/1.1\r\n"
+                           f"Host: 127.0.0.1:{port}\r\nHost: evil.example\r\n"
+                           f"Origin: http://127.0.0.1:{port}\r\n"
+                           "Content-Type: application/json\r\n"
+                           f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
+                           ).encode() + body)
+    assert answer.split(b"\r\n", 1)[0].split(b" ")[1] == b"400"
+    assert b'"items"' not in answer and not out.exists()
+
+
+@pytest.mark.parametrize("target", ["http://evil.com/state?token={token}",
+                                    "http://127.0.0.1:{port}/state?token={token}", "*"])
+def test_a_target_that_is_not_a_path_gets_400(tmp_path, serve, target):
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port, token = client.server.port, client.server.token
+    answer = _raw(client, (f"GET {target.format(port=port, token=token)} HTTP/1.1\r\n"
+                           f"Host: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").encode())
+    assert answer.split(b"\r\n", 1)[0].split(b" ")[1] == b"400"
+    assert b'"items"' not in answer
+
+
+def test_a_target_that_starts_with_two_slashes_gets_no_state(tmp_path, serve):
+    # Newer Pythons turn "//evil.com/state" into "/evil.com/state" (404); older ones keep it (400).
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port, token = client.server.port, client.server.token
+    answer = _raw(client, (f"GET //evil.com/state?token={token} HTTP/1.1\r\n"
+                           f"Host: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").encode())
+    assert answer.split(b"\r\n", 1)[0].split(b" ")[1] in (b"400", b"404")
+    assert b'"items"' not in answer

@@ -2,7 +2,8 @@
 
 Standard library only. One self-contained page (no external assets); every change is saved at
 once. Every request needs the random token from the URL and the bound Host (no DNS
-rebinding); every POST also needs the page's own Origin, so only the page's script marks.
+rebinding); every POST also needs the page's own Origin, so only the page's script marks. A
+request no browser sends (two Host headers, a target that is not a path) gets 400.
 Shown text goes through textContent, and the data is embedded as JSON with <, > and & escaped.
 
 Each connection is read in its own thread with a deadline, at most MAX_CONNECTIONS at once,
@@ -595,6 +596,11 @@ def _handler(server: LabelServer):
         def _allowed(self, url) -> bool:
             """The token, or the stop secret on the two paths it opens (/alive, /stop). Only
             a request with one of them keeps the page open (IDLE_TIMEOUT)."""
+            path = self.path
+            if len(self.headers.get_all("Host") or ()) > 1 or not path.startswith("/") \
+                    or path.startswith("//"):  # "//evil.com/state": a host, to urlsplit
+                self._json(400, {"error": "not a request a browser sends"})
+                return False
             if self.headers.get("Host") != f"{HOST}:{server.port}":
                 self._json(403, {"error": "wrong Host header"})
                 return False
