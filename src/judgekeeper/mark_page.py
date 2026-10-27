@@ -28,6 +28,7 @@ SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
+METRIC_CHARS = 200  # of the metric's name shown, the same way
 
 CROSS = ('<svg class="btn-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
          '<path d="M4 4l8 8M12 4l-8 8"/></svg>')
@@ -543,10 +544,13 @@ def _shown(value: str) -> str:
 
 
 def _graded(metric: str | None, rule: str | None) -> str:
-    """Above the answer: the metric's name, and the "Show the rule" button with the rule
-    (cut at RULE_CHARS) when there is one. Nothing without a metric."""
+    """Above the answer: the metric's name (cut at METRIC_CHARS), and the "Show the rule"
+    button with the rule (cut at RULE_CHARS) when there is one. Nothing without a metric."""
     if not metric:
         return ""
+    name = visible(scrub(metric) or "")
+    if len(name) > METRIC_CHARS:
+        name = name[:METRIC_CHARS].rstrip() + "…"
     button = box = ""
     rule = visible(scrub(rule) or "").strip() if rule else ""
     if rule:
@@ -557,7 +561,7 @@ def _graded(metric: str | None, rule: str | None) -> str:
         box = (f'<div class="rule" id="rule" hidden><p class="rule-text" id="rule-text">'
                f"{_text(rule)}</p></div>")
     return (f'<div class="graded"><span class="label">Metric</span><span class="metric-name" '
-            f'id="metric-name">{_shown(metric)}</span>{button}</div>{box}')
+            f'id="metric-name">{_text(name)}</span>{button}</div>{box}')
 
 
 def label_page(description: str | None, command: str | None = None,
