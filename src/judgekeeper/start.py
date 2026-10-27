@@ -785,6 +785,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         all_experiments,
         experiments_with_traces,
         folder_problem,
+        store_damage,
     )
 
     if experiment is not None:
@@ -801,7 +802,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
 
         found, missing, code_only = [], [], False
         try:
-            experiments = all_experiments(MlflowClient(tracking_uri=uri))
+            with store_damage(uri):
+                experiments = all_experiments(MlflowClient(tracking_uri=uri))
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
         for exp in experiments:
@@ -1921,6 +1923,10 @@ def _task_file(path: Path) -> str | None:
 
 
 SERVERS = ("http://", "https://", "databricks")
+NO_TRACKING_URI = ("--tracking-uri is empty: name your MLflow store, an mlflow.db file or an "
+                   "mlruns/ folder")
+NOT_A_STORE = ("{uri} is not an MLflow store: no experiment folder in it holds a meta.yaml. Name "
+               "an mlflow.db file or an mlruns/ folder")
 TRACKING_SERVER = ("{uri} is a tracking server. judgekeeper reads a local MLflow store instead: "
                    "an mlflow.db file or an mlruns/ folder in your project.")
 
@@ -1931,6 +1937,8 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
     from judgekeeper.readers.mlflow_store import folder_of
 
     text = str(uri)
+    if not text.strip():
+        raise StartError(NO_TRACKING_URI)
     if text.startswith(SERVERS):
         raise StartError(TRACKING_SERVER.format(uri=uri))
     if text.startswith("sqlite:///"):
@@ -1939,6 +1947,8 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
         store = folder_of(text) or Path(text)
     if not store.exists():
         raise StartError(f"no MLflow store at {uri}")
+    if store.is_dir() and not find.is_mlflow_folder(store):  # MLflow would read any folder
+        raise StartError(NOT_A_STORE.format(uri=uri))
     root = path.resolve() if path.is_dir() else path.resolve().parent
     store = store.resolve()
     rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)

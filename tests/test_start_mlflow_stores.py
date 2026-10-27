@@ -479,7 +479,8 @@ def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monke
     if os.name == "nt":
         pytest.skip("folder permissions work differently on Windows")
     locked = tmp_path / "locked"
-    locked.mkdir()
+    (locked / "0").mkdir(parents=True)  # a folder store's shape (find.is_mlflow_folder)
+    (locked / "0" / "meta.yaml").write_text("name: Default\n", encoding="utf-8")
     locked.chmod(0o500)
     if os.access(locked, os.W_OK):
         locked.chmod(0o700)
@@ -523,3 +524,19 @@ def test_the_root_logger_is_put_back_after_mlflow():
         logging.warning("from MLflow")  # noqa: LOG015 - as MLflow logs
         assert root.level == logging.CRITICAL
     assert (root.level, list(root.handlers)) == before
+
+
+@pytest.mark.parametrize("value", ["", " ", ".", "./", "PROJECT", "OTHER"])
+def test_a_tracking_uri_that_is_no_store_is_refused_plainly(value, tmp_path, monkeypatch,
+                                                            capsys):
+    pytest.importorskip("mlflow")
+    project = tmp_path / "docs-qa"
+    (project / ".judgekeeper").mkdir(parents=True)  # MLflow would read it as an experiment
+    (tmp_path / "other" / "notes").mkdir(parents=True)
+    monkeypatch.chdir(project)
+    value = {"PROJECT": str(project), "OTHER": str(tmp_path / "other")}.get(value, value)
+    code, out = run(capsys, "--no-browser", "--port", "0", "--tracking-uri", value)
+    said = " ".join(out.split())
+    assert code == 2, said
+    assert "didn't expect" not in said and "report it" not in said, said
+    assert ("--tracking-uri is empty" if not value.strip() else "is not an MLflow store") in said
