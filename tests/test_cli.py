@@ -178,7 +178,7 @@ def test_a_full_disk_on_stdout_gives_no_traceback(tmp_path, monkeypatch, args, c
 
 @pytest.mark.skipif(not os.path.exists("/dev/full"), reason="no /dev/full here")
 def test_stdout_on_dev_full_exits_0_not_120(tmp_path):
-    with open("/dev/full", "w") as full:
+    with open("/dev/full", "w", encoding="utf-8") as full:
         done = subprocess.run([sys.executable, "-P", "-m", "judgekeeper", "--version"],
                               cwd=tmp_path, stdout=full, stderr=subprocess.PIPE, text=True,
                               timeout=60, check=False)
