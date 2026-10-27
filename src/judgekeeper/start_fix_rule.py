@@ -17,6 +17,8 @@ from judgekeeper.links import link
 
 CUT = 1500  # characters of each text in the prompt
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
+OPENED_BYTES = 1000 * 1000  # of a task file, or of a file it names, read for its rule
+OPENED_NAMES = 20  # file names in a task file tried for its rule
 SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json", ".toml",
                     ".md"})  # searched first, with files named like a config
 # Never searched: program output (a saved terminal, a log) and plain text files, not where a
@@ -221,6 +223,38 @@ def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None
     return None
 
 
+_NAMED = re.compile(r"""["']([\w./-]+\.\w+)["']""")  # a file name in quotes, as open("rule.txt")
+
+
+def _start_of(path: Path) -> str:
+    """The first OPENED_BYTES of a regular file, as text; "" for anything else."""
+    try:
+        if not path.is_file():
+            return ""
+        with path.open("rb") as f:
+            return f.read(OPENED_BYTES).decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def opened_rule_file(root: Path, task_file: str, rule: str, tool: str) -> str:
+    """The file a task file reads its rule from: the task file itself when the rule is written
+    in it, else the first file it names in quotes (open("rule.txt")) that holds the rule. Only
+    these files are read, each up to OPENED_BYTES; at most OPENED_NAMES names are tried."""
+    root = Path(root)
+    task = safe_path(root, task_file)
+    needles = _needles(rule, tool)
+    text = _start_of(root / task) if task else ""
+    if not text or any(n in text for n in needles):
+        return task_file
+    for name in list(dict.fromkeys(_NAMED.findall(text)))[:OPENED_NAMES]:
+        for base in dict.fromkeys((Path(task).parent, Path("."))):
+            path = safe_path(root, (base / name).as_posix())
+            if path and any(n in _start_of(root / path) for n in needles):
+                return path
+    return task_file
+
+
 def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
     """locate_rule, kept only when the file is safely inside the project (safe_path)."""
     found = locate_rule(root, rule, tool)
@@ -228,5 +262,5 @@ def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
     return (path, found[1], found[2]) if path else None
 
 
-__all__ = ["fenced", "field", "file_link", "found_rule", "locate_rule", "rule_config", "rule_home",
-           "rule_text", "safe_path"]
+__all__ = ["fenced", "field", "file_link", "found_rule", "locate_rule", "opened_rule_file",
+           "rule_config", "rule_home", "rule_text", "safe_path"]

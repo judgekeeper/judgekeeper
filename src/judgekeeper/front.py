@@ -868,7 +868,10 @@ def _rule_file(found: start.Found) -> str | None:
     if found.tool == "promptfoo":
         return next((n for n in find.PROMPTFOO_CONFIGS if (Path(found.root) / n).is_file()),
                     None)
-    return found.task_file if found.tool == "inspect" else None
+    if found.tool == "inspect" and found.task_file and found.rule:
+        return start_fix_rule.opened_rule_file(Path(found.root), found.task_file, found.rule,
+                                               found.tool)
+    return None
 
 
 def _rule_lines(found: start.Found) -> list[str]:
