@@ -1,7 +1,7 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its one script ("Show all" and Copy) is fixed text: the page's Content-Security-Policy
+escaped. Its one script ("Show all", kappa's ⓘ and Copy) is fixed text: the page's Content-Security-Policy
 lets exactly that run (by its hash) and nothing else, both when served and in the saved copy.
 
 Served by the marking page (`back` given), each disagreement also asks why the person marked it
@@ -42,6 +42,16 @@ SCRIPT = """
           row.hidden = !open; });
         b.textContent = open ? "Show fewer" : "Show all";
       });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".kappa .i"), function (b) {
+      function show(open) { b.setAttribute("aria-expanded", String(open)); }
+      b.addEventListener("click", function () {
+        b.removeAttribute("data-shut"); show(b.getAttribute("aria-expanded") !== "true"); });
+      b.addEventListener("blur", function () { b.removeAttribute("data-shut"); });
+      document.addEventListener("click", function (e) {
+        if (!b.parentNode.contains(e.target)) { show(false); } });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { show(false); b.setAttribute("data-shut", ""); } });
     });
     var copy = document.getElementById("copy"), timer;
     if (!copy) { return; }
@@ -239,7 +249,9 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .kappa .tip { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(320px, 80vw);
   background: var(--bg); border: 1px solid var(--line); padding: 10px 12px; font-size: 13px;
   line-height: 1.45; color: var(--text); white-space: normal; display: none; z-index: 2; }
-.kappa:hover .tip, .kappa:focus-within .tip { display: block; }
+.kappa .i[aria-expanded="true"] + .tip, .kappa .i:focus-visible:not([data-shut]) + .tip {
+  display: block; }
+@media (hover: hover) { .kappa:hover .tip { display: block; } }
 .fix { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
 .fix-in { display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .fix-in h2, .fix-in p { grid-column: 1; }
@@ -247,7 +259,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }
 .fix p code { font-size: 15px; color: var(--text); }
 .cmd { display: inline-grid; grid-template-columns: auto auto; border: 1px solid var(--line);
-  min-width: min(360px, 100%); }
+  min-width: 0; }
 .cmd code { font-size: 17px; padding: 16px 24px; align-self: center; }
 .cmd button { font-size: 13px; padding: 0 18px; border-left: 1px solid var(--line); color: var(--muted); min-width: 92px; }
 .cmd button:hover, .cmd button.done { color: var(--text); }
@@ -284,6 +296,19 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .fix-in { grid-template-columns: 1fr; }
   .fix-in .cmd { grid-column: 1; grid-row: auto; }
   .cmd { display: grid; grid-template-columns: 1fr auto; width: 100%; }
+  .cmd code { padding: 16px; }
+  .cmd button { font-size: 15px; }
+  .tbl td::before { font-size: 13px; }
+  .panel td[data-label]::before, .panel caption, .note { font-size: 14px; }
+  .kappa .tip { font-size: 15px; }
+}
+@media (max-width: 720px), (pointer: coarse) {
+  .more { font-size: 16px; padding: 12px 0; margin: -12px 0; }
+  .kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }
+}
+@media (max-width: 300px) {
+  .cmd { grid-template-columns: 1fr; }
+  .cmd button { border-left: 0; border-top: 1px solid var(--line); min-height: 48px; }
 }
 """
 
@@ -622,7 +647,8 @@ def _details(r: dict) -> str:
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
-           '"kappa-tip" aria-label="What kappa means">ⓘ</button><span class="tip" '
+           '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
+           'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     body = "".join(f'<tr><th scope="row">{_e(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'

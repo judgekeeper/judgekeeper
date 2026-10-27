@@ -91,11 +91,20 @@ code, kbd { font-family: var(--mono); }
 .logo-mark svg { width: 34px; height: 38px; }
 .top .right { min-width: 0; display: flex; align-items: center; justify-content: flex-end;
   gap: 16px; white-space: nowrap; }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .top { height: auto; grid-template-columns: 1fr; padding: 12px 16px; gap: 10px; }
   .meta { grid-row: 1; }
   .brand { grid-row: 2; justify-self: start; }
   .top .right { grid-row: 3; justify-content: space-between; white-space: normal; }
+}
+@media (max-width: 760px) {
+  .meta .k { font-size: 13px; }
+  .meta .v { font-size: 14px; }
+}
+@media (max-width: 420px) {
+  .meta { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .meta .v { white-space: normal; overflow-wrap: anywhere; }
+  .meta .v + .k { margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
