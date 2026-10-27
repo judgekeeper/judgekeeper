@@ -44,9 +44,9 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--version` | Show the version and exit |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
-**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name, and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.
+**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.
 
-The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
+The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so marks from another website are refused. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
 
 On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`.
 
@@ -128,7 +128,9 @@ Run it after you change your LLM-as-a-judge or eval tool and run your eval again
 
 **The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result.
 
-**The formulas.** The pool holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
+### The maths (you can skip this)
+
+**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
 
 ```
 TPR             = pi a / (pi a + (1 - pi) b)
@@ -188,7 +190,7 @@ judgekeeper's own format: one judged answer per JSONL line, written by you or by
 | `explanation` | the LLM-as-a-judge's reason |
 | `run` | repeat index, or empty |
 | `input`, `output` | the question and answer (text or any JSON) |
-| `evaluator` | the fingerprint: `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
+| `evaluator` | the fingerprint (what tells one LLM-as-a-judge setup from another): `provider`, `model`, `prompt` (hashed), `temperature`, `version` (rubric), `rule`, `prompt_hash`, `snapshot`, `endpoint` |
 | `created_at` | when the grade was made |
 | `metadata` | anything else; never part of the fingerprint |
 | `trajectory` | for agents: the steps to the output, as OpenAI-style messages |
