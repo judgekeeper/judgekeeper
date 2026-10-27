@@ -325,7 +325,7 @@ def test_several_judges(here, capsys):
     code, out, _ = run(capsys)
     assert code == 3
     assert assert_one_next_at_the_end(out) == (
-        "Next: choose which LLM-as-a-judge to check (helpfulness, safety), then run "
+        "Next: choose which LLM-as-a-judge to check ('helpfulness', 'safety'), then run "
         "`judgekeeper --metric NAME`.")
     code, out, _ = run(capsys, "--metric", "safety")
     assert code == 0, out

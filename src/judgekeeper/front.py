@@ -116,6 +116,16 @@ FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (f
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
+def _quoted(value: str) -> str:
+    """A judge's name in the line that says to choose one, as it can be pasted: quoted for
+    the shell (quote_arg), in quotes even when it needs none, so the names read alike. One
+    Windows leaves out of commands (held_back) is shown between quotes, as data."""
+    if held_back(value):
+        return f"'{value}'"
+    quoted = quote_arg(value)
+    return f"'{value}'" if quoted == value else quoted
+
+
 class FrontTalk(start.Talk):
     """start.Talk for `judgekeeper`: printed commands start `judgekeeper`. Without a
     terminal a choice ends in a `Next:` line (stop), and a yes/no question is noted."""
@@ -165,8 +175,8 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(f"'{v}'" if held_back(v) else quote_arg(str(v))  # pasted safely
-                          for v in values)  # one held back, as data
+        names = ", ".join(_quoted(str(v)) if flag == "--metric" else quote_arg(str(v))
+                          for v in values)
         if len(values) > start.LIST_LIMIT:  # the list above holds the first ones
             names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"
         if flag == "PATH":
