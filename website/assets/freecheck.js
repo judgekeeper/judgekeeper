@@ -1,4 +1,4 @@
-/* judgekeeper: the free check in your browser (check.html).
+/* judgekeeper: the check in your browser (check.html).
  *
  * judgekeeper's step 1 for promptfoo and DeepEval results and your own CSV, TSV or JSONL
  * file, as the tool does it (readers/promptfoo.py, readers/deepeval.py, table.py,
