@@ -20,8 +20,8 @@
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=7">
-<script src="assets/site.js?v=7" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=8">
+<script src="assets/site.js?v=8" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -58,18 +58,20 @@
       <p>Run judgekeeper in your project folder. It finds your eval results and opens the marking page.</p>
       <div class="cmd"><code>judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p class="done"><b>Nothing found?</b> Run your eval first so it saves its results, or point judgekeeper to your results file:</p>
-      <div class="cmd"><code>judgekeeper path/to/results.json</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      <div class="cmd"><code>judgekeeper path/<wbr>to/<wbr>results.json</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
     </div></div></li>
     <li class="gl-step" id="step-mark"><span class="gl-n" aria-hidden="true">2</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Mark your answers Pass or Fail</span></div><div class="gl-body gx-text sw-body">
       <h3 class="sr">Mark your answers Pass or Fail</h3>
       <p>Mark each answer Pass or Fail, the way you would grade it. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
-      <figure class="gx-shot"><img src="assets/shots/label.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></figure>
+      <figure class="gx-shot"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></a></figure>
+      <p class="gx-tap">Tap to enlarge</p>
       <p class="done">When <b>See your result</b> appears, click it.</p>
     </div></div></li>
     <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">See how often your LLM-as-a-judge agrees with you</span></div><div class="gl-body gx-text sw-body">
       <h3 class="sr">See how often your LLM-as-a-judge agrees with you</h3>
       <p>The result page tells you one of three things: your LLM-as-a-judge is good enough to use, it needs work, or it’s too early to tell. Below that, it lists the answers where you and your LLM-as-a-judge disagreed.</p>
-      <figure class="gx-shot"><img src="assets/shots/result.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work. You and your LLM-as-a-judge disagreed on 13 of 40 answers.&quot; Under it, the answers where you said Fail and your LLM-as-a-judge said Pass, each with buttons to say why you marked it Fail."></figure>
+      <figure class="gx-shot"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work. You and your LLM-as-a-judge disagreed on 13 of 40 answers.&quot; Under it, the answers where you said Fail and your LLM-as-a-judge said Pass, each with buttons to say why you marked it Fail."></a></figure>
+      <p class="gx-tap">Tap to enlarge</p>
       <p class="done"><b>Result says it’s too early to tell?</b> Your LLM-as-a-judge needs more of your marks to be measured. Mark more answers, then look again:</p>
       <div class="cmd"><code>judgekeeper mark</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
     </div></div></li>
@@ -97,7 +99,7 @@
       <div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
       <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper
-judgekeeper.record(input=question, output=answer, verdict=grade)</code></pre>
+judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pre>
       <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
     </div>
   </div>

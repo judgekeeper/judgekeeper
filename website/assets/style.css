@@ -65,6 +65,14 @@ img, svg { max-width: 100%; }
   .menu-r { grid-area: right; }
   .menu-l { grid-area: links; overflow-x: auto; gap: 22px; padding: 8px 0 10px; }
   .foot .wrap { flex-direction: column; align-items: flex-start; }
+  /* every link and button a person taps is 44px tall */
+  .menu .brand { min-height: 44px; }
+  .gh { height: 44px; }
+  .foot-r { row-gap: 0; }
+  .foot-r a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* a word whose underline stays close to it gets a 44px tap area round it */
+  .menu-l a, .tf-link, .jk-again, .gx-way-h a { position: relative; }
+  .menu-l a::before, .five a::before, .tf-link::before, .jk-again::before, .gx-way-h a::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
 }
 
 /* ---- the marking card, as the product draws it ---- */
@@ -138,12 +146,15 @@ img, svg { max-width: 100%; }
   .jk-actions { padding: 16px 16px 12px; }
   .jk-btn { height: 60px; gap: 8px; }
   .jk-sub { padding: 0 8px 8px; gap: 4px 8px; flex-wrap: wrap; }
-  .jk-sub button { padding: 10px 14px; }
+  .jk-label { font-size: 12px; }
+  .jk-sub button { padding: 12px 14px; }
   .jk-end-head h2 { font-size: 17px; }
   .jk-end-list { padding: 4px 16px; }
   .jk-end-list li { grid-template-columns: 10px 1fr 44px 96px; column-gap: 10px; }
-  .jk-end-list li.head .g:last-child { font-size: 10px; letter-spacing: .04em; }
+  .jk-end-list li.head, .jk-end-list li.head .g { font-size: 12px; }
+  .jk-end-list li.head .g:last-child { letter-spacing: .04em; white-space: normal; }
   .jk-end-actions { padding: 16px; flex-wrap: wrap; }
+  .jk-go { height: auto; min-height: 46px; padding-block: 10px; text-align: center; }  /* room for two lines */
 }
 
 /* ---- terminal ---- */
@@ -184,10 +195,13 @@ img, svg { max-width: 100%; }
 .tf-link::after { content: " ↗"; color: var(--muted); }
 .tf-link:hover { border-bottom-color: var(--fg); }
 @media (max-width: 760px) {
-  .term-bar { height: auto; min-height: 44px; flex-wrap: wrap; gap: 6px 18px; padding: 8px 14px; }
-  .term-tabs { height: 36px; }
+  .term-bar { height: auto; min-height: 44px; flex-wrap: wrap; gap: 0 18px; padding: 0 14px; }
+  .term-tabs { height: 44px; }
+  .term-replay { min-height: 44px; }
+  .term-title { white-space: normal; overflow-wrap: anywhere; padding-block: 12px; line-height: 1.4; }  /* a long file name wraps */
   .term-out { padding: 16px 14px; font-size: 12px; }
-  .term-foot { padding: 0 14px; font-size: 11px; }
+  .term-foot { height: auto; min-height: 44px; padding: 6px 14px; }
+  .tf-text { white-space: normal; line-height: 1.35; }  /* two lines, never cut */
   .rt-title { margin-right: 0; }
 }
 
@@ -254,8 +268,9 @@ img, svg { max-width: 100%; }
 .close-box { border: 1px solid var(--line); padding: 40px 44px; display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .close h2 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.022em; }
 .close p { margin: 8px 0 0; color: var(--muted); font-size: 17px; }
-/* "Have eval results?" as your own terminal: a green border (no glow), waiting at a prompt */
-.close { padding-top: 56px; }
+/* "Have eval results?" as your own terminal: a green border (no glow), waiting at a prompt,
+   with the same space above it as above "On public datasets." (8 + 17 = 24 + the 1px line) */
+.close { padding-top: 17px; }
 .close-win { border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
 .close-win .close-box { border: 0; padding: 36px 40px; }
 .close-win h2 { font-family: var(--mono); font-variant-ligatures: none; font-weight: 500; font-size: 26px; letter-spacing: -.01em; }
@@ -267,6 +282,7 @@ img, svg { max-width: 100%; }
   .hero h1 { font-size: 52px; }
   .gx-hero h1 { font-size: clamp(42px, 4.2vw, 52px); }
   .steps-grid { grid-template-columns: 340px minmax(0, 1fr); }
+  .term-out { font-size: 12px; }  /* the longest line fits beside the steps at 1024 wide */
 }
 @media (max-width: 860px) {
   .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-block: 56px; }
@@ -283,6 +299,9 @@ img, svg { max-width: 100%; }
   .close h2 { font-size: 24px; }
   .close-win .close-box { padding: 24px 18px; }
   .close-win h2 { font-size: 21px; }
+}
+@media (max-width: 760px) {
+  .steplist .d, .rt-line, .close-win p { font-size: 15px; }
 }
 /* small phones: the five words stay on one line and "LLM-as-a-judge" fits, down to 320px wide
    (64px is the two side paddings of .wrap) */
@@ -378,6 +397,10 @@ td:first-child { min-width: 14ch; }
 /* a picture of the real page, inside its step's window with a plain border */
 .gx-shot { margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .gx-shot img { display: block; width: 100%; height: auto; }
+/* each picture opens full size when clicked; phones say so under it */
+.gx-shot a { display: block; }
+.gx-shot a:focus-visible { outline-offset: -2px; border-radius: 8px; }
+.gx-text .gx-tap { display: none; margin: -6px 0 16px; font-size: 13px; color: var(--muted); text-align: center; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
 /* the steps and the windows below: as wide as the top section, so their edges line up */
 .gx-steps .wrap { padding-block: 48px 32px; }
@@ -430,6 +453,7 @@ td:first-child { min-width: 14ch; }
 }
 @media (max-width: 760px) {
   .gm-pre { font-size: 12.5px; }
+  .g-nav a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 @media (max-width: 640px) {
   .gl-step { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
@@ -438,6 +462,23 @@ td:first-child { min-width: 14ch; }
   .gl-step::after { top: 18px; left: 32px; width: 12px; }
   .sw-body, .gm-row > .gx-text { padding: 18px 16px 20px; }
   .sw-bar::before { margin-right: 36px; }
+}
+
+/* phones: a long command wraps in its box (at a space, after a "/", or anywhere) and Copy
+   still copies it on one line; each handy command's comment goes under it; the home page's
+   terminal wraps its lines and is as tall as the screen it shows */
+@media (max-width: 600px) {
+  .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
+  .cmd .copy { min-width: 44px; padding: 0 12px; }
+  .gx-code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .gm-pre .t-dim { display: block; padding-left: 2ch; }
+  .term-out { white-space: pre-wrap; overflow-wrap: anywhere; height: auto; }
+  .gx-text .gx-tap { display: block; }
+}
+/* the smallest phones: a narrower margin, so a command fits its box */
+@media (max-width: 359px) {
+  .wrap { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
 }
 
 /* ---- the browser check: the drop box and the examples on the left, a terminal on the
@@ -516,6 +557,9 @@ td:first-child { min-width: 14ch; }
   .ck-out { padding: 16px 14px; font-size: 12px; }
   .fc-term .ln { flex-direction: column; }
   .fc-term .ln > .pad { display: none; }
+  .ex-t span { font-size: 12px; }
+  .fc-pick-list .btn { min-height: 44px; }
+  .fc-clear { min-height: 44px; }
 }
 @media (max-width: 520px) {
   .ex-row { grid-template-columns: minmax(0, 1fr); }
