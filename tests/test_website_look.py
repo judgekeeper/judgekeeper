@@ -1349,6 +1349,8 @@ def test_on_a_phone_the_home_terminal_joins_lines_broken_to_fit_64_columns():
     # the box is as tall as the whole screen before the typing starts, and lets go after it
     assert 'out.style.minHeight = out.offsetHeight + "px"' in typing
     assert typing.count('out.style.minHeight = ""') == 2
+    # the screen waiting to be typed is joined too, or the box shrinks when the typing starts
+    assert "if (narrow()) out.innerHTML = shade(joinLines(screens[screenKey()]));" in JS
     assert "font-size: 14px" in _last(".term-out", _narrow(600))
 
 

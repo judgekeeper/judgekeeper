@@ -384,6 +384,8 @@
     arrows(fixTabs, pickScreen);
     replay.addEventListener("click", function () { type(screenKey(), true); });
     paint();
+    // on a phone the waiting screen has its lines joined already, so typing keeps its height
+    if (narrow()) out.innerHTML = shade(joinLines(screens[screenKey()]));
 
     // The first screen is typed when the terminal comes into view.
     if ("IntersectionObserver" in window) {
