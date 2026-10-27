@@ -76,6 +76,8 @@ SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
 HINT = "MLFLOW_DISABLE_AGENT_HINT"  # MLflow's hint for coding agents, logged on import
+# MLflow's usage tracking off; DO_NOT_TRACK is the switch other libraries read too
+TELEMETRY_OFF = {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
 FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
                "this read only (MLFLOW_ALLOW_FILE_STORE).")
 _noted = False  # FOLDER_NOTE was said in this run
@@ -289,7 +291,13 @@ def quiet() -> Iterator[None]:
     only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
     holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
     afterwards, also after an error; a value the user set is left as it is. Never for the
-    user's shell, never in a file."""
+    user's shell, never in a file.
+
+    MLflow's usage tracking is switched off before `import mlflow` (TELEMETRY_OFF, a
+    DO_NOT_TRACK the user set kept), and stays off for the rest of judgekeeper's process:
+    MLflow decides on import, once per process."""
+    os.environ["MLFLOW_DISABLE_TELEMETRY"] = TELEMETRY_OFF["MLFLOW_DISABLE_TELEMETRY"]
+    os.environ.setdefault("DO_NOT_TRACK", TELEMETRY_OFF["DO_NOT_TRACK"])
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
