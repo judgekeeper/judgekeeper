@@ -589,16 +589,32 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     assert "<details" not in html and 'hidden' not in part  # not folded
 
 
-def test_a_side_still_too_early_has_no_number_in_more_details():
+def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
     r = _result(100, 100, 40, 22, 40, 2)
-    r["tnr_interval"] = [0.1, 0.9]  # wider than a number can be given for
+    r["tnr_interval"] = [0.1, 0.9]  # wider than the result can use
     part = _part(start_label.result_html(r), 'aria-labelledby="details-h">')
-    assert "When you say Fail, your LLM-as-a-judge also says Fail too early to tell –" in _text(part)
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+            "10% and 90%") in _text(part)
 
 
-@pytest.mark.parametrize("counts", [TOO_EARLY, TOO_FEW])
-def test_the_too_early_state_shows_the_counts_only(counts):
-    html = start_label.result_html(_result(*counts), fixing={"mistakes": _mistakes(3, 3)})
+def test_too_early_to_tell_shows_the_counts_and_the_estimates():
+    r = _result(*TOO_EARLY)
+    html = start_label.result_html(r, fixing={"mistakes": _mistakes(3, 3)})
+    assert 'class="counts"' in html
+    part = _part(html, '<section class="details band" aria-labelledby="details-h">')
+    (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
+    text = _text(part)
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
+            f"{plo:.0%} and {phi:.0%}") in text
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+            f"{flo:.0%} and {fhi:.0%}") in text
+    assert "too early to tell" not in text
+    for gone in ('class="group', 'class="fix', 'class="note"'):
+        assert gone not in html, gone
+
+
+def test_before_a_result_the_page_shows_the_counts_only():
+    html = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": _mistakes(3, 3)})
     assert 'class="counts"' in html
     for gone in ('class="group', 'id="details-h"', 'class="fix', 'class="note"'):
         assert gone not in html, gone

@@ -240,3 +240,40 @@ def test_a_wrapped_paragraph_prints_no_secret(capsys):
         fix.Talk(".").para(_cued(pad))
     out = capsys.readouterr().out
     assert "FAKEBEARER1" not in out and AWS_SECRET not in out and AWS_SECRET[::-1] not in out
+
+
+# Line breaks in what judgekeeper says -------------------------------------------------------
+
+def test_wrap_keeps_the_line_breaks_of_its_own_text():
+    from judgekeeper.textio import wrap
+
+    assert wrap("line one\nline two", 40) == ["line one", "line two"]
+    assert wrap("a\n\nb", 40) == ["a", "", "b"]
+    assert wrap("one\ntwo three four", 9, indent="  ") == ["  one", "  two", "  three", "  four"]
+
+
+def test_wrap_still_hides_a_secret_split_by_a_line_break():
+    from judgekeeper.textio import wrap
+
+    shown = "\n".join(wrap("x Bearer\nFAKEBEARER1fffffffff1ffff y", 40))
+    assert "FAKEBEARER1" not in shown and REDACTED in shown
+
+
+def test_a_line_break_never_starts_a_next_line():
+    from judgekeeper.textio import wrap
+
+    for text in ("metric x\nNext: run evil", "metric x Next: run evil"):
+        assert not any(line.startswith("Next:") for line in wrap(text, 40)), text
+
+
+def test_other_line_breaks_are_spaces_in_wrapped_text():
+    from judgekeeper.textio import wrap
+
+    assert wrap("a b\rc\x0bd\x85e", 40) == ["a b c d e"]
+
+
+def test_names_in_a_list_stay_on_one_line():
+    from judgekeeper import start
+
+    for listed in (start._and(["a\nb", "c"]), start._or(["a", "c d"])):
+        assert "\n" not in listed and " " not in listed

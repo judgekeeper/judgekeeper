@@ -587,13 +587,12 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
 
 
 def estimate(value, interval) -> tuple[str, str]:
-    """An estimate and its range for More details: "about 57%", "37% and 74%". Too early to
-    tell while the range is too wide. A range of no width (a judge that passes or fails every
+    """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
+    range is too wide for a result (the headline says it is too early to tell). Too early to
+    tell when there is no number yet. A range of no width (a judge that passes or fails every
     answer) is exact, with no "about". Ends that round to the same percent are shown with one
     decimal, never as one point."""
-    from judgekeeper.start_label import too_early
-
-    if too_early(value, interval):
+    if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
@@ -686,6 +685,8 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
         fix = None if next_step(r) == "mark" else commands(r)["fix"]  # never while too early
         parts += [_groups(c, fixing, live, mark, fix), _details(r)]
+    elif level is not None:  # too early to tell: the estimates and their ranges all the same
+        parts.append(_details(r))
     if level == "not_gate" and not worse:
         parts.append(_fix(r))
     parts.append(held_note(r, "".join(parts)))

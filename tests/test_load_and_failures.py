@@ -1383,3 +1383,30 @@ def test_a_body_far_over_the_limit_gets_its_413_before_it_is_read(tmp_path, monk
     finally:
         server.stop()
         thread.join(timeout=10)
+
+
+# A long --label-map ------------------------------------------------------------------------
+
+def test_a_label_map_of_ten_thousand_entries_reads_in_under_a_second(tmp_path, monkeypatch,
+                                                                       capsys, pages):
+    """Only the reading is timed (parsed, and scrubbed before it is kept or printed); the
+    whole run is checked to finish, not timed."""
+    import time
+
+    from judgekeeper.cli import main
+    from judgekeeper.normalise import Normaliser
+    from judgekeeper.redact import scrub
+    from tests.start_projects import promptfoo_project, split
+
+    given = ",".join(f"value {i}=pass" for i in range(10_000))
+    began = time.perf_counter()
+    norm = Normaliser(label_map=given)
+    kept = scrub(given)
+    took = time.perf_counter() - began
+    assert took < 1, took
+    assert norm.label_map["value 9999"] == "pass" and kept == given
+    promptfoo_project(tmp_path, split(20, 16))
+    monkeypatch.chdir(tmp_path)
+    code = main(["--label-map", given, "--yes", "--no-browser"])
+    out = capsys.readouterr().out
+    assert code == 0, out

@@ -13,7 +13,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--version] [--debug]
 ```
 
-Each run does the next step.
+Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
 
 | What is there | What `judgekeeper` does |
 |---|---|
@@ -46,7 +46,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--version` | Show the version and exit |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
-**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade and rule hidden. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.
+**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name, and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.
 
 The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run can print the same link after checking the page is judgekeeper's, for this project. Marks made through the program in `BROWSER`, or from a link printed with no terminal, are stamped so, and the result counts them.
 
@@ -211,7 +211,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 | `score`, `pass_mark` | Instead of `verdict`: it passes when `score >= pass_mark`. A score with no pass mark waits for `--pass-if` |
 | `reason` | The LLM-as-a-judge's reason |
 | `judge` | The LLM-as-a-judge's model |
-| `rule` | The LLM-as-a-judge's rule, for `fix`; the marking page hides it |
+| `rule` | The LLM-as-a-judge's rule, for `fix`; the marking page shows it behind "Show the rule" |
 | `name` | Which LLM-as-a-judge or criterion (default `judge`) |
 | `temperature`, `id`, `metadata` | The temperature, the answer's id (else one is made), and a dict of anything else |
 
@@ -225,7 +225,7 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 
 - On macOS and Linux, only your user can read its files (0600) and folders (0700). Each file is written whole, replacing the old one.
 - It does not write through links: if `.judgekeeper/` or anything in it is a symlink (a cloned repository can hold one) or a hard link, it stops before writing and says which.
-- Text from results files is cleaned of keys before it is written. Pages escape every value, spreadsheets stop cells from running as formulas (the id column too), and the terminal gets no control or invisible characters (bidirectional controls, zero-width and tag characters).
+- Text from results files is cleaned of keys before it is written. Pages escape every value, spreadsheets stop cells from running as formulas (the id column too), and the terminal gets no control or invisible characters (bidirectional controls, zero-width and tag characters). Pages drop the same characters but keep the two zero-width joiners (U+200C, U+200D), which joined emoji and scripts such as Hindi and Persian need. A key split by one is still replaced.
 - `mistakes.md` and `suggestions.md` start with a warning that what follows is data, with your notes and the answers fenced below it.
 - A `judgekeeper.toml` that names a results file outside the project is refused.
 

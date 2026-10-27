@@ -46,12 +46,11 @@ from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
-    held_back,
-    is_windows,
     old_hook,
     plural,
     program,
     quote_arg,
+    quoted_name,
     wrap,
 )
 
@@ -88,6 +87,9 @@ STEP = "Step {n} of 5: {name}"
 INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
+# Said where marking starts, before the page opens (and in the README and the reference)
+NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail. If "
+                   "almost every answer passes, that can take many answers.")
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
@@ -122,18 +124,6 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
 OTHERS = 3  # other projects named when run from a folder that holds several
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-
-def _quoted(value: str) -> str:
-    """A judge's name in the line that says to choose one, as it can be pasted: quoted for
-    the shell (quote_arg), in its quotes even when it needs none, so the names read alike
-    (double on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of
-    commands (held_back) is shown between single quotes, as data."""
-    if held_back(value):
-        return f"'{value}'"
-    quoted = quote_arg(value)
-    mark = '"' if is_windows() else "'"
-    return f"{mark}{value}{mark}" if quoted == value else quoted
 
 
 class FrontTalk(start.Talk):
@@ -189,7 +179,7 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(_quoted(str(v)) if flag == "--metric" else quote_arg(str(v))
+        names = ", ".join(quoted_name(str(v)) if flag == "--metric" else quote_arg(str(v))
                           for v in values)
         if len(values) > start.LIST_LIMIT:  # the list above holds the first ones
             names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"
@@ -1382,6 +1372,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say(NOT_ENOUGH)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
+    if not n:  # marking starts: what a result needs, before the page opens
+        talk.para(NEEDS_EACH_KIND.format(n=targets.ROUGH))
+        talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
     if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
@@ -1423,7 +1416,8 @@ def agreement_lines(r: dict) -> list[str]:
 
 def estimate_lines(r: dict) -> list[str]:
     """How often the judge agrees with you, estimated, as the result page's More details
-    (report_page.estimate): "about 57% (between 37% and 74%)", or too early to tell."""
+    (report_page.estimate): "about 57% (between 37% and 74%)", also while it is too early to
+    tell; too early to tell only with no number yet."""
     from judgekeeper.report_page import estimate
 
     out = [AGREES]
@@ -1524,7 +1518,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
                 n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
-    if r["verdict_level"] in ("gate", "not_gate"):  # too early to tell: counts only
+    if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
         for line in estimate_lines(r):
             talk.say(line)

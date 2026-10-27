@@ -129,6 +129,9 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "",
         "Step 2 of 5: Mark",
         "",
+        "A result needs at least 15 answers you mark Pass and 15 you mark",
+        "Fail. If almost every answer passes, that can take many answers.",
+        "",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
@@ -257,7 +260,10 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
     assert code == 3  # every answer marked, too early to tell: more answers are needed
     assert "You and your LLM-as-a-judge disagreed on 5 of 36 answers." in out
     assert "  You failed 21 answers. Of those, your LLM-as-a-judge passed 5 and failed 16." in out
-    assert "estimates" not in out  # too early to tell: the counts only
+    at = out.index("How often your LLM-as-a-judge agrees with you (estimates):")
+    assert at > out.index("Result: too early to tell.")  # the numbers, under the same line
+    assert "  When you say Pass, it also says Pass: " in out[at:]
+    assert "  When you say Fail, it also says Fail: " in out[at:]
 
 
 def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):

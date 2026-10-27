@@ -146,12 +146,15 @@ DEFAULT_PORT = 8765
 def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
                    kept: bool = False, **values) -> tuple[str, ...]:
     """The words a printed command repeats: the path (unless this folder), each REPEATED flag
-    that was given, then --port (unless the default) and --no-browser. `kept`: for a command
-    kept in a file or on the page (quote_arg)."""
+    that was given, then --port (unless the default) and --no-browser. A value that starts
+    with "-" goes after its flag's "=" (`--metric=--yes`): argparse would read it as a flag.
+    `kept`: for a command kept in a file or on the page (quote_arg)."""
     words = [] if str(path) == "." else [quote_arg(path, kept)]
     for name, flag in REPEATED:
         if values.get(name) is not None:
-            words += [flag, quote_arg(str(values[name]), kept)]
+            value = quote_arg(str(values[name]), kept)
+            words += ([f"{flag}={value}"] if str(values[name]).startswith("-")
+                      else [flag, value])
     if port != DEFAULT_PORT:
         words += ["--port", str(port)]
     if no_browser:
@@ -548,8 +551,10 @@ def unreadable(path: Path, tool: str) -> RecordsError:
 
 
 def usage_error(e: Exception, text: str | None = None) -> StartError:
-    """A reader's error as a usage error, with its Next: line when it has one."""
-    return StartError(str(e) if text is None else text, getattr(e, "next_step", None))
+    """A reader's error as a usage error, with its Next: line and the flag it leaves out
+    when it has them."""
+    return StartError(str(e) if text is None else text, getattr(e, "next_step", None),
+                      getattr(e, "drop", None))
 
 
 def _read(result: find.Result) -> Loaded:
@@ -774,6 +779,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         JudgeCallsFailed,
         TracesMissing,
         experiments_with_traces,
+        folder_problem,
     )
 
     if experiment is not None:
@@ -789,7 +795,11 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         from mlflow import MlflowClient
 
         found, missing, code_only = [], [], False
-        for exp in MlflowClient(tracking_uri=uri).search_experiments():
+        try:
+            experiments = MlflowClient(tracking_uri=uri).search_experiments()
+        except OSError as e:  # MLflow can't write its .trash there: that folder's problem
+            raise folder_problem(e, uri) or e from None
+        for exp in experiments:
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
@@ -942,6 +952,8 @@ def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) ->
 
 
 def _or(items: list[str]) -> str:
+    """"a, b or c", each on one line (a name read from a file can't start a line)."""
+    items = [one_line(x) for x in items]
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
 
 
@@ -974,6 +986,8 @@ def some(items: list[str], last: str = "or") -> str:
 
 
 def _and(items: list[str]) -> str:
+    """"a, b and c", each on one line."""
+    items = [one_line(x) for x in items]
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
@@ -1952,7 +1966,9 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     )
 
     stores = sorted(stores, key=lambda s: (s.path.is_dir(), -s.date().timestamp()))
-    if not _has("mlflow"):  # the same screen as for one store: never a bare error
+    with quiet():  # MLflow imported with its hint and usage tracking off
+        has = _has("mlflow")
+    if not has:  # the same screen as for one store: never a bare error
         raise _needs_extra(talk, "mlflow", _store_name(stores[0]))
     names = []
     for s in stores:

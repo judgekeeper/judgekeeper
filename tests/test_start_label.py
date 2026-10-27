@@ -44,13 +44,45 @@ def test_the_same_seed_gives_the_same_queue():
     assert start_label.build_queue(answers, 7) != start_label.build_queue(answers, 8)
 
 
-def test_blocks_of_ten_hold_five_and_five_while_both_groups_last():
-    queue = start_label.build_queue(_answers(30, 12), 3)
-    groups = [q["group"] for q in queue]
-    assert groups[:10].count("pass") == 5 and groups[10:20].count("pass") == 5
-    # 12 fails: blocks 1 and 2 take 10, block 3 takes the last 2 and 8 passes.
-    assert groups[20:30].count("fail") == 2
-    assert set(groups[30:]) == {"pass"}
+def test_the_first_ten_hold_five_and_five():
+    for n_pass, n_fail in ((30, 12), (300, 40), (20, 20)):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), 3)]
+        assert groups[:10].count("pass") == 5, (n_pass, n_fail)
+
+
+@pytest.mark.parametrize("n_pass, n_fail", [(30, 12), (90, 10), (300, 40), (40, 300), (12, 4),
+                                            (200, 3), (60, 60)])
+def test_the_end_of_the_queue_mixes_both_grades(n_pass, n_fail):
+    """The last answers never all have one grade: their place would give it away."""
+    for seed in range(5):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), seed)]
+        assert groups.count("pass") == n_pass and groups.count("fail") == n_fail
+        assert set(groups[-20:]) == {"pass", "fail"}, (n_pass, n_fail, seed)
+
+
+def test_a_fail_is_seen_early_and_late_when_few_answers_fail():
+    groups = [q["group"] for q in start_label.build_queue(_answers(400, 40), 1)]
+    assert groups[:30].count("fail") == 15  # enough for a first result, up front
+    tail = groups[30:]
+    for k in range(0, len(tail) - 20, 20):  # then about one in sixteen, to the end
+        assert "fail" in tail[k:k + 40], k
+    assert "fail" in tail[-20:]
+
+
+@pytest.mark.parametrize("n_pass, n_fail", [(300, 20), (200, 25), (100, 16), (20, 300)])
+def test_a_first_result_is_in_the_first_30_when_one_kind_is_rare(n_pass, n_fail):
+    """15 of each up front even when the rarer kind has fewer than 30: when every mark agrees
+    with the LLM-as-a-judge, 30 marks reach a first result."""
+    for seed in range(5):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), seed)]
+        assert groups[:30].count("pass") == groups[:30].count("fail") == targets.ROUGH, seed
+        assert "fail" in groups[-20:] and "pass" in groups[-20:], seed
+
+
+def test_a_pool_with_one_kind_only_is_queued():
+    for n_pass, n_fail in ((20, 0), (0, 20), (1, 1)):
+        groups = [q["group"] for q in start_label.build_queue(_answers(n_pass, n_fail), 2)]
+        assert groups.count("pass") == n_pass and groups.count("fail") == n_fail
 
 
 def test_the_whole_pool_is_queued_once():

@@ -38,6 +38,7 @@ The first two columns are TPR and TNR, copied from judgekeeper's Measure screens
 
 - **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
 - **News summaries only,** and one rule.
+- **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels have a ceiling:** two annotators agreed on 91.8% of answers (the RAGTruth paper, arXiv:2401.00396, section 3.3, page 4).
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Mistral-7B and Llama-2.
 - **The answers aren't fully independent:** the 200 come from 113 articles.

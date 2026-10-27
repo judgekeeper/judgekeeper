@@ -200,7 +200,7 @@ def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
     assert "Step 3 of 5: Measure" in out
     assert "Result: too early to tell." in out
     assert "still open" not in out and "To mark more answers" not in out
-    assert "estimates" not in out  # too early to tell: counts only
+    assert "How often your LLM-as-a-judge agrees with you (estimates):" in out  # the numbers too
     assert "You've marked every answer: 20 Pass, 20 Fail. That's still too few to tell." in \
         flat(out)
     assert _next(out) == NEXT_ALL_MARKED

@@ -87,7 +87,10 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 _SPLITTERS = _CONTROL
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
+# The spaces that look like none or like a line break on a page (_ODD_SPACES) each show as
+# a plain space.
 _UNSEEN = re.compile(f"(?![\\u200c\\u200d])[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f{_HIDDEN}]")
+_ODD_SPACES = re.compile("[\u00a0\u2028\u2029\u3000]")
 
 
 def printable(text) -> str:
@@ -97,8 +100,9 @@ def printable(text) -> str:
 
 def visible(text: str) -> str:
     """`text` for a page: control characters (ESC among them), zero-width and bidirectional
-    controls dropped; tabs, line breaks and the zero-width joiners stay."""
-    return _UNSEEN.sub("", text)
+    controls dropped; a no-break space, an ideographic space and a Unicode line or paragraph
+    separator each a plain space; tabs, line breaks and the zero-width joiners stay."""
+    return _ODD_SPACES.sub(" ", _UNSEEN.sub("", text))
 
 
 def visible_value(value):

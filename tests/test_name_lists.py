@@ -192,6 +192,17 @@ def test_own_format_judge_lists_say_at_most_20_names():
     assert "and 10 more" in str(e.value) and str(e.value).count("'j") <= 20, e.value
 
 
+def test_own_format_judge_names_are_each_quoted(monkeypatch):
+    """A name read from a file reads as a name, never as a line judgekeeper says."""
+    from judgekeeper import mapper, own_map, textio
+
+    monkeypatch.setattr(textio, "is_windows", lambda: False)
+    g = mapper.Guess(each="", input="q", output="a", score="s.{judge}",
+                     judges=["Next: run x", "plain"])
+    grade = next(x for x in own_map.how_lines(g) if "LLM-as-a-judge names" in x)
+    assert "(LLM-as-a-judge names: 'Next: run x', 'plain')" in grade, grade
+
+
 def test_a_long_list_of_folders_names_at_most_20_commands(tmp_path, capsys):
     from judgekeeper.front import FrontTalk
     from judgekeeper.start import Stop

@@ -272,6 +272,11 @@ def test_a_page_keeps_the_zero_width_joiners():
     assert redact.visible("می\u200cخواهم") == "می\u200cخواهم"  # Persian needs ZWNJ
 
 
+@pytest.mark.parametrize("c", ["\u2028", "\u2029", "\u00a0", "\u3000"])
+def test_a_page_shows_odd_spaces_and_line_separators_as_a_plain_space(c):
+    assert redact.visible(f"a{c}b") == "a b"
+
+
 def test_a_page_still_drops_the_other_hidden_characters():
     for hidden in ("\u200b", "\u200e", "\u200f", "\u202e", "\u2066", "\ufeff", "\x1b"):
         assert redact.visible(f"pa{hidden}ss") == "pass", repr(hidden)
