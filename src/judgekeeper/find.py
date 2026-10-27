@@ -41,6 +41,9 @@ MAX_DEPTH = 4
 MAX_JSON = 200
 HEAD_BYTES = 64 * 1024
 MAX_BYTES = 200 * 1000 * 1000
+# A table found in a folder is read whole to check it only up to this size: one of 10 MB takes
+# under half a second, however many cells it has. A bigger one is checked when it is read.
+CHECK_BYTES = 10 * 1000 * 1000
 TABLE_DEPTH = 2
 DEEPER = 4  # nothing found: folders further down where results-like files are named
 
@@ -202,11 +205,14 @@ def table_columns(path: Path) -> list[str]:
         return []
 
 
-def table_problem(path: Path) -> str | None:
-    """Why the table at `path` can't be read (table.problem), or None."""
-    from judgekeeper.table import problem
+def table_problem(path: Path, size: int, columns) -> str | None:
+    """Why the table at `path` can't be read, or None: too many `columns` (its header), or
+    table.problem when it is CHECK_BYTES or smaller."""
+    from judgekeeper import table
 
-    return problem(path)
+    if len(columns) > table.MAX_COLUMNS:
+        return f"has {len(columns):,} columns (judgekeeper reads up to {table.MAX_COLUMNS:,})"
+    return None if size > CHECK_BYTES else table.problem(path)
 
 
 def is_table(columns) -> bool:
@@ -483,7 +489,7 @@ class _Walk:
             if suffix in JSONL_SUFFIXES and is_records(columns):  # record()'s format, moved
                 self.add("records", path, size)
             elif is_table(columns):
-                why = None if size > MAX_BYTES else table_problem(path)
+                why = table_problem(path, size, columns)
                 if why is None:
                     self.add("table", path, size)
                 else:  # one bad table never stops the scan: left out, said in one note

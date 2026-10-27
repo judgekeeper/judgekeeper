@@ -27,7 +27,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from judgekeeper import find, judge_check, keys, mapper, settings, targets, textio
+from judgekeeper import find, judge_check, keys, mapper, settings, table, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.links import said
 from judgekeeper.metrics import ERROR
@@ -601,11 +601,18 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
     return str(error).replace(str(result.path), result.rel)  # never the full path
 
 
+RECORDS_CAPPED = "Read the newest {n:,} records in {folder}; the older ones are left out."
+
+
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
-    """The records files judgekeeper.record() wrote, newest first. A file that cannot be
-    read is left out, with how to see why; a last line cut short is left out too."""
-    loaded = []
+    """The records files judgekeeper.record() wrote, newest first, table.MAX_ROWS records in
+    all (RECORDS_CAPPED said when that leaves some out). A file that cannot be read is left
+    out, with how to see why; a last line cut short is left out too."""
+    loaded, room, cut = [], table.MAX_ROWS, False
     for r in results:
+        if room == 0:
+            cut = True
+            break
         try:
             try:
                 records = read_records(r.path, cut_end_ok=True, bad_lines_ok=True)
@@ -616,12 +623,18 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             text = text[text.find("line "):] if "line " in text else text
             talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
+        if len(records) > room:
+            del records[room:]
+            cut = True
+        room -= len(records)
         if CUT_END in records.notes:
             talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
                      "writing it) and was left out.")
         for warning in records.warnings:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
+    if cut:
+        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=_folder_of(results[0]))}")
     return loaded
 
 

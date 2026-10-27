@@ -155,8 +155,10 @@ It looks only inside your project folder, four folders deep; a results file outs
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
-- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns. It reads the first 100,000 answers of a table and says so when there are more. A table it can't read is left out, with one line saying how many;
+- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns, and at most 200 columns. A table it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
+
+It reads the first 100,000 answers of a results file, and the newest 100,000 records in `.judgekeeper/records/` in all, and says so when there are more.
 
 ## How grades are read
 

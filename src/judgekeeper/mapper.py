@@ -146,20 +146,21 @@ def _is(key: str, words) -> bool:
 
 def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[int, object]]:
     """[(line number, unit)]: JSONL lines, CSV rows (all values text), or a JSON document
-    (its elements, when it is a list). Lines that are not JSON are skipped (their numbers
-    added to `skipped`)."""
+    (its elements, when it is a list); table.MAX_ROWS at most (table.capped: said once).
+    Lines that are not JSON are skipped (their numbers added to `skipped`)."""
+    from judgekeeper.table import MAX_ROWS, capped, csv_numbered, header, open_quote, too_wide
+
     path = Path(path)
     suffix = path.suffix.lower()
     text = read_utf8(path, MapError).removeprefix("﻿")
     if suffix in (".csv", ".tsv"):
-        from judgekeeper.table import csv_numbered, open_quote
-
+        too_wide(header(text, suffix), path, MapError)
         line = open_quote(path)
         if line is not None:  # the rows after it would be read as one cell: never shown
             raise MapError(f"line {line} of {path.name} has a quote that never closes, so the "
                            "rows after it can't be read")
-        return [(n, {k: v for k, v in row.items() if k is not None})
-                for n, row in csv_numbered(text, suffix)]
+        return capped([(n, {k: v for k, v in row.items() if k is not None})
+                       for n, row in csv_numbered(text, suffix, MAX_ROWS)], path)
     if suffix == ".json":
         try:
             doc = json.loads(text)
@@ -167,16 +168,19 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
             raise MapError(f"{path.name} is damaged (it isn't valid JSON)") from None
         except RecursionError:
             raise MapError(NOT_JSON.format(file=path.name)) from None
-        return list(enumerate(doc, 1)) if isinstance(doc, list) else [(1, doc)]
-    units = []
-    for n, line in enumerate(jsonl_lines(text), 1):
-        if line.strip():
-            try:
-                units.append((n, json.loads(line)))
-            except (ValueError, RecursionError):
-                if skipped is not None:
-                    skipped.append(n)
-    return units
+        units = list(enumerate(doc, 1)) if isinstance(doc, list) else [(1, doc)]
+    else:
+        units = []
+        for n, line in enumerate(jsonl_lines(text), 1):
+            if len(units) > MAX_ROWS:
+                break
+            if line.strip():
+                try:
+                    units.append((n, json.loads(line)))
+                except (ValueError, RecursionError):
+                    if skipped is not None:
+                        skipped.append(n)
+    return capped(units, path)
 
 
 def load(path: str | Path) -> list:
