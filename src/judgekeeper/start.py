@@ -770,6 +770,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         JudgeCallsFailed,
         TracesMissing,
         experiments_with_traces,
+        folder_problem,
     )
 
     if experiment is not None:
@@ -785,7 +786,11 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         from mlflow import MlflowClient
 
         found, missing, code_only = [], [], False
-        for exp in MlflowClient(tracking_uri=uri).search_experiments():
+        try:
+            experiments = MlflowClient(tracking_uri=uri).search_experiments()
+        except OSError as e:  # MLflow can't write its .trash there: that folder's problem
+            raise folder_problem(e, uri) or e from None
+        for exp in experiments:
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:

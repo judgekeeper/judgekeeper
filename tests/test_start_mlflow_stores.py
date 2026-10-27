@@ -532,3 +532,25 @@ def test_two_stores_print_nothing_of_mlflows_own(two):
     assert "MLflow stores found" in out, out
     assert "MLFLOW_DISABLE_AGENT_HINT" not in out and "skill" not in out, out
     assert "INFO" not in out and "WARNING" not in out, out
+
+
+def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monkeypatch, capsys):
+    if os.name == "nt":
+        pytest.skip("folder permissions work differently on Windows")
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    if os.access(locked, os.W_OK):
+        locked.chmod(0o700)
+        pytest.skip("this user can write anywhere")
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    try:
+        code, out = run(capsys, "--tracking-uri", locked.as_uri(), "--yes", "--no-browser")
+    finally:
+        locked.chmod(0o700)
+    assert code == 2, out
+    flat = " ".join(out.split())
+    assert f"MLflow couldn't use {locked}" in flat, out
+    assert ".judgekeeper" not in out and "make this folder writable" not in out, out

@@ -21,6 +21,7 @@ local folder, a SQL store, a server and Databricks all work, with MLflow handlin
 from __future__ import annotations
 
 import atexit
+import errno
 import gc
 import inspect
 import json
@@ -661,6 +662,9 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
                                  metric, folder_of(uri))
         except Exception as e:  # never MLflow's words: they can hold the text
+            unusable = folder_problem(e, uri)
+            if unusable is not None:
+                raise unusable from None
             if not is_damage(e):
                 raise
             raise damaged_store(uri) from None
@@ -750,6 +754,24 @@ def damaged_db(uri) -> Damaged:
     return Damaged(f"{name} can't be read: it's damaged. Save it again from MLflow.",
                    f"save {name} again from MLflow (log your evaluation again), then run "
                    "`{command}`.")
+
+
+class FolderUnusable(RecordsError):
+    """MLflow can't use the folder --tracking-uri names (it writes a .trash folder there):
+    said as that folder's problem, never as judgekeeper's own folder's."""
+
+    next_step = ("give --tracking-uri your MLflow folder (mlruns/) or mlflow.db, then run "
+                 "`{command}`.")
+
+
+def folder_problem(error: BaseException, uri) -> FolderUnusable | None:
+    """FolderUnusable when `error` is MLflow being refused the folder store `uri` names."""
+    folder = folder_of(uri)
+    refused = isinstance(error, PermissionError) or (
+        isinstance(error, OSError) and error.errno == errno.EROFS)  # a read-only disk
+    if folder is None or not refused:
+        return None
+    return FolderUnusable(f"MLflow couldn't use {folder} as its folder: it can't write there.")
 
 
 def damaged_store(uri) -> Damaged:
