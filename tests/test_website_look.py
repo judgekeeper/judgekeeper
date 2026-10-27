@@ -856,9 +856,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "better, safe to try, worse, or if it can’t tell yet. How many marks a clear "
              "answer needs depends on how big the change is. For a new rule that fixes about a "
              "quarter of the mistakes and breaks few right answers, it needs about 80 marks, and "
-             "the answer is usually safe to try, not better. A large fix of a clearly wrong rule, "
-             "as in one real run, usually comes out better with 80 marks; a small fix that "
-             "also breaks a few right answers needs more (simulation).")],
+             "the answer is usually safe to try, not better. A large fix of a clearly wrong rule "
+             "(about 9 in 10 of its mistakes fixed) usually comes out better with 80 marks; a "
+             "small fix that also breaks a few right answers needs more (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Run your eval again on the same "
              "answers, then:"),

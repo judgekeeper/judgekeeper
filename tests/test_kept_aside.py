@@ -10,7 +10,7 @@ import random
 import re
 from pathlib import Path
 
-from judgekeeper import fix, targets
+from judgekeeper import fix
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "kept_aside_check.py"
@@ -44,7 +44,6 @@ def test_the_report_is_the_scripts_own_on_the_committed_grid():
                     for rule in module.rules()}
     assert result["needed"] == module.needed(result["rows"])
     assert result["summary"] == module.summary(result["rows"])
-    assert result["real"] == module.real()
     line = next(x for x in (ROOT / "docs" / "examples" / "README.md").read_text(
         encoding="utf-8").splitlines() if x.startswith("- **`kept-aside/`**"))
     assert f"`{result['commit']}`" in line
@@ -60,27 +59,25 @@ def test_a_case_goes_through_fixs_own_split_and_verdict():
     # a rule that fixes every mistake kept aside and breaks none, on a clearly wrong rule
     assert module.one_case(80, 0.6, 1.0, 0.0, random.Random(1))[0] == "better"
     assert module.one_case(80, 0.9, 0.0, 1.0, random.Random(1))[0] == "worse"
-    assert all(r["verdict"] == targets.fix_verdict(r["fixed"], r["broke"], r["kept_aside"]).kind
-               for r in module.real())
 
 
 def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     result = _result()
     quarter, s = result["summary"]["quarter"], result["summary"]
-    like = s["like_real"]
+    large = s["large"]
     n = quarter["marks"]
     # "for a rule that fixes about a quarter ... about N marks, usually safe to try, not better"
     assert quarter["rule"] == "fixes 25%, breaks 2%" and n is not None
     assert quarter["safe"][0] > 50 and quarter["better"][1] < quarter["safe"][0]
-    # "a large fix of a clearly wrong rule, as in one real run, usually comes out better
-    # with N marks"
-    assert like["marks"] == n and like["better"] > 50
-    assert all(r["verdict"] == "better" for r in result["real"])
+    # "a large fix of a clearly wrong rule (about 9 in 10 of its mistakes fixed) usually comes
+    # out better with N marks"
+    assert large["marks"] == n and large["rule"] == "fixes 90%, breaks 2%"
+    assert large["agree"] < 0.8 and large["better"] > 50
     claim = (f"For a new rule that fixes about a quarter of the mistakes and breaks few right "
              f"answers, it needs about {n} marks, and the answer is usually \"safe to try\", "
-             f"not \"better\". A large fix of a clearly wrong rule, as in one real run, usually "
-             f"comes out \"better\" with {n} marks; a small fix that also breaks a few right "
-             f"answers needs more")
+             f"not \"better\". A large fix of a clearly wrong rule (about 9 in 10 of its "
+             f"mistakes fixed) usually comes out \"better\" with {n} marks; a small fix that "
+             f"also breaks a few right answers needs more")
     readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))
     site = _flat((ROOT / "website" / "start.html").read_text(encoding="utf-8")).replace("’", "'")
     assert claim in readme
@@ -95,6 +92,13 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
             f"{need['fixes 90%, breaks 2%']['marks']}; one that fixes 1 in 10 and breaks 5 in "
             f"100 right answers, more than {_module().MARKS[-1]}") in reference
     assert need["fixes 10%, breaks 5%"]["marks"] is None
+    # "by mistake is rare but not zero ... only for rules close to no change"
+    assert "by mistake is rare but not zero, and happens only for rules close to no change" \
+        in reference
+    assert 0 < max(s["false_better"], s["false_worse"]) <= 0.5 and s["false_within"] <= 6
+    for page in (readme, site, reference):
+        assert not re.search(r"never (?:called|reads?|says?) \W?(?:better|safe)", page,
+                             re.IGNORECASE)
     # "a worse rule often reads can't tell yet, and now and then safe to try"
     worse = s["worse_at_most"]
     assert worse["cant"][0] > 50 and 0 < worse["safe"][1] < 10

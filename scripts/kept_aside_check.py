@@ -20,8 +20,7 @@ nothing and break WORSE; and one with no real change, which fixes 1 in 10 mistak
 as many right answers on average (a rule that changes no grade at all is not a test: `fix`
 asks for the results from after the change).
 
-REAL is one real run of `fix` on a corrected rule, per eval tool; its counts go through the
-same verdict, and LIKE_REAL names the row closest to it.
+LARGE names one row the README quotes: a large fix of a clearly wrong rule.
 
 CASES made-up cases per row, each row with its own fixed seed. No AI call. Standard library
 only, one process; it takes a few minutes.
@@ -52,14 +51,7 @@ WORSE = (0.10, 0.25)
 SAME = "no real change"
 KINDS = ("better", "safe", "cant", "worse")
 CLEAR = 0.5  # "most of the time": a clear answer (not "can't tell yet") in more than half
-# One real end-to-end run at 80 marks, Claude Haiku as the LLM-as-a-judge: per eval tool, how
-# often the old rule agreed with the marks, and on the marks kept aside its mistakes, and how
-# many the corrected rule fixed and broke. The mistakes kept aside are estimates from the
-# measured agreement (the run did not print them); fixed and broke were printed by `fix`.
-REAL_MARKS = 80
-REAL = [("promptfoo", 0.72, 11, 11, 0), ("DeepEval", 0.75, 10, 10, 0),
-        ("MLflow", 0.65, 14, 13, 1), ("a CSV of its own", 0.66, 14, 13, 0)]
-LIKE_REAL = (80, 0.70, "fixes 90%, breaks 2%")  # marks, agree, rule
+LARGE = (80, 0.70, "fixes 90%, breaks 2%")  # marks, agree, rule
 BIG, QUARTER = "fixes 90%, breaks 2%", "fixes 25%, breaks 2%"  # the rules the README names
 SLIPS = "fixes 0%, breaks 10%"  # a worse rule that is hard to catch
 
@@ -114,17 +106,7 @@ def row(marks: int, agree: float, rule: str, seed: int) -> dict:
     return {"marks": marks, "agree": agree, "rule": rule, "fixes": fixes,
             "breaks": round(breaks, 6), "change": round(change(rule, agree), 2),
             "kept_aside": round(kept / CASES, 1), "seed": seed, "counts": counts,
-            "like_real": (marks, agree, rule) == LIKE_REAL,
             **{k: round(100 * v / CASES, 1) for k, v in counts.items()}}
-
-
-def real() -> list[dict]:
-    """The real run's counts through the same verdict (kept aside: half of the marks)."""
-    kept = REAL_MARKS // 2
-    return [{"tool": tool, "agree": agree, "mistakes_kept_aside": mistakes, "fixed": fixed,
-             "broke": broke, "kept_aside": kept,
-             "verdict": targets.fix_verdict(fixed, broke, kept).kind}
-            for tool, agree, mistakes, fixed, broke in REAL]
 
 
 def commit() -> str:
@@ -147,7 +129,7 @@ def run() -> dict:
                 rows.append(row(marks, agree, rule, SEED + 1000 * a + 100 * m + r))
     return {"seed": SEED, "cases": CASES, "commit": commit(),
             "hidden_tenths": fix.HIDDEN_TENTHS, "min_each": fix.MIN_EACH, "rows": rows,
-            "needed": needed(rows), "real": real(), "summary": summary(rows)}
+            "needed": needed(rows), "summary": summary(rows)}
 
 
 def _clear(r: dict) -> float:
@@ -169,9 +151,11 @@ def needed(rows: list[dict]) -> dict:
 
 
 def summary(rows: list[dict]) -> dict:
-    """Never a false "better" or a false "worse", from the counts; and the row like the real
-    run."""
-    like = next(r for r in rows if r["like_real"])
+    """How often a false "better" or a false "worse" (from the counts), and how far from no
+    change the rules it happens to are; a worse rule that slips through; the LARGE row."""
+    large = next(r for r in rows if (r["marks"], r["agree"], r["rule"]) == LARGE)
+    false = [r for r in rows if (r["change"] <= 0 and r["counts"]["better"])
+             or (r["change"] >= 0 and r["counts"]["worse"])]
     worse = [r for r in rows if (r["rule"], r["marks"]) == (SLIPS, MARKS[-1])]
     return {"worse_at_most": {k: [min(r[k] for r in worse), max(r[k] for r in worse)]
                               for k in KINDS},
@@ -181,7 +165,8 @@ def summary(rows: list[dict]) -> dict:
                                      if r["change"] >= 0),
             "false_better": max(r["better"] for r in rows if r["change"] <= 0),
             "false_worse": max(r["worse"] for r in rows if r["change"] >= 0),
-            "like_real": {k: like[k] for k in ("marks", "agree", "rule", *KINDS)}}
+            "false_within": max((abs(r["change"]) for r in false), default=0.0),
+            "large": {k: large[k] for k in ("marks", "agree", "rule", *KINDS)}}
 
 
 def _pct(x: float) -> str:
@@ -200,7 +185,7 @@ def sentences(result: dict) -> list[str]:
     """The plain sentences at the top of the report."""
     need, s = result["needed"], result["summary"]
     big, quarter = need[BIG], need[QUARTER]
-    like = s["like_real"]
+    large = s["large"]
     out = [(f"A new rule that fixes almost all of the LLM-as-a-judge's mistakes (9 in 10) and "
             f"breaks 2 in 100 of its right answers gets a clear answer (not \"can't tell "
             f"yet\") most of the time from {_marks(big['marks'])} marks; one that fixes a "
@@ -210,17 +195,20 @@ def sentences(result: dict) -> list[str]:
         out.append(f"With {quarter['marks']} marks, the quarter rule reads \"safe to try\" in "
                    f"{_span(quarter['safe'])} cases in 100 and \"better\" in "
                    f"{_span(quarter['better'])}.")
-    out.append(f"In the row like a real fix we saw ({like['marks']} marks, the old rule "
-               f"agreeing {_pct(like['agree'])} of the time, {like['rule']}), `fix` says "
-               f"\"better\" in {like['better']:.1f} cases in 100 and \"safe to try\" in "
-               f"{like['safe']:.1f}.")
+    out.append(f"A large fix of a clearly wrong rule (one that fixes about 9 in 10 of the "
+               f"mistakes of an LLM-as-a-judge agreeing {_pct(large['agree'])} of the time, and "
+               f"breaks about 2 in 100 right answers) reads \"better\" in "
+               f"{large['better']:.1f} cases in 100 with {large['marks']} marks, and \"safe to "
+               f"try\" in {large['safe']:.1f}.")
     if s["never_false_better"] and s["never_false_worse"]:
         out.append("A rule that is truly the same or worse is never called \"better\", and one "
                    "that is truly the same or better is never called \"worse\".")
     else:
         out.append(f"A rule that is truly the same or worse is called \"better\" in at most "
                    f"{s['false_better']:.1f} cases in 100, and one that is truly the same or "
-                   f"better is called \"worse\" in at most {s['false_worse']:.1f}.")
+                   f"better is called \"worse\" in at most {s['false_worse']:.1f}: rare but "
+                   f"not zero, and only for rules within {s['false_within']:.1f} points of no "
+                   "change.")
     w = s["worse_at_most"]
     out.append(f"A worse rule can still slip through: one that fixes nothing and breaks 1 in 10 "
                f"right answers is caught (\"worse\") in only {_span(w['worse'])} cases in 100 "
@@ -257,23 +245,7 @@ def markdown(result: dict) -> str:
         else:
             lines.append(f"| {rule} | {n['marks']} | "
                          + " | ".join(_span(n[k]) for k in KINDS) + " |")
-    like = result["summary"]["like_real"]
-    lines += ["", "## One real run", "",
-              (f"One real end-to-end run, {REAL_MARKS} marks, Claude Haiku as the "
-               "LLM-as-a-judge, an old rule that was clearly wrong, and a corrected rule. "
-               "`fix` printed how many answers kept aside the new rule fixed and broke. The "
-               "old rule's mistakes kept aside are estimates from how often it agreed with the "
-               "marks (the run did not print them). Each line goes through the same verdict as "
-               "the rows below."), "",
-              ("| Eval tool | Old rule agrees | Its mistakes kept aside (about) | Fixed "
-               "| Broke | Verdict |"),
-              "|---|---|---|---|---|---|"]
-    for r in result["real"]:
-        lines.append(f"| {r['tool']} | {_pct(r['agree'])} | {r['mistakes_kept_aside']} | "
-                     f"{r['fixed']} | {r['broke']} | {r['verdict']} |")
-    lines += ["", (f"This is one real run, not a law: a large fix of a clearly wrong rule. The "
-                   f"row marked \"like a real fix we saw\" below is the closest made-up case "
-                   f"({like['marks']} marks, {_pct(like['agree'])}, {like['rule']})."), "",
+    lines += ["",
               "## How often `fix` says each, in 100 cases", "",
               ("True change: the points of agreement with the person the new rule really gains "
                "or loses. Agrees: how often the LLM-as-a-judge agrees with the person. Kept "
@@ -282,8 +254,7 @@ def markdown(result: dict) -> str:
                "| Can't tell yet | Worse |"),
               "|---|---|---|---|---|---|---|---|---|"]
     for r in result["rows"]:
-        name = r["rule"] + (" (like a real fix we saw)" if r["like_real"] else "")
-        lines.append(f"| {r['marks']} | {_pct(r['agree'])} | {name} | "
+        lines.append(f"| {r['marks']} | {_pct(r['agree'])} | {r['rule']} | "
                      f"{r['change']:+.1f} | {r['kept_aside']:.0f} | "
                      + " | ".join(f"{r[k]:.1f}" for k in KINDS) + " |")
     lines += ["", ("Can't tell yet counts all three of its kinds (leans better, looks the same, "
