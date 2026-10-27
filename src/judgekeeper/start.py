@@ -142,11 +142,13 @@ def _console(stream) -> bool:
     try:
         import ctypes
         import msvcrt
-
-        handle = msvcrt.get_osfhandle(stream.fileno())
+    except ImportError:
+        return False
+    try:
+        handle = ctypes.c_void_p(msvcrt.get_osfhandle(stream.fileno()))  # a HANDLE is a pointer
         mode = ctypes.c_ulong()
         return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
-    except (ImportError, AttributeError, OSError, ValueError):
+    except (AttributeError, OSError, ValueError, TypeError, ctypes.ArgumentError):
         return False
 
 
