@@ -106,19 +106,20 @@ def started_with_python_m() -> bool:
 
 
 def program(subcommand: str = "") -> str:
-    """judgekeeper as the person runs it again: `uvx judgekeeper@<version>` when uvx started
-    it (uvx and pip skip betas unless the version is named, and uvx puts no `judgekeeper`
-    command on the PATH), with the extras it was started with (uvx_with); `python3 -P -m
-    judgekeeper` (`py` on Windows) when `python -m` started it and the `judgekeeper` command
-    is not on the PATH (-P: a project's json.py never runs); else `judgekeeper`; then the
-    subcommand."""
+    """judgekeeper as the person runs it again: `uvx judgekeeper` when uvx started it (uvx
+    puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
+    betas unless the version is named), with the extras it was started with (uvx_with);
+    `python3 -P -m judgekeeper` (`py` on Windows) when `python -m` started it and the
+    `judgekeeper` command is not on the PATH (-P: a project's json.py never runs); else
+    `judgekeeper`; then the subcommand."""
     import shutil
 
     from judgekeeper import __version__
 
     name = "judgekeeper"
     if started_by_uvx():
-        name = uvx_with() if extras_here() else f"uvx judgekeeper@{__version__}"
+        pin = f"@{__version__}" if is_prerelease() else ""
+        name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
     elif started_with_python_m() and not shutil.which("judgekeeper"):
         name = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
     return f"{name} {subcommand}" if subcommand else name
@@ -150,12 +151,13 @@ def is_prerelease(version: str | None = None) -> bool:
 
 
 def uvx_with(*extras: str) -> str:
-    """The uvx command that runs this version of judgekeeper with `extras` and the extras it
-    has now: uvx keeps its own environment, which `pip install` never reaches."""
+    """The uvx command that runs judgekeeper with `extras` and the extras it has now (uvx
+    keeps its own environment, which `pip install` never reaches): this version for a beta."""
     from judgekeeper import __version__
 
     names = ",".join(sorted({*extras, *extras_here()}))
-    return f'uvx --from "judgekeeper[{names}]=={__version__}" judgekeeper'
+    pin = f"=={__version__}" if is_prerelease() else ""
+    return f'uvx --from "judgekeeper[{names}]{pin}" judgekeeper'
 
 
 def install_extra(extra: str) -> str:
