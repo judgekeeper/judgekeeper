@@ -95,7 +95,7 @@ pip install "judgekeeper[mlflow]"
 judgekeeper --experiment my-app-eval --metric correctness
 ```
 
-Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 3.1 or newer. It reads the assessments on your traces from the local store: `mlflow.db` (through a temporary copy) or `mlruns/` (`--tracking-uri` picks one). `--experiment` takes a name or id, `--metric` the assessment name. It reads the newest 30,000 traces. The rule `fix` swaps in is a `make_judge`'s instructions or a `Guidelines` text, not a registered or built-in scorer's.
+Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 3.1 or newer. It reads the assessments on your traces from the local store: `mlflow.db` (through a temporary copy) or `mlruns/` (`--tracking-uri` picks one). `--experiment` takes a name or id, `--metric` the assessment name. It reads the newest 30,000 traces. MLflow's usage tracking is off while judgekeeper reads a store (`MLFLOW_DISABLE_TELEMETRY=true`, and `DO_NOT_TRACK=1` unless your shell sets it). The rule `fix` swaps in is a `make_judge`'s instructions or a `Guidelines` text, not a registered or built-in scorer's.
 
 **Traps.**
 
@@ -104,7 +104,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 - **The rule.** Only `make_judge` (MLflow 3.14+) saves its instructions; for other scorers the prompt hash and temperature are unknown.
 - **Errors** are no decision; the reason is the error's code, never its message.
 - **Code scorers** (a bare bool or number) and assessments on spans are left out, unless `--metric` names a span-only one.
-- **Traces kept elsewhere.** In `mlflow.db`, a trace whose full data is kept outside the folder that holds `mlflow.db` (on a server, in a cloud bucket or in another folder) is read from its short preview in the store, and the count is said once. judgekeeper never fetches that data, and when asking again, an LLM-as-a-judge that reads the whole trace is not asked about it.
+- **Traces kept elsewhere.** In `mlflow.db`, a trace whose full data is kept outside the folder that holds `mlflow.db` (on a server, in a cloud bucket or in another folder) is read from its short preview in the store, and the count is said once. So is one that names no place for its data. The copy's triggers are removed before MLflow opens it, and its locations are checked again once MLflow has. judgekeeper never fetches that data, and when asking again, an LLM-as-a-judge that reads the whole trace is not asked about it.
 - **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder, never from where they point. A trace whose files are not there is left out, and said.
 - **MLflow's own problems, not judgekeeper's.** `mlflow.genai.evaluate` on `mlflow.db` can drop traces and still say it completed; `MLFLOW_GENAI_EVAL_MAX_WORKERS=4` avoids it.
 
