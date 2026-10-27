@@ -134,9 +134,10 @@ def test_the_result_page_reads_each_pool_file_once(tmp_path, monkeypatch):
 
 # Inspect logs, sample by sample ---------------------------------------------------------------
 
-def _fake_inspect(monkeypatch, data, stream=True):
-    """inspect_ai.log with read_eval_log (and, with `stream`, read_eval_log_samples) over the
-    JSON log `data`; returns what was called."""
+def _fake_inspect(monkeypatch, data, stream=True, sample=None):
+    """inspect_ai.log with read_eval_log (and, with `stream`, read_eval_log_samples_by_id)
+    over the JSON log `data`, or `sample(id, epoch)` for each sample asked for; returns what
+    was called."""
     import sys
     from types import ModuleType, SimpleNamespace
 
@@ -159,19 +160,35 @@ def _fake_inspect(monkeypatch, data, stream=True):
         head = {k: v for k, v in data.items() if k != "samples" or not header_only}
         return dumped(head)
 
-    def read_eval_log_samples(path, all_samples_required=True, **kwargs):
-        calls.append(("read_eval_log_samples", all_samples_required))
-        for s in data["samples"]:
-            yield dumped(s)
+    def read_eval_log_samples_by_id(path, samples, **kwargs):
+        samples = list(samples)
+        calls.append(("read_eval_log_samples_by_id", len(samples)))
+        if sample is not None:
+            return [dumped(sample(*key)) for key in samples]
+        index = {(s["id"], s["epoch"]): s for s in data["samples"]}
+        return [dumped(index[key]) for key in samples]
 
     pkg, log_mod = ModuleType("inspect_ai"), ModuleType("inspect_ai.log")
     log_mod.read_eval_log = read_eval_log
     if stream:
-        log_mod.read_eval_log_samples = read_eval_log_samples
+        log_mod.read_eval_log_samples = lambda *a, **k: calls.append("read_eval_log_samples")
+        log_mod.read_eval_log_samples_by_id = read_eval_log_samples_by_id
     pkg.log, pkg.__version__ = log_mod, "0.3.200"
     monkeypatch.setitem(sys.modules, "inspect_ai", pkg)
     monkeypatch.setitem(sys.modules, "inspect_ai.log", log_mod)
     return calls
+
+
+def _fake_eval(path, data, size=2):
+    """A .eval log at `path` holding a part for each of the samples of `data` (its header
+    then lists them), each part `size` bytes unpacked: for the made-up inspect_ai."""
+    ids = list(dict.fromkeys(s["id"] for s in data["samples"]))
+    data["eval"]["dataset"]["sample_ids"] = ids
+    data["eval"]["config"]["epochs"] = max(s["epoch"] for s in data["samples"])
+    parts = {"header.json": b"{}"}
+    parts.update({f"samples/{s['id']}_epoch_{s['epoch']}.json": b"{}" + b" " * (size - 2)
+                  for s in data["samples"]})
+    path.write_bytes(_zipped(parts))
 
 
 def _log_data(n=30):
@@ -191,11 +208,11 @@ def test_an_eval_log_is_read_one_sample_at_a_time(tmp_path, monkeypatch):
     calls = _fake_inspect(monkeypatch, data)
     path = tmp_path / "logs" / "2026-10-21_qa.eval"
     path.parent.mkdir()
-    path.write_bytes(_zipped({"header.json": b"{}"}))
+    _fake_eval(path, data)
     loaded = inspect_logs._load(path)
     samples = list(loaded["samples"])
     assert ("read_eval_log", False) not in calls  # never the whole log at once
-    assert calls == [("read_eval_log", True), ("read_eval_log_samples", False)]
+    assert calls == [("read_eval_log", True), ("read_eval_log_samples_by_id", 30)]
     kept = set().union(*(s.keys() for s in samples))
     assert kept <= set(inspect_logs.SAMPLE_FIELDS) and "events" not in kept
     assert len(samples) == 30 and loaded["eval"] == data["eval"]
@@ -673,9 +690,10 @@ def test_an_eval_log_with_a_wide_part_is_refused_unread(tmp_path, monkeypatch, p
     pytest.importorskip("inspect_ai")
     import inspect_ai.log
 
-    from judgekeeper.readers import read_inspect
+    from judgekeeper.readers import inspect_logs, read_inspect
     from judgekeeper.records import RecordsError
 
+    monkeypatch.setattr(inspect_logs, "PACKED_RATIO", 10**9)  # the values alone
     parts = _old_parts()
     text = parts[part].decode("utf-8")
     at = text.index("{") + 1
@@ -799,9 +817,9 @@ def test_a_small_log_naming_one_wide_part_many_times_is_refused_fast(tmp_path, m
     assert calls == [] and took < 5 and peak < 300 * 2**20
 
 
-def test_a_log_whose_samples_hold_too_many_values_together_is_refused(tmp_path, monkeypatch):
-    """20 parts of about 2,000,000 values each, in 141 KB: each passes the limit for one
-    sample, together they pass the limit for the whole log."""
+def test_a_log_of_20_wide_samples_is_refused_fast(tmp_path, monkeypatch):
+    """20 parts of about 2,000,000 values each, in 141 KB: each passes the limit of values
+    for one sample, but unpacks to far more than 200 times its packed size."""
     import time
 
     from judgekeeper.readers import read_inspect
@@ -820,8 +838,10 @@ def test_a_log_whose_samples_hold_too_many_values_together_is_refused(tmp_path, 
     with pytest.raises(RecordsError) as e:
         read_inspect(path)
     said = str(e.value)
-    assert said.startswith(f"{path} would unpack to more than 20,000,000 values in all"), said
-    assert "\n" not in said and calls == [] and time.monotonic() - start < 5
+    assert said.startswith(f"{path} is too big for judgekeeper to read: one sample would "
+                           "unpack to more than 200 times its packed size"), said
+    assert "damaged" not in said and "\n" not in said
+    assert calls == [] and time.monotonic() - start < 5
 
 
 def test_a_log_whose_samples_unpack_too_big_together_is_refused(tmp_path, monkeypatch):
@@ -839,9 +859,9 @@ def test_a_log_whose_samples_unpack_too_big_together_is_refused(tmp_path, monkey
     with pytest.raises(RecordsError) as e:
         read_inspect(path)
     said = str(e.value)
-    assert said.startswith(f"{path} would unpack to more than {inspect_logs._size(limit)} of "
-                           "samples in all"), said
-    assert calls == []
+    assert said.startswith(f"{path} is too big for judgekeeper to read: it would unpack to more "
+                           f"than {inspect_logs._size(limit)} of samples in all"), said
+    assert "damaged" not in said and calls == []
 
 
 def _longer(data: bytes, name: str, by: int) -> bytes:
@@ -911,10 +931,191 @@ def test_a_sample_written_again_under_its_name_reads_as_inspect_reads_it(tmp_pat
     assert ("1", "C") in seen
 
 
-def test_a_10_mb_log_of_4000_sample_parts_reads_in_flat_memory(tmp_path):
-    """The real old log with 4,000 sample parts more of its first sample's shape, which its
-    summaries leave out: the limits for the whole log pass, the log reads as it is, and
-    memory stays low."""
+def test_the_limits_for_the_whole_log_are_far_above_honest_logs():
+    from judgekeeper.readers import inspect_logs
+
+    assert inspect_logs.SAMPLES_LIMIT == 4 * 2**30
+    assert inspect_logs.ALL_VALUES_LIMIT == 200_000_000
+    assert inspect_logs.PACKED_RATIO == 200
+
+
+def test_a_log_holding_too_many_values_in_all_says_so(tmp_path, monkeypatch):
+    from judgekeeper.readers import inspect_logs, read_inspect
+    from judgekeeper.records import RecordsError
+
+    calls = _watched(monkeypatch)
+    monkeypatch.setattr(inspect_logs, "ALL_VALUES_LIMIT", 500)  # the log holds 950
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(OLD_EVAL.read_bytes())
+    with pytest.raises(RecordsError) as e:
+        read_inspect(path)
+    said = str(e.value)
+    assert said.startswith(f"{path} is too big for judgekeeper to read: it would unpack to more "
+                           "than 500 values in all"), said
+    assert calls == []
+
+
+def test_a_sample_packed_over_200_times_tighter_is_too_big_to_read(tmp_path, monkeypatch):
+    """600,000 values (1.2 MB) in about 1 KB: far under the limits for one sample, far over
+    what an honest sample packs to."""
+    from judgekeeper.readers import read_inspect
+    from judgekeeper.records import RecordsError
+
+    parts = _old_parts()
+    parts["samples/1_epoch_1.json"] = _wide_sample(600_000)
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(_zipped(parts))
+    calls = _stubbed(monkeypatch)
+    with pytest.raises(RecordsError) as e:
+        read_inspect(path)
+    said = str(e.value)
+    assert said.startswith(f"{path} is too big for judgekeeper to read: one sample would "
+                           "unpack to more than 200 times its packed size"), said
+    assert calls == []
+
+
+def test_summaries_that_pack_tightly_still_read(tmp_path):
+    """Inspect AI's summaries and reductions repeat a lot and can pack 100 to 200 times:
+    only samples are held to the packing limit."""
+    import json
+    import zipfile
+
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.readers import read_inspect
+
+    parts = _old_parts()
+    summaries = json.loads(parts["summaries.json"])
+    summaries[0]["input"] = "the same words " * 200_000
+    parts["summaries.json"] = json.dumps(summaries)
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(_zipped(parts))
+    with zipfile.ZipFile(path) as z:
+        info = z.getinfo("summaries.json")
+    assert info.file_size > 200 * info.compress_size and info.file_size > 2**20
+    assert len(read_inspect(path)) == len(read_inspect(OLD_EVAL))
+
+
+def _sizes_in_zip64(first: int, second: int | None) -> bytes:
+    """The real old log written again by hand, its first sample's packed size in the table
+    of contents given in zip64 extras: `first`, then `second` when given. zipfile takes the
+    last, inspect_ai the first."""
+    import struct
+    import zlib
+
+    body, table = bytearray(), []
+    for name, data in _old_parts().items():
+        packer = zlib.compressobj(9, zlib.DEFLATED, -15)
+        packed = packer.compress(data) + packer.flush()
+        crc, raw, at = zlib.crc32(data), name.encode(), len(body)
+        if name == "samples/1_epoch_1.json":
+            body += struct.pack("<4s5H3L2H", b"PK\x03\x04", 45, 0, 8, 0, 0, crc, 0, 0,
+                                len(raw), 0) + raw + packed
+            extra = struct.pack("<HHQ", 1, 8, first)
+            extra += b"" if second is None else struct.pack("<HHQ", 1, 8, second)
+            size = 0xFFFFFFFF
+        else:
+            body += struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 8, 0, 0, crc, len(packed),
+                                len(data), len(raw), 0) + raw + packed
+            extra, size = b"", len(packed)
+        table.append(struct.pack("<4s6H3L5H2L", b"PK\x01\x02", 45, 45, 0, 8, 0, 0, crc, size,
+                                 len(data), len(raw), len(extra), 0, 0, 0, 0, at) + raw + extra)
+    listed = b"".join(table)
+    return bytes(body) + listed + _end_record(len(table), len(listed), len(body))
+
+
+@pytest.mark.parametrize("how", ["two zip64 sizes", "a zip64 size of 0xFFFFFFFF",
+                                 "packed data longer than it says"])
+def test_a_part_whose_packed_size_reads_two_ways_is_refused_unread(tmp_path, monkeypatch, how):
+    """zipfile and inspect_ai must take a part to end at the same byte: else what is checked
+    is not what inspect_ai reads."""
+    import zipfile
+
+    calls = _watched(monkeypatch)
+    if how == "two zip64 sizes":
+        data = _sizes_in_zip64(0xFFFFFFFF, 64)
+    elif how == "a zip64 size of 0xFFFFFFFF":
+        data = _sizes_in_zip64(0xFFFFFFFF, None)
+    else:
+        data = _longer(_zipped(_old_parts()), "samples/1_epoch_1.json", -50)
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(data)
+    with zipfile.ZipFile(path) as z:
+        assert "samples/1_epoch_1.json" in z.namelist()
+    if how != "packed data longer than it says":
+        _refused_unread(path, calls)
+        return
+    from judgekeeper.readers import read_inspect  # the header alone still reads
+    from judgekeeper.records import RecordsError
+
+    with pytest.raises(RecordsError) as e:
+        read_inspect(path)
+    assert "can't be read: it may be cut short" in str(e.value) and calls == []
+
+
+def test_a_log_whose_header_was_edited_in_place_still_reads(tmp_path):
+    """Inspect AI edits a header (a score edited in its viewer) by writing a new one and
+    leaving the old one's bytes unlisted: a gap between parts is allowed."""
+    import struct
+    import zipfile
+    from itertools import pairwise
+
+    pytest.importorskip("inspect_ai")
+    from inspect_ai.log import read_eval_log, write_eval_log
+
+    from judgekeeper.readers import read_inspect
+
+    path = tmp_path / "2026-10-21_qa.eval"
+    write_eval_log(read_eval_log(str(OLD_EVAL)), str(path))
+    write_eval_log(read_eval_log(str(path), header_only=True), str(path), header_only=True)
+    with zipfile.ZipFile(path) as z, path.open("rb") as f:
+        spans = []
+        for p in z.infolist():
+            f.seek(p.header_offset + 26)
+            name, extra = struct.unpack("<HH", f.read(4))
+            spans.append((p.header_offset, p.header_offset + 30 + name + extra + p.compress_size))
+        spans = sorted(spans) + [(z.start_dir, 0)]
+    assert any(end < after for (_, end), (after, _) in pairwise(spans))
+    assert len(read_inspect(path)) == len(read_inspect(OLD_EVAL))
+
+
+def test_a_log_saying_a_billion_epochs_reads_in_seconds(tmp_path, monkeypatch):
+    """Inspect AI's own loop asks for every sample id in every epoch the header names: only
+    the samples the log holds are read."""
+    import json
+    import time
+
+    pytest.importorskip("inspect_ai")
+    import inspect_ai.log._file as inspect_file
+
+    from judgekeeper.readers import read_inspect
+
+    parts = _old_parts()
+    for name in ("header.json", "_journal/start.json"):
+        part = json.loads(parts[name])
+        part["eval"]["config"]["epochs"] = 1_000_000_000
+        parts[name] = json.dumps(part)
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(_zipped(parts))
+    assert path.stat().st_size < 10_000
+    asked = []
+    real = inspect_file.read_eval_log_sample
+
+    def counted(*args, **kwargs):
+        asked.append(1)
+        if len(asked) > 1000:
+            raise RuntimeError("still asking")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(inspect_file, "read_eval_log_sample", counted)
+    start = time.monotonic()
+    records = read_inspect(path)
+    assert time.monotonic() - start < 5 and len(asked) <= 2
+    assert len(records) == len(read_inspect(OLD_EVAL))
+
+
+def test_a_10_mb_log_of_4000_samples_reads_every_sample_in_flat_memory(tmp_path):
+    """The real old log with 4,000 samples more of its first sample's shape, all listed in
+    its header: the limits for the whole log pass and every sample is read, in seconds."""
     import json
     import time
     import tracemalloc
@@ -922,10 +1123,14 @@ def test_a_10_mb_log_of_4000_sample_parts_reads_in_flat_memory(tmp_path):
     pytest.importorskip("inspect_ai")
     from judgekeeper.readers import read_inspect
 
+    n = 4002
     parts = _old_parts()
+    header = json.loads(parts["header.json"])
+    header["eval"]["dataset"].update(samples=n, sample_ids=list(range(1, n + 1)))
+    parts["header.json"] = json.dumps(header)
     sample = json.loads(parts["samples/1_epoch_1.json"])
     parts.update({f"samples/{i}_epoch_1.json": json.dumps(dict(sample, id=i, uuid=f"u{i}"))
-                  for i in range(3, 4003)})
+                  for i in range(3, n + 1)})
     path = tmp_path / "2026-10-21_qa.eval"
     path.write_bytes(_zipped(parts))
     del parts
@@ -937,43 +1142,37 @@ def test_a_10_mb_log_of_4000_sample_parts_reads_in_flat_memory(tmp_path):
         took, peak = time.monotonic() - start, tracemalloc.get_traced_memory()[1]
     finally:
         tracemalloc.stop()
-    assert len(records) == len(read_inspect(OLD_EVAL))
-    assert took < 30 and peak < 20 * 2**20, (took, peak)
-
-
+    assert len({r.target_id for r in records}) == n == len(records)
+    assert took < 120 and peak < 60 * 2**20, (took, peak)  # one at a time: minutes
 def test_samples_are_let_go_once_read(tmp_path, monkeypatch):
     """What a sample holds beyond what the reader keeps (here a 100 KB rendered prompt in its
-    score's metadata) is let go before the next sample is read."""
+    score's metadata) is let go once read: at most one batch of samples is held."""
     import copy
     import tracemalloc
 
     from judgekeeper.readers import inspect_logs
 
-    data = _log_data(1)
-    one = data["samples"][0]
+    data = _log_data(500)
+    one = copy.deepcopy(data["samples"][0])
 
-    class Fresh:
-        def __iter__(self):
-            for i in range(200):
-                s = copy.deepcopy(one)
-                s.update(id=i, input=f"Question {i}?")
-                s["scores"]["model_graded_qa"]["metadata"] = {"grading": "x" * 100_000}
-                yield s
+    def sample(i, epoch):
+        s = copy.deepcopy(one)
+        s.update(id=i, epoch=epoch, input=f"Question {i}?")
+        s["scores"]["model_graded_qa"]["metadata"] = {"grading": "x" * 100_000}
+        return s
 
-    data["samples"] = Fresh()
-    _fake_inspect(monkeypatch, data)
     path = tmp_path / "2026-10-21_qa.eval"
-    path.write_bytes(_zipped({"header.json": b"{}"}))
+    _fake_eval(path, data, size=100_000)
+    data["samples"] = None
+    calls = _fake_inspect(monkeypatch, data, sample=sample)
     tracemalloc.start()
     try:
         records = inspect_logs.read_inspect(path)
         peak = tracemalloc.get_traced_memory()[1]
     finally:
         tracemalloc.stop()
-    assert len(records) == 200
-    assert peak < 5 * 2**20, peak  # all 200 at once: over 20 MB
-
-
+    assert len(records) == 500 and len(calls) > 2
+    assert peak < 20 * 2**20, peak  # all 500 at once: over 50 MB
 # One failed judge call, and its text ---------------------------------------------------------
 
 CANARY = "CANARY-prompt-text-7f3a"
