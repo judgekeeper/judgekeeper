@@ -33,6 +33,7 @@ from judgekeeper import again, keys, start, start_label
 from judgekeeper.again import AgainOptions
 from judgekeeper.again import mlflow as mf
 from judgekeeper.readers import mlflow_store
+from judgekeeper.records import Damaged
 from judgekeeper.start_label import StartSession
 from tests.start_projects import save_result
 
@@ -330,3 +331,105 @@ def test_a_store_with_spans_in_the_database_is_read_in_full(made, tmp_path):
         traces = list(mlflow_store._traces(client, exp))
     assert len(traces) == N and all(t.data.spans for t in traces)
     assert json.loads(json.dumps(traces[0].data.to_dict()))["spans"]
+
+
+# A trigger in the store ------------------------------------------------------------------------
+
+def _no_locations(db: Path, address: str, trigger: str) -> None:
+    """No location rows, the default experiment gone (MLflow adds it again when it opens the
+    store), and a trigger that names `address` as every trace's location when it fires."""
+    edit(db, "delete from trace_tags where key = 'mlflow.artifactLocation'",
+         "delete from experiments where experiment_id = 0",
+         f"create trigger jk_poc {trigger} begin "
+         "delete from trace_tags where key = 'mlflow.trace.spansLocation'; "
+         "insert into trace_tags(key, value, request_id) select 'mlflow.artifactLocation', "
+         f"'{address}/trig', request_id from trace_info; end")
+
+
+def _triggers(db: Path) -> list:
+    with closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True)) as con:
+        return con.execute("select name from sqlite_master where type = 'trigger'").fetchall()
+
+
+def test_a_trigger_in_a_store_with_no_location_rows_fetches_nothing(made, tmp_path, listener):
+    address, asked = listener
+    root = _project(made, tmp_path)
+    _no_locations(root / "mlflow.db", address, "after insert on experiments")
+    before = (root / "mlflow.db").read_bytes()
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+    assert (root / "mlflow.db").read_bytes() == before  # the person's store: same bytes
+
+
+@pytest.mark.parametrize("trigger", [
+    "after insert on experiments", "after update on experiments", "after insert on trace_tags",
+    "after update on trace_tags", "after insert on runs", "after update on runs",
+])
+def test_the_copy_holds_no_trigger(made, tmp_path, trigger):
+    root = _project(made, tmp_path)
+    _no_locations(root / "mlflow.db", "http://127.0.0.1:9", trigger)
+    uri = mlflow_store.store_uri(root / "mlflow.db")
+    assert _triggers(Path(uri.removeprefix("sqlite:///"))) == []
+    assert _triggers(root / "mlflow.db")  # the person's store keeps what it holds
+
+
+def test_a_location_written_after_the_copy_is_made_is_never_fetched(made, tmp_path, listener):
+    """A location that reaches the copy once it was made (MLflow writes to the copy when it
+    opens it) is kept or pointed nowhere again before any trace is read."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    uri = mlflow_store.store_uri(root / "mlflow.db")
+    _elsewhere(Path(uri.removeprefix("sqlite:///")), address)
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+    mf.assessment_info(start_label.Workspace(root), "correctness")
+    assert asked == []
+
+
+# A store that hides its locations ----------------------------------------------------------------
+
+def test_a_trace_tags_table_named_in_capitals_is_kept_local(made, tmp_path, listener):
+    """SQLite finds a table whatever the case of its name, as MLflow's queries do."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    _elsewhere(root / "mlflow.db", address)
+    edit(root / "mlflow.db", "alter table trace_tags rename to tags_for_now",
+         "alter table tags_for_now rename to TRACE_TAGS")
+    try:
+        found = start.find_judge(root)
+    finally:
+        assert asked == []
+    assert len(found.pool.answers) == N
+
+
+FK_ON = "(select foreign_keys from pragma_foreign_keys) = 1"  # MLflow switches it on
+
+
+@pytest.mark.parametrize("view", [
+    # what MLflow reads differs from what judgekeeper's own check reads
+    ("select key, value, request_id from real_tags where not (key = 'mlflow.artifactLocation' "
+     f"and {FK_ON}) union all select 'mlflow.artifactLocation', '{{address}}/view/', "
+     f"request_id from trace_info where {FK_ON}"),
+    # a view over a table that is gone: it can't be read at all
+    "select key, value, request_id from gone",
+])
+def test_a_store_holding_a_view_is_damaged(made, tmp_path, listener, view):
+    """Also with no trigger in the store (MLflow 3.1 makes none)."""
+    address, asked = listener
+    root = _project(made, tmp_path)
+    edit(root / "mlflow.db", "drop trigger if exists prevent_secrets_aad_mutation",
+         "delete from trace_tags where key = 'mlflow.trace.spansLocation'",
+         "delete from spans", "alter table trace_tags rename to real_tags",
+         "create table gone (key, value, request_id)",
+         f"create view trace_tags as {view.format(address=address)}", "drop table gone")
+    try:
+        with pytest.raises(Damaged, match="mlflow.db can't be read: it's damaged"):
+            start.find_judge(root)
+    finally:
+        assert asked == []

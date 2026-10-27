@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import json
 import logging
 import os
 import shutil
@@ -487,3 +488,33 @@ def test_a_meta_yaml_mlflow_refuses_is_a_damaged_store(folder_only, capsys):
     assert code == 2, out
     assert "mlruns can't be read: it's damaged. Save it again from MLflow." in out
     assert "please report" not in out.lower() and "didn't expect" not in out
+
+
+# MLflow's usage tracking -------------------------------------------------------------------
+
+TELEMETRY = ("MLFLOW_DISABLE_TELEMETRY", "DO_NOT_TRACK")
+READ = r"""
+import json, sys
+from judgekeeper import start
+start.find_judge(sys.argv[1])
+import os, mlflow
+try:
+    from mlflow.telemetry.client import get_telemetry_client
+    client = get_telemetry_client() is not None
+except ImportError:  # an MLflow with no usage tracking
+    client = False
+print(json.dumps({"env": {n: os.environ.get(n) for n in sys.argv[2:]}, "client": client}))
+"""
+
+
+def test_mlflow_usage_tracking_is_off_in_the_reader(tmp_path):
+    from tests.conftest import build_mlflow_folder_store
+
+    build_mlflow_folder_store(tmp_path / "mlruns")
+    env = {k: v for k, v in os.environ.items()
+           if k not in TELEMETRY and k not in (HINT, ALLOW, "PYTEST_CURRENT_TEST")}
+    out = subprocess.run([sys.executable, "-c", READ, str(tmp_path), *TELEMETRY], env=env,
+                         capture_output=True, text=True, check=True, cwd=tmp_path).stdout
+    seen = json.loads(out.strip().splitlines()[-1])
+    assert seen["env"] == {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
+    assert seen["client"] is False  # MLflow made no usage-tracking client

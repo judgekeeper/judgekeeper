@@ -76,11 +76,14 @@ SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
 HINT = "MLFLOW_DISABLE_AGENT_HINT"  # MLflow's hint for coding agents, logged on import
+# MLflow's usage tracking off; DO_NOT_TRACK is the switch other libraries read too
+TELEMETRY_OFF = {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
 FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
                "this read only (MLFLOW_ALLOW_FILE_STORE).")
 _noted = False  # FOLDER_NOTE was said in this run
 
 _copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
+_homes: dict[Path, Path] = {}  # a copy -> the folder that holds the person's mlflow.db
 _copies_lock = threading.Lock()
 
 # Where a trace's data is kept, as its tags name it (an archived trace's in the second): MLflow
@@ -134,6 +137,7 @@ def store_uri(path: Path, say=None) -> str:
                 shutil.rmtree(folder, ignore_errors=True)
                 raise
             _copies[key] = folder / path.name
+            _homes[folder / path.name] = path.parent
         copy = _copies[key]
     return f"sqlite:///{copy.as_posix()}"
 
@@ -160,43 +164,89 @@ def kept_location(value, home: Path) -> Path | None:
         return None
 
 
+TRIGGERS = "select name from sqlite_master where type = 'trigger'"
+VIEWS = "select 1 from sqlite_master where type = 'view'"  # MLflow makes none
+LOCATIONS = "select request_id, key, value from trace_tags where key in (?, ?)"
+
+
+def _locations(con) -> list:
+    """The location rows of a store: none when it holds no trace tags. SQLite finds a table
+    whatever the case of its name, as MLflow's queries do."""
+    if con.execute("select 1 from sqlite_master where name = 'trace_tags' collate nocase"
+                   ).fetchone() is None:
+        return []
+    return con.execute(LOCATIONS, LOCATION_TAGS).fetchall()
+
+
 def _keep_local(copy: Path, home: Path) -> None:
     """In judgekeeper's copy of mlflow.db (never the person's own file), before MLflow opens
-    it: each trace location kept_location keeps becomes its full path, and every other one
-    points into the copy's own folder, where nothing is, so MLflow can't fetch it. The copy's
-    triggers are dropped first: one could put a value back. A copy that can't be made so is
-    damaged; one with nothing to change is left byte for byte as it is (read read-only, which
-    never folds in or removes its -wal file), and so is one that holds no trace tags (MLflow
-    reads no trace data from it)."""
+    it and again once it has (_local_again): every trigger is dropped, always (one could put a
+    location back when MLflow writes to the copy; MLflow's own, on its secrets table, guards
+    a table judgekeeper never writes), and each trace location kept_location keeps becomes its
+    full path, every other one pointing into the copy's own folder, where nothing is, so
+    MLflow can't fetch it. A copy that can't be made so is damaged, and so is one that holds
+    a view: MLflow makes none, and a view can show MLflow other rows than this check reads
+    (one that reads MLflow's own SQLite settings, say). One with no trigger and
+    nothing to change is left byte for byte as it is (read read-only, which never folds in or
+    removes its -wal file); one SQLite can't read at all is left to MLflow, which says so."""
     import sqlite3
     from contextlib import closing
 
     elsewhere = (copy.parent / ELSEWHERE).as_uri()
-    query = "select request_id, key, value from trace_tags where key in (?, ?)"
+
+    def wanted(value) -> str:
+        kept = kept_location(value, home)
+        return kept.as_uri() if kept is not None else elsewhere
+
+    damaged = damaged_db(f"sqlite:///{copy.as_posix()}")
+    triggers = rows = None  # unknown until read: then read, and changed, read-write
+    views = False
     try:
         with closing(sqlite3.connect(f"{copy.as_uri()}?mode=ro", uri=True)) as con:
-            rows = con.execute(query, LOCATION_TAGS).fetchall()
-    except sqlite3.Error:
+            views = con.execute(VIEWS).fetchone() is not None
+            triggers = con.execute(TRIGGERS).fetchall()
+            rows = _locations(con)
+    except sqlite3.OperationalError:  # not opened read-only, or a table not read
+        pass
+    except sqlite3.DatabaseError:  # not a database, or its tables can't be read
+        if triggers is None and not views:
+            return  # MLflow can't read it either, and says so
+    if views:
+        raise damaged
+    if triggers == [] and rows is not None and all(wanted(v) == v for _, _, v in rows):
         return
-    want = {}
-    for trace, key, value in rows:
-        kept = kept_location(value, home)
-        want[(trace, key)] = kept.as_uri() if kept is not None else elsewhere
-    if all(want[(trace, key)] == value for trace, key, value in rows):
-        return
+    want = after = left = None
     with closing(sqlite3.connect(copy)) as con:
         try:
-            for (name,) in con.execute(
-                    "select name from sqlite_master where type = 'trigger'").fetchall():
-                con.execute('drop trigger "{}"'.format(str(name).replace('"', '""')))
-            con.executemany("update trace_tags set value = ? where request_id = ? and key = ?",
-                            [(v, trace, key) for (trace, key), v in want.items()])
-            con.commit()
-            after = {(t, k): v for t, k, v in con.execute(query, LOCATION_TAGS).fetchall()}
+            if con.execute(VIEWS).fetchone() is None:
+                for (name,) in con.execute(TRIGGERS).fetchall():
+                    con.execute('drop trigger "{}"'.format(str(name).replace('"', '""')))
+                want = {(trace, key): wanted(value) for trace, key, value in _locations(con)}
+                con.executemany(
+                    "update trace_tags set value = ? where request_id = ? and key = ?",
+                    [(v, trace, key) for (trace, key), v in want.items()])
+                con.commit()
+                after = {(t, k): v for t, k, v in _locations(con)}
+                left = con.execute(TRIGGERS).fetchall()
         except sqlite3.Error:
-            after = None
-    if after != want:
-        raise damaged_db(f"sqlite:///{copy.as_posix()}")
+            if triggers is None:
+                return  # not a database SQLite reads: MLflow can't read it either
+    if want is None or after != want or left != []:
+        raise damaged
+
+
+def _local_again(client, experiment_id) -> None:
+    """For judgekeeper's copy of mlflow.db that `client` reads, before any trace is read:
+    MLflow opens the copy (it may write to it then), then _keep_local runs on it again."""
+    uri = getattr(client, "tracking_uri", None)
+    if _copy_folder(uri) is None:
+        return
+    path = Path(str(uri).removeprefix("sqlite:///"))
+    with _copies_lock:
+        home = _homes.get(path)
+    if home is not None:
+        client.get_experiment(experiment_id)  # opened by MLflow first
+        _keep_local(path, home)
 
 
 def _copy_folder(uri) -> Path | None:
@@ -253,7 +303,13 @@ def quiet() -> Iterator[None]:
     only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
     holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
     afterwards, also after an error; a value the user set is left as it is. Never for the
-    user's shell, never in a file."""
+    user's shell, never in a file.
+
+    MLflow's usage tracking is switched off before `import mlflow` (TELEMETRY_OFF, a
+    DO_NOT_TRACK the user set kept), and stays off for the rest of judgekeeper's process:
+    MLflow decides on import, once per process."""
+    os.environ["MLFLOW_DISABLE_TELEMETRY"] = TELEMETRY_OFF["MLFLOW_DISABLE_TELEMETRY"]
+    os.environ.setdefault("DO_NOT_TRACK", TELEMETRY_OFF["DO_NOT_TRACK"])
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
@@ -316,6 +372,7 @@ def remove_copies() -> None:
     with _copies_lock:
         folders = [copy.parent for copy in _copies.values()]
         _copies.clear()
+        _homes.clear()
     if folders:
         _close_engines(folders)
     for folder in folders:
@@ -398,6 +455,7 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
     there is left out, its id added to `missing`. In judgekeeper's copy of mlflow.db, a trace
     whose data is kept elsewhere (_keep_local) comes with no spans, its id added to
     `previews`: what the store itself keeps of it is read (_content)."""
+    _local_again(client, experiment_id)
     scope = _trace_scope(client.search_traces, experiment_id)
     can_skip = "include_spans" in inspect.signature(client.search_traces).parameters
     local = folder is not None and can_skip
