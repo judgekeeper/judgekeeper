@@ -86,7 +86,7 @@ def test_fix_counts_an_answer_with_two_grades_against_the_new_rule(here, capsys,
 
 # Answers kept aside left out ---------------------------------------------------------------------
 
-def test_fix_says_first_when_answers_kept_aside_are_missing(here, capsys, monkeypatch):
+def test_fix_gives_no_verdict_when_answers_kept_aside_are_missing(here, capsys, monkeypatch):
     ws = project("jsonl", here, monkeypatch)
     capsys.readouterr()
     run(capsys, "fix")
@@ -95,15 +95,13 @@ def test_fix_says_first_when_answers_kept_aside_are_missing(here, capsys, monkey
     rows = [(i, person(i)) for i in range(N) if i not in gone]
     code, out = run(capsys, "fix", _jsonl(here / "part.jsonl", rows).name)
     said = flat(out)
-    first = (f"3 of the {len(kept)} answers kept aside are not in your new results. Grade the "
-             "same answers again (.judgekeeper/fix/marked-answers.csv)")
-    assert first in said, out
-    assert said.index(first) < said.index("Result:")
+    assert (f"Result: can't tell. 3 of the {len(kept)} answers kept aside have no grade in your "
+            "new results: 3 are not in the file.") in said, out
+    assert said.count("Result:") == 1
     nxt = said[said.rindex("Next:"):]
     assert "marked-answers.csv" in nxt
     assert "more questions" not in nxt and "Mark more answers" not in said
-    assert "mistakes are kept aside" not in said  # the "only N mistakes" line needs them all
-    assert code == 0
+    assert code == 3
 
 
 def test_the_same_rule_graded_again_in_full_is_a_new_test(here, capsys, monkeypatch):

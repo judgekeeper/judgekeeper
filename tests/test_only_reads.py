@@ -265,21 +265,26 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     file = fix.NEW_LOG if tool == "inspect" else fix.NEW_RESULTS
     assert f"fix {file}" in " ".join(out.split())
 
-    gone = kept[0]  # not graded again: counted, said, left out
+    gone = kept[0]  # not graded again: said, and no verdict without it
     new = write_results(tool, here / NEW[tool],
                         {i: person(i) for i in range(N) if i != gone}, regraded=True)
     with only_reads(monkeypatch):
         code, out = run(capsys, "fix", new.relative_to(here))
-    assert code == 0, out
+    assert code == 3, out
     said = " ".join(out.split())
-    assert f"tested on the {len(kept) - 1} marks kept aside" in said
-    assert (f"1 of the {len(kept)} answers kept aside is not in your new results. Grade the "
-            "same answers again (.judgekeeper/fix/marked-answers.csv).") in said
+    assert (f"Result: can't tell. 1 of the {len(kept)} answers kept aside has no grade in your "
+            "new results: 1 is not in the file.") in said
     assert "marked-answers.csv" in said[said.rindex("Next:"):]
-    assert "Result:" in said
+    assert fix.read_split(ws).tests == []
+
+    new = write_results(tool, here / NEW[tool], {i: person(i) for i in range(N)}, regraded=True)
+    with only_reads(monkeypatch):
+        code, out = run(capsys, "fix", new.relative_to(here))
+    assert code == 0, out
+    assert f"tested on the {len(kept)} marks kept aside" in " ".join(out.split())
     test = fix.read_split(ws).tests[-1]
-    assert test["n"] == len(kept) - 1 and test["broke"] == 0
-    assert test["fixed"] == len(WRONG & set(kept)) - (gone in WRONG)
+    assert test["n"] == len(kept) and test["broke"] == 0
+    assert test["fixed"] == len(WRONG & set(kept))
     if os.name != "nt":
         assert all(mode(p) == 0o600 for p in folder.iterdir() if p.is_file())
 

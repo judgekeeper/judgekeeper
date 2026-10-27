@@ -142,3 +142,156 @@ def test_same_ids_with_other_answers_are_not_there(here, capsys):
     code, out = run(capsys, "check", write(here, "new.csv", rows))
     assert code == 3, out
     assert "None of your" in out
+
+
+# Answers kept aside with no grade: never "better" ------------------------------------------------
+
+def _number(answer: str) -> int:
+    return int(re.search(r"Answer (\d+):", answer)[1])
+
+
+def broken_kept_aside(ws: Workspace) -> set[str]:
+    """The answers kept aside that the old LLM-as-a-judge got right, every other one: the ones
+    a new rule breaks."""
+    split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+    pool = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    right = sorted((pool[i]["output"] for i in split["hidden"] if _number(pool[i]["output"]) % 5),
+                   key=_number)
+    return set(right[::2])
+
+
+def breaking(ws: Workspace, how: str) -> list[dict]:
+    """A new rule that fixes every mistake kept aside and breaks some answers it had right,
+    whose grades are then `how`: "wrong", "error", "good" (a word judgekeeper doesn't know),
+    or "dropped" from the file."""
+    broken = broken_kept_aside(ws)
+    rows = []
+    for row in regraded(ws):
+        if row["output"] in broken:
+            if how == "dropped":
+                continue
+            row["verdict"] = {"wrong": {"pass": "fail", "fail": "pass"}[row["verdict"]],
+                              "error": "error", "good": "good"}[how]
+        rows.append(row)
+    return rows
+
+
+def test_the_new_rule_breaking_answers_is_seen(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, "wrong")))
+    assert code == 0, out
+    assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
+    assert "Result: can't tell yet. That leans toward worse." in out
+
+
+@pytest.mark.parametrize("how, why", [
+    ("error", "have no decision from your LLM-as-a-judge (such as an error)"),
+    ("dropped", "are not in the file")])
+def test_answers_kept_aside_with_no_grade_never_read_better(here, capsys, how, why):
+    ws = project(here)
+    capsys.readouterr()
+    k = len(broken_kept_aside(ws))
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, how)))
+    assert code == 3, out
+    assert (f"Result: can't tell. {k} of the 30 answers kept aside have no grade in your new "
+            f"results: {k} {why}.") in out
+    assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
+    assert "Next: grade every answer in .judgekeeper/fix/marked-answers.csv again" in out
+    split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+    assert split["tests"] == []  # no test used up
+
+
+def test_one_error_kept_aside_is_not_safe_to_try(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    (one,) = sorted(broken_kept_aside(ws), key=_number)[:1]
+    rows = [r | {"verdict": "error"} if r["output"] == one else r for r in regraded(ws)]
+    code, out = run(capsys, "fix", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "1 of the 30 answers kept aside has no grade" in out
+    assert "1 has no decision" in out
+
+
+def test_a_grade_word_judgekeeper_does_not_know_is_refused(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, "good")))
+    assert code == 3, out
+    assert ("judgekeeper can't tell which of the grades in new.csv mean Pass and which mean "
+            "Fail: good. It never guesses.") in out
+    assert "Next: grade each answer with the grade words your marked results use, then run " \
+           "`judgekeeper fix new.csv` again." in out
+    assert "Result" not in out
+
+
+# check: "has not changed" only when the results hold the marked answers ------------------------
+
+def _shapes(ws: Workspace) -> dict[str, list[dict]]:
+    """New results that hold none of the marked answers with a grade."""
+    same = [_row(i) for i in range(N)]
+    return {
+        "unrelated": [_row(i) | {"input": f"Question {i}: where is my parcel?",
+                                 "output": f"Parcel {i} is on its way."} for i in range(N)],
+        "other-question": [r | {"input": "A different question?"} for r in same],
+        "zwsp": [r | {"output": r["output"].replace(" ", " \u200b", 1)} for r in same],
+        "all-error": [r | {"verdict": "error"} for r in same],
+    }
+
+
+@pytest.mark.parametrize("shape", ["unrelated", "other-question", "zwsp", "all-error"])
+def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, shape):
+    ws = project(here)
+    capsys.readouterr()
+    code, out = run(capsys, "check", write(here, "new.csv", _shapes(ws)[shape]))
+    assert code == 3, out
+    assert "has not changed" not in out and "nothing to do" not in out
+    if shape == "all-error":
+        assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
+                "with no decision from your LLM-as-a-judge (such as an error).") in out
+    else:
+        assert "None of your 60 marked answers is in your new results." in out
+
+
+def test_check_on_unknown_grade_words_refuses_them(here, capsys):
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) | {"verdict": "good"} for i in range(N)]
+    code, out = run(capsys, "check", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "mean Pass and which mean Fail: good. It never guesses." in out
+    assert "has not changed" not in out
+
+
+def test_check_on_a_few_marked_answers_cant_tell(here, capsys):
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) for i in range(N)][:20] + [_row(i) | {"verdict": "error"}
+                                               for i in range(20, N)]
+    code, out = run(capsys, "check", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "40 of your 60 marked answers had no grade in your new results" in out
+    assert "40 of them are there with no decision" in out
+    assert "Result: can't tell yet." in out and "has not changed" not in out
+
+
+def test_check_past_the_row_cap_cant_tell(here, capsys):
+    """The marked answers after the first 100,000 rows read."""
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) | {"input": f"Other question {i}?", "output": f"Other answer {i}."}
+            for i in range(100_000)] + [_row(i) for i in range(N)]
+    code, out = run(capsys, "check", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "None of your 60 marked answers is in your new results." in out
+
+
+def test_plain_check_on_new_results_without_the_marked_answers_says_so_each_time(here,
+                                                                                capsys):
+    ws = project(here)
+    capsys.readouterr()
+    _write(here / "results.csv", _shapes(ws)["unrelated"])
+    for _ in range(2):
+        code, out = run(capsys, "check")
+        assert code == 3, out
+        assert "None of your 60 marked answers is in your new results." in out

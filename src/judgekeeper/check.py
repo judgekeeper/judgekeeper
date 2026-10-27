@@ -90,6 +90,10 @@ NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked 
            "exact text.")
 NEXT_GIVEN = ("Next: give `{command}` your new {tool} results for the LLM-as-a-judge your marks "
               "test, or run it in your project folder to read the newest results.")
+NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
+               "decision from your LLM-as-a-judge (such as an error).")
+NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
+               "error).")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
@@ -394,9 +398,23 @@ def _remember(state: State, found, setup: dict) -> None:
             "judgekeeper_version": __version__, "key": key, "setup": setup,
             "setup_hash": judge_setup.hash_of(setup), "read": read,
             "newest": str(found.results[0].path), "configs": [str(p) for p in _configs(found)],
-            "root": str(root)}, indent=2, ensure_ascii=False) + "\n")
+            "root": str(root), "covered": False}, indent=2, ensure_ascii=False) + "\n")
     except (OSError, ValueError, marks.MarksError):
         pass  # the next check reads the results again
+
+
+def _covered(ws: Workspace) -> None:
+    """results-seen.json's results hold enough of the marked answers: the next check may
+    trust it without reading them (until then it reads them, to say why not)."""
+    seen = _seen(ws)
+    if seen and not seen.get("covered"):
+        try:
+            path = ws.dir / SEEN
+            marks._refuse_links(path)
+            write_replacing(path, json.dumps({**seen, "covered": True}, indent=2,
+                                             ensure_ascii=False) + "\n")
+        except (OSError, ValueError, marks.MarksError):
+            pass
 
 
 @dataclass
@@ -413,7 +431,7 @@ def _now(state: State) -> tuple[Now | None, str | None]:
     """(the judge in the newest results, None), from results-seen.json when nothing it
     depends on changed; else read, and remembered. (None, why) when it can't be read."""
     seen = _seen(state.ws)
-    if seen and seen.get("root") == str(state.ws.root):
+    if seen and seen.get("root") == str(state.ws.root) and seen.get("covered"):
         try:
             same = _key(state, [str(p) for p in seen["read"]]) == seen.get("key")
         except (OSError, ValueError):
@@ -996,6 +1014,39 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     return out, mixed
 
 
+def no_decision(found, ids, ws: Workspace) -> int:
+    """How many of the marked answers `ids` are in the results with no decision from the
+    judge (an error, an empty grade), found as lookup finds an answer by its text."""
+    by_text: dict[str, list] = {}
+    for _, r in found.pool.left.values():
+        by_text.setdefault(_text(r.output), []).append(r)
+    rows = _rows(ws)
+    return sum(1 for i in ids
+               if any(_same_answer(r, rows.get(i) or {})
+                      for r in by_text.get(_text((rows.get(i) or {}).get("output")), [])))
+
+
+UNKNOWN = ("judgekeeper can't tell which of the grades in {file} mean Pass and which mean "
+           "Fail: {words}. It never guesses.")
+NEXT_UNKNOWN = ("grade each answer with the grade words your marked results use, then run "
+                "`{command}` again.")
+
+
+def unknown_grades(found, path: Path) -> str | None:
+    """The line refusing results whose grades hold words judgekeeper can't read as Pass or
+    Fail (as step 1 refuses them): never a guess, never left out without a word."""
+    values = list(dict.fromkeys(found.pool.unmapped))
+    if not values:
+        return None
+    words = sorted(scrub(start.shown_value(v)) for v in values if start.verdict_like(v))
+    longer = len(values) - len(words)
+    shown = ", ".join(words[:10])
+    more = len(words[10:]) + longer
+    if more:
+        shown += f" and {more} more" if words else _n(more, "longer value")
+    return UNKNOWN.format(file=Path(path).name, words=shown)
+
+
 def _matched(found, marked, ws: Workspace) -> dict:
     """{id: the new judge's answer} for the marked answers found in the results (lookup)."""
     return lookup(found, marked, ws)[0]
@@ -1168,6 +1219,12 @@ def full(path: str, said: Said) -> int:
         said.say()
         said.say(NEXT_RUN_EVAL.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    unknown = unknown_grades(found, found.results[0].path) if found is not None else None
+    if unknown:
+        said.say(unknown)
+        said.say()
+        said.say("Next: " + NEXT_UNKNOWN.format(command=_command(state)))
+        return EXIT_NEEDS_YOU
     back = back_to_marked(state.ws, found) if found is not None else None
     if back:
         said.say(back)
@@ -1185,6 +1242,10 @@ def full(path: str, said: Said) -> int:
         old, changed = before, judge_setup.changes(before, new)
     grades = 0 if changed or found is None else grades_changed(state.ws, found)
     if not changed and not grades:
+        if found is not None and _too_few(said, state, found):  # "no change" only on what
+            return EXIT_NEEDS_YOU  # the results hold
+        if found is not None and not Path(path).is_file():
+            _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
             said.say()
@@ -1214,26 +1275,7 @@ def full(path: str, said: Said) -> int:
     matched, mixed = lookup(found, state.marks, state.ws)
     tested = {i: a.verdict for i, a in matched.items()}
     n, total = len(tested), len(state.marks)
-    if not tested:
-        said.say(NONE_IN.format(n=_n(total, "marked answer")))
-        said.say()
-        said.say(NEXT_NOT_MARKED.format(command=_command(state), new=program("--new")))
-        return EXIT_NEEDS_YOU
-    if n < total:
-        k = total - n
-        said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
-                               else "them"))
-    if mixed:
-        said.say(mixed_line(len(mixed)))
-    if repeats_line(found):
-        said.say(repeats_line(found))
-    said.say()
-    kinds = [state.marks[i] for i in tested]
-    if min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH:  # never exit 1 on few
-        said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
-                                need=targets.ROUGH))
-        said.say()
-        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+    if _too_few(said, state, found, (matched, mixed)):  # never exit 1 on few
         return EXIT_NEEDS_YOU
     on = f"all {total} of your marks" if n == total else f"{n} of your {_n(total, 'mark')}"
     old_verdicts = _old_verdicts(state, old)
@@ -1314,7 +1356,50 @@ def full(path: str, said: Said) -> int:
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state)) if worse else None)
+    if not Path(path).is_file():
+        _covered(state.ws)
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
+
+
+def _too_few(said: Said, state: State, found, looked=None) -> bool:
+    """Whether the results hold too few of the marked answers with a grade for a re-check
+    (fewer than targets.ROUGH of each mark), said with why: not there, or there with no
+    decision. Else the lines on the ones left out, before the result."""
+    matched, mixed = looked or lookup(found, state.marks, state.ws)
+    n, total = len(matched), len(state.marks)
+    gone = [i for i in state.marks if i not in matched]
+    e = no_decision(found, gone, state.ws) if gone else 0
+    kinds = [state.marks[i] for i in matched]
+    few = min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH
+    if not matched:
+        said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
+                 else NONE_IN.format(n=_n(total, "marked answer")))
+        said.say()
+        said.say(NEXT_NOT_MARKED.format(command=_command(state), new=program("--new")))
+        return True
+    if not few and looked is None:
+        return False  # the check goes on, and says them there
+    if n < total:
+        k = total - n
+        said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
+                               else "them"))
+        if e:
+            said.say(NO_DECISION.format(e=e, are=_are(e)))
+    if mixed:
+        said.say(mixed_line(len(mixed)))
+    if repeats_line(found):
+        said.say(repeats_line(found))
+    said.say()
+    if few:
+        said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
+                                need=targets.ROUGH))
+        said.say()
+        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+    return few
+
+
+def _are(k: int) -> str:
+    return "is" if k == 1 else "are"
 
 
 def _new_rates(marked: dict[str, str], tested: dict[str, str], picked: dict[str, str],

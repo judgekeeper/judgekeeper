@@ -78,8 +78,9 @@ RESULT = {
 CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
-MISSING = ("{k} of the {n} answers kept aside {are} not in your new results. Grade the same "
-           "answers again ({answers}).")
+MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grade in your new "
+           "results{why}. A rule is tested only on all of them: a rule that leaves the hard ones "
+           "ungraded would look better than it is.")
 REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then run "
                 f"`{{command}} {NEW_RESULTS}`.")
 SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
@@ -955,7 +956,15 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     marks: how the old and the new grades agree with the person's marks, and the verdict from
     the math. A hidden answer not in the file is counted, said once and left out."""
     from judgekeeper import judge_setup
-    from judgekeeper.check import lookup, mixed_line, read_given, repeats_line
+    from judgekeeper.check import (
+        NEXT_UNKNOWN,
+        lookup,
+        mixed_line,
+        no_decision,
+        read_given,
+        repeats_line,
+        unknown_grades,
+    )
 
     ws = state.ws
     found, problem = read_given(state, path)
@@ -964,6 +973,11 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         talk.next(f"give `{talk.command()}` the results of grading {_file(ws, ANSWERS)} again "
                   f"with your new rule, from {_tool_name(m.data.get('tool'))}.")
         return EXIT_USAGE
+    unknown = unknown_grades(found, path)
+    if unknown:
+        talk.para(unknown)
+        talk.next(NEXT_UNKNOWN.format(command=f"{talk.command()} {quote_arg(str(path))}"))
+        return EXIT_NEEDS_YOU
     setup = judge_setup.of(found)
     setup_hash = judge_setup.hash_of(setup)
     matched, mixed = lookup(found, {i: m.person[i] for i in split.hidden}, ws)
@@ -988,10 +1002,12 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
                    and t.get("hidden") == len(split.hidden) and t.get("n") == len(ids)), None)
     if before is not None:
         return tested_before(talk, ws, m, before)
-    if missing:
-        talk.para(MISSING.format(k=missing, n=len(split.hidden), answers=_file(ws, ANSWERS),
-                                 are="is" if missing == 1 else "are"))
-        talk.say()
+    if missing:  # never a verdict without them: the rule may fail exactly on those
+        errors = no_decision(found, [i for i in split.hidden if i not in new], ws)
+        talk.para(MISSING.format(k=missing, n=len(split.hidden), have=_have(missing),
+                                 why=_missing_why(missing - errors, errors)))
+        talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
+        return EXIT_NEEDS_YOU
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
         talk.say()
@@ -1007,7 +1023,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.para(RESULT[v.kind])
     k = next_test(split)
     _keep(ws, split, found, setup, setup_hash, key, v)
-    if v.kind in ("leans better", "same", "leans worse") and not missing:
+    if v.kind in ("leans better", "same", "leans worse"):
         wrong = sum(old[i] != m.person[i] for i in ids)
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
                                    better=_better_needs(len(ids), k)))
@@ -1016,9 +1032,20 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
                   f"aside. Mark {FRESH} more answers with `{program('mark')}`: they become a new "
                   "set kept aside.")
-    talk.next(_after_step(talk, ws, m, v.kind) if not missing else REGRADE_SAME.format(
-        answers=_file(ws, ANSWERS), command=talk.command()))
+    talk.next(_after_step(talk, ws, m, v.kind))
     return EXIT_OK
+
+
+def _have(k: int) -> str:
+    return "has" if k == 1 else "have"
+
+
+def _missing_why(gone: int, errors: int) -> str:
+    """Why answers kept aside have no grade: not in the file, or there with no decision."""
+    parts = ([f"{gone} {'is' if gone == 1 else 'are'} not in the file"] if gone else []) + (
+        [f"{errors} {_have(errors)} no decision from your LLM-as-a-judge (such as an error)"]
+        if errors else [])
+    return f": {' and '.join(parts)}" if parts else ""
 
 
 def _same_grades(ws: Workspace, setup: dict, setup_hash: str, old: dict, new: dict,
