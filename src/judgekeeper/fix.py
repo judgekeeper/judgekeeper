@@ -1041,9 +1041,9 @@ def _problems(m: Marks, split: Split, rule: str) -> list[dict]:
     if not any(c["blocking"] for c in found):
         found += start_fix_rule.agent_checks(old, rule)
     if m.data.get("tool") == "inspect" and m.data.get("rule_field") == "template":
-        from judgekeeper.again.inspect import template_problem
+        from judgekeeper.again.inspect import rule_problem
 
-        problem = template_problem(rule, m.ws.root)  # Inspect would read or fetch it
+        problem = rule_problem(rule, m.ws.root)  # Inspect would read or fetch it
         if problem:
             found.append({"text": f"Your new rule goes into your scorer's template, and it "
                                   f"{problem}.", "blocking": True})

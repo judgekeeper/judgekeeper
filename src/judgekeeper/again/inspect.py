@@ -13,12 +13,18 @@ scorer can't be asked again (Inspect would import the user's task file), and rul
 (`match`, `includes`) are not judges. A log that names a server (`base_url`) or settings
 (`args`, `model_args`) for a model that grades, a model setting that is not in SAFE_CONFIG
 (`extra_body`, `num_choices`, `store`, `extra_headers`... change the model called, the cost or
-where answers are kept), or a template Inspect could read from outside the project, can't be
-asked either: the log is a file that may come from someone else, and the worker never passes
-them on. A template file must be a plain name inside the project (TEMPLATE_NAME); the worker
-gets it by its full path, since it runs from an empty folder. A new rule that goes into the
-template gets the same checks. The worker loads no `.env`: judgekeeper passes on from the
-nearest one only the API key names (keys.passed_on).
+where answers are kept) or above its cap (CAPS), a scorer option that is not in OPTIONS (the
+scorer's own `model` wins over the grader role, and a list of models asks each one), or a
+template Inspect could read from outside the project, can't be asked either: the log is a file
+that may come from someone else, and the worker never passes them on.
+
+Inspect reads a template as a file when a file of that name exists from where it runs, and the
+worker runs from an empty folder, so the log's template string never reaches it. A template
+file must be a plain name inside the project (TEMPLATE_NAME): judgekeeper reads it and gives the
+worker its text. Any template text the worker gets holds no `/`, `\\` or `..` (text_problem), so
+Inspect can't read it as a path. A new rule that goes into the template gets the same checks.
+The worker loads no `.env`: judgekeeper passes on from the nearest one only the API key names
+(keys.passed_on).
 """
 
 from __future__ import annotations
@@ -57,7 +63,15 @@ SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", 
                          "system_message", "reasoning_effort", "reasoning_tokens",
                          "reasoning_summary", "max_retries", "timeout", "cache",
                          "max_connections"})
-MAX_TOKENS = 32_000
+# The safe settings that change the cost: a whole number up to this, or not asked
+CAPS = {"max_tokens": 32_000, "reasoning_tokens": 32_000, "max_retries": 10}
+# The only scorer options a log may give (the worker's OPTIONS): the two rule fields fix swaps
+# in, and the ones that change only how the judge's reply is read. `model_role` only as
+# Inspect's default, "grader". Any other, such as `model`, picks the model called or how many.
+OPTIONS = frozenset({"instructions", "template", "grade_pattern", "include_history",
+                     "partial_credit"})
+# What makes Inspect read template text as a path from the worker's empty folder
+PATH_PARTS = ("/", "\\", "..")
 
 
 def _exists(path: Path) -> bool:
@@ -92,6 +106,59 @@ def template_problem(template: str, root: Path = Path()) -> str | None:
     return None
 
 
+def text_problem(text: str) -> str | None:
+    """What lets Inspect read template text as a file from the worker's empty folder, as words
+    that follow "your scorer's template ...", or None: a `/`, `\\` or `..` in it (a path up and
+    out), or a start Inspect reads from elsewhere (_ELSEWHERE)."""
+    part = next((p for p in PATH_PARTS if p in text), None)
+    if part:
+        return f'holds "{part}", which Inspect could read as a file path'
+    if _ELSEWHERE.match(text):
+        return f"is a file outside your project ({text[:60]})"
+    return None
+
+
+def rule_problem(rule: str, root: Path) -> str | None:
+    """What keeps a new rule from going into the scorer's template (template_problem, then
+    text_problem: it reaches Inspect as text), or None."""
+    return template_problem(rule, root) or text_problem(rule)
+
+
+def template_text(options: dict, root: Path) -> tuple[str | None, str | None]:
+    """(the template text the worker gets, None), or (None, why it can't be asked) as words
+    that follow "your scorer's template ...". A file in the project (template_problem allowed
+    it) gives its text, read here; any other template is text. (None, None) with no template."""
+    template = options.get("template")
+    if template is None:
+        return None, None
+    if not isinstance(template, str):
+        return None, "is not text"
+    path = Path(root, template)
+    try:
+        is_file = _exists(path) and path.is_file()
+    except (OSError, ValueError):
+        is_file = False
+    if not is_file:
+        problem = text_problem(template)
+        return (None, problem) if problem else (template, None)
+    try:
+        text = path.read_bytes().decode("utf-8").removeprefix("\ufeff")
+    except (OSError, UnicodeDecodeError):
+        return None, f"file ({template}) can't be read as UTF-8 text"
+    problem = text_problem(text)
+    return (None, f"file ({template}) {problem}") if problem else (text, None)
+
+
+def option_problem(options: dict) -> str | None:
+    """The first scorer option judgekeeper does not pass on (not in OPTIONS, or a model_role
+    other than "grader"), or None. An option set to None is not set."""
+    for key, value in options.items():
+        if value is None or key in OPTIONS or (key == "model_role" and value == "grader"):
+            continue
+        return str(key)[:60] or '""'
+    return None
+
+
 def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) -> str | None:
     base = name.split("/")[-1]
     if base in RULES:
@@ -100,8 +167,14 @@ def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) ->
     if not builtin:
         return (f"your LLM-as-a-judge is a custom scorer ({name}): asking again would import your "
                 "task file, which runs your code")
+    option = option_problem(options)
+    if option:
+        return f"your log gives your scorer an option ({option}) judgekeeper does not pass on"
     template = options.get("template")
     problem = template_problem(template, root) if isinstance(template, str) else None
+    if problem:
+        return f"your scorer's template {problem}"
+    problem = template_text(options, root)[1]
     if problem:
         return f"your scorer's template {problem}"
     history = options.get("include_history")
@@ -111,22 +184,9 @@ def cant_reason(name: str, options: dict, builtin: bool, root: Path = Path()) ->
     return None
 
 
-def template_file(options: dict, root: Path) -> str | None:
-    """The full path of the scorer's template when it is a file in the project (cant_reason
-    allowed it), else None: the worker runs from an empty folder, where its name is nothing."""
-    template = options.get("template")
-    if not isinstance(template, str):
-        return None
-    path = Path(root, template)
-    try:
-        return str(path.resolve()) if _exists(path) and path.is_file() else None
-    except (OSError, ValueError, RuntimeError):
-        return None
-
-
 def _config_field(config) -> str | None:
-    """The first setting in a model's saved config that is not in SAFE_CONFIG, or max_tokens
-    above MAX_TOKENS; None when every one is safe."""
+    """The first setting in a model's saved config that is not in SAFE_CONFIG, or one of CAPS
+    that is not a whole number up to its cap; None when every one is safe."""
     if not isinstance(config, dict):
         return None
     for key, value in config.items():
@@ -134,8 +194,8 @@ def _config_field(config) -> str | None:
             continue
         if key not in SAFE_CONFIG:
             return str(key)[:60] or '""'
-        if key == "max_tokens" and (not isinstance(value, int) or value > MAX_TOKENS):
-            return "max_tokens"
+        if key in CAPS and (not isinstance(value, int) or value > CAPS[key]):
+            return key
     return None
 
 
@@ -157,25 +217,23 @@ def _unsafe(model) -> str | None:
     return _config_field(model.get("config")) if isinstance(model, dict) else None
 
 
-def elsewhere(spec: dict, options: dict) -> str | None:
+def elsewhere(spec: dict) -> str | None:
     """Why the log's own server or settings for a model keep it from being asked again, or
-    None: a `base_url` or `args` on a model role, the scorer's model, or the model under test
-    when it grades (as the worker decides: no scorer model and the scorer's role is not set);
-    a model setting that is not safe (_config_field) on any of them, or in the log's
-    `model_generate_config`."""
+    None: a `base_url` or `args` on a model role, or on the model under test when it grades (as
+    the worker decides: no grader role); a model setting that is not safe (_config_field) on
+    any of them, or in the log's `model_generate_config`. The scorer's own `model` is refused
+    before (option_problem)."""
     roles = spec.get("model_roles") or {}
     unsafe = [(f"the {name} role" if name != "grader" else "the grader", _unsafe(model))
               for name, model in roles.items()]
-    unsafe += [("the grader", _unsafe(options.get("model"))),
-               ("the model under test", _config_field(spec.get("model_generate_config")))]
+    unsafe.append(("the model under test", _config_field(spec.get("model_generate_config"))))
     for who, key in unsafe:
         if key:
             return (f"your log gives {who} a model setting ({key}) judgekeeper does not pass "
                     "on")
     found = [(f"the {name} role" if name != "grader" else "the grader", _set(model))
              for name, model in roles.items()]
-    found.append(("the grader", _set(options.get("model"))))
-    if options.get("model") is None and options.get("model_role", "grader") not in roles:
+    if "grader" not in roles:
         found.append(("the model under test", _set({"base_url": spec.get("model_base_url"),
                                                     "model_args": spec.get("model_args")})))
     for who, key in found:
@@ -290,18 +348,18 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
     reason = cant_reason(metric, options, builtin, root)
     if reason:
         return cant("inspect", judge, reason, short=reason.split(" (")[0].split(":")[0])
-    reason = elsewhere(spec, options)
+    reason = elsewhere(spec)
     if reason:
         return cant("inspect", judge, reason, short=reason.split(" (")[0])
     rule_field = data.get("rule_field") or "instructions"
-    problem = (template_problem(opts.rule, root)
+    problem = (rule_problem(opts.rule, root)
                if opts.rule is not None and rule_field == "template" else None)
     if problem:
         return cant("inspect", judge, f"your new rule goes into your scorer's template, and it "
                     f"{problem}", short="your new rule can't be a template")
 
     roles = spec.get("model_roles") or {}
-    graders = _models(roles.get("grader")) or _models(options.get("model"))
+    graders = _models(roles.get("grader"))
     notes = []
     if not graders:
         graders = _models(spec.get("model"))
@@ -373,7 +431,7 @@ def plan(ws, answers: list[dict], opts, talk, dry: bool, new: bool = False) -> P
                 key_step=check.step, tool_version=installed or made_with, runner=[python], payload=payload,
                 job={"log": str((root / data["results_files"][0]).resolve()), "scorer": metric,
                      "new": new, "rule": opts.rule, "rule_field": rule_field,
-                     "template": template_file(options, root)},
+                     "template": template_text(options, root)[0]},
                 side_effects=[(f"Your eval's code is not run. Inspect re-scores a copy of your "
                                f"log in {again.your_python(python)}; your log is never changed.")])
 

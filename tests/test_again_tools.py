@@ -427,21 +427,11 @@ ELSEWHERE = {
     "role base_url": lambda e: e.update(model_roles={"grader": {**GRADER, "base_url": SERVER}}),
     "role args": lambda e: e.update(model_roles={"grader": {**GRADER,
                                                             "args": {"trust_remote_code": 1}}}),
-    "scorer model base_url": lambda e: e.update(model_roles={}) or e["scorers"][0][
-        "options"].update(model={**GRADER, "base_url": SERVER}),
-    "scorer model_args": lambda e: e.update(model_roles={}) or e["scorers"][0][
-        "options"].update(model=[{**GRADER, "model_args": {"trust_remote_code": 1}}]),
     "model under test base_url": lambda e: e.update(model_roles={}, model_base_url=SERVER),
     "model under test args": lambda e: e.update(model_roles={},
                                                 model_args={"trust_remote_code": 1}),
     "model under test, other role": lambda e: e["scorers"][0]["options"].update(
         model_role="judge") or e.update(model_base_url=SERVER),
-}
-# The model under test does not grade when a grader is set: its server and settings are unused
-GRADED_ELSEWHERE = {
-    "grader role": lambda e: None,
-    "scorer model": lambda e: e.update(model_roles={}) or e["scorers"][0]["options"].update(
-        model=GRADER),
 }
 
 
@@ -454,16 +444,13 @@ def test_a_log_that_names_a_server_or_settings_for_a_model_is_not_asked(tmp_path
     assert stubs("get_model") == [] and stubs("score_async") == []
 
 
-@pytest.mark.parametrize("grader", GRADED_ELSEWHERE)
 @pytest.mark.parametrize("key", ["model_base_url", "model_args"])
-def test_a_model_under_test_that_does_not_grade_keeps_its_own_settings(tmp_path, stubs, grader,
-                                                                       key):
+def test_a_model_under_test_that_does_not_grade_keeps_its_own_settings(tmp_path, stubs, key):
+    # The model under test does not grade when a grader role is set: its server and settings
+    # are unused
     ws = _checked(tmp_path, inspect_project)
-
-    def change(d):
-        GRADED_ELSEWHERE[grader](d["eval"])
-        d["eval"][key] = SERVER if key == "model_base_url" else {"trust_remote_code": 1}
-    _inspect_log(tmp_path, change)
+    _inspect_log(tmp_path, lambda d: d["eval"].update(
+        {key: SERVER if key == "model_base_url" else {"trust_remote_code": 1}}))
     p = make_plan(ws, PY)
     assert p.status != "cant", p.why
 
@@ -477,9 +464,6 @@ def test_the_inspect_worker_uses_no_server_or_settings_from_the_log(tmp_path, st
         e.update(model="openai/gpt-4o", model_base_url=SERVER, model_args={"a": 1})
         e["model_roles"] = {"grader": {**GRADER, "base_url": SERVER, "args": {"a": 1}}} if (
             grader) else {}
-        if grader:
-            e["scorers"][0]["options"]["model"] = {**GRADER, "base_url": SERVER,
-                                                   "model_args": {"a": 1}}
     _inspect_log(tmp_path, change)
     log = tmp_path / "logs" / "2026-10-02_support.json"
     sample = json.loads(log.read_text(encoding="utf-8"))["samples"][0]
@@ -758,7 +742,8 @@ def test_a_version_not_confirmed_is_a_close_copy(tmp_path, stubs, terminal):
     assert p.why == "the DeepEval version was not confirmed"
 
 
-def test_an_inspect_panel_checks_the_key_of_every_grader(tmp_path, stubs, monkeypatch):
+def test_an_inspect_panel_in_the_scorers_options_is_not_asked(tmp_path, stubs, monkeypatch):
+    # The scorer's own list of models would pick the models and the number of calls
     ws = _checked(tmp_path, inspect_project)
 
     def panel(data):
@@ -768,13 +753,10 @@ def test_an_inspect_panel_checks_the_key_of_every_grader(tmp_path, stubs, monkey
             "reducer": "majority"}
 
     _inspect_log(tmp_path, panel)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    p = make_plan(ws, PY)
-    assert not p.key_ok
     monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-    assert make_plan(ws, PY).key_ok
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "(model)" in p.why, p.why
 
 
 def _openai_grader(root):

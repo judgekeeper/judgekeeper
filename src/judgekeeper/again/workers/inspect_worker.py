@@ -8,12 +8,15 @@ file); it calls no model and touches no log.
 
 Mode "run" loads no `.env` (judgekeeper passes on the API keys from it; any other name there
 could send the calls elsewhere), reads the log without writing it, keeps the job's samples and
-rebuilds the recorded scorer from Inspect's registry with its saved options. Once per time
-asked, `score_async(..., copy=True)` re-scores a copy in memory, with every model role rebuilt
-with its cache off so each time is really asked: by its name and SAFE_CONFIG settings only,
-never with a server (`base_url`), `args` or another setting from the log. When a grader is set,
-the model under test is `mockllm/model`, which can't call anything. A template file comes by
-its full path in the job (`template`). `inspect score --overwrite` is never used.
+rebuilds the recorded scorer from Inspect's registry with its saved OPTIONS only (any other,
+such as the scorer's own `model`, stops it). Once per time asked, `score_async(...,
+copy=True)` re-scores a copy in memory, with every model role rebuilt with its cache off so
+each time is really asked: by its name and SAFE_CONFIG settings only, never with a server
+(`base_url`), `args` or another setting from the log. When a grader is set, the model under
+test is `mockllm/model`, which can't call anything. The log's template string is never used:
+Inspect would read it as a file if one of that name exists from here. The template comes as
+text in the job (`template`, read by judgekeeper), holding no `/`, `\\` or `..`.
+`inspect score --overwrite` is never used.
 """
 
 import asyncio
@@ -27,7 +30,11 @@ SAFE_CONFIG = frozenset({"temperature", "top_p", "top_k", "max_tokens", "seed", 
                          "system_message", "reasoning_effort", "reasoning_tokens",
                          "reasoning_summary", "max_retries", "timeout", "cache",
                          "max_connections"})
-MAX_TOKENS = 32000
+CAPS = {"max_tokens": 32000, "reasoning_tokens": 32000, "max_retries": 10}
+# The only scorer options passed on (and model_role only as "grader"), as in the plan
+OPTIONS = frozenset({"instructions", "template", "grade_pattern", "include_history",
+                     "partial_credit"})
+PATH_PARTS = ("/", "\\", "..")
 
 
 def emit(path, record):
@@ -51,10 +58,10 @@ def plain(value):
 
 
 def uncached(model, GenerateConfig, get_model):
-    """A model as the log saved it (a name, a role's ModelConfig, or a scorer option's dict),
-    rebuilt with the same generate settings and its cache off. The log's server (`base_url`)
-    and `args` are never passed, and a setting not in SAFE_CONFIG (or max_tokens above
-    MAX_TOKENS) stops it: a log can come from someone else (the plan refuses them first)."""
+    """A model as the log saved it (a name, a role's ModelConfig, or a dict), rebuilt with the
+    same generate settings and its cache off. The log's server (`base_url`) and `args` are never
+    passed, and a setting not in SAFE_CONFIG (or one of CAPS that is not a whole number up to
+    its cap) stops it: a log can come from someone else (the plan refuses them first)."""
     if isinstance(model, list):
         return [uncached(m, GenerateConfig, get_model) for m in model]
     if isinstance(model, str):
@@ -66,11 +73,35 @@ def uncached(model, GenerateConfig, get_model):
     if hasattr(config, "model_dump"):
         config = config.model_dump(exclude_none=True)
     for key, value in (config or {}).items():
-        too_many = key == "max_tokens" and (not isinstance(value, int) or value > MAX_TOKENS)
+        too_many = key in CAPS and (not isinstance(value, int) or value > CAPS[key])
         if value is not None and (key not in SAFE_CONFIG or too_many):
             raise ValueError(f"the log's model setting {key} is not passed on")
     config = {**(config or {}), "cache": False}
     return get_model(name, config=GenerateConfig(**config))
+
+
+def scorer_options(saved, job):
+    """The scorer's options: the log's, from OPTIONS only (an option set to None is not set),
+    with the template as text from the job and the new rule in its field. Any other option, a
+    log template the job has no text for, or template text with a path part, stops it."""
+    options = {}
+    for key, value in (saved or {}).items():
+        if value is None:
+            continue
+        if key not in OPTIONS and not (key == "model_role" and value == "grader"):
+            raise ValueError(f"the log's scorer option {key} is not passed on")
+        options[key] = value
+    if options.pop("template", None) is not None and job.get("template") is None:
+        raise ValueError("the log's template is not passed on")
+    if job.get("template") is not None:  # a template file's text, or the log's template text
+        options["template"] = job["template"]
+    if job.get("rule") is not None:  # judgekeeper fix: a new rule in place of the saved one
+        options[job.get("rule_field") or "instructions"] = job["rule"]
+    template = options.get("template")
+    if template is not None and (not isinstance(template, str)
+                                 or any(p in template for p in PATH_PARTS)):
+        raise ValueError("the template holds a file path, which is not passed on")
+    return options
 
 
 def scorer_from_registry(registry_create, name, options):
@@ -190,17 +221,11 @@ def run(job, out_path, version):
     before = {(str(s.id), s.epoch): set(s.scores or {}) for s in log.samples}
     usage = {(str(s.id), s.epoch): usage_of(s) for s in log.samples}
     spec = next(s for s in log.eval.scorers if s.name == job["scorer"])
-    options = dict(spec.options or {})
-    if job.get("template"):  # a template file in the project, by its full path
-        options["template"] = job["template"]
-    if job.get("rule") is not None:  # judgekeeper fix: a new rule in place of the saved one
-        options[job.get("rule_field") or "instructions"] = job["rule"]
-    if options.get("model") is not None:
-        options["model"] = uncached(options["model"], GenerateConfig, get_model)
+    options = scorer_options(spec.options, job)
     scorer = scorer_from_registry(registry_create, job["scorer"], options)
     roles = {name: uncached(config, GenerateConfig, get_model)
              for name, config in (log.eval.model_roles or {}).items()}
-    if options.get("model") is not None or options.get("model_role", "grader") in roles:
+    if "grader" in roles:
         model = get_model("mockllm/model")
     else:
         model = uncached({"model": log.eval.model, "config": log.eval.model_generate_config},

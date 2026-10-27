@@ -4,9 +4,10 @@ Each worker (DeepEval, Inspect AI, MLflow) runs from a new empty folder, never t
 tools read settings files from where they run (DeepEval's old `.deepeval/.deepeval`), and every
 path a worker needs is in its job as a full path. litellm, which the tools import when it is
 installed, loads no `.env` (LITELLM_MODE=PRODUCTION). DeepEval's model must be of the class its
-saved name's provider uses. An Inspect log passes only known model settings, an MLflow judge's
-stored model is the one the results name, and a new rule that goes into an Inspect template gets
-the template checks.
+saved name's provider uses. An Inspect log passes only known model settings and scorer options
+(never the scorer's own `model`), its template reaches the worker as text that Inspect can't read
+as a file, an MLflow judge's stored model is the one the results name, and a new rule that goes
+into an Inspect template gets the template checks.
 
 No test calls a paid API: the workers run against the stub packages in tests/again_stubs.py, and
 a local listener counts every request that would have gone elsewhere.
@@ -146,26 +147,6 @@ def test_litellm_in_the_project_venv_loads_no_env_file(tmp_path, stubs, monkeypa
     assert calls and all(c["base_url"] is None for c in calls), calls
 
 
-def test_an_inspect_template_file_in_the_project_is_given_by_its_full_path(tmp_path, stubs):
-    ws = _checked(tmp_path, inspect_project)
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "prompts" / "grade.txt").write_text("Grade {answer}", encoding="utf-8")
-    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
-        template="prompts/grade.txt"))
-    log = tmp_path / "logs" / "2026-10-02_support.json"
-    sample = json.loads(log.read_text(encoding="utf-8"))["samples"][0]
-    plan = make_plan(ws, PY)
-    assert plan.status != "cant", plan.why
-    assert Path(plan.job["template"]) == (tmp_path / "prompts" / "grade.txt").resolve()
-    assert Path(plan.job["log"]).is_absolute()
-    again.run_worker("inspect", sys.executable, {
-        "mode": "run", **plan.job, "times": 1,
-        "answers": [{"id": "a", "sample": sample["id"], "epoch": sample.get("epoch")}]},
-        tmp_path)
-    (created, *_) = stubs("registry_create")
-    assert Path(created["options"]["template"]) == (tmp_path / "prompts" / "grade.txt").resolve()
-
-
 def test_an_mlflow_folder_store_is_given_by_its_full_path(tmp_path, monkeypatch):
     from judgekeeper import start_label
     from tests.conftest import build_mlflow_folder_store
@@ -267,9 +248,10 @@ GRADER = {"model": "openai/gpt-4.1-mini"}
     ({"extra_headers": {"OpenAI-Project": "p"}}, "extra_headers"),
     ({"logprobs": True}, "logprobs"),
     ({"max_tokens": 100000}, "max_tokens"),
+    ({"reasoning_tokens": 10_000_000, "reasoning_effort": "high"}, "reasoning_tokens"),
+    ({"max_retries": 100_000, "timeout": 60}, "max_retries"),
 ])
-@pytest.mark.parametrize("where", ["grader role", "other role", "scorer model",
-                                   "model under test"])
+@pytest.mark.parametrize("where", ["grader role", "other role", "model under test"])
 def test_an_inspect_model_setting_that_is_not_known_safe_is_not_asked(tmp_path, stubs, config,
                                                                       field, where):
     ws = _checked(tmp_path, inspect_project)
@@ -280,9 +262,6 @@ def test_an_inspect_model_setting_that_is_not_known_safe_is_not_asked(tmp_path, 
             e["model_roles"] = {"grader": {**GRADER, "config": config}}
         elif where == "other role":
             e["model_roles"]["critic"] = {**GRADER, "config": config}
-        elif where == "scorer model":
-            e["model_roles"] = {}
-            e["scorers"][0]["options"]["model"] = {**GRADER, "config": config}
         else:
             e["model_roles"] = {}
             e["model_generate_config"] = config
@@ -296,8 +275,8 @@ def test_known_safe_inspect_settings_are_still_asked(tmp_path, stubs):
     ws = _checked(tmp_path, inspect_project)
     _inspect_log(tmp_path, lambda d: d["eval"].update(model_roles={"grader": {**GRADER, "config": {
         "temperature": 0, "top_p": 1, "max_tokens": 32000, "seed": 1, "stop_seqs": ["x"],
-        "system_message": "Be fair.", "reasoning_effort": "low", "max_retries": 2,
-        "timeout": 60, "cache": True}}}))
+        "system_message": "Be fair.", "reasoning_effort": "low", "reasoning_tokens": 2000,
+        "max_retries": 10, "timeout": 60, "cache": True}}}))
     p = make_plan(ws, PY)
     assert p.status != "cant", p.why
 
@@ -327,7 +306,159 @@ def test_the_inspect_worker_refuses_a_setting_that_is_not_known_safe():
     with pytest.raises(ValueError, match="max_tokens"):
         worker.uncached({"model": "openai/x", "config": {"max_tokens": 100000}}, Config,
                         lambda name, config: made.append(config))
+    with pytest.raises(ValueError, match="reasoning_tokens"):
+        worker.uncached({"model": "openai/x", "config": {"reasoning_tokens": 10_000_000}},
+                        Config, lambda name, config: made.append(config))
+    with pytest.raises(ValueError, match="max_retries"):
+        worker.uncached({"model": "openai/x", "config": {"max_retries": 100_000}}, Config,
+                        lambda name, config: made.append(config))
     assert len(made) == 1
+    worker.uncached({"model": "openai/x", "config": {"reasoning_tokens": 2000,
+                                                     "max_retries": 10}}, Config,
+                    lambda name, config: made.append(config))
+    assert made[1] == {"reasoning_tokens": 2000, "max_retries": 10, "cache": False}
+
+
+# An Inspect scorer's options -------------------------------------------------------------------
+
+def _run_inspect_worker(root: Path, job: dict) -> dict:
+    """The Inspect worker in run mode on the project's log, asked about its first sample, with
+    `job` on top of the usual job: its last line."""
+    log = root / "logs" / "2026-10-02_support.json"
+    sample = json.loads(log.read_text(encoding="utf-8"))["samples"][0]
+    return again.run_worker("inspect", sys.executable, {
+        "mode": "run", "log": str(log), "scorer": "model_graded_qa", "times": 1,
+        "answers": [{"id": "a", "sample": sample["id"], "epoch": sample.get("epoch")}],
+        **job}, root)
+
+
+# A scorer option that picks the model, or how many, or that judgekeeper does not know
+OPTIONS = {
+    "model": "openai/o1-pro",
+    "model list": ["openai/gpt-4.1-mini", "openai/gpt-4.1", "openai/o3", "openai/gpt-4.1-nano"],
+    "model_role": "critic",
+    "reducer": "mean",
+}
+
+
+@pytest.mark.parametrize("option", OPTIONS)
+def test_a_scorer_option_that_picks_the_model_is_not_asked(tmp_path, stubs, option):
+    # In Inspect the scorer's own `model` wins over the grader role, and a list asks every
+    # model in it: the person would agree to the grader role's calls and pay for the log's
+    ws = _checked(tmp_path, inspect_project)
+    name = option.split()[0]
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        {name: OPTIONS[option]}))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and f"({name})" in p.why, p.why
+    assert stubs("get_model") == [] and stubs("score_async") == []
+
+
+def test_the_scorer_options_judgekeeper_passes_on_are_still_asked(tmp_path, stubs):
+    ws = _checked(tmp_path, inspect_project)
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        grade_pattern=r"GRADE: (C|I)", include_history=True, partial_credit=False,
+        model_role="grader", model=None))
+    p = make_plan(ws, PY)
+    assert p.status != "cant", p.why
+
+
+def test_a_plain_inspect_log_is_asked_as_often_as_the_plan_says(tmp_path, stubs, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x" * 30)
+    ws = _checked(tmp_path, inspect_project)
+    plan = make_plan(ws, AgainOptions(python=sys.executable, times=1), dry=True)
+    assert plan.status != "cant" and plan.calls == 36, plan.why
+    from tests.test_again_run import ask_again
+
+    code, out = ask_again(ws, "--python", sys.executable, "--times", "1")
+    assert code == 0, out
+    assert len(stubs("call_env")) == 36
+
+
+def test_the_inspect_worker_refuses_a_scorer_option_it_does_not_pass_on(tmp_path, stubs):
+    inspect_project(tmp_path, split(2, 1))
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        model="openai/o1-pro"))
+    out = _run_inspect_worker(tmp_path, {})
+    assert out["ok"] is False and "model" in out["error"], out
+    assert stubs("registry_create") == [] and stubs("get_model") == []
+
+
+# An Inspect template: text that is no path, or a file in the project read by judgekeeper -----
+# Inspect reads a template as a file when it exists from where the worker runs: an empty temp
+# folder, not the project, so the plan can't check it as a path. The worker gets text only.
+
+def _secret(tmp_path: Path) -> Path:
+    secret = tmp_path / "secret dir" / "secret.txt"
+    secret.parent.mkdir()
+    secret.write_text("ZQFILE-outside-project-secret-line\n", encoding="utf-8")
+    return secret
+
+
+@pytest.mark.parametrize("up", [7, 2])  # the temp folder's depth: macOS, then Linux
+def test_a_template_text_that_climbs_to_a_file_is_not_asked(tmp_path, stubs, up):
+    root = tmp_path / "project"
+    root.mkdir()
+    ws = _checked(root, inspect_project)
+    template = "../" * up + str(_secret(tmp_path)).lstrip("/")
+    _inspect_log(root, lambda d: d["eval"]["scorers"][0]["options"].update(template=template))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "file path" in p.why, p.why
+    assert stubs("registry_create") == [] and stubs("score_async") == []
+
+
+@pytest.mark.parametrize("piece", ["/", "\\", ".."])
+def test_a_template_text_with_a_path_part_is_not_asked(tmp_path, stubs, piece):
+    ws = _checked(tmp_path, inspect_project)
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template=f"Grade {{question}} {piece}x {{answer}}"))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and f'"{piece}"' in p.why and "file path" in p.why, p.why
+    assert stubs("score_async") == []
+
+
+def test_a_template_file_in_the_project_is_given_as_its_text(tmp_path, stubs):
+    ws = _checked(tmp_path, inspect_project)
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "prompts" / "grade.txt").write_text("Grade {question}\n{answer}",
+                                                     encoding="utf-8")
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template="prompts/grade.txt"))
+    plan = make_plan(ws, PY)
+    assert plan.status != "cant", plan.why
+    assert plan.job["template"] == "Grade {question}\n{answer}"
+    assert Path(plan.job["log"]).is_absolute()
+    out = _run_inspect_worker(tmp_path, plan.job)
+    assert out["ok"] is True, out
+    (created, *_) = stubs("registry_create")
+    assert created["options"]["template"] == "Grade {question}\n{answer}"
+
+
+def test_a_template_file_whose_text_has_a_path_part_is_not_asked(tmp_path, stubs):
+    ws = _checked(tmp_path, inspect_project)
+    (tmp_path / "grade.txt").write_text("Grade {answer} as C/I", encoding="utf-8")
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template="grade.txt"))
+    p = make_plan(ws, PY)
+    assert p.status == "cant" and "grade.txt" in p.why and "file path" in p.why, p.why
+
+
+def test_the_inspect_worker_never_takes_the_logs_template_string(tmp_path, stubs):
+    inspect_project(tmp_path, split(2, 1))
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template="../" * 7 + "secret dir/secret.txt"))
+    out = _run_inspect_worker(tmp_path, {})
+    assert out["ok"] is False and "template" in out["error"], out
+    assert stubs("registry_create") == []
+
+
+def test_the_inspect_worker_refuses_a_template_text_with_a_path_part(tmp_path, stubs):
+    inspect_project(tmp_path, split(2, 1))
+    _inspect_log(tmp_path, lambda d: d["eval"]["scorers"][0]["options"].update(
+        template="Grade {answer}"))
+    out = _run_inspect_worker(tmp_path, {"template": "../../secret dir/{answer}"})
+    assert out["ok"] is False and "template" in out["error"], out
+    assert stubs("registry_create") == []
 
 
 # A registered MLflow judge's stored model -----------------------------------------------------
@@ -394,7 +525,8 @@ def _template_judge(root: Path):
 
 @pytest.mark.parametrize("rule", ["http://127.0.0.1:{port}/t?q={question}&a={answer}&c={criterion}",
                                   "~/x{question}{answer}{criterion}",
-                                  "/etc/{question}{answer}{criterion}"])
+                                  "/etc/{question}{answer}{criterion}",
+                                  "../../x{question}{answer}{criterion}GRADE:"])
 def test_a_rule_that_inspect_would_read_or_fetch_is_not_asked(tmp_path, stubs, listener, rule):
     address, asked = listener
     rule = rule.replace("{port}", address.rsplit(":", 1)[1])
@@ -405,21 +537,25 @@ def test_a_rule_that_inspect_would_read_or_fetch_is_not_asked(tmp_path, stubs, l
     assert stubs("score_async") == [] and asked == []
 
 
-def test_fix_refuses_a_rule_inspect_would_fetch(tmp_path, stubs, listener, monkeypatch,
-                                               capsys):
+@pytest.mark.parametrize("rule, words", [
+    ("{address}/t?q={question}&a={answer}&c={criterion}&g=GRADE:", "online address"),
+    ("../../x{question}{answer}{criterion}GRADE:", "file path"),
+])
+def test_fix_refuses_a_rule_inspect_would_read_or_fetch(tmp_path, stubs, listener, monkeypatch,
+                                                       capsys, rule, words):
     address, asked = listener
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x" * 30)
     monkeypatch.setenv("VIRTUAL_ENV", str(Path(sys.executable).parent.parent))
     ws = _checked(tmp_path, lambda root, verdicts: _template_judge(root))
     assert main(["fix"]) in (0, 3)
-    (ws.dir / "fix" / "rule.txt").write_text(
-        f"{address}/t?q={{question}}&a={{answer}}&c={{criterion}}&g=GRADE:", encoding="utf-8")
+    (ws.dir / "fix" / "rule.txt").write_text(rule.replace("{address}", address),
+                                             encoding="utf-8")
     capsys.readouterr()
     code = main(["fix", "--yes"])
     out = " ".join(capsys.readouterr().out.split())
     assert code == 3, out
-    assert "online address" in out, out
+    assert words in out, out
     assert stubs("score_async") == [] and asked == []
 
 

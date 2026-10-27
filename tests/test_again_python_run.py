@@ -344,17 +344,18 @@ def test_no_grader_asks_the_model_under_test_as_the_judge(tmp_path, stubs,
     assert tested[0]["config"] == {"cache": False, "max_tokens": 100}
 
 
-def test_a_grader_given_as_a_scorer_option(tmp_path, stubs, capsys):
+def test_a_grader_given_as_a_scorer_option_is_not_asked(tmp_path, stubs, capsys):
+    # Inspect asks the scorer's own `model` instead of the grader role, so the log would pick
+    # the model: set the grader as a model role instead
     def option(data):
         data["eval"]["model_roles"] = {}
         data["eval"]["scorers"][0]["options"]["model"] = "openai/gpt-4.1-mini"
 
     ws = _checked(tmp_path, _inspect(option))
     stubs.plan(verdicts=_saved(ws))
-    code, _ = ask(capsys, ws)
-    assert code == 0
-    assert stubs("registry_create")[0]["options"]["model"] == ["openai/gpt-4.1-mini", False]
-    assert all(e["model"] == "mockllm/model" for e in stubs("score_async"))
+    code, out = ask(capsys, ws)
+    assert code == 0 and "(model)" in out, out
+    assert stubs("registry_create") == [] and stubs("score_async") == []
 
 
 def test_the_inspect_job(inspect_ws, capsys, monkeypatch):
