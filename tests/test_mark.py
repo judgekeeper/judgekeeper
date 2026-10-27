@@ -163,11 +163,11 @@ def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, ca
     promptfoo_project(here, split(20, 16), tag=TAG)
     run(capsys, "mark")
     ws = start_label.Workspace(here)
-    _click(ws, 34)  # enough, with 2 answers left to mark
+    _click(ws, 35)  # enough, with 1 answer left to mark
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert "Step 2 of 5: Mark (more answers)" in out
-    assert "You marked 34 answers so far: " in out and "not enough" not in out
+    assert "You marked 35 answers so far: " in out and "not enough" not in out
     assert "Each new mark makes your numbers more precise." in _flat(out)
     assert "Your marks:" not in out and "Kappa" not in out
     assert _check(out, err) == NEXT_MORE

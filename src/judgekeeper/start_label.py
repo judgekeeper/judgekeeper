@@ -1,8 +1,10 @@
 """Marking with `judgekeeper`: the queue, the `.judgekeeper/` folder, the session the marking
 page writes to, and the result.
 
-The queue: a seeded shuffle of the LLM-as-a-judge's passes and fails, in blocks of 10 with 5
-from each, so both kinds are seen early; the seed is saved, so it can be rebuilt.
+The queue: a seeded shuffle of the LLM-as-a-judge's passes and fails. It starts with blocks of
+10 with 5 from each, so both kinds are seen early; the rest is spread to the end, so the last
+answers hold both kinds and their place never gives the grade away. The seed is saved, so it
+can be rebuilt.
 `.judgekeeper/` holds start.json, pool.jsonl and pool-judge.jsonl (written when marking
 starts or a batch joins), marks.jsonl (written by the page), the anchors, judge-check files,
 result.json, report.html and history.jsonl, and fix/. Its .gitignore keeps the answers off Git.
@@ -20,6 +22,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import random
 import re
@@ -222,24 +225,32 @@ def _write_json(path: Path, data) -> None:
 AHEAD = 100  # answers past the furthest one marked that the page gets at once
 
 def build_queue(answers, seed: int) -> list[dict]:
-    """[{"id", "group"}] for every answer in the pool, in the order the page shows them."""
+    """[{"id", "group"}] for every answer in the pool, in the order the page shows them.
+
+    First the same number of each kind, 5 and 5 to a block: ROUGH of each (what a first
+    result needs), or half the smaller kind when it has fewer than twice that. Then the rest
+    in blocks of about BLOCK, each kind spread evenly over them, its last answer in the last
+    block. Each block is shuffled."""
     rng = random.Random(seed)
     left = {g: sorted(a.id for a in answers if a.verdict == g) for g in ("pass", "fail")}
     for ids in left.values():
         rng.shuffle(ids)
     half = BLOCK // 2
+    blocks = []
+    first = min(ROUGH, *(len(ids) // 2 for ids in left.values()))
+    for start in range(0, first, half):
+        blocks.append([(g, i) for g in ("pass", "fail")
+                       for i in left[g][start:min(start + half, first)]])
+    rest = {g: ids[first:] for g, ids in left.items()}
+    n = math.ceil(sum(map(len, rest.values())) / BLOCK)
+    spread = [[] for _ in range(n)]
+    for g, ids in rest.items():  # its k-th of m answers in block ceil(k * n / m)
+        for k, i in enumerate(ids, 1):
+            spread[math.ceil(k * n / len(ids)) - 1].append((g, i))
     queue = []
-    while left["pass"] or left["fail"]:
-        take = {g: min(half, len(ids)) for g, ids in left.items()}
-        short = BLOCK - sum(take.values())
-        for g, other in (("pass", "fail"), ("fail", "pass")):
-            if take[g] < half:  # this group ran out: the other fills the block
-                take[other] = min(take[other] + short, len(left[other]))
-        block = [{"id": i, "group": g} for g in ("pass", "fail") for i in left[g][:take[g]]]
-        for g, ids in left.items():
-            del ids[:take[g]]
+    for block in blocks + spread:
         rng.shuffle(block)
-        queue += block
+        queue += [{"id": i, "group": g} for g, i in block]
     return queue
 
 
