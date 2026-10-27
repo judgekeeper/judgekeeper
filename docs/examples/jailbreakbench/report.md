@@ -71,6 +71,8 @@ This is how a person would mark: one round of 100 answers. Each draw used a fres
 2. **Mark.** The page offered 100 answers in its normal order: 50 the LLM-as-a-judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes).
 3. **Measure.** `judgekeeper` was run again, and the real TPR, TNR and kappa on all 300 answers were compared with the ranges it gave.
 
+Before this run, the script was tried once with 2 full draws, on the same commit (seeds 1079684004 and 1444341094): both held all three real values. They are not among the 100.
+
 There was no bar to pass; the run was made once and is reported as it came out. Result (`hundred-marks/summary.json`):
 
 - all three inside: **93 of 100 draws**;
