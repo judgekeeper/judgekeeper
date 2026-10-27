@@ -622,20 +622,28 @@ WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words 
 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     """`text` as lines of at most `width` characters (a longer command stays whole on its
-    own line), each starting with `indent`. Only a text that starts with "Next:" gives a line
-    that starts with it: a name read from a file can't pass for judgekeeper's Next: line. The
-    whole text is scrubbed first (links.said): a line break between "Bearer" and its token
-    would hide the token from a scrub of each line."""
+    own line), each starting with `indent`. Each line break in `text` (\\n) starts a new line;
+    every other one (\\r, U+2028...) is a space. A value read from a file goes in as one line
+    (redact.one_line: a name, a model id, a held value), so only judgekeeper's own text breaks
+    a line. Only a text that starts with "Next:" gives a line that starts with it: a name read
+    from a file can't pass for judgekeeper's Next: line. The whole text is scrubbed first: a
+    line break between "Bearer" and its token would hide the token from a scrub of each line
+    (links.said, with the line breaks kept)."""
     import re
     import textwrap
 
-    from judgekeeper.links import said, stand_ins
+    from judgekeeper.links import keep as keep_links
+    from judgekeeper.links import stand_ins
+    from judgekeeper.redact import one_line, scrub
 
-    text, links_back = stand_ins(said(text))
+    text, links_back = stand_ins(keep_links(
+        text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
+    text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
     keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))
-    text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
-    lines = textwrap.wrap(text, width, initial_indent=indent, subsequent_indent=indent,
-                          break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
+    lines = []
+    for piece in text.split("\n"):
+        lines += textwrap.wrap(piece, width, initial_indent=indent, subsequent_indent=indent,
+                               break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
     return [links_back(line.replace("\0", " ")) for line in lines]

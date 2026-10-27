@@ -935,10 +935,14 @@ def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) ->
 
 
 def _or(items: list[str]) -> str:
+    """"a, b or c", each on one line (a name read from a file can't start a line)."""
+    items = [one_line(x) for x in items]
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
 
 
 def _and(items: list[str]) -> str:
+    """"a, b and c", each on one line."""
+    items = [one_line(x) for x in items]
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
