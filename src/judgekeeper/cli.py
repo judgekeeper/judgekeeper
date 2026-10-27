@@ -364,7 +364,7 @@ def hide_project_keys(path: str) -> None:
     from judgekeeper import start
 
     given = Path(path)
-    if given.exists():
+    if given.is_file() or given.is_dir():  # never a device or a pipe: the command refuses those
         start._hide_keys(given)
 
 
