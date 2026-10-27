@@ -64,6 +64,23 @@ def test_a_long_rule_is_cut_with_an_ellipsis():
     assert box.endswith("…") and len(box) <= mark_page.RULE_CHARS + 1
 
 
+@pytest.mark.parametrize("joiner", ["\u200d", "\u200c", "\u200b"])
+def test_a_long_key_split_by_a_hidden_character_is_hidden_whole_in_the_rule(joiner):
+    head, tail = "sk-ant-api03-" + "a" * 20, "b" * 30
+    html = _page(metric="m", rule=f"Use {head}{joiner}{tail} to call it.")
+    box = html.split('<p class="rule-text" id="rule-text">', 1)[1].split("</p>", 1)[0]
+    assert box == "Use [REDACTED] to call it."
+    assert head not in html and tail not in html
+
+
+def test_a_long_metric_name_is_cut_with_an_ellipsis():
+    html = _page(metric="m" * 1000, rule="Be kind.")
+    name = html.split('id="metric-name">', 1)[1].split("</span>", 1)[0]
+    assert name == "m" * mark_page.METRIC_CHARS + "…"
+    assert mark_page.METRIC_CHARS == 200
+    assert "m" * 200 + "…" not in _page(metric="m" * 200)
+
+
 def test_hidden_characters_in_the_metric_and_rule_are_dropped():
     html = _page(metric="faith\u202eful", rule="Be\u200b kind.")
     assert "\u202e" not in html and "\u200b" not in html
