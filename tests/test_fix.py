@@ -204,6 +204,21 @@ def test_an_empty_rule_txt_is_not_tested(here, capsys, judge, text):
     assert judge["evals"] == 0
 
 
+@pytest.mark.parametrize("encoding", ["cp1252", "utf-16"])
+def test_a_rule_txt_not_saved_as_utf8_says_how_to_save_it(here, capsys, judge, encoding):
+    ws = project(here)
+    run(capsys)
+    (ws.dir / "fix" / "rule.txt").write_bytes("Is polite \u2013 and \u201ccorrect\u201d.".encode(
+        encoding))
+    code, out = run(capsys, "--yes")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert "error: rule.txt is not saved as UTF-8 text, so it cannot be read." in flat
+    assert "Next: save rule.txt as UTF-8, then run `judgekeeper fix --yes`." in flat
+    assert flat.count("UTF-8") == 2  # said once, then the Next line
+    assert judge["evals"] == 0 and "Please report it" not in flat
+
+
 def test_fix_never_overwrites_a_rule_txt(here, capsys):
     ws = project(here)
     run(capsys)

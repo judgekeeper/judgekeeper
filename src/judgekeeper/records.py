@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import itertools
 import json
 import math
 import re
@@ -25,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from judgekeeper import table
 from judgekeeper.anchors import canonical_json
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, IDENTITY_FIELDS
 from judgekeeper.table import (
@@ -545,8 +547,10 @@ def utf8_size(text) -> int:
 
 def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bool]:
     """([(line number, the row or what is wrong with the line, size in bytes)], whether the
-    file is a CSV or TSV, whose values are all text). Blank lines are skipped."""
+    file is a CSV or TSV, whose values are all text). Blank lines are skipped. table.MAX_ROWS
+    rows at most (table.capped: said once)."""
     path = Path(path)
+    most = table.MAX_ROWS
     if not path.is_file():
         raise RecordsError(f"file not found: {path}")
     suffix = path.suffix.lower()
@@ -554,13 +558,15 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
         text = read_utf8(path, RecordsError)
         reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=_delimiter(text, suffix))
         rows = []
-        for row in reader:
+        for row in itertools.islice(reader, most + 1):  # one more: whether any is left out
             row = {k: v for k, v in row.items() if k is not None}
             rows.append((reader.line_num, row, sum(map(utf8_size, (*row, *row.values())))))
-        return rows, True
+        return table.capped(rows, path), True
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
         for n, line in enumerate(jsonl_lines(read_utf8(path, RecordsError)), 1):
+            if len(rows) > most:
+                break
             if not line.strip():
                 continue
             try:
@@ -575,7 +581,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
                 rows.append((n, NOT_TEXT, 0))
                 continue
             rows.append((n, row, utf8_size(line)))
-        return rows, False
+        return table.capped(rows, path), False
     raise RecordsError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
 

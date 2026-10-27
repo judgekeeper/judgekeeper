@@ -781,9 +781,10 @@ def read_rule(path: Path) -> str:
 
     try:  # saved as cp1252 or UTF-16 (Notepad's "ANSI" or "Unicode"): how to save it again
         return decode_utf8(raw, path, ValueError).removeprefix(BOM).strip()
-    except ValueError as e:
-        raise StartError(str(e), f"save {Path(path).name} as UTF-8, then run "
-                         "`{command}`.") from None
+    except ValueError:
+        name = Path(path).name
+        raise StartError(f"{name} is not saved as UTF-8 text, so it cannot be read.",
+                         f"save {name} as UTF-8, then run `{{command}}`.") from None
 
 
 def _tested_rule(ws: Workspace, split: Split) -> tuple[str, dict] | None:

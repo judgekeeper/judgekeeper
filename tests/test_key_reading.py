@@ -182,3 +182,50 @@ def test_a_key_after_a_byte_order_mark_is_hidden(here, capsys):
     pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
     assert AZURE not in pool and redact.REDACTED in pool
     assert json.loads(pool.splitlines()[0])
+
+
+@pytest.mark.parametrize("named", ["results.json", "results.csv"])
+def test_a_key_in_env_is_hidden_when_the_results_file_is_named(here, capsys, named):
+    outputs = [f"Use {AZURE} to call it" if i < 3 else f"Answer {i}" for i in range(36)]
+    if named == "results.json":
+        promptfoo_project(here, split(20, 16), outputs=outputs)
+    else:
+        rows = "".join(f'"q {i}","{o}",{"pass" if i < 20 else "fail"}\n'
+                       for i, o in enumerate(outputs))
+        (here / named).write_text("input,output,verdict\n" + rows, encoding="utf-8")
+    (here / ".env").write_text(f"AZURE_OPENAI_API_KEY={AZURE}\n", encoding="utf-8")
+    code, out, err = run(capsys, named, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    assert AZURE not in pool and redact.REDACTED in pool
+
+
+# The .env looked for upward stops at the project's folder -------------------------------------
+
+def test_the_env_above_the_project_and_in_the_home_folder_is_never_read(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    project = home / "work" / "support-bot"
+    project.mkdir(parents=True)
+    (project / ".git").mkdir()
+    for name in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(name, str(home))
+    above, at_home = "a1b2c3d4" * 4, "e5f6a7b8" * 4
+    (home / "work" / ".env").write_text(f"AZURE_OPENAI_API_KEY={above}\n", encoding="utf-8")
+    (home / ".env").write_text(f"COHERE_API_KEY={at_home}\n", encoding="utf-8")
+    keys.hide_keys(project)
+    assert redact.scrub(f"{above} {at_home}") == f"{above} {at_home}"
+    (project / ".env").write_text(f"AZURE_OPENAI_API_KEY={above}\n", encoding="utf-8")
+    keys.hide_keys(project)
+    assert redact.scrub(above) == redact.REDACTED
+
+
+def test_a_project_without_markers_never_reads_the_home_env(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    folder = home / "evals"
+    folder.mkdir(parents=True)
+    for name in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(name, str(home))
+    at_home = "e5f6a7b8" * 4
+    (home / ".env").write_text(f"COHERE_API_KEY={at_home}\n", encoding="utf-8")
+    keys.hide_keys(folder)
+    assert redact.scrub(at_home) == at_home

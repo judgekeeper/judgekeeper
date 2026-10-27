@@ -361,7 +361,7 @@ def hide_keys(root: Path, configs=()) -> None:
     configs `configs` set, so it is hidden from finding and marking on, not only once fix or
     check pass it on. Nothing is passed on here, and no other value is kept."""
     root = Path(root)
-    files = [root / ".env", root / ".env.local", _nearest_env(root)]
+    files = [root / ".env", root / ".env.local", _project_env(root)]
     if os.environ.get("APP_ENV"):
         files.append(root / f".env.{os.environ['APP_ENV'].strip()}")
     for path in dict.fromkeys(files):
@@ -372,6 +372,25 @@ def hide_keys(root: Path, configs=()) -> None:
         for name, value in config_env(config).items():
             if isinstance(value, str):
                 register_secret(name, value)
+
+
+def _project_env(folder: Path) -> Path:
+    """The nearest .env from `folder` up to the project's own folder (find.is_project), never
+    above it and never in the home folder; `folder`'s own when there is none."""
+    from judgekeeper import find  # find imports this module
+
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for parent in (folder, *folder.resolve().parents):
+        if parent.resolve() == home:
+            break
+        if (parent / ".env").is_file():
+            return parent / ".env"
+        if find.is_project(parent):
+            break
+    return folder / ".env"
 
 
 def _nearest_env(folder: Path) -> Path:

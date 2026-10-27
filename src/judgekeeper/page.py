@@ -196,14 +196,20 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
     return Page(url, urlsplit(url).port, token)
 
 
+# A mark this many seconds in the future is another run's, on a clock a little ahead (a
+# network drive, a second machine); further ahead, it came from a zip or tar, so it is old
+AHEAD = 5
+
+
 @contextmanager
 def one_at_a_time(folder: Path, say):
     """While this run prepares the project's pool or opens its page: .judgekeeper/opening.
     Another run that is doing so is said and waited for (an older mark, left by a run that
     stopped, is not). Two runs at once never write the pool twice, and neither reads a file
-    the other is replacing (Windows refuses that). A mark from the future (a time a zip or tar
-    kept) is old. A folder or special file at the mark's name, or at the lock's (server.json,
-    page.json) or page.log, is textio.NotAFile: it could never be removed or replaced."""
+    the other is replacing (Windows refuses that). A mark more than AHEAD seconds in the
+    future (a time a zip or tar kept) is old. A folder or special file at the mark's name, or
+    at the lock's (server.json, page.json) or page.log, is textio.NotAFile: it could never be
+    removed or replaced."""
     for name in (OPENING, LOCK, LOCK_COPY, background.LOG):
         odd = textio.not_a_file(Path(folder) / name)
         if odd is not None:
@@ -220,7 +226,7 @@ def one_at_a_time(folder: Path, say):
                 raise odd from None
             try:
                 age = time.time() - path.stat().st_mtime
-                old = not 0 <= age <= wait
+                old = not -AHEAD <= age <= wait
             except OSError:
                 old = False  # gone meanwhile: try again
             if old and not _remove(path):

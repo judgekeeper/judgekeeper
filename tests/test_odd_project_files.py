@@ -98,6 +98,26 @@ def test_an_opening_mark_from_the_future_is_old(here, capsys):
     assert not opening.exists()
 
 
+def test_an_opening_mark_a_few_seconds_ahead_is_another_run(tmp_path, monkeypatch):
+    """A clock a little ahead (a network drive, a second machine) is not a mark from a zip."""
+
+    class Waited(Exception):
+        pass
+
+    def sleep(seconds):
+        raise Waited
+
+    opening = tmp_path / page.OPENING
+    opening.write_text("", encoding="utf-8")
+    ahead = time.time() + 3
+    os.utime(opening, (ahead, ahead))
+    said = []
+    monkeypatch.setattr(page.time, "sleep", sleep)
+    with pytest.raises(Waited), page.one_at_a_time(tmp_path, said.append):
+        pass
+    assert said == [page.OPENING_NOW] and opening.is_file()
+
+
 @pytest.mark.parametrize("name", ["server.json", "page.json"])
 def test_a_folder_at_the_pages_lock_is_said_not_blamed_on_the_port(here, capsys, name, pages):
     promptfoo_project(here, split(20, 16))
@@ -162,6 +182,23 @@ def test_a_named_pipe_at_env_is_never_waited_for(tmp_path):
     assert in_time(lambda: keys.names_in(pipe), 5) == set()
 
 
+@no_fifo
+@pytest.mark.parametrize("name", ["promptfooconfig.yaml", "package.json"])
+def test_a_named_pipe_at_a_project_file_is_left_out(tmp_path, name):
+    project = tmp_path / "p"
+    project.mkdir()
+    promptfoo_project(project, split(20, 16), config=name != "promptfooconfig.yaml")
+    os.mkfifo(project / name)
+    done = subprocess.run([sys.executable, "-c", CHILD, "--no-browser", "--port", "0"],
+                          cwd=project, capture_output=True, text=True, timeout=60,
+                          stdin=subprocess.DEVNULL, check=False)
+    out = done.stdout + done.stderr
+    assert done.returncode == 0, out
+    assert LINK in out and UNEXPECTED not in out
+    subprocess.run([sys.executable, "-c", CHILD, "--stop"], cwd=project, capture_output=True,
+                   timeout=60, stdin=subprocess.DEVNULL, check=False)
+
+
 # A big table ------------------------------------------------------------------------------------
 
 def _million(path: Path) -> Path:
@@ -196,6 +233,19 @@ def test_reading_a_million_rows_stays_small(tmp_path):
     assert int(n) == table.MAX_ROWS
     assert float(seconds) < 20 and megabytes < 300, (seconds, megabytes)
     assert done.stderr.count("Read the first 100,000 answers") == 1
+
+
+def test_a_record_file_over_the_cap_is_read_up_to_it(here, capsys, monkeypatch):
+    from tests.start_projects import records_project
+
+    monkeypatch.setattr(table, "MAX_ROWS", 30)
+    path = records_project(here, split(20, 16))
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    said = f"Read the first 30 answers of {path.name}; the rest are left out."
+    assert (out + err).count(said) == 1, out + err
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(pool) == 30
 
 
 # Unreadable input: a plain line, nothing written --------------------------------------------
