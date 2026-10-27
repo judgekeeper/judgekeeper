@@ -1,0 +1,37 @@
+# Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
+# Revision: 886acc352a31533ffbcf4ef22c744658688086fc
+# Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
+# Grades: judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
+# Holds: ids, grades and counts only; no prompt or response
+# The screen below is judgekeeper's Measure output, copied exactly.
+
+judgekeeper 1.0.0
+
+Step 3 of 5: Measure
+
+95 of your marks took under a second each. A result is only as
+good as the marks. This looks like a program, not a person.
+
+100 of your marks came through a link printed in a terminal, so
+another program on this computer could have made them. If you
+marked them yourself, nothing to do.
+
+Result: your LLM-as-a-judge is good enough to use.
+You and your LLM-as-a-judge disagreed on 7 of 100 answers.
+
+  You passed 53 answers. Of those, your LLM-as-a-judge passed 48 and failed 5.
+  You failed 47 answers. Of those, your LLM-as-a-judge passed 2 and failed 45.
+
+Tell judgekeeper why you disagree on these 7: run
+`python3 -P -m judgekeeper mark --judge-model openai:gpt-4-0613 --port 9751 --no-browser`.
+`python3 -P -m judgekeeper fix` uses your reasons to find where
+your LLM-as-a-judge goes wrong.
+
+How often your LLM-as-a-judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 94% (between 87% and 98%)
+  When you say Fail, it also says Fail: about 94% (between 82% and 99%)
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+Next: nothing to do. When you change your LLM-as-a-judge or
+update your eval tool, run `python3 -P -m judgekeeper check`.

@@ -1,0 +1,37 @@
+{
+  "source": {
+    "dataset": "JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team",
+    "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+    "subset": "config judge_comparison, split test (data/judge-comparison.csv, 300 rows)",
+    "grades": "judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
+    "text": "ids, grades and counts only; no prompt or response"
+  },
+  "judgekeeper_version": "1.0.0",
+  "judge_model": "openai:gpt-4-0613",
+  "rows": 300,
+  "marks_per_draw": 100,
+  "true_all_rows": {
+    "n": 300,
+    "expert_pass_judge_pass": 171,
+    "expert_pass_judge_fail": 19,
+    "expert_fail_judge_pass": 10,
+    "expert_fail_judge_fail": 100,
+    "tpr": 0.9,
+    "tnr": 0.9090909090909091,
+    "agreement": 0.9033333333333333,
+    "kappa": 0.7953904045155221
+  },
+  "draws": 100,
+  "inside_each": {
+    "tpr": 99,
+    "tnr": 94,
+    "kappa": 100
+  },
+  "all_three_inside": 93,
+  "mean_range_width": {
+    "tpr": 0.116,
+    "tnr": 0.1834,
+    "kappa": 0.2468
+  },
+  "every_draw_counted_its_marks_and_showed_no_text": true
+}

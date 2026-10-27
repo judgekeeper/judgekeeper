@@ -48,7 +48,7 @@ Each number comes with a range, for example "about 89% (between 84% and 93%)". T
 
 ## Checked on public data
 
-- **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 20 of 20 draws, judgekeeper's ranges held the real TPR, TNR and kappa. Each draw marks 250 of the same 300 answers, so the draws overlap a lot. One separate draw missed the real TNR; the report says why. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
+- **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 100 draws with 100 marks each, judgekeeper's ranges held the real TPR in 99, the real TNR in 94 and the real kappa in 100; all three at once in 93. The draws pick from the same 300 answers, so they overlap. The report says why 7 draws missed. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
 - **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
 - **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
 - **Simulation.** In simulated checks, the TPR and TNR ranges held the true value at least 92.6 times in 100 in every setting tested, and 96.2 times on average in the main test grid. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
