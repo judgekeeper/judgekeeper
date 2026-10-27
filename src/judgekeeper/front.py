@@ -80,6 +80,9 @@ STEP = "Step {n} of 5: {name}"
 INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
+# Said where marking starts, before the page opens (and in the README and the reference)
+NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail. If "
+                   "almost every answer passes, that can take many answers.")
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
@@ -1355,6 +1358,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say(NOT_ENOUGH)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
+    if not n:  # marking starts: what a result needs, before the page opens
+        talk.para(NEEDS_EACH_KIND.format(n=targets.ROUGH))
+        talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
     if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):

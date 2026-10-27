@@ -82,6 +82,9 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
+        "A result needs at least 15 answers you mark Pass and 15 you mark",
+        "Fail. If almost every answer passes, that can take many answers.",
+        "",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
@@ -285,6 +288,8 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     said = out[:out.index("Next:")].splitlines()[2:]
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
+        "A result needs at least 15 answers you mark Pass and 15 you mark",
+        "Fail. If almost every answer passes, that can take many answers.",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 

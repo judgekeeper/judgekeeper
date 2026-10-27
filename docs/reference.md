@@ -13,7 +13,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--version] [--debug]
 ```
 
-Each run does the next step.
+Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
 
 | What is there | What `judgekeeper` does |
 |---|---|

@@ -30,7 +30,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 
 1. **Find** (`judgekeeper`). Find your eval results and the LLM-as-a-judge that graded them.
 2. **Mark** (the page opens by itself). Mark your answers Pass or Fail in your browser.
-3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you.
+3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 

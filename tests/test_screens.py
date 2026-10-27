@@ -74,6 +74,11 @@ FIRST = [
     "Step 2 of 5: Mark",
     "",
 ]
+NEEDS = [
+    "A result needs at least 15 answers you mark Pass and 15 you mark",
+    "Fail. If almost every answer passes, that can take many answers.",
+    "",
+]
 MARK_TEXT = [
     "It shows the answers",
     "one at a time. Mark each one Pass or Fail, the way you want your",
@@ -88,6 +93,7 @@ def test_screen_1_the_first_run(here, capsys):
     assert code == 0
     assert lines == [
         *FIRST,
+        *NEEDS,
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
@@ -100,9 +106,10 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     code, lines = screen(capsys, "--no-browser")
     assert code == 0
     at = lines.index("Step 2 of 5: Mark")
-    assert lines[at + 2] == "Open this link in your browser to mark answers:"
-    assert lines[at + 3].startswith("http://127.0.0.1:") and "?token=" in lines[at + 3]
-    assert lines[at + 4:at + 7] == [
+    assert lines[at + 2:at + 5] == NEEDS
+    assert lines[at + 5] == "Open this link in your browser to mark answers:"
+    assert lines[at + 6].startswith("http://127.0.0.1:") and "?token=" in lines[at + 6]
+    assert lines[at + 7:at + 10] == [
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]
