@@ -715,9 +715,10 @@ def quoted_name(value: str) -> str:
     it, as it can be pasted: quoted for the shell (quote_arg), in its quotes even when it
     needs none, so the names read alike and none reads as a line judgekeeper says (double
     on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of commands
-    (held_back) is shown between single quotes, as data."""
+    (held_back) is shown as PLACEHOLDER, and said as data under the line (held_lines), as
+    quote_arg does: between quotes it could still be pasted."""
     if held_back(value):
-        return f"'{value}'"
+        return quote_arg(value)
     quoted = quote_arg(value)
     mark = '"' if is_windows() else "'"
     return f"{mark}{value}{mark}" if quoted == value else quoted
