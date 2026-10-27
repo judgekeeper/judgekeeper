@@ -30,8 +30,9 @@ MIN_SECRET_LENGTH = 8
 
 # Variables registered during this process (the key names keys.py found).
 _named_vars: set[str] = set()
-# Credentials registered during this process that are not in the environment (a key in
-# promptfoo's config `env:` block, passed on to promptfoo)
+# Credentials registered during this process that are not in the environment (a key in the
+# project's .env files or promptfoo's config `env:` block, keys.hide_keys): only hidden, never
+# passed on
 _named_values: set[str] = set()
 
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"
@@ -145,7 +146,7 @@ def is_credential(name: str) -> bool:
 @functools.cache
 def _key_names() -> frozenset[str]:
     """The API key names of the providers judgekeeper knows (AWS_BEARER_TOKEN_BEDROCK among
-    them): each is passed on to the judge's tool."""
+    them): each one's value is hidden, never passed on."""
     from judgekeeper.keys import key_names  # keys imports this module
 
     return frozenset(key_names())
