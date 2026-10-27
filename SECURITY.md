@@ -8,6 +8,13 @@ Please report it privately: [Report a vulnerability](https://github.com/judgekee
 
 judgekeeper needs no API key of its own: your eval tool reads its keys and makes the calls. judgekeeper never writes a key to a file, and hides keys and anything shaped like one as `[REDACTED]` before it writes or prints text ([which keys](docs/reference.md#your-api-keys)).
 
+It hides:
+
+- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN` or `_SECRET`) in your shell, in your project's `.env` files and in promptfoo's config `env:` block;
+- keys by their shape: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, AWS secrets next to their name or key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…` and a JWT;
+- `Bearer …` and `Basic …` headers, and the login part of a URL: `https://user:password@`, `https://:password@`, or a long token alone;
+- a key split by a hidden character such as a zero-width joiner.
+
 ## The marking page
 
 - It runs on 127.0.0.1 only, with a random token in its link.

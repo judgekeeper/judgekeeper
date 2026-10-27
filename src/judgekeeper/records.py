@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import itertools
 import json
 import math
 import re
@@ -25,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from judgekeeper import table
 from judgekeeper.anchors import canonical_json
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, IDENTITY_FIELDS
 from judgekeeper.table import (
@@ -34,7 +36,15 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, reading, too_deep
+from judgekeeper.textio import (
+    MAX_NESTING,
+    jsonl_lines,
+    lone_surrogate,
+    plural,
+    read_utf8,
+    reading,
+    too_deep,
+)
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -75,6 +85,8 @@ def damaged(path: str | Path, tool: str, how: str) -> Damaged:
 
 
 NESTED = f"is nested more than {MAX_NESTING} levels deep"  # the same on every Python
+# A JSON escape such as \\ud800 alone: it can't be hashed or written as UTF-8
+NOT_TEXT = "holds a character that isn't text (a lone surrogate such as \\ud800)"
 
 
 def load_json(path: str | Path, tool: str):
@@ -95,6 +107,8 @@ def load_json(path: str | Path, tool: str):
         raise damaged(path, tool, "is damaged (judgekeeper can't read it as JSON)") from None
     if too_deep(data):
         raise damaged(path, tool, NESTED)
+    if lone_surrogate(data):
+        raise damaged(path, tool, NOT_TEXT)
     return data
 
 
@@ -533,8 +547,10 @@ def utf8_size(text) -> int:
 
 def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bool]:
     """([(line number, the row or what is wrong with the line, size in bytes)], whether the
-    file is a CSV or TSV, whose values are all text). Blank lines are skipped."""
+    file is a CSV or TSV, whose values are all text). Blank lines are skipped. table.MAX_ROWS
+    rows at most (table.capped: said once)."""
     path = Path(path)
+    most = table.MAX_ROWS
     if not path.is_file():
         raise RecordsError(f"file not found: {path}")
     suffix = path.suffix.lower()
@@ -542,13 +558,15 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
         text = read_utf8(path, RecordsError)
         reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=_delimiter(text, suffix))
         rows = []
-        for row in reader:
+        for row in itertools.islice(reader, most + 1):  # one more: whether any is left out
             row = {k: v for k, v in row.items() if k is not None}
             rows.append((reader.line_num, row, sum(map(utf8_size, (*row, *row.values())))))
-        return rows, True
+        return table.capped(rows, path), True
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
         for n, line in enumerate(jsonl_lines(read_utf8(path, RecordsError)), 1):
+            if len(rows) > most:
+                break
             if not line.strip():
                 continue
             try:
@@ -559,8 +577,11 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
             if not isinstance(row, dict):
                 rows.append((n, "each line must be a JSON object", 0))
                 continue
+            if lone_surrogate(row):
+                rows.append((n, NOT_TEXT, 0))
+                continue
             rows.append((n, row, utf8_size(line)))
-        return rows, False
+        return table.capped(rows, path), False
     raise RecordsError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
 

@@ -239,3 +239,27 @@ def test_ctrl_c_while_the_page_starts_ends_its_process(project, monkeypatch):
     proc.wait(timeout=15)
     assert not alive(proc.pid)
     assert not label.is_open(folder)
+
+
+def test_the_page_says_python_m_when_started_that_way(project):
+    """Started as `python -P -m judgekeeper` with no `judgekeeper` command on the PATH, the
+    page's own process says to come back the same way."""
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PATH": ""}
+
+    def py_m(*args):
+        return subprocess.run([sys.executable, "-P", "-m", "judgekeeper", *args], cwd=project,
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              encoding="utf-8", timeout=60, env=env, check=False)
+
+    first = py_m("mark", "--port", "0", "--no-browser")
+    assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
+    command = f"{'py' if os.name == 'nt' else 'python3'} -P -m judgekeeper mark"
+    m = LINK.search(first.stdout)
+    base = f"http://127.0.0.1:{m[2]}"
+
+    def send():
+        with urllib.request.urlopen(f"{base}/?token={m[3]}", timeout=10) as r:
+            return r.read().decode("utf-8")
+
+    assert command in retried(send)
+    assert py_m("mark", "--stop").returncode == 0
