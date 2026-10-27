@@ -274,7 +274,13 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     said = " ".join(out.split())
     assert (f"Result: can't tell. 1 of the {len(kept)} answers kept aside has no grade in your "
             "new results: 1 is not in the file.") in said
-    assert "marked-answers.csv" in said[said.rindex("Next:"):]
+    then = said[said.rindex("Next:"):]
+    if tool == "inspect":  # the log is scored again, not marked-answers.csv
+        assert then == (f"Next: score your log again with your new rule: run "
+                        f"`{fix.INSPECT_SCORE}` with `--output-file {fix.new_log(ws)}`, then "
+                        f"run `judgekeeper fix {fix.new_log(ws)}`.")
+    else:
+        assert "marked-answers.csv" in then
     assert fix.read_split(ws).tests == []
 
     new = write_results(tool, here / NEW[tool], {i: person(i) for i in range(N)}, regraded=True)

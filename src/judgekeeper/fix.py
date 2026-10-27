@@ -1191,7 +1191,12 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         errors = no_decision(found, [i for i in split.hidden if i not in new], ws)
         talk.para(MISSING.format(k=missing, n=len(split.hidden), have=_have(missing),
                                  why=_missing_why(missing - errors, errors)))
-        talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
+        if m.data.get("tool") == "inspect":  # the log itself is scored again
+            log = quote_arg(new_log(ws))
+            talk.next(f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
+                      f"`--output-file {log}`, then run `{talk.command()} {log}`.")
+        else:
+            talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
         return EXIT_NEEDS_YOU
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
