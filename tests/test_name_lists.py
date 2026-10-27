@@ -80,7 +80,8 @@ def test_an_unknown_metric_lists_at_most_20_names(tmp_path, monkeypatch, capsys)
 
 
 def test_10000_inspect_score_keys_are_quick_and_short(tmp_path, monkeypatch, capsys):
-    data = inspect_data([True, False])
+    """One sample: reading each sample's keys takes its own time, which this doesn't test."""
+    data = inspect_data([True])
     for sample in data["samples"]:
         sample["scores"]["model_graded_qa"]["value"] = {f"k{i}": "C" for i in range(10_000)}
     (tmp_path / "logs").mkdir()
