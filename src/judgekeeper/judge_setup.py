@@ -25,7 +25,7 @@ from pathlib import Path
 from judgekeeper import __version__, find
 from judgekeeper.fingerprint import rule_hash, utc_now
 from judgekeeper.redact import scrub_value
-from judgekeeper.textio import write_replacing
+from judgekeeper.textio import loads, write_replacing
 
 FILE = "judge.json"
 ONE_CALL, PANEL, AGENT = "one call", "panel", "agent"
@@ -257,7 +257,7 @@ def _saved(ws) -> dict | None:
     from judgekeeper.textio import read_regular
 
     try:  # a named pipe there is never read (it would wait): make_folder then refuses it
-        data = json.loads(read_regular(ws.dir / FILE).decode("utf-8"))
+        data = loads(read_regular(ws.dir / FILE).decode("utf-8"))
     except (OSError, ValueError):
         return None
     if isinstance(data, dict) and isinstance(data.get("setup"), dict) \

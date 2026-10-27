@@ -341,6 +341,19 @@ def read_json(path: str | Path, error: type[Exception]):
     return data
 
 
+def loads(text: str):
+    """json.loads for a file in judgekeeper's own folder: JSON nested deeper than MAX_NESTING
+    (a project can come with that folder) is a ValueError, as damaged JSON is, on every
+    Python version."""
+    try:
+        data = json.loads(text)
+    except RecursionError:
+        raise ValueError("nested too deep") from None
+    if too_deep(data):
+        raise ValueError("nested too deep")
+    return data
+
+
 def lone_surrogate(data) -> bool:
     """Whether a string in `data` (keys too, inside lists and objects) holds a lone surrogate:
     a JSON escape such as \\ud800 reads as one, and it can't be written as UTF-8. Walked

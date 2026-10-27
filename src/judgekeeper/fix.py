@@ -42,6 +42,7 @@ from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
     held_lines,
     jsonl_lines,
+    loads,
     make_private,
     old_hook,
     plural,
@@ -132,7 +133,7 @@ def _pool_rows(path: Path) -> dict:
     rows = {}
     for line in jsonl_lines(path.read_text(encoding="utf-8")):
         if line.strip():
-            row = json.loads(line)
+            row = loads(line)
             rows[row["id"]] = row
     return rows
 
@@ -291,7 +292,7 @@ def _file(ws: Workspace, name: str) -> str:
 
 def read_split(ws: Workspace) -> Split | None:
     try:
-        d = json.loads((_folder(ws) / SPLIT).read_text(encoding="utf-8"))
+        d = loads((_folder(ws) / SPLIT).read_text(encoding="utf-8"))
         return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
                      set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
                      tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
