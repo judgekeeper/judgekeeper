@@ -154,10 +154,14 @@ class _Version(argparse.Action):
 
 def _say(text: str, file=None, end: str = "\n") -> None:
     """Print text that may quote an input file as one line: control characters are dropped,
-    line breaks become spaces."""
-    print(one_line(text), file=file, end=end)
-    for line in held_lines(text):  # a name left out of the command above, as data
-        print(one_line(line), file=file)
+    line breaks become spaces. A stream that can't take it (stderr closed by the program
+    reading it) goes to the null device: the exit code stays the command's."""
+    try:
+        print(one_line(text), file=file, end=end)
+        for line in held_lines(text):  # a name left out of the command above, as data
+            print(one_line(line), file=file)
+    except OSError:
+        flush_stdout(err=file is sys.stderr)
 
 
 def _error(message: str) -> None:
@@ -422,8 +426,14 @@ def main(argv: list[str] | None = None) -> int:
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
         code = EXIT_OK
     except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
-        return _stopped(command_first(sys.argv[1:] if argv is None else argv))
-    flush_stdout()  # a closed pipe shows here, not in Python's own flush at exit: the code stays
+        try:
+            code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
+        except OSError:  # stdout can't take "Stopped.": still stopped
+            code = EXIT_STOPPED
+    # A closed or broken stream shows here, not in Python's own flush at exit (exit 120): the
+    # code stays
+    flush_stdout()
+    flush_stdout(err=True)
     return code
 
 

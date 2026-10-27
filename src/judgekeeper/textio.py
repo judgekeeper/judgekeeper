@@ -67,15 +67,20 @@ def lenient_streams() -> None:
             pass
 
 
-def flush_stdout() -> None:
-    """Flush stdout. When the program reading it stopped (`| head`), the rest of the output
-    goes to the null device from here on and the command carries on to its own exit code."""
+def flush_stdout(err: bool = False) -> None:
+    """Flush stdout (`err`: stderr). When it can't take the output (the program reading it
+    stopped, as `| head` does, the disk is full, or it was closed), the rest goes to the null
+    device from here on and the command carries on to its own exit code. A stream closed
+    before judgekeeper started is None: nothing to flush."""
+    stream = sys.stderr if err else sys.stdout
+    if stream is None:
+        return
     try:
-        sys.stdout.flush()
-    except BrokenPipeError:
+        stream.flush()
+    except (OSError, ValueError):  # BrokenPipeError and io.UnsupportedOperation are OSErrors
         try:
             with open(os.devnull, "w", encoding="utf-8") as null:
-                os.dup2(null.fileno(), sys.stdout.fileno())
+                os.dup2(null.fileno(), stream.fileno())
         except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is an OSError
             pass
 
