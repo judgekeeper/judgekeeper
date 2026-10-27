@@ -535,6 +535,7 @@ def test_two_stores_print_nothing_of_mlflows_own(two):
 
 
 def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("mlflow")
     if os.name == "nt":
         pytest.skip("folder permissions work differently on Windows")
     locked = tmp_path / "locked"
