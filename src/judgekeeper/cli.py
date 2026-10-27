@@ -461,10 +461,10 @@ def _main(argv: list[str] | None) -> int:
         _next(_step(getattr(e, "next_step", None) or NEXT_FIX, args_list,
                     getattr(e, "drop", None)))
         return EXIT_USAGE
-    except MarksError as e:  # a link where judgekeeper writes: it says which
-        _error(str(e))
+    except MarksError as e:  # a link where judgekeeper writes: it says which (a place it
+        _error(str(e))  # can't write, as a link start_label.refuse_links finds)
         _next(_step(NEXT_LINK, args_list))
-        return EXIT_NEEDS_YOU
+        return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
             print(printable(scrub(_frames(e))), file=sys.stderr, end="")
