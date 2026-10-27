@@ -93,7 +93,8 @@ REGRADE = {
                   "rule; save with `-o`."),
     "inspect": ("Inspect AI: grade your log again with the new scorer, no new answers needed. "
                 "`--action overwrite` keeps the new grades under your scorer's name, and "
-                "`--output-file` writes them to a new log, so yours stays as it was."),
+                "`--output-file` writes them to a new log next to yours, so yours stays as it "
+                "was and `judgekeeper check` finds the new one."),
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer."),
     "deepeval": f"DeepEval: build test cases from {ANSWERS} and run the metric.",
 }
@@ -965,7 +966,18 @@ def regrade_line(tool: str | None) -> str:
 
 
 NEW_LOG = "new.eval"
-INSPECT_SCORE = f"inspect score <log> --scorer <name> --action overwrite --output-file {NEW_LOG}"
+INSPECT_SCORE = "inspect score <log> --scorer <name> --action overwrite"
+
+
+def new_log(ws: Workspace) -> str:
+    """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
+    with the others rather than in a second folder of logs."""
+    try:
+        files = ws.data().get("results_files") or []
+    except (OSError, ValueError):
+        files = []
+    folder = Path(files[0]).parent.as_posix() if files and isinstance(files[0], str) else "."
+    return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
 
 
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
@@ -973,8 +985,9 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     talk.say()
     talk.para(regrade_line(tool))
     if tool == "inspect":  # the log itself is graded again
-        talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}`, then run "
-                  f"`{talk.command()} {NEW_LOG}`.")
+        log = quote_arg(new_log(ws))
+        talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
+                  f"then run `{talk.command()} {log}`.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "

@@ -83,7 +83,7 @@ judgekeeper fix [PATH] [--new]
 | Eval tool | How to grade the same answers again |
 |---|---|
 | promptfoo | Use `marked-answers.csv` as your tests with the `echo` provider and your new rule; save with `-o`. |
-| Inspect AI | `inspect score <log> --scorer <name> --action overwrite --output-file new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, and your log stays as it was. Then run `judgekeeper fix new.eval`. |
+| Inspect AI | `inspect score <log> --scorer <name> --action overwrite --output-file logs/new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, your log stays as it was, and the new one is in your log folder, where `check` finds it. Then run `judgekeeper fix logs/new.eval`. |
 | MLflow | `mlflow.genai.evaluate()` on the existing traces with the new scorer. |
 | DeepEval | Build test cases from `marked-answers.csv` and run the metric. |
 | A CSV or JSONL file, or `record()` | Grade `marked-answers.csv` with your own code. |

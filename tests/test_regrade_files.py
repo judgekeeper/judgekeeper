@@ -388,3 +388,29 @@ def test_the_project_folder_by_its_path_still_works(here, capsys):
     assert run(capsys, "fix", str(here))[0] == 0
     code, out = run(capsys, "check", str(here))
     assert code == 0 and "has not changed" in out, out
+
+
+def test_check_on_logs_in_two_folders_says_to_choose_in_its_next_line(tmp_path, monkeypatch,
+                                                                     capsys):
+    """A regraded Inspect log written beside the project, not in logs/: check can't tell
+    which logs to read, and its Next: line says what its text says."""
+    from tests.start_projects import inspect_data, split
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "a.json").write_text(json.dumps(inspect_data(split(20, 20))),
+                                              encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    session = StartSession(ws)
+    for item in session.items:
+        session.update({"id": item["id"], "label": session.groups[item["id"]], "seconds": 5})
+    (tmp_path / "new.json").write_text(json.dumps(inspect_data(split(20, 20))), encoding="utf-8")
+    capsys.readouterr()
+    code = main(["check"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert code == 3 and "they need a choice first" in out, out
+    assert out.endswith("Next: run `judgekeeper` to make that choice, then run `judgekeeper "
+                        "check` again.")

@@ -103,6 +103,8 @@ NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
+CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
+NEXT_CHOOSE = f"Next: run `{program()}` to make that choice, then run `{{command}}` again."
 NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = ("go back to your old LLM-as-a-judge, or change its rule; then run your eval "
@@ -197,9 +199,7 @@ def _newest(state: State):
         if tool in find.TOOLS and not find.search(root).readable(tool):
             name = "" if tool == "table" else f"{find.NAMES.get(tool, tool)} "
             return None, f"judgekeeper finds no {name}results in this folder ({Path(root).name})"
-        why = (scrub(str(e)) if str(e) and not isinstance(e, start.Stop)
-               else "they need a choice first, such as which results to read: run "
-                    f"`{program()}` to make it")
+        why = scrub(str(e)) if str(e) and not isinstance(e, start.Stop) else CHOOSE
         return None, (f"judgekeeper can't read your LLM-as-a-judge {data.get('metric')} in your "
                       f"newest results: {why}")
 
@@ -1247,7 +1247,8 @@ def full(path: str, said: Said) -> int:
     if problem:
         said.say(problem if problem.endswith(".") else problem + ".")  # one stop
         said.say()
-        said.say(NEXT_RUN_EVAL.format(command=_command(state)))
+        then = NEXT_CHOOSE if problem.endswith(CHOOSE) else NEXT_RUN_EVAL  # as the line says
+        said.say(then.format(command=_command(state)))
         return EXIT_NEEDS_YOU
     unknown = unknown_grades(found, found.results[0].path) if found is not None else None
     if unknown:
