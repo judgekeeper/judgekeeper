@@ -123,10 +123,11 @@ FORMS = {
 }
 
 
-def _config(tmp_path, text):
+def _config(tmp_path, text, end="\n"):
+    """promptfooconfig.yaml holding `text`, its lines ended with `end` on every system."""
     path = tmp_path / "promptfooconfig.yaml"
-    path.write_text("description: bot\n" + text if not text.startswith("{") else text,
-                    encoding="utf-8")
+    text = "description: bot\n" + text if not text.startswith("{") else text
+    path.write_text(text.replace("\n", end), encoding="utf-8", newline="")
     return path
 
 
@@ -137,10 +138,14 @@ def test_every_yaml_form_is_read_with_pyyaml(tmp_path, text):
     assert "NODE_OPTIONS" in keys.config_env(config)
 
 
+ENDS = {"LF": "\n", "CRLF": "\r\n", "CR": "\r"}
+
+
+@pytest.mark.parametrize("end", ENDS.values(), ids=ENDS.keys())
 @pytest.mark.parametrize("text", FORMS.values(), ids=FORMS.keys())
-def test_without_pyyaml_a_form_the_scan_cant_read_is_said(tmp_path, monkeypatch, text):
+def test_without_pyyaml_a_form_the_scan_cant_read_is_said(tmp_path, monkeypatch, text, end):
     monkeypatch.setitem(sys.modules, "yaml", None)  # import yaml raises ImportError
-    config = _config(tmp_path, text)
+    config = _config(tmp_path, text, end)
     assert keys.UNREAD in keys.config_env(config)
 
 
@@ -228,13 +233,14 @@ def test_a_project_without_markers_never_reads_the_home_env(tmp_path, monkeypatc
     assert redact.scrub(at_home) == at_home
 
 
+@pytest.mark.parametrize("end", ENDS.values(), ids=ENDS.keys())
 @pytest.mark.parametrize("text", FORMS.values(), ids=FORMS.keys())
 def test_without_pyyaml_a_key_in_a_form_the_scan_cant_read_is_still_hidden(tmp_path, monkeypatch,
-                                                                          text):
+                                                                          text, end):
     monkeypatch.setitem(sys.modules, "yaml", None)
     text = text.replace("NODE_OPTIONS", "COHERE_API_KEY").replace("--require ./x.js", "x")
     text = re.sub(r"\bx\b", COHERE, text)
-    config = _config(tmp_path, text)
+    config = _config(tmp_path, text, end)
     assert keys.UNREAD in keys.config_env(config)
     keys.hide_keys(tmp_path, [config])
     assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"

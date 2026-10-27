@@ -181,7 +181,7 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     if data is None:
         return {}
     text = data.decode("utf-8", errors="replace")
-    text = text.removeprefix(textio.BOM)
+    text = text.removeprefix(textio.BOM).replace("\r\n", "\n").replace("\r", "\n")  # as YAML
     if str(config).endswith(".json") or text.lstrip().startswith("{"):
         try:
             env = json.loads(text).get("env")
