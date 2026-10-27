@@ -314,9 +314,33 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
+    root = project.project_of(path)
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
-        found = start.rebased(found, project.project_of(path))
+        found = start.rebased(found, root)
+        _folder_chosen(talk, found, path.resolve().parent)
+    elif root != path.resolve():  # a folder in the project that holds the marks
+        found = start.rebased(found, root, path)
+        _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _folder_chosen(talk: FrontTalk, found: start.Found, folder: Path) -> None:
+    """A PATH in the project that picks one of the folders its DeepEval results (or Inspect
+    logs) are in: kept in judgekeeper.toml after a yes, as when it is chosen at a terminal,
+    so plain commands stop asking (`judgekeeper mark` never saves it)."""
+    if found.tool not in ("deepeval", "inspect") or talk.store is not None or talk.subcommand:
+        return
+    rel = folder.relative_to(found.root).as_posix() if folder.is_relative_to(found.root) else None
+    try:
+        kept = settings.load(found.root)
+    except settings.SettingsError:
+        return  # said when it is read
+    if kept is not None and (kept.source, kept.file) == (found.tool, rel):
+        return
+    search = find.search(found.root)
+    folders = {start._eval_folder(r) for r in search.readable(found.tool)} - {None}
+    if len(folders) > 1 and rel in folders:
+        talk.remember("PATH", rel)
 
 
 def install_switch(files: list[str], used: list[str], can_read_eval: bool) -> str | None:
