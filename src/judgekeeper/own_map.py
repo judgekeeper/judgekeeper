@@ -21,7 +21,7 @@ from judgekeeper import mapper, own_format, settings, start
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
-from judgekeeper.textio import plural, quote_arg
+from judgekeeper.textio import plural, quote_arg, quoted_name
 
 MAX_PATHS = 24
 RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one judgekeeper.record() "
@@ -85,7 +85,8 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
               else mapper.filled(g.output))
     score = mapper.filled(g.score, side, judge)
     if g.judges:
-        score += f" (LLM-as-a-judge names: {start.some(g.judges, last=',')})"
+        score += (" (LLM-as-a-judge names: "
+                  f"{start.some([quoted_name(j) for j in g.judges], last=',')})")
     if len(g.sides) > 1 and mapper.SIDE in g.score:
         score += f" and the same under {' and '.join(g.sides[1:])}"
     label = "grade:"

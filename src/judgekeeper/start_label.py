@@ -1,8 +1,10 @@
 """Marking with `judgekeeper`: the queue, the `.judgekeeper/` folder, the session the marking
 page writes to, and the result.
 
-The queue: a seeded shuffle of the LLM-as-a-judge's passes and fails, in blocks of 10 with 5
-from each, so both kinds are seen early; the seed is saved, so it can be rebuilt.
+The queue: a seeded shuffle of the LLM-as-a-judge's passes and fails. It starts with blocks of
+10 with 5 from each, so both kinds are seen early; the rest is spread to the end, so the last
+answers hold both kinds and their place never gives the grade away. The seed is saved, so it
+can be rebuilt.
 `.judgekeeper/` holds start.json, pool.jsonl and pool-judge.jsonl (written when marking
 starts or a batch joins), marks.jsonl (written by the page), the anchors, judge-check files,
 result.json, report.html and history.jsonl, and fix/. Its .gitignore keeps the answers off Git.
@@ -20,6 +22,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import random
 import re
@@ -37,6 +40,7 @@ from judgekeeper.runners.base import Judgment
 from judgekeeper.table import guard_cell, write_anchor_file
 from judgekeeper.textio import (
     file_stamp,
+    hard_linked,
     jsonl_lines,
     link_in,
     make_private,
@@ -55,6 +59,8 @@ GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your 
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
+HARD_LINK = ("{path} is linked to another file. judgekeeper does not write through links. "
+             "Remove it, then run {program} again.")
 SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 
@@ -151,17 +157,24 @@ def _start_strata(path: Path) -> tuple:
 
 
 def refuse_links(ws: Workspace) -> None:
-    """Stop (StartError) when `ws.dir`, or anything in it, is a link."""
+    """Stop (StartError) when `ws.dir`, or anything in it, is a link, or when page.log, which
+    the page adds to, has a second name (a hard link)."""
+    from judgekeeper.background import LOG
     from judgekeeper.start import StartError
+
+    def shown(path: Path) -> str:
+        try:
+            return path.relative_to(ws.root).as_posix()
+        except ValueError:
+            return str(path)
 
     link = link_in(ws.dir)
     if link is not None:
-        try:
-            shown = link.relative_to(ws.root).as_posix()
-        except ValueError:
-            shown = str(link)
-        raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file",
+        raise StartError(LINK.format(path=shown(link),
+                                     kind="folder" if link.is_dir() else "file",
                                      program=program()))
+    if hard_linked(ws.dir / LOG):
+        raise StartError(HARD_LINK.format(path=shown(ws.dir / LOG), program=program()))
 
 
 def check_writable(ws: Workspace) -> None:
@@ -212,24 +225,32 @@ def _write_json(path: Path, data) -> None:
 AHEAD = 100  # answers past the furthest one marked that the page gets at once
 
 def build_queue(answers, seed: int) -> list[dict]:
-    """[{"id", "group"}] for every answer in the pool, in the order the page shows them."""
+    """[{"id", "group"}] for every answer in the pool, in the order the page shows them.
+
+    First the same number of each kind, 5 and 5 to a block: ROUGH of each (what a first
+    result needs), or all but one of the smaller kind when it has no more than ROUGH, so one
+    is left for the end. Then the rest in blocks of about BLOCK, each kind spread evenly over
+    them, its last answer in the last block. Each block is shuffled."""
     rng = random.Random(seed)
     left = {g: sorted(a.id for a in answers if a.verdict == g) for g in ("pass", "fail")}
     for ids in left.values():
         rng.shuffle(ids)
     half = BLOCK // 2
+    blocks = []
+    first = max(0, min(ROUGH, *(len(ids) - 1 for ids in left.values())))
+    for start in range(0, first, half):
+        blocks.append([(g, i) for g in ("pass", "fail")
+                       for i in left[g][start:min(start + half, first)]])
+    rest = {g: ids[first:] for g, ids in left.items()}
+    n = math.ceil(sum(map(len, rest.values())) / BLOCK)
+    spread = [[] for _ in range(n)]
+    for g, ids in rest.items():  # its k-th of m answers in block ceil(k * n / m)
+        for k, i in enumerate(ids, 1):
+            spread[math.ceil(k * n / len(ids)) - 1].append((g, i))
     queue = []
-    while left["pass"] or left["fail"]:
-        take = {g: min(half, len(ids)) for g, ids in left.items()}
-        short = BLOCK - sum(take.values())
-        for g, other in (("pass", "fail"), ("fail", "pass")):
-            if take[g] < half:  # this group ran out: the other fills the block
-                take[other] = min(take[other] + short, len(left[other]))
-        block = [{"id": i, "group": g} for g in ("pass", "fail") for i in left[g][:take[g]]]
-        for g, ids in left.items():
-            del ids[:take[g]]
+    for block in blocks + spread:
         rng.shuffle(block)
-        queue += block
+        queue += [{"id": i, "group": g} for g, i in block]
     return queue
 
 
@@ -872,17 +893,20 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
 def page_template(about: dict | None = None, command: str | None = None,
                   held: list[str] | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's model and tool
-    are shown in the top bar; nothing else from it is (not its rule). `command`: what the
+    are shown in the top bar, its metric above the answer and its rule behind a button (only
+    when every answer was graded by the same rule); never a grade. `command`: what the
     person runs to continue; `held`: the values it shows as NAME (start.held_values)."""
     from judgekeeper.front import tool_name
     from judgekeeper.mark_page import label_page
 
     command = command or program("mark")
     about = about or {}
+    rule = about.get("rule") if about.get("one_rule", True) else None
     return label_page(about.get("description") or about.get("app_version"), command,
                       model=(about.get("fingerprint") or {}).get("model"),
                       tool=tool_name(about.get("tool"), about.get("results_files")),
-                      held=held)
+                      held=held, metric=about.get("metric"),
+                      rule=rule if isinstance(rule, str) else None)
 
 
 def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,

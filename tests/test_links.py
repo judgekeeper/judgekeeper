@@ -147,6 +147,23 @@ def test_new_leaves_the_gitignore_in_place(tmp_path):
     assert not (target / ".gitignore").exists() and (target / "start.json").is_file()
 
 
+def test_a_hard_linked_page_log_is_said_as_the_symlink_case_is(tmp_path, capsys, pages):
+    project = tmp_path / "project"
+    promptfoo_project(project, split(20, 16))
+    victim = _victim(tmp_path)
+    (project / ".judgekeeper").mkdir()
+    try:
+        os.link(victim, project / ".judgekeeper" / "page.log")
+    except (OSError, NotImplementedError):
+        pytest.skip("hard links not allowed here")
+    code, out, err = _run(capsys, project)
+    assert code == 2 and pages[0] == []
+    assert (".judgekeeper/page.log is linked to another file. judgekeeper does not write "
+            "through links. Remove it, then run judgekeeper again.") in err
+    assert "what went wrong is in" not in out + err
+    assert victim.read_text(encoding="utf-8") == VICTIM
+
+
 # Every command refuses a linked .judgekeeper/, before it does any work ---------------------------
 
 def _snapshot(folder):

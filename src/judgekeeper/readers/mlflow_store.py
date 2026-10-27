@@ -21,6 +21,7 @@ local folder, a SQL store, a server and Databricks all work, with MLflow handlin
 from __future__ import annotations
 
 import atexit
+import errno
 import gc
 import inspect
 import json
@@ -50,7 +51,7 @@ from judgekeeper.records import (
     check_record,
     derive_record_id,
 )
-from judgekeeper.textio import get_extra, reading
+from judgekeeper.textio import get_extra, quoted_name, reading
 
 # The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
 LOGGERS = ("mlflow", "alembic", "sqlalchemy")
@@ -146,8 +147,11 @@ def kept_location(value, home: Path) -> Path | None:
     """Where a trace's data is kept (`value`, a location tag's), as a full path, when it is a
     plain local path or a `file:` address with no host that leads inside `home` (the folder
     that holds mlflow.db) once links are followed; else None: a server (http, s3, gs, wasbs,
-    mlflow-artifacts, dbfs...), a host's or network share's path, or a folder elsewhere."""
-    text = str(value or "")
+    mlflow-artifacts, dbfs...), a host's or network share's path, a folder elsewhere, or a
+    value that is not text (SQLite keeps any kind: a BLOB is no path)."""
+    if not isinstance(value, str):
+        return None
+    text = value
     if text.lower().startswith("file:"):
         address = urlparse(text)
         if address.netloc:
@@ -336,19 +340,20 @@ def folder_store_allowed(uri, say=None) -> Iterator[None]:
     MLFLOW_ALLOW_FILE_STORE=true for these calls only (MLflow 3.16 and later open a folder
     store only with it; older versions ignore it), then remove it again, also after an
     error. A value the user set is left as it is. `say` gets FOLDER_NOTE the first time in
-    a run. The variable is never set for mlflow.db or a server, and never written anywhere."""
+    a run that MLflow read the folder (never when it couldn't). The variable is never set for
+    mlflow.db or a server, and never written anywhere."""
     global _noted
     if not is_folder_store(uri) or ALLOW in os.environ:
         yield
         return
-    if say is not None and not _noted:
-        _noted = True
-        say(FOLDER_NOTE)
     os.environ[ALLOW] = "true"
     try:
         yield
     finally:
         os.environ.pop(ALLOW, None)
+    if say is not None and not _noted:
+        _noted = True
+        say(FOLDER_NOTE)
 
 
 def _close_engines(folders: list[Path]) -> None:
@@ -658,6 +663,9 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
                                  metric, folder_of(uri))
         except Exception as e:  # never MLflow's words: they can hold the text
+            unusable = folder_problem(e, uri)
+            if unusable is not None:
+                raise unusable from None
             if not is_damage(e):
                 raise
             raise damaged_store(uri) from None
@@ -749,6 +757,25 @@ def damaged_db(uri) -> Damaged:
                    "`{command}`.")
 
 
+class FolderUnusable(RecordsError):
+    """MLflow can't use the folder --tracking-uri names (it writes a .trash folder there):
+    said as that folder's problem, never as judgekeeper's own folder's."""
+
+    next_step = ("run `{command} --tracking-uri PATH`, with PATH your MLflow folder (mlruns/) "
+                 "or mlflow.db.")
+    drop = "--tracking-uri"  # the folder it named, left out of the Next: command
+
+
+def folder_problem(error: BaseException, uri) -> FolderUnusable | None:
+    """FolderUnusable when `error` is MLflow being refused the folder store `uri` names."""
+    folder = folder_of(uri)
+    refused = isinstance(error, PermissionError) or (
+        isinstance(error, OSError) and error.errno == errno.EROFS)  # a read-only disk
+    if folder is None or not refused:
+        return None
+    return FolderUnusable(f"MLflow couldn't use {folder} as its folder: it can't write there.")
+
+
 def damaged_store(uri) -> Damaged:
     """A store judgekeeper can't read, in plain words: its name, never MLflow's error."""
     return Damaged(f"{store_name(uri)} is damaged: judgekeeper can't read one of its traces.",
@@ -783,7 +810,7 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
         names = sorted({str(f[1]["name"]) for f in gone})
         raise JudgeCallsFailed(
             f"MLflow experiment {experiment!r}: every call of your LLM-as-a-judge "
-            f"{', '.join(names)} failed ({len(gone)} saved as errors).")
+            f"{', '.join(map(quoted_name, names))} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
         evaluator = evaluators.get((run, fields["name"])) or evaluators.get(
             (None, fields["name"])) or {}  # a judge that only failed: its model unknown

@@ -458,3 +458,44 @@ def test_mlflow_usage_tracking_is_off_in_the_reader(tmp_path):
     seen = json.loads(out.strip().splitlines()[-1])
     assert seen["env"] == {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
     assert seen["client"] is False  # MLflow made no usage-tracking client
+
+
+def test_two_stores_print_nothing_of_mlflows_own(two):
+    """Choosing between mlflow.db and mlruns/ checks for MLflow without importing it before
+    its hint is switched off."""
+    env = {k: v for k, v in os.environ.items() if k not in (ALLOW, HINT)}
+    env.update(CLAUDECODE="1", PYTHONPATH=str(ROOT / "src"))
+    result = subprocess.run([sys.executable, "-m", "judgekeeper", str(two), "--no-browser"],
+                            capture_output=True, text=True, env=env,
+                            stdin=subprocess.DEVNULL, timeout=300, check=False)
+    out = result.stdout + result.stderr
+    assert "MLflow stores found" in out, out
+    assert "MLFLOW_DISABLE_AGENT_HINT" not in out and "skill" not in out, out
+    assert "INFO" not in out and "WARNING" not in out, out
+
+
+def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("mlflow")
+    if os.name == "nt":
+        pytest.skip("folder permissions work differently on Windows")
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    if os.access(locked, os.W_OK):
+        locked.chmod(0o700)
+        pytest.skip("this user can write anywhere")
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    try:
+        code, out = run(capsys, "--tracking-uri", locked.as_uri(), "--yes", "--no-browser")
+    finally:
+        locked.chmod(0o700)
+    assert code == 2, out
+    flat = " ".join(out.split())
+    assert f"MLflow couldn't use {locked}" in flat, out
+    assert ".judgekeeper" not in out and "make this folder writable" not in out, out
+    assert "Reading your mlruns/ folder" not in flat, out  # it was never read
+    nxt = flat[flat.index("Next:"):]
+    assert locked.as_uri() not in nxt and str(locked) not in nxt, out  # not the same bad flag
+    assert "--tracking-uri PATH" in nxt and "with PATH your MLflow folder" in nxt, out

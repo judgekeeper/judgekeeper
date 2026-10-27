@@ -156,3 +156,30 @@ def test_program_names_python_p_m_only_when_started_so(monkeypatch):
     assert textio.program("--stop") == "py -P -m judgekeeper --stop"
     monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/judgekeeper")
     assert textio.program("mark") == "judgekeeper mark"
+
+
+# A value that starts with "-" ------------------------------------------------------------------
+
+DASHED = ["--yes", "-x", "--new", "-", "--metric=a b"]
+
+
+@pytest.mark.parametrize("value", DASHED)
+@pytest.mark.parametrize("name, flag", [x for x in start.REPEATED if x[0] != "tool"])
+def test_a_value_starting_with_a_dash_is_kept_as_flag_equals_value(name, flag, value):
+    import shlex
+
+    from judgekeeper.cli import _front_parser, _parser
+
+    flags = start.run_flags(**{name: value})
+    command = start.command_from(flags, "mark", kept=True)
+    assert f" {flag}=" in command, command
+    for parse, argv in ((_parser().parse_args, shlex.split(command)[1:]),
+                        (_front_parser().parse_args, shlex.split(command)[2:])):
+        args = parse(argv)
+        assert getattr(args, name) == value, (command, argv)
+        assert args.yes is False and getattr(args, "new", False) is False
+
+
+def test_a_plain_value_keeps_its_space():
+    flags = start.run_flags(metric="faithful")
+    assert start.command_from(flags, "mark", kept=True) == "judgekeeper mark --metric faithful"

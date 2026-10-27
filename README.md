@@ -30,7 +30,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 
 1. **Find** (`judgekeeper`). Find your eval results and the LLM-as-a-judge that graded them.
 2. **Mark** (the page opens by itself). Mark your answers Pass or Fail in your browser.
-3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you.
+3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
@@ -49,7 +49,7 @@ Each number comes with a range, for example "about 89% (between 84% and 93%)". T
 ## Checked on public data
 
 - **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 100 draws with 100 marks each, judgekeeper's ranges held the real TPR in 99, the real TNR in 94 and the real kappa in 100; all three at once in 93. The draws pick from the same 300 answers, so they overlap. The report says why 7 draws missed. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
-- **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
+- **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
 - **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
 - **Simulation.** In simulated checks, the TPR and TNR ranges held the true value at least 92.6 times in 100 in every setting tested, and 96.2 times on average in the main test grid. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
 

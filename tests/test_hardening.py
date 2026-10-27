@@ -822,6 +822,31 @@ def test_report_and_page_show_no_hidden_characters(project, capsys):
     assert "openai:gpt-polite" in report  # the judge's model, in the top bar
 
 
+def _marking_page_answers(project, outputs) -> str:
+    from judgekeeper import label, start, start_label
+    from tests.start_projects import promptfoo_data, split
+
+    verdicts = split(20, 16)
+    outputs = [*outputs, *(f"answer {i}" for i in range(len(outputs), len(verdicts)))]
+    _dump(project / "results.json", promptfoo_data(verdicts, outputs=outputs))
+    ws = start_label.prepare(start.find_judge(project), say=lambda line: None)
+    return label.shown(start_label.StartSession(ws).state())
+
+
+def test_a_key_split_by_a_joiner_is_hidden_on_the_marking_page(project, monkeypatch):
+    key = "sk-proj-" + "b" * 40
+    monkeypatch.setenv("OPENAI_API_KEY", key)
+    state = _marking_page_answers(project, [f"Call it with {key[:20]}‍{key[20:]} now."])
+    assert "[REDACTED]" in state
+    assert key[:20] not in state and key[20:] not in state
+
+
+def test_a_word_with_a_joiner_keeps_it_on_the_marking_page(project):
+    hindi, persian = "क्‍ष", "می‌خواهم"  # each reads wrong without its joiner
+    state = _marking_page_answers(project, [f"{hindi} and {persian}"])
+    assert hindi in state and persian in state
+
+
 def test_a_damaged_mlflow_assessment_leaves_out_its_trace(tmp_path, monkeypatch, capsys):
     import sqlite3
 

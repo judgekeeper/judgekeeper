@@ -482,7 +482,7 @@ def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
                if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Check in your browser")]
+                       ("check.html", {"b-side"}, "Try step 1 in your browser")]
     assert not _all(hero, "p", None) or all(
         any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
     # the chosen step's green line, which gives way while another word is hovered or focused
@@ -601,7 +601,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Check in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try step 1 in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -638,9 +638,10 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     tiles = _all(win, "a", "rt")
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
+    assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
+        "times all three true numbers were in judgekeeper's ranges",
+        "times the true number was in judgekeeper's range"]
     for tile in tiles:
-        assert _flat(_all(tile, "span", "rt-line")[0]) == (
-            "times the true number was in judgekeeper's range")
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")
     assert "repeat(2, minmax(0, 1fr))" in _rule(".rt-grid")
@@ -1004,8 +1005,11 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     left, term = [el for el in _all(section, "div") if el.parent.parent is section]
     assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
     (h1,) = _all(left, "h1")
-    assert _flat(h1) == "Check your LLM-as-a-judge in your browser."
-    assert [_flat(s) for s in _all(h1, "span", "nb")] == ["LLM-as-a-judge", "in your browser."]
+    assert _flat(h1) == "Try step 1 in your browser."
+    assert [_flat(s) for s in _all(h1, "span", "nb")] == ["in your browser."]
+    titles = re.findall(r'<title>([^<]*)</title>|content="([^"]*\| judgekeeper)"',
+                        CHECK.read_text(encoding="utf-8"))
+    assert {a or b for a, b in titles} == {"Try step 1 in your browser | judgekeeper"}
     # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"

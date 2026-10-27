@@ -160,7 +160,9 @@ def test_the_screen_names_real_paths_never_placeholders(here, capsys):
     assert '  cases[].A.scores."Safe wording".score' in out  # the first judge, for real
     assert "Plain language" not in out[:out.index("How judgekeeper reads it")]
     assert "  answer:          A.output and B.output" in out
-    assert ('grade: A.scores."Safe wording".score (LLM-as-a-judge names: Safe wording, Plain language) and '
+    q = '"' if sys.platform == "win32" else "'"  # quoted alike, as each shell reads
+    assert ('grade: A.scores."Safe wording".score '
+            f"(LLM-as-a-judge names: {q}Safe wording{q}, {q}Plain language{q}) and "
             "the same under B") in flat(out)
     code, out = run(capsys, "--metric", "Safe wording", "--yes")
     assert code == 0, out

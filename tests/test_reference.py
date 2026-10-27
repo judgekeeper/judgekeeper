@@ -240,3 +240,25 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
     for link in sorted(links):
         page, wanted = link.split("#")
         assert wanted in _ids(page), link
+
+
+# What a result needs, said up front -----------------------------------------------------------
+
+NEEDS = ("A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every "
+         "answer passes, that can take many answers.")
+
+
+def test_the_reference_says_what_a_result_needs_near_its_top():
+    text = REFERENCE.read_text(encoding="utf-8")
+    first_command = text.index("## judgekeeper: find, mark, measure")
+    second = text.index("\n## ", first_command + 1)
+    assert NEEDS in " ".join(text[:second].split())
+
+
+def test_the_readmes_measure_step_says_what_a_result_needs():
+    from judgekeeper import front, targets
+
+    assert NEEDS == front.NEEDS_EACH_KIND.format(n=targets.ROUGH)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure**"))
+    assert NEEDS in measure
