@@ -37,6 +37,7 @@ from judgekeeper.runners.base import Judgment
 from judgekeeper.table import guard_cell, write_anchor_file
 from judgekeeper.textio import (
     file_stamp,
+    hard_linked,
     jsonl_lines,
     link_in,
     make_private,
@@ -55,6 +56,8 @@ GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your 
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
+HARD_LINK = ("{path} is linked to another file. judgekeeper does not write through links. "
+             "Remove it, then run {program} again.")
 SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only if your data "
               "may live in your repo.")
 
@@ -151,17 +154,24 @@ def _start_strata(path: Path) -> tuple:
 
 
 def refuse_links(ws: Workspace) -> None:
-    """Stop (StartError) when `ws.dir`, or anything in it, is a link."""
+    """Stop (StartError) when `ws.dir`, or anything in it, is a link, or when page.log, which
+    the page adds to, has a second name (a hard link)."""
+    from judgekeeper.background import LOG
     from judgekeeper.start import StartError
+
+    def shown(path: Path) -> str:
+        try:
+            return path.relative_to(ws.root).as_posix()
+        except ValueError:
+            return str(path)
 
     link = link_in(ws.dir)
     if link is not None:
-        try:
-            shown = link.relative_to(ws.root).as_posix()
-        except ValueError:
-            shown = str(link)
-        raise StartError(LINK.format(path=shown, kind="folder" if link.is_dir() else "file",
+        raise StartError(LINK.format(path=shown(link),
+                                     kind="folder" if link.is_dir() else "file",
                                      program=program()))
+    if hard_linked(ws.dir / LOG):
+        raise StartError(HARD_LINK.format(path=shown(ws.dir / LOG), program=program()))
 
 
 def check_writable(ws: Workspace) -> None:
