@@ -27,8 +27,11 @@ import inspect
 import json
 import logging
 import os
+import platform
 import re
 import shutil
+import struct
+import sys
 import tempfile
 import threading
 from collections import Counter
@@ -300,6 +303,28 @@ def is_folder_store(uri) -> bool:
 
 
 @contextmanager
+def _platform_answered() -> Iterator[None]:
+    """Python's platform answers given without starting a program: MLflow asks for
+    platform.platform() as it loads (for its usage report, which judgekeeper switches off),
+    and Python runs `uname -p` and `file -b` to answer it. The system, its release and the
+    machine come from os.uname(), which starts nothing. Put back afterwards."""
+    saved = platform.platform, platform.processor, platform.architecture
+    size = f"{struct.calcsize('P') * 8}bit"
+    plain = "-".join(p for p in (platform.system(), platform.release(), platform.machine()) if p)
+
+    def architecture(executable=sys.executable, bits="", linkage=""):
+        return bits or size, linkage
+
+    platform.platform = lambda aliased=False, terse=False: plain
+    platform.processor = lambda: ""
+    platform.architecture = architecture
+    try:
+        yield
+    finally:
+        platform.platform, platform.processor, platform.architecture = saved
+
+
+@contextmanager
 def quiet() -> Iterator[None]:
     """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
     coding agents (logged on `import mlflow` when an agent runs it) is switched off with
@@ -311,27 +336,29 @@ def quiet() -> Iterator[None]:
 
     MLflow's usage tracking is switched off before `import mlflow` (TELEMETRY_OFF, a
     DO_NOT_TRACK the user set kept), and stays off for the rest of judgekeeper's process:
-    MLflow decides on import, once per process."""
+    MLflow decides on import, once per process. While MLflow loads and runs, Python's
+    platform answers start no program (_platform_answered)."""
     os.environ["MLFLOW_DISABLE_TELEMETRY"] = TELEMETRY_OFF["MLFLOW_DISABLE_TELEMETRY"]
     os.environ.setdefault("DO_NOT_TRACK", TELEMETRY_OFF["DO_NOT_TRACK"])
     set_hint = HINT not in os.environ
     if set_hint:
         os.environ[HINT] = "1"
-    try:
-        import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
-    except ImportError:
-        pass
-    loggers = [logging.getLogger(name) for name in LOGGERS]
-    levels = [logger.level for logger in loggers]
-    for logger in loggers:
-        logger.setLevel(logging.CRITICAL)
-    try:
-        yield
-    finally:
-        for logger, level in zip(loggers, levels):
-            logger.setLevel(level)
-        if set_hint:
-            os.environ.pop(HINT, None)
+    with _platform_answered():
+        try:
+            import mlflow  # noqa: F401 - MLflow sets its loggers' level on import
+        except ImportError:
+            pass
+        loggers = [logging.getLogger(name) for name in LOGGERS]
+        levels = [logger.level for logger in loggers]
+        for logger in loggers:
+            logger.setLevel(logging.CRITICAL)
+        try:
+            yield
+        finally:
+            for logger, level in zip(loggers, levels):
+                logger.setLevel(level)
+            if set_hint:
+                os.environ.pop(HINT, None)
 
 
 @contextmanager

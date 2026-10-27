@@ -504,7 +504,6 @@ finally:
         json.dump(seen, f)
 sys.exit(code)
 """
-MLFLOW_TOOLS = {"uname", "file"}  # MLflow's own library runs these as it loads
 
 
 @pytest.mark.parametrize("tool", ["mlflow", "jsonl"])
@@ -526,7 +525,7 @@ def test_fix_and_check_start_no_program_in_a_fresh_process(tool, here, capsys, m
         seen = json.loads(seen_file.read_text(encoding="utf-8"))
         assert [s for s in seen if s[0] == "network"] == [], (argv, seen)
         programs = {s[1] for s in seen if s[0] == "program"}
-        assert programs <= (MLFLOW_TOOLS if tool == "mlflow" else set()), (argv, programs)
+        assert programs == set(), (argv, programs)
     assert ws.dir.is_dir()
 
 
