@@ -281,7 +281,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
 
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
-    split = fix.read_split(ws) if _disagreements_shown(ws) else None  # before any grade
+    split = fix.shown_split(ws)[1] if _disagreements_shown(ws) else None  # before any grade
     if split is None or item_id in split.hidden or item_id not in split.seen or judge == mark:
         raise ValueError(NOT_LISTED)
     data = ws.data()

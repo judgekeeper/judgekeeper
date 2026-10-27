@@ -874,7 +874,7 @@ def from_fix(ws: Workspace, old: dict, new: dict) -> bool:
     if rule != old.get("rule_hash") and rule in {
             x.get("rule_hash") for x in _history_all(ws) if x.get("kind") == "fix"}:
         return True
-    split = fix.read_split(ws)
+    split = fix.shown_split(ws)[1]
     mark = (new.get("pass_mark") or {}).get("mark")
     return (mark != (old.get("pass_mark") or {}).get("mark") and split is not None
             and any(t.get("kind") == "pass mark" and t.get("new") == mark

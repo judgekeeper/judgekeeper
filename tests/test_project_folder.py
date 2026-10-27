@@ -270,6 +270,7 @@ def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
 def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, no_calls,
                                                                   monkeypatch):
     monkeypatch.setattr(fix, "make_split", lambda m, seed: (sorted(m.person), []))
+    monkeypatch.setattr(fix, "_split_problem", lambda ws, d: None)  # none kept aside: by hand
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rule_project(here, split(25, 25), RULE_A)
     assert run(capsys)[0] == 0

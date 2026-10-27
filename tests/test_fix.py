@@ -601,3 +601,75 @@ def test_a_new_rule_that_changes_no_grade_kept_aside_gets_no_verdict(here, capsy
     n = len(_split(ws)["hidden"])
     assert fix.UNCHANGED.format(n=n) in flat and "Result" not in flat
     assert _split(ws)["tests"] == []
+
+
+# A damaged or hand-changed split.json is refused, never replaced ---------------------------------
+
+def _overlap(d):
+    d["visible"] += d["hidden"][:3]
+
+
+def _shrunk(d):
+    d["visible"] += d["hidden"][:-5]
+    d["hidden"] = d["hidden"][-5:]
+
+
+def _unknown(d):
+    d["hidden"].append("not-an-answer")
+
+
+def _forged_test(d):
+    d["tests"] = [{"kind": "rule", "n": 5, "fixed": 20, "broke": 0, "verdict": "better",
+                   "test": 1, "hidden": 25}]
+
+
+def _wrong_verdict(d):
+    d["tests"] = [{"kind": "rule", "n": 25, "fixed": 1, "broke": 0, "verdict": "better",
+                   "test": 1, "hidden": 25}]
+
+
+@pytest.mark.parametrize("change, why", [
+    (_overlap, "it names some marks as both kept aside and shown"),
+    (_shrunk, "it keeps far fewer than half of your marks aside"),
+    (_unknown, "it names answers judgekeeper doesn't have"),
+    (_forged_test, "a test in it has counts that don't fit its marks"),
+    (_wrong_verdict, "a test in it has a result its counts don't give"),
+    (lambda d: d.update(set="x"), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(visible="abc"), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(tests=["x"]), "a test in it has counts that don't fit its marks")])
+def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    change(d)
+    path.write_text(json.dumps(d), encoding="utf-8")
+    before = path.read_bytes()
+    for argv in ((), (regraded(here).name,)):
+        code, out = run(capsys, *argv)
+        flat = " ".join(out.split())
+        assert code == 2, out
+        assert (f"judgekeeper can't use .judgekeeper/fix/split.json: {why}. It says which of "
+                "your marks are kept aside") in flat
+        assert "pool-judge.jsonl" not in flat and "Result" not in flat
+        assert path.read_bytes() == before
+    assert fix.report_section(ws) is None  # the result page shows none of the marks
+
+
+def test_a_split_that_is_not_json_is_refused_and_kept(here, capsys):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    path.write_text("{not json", encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 2 and "it can't be read as JSON" in " ".join(out.split())
+    assert path.read_text(encoding="utf-8") == "{not json"
+
+
+def test_new_with_no_split_keeps_none_of_the_marks_aside(here, capsys):
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    (ws.dir / "fix" / "split.json").unlink()
+    code, _ = run(capsys, "--new")
+    split = _split(ws)
+    assert code == 3 and split["hidden"] == [] and split["fresh"]["want"] == 10

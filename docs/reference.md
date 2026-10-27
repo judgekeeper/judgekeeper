@@ -76,7 +76,7 @@ judgekeeper fix [PATH] [--new]
 | `PATH` | The results of grading your marked answers again with a new rule, or your project folder (default: this folder) |
 | `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the next 10 you make become the new set. A mark you have seen is never kept aside again |
 
-**Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. Write a better rule from it, or hand it to a coding agent.
+**Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. Write a better rule from it, or hand it to a coding agent.
 
 **`marked-answers.csv`** holds every answer you marked, shuffled, with two columns, `question` and `answer`: no marks, no grades and no ids, so you can't tell which are kept aside. Change the rule where your eval keeps it, grade these answers again, save the results, then run `judgekeeper fix <new results file>`. judgekeeper prints the line for your eval tool:
 

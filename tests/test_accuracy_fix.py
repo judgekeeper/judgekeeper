@@ -116,8 +116,10 @@ def test_three_rules_retire_the_set(here, capsys):
     ws = project(here)
     run(capsys)
     split = fix.read_split(ws)
-    split.tests = [{"kind": "rule", "rule_hash": f"sha256:{n}", "verdict": "leans worse"}
-                   for n in range(3)]
+    n = len(split.hidden)
+    split.tests = [{"kind": "rule", "rule_hash": f"sha256:{k}", "n": n, "fixed": 0, "broke": 1,
+                    "test": k, "verdict": targets.fix_verdict(0, 1, n, test=k).kind}
+                   for k in (1, 2, 3)]
     fix.save_split(ws, split)
     split = fix.current_split(ws, fix.Marks(ws))
     assert split.hidden == [] and split.fresh == {"want": fix.FRESH}

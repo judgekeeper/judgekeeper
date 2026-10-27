@@ -292,15 +292,83 @@ def _file(ws: Workspace, name: str) -> str:
     return link(_folder(ws) / name, f"{shown_folder(ws)}/{FOLDER}/{name}")
 
 
-def read_split(ws: Workspace) -> Split | None:
+class SplitError(ValueError):
+    """fix/split.json is there but can't be used: never replaced, never guessed around."""
+
+
+DAMAGED = ("judgekeeper can't use {file}: {why}. It says which of your marks are kept aside, "
+           "so judgekeeper doesn't replace it or guess.")
+NEXT_DAMAGED = ("put back the {name} judgekeeper wrote, or delete it and run `{command} --new`: "
+                "every mark you have counts as seen, and the next {n} you make are kept aside.")
+
+
+def _ints(t: dict, *keys: str) -> bool:
+    return all(type(t.get(k)) is int and t[k] >= 0 for k in keys)
+
+
+def _split_problem(ws: Workspace, d) -> str | None:
+    """What is wrong with split.json's data `d`, in a few words; None when it is as
+    judgekeeper writes it: two lists of answers judgekeeper has, apart, about half kept aside
+    (in the first set, before it is retired), and tests whose counts fit them."""
+    if not isinstance(d, dict) or type(d.get("seed")) is not int or not isinstance(
+            d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1:
+        return "it is not as judgekeeper writes it"
+    seen, hidden, tests = d.get("visible"), d.get("hidden"), d.get("tests") or []
+    if not all(isinstance(x, list) and all(isinstance(i, str) for i in x)
+               for x in (seen, hidden)) or not isinstance(tests, list):
+        return "it is not as judgekeeper writes it"
+    if set(seen) & set(hidden):
+        return "it names some marks as both kept aside and shown"
+    if len(set(seen)) != len(seen) or len(set(hidden)) != len(hidden):
+        return "it names a mark twice"
     try:
-        d = json.loads((_folder(ws) / SPLIT).read_text(encoding="utf-8"))
-        return Split(seed=int(d["seed"]), seen=list(d["visible"]), hidden=list(d["hidden"]),
-                     set=int(d.get("set") or 1), made_at=str(d.get("made_at") or ""),
-                     tests=list(d.get("tests") or []), pass_mark=d.get("pass_mark"),
-                     fresh=d.get("fresh"))
-    except (OSError, ValueError, KeyError, TypeError):
+        known = read_cached(ws.pool, _pool_rows)
+    except (OSError, ValueError, KeyError):
+        known = None
+    if known is not None and any(i not in known for i in (*seen, *hidden)):
+        return "it names answers judgekeeper doesn't have"
+    total = len(seen) + len(hidden)
+    if not d.get("fresh") and d.get("set", 1) == 1 and total >= 2 * MIN_EACH and \
+            15 * len(hidden) < total * HIDDEN_TENTHS:  # under 2/3 of the share kept aside
+        return "it keeps far fewer than half of your marks aside"
+    for t in tests:
+        if not isinstance(t, dict) or t.get("kind") not in ("rule", "pass mark") or \
+                not _ints(t, "n", "fixed", "broke") or t["fixed"] + t["broke"] > t["n"] or \
+                t["n"] > total:
+            return "a test in it has counts that don't fit its marks"
+        if t["kind"] == "rule" and (not _ints(t, "test") or t["test"] < 1 or t.get("verdict") !=
+                                    targets.fix_verdict(t["fixed"], t["broke"], t["n"],
+                                                        test=t["test"]).kind):
+            return "a test in it has a result its counts don't give"
+    return None
+
+
+def read_split(ws: Workspace) -> Split | None:
+    """fix/split.json; None when there is none. SplitError when it is there but damaged or
+    changed by hand (_split_problem)."""
+    path = _folder(ws) / SPLIT
+    if not path.exists() and not path.is_symlink():
         return None
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise SplitError("it can't be read as JSON") from e
+    why = _split_problem(ws, d)
+    if why:
+        raise SplitError(why)
+    return Split(seed=d["seed"], seen=list(d["visible"]), hidden=list(d["hidden"]),
+                 set=d.get("set", 1), made_at=str(d.get("made_at") or ""), tests=d["tests"]
+                 if isinstance(d.get("tests"), list) else [], pass_mark=d.get("pass_mark"),
+                 fresh=d.get("fresh") if isinstance(d.get("fresh"), dict) else None)
+
+
+def shown_split(ws: Workspace) -> tuple[bool, Split | None]:
+    """(whether the marks can be shown, the split): a damaged split.json shows none, since it
+    can't say which are kept aside."""
+    try:
+        return True, read_split(ws)
+    except SplitError:
+        return False, None
 
 
 def save_split(ws: Workspace, split: Split) -> None:
@@ -315,7 +383,10 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     none. `new` retires the saved one: a mark once seen is never kept aside again, so only
     marks made after it make the next set."""
     split = read_split(ws)
-    if split is None:
+    if split is None and new:  # none to retire: the marks may have been seen all the same
+        split = Split(seed=secrets.randbelow(2 ** 31), seen=sorted(m.person), hidden=[],
+                      made_at=utc_now(), fresh={"want": FRESH, "asked": True})
+    elif split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
         split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
@@ -379,7 +450,10 @@ def prepare_split(ws: Workspace) -> None:
     except (OSError, ValueError, KeyError):
         return
     if m.enough():
-        current_split(ws, m)
+        try:
+            current_split(ws, m)
+        except SplitError:
+            pass  # said by `fix`; nothing is shown from the marks meanwhile
 
 
 # The patterns -------------------------------------------------------------------------------
@@ -462,8 +536,8 @@ def where_wrong(ws: Workspace, most: int = 3) -> tuple[list[str], int]:
     """For the result: at most `most` pattern lines and how many mistakes the judge made, on
     the marks the person can see (all of them until some are hidden)."""
     m = Marks(ws)
-    split = read_split(ws)
-    ids = [i for i in split.seen if i in m.person] if split else list(m.person)
+    ok, split = shown_split(ws)
+    ids = ([i for i in split.seen if i in m.person] if split else list(m.person)) if ok else []
     rows = [m.row(i) for i in ids]
     pm = m.data.get("pass_mark")
     lines = pattern_lines(rows, pm["mark"] if _follows(m, pm) else None)
@@ -483,7 +557,9 @@ def report_section(ws: Workspace) -> dict | None:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
         return None
-    split = read_split(ws)
+    ok, split = shown_split(ws)
+    if not ok:
+        return None
     ids = [i for i in split.seen if i in m.person] if split else list(m.person)
     wrong = mistakes([m.row(i) for i in ids])
     if not wrong:
@@ -604,7 +680,9 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
     if not always and not path.is_file():
         return 0
     m = Marks(ws)
-    split = read_split(ws)
+    ok, split = shown_split(ws)
+    if not ok:
+        return 0
     rows = [m.row(i) for i in (split.seen if split else m.person) if i in m.person]
     pm = m.data.get("pass_mark")
     rule = m.data.get("rule") if m.data.get("one_rule", True) else None
@@ -754,7 +832,14 @@ def run(path: str = ".", new: bool = False) -> int:
     m = Marks(ws) if ws is not None else None
     if m is not None and m.data.get("rule") is None:
         _after_worse(state, m)
-    split = current_split(ws, m, new=new) if m is not None and m.enough() else None
+    try:
+        split = current_split(ws, m, new=new) if m is not None and m.enough() else None
+    except SplitError as e:
+        talk.say(STEP)
+        talk.say()
+        talk.para(DAMAGED.format(file=_file(ws, SPLIT), why=e))
+        talk.next(NEXT_DAMAGED.format(name=SPLIT, command=program("fix"), n=FRESH))
+        return EXIT_USAGE
     talk.say(STEP if results is None or split is None or split.fresh else STEP_TEST)
     talk.say()
     if ws is None and not _has_results(Path(talk.path)):
