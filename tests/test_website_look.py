@@ -853,8 +853,12 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
-             "better, safe to try, worse, or if it can’t tell yet. A clear answer needs about 80 "
-             "marks. A good new rule usually comes out safe to try, not better.")],
+             "better, safe to try, worse, or if it can’t tell yet. How many marks a clear "
+             "answer needs depends on how big the change is. For a new rule that fixes about a "
+             "quarter of the mistakes and breaks few right answers, it needs about 80 marks, and "
+             "the answer is usually safe to try, not better. A large fix of a clearly wrong rule "
+             "(about 9 in 10 of its mistakes fixed) usually comes out better with 80 marks; a "
+             "small fix that also breaks a few right answers needs more (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Run your eval again on the same "
              "answers, then:"),
@@ -866,7 +870,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
                     "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
                                  "safe to try", "worse", "can’t tell yet", "safe to try",
-                                 "better"],
+                                 "better", "better"],
                     "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
