@@ -403,7 +403,10 @@ def test_a_template_text_that_climbs_to_a_file_is_not_asked(tmp_path, stubs, up)
     template = "../" * up + str(_secret(tmp_path)).lstrip("/")
     _inspect_log(root, lambda d: d["eval"]["scorers"][0]["options"].update(template=template))
     p = make_plan(ws, PY)
-    assert p.status == "cant" and "file path" in p.why, p.why
+    # Where the path also reaches the file from the project (a shallow temp folder), it is
+    # refused as a file outside the project first
+    assert p.status == "cant" and ("file path" in p.why or "outside your project" in p.why), \
+        p.why
     assert stubs("registry_create") == [] and stubs("score_async") == []
 
 
