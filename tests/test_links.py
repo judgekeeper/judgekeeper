@@ -12,7 +12,7 @@ import pytest
 
 from judgekeeper import start, start_label
 from judgekeeper.cli import main
-from judgekeeper.start_again import move_to_previous
+from judgekeeper.project import move_to_previous
 from judgekeeper.start_label import GITIGNORE, Workspace
 from judgekeeper.textio import link_in, write_replacing
 from tests.start_projects import promptfoo_project, records_project, split

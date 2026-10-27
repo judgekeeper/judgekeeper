@@ -22,10 +22,9 @@ What a stranger does, with nobody at the keyboard and no API key:
    enough"), `judgekeeper --stop`. Two copies of the project, with the same results, go the
    same way to the result with other marks: mostly against the judge ("needs work"), and
    against it on 9 of 50 ("too early to tell", exit 3: run the eval on more questions). Then in
-   the project `judgekeeper fix` (and for a judge whose rule it can swap, a new rule tested
-   with `fix --yes`); then the new rule put in the tool's own file and the tool run again, and
-   `check --yes` (the re-check on the marks; --yes answers its question about judge calls, as
-   there is no terminal) and that the report is still there. judgekeeper's input is a closed
+   the project `judgekeeper fix` (mistakes.md, and marked-answers.csv to grade again); then
+   the new rule put in the tool's own file and the tool run again, and `judgekeeper check`
+   (the re-check on the marks) and that the report is still there. judgekeeper's input is a closed
    pipe; the page is used through its own HTTP calls, with a stand-in person whose marks are
    fixed.
 5. Every command's output, then "N of N steps OK". Exit 1 on any failed step or "Traceback".
@@ -95,9 +94,6 @@ JUDGE_NAME = {"table": "my-judge-1", "promptfoo": MODELS["promptfoo"],
               "mlflow": MODELS["mlflow"], "record": MODELS["own"], "own-format": MODELS["own"],
               "promptfoo-ollama": OLLAMA_MODEL, "inspect-ollama": OLLAMA_MODEL}
 NEW_MODEL = "my-judge-2"
-# Tools whose rule `judgekeeper fix` swaps in when it asks the judge
-SWAP_TOOLS = ("promptfoo", "deepeval", "inspect", "mlflow", "promptfoo-ollama",
-              "inspect-ollama")
 PIP = {"deepeval": ["deepeval"], "inspect": ["inspect-ai", "openai"], "mlflow": ["mlflow"],
        "inspect-ollama": ["inspect-ai", "openai"]}
 
@@ -716,9 +712,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
                        [r"Closed the marking page"], cwd=cwd)
 
     def recheck(self):
-        """The new rule is in the results: `check --yes` re-tests it on the marks, and the
-        report holds the check."""
-        self.run("3. check re-tests the new judge on the marks", [*self.jk, "check", "--yes"],
+        """The new rule is in the results: `check` re-tests it on the marks, and the report
+        holds the check."""
+        self.run("3. check re-tests the new judge on the marks", [*self.jk, "check"],
                  expect=[r"Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge",
                          r"  When you said Pass    \d+ of \d+", r"  When you said Fail    \d+ of \d+"])
         report = self.project / ".judgekeeper" / "report.html"
@@ -757,28 +753,16 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         self.recheck()
 
     def fix_path(self):
-        """`judgekeeper fix`: where the judge goes wrong; then, for a judge whose rule it can
-        swap, a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes`, which asks
-        the judge with the old and the new rule (--yes: no terminal here)."""
-        swap = self.tool in SWAP_TOOLS
+        """`judgekeeper fix`: where the judge goes wrong in mistakes.md, and every marked
+        answer in marked-answers.csv, to grade again with a new rule."""
         self.run("2. judgekeeper fix: where your judge goes wrong", [*self.jk, "fix"],
-                 ok_codes=(0,) if swap else (3,),
-                 expect=[r"Step 4 of 5: Fix", r"mistakes\.md",
-                         *([] if swap else [r"judgekeeper can't ask this LLM-as-a-judge itself\."])])
-        if not swap:
-            return
-        rule = self.project / ".judgekeeper" / "fix" / "rule.txt"
-        rule.parent.mkdir(parents=True, exist_ok=True)
-        rule.write_text(rule_for(self.tool, RULE_NEW) + "\n", encoding="utf-8")
-        judge = getattr(self, "judge", None)
-        before = len(judge.calls) if judge else 0
-        self.run("2. judgekeeper fix --yes: the new rule tested on the marks kept aside",
-                 [*self.jk, "fix", "--yes"],
-                 expect=[r"tested on the \d+ marks kept aside", r"Result: "])
-        if judge:
-            made = len(judge.calls) - before
-            self.step("2. the judge was asked with the old and the new rule", made > 0,
-                      f"({made} calls)")
+                 expect=[r"Step 4 of 5: Fix", r"mistakes\.md", r"marked-answers\.csv"])
+        answers = self.project / ".judgekeeper" / "fix" / "marked-answers.csv"
+        try:
+            head = answers.read_text(encoding="utf-8").splitlines()[:1]
+        except OSError:
+            head = []
+        self.step("2. marked-answers.csv holds the marked answers", head == ["question,answer"])
 
     def summary(self) -> int:
         print("\n\n==================== SUMMARY ====================")

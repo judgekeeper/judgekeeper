@@ -9,3 +9,5 @@ One line per folder: what it is, the commit it ran on, the model and the date.
 - **`real-data-check/`**: judgekeeper's ranges on 5 real judges from 3 public datasets (LLMBar, MT-Bench, LLMJudge). Made by `scripts/real_data_check.py`; numbers from commit `6049ab7`; the judges' saved verdicts (Claude Haiku 4.5 on LLMBar, GPT-4 on MT-Bench, 3 LLMJudge runs), no new model call; 2026-10-16.
 - **`records/`**: hand-written sample files in the records format, for the reference. Not a run; no model.
 - **`site-example/`**: the project the website's home page shows, with made-up answers and marks. Commit `af1aad3`; judge named `openai:gpt-4.1-mini`, not called; 2026-10-24.
+
+Note: judgekeeper only reads files and makes no AI call. In `ragtruth/` and `probes/`, promptfoo asked the models. The parts of `coverage/` about asking an LLM-as-a-judge again simulate a re-check that judgekeeper no longer makes.

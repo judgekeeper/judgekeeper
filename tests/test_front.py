@@ -602,12 +602,14 @@ def test_nothing_found_names_the_eval_tool_in_the_project(here, capsys):
         "Next: run your eval once from this folder, then run `judgekeeper` again.")
 
 
-def test_promptfoo_config_without_results_points_at_the_export(here, capsys):
+def test_promptfoo_config_without_results_says_how_to_save_them(here, capsys):
     (here / "promptfooconfig.yaml").write_text("description: x\n", encoding="utf-8")
     code, out, _ = run(capsys)
     assert code == 3
-    line = assert_one_next_at_the_end(out)
-    assert "promptfoo export eval latest -o promptfoo-results.json" in line
+    assert "promptfoo eval -o promptfoo-results.json" in out
+    assert "promptfoo export eval <id> -o promptfoo-results.json" in out
+    assert "latest" not in out
+    assert "save your promptfoo results to a file" in assert_one_next_at_the_end(out)
 
 
 def test_a_tracking_server_says_what_works_instead(here, capsys):
@@ -653,15 +655,13 @@ def test_help_lists_the_flags_and_mark(capsys):
     code, out, _ = run(capsys, "--help")
     assert code == 0
     for flag in ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if",
-                 "--label-map", "--judge-model", "--fields", "--yes"):
+                 "--label-map", "--judge-model", "--yes"):
         assert flag in out
     assert "mark" in out and "setup" not in out
 
 
 @pytest.mark.parametrize("flag, value, said", [
     ("--experiment", "support", "--experiment is for MLflow results, so it was ignored."),
-    ("--fields", "input,actual_output",
-     "--fields is for a DeepEval LLM-as-a-judge, so it was ignored."),
 ])
 def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, said):
     promptfoo_project(here, split(20, 16))

@@ -3,7 +3,7 @@
 - A page opened by the program named in BROWSER stamps its marks, and the result says so
   once; the docs never say the marks are the person's.
 - --debug shows where it went wrong, never the error's text; a "Not sure" check stays open;
-  fix's top-up after a 3rd rule, its not-counted answers and the missing key; Inspect logs in
+  check leaves out the answers its LLM-as-a-judge's tool gave an error for; Inspect logs in
   several folders are asked about.
 - The order and the words of what is said, the ports, the page that stays open after the result
   until it is idle, Ctrl-C from the first line, damaged files named, an old pre-commit line.
@@ -21,7 +21,7 @@ import pytest
 from judgekeeper import marks, start_label
 from judgekeeper.start_label import Workspace
 from tests.start_projects import promptfoo_project, split
-from tests.test_check import HAIKU, no_calls  # noqa: F401
+from tests.test_check import HAIKU
 from tests.test_front import run
 from tests.test_loop import _click, _flat, _post_marks
 
@@ -175,7 +175,6 @@ NOT_SURE = ("Result: not sure. These marks can't tell whether your new LLM-as-a-
             "Pass 19 of 30 11 of 30 Not sure When you said Fail 19 of 30 11 of 30 Not sure")
 
 
-@pytest.mark.usefixtures("no_calls")
 def test_a_not_sure_check_says_it_again(here, capsys):
     from judgekeeper import judge_setup
     from tests.test_check import _flat, _history, _next, _results
@@ -198,194 +197,29 @@ def test_a_not_sure_check_says_it_again(here, capsys):
     assert code == 0 and "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
 
 
-# No top-up on the 3rd rule: a new set at once ----------------------------------------------------
-
-@pytest.fixture
-def fixing(tmp_path, monkeypatch):
-    from tests.test_fix import judge as fake_judge
-
-    project = tmp_path / "support-bot"
-    project.mkdir()
-    monkeypatch.chdir(project)
-    return project, fake_judge.__wrapped__(project, monkeypatch)
-
-
-def _fix(capsys, *argv):
-    from tests.test_fix import run as fix_run
-
-    code, out = fix_run(capsys, *argv)
-    return code, " ".join(out.split())
-
-
-def _leans_better(ws, holder) -> str:
-    """A rule that fixes one hidden mark and breaks none: "can't tell yet, leans better"."""
-    from judgekeeper import fix
-    from tests.test_fix import _question, _split
-
-    split, m = _split(ws), fix.Marks(ws)
-    one = next(i for i in split["hidden"] if m.person[i] != m.judge[i])
-    holder["fixes"] = {"Fix just one.": {_question(ws, one)}}
-    return "Fix just one."
-
-
-def test_a_third_rule_that_leans_better_gets_a_new_set_at_once(fixing, capsys):
-    from tests.test_fix import _mark_more, _split, _write_rule, project
-
-    root, holder = fixing
-    holder["half"] = 40
-    ws = project(root, n=80, marked=60)
-    _fix(capsys)
-    for k in range(2):
-        _write_rule(ws, f"Rule number {k}.")
-        assert _fix(capsys, "--yes")[0] == 0
-    _write_rule(ws, _leans_better(ws, holder))
-    code, flat = _fix(capsys, "--yes")
-    assert code == 0 and "That leans toward better" in flat, flat
-    assert ("You have tested 3 rules on these marks kept aside. Mark 10 more answers with "
-            "`judgekeeper mark`: they become a new set kept aside, and `judgekeeper fix` tests "
-            "this rule again on them.") in flat
-    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again.")
-    assert "mark 7 more" not in flat and "mark 9 more" not in flat
-    new = _mark_more(ws, 10, 40)
-    code, flat = _fix(capsys, "--yes")
-    assert code == 0 and holder["evals"] == 8, flat
-    assert "Your LLM-as-a-judge, tested on the 10 marks kept aside:" in flat  # the promised test, on the new set
-    assert sorted(_split(ws)["hidden"]) == sorted(new)
-
-
-def test_a_new_rule_while_a_top_up_waits_is_named(fixing, capsys):
-    from judgekeeper import targets
-    from tests.test_fix import _split, _write_rule, project
-
-    root, holder = fixing
-    holder["half"] = 40
-    ws = project(root, n=80, marked=60)
-    _fix(capsys)
-    _write_rule(ws, _leans_better(ws, holder))
-    _fix(capsys, "--yes")
-    more = targets.top_up(len(_split(ws)["hidden"]))
-    _write_rule(ws, "Another rule.")
-    code, flat = _fix(capsys, "--yes")
-    assert code == 0 and holder["evals"] == 2  # the clues show while the test waits
-    assert "testing your new rule" not in flat
-    assert (f"Your last rule test is waiting for more marks: it couldn't tell yet. Mark {more} "
-            "more answers, and `judgekeeper fix` tests that rule again on them.") in flat
-    assert f"Your new rule is waiting: first mark {more} more answers" in flat
-
-
-# Answers the judge errors on in both runs are counted once -----------------------------------
-
-def test_answers_not_counted_in_both_runs_are_counted_once(fixing, capsys):
-    from tests.test_again_run import FakePromptfoo
-    from tests.test_fix import NEW_RULE, _split, _write_rule, project
-
-    root, holder = fixing
-    ws = project(root)
-    _fix(capsys)
-    hidden = _split(ws)["hidden"]
-    k = len(hidden) // 2
-    holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
-    holder["fake"].errors = set(hidden[:k])  # in the old rule's run and in the new one's
-    _write_rule(ws, NEW_RULE)
-    code, flat = _fix(capsys, "--yes")
-    assert code == 0, flat
-    assert f"Your LLM-as-a-judge, tested on the {len(hidden) - k} marks kept aside:" in flat
-    assert f"{k} answers were not counted: the LLM-as-a-judge gave no clear decision." in flat
-    assert flat.count("were not counted") == 1
-
-
 # promptfoo grader errors are not grades --------------------------------------------------------
 
-GRADER_ERRORS = "{n} answers were not counted: the LLM-as-a-judge's tool gave an error for them."
-
-
-def test_fix_does_not_count_promptfoo_grader_errors_as_grades(fixing, capsys):
-    from tests.test_again_run import FakePromptfoo
-    from tests.test_fix import NEW_RULE, _split, _write_rule, project
-
-    root, holder = fixing
-    ws = project(root)
-    _fix(capsys)
-    hidden = _split(ws)["hidden"]
-    holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
-    holder["fake"].grader_errors = set(hidden[:6])  # promptfoo saved them as pass: false
-    _write_rule(ws, NEW_RULE)
-    code, flat = _fix(capsys, "--yes")
-    assert code == 0, flat
-    assert f"Your LLM-as-a-judge, tested on the {len(hidden) - 6} marks kept aside:" in flat
-    assert GRADER_ERRORS.format(n=6) in flat
-    assert "New rule: agreed with you on 10 of 10 answers." in flat  # errors are no fails
-    assert "none from right to wrong." in flat
-
-
-@pytest.mark.usefixtures("no_calls")
-def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys, monkeypatch):
-    from tests.test_again_run import FakePromptfoo
-    from tests.test_check import LENIENT, _marked, _new_outputs, _results
-    from tests.test_check import judge as fake_judge
+def test_check_does_not_count_promptfoo_grader_errors_as_grades(here, capsys):
+    from tests.start_projects import promptfoo_data
+    from tests.test_check import LENIENT, TAG, _marked, _write
     from tests.test_check import run as check
 
-    holder = fake_judge.__wrapped__(monkeypatch, here)
-    ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    holder["fake"] = FakePromptfoo(ws, version="0.124.1")
-    last = marks.read(ws.marks).last
-    marked = {k: sorted(i for i, x in last.items() if x["mark"] == k) for k in ("pass", "fail")}
-    holder["fake"].grader_errors = set(marked["pass"][:3] + marked["fail"][:3])
-    code, out = check(capsys, "--yes")
+    _marked(here)
+    data = promptfoo_data(LENIENT, model=HAIKU, tag=TAG)
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    rows = data["results"]["results"]
+    for i in (0, 1, 2, 25, 26, 27):  # 3 marked Pass, 3 marked Fail; saved as promptfoo saves them
+        comp = rows[i]["gradingResult"]["componentResults"][0]
+        comp.update({"pass": False, "score": 0, "reason": "API error: 400 Bad Request",
+                     "metadata": {**(comp.get("metadata") or {}), "graderError": True}})
+        rows[i]["success"] = rows[i]["gradingResult"]["pass"] = False
+    _write(here / "results.json", data)
+    code, out = check(capsys)
     flat = _flat(out)
     assert code == 1, out
-    assert GRADER_ERRORS.format(n=6) in flat
     assert "Re-checked on 44 of your 50 marks:" in flat, flat
     assert "When you said Pass 22 of 22 22 of 22" in flat, flat  # the 3 errors are no fails
     assert re.search(r"When you said Fail \d+ of 22 \d+ of 22", flat), flat
-
-
-# No key: which key, and where to set it -------------------------------------------------------
-
-NEEDS = "Your LLM-as-a-judge needs ANTHROPIC_API_KEY. It is not set in your shell or in .env."
-
-
-def _no_keys(monkeypatch):
-    from judgekeeper import keys
-
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-
-
-def test_fix_names_the_key_a_claude_geval_needs(tmp_path, stubs, monkeypatch, capsys):
-    from tests.test_again_tools import _deepeval_model
-
-    monkeypatch.chdir(tmp_path)
-    ws = _deepeval_model(tmp_path, "claude-haiku-5-5 (Anthropic)", monkeypatch)
-    _no_keys(monkeypatch)
-    _fix(capsys)
-    (ws.dir / "fix" / "rule.txt").write_text("1. Is it kind?\n2. Is it short?\n",
-                                              encoding="utf-8")
-    code, flat = _fix(capsys, "--yes")
-    assert code == 3, flat
-    assert NEEDS in flat
-    assert "isn't set where judgekeeper runs" not in flat
-    assert flat.endswith("Next: set ANTHROPIC_API_KEY in your shell or in .env, then run "
-                         "`judgekeeper fix` again.")
-
-
-def test_check_names_the_key_its_new_judge_needs(here, capsys, monkeypatch):
-    from tests.test_check import _marked
-    from tests.test_check import run as check
-    from tests.test_flow_across_runs import _new_judge_on_a_few, grader
-
-    grader.__wrapped__(monkeypatch, here)
-    monkeypatch.delenv("ANTHROPIC_API_KEY")
-    _marked(here)
-    _new_judge_on_a_few(here)
-    code, out = check(capsys, "--yes")
-    flat = " ".join(out.split())
-    assert code == 1, out  # 5 answers re-checked with no AI call: "Not sure", a big drop
-    assert NEEDS in flat
-    assert flat.endswith("Next: set ANTHROPIC_API_KEY in your shell or in .env, then run "
-                         "`judgekeeper check` again.")
 
 
 # Inspect logs in more than one folder: which ----------------------------------------------------
@@ -615,10 +449,9 @@ def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
     from judgekeeper import fix, targets
 
     assert targets.fix_verdict(2, 8, 26).kind == "leans worse"  # p = 0.11
-    assert fix.RESULT["leans worse"] == ("Result: can't tell yet. That leans toward worse; keep "
-                                         "the old rule.")
+    assert fix.RESULT["leans worse"] == "Result: can't tell yet. That leans toward worse."
     assert targets.fix_verdict(0, 12, 26).kind == "worse"
-    assert fix.RESULT["worse"] == "Result: it looks worse. Keep the old rule."
+    assert fix.RESULT["worse"] == "Result: it looks worse."
 
 
 def test_a_bad_pass_if_is_not_repeated_in_the_next_line(here, capsys):
@@ -646,7 +479,6 @@ def test_no_placeholder_in_angle_brackets_in_backticks():
 
 # More small words ------------------------------------------------------------------------------
 
-@pytest.mark.usefixtures("no_calls")
 def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
     from tests.test_check import _marked
     from tests.test_check import run as check
@@ -658,22 +490,6 @@ def test_a_damaged_results_file_in_check_ends_with_one_stop(here, capsys):
     flat = " ".join(out.split())
     assert code == 3 and "Save it again from promptfoo." in flat, out
     assert ".." not in flat
-
-
-def test_fix_waits_for_one_more_answer_in_the_singular(fixing, capsys):
-    from tests.test_fix import _mark_more, _write_rule, project
-
-    root, holder = fixing
-    holder["half"] = 40
-    ws = project(root, n=80, marked=60)
-    _fix(capsys)
-    for k in range(3):
-        _write_rule(ws, f"Rule number {k}.")
-        _fix(capsys, "--yes")
-    _mark_more(ws, 9, 40)
-    _write_rule(ws, "Rule number 3.")
-    _, flat = _fix(capsys)
-    assert "Next: mark 1 more answer with `judgekeeper mark`" in flat, flat
 
 
 def test_the_table_depth_is_said_alike_in_the_terminal_and_the_reference():
@@ -711,14 +527,14 @@ def test_or_save_comes_after_its_first_choice(capsys):
 
 
 def test_fix_with_no_results_says_so_first(here, capsys):
-    code, flat = _fix(capsys)
+    code, out, _ = run(capsys, "fix")
+    flat = " ".join(out.split())
     assert code == 3
     assert f"No eval results found in this folder ({here.name})." in flat, flat
     assert "marked enough" not in flat and "`judgekeeper mark`" not in flat
     assert flat.endswith("Next: run your eval once from this folder, then run `judgekeeper`.")
 
 
-@pytest.mark.usefixtures("no_calls")
 def test_a_pass_mark_change_made_without_fix_is_no_pick(here, capsys):
     from judgekeeper import judge_setup, start
     from judgekeeper.start_label import StartSession
@@ -745,7 +561,6 @@ def test_a_pass_mark_change_made_without_fix_is_no_pick(here, capsys):
     assert "you looked at to write this rule" not in flat
 
 
-@pytest.mark.usefixtures("no_calls")
 def test_a_rule_change_made_without_fix_is_no_pick(here, capsys):
     from tests.test_check import MARKED, _marked, _results
     from tests.test_check import run as check
@@ -832,25 +647,6 @@ def test_the_page_stays_open_after_the_result_with_every_answer_marked(here, cap
     assert "Closed the marking page." in out
     _, out, _ = run(capsys, "--stop")
     assert "No marking page is open." in out
-
-
-# A rule that copies answer text is never printed ----------------------------------------------
-
-def test_a_rule_copied_from_answers_is_not_printed(fixing, capsys):
-    from judgekeeper import fix
-    from tests.test_fix import _split, _write_rule, project
-
-    root, _ = fixing
-    ws = project(root)
-    _fix(capsys)
-    m = fix.Marks(ws)
-    copied = next(m.row(i)["output"] for i in _split(ws)["visible"]
-                  if "refund" in m.row(i)["output"])
-    _write_rule(ws, f"{copied} Grade it as the person would.")
-    _, flat = _fix(capsys)
-    assert "New rule: from .judgekeeper/fix/rule.txt" in flat, flat
-    assert "It copies text from your answers" in flat
-    assert copied[:20] not in flat
 
 
 # Ctrl-C from the first line ------------------------------------------------------------------
@@ -1027,27 +823,6 @@ def test_a_port_the_person_named_is_not_changed(here, capsys, pages):
     assert code == 3 and len(pages[0]) == 1
 
 
-# The Python uvx runs judgekeeper with is never named by its cache path ------------------------
-
-def test_uvx_python_is_named_in_words(tmp_path, monkeypatch):
-    import sys
-
-    from judgekeeper import again
-    from judgekeeper.again import AgainOptions, make_plan
-    from tests.start_projects import deepeval_project
-    from tests.test_again_tools import _checked
-
-    cache = "/home/me/.cache/uv/archive-v0/abc123/bin/python"
-    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
-    monkeypatch.setattr(sys, "executable", cache)
-    monkeypatch.setattr(again, "run_worker", lambda *a, **k: {"ok": False, "missing": True})
-    ws = _checked(tmp_path, lambda r, v: deepeval_project(r, v))
-    plan = make_plan(ws, AgainOptions(fields="input,actual_output"), dry=True)
-    said = " ".join([plan.why or "", plan.plain or "", *plan.side_effects])
-    assert "archive-v0" not in said and ".cache/uv" not in said, said
-    assert "the Python uvx runs judgekeeper with" in said
-
-
 def test_a_rubric_from_default_test_in_the_config_file_is_said(here, capsys):
     from tests.test_promptfoo_two_rubrics import CONFIG
 
@@ -1084,12 +859,12 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
         assert ".latest_run_full.json is damaged: its only row has a damaged field." in err
         assert out.splitlines()[2:4] == ["Step 1 of 5: Find", ""], out
 
-# The result page says what fix does for a judge judgekeeper can't ask -----------------------
+# The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 
 S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your LLM-as-a-judge got "
-           "wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this kind of LLM-as-a-judge "
-           "itself, so change its rule where your eval keeps it, run your eval, then run "
-           "`judgekeeper check`.")
+           "wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. Change your rule "
+           "in your eval tool, grade those answers again, then run "
+           "`judgekeeper fix <new results file>` to test it on the marks kept aside.")
 
 
 def _page_text(html: str) -> str:
@@ -1101,8 +876,8 @@ def _page_text(html: str) -> str:
 
 
 def test_the_live_result_page_says_what_fix_does_for_an_own_file(here, capsys, no_browser):
-    """A file in a format of its own: fix can't swap a rule in. The live result page and
-    report.html say so, in the words of the terminal."""
+    """A file in a format of its own: the live result page and report.html say what fix does,
+    as for any other LLM-as-a-judge."""
     import urllib.request
 
     from tests.start_projects import flat_jsonl

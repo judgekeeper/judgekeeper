@@ -108,8 +108,8 @@ def store_uri(path: Path, say=None) -> str:
     its `-wal` and `-shm` files when present) into a temporary folder, removed when the
     process ends, and the copy is read with a plain `sqlite:///` address. Read-only SQLite
     addresses (`sqlite:///file:...?mode=ro&uri=true`) do not work on Windows, where MLflow
-    takes them as a file name. The asking-again worker reads the same copy later, so the
-    copy lives until the process ends, not until this function returns.
+    takes them as a file name. A later read in the same process reads the same copy, so
+    the copy lives until the process ends, not until this function returns.
 
     A folder store (`mlruns/`) is read where it is: copying it would copy every artifact.
     MLflow 3.16's FileStore opens it only when MLFLOW_ALLOW_FILE_STORE=true is set (see

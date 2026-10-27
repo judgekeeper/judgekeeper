@@ -10,7 +10,7 @@
 - No "since the last check" before any check; a missing results file is said plainly.
 - Output piped into a program that stops reading ends quietly.
 - Screen 6a: the agreed words for "nothing changed" and "changed after your last eval run".
-No test calls an API: asking again goes through the fake promptfoo of test_again_run.
+No test calls an API: check only reads the results files.
 """
 
 from __future__ import annotations
@@ -32,13 +32,10 @@ from tests.test_check import (  # noqa: F401
     _flat,
     _history,
     _marked,
-    _new_outputs,
     _next,
     _results,
     _write,
     here,
-    judge,
-    no_calls,
     run,
 )
 
@@ -54,7 +51,7 @@ def _lock(root, version: str, later: float = 0) -> None:
 
 # Screen 6a ------------------------------------------------------------------------------------
 
-def test_nothing_changed_says_so_in_the_agreed_words(here, capsys, no_calls):
+def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     _marked(here)
     code, out = run(capsys)
     assert code == 0
@@ -66,7 +63,7 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys, no_calls):
         "change your LLM-as-a-judge."]
 
 
-def test_settings_changed_after_the_last_eval_run(here, capsys, no_calls):
+def test_settings_changed_after_the_last_eval_run(here, capsys):
     _marked(here)
     config = here / "promptfooconfig.yaml"
     later = (here / "results.json").stat().st_mtime + 60
@@ -81,7 +78,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys, no_calls):
     assert "has not changed" not in out
 
 
-def test_after_a_check_nothing_changed_names_that_check(here, capsys, no_calls):
+def test_after_a_check_nothing_changed_names_that_check(here, capsys):
     """"Since your last check" only once a check ran."""
     _marked(here)
     _results(here, MARKED, model=HAIKU)
@@ -101,7 +98,7 @@ def test_a_path_that_does_not_exist(here, capsys):
     assert _next(out) == "Next: run `judgekeeper check` in your project folder."
 
 
-def test_a_folder_inside_the_project_finds_the_marks(here, capsys, monkeypatch, no_calls):
+def test_a_folder_inside_the_project_finds_the_marks(here, capsys, monkeypatch):
     _marked(here)
     (here / "src").mkdir()
     monkeypatch.chdir(here / "src")
@@ -143,7 +140,7 @@ def test_too_few_marks_says_so_without_a_number(here, capsys):
 
 # A missing results file -----------------------------------------------------------------------
 
-def test_deleted_results_are_said_plainly(here, capsys, no_calls):
+def test_deleted_results_are_said_plainly(here, capsys):
     _marked(here)
     (here / "results.json").unlink()
     code, out = run(capsys)
@@ -156,7 +153,7 @@ def test_deleted_results_are_said_plainly(here, capsys, no_calls):
 
 # A lockfile-only version update ---------------------------------------------------------------
 
-def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys, no_calls):
+def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys):
     _lock(here, "0.121.0")
     ws = _marked(here, version=None)
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.121.0"
@@ -174,7 +171,7 @@ def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys, no_ca
     assert _history(ws) == []
 
 
-def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no_calls):
+def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys):
     _lock(here, "0.121.0")
     ws = _marked(here, version=None)
     _lock(here, "0.130.0", later=60)
@@ -182,14 +179,13 @@ def test_a_lockfile_update_is_rechecked_after_the_next_eval_run(here, capsys, no
     os.utime(here / "results.json", (stamp, stamp))
     code, out = run(capsys)
     assert code == 0
-    assert "Re-checked with no AI call, from your new results." in out
     assert TABLE_HEAD in out
     assert judge_setup.read(ws)["setup"]["tool_version"] == "0.130.0"
 
 
 # A worse judge stays worse --------------------------------------------------------------------
 
-def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
+def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys):
     ws = _marked(here)
     before = judge_setup.read(ws)["setup_hash"]
     _results(here, LENIENT, model=HAIKU)
@@ -206,7 +202,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys, no_calls):
     assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
 
 
-def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
+def test_after_worse_judgekeeper_still_points_at_check(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     run(capsys)
@@ -221,16 +217,16 @@ def test_after_worse_judgekeeper_still_points_at_check(here, capsys, no_calls):
 
 # No marked answer in the newest results -------------------------------------------------------
 
-def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsys, judge):
+def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsys):
     ws = _marked(here)
     data = promptfoo_data(LENIENT, model=HAIKU, tag=" OTHER")  # other questions
     data["metadata"]["promptfooVersion"] = "0.124.1"
     _write(here / "results.json", data)
-    code, out = run(capsys, "--yes")
+    code, out = run(capsys)
     assert code == 3
     flat = _flat(out)
-    assert ("Your newest results don't contain the answers you marked, so your LLM-as-a-judge can't "
-            "grade them again.") in flat
+    assert ("None of your 50 marked answers is in your new results. judgekeeper finds a marked "
+            "answer by its exact text.") in flat
     assert "labeled" not in flat
     assert _next(out) == ("Next: run your eval on the questions you marked, then run "
                           "`judgekeeper check` again; or start over on your new answers with "
@@ -250,7 +246,7 @@ class _Closed(io.StringIO):
         raise io.UnsupportedOperation
 
 
-def test_a_closed_pipe_ends_quietly(here, capsys, monkeypatch, no_calls):
+def test_a_closed_pipe_ends_quietly(here, capsys, monkeypatch):
     _marked(here)
     monkeypatch.setattr(sys, "stdout", _Closed())
     assert main(["check"]) == 0

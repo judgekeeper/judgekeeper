@@ -14,7 +14,6 @@ Every store here is made by the installed MLflow in another process (skipped wit
 from __future__ import annotations
 
 import builtins
-import importlib.util
 import json
 import logging
 import os
@@ -27,12 +26,12 @@ from types import SimpleNamespace
 import pytest
 
 from judgekeeper import start, start_label
-from judgekeeper.again import mlflow as mf
 from judgekeeper.cli import main
 from judgekeeper.readers import mlflow_store
 from judgekeeper.readers.mlflow_store import ALLOW, HINT
 from judgekeeper.textio import quote_arg
 from tests.test_front import assert_one_next_at_the_end
+from tests.test_mark_background import stop_page
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -100,7 +99,8 @@ def folder_only(made, tmp_path):
     project = tmp_path / "docs-qa"
     project.mkdir()
     shutil.copytree(made / "mlruns", project / "mlruns")
-    return project
+    yield project
+    stop_page(project)  # a run in its own process opens a real marking page
 
 
 @pytest.fixture(autouse=True)
@@ -153,15 +153,6 @@ def test_quiet_sets_both_for_its_block_only():
     assert HINT not in os.environ
 
 
-def test_the_worker_runs_with_mlflow_quiet(tmp_path):
-    env = mf.worker_env(str(tmp_path))
-    assert env[HINT] == "1" and env["MLFLOW_DISABLE_TELEMETRY"] == "true"
-    assert mf.worker_env("sqlite:////tmp/x/mlflow.db")[HINT] == "1"
-    text = (ROOT / "src" / "judgekeeper" / "again" / "workers" / "mlflow_worker.py").read_text(
-        encoding="utf-8")
-    assert 'logging.getLogger("mlflow").setLevel(logging.ERROR)' in text
-
-
 # A store moved from another computer ------------------------------------------------------
 
 def test_a_moved_folder_store_is_read_from_its_own_folder(folder_only, capsys):
@@ -171,27 +162,6 @@ def test_a_moved_folder_store_is_read_from_its_own_folder(folder_only, capsys):
     assert sorted(a.output for a in found.pool.answers) == [
         "answer to four", "answer to one", "answer to three", "answer to two"]
     assert "missing" not in out
-
-
-def test_asking_again_finds_the_traces_of_a_moved_store(folder_only):
-    info = mf.assessment_info(start_label.Workspace(folder_only), "faithful")
-    assert len(info["traces"]) == 4 and info["uri"] == str(folder_only / "mlruns")
-
-
-def test_the_worker_reads_a_trace_of_a_moved_store(folder_only):
-    spec = importlib.util.spec_from_file_location(
-        "mlflow_worker", ROOT / "src" / "judgekeeper" / "again" / "workers" / "mlflow_worker.py")
-    worker = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(worker)
-    info = mf.assessment_info(start_label.Workspace(folder_only), "faithful")
-    uri = info["uri"]
-    from mlflow import MlflowClient
-
-    with mlflow_store.folder_store_allowed(uri), mlflow_store.quiet():
-        client = MlflowClient(tracking_uri=uri)
-        trace = worker.get_trace(client, uri, next(iter(info["traces"].values())), {})
-    assert trace.data.spans and trace.info.assessments
-    assert str(trace.data.response).startswith(('"answer to', "answer to"))
 
 
 def _trace_files(project):
@@ -257,12 +227,10 @@ def test_an_unknown_experiment_in_one_store(folder_only):
                             "qa-folder)")
 
 
-def test_the_chosen_store_is_kept_for_asking_again(two, capsys):
+def test_the_chosen_store_is_kept_for_check(two, capsys):
     found = start.find_judge(two / "mlruns", talk=start.Talk())
     ws = start_label.prepare(found, say=lambda line="": None)
     assert ws.data()["mlflow_store"] == "mlruns"
-    info = mf.assessment_info(ws, "faithful")
-    assert info["uri"] == str(two / "mlruns")
 
 
 def test_a_re_check_keeps_the_chosen_store(two, capsys):
@@ -443,34 +411,6 @@ def test_a_trace_folder_that_leads_outside_the_experiment_is_left_out(tmp_path):
     client, missing = _Client([GOOD_ID]), []
     assert list(mlflow_store._traces(client, "1", tmp_path / "mlruns", missing)) == []
     assert missing == [GOOD_ID] and client.fetched == []
-
-
-def _worker():
-    spec = importlib.util.spec_from_file_location(
-        "mlflow_worker", ROOT / "src" / "judgekeeper" / "again" / "workers" / "mlflow_worker.py")
-    worker = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(worker)
-    return worker
-
-
-class _WorkerClient(_Client):
-    def search_traces(self, locations, max_results=100, page_token=None, include_spans=True):
-        return _Page(SimpleNamespace(trace_id=i) for i in self.ids)
-
-
-@pytest.mark.parametrize("trace_id", ["../../outside", "..\\..\\outside", "*"])
-def test_the_worker_uses_a_trace_id_in_a_path_only_in_mlflow_shape(tmp_path, trace_id):
-    pytest.importorskip("mlflow")
-    store = tmp_path / "mlruns"
-    (store / "1" / "traces" / GOOD_ID / "artifacts").mkdir(parents=True)
-    (store / "1" / "traces" / GOOD_ID / "artifacts" / "traces.json").write_text(
-        '{"spans": []}', encoding="utf-8")
-    if trace_id != "*":
-        planted = store.joinpath("1", "traces", trace_id, "artifacts", "traces.json")
-        planted.parent.mkdir(parents=True, exist_ok=True)
-        planted.write_text('{"spans": []}', encoding="utf-8")
-    with pytest.raises(LookupError):
-        _worker().get_trace(_WorkerClient([trace_id]), str(store), trace_id, {})
 
 
 # A damaged store ---------------------------------------------------------------------------

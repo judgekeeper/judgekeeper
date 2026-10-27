@@ -1,16 +1,15 @@
 """The flow and the numbers, across runs.
 
-- promptfoo `check` grades with the new LLM-as-a-judge's grader, also on answers missing from the
-  newest results; a re-ask that used another model than the new LLM-as-a-judge saves nothing.
+- promptfoo `check` on results that hold only a few marked answers tests the new LLM-as-a-judge
+  on those and leaves the rest out.
 - No Next: line sends the person to mark when every answer is marked.
-- promptfoo through npx: the download goes in the same yes/no question as the calls.
 - After a check, report.html describes the re-checked judge; after "Worse" for a table judge,
   no loop.
 - Measure writes report.html, then the history line, then result.json; a run after one that
   stopped half way repairs them.
-- Counts and words that agree with each other; `fix` reads the rule only from a real config
-  and keeps nothing aside for an LLM-as-a-judge it can't ask; nested projects; marks kept while the
-  results file is gone.
+- Counts and words that agree with each other; `fix` reads the rule only from a real config;
+  a rule `fix` tested is not tested again; nested projects; marks kept while the results file
+  is gone.
 No test calls an AI API.
 """
 
@@ -21,18 +20,15 @@ import os
 import re
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from judgekeeper import again, keys
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import project_promptfoo, promptfoo_data, split
-from tests.test_again_run import FakePromptfoo
-from tests.test_check import HAIKU, MODEL, TAG, _history, _marked
+from tests.start_projects import promptfoo_data, split
+from tests.test_check import HAIKU, MODEL, TAG, _marked
 from tests.test_front import flat, next_lines
 
-NEW = HAIKU  # the new judge's grader in these tests: it passes every answer
+NEW = HAIKU  # the new LLM-as-a-judge's model in these tests
 
 
 @pytest.fixture
@@ -55,53 +51,6 @@ def _check(capsys, *argv):
 
 # promptfoo check grades with the new judge ---------------------------------------------------
 
-class GraderFake(FakePromptfoo):
-    """The fake promptfoo, grading as the grader each test names: the new LLM-as-a-judge (NEW) passes
-    every answer. `answers_as`: every row says it was graded by that grader instead."""
-
-    answers_as: str | None = None
-
-    def __call__(self, argv, cwd, env=None, timeout=None):
-        done = super().__call__(argv, cwd, env, timeout)
-        if "eval" not in argv:
-            return done
-        out = cwd / argv[argv.index("-o") + 1]
-        data = json.loads(out.read_text(encoding="utf-8"))
-        for row in data["results"]["results"]:
-            grader = (row["testCase"].get("options") or {}).get("provider") or {}
-            self.graders.append(grader.get("id"))
-            if grader.get("id") == NEW:
-                row["success"] = row["gradingResult"]["pass"] = True
-                for c in row["gradingResult"]["componentResults"]:
-                    c["pass"], c["score"] = True, 1
-            if self.answers_as:
-                row["testCase"]["options"] = {"provider": {"id": self.answers_as}}
-        out.write_text(json.dumps(data), encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-
-@pytest.fixture
-def grader(monkeypatch, here):
-    project_promptfoo(here)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-    monkeypatch.setattr(again, "which", lambda name: None)
-    holder = {}
-
-    def runner(argv, cwd, env=None, timeout=None):
-        if "fake" not in holder:
-            fake = GraderFake(Workspace(here), version="0.124.1")
-            fake.graders = []
-            fake.answers_as = holder.get("answers_as")
-            holder["fake"] = fake
-        return holder["fake"](argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", runner)
-    return holder
-
-
 def _new_judge_on_a_few(root) -> None:
     """The grader changed to NEW, and the eval ran again on 5 of the 50 questions only, into a
     new results file: results.json (the old LLM-as-a-judge's) stays."""
@@ -116,61 +65,19 @@ def _new_judge_on_a_few(root) -> None:
     (root / "results-new.json").write_text(json.dumps(data), encoding="utf-8")
 
 
-def test_promptfoo_check_asks_the_new_grader_about_the_answers_left_out(here, capsys, grader):
+def test_promptfoo_check_on_a_few_answers_tests_only_those(here, capsys):
     ws = _marked(here)
     _new_judge_on_a_few(here)
-    code, out = _check(capsys, "--yes")
-    fake = grader["fake"]
-    assert fake.graders and set(fake.graders) == {NEW}, fake.graders
-    tests = fake.files_seen["tests"]
-    assert {t["options"]["provider"]["id"] for t in tests} == {NEW}
-    assert code == 1, out
-    assert "Worse" in out
-    assert judge_models(ws) == [MODEL]  # after "Worse" the old judge stays
+    code, out = _check(capsys)
+    assert code == 1, out  # 2 of the 5 were marked Fail: a drop over 20 points
+    assert ("45 of your 50 marked answers had no grade in your new results, so judgekeeper "
+            "left them out.") in flat(out)
+    assert "Re-checked on 5 of your 50 marks:" in out
+    assert judge_models(ws) == [MODEL]  # after "Not sure" with a big drop the old judge stays
 
 
 def judge_models(ws):
     return json.loads((ws.dir / "judge.json").read_text(encoding="utf-8"))["setup"]["models"]
-
-
-def test_a_reask_that_used_another_model_saves_nothing(here, capsys, grader):
-    ws = _marked(here)
-    _new_judge_on_a_few(here)
-    grader["answers_as"] = MODEL  # every reply came from the old model
-    before = (ws.dir / "judge.json").read_bytes()
-    code, out = _check(capsys, "--yes")
-    assert code == 2, out
-    assert (f"judgekeeper asked the wrong model ({MODEL}, not {NEW}), so this check is not "
-            "saved.") in flat(out)
-    assert (ws.dir / "judge.json").read_bytes() == before
-    assert _history(ws) == []
-    assert not list((ws.dir / "checks").glob("*/check-*.jsonl"))
-    assert not (ws.dir / "verdicts").exists()
-
-
-
-# A key set in the eval tool's own config counts --------------------------------------------
-
-@pytest.mark.parametrize("config", [
-    "description: support bot\nenv: {OPENAI_API_KEY: sk-config-ZQKEY-0123456789abcdef}\n",
-    json.dumps({"description": "support bot",
-                "env": {"OPENAI_API_KEY": "sk-config-ZQKEY-0123456789abcdef"}}, indent=1),
-])
-def test_a_key_in_the_configs_env_block_counts(here, capsys, grader, monkeypatch, config):
-    from tests.test_check import MARKED, _new_outputs, _results
-
-    _marked(here)
-    monkeypatch.delenv("OPENAI_API_KEY")
-    (here / "promptfooconfig.yaml").write_text(config, encoding="utf-8")
-    _results(here, MARKED, model="openai:gpt-4.1-nano", outputs=_new_outputs())
-    _, out = _check(capsys, "--yes")
-    assert "isn't set" not in out and "not set in your shell" not in out, out
-    assert grader["fake"].graders, out  # the judge was asked
-    fake = grader["fake"]
-    run = next(c for c in fake.calls if "eval" in c.argv)  # promptfoo gets the key as in your runs
-    assert run.env["OPENAI_API_KEY"] == "sk-config-ZQKEY-0123456789abcdef"
-    assert "ZQKEY" not in json.dumps(fake.files_seen)  # never written to a file
-    assert "ZQKEY" not in out
 
 
 # No Next line points to marking when nothing is left to mark ---------------------------------
@@ -216,7 +123,7 @@ RULE_B = "Is polite, correct and short."
 RULE_C = "Is correct, polite and kind."
 
 
-def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys, grader):
+def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     """Every answer marked, then Fix, Re-check and Fix again: every Next line is possible."""
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rubric(here, split(20, 20), RULE_A)
@@ -225,13 +132,15 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys, grad
     _mark(Workspace(here), person)
     said = [_jk(capsys)[1]]
     said.append(_jk(capsys, "fix")[1])
-    (here / ".judgekeeper" / "fix" / "rule.txt").write_text(RULE_B, encoding="utf-8")
-    said.append(_jk(capsys, "fix", "--yes")[1])
+    _rubric(here, split(20, 20), RULE_B, name="regraded.json")  # the marked answers, graded again
+    said.append(_jk(capsys, "fix", "regraded.json")[1])
+    (here / "regraded.json").unlink()  # not the eval's newest results from here on
     _rubric(here, split(20, 20), RULE_B)  # the rule copied into the config, the eval run
     said.append(_jk(capsys, "check")[1])
     said.append(_jk(capsys, "fix")[1])
-    (here / ".judgekeeper" / "fix" / "rule.txt").write_text(RULE_C, encoding="utf-8")
-    said.append(_jk(capsys, "fix")[1])
+    _rubric(here, split(20, 20), RULE_C, name="regraded-2.json")
+    said.append(_jk(capsys, "fix", "regraded-2.json")[1])
+    (here / "regraded-2.json").unlink()
     _rubric(here, split(20, 20), RULE_B, only=range(10), model=NEW)  # 10 questions, new model
     said.append(_jk(capsys, "check")[1])
     for out in said:
@@ -278,94 +187,6 @@ def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():
     assert check.picks_lines(p, every=True) == [warn]
     assert check.picks_lines(p) == [f"{warn} Mark some new answers."]
     assert check.picks_lines({"n": 3, "new_marks": 0, "ask": False}) == []
-
-
-# promptfoo through npx ----------------------------------------------------------------------
-
-NPX = "/opt/node/bin/npx"
-
-
-@pytest.fixture
-def npx(monkeypatch, here):
-    """No promptfoo installed; npx is there (`holder["npx"]` False: not there either)."""
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-    holder = {"npx": True, "argv": []}
-    monkeypatch.setattr(again, "which",
-                        lambda name: NPX if name == "npx" and holder["npx"] else None)
-
-    def runner(argv, cwd, env=None, timeout=None):
-        holder["argv"].append(list(argv))
-        if "fake" not in holder:
-            holder["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-        return holder["fake"](argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", runner)
-    return holder
-
-
-def _changed_model(root) -> None:
-    from tests.test_check import LENIENT, _new_outputs, _results
-
-    _results(root, LENIENT, model=NEW, outputs=_new_outputs())
-
-
-def test_check_asks_about_the_npx_download_with_the_calls(here, capsys, npx):
-    _marked(here)
-    _changed_model(here)
-    code, out = _check(capsys)
-    assert code == 3, out
-    assert ("twice each: 100 AI calls, paid with your own key. It also downloads promptfoo 0.124.1 "
-            "with npx.") in flat(out)
-    assert "doesn't download anything" not in out
-    assert npx["argv"] == []
-    code, out = _check(capsys, "--yes")
-    assert code == 1, out
-    evals = [a for a in npx["argv"] if "eval" in a]
-    assert evals and evals[0][:3] == [NPX, "--yes", "promptfoo@0.124.1"]
-
-
-def test_check_without_npx_names_the_install_command(here, capsys, npx):
-    npx["npx"] = False
-    _marked(here)
-    _changed_model(here)
-    code, out = _check(capsys, "--yes")
-    assert code == 3, out
-    assert _next(out) == ("Next: run `npm install promptfoo@0.124.1` in your project, then run "
-                          "`judgekeeper check` again.")
-    assert npx["argv"] == []
-
-
-def _fix_ready(root, capsys):
-    from tests.test_fix import NEW_RULE, project
-
-    ws = project(root)
-    _jk(capsys, "fix")
-    (ws.dir / "fix" / "rule.txt").write_text(NEW_RULE, encoding="utf-8")
-    return ws
-
-
-def test_fix_asks_about_the_npx_download_with_the_calls(tmp_path, monkeypatch, capsys, npx):
-    _fix_ready(tmp_path, capsys)
-    code, out = _jk(capsys, "fix")
-    assert code == 3, out
-    assert "paid with your own key. It also downloads promptfoo 0.124.1 with npx." in flat(out)
-    assert _next(out) == ("Next: run `judgekeeper fix` in your terminal to answer, or "
-                          "`judgekeeper fix --yes` to go ahead.")
-    code, out = _jk(capsys, "fix", "--yes")
-    assert code == 0, out
-    assert all(a[:3] == [NPX, "--yes", "promptfoo@0.124.1"] for a in npx["argv"] if "eval" in a)
-
-
-def test_fix_without_npx_names_the_install_command(tmp_path, capsys, npx):
-    npx["npx"] = False
-    _fix_ready(tmp_path, capsys)
-    code, out = _jk(capsys, "fix", "--yes")
-    assert code == 3, out
-    assert _next(out) == ("Next: run `npm install promptfoo@0.124.1` in your project, then run "
-                          "`judgekeeper fix` again.")
 
 
 # report.html after check describes one judge -------------------------------------------------
@@ -462,15 +283,15 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "judgekeeper mark</code>" not in report and 'id="fix-h"' not in report
     _jk(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    wrong_now = [i for i in range(60) if new[i] != _truth(i)]
-    assert mistakes.count("## [M") == len(wrong_now)
-    assert "Question 9?" not in mistakes  # the old judge's mistake the new judge gets right
-    assert "Question 2?" in mistakes  # and a new one
+    shown = [int(x) for x in re.findall(r"<<<QUESTION\nQuestion (\d+)\?", mistakes)]
+    assert len(shown) == mistakes.count("## [M") > 0
+    assert all(new[i] != _truth(i) for i in shown)  # the new judge's mistakes, never the old's
 
 
-# A judge fix can't ask: nothing kept aside ---------------------------------------------------
+# A table judge: marks kept aside, as for every judge ---------------------------------------------
 
-def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
+def test_fix_for_a_table_judge_keeps_marks_aside(here, capsys):
+    from judgekeeper import fix
     from tests.start_projects import table_project
 
     old = [(not _truth(i)) if i % 4 == 1 else _truth(i) for i in range(60)]
@@ -479,11 +300,10 @@ def test_fix_for_a_table_judge_keeps_nothing_aside(here, capsys):
     _mark(Workspace(here), {i: "pass" if _truth(i) else "fail" for i in range(60)})
     _jk(capsys)
     code, out = _jk(capsys, "fix")
-    assert code == 3, out
-    assert "kept aside" not in out
-    wrong = sum(old[i] != _truth(i) for i in range(60))
-    assert f"All {wrong} mistakes your LLM-as-a-judge made are saved" in flat(out)
-    assert "kept aside" not in _report(here)
+    assert code == 0, out
+    kept = len(fix.read_split(Workspace(here)).hidden)
+    assert f"{kept} of your marks are kept aside to test your new rule fairly." in flat(out)
+    assert _next(out).endswith("then run `judgekeeper fix <new results file>`.")
 
 
 # Ctrl-C during Measure ---------------------------------------------------------------------------
@@ -589,12 +409,12 @@ def _all_marked_promptfoo(root, capsys, rule=RULE_A, n=40):
     return Workspace(root)
 
 
-def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys, no_calls):
+def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys):
     _all_marked_promptfoo(here, capsys)
     _rubric(here, split(20, 20), RULE_B, only=range(10))  # the eval on 10 questions only
     _, out = _check(capsys)
-    assert "Your newest results hold 10 of your 40 marked answers." in flat(out), out
-    assert "don't contain the answers you marked" not in out
+    assert ("30 of your 40 marked answers had no grade in your new results, so judgekeeper "
+            "left them out.") in flat(out), out
     assert "Re-checked on 10 of your 40 marks:" in out
     _rubric(here, split(20, 20), RULE_B)  # then the whole eval
     _, out = _check(capsys)
@@ -602,7 +422,7 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys, no_c
     assert "Agreed with you:" in out
 
 
-def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
+def test_marks_really_added_since_a_check_are_counted(here, capsys):
     from judgekeeper.start_label import StartSession as Session
 
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
@@ -623,12 +443,7 @@ def test_marks_really_added_since_a_check_are_counted(here, capsys, no_calls):
     assert "You added 10 marks since your last check." in out, out
 
 
-@pytest.fixture
-def no_calls(monkeypatch):
-    monkeypatch.setattr(again, "run_process", lambda *a, **k: pytest.fail("the LLM-as-a-judge was asked"))
-
-
-def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no_calls):
+def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys):
     ws = _all_marked_promptfoo(here, capsys)
     _jk(capsys, "fix")
     _rubric(here, split(20, 20), RULE_B)
@@ -642,50 +457,22 @@ def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys, no
             "still test it.") in flat(out)
 
 
-def test_fix_with_a_rule_it_tested_shows_that_result(tmp_path, capsys, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    holder = _fake_fix_judge(tmp_path, monkeypatch)
-    _fix_ready(tmp_path, capsys)
-    code, first = _jk(capsys, "fix", "--yes")
-    assert code == 0 and holder["evals"] == 2, first
+def test_fix_with_a_rule_it_tested_shows_that_result(here, capsys):
+    from judgekeeper import fix
+
+    ws = _all_marked_promptfoo(here, capsys)
+    _jk(capsys, "fix")
+    _rubric(here, split(20, 20), RULE_B, name="regraded.json")
+    code, first = _jk(capsys, "fix", "regraded.json")
+    assert code == 0, first
     result = next(line for line in first.splitlines() if line.startswith("Result:"))
-    code, out = _jk(capsys, "fix")
+    tests = fix.read_split(ws).tests
+    code, out = _jk(capsys, "fix", "regraded.json")
     assert code == 0, out
-    assert holder["evals"] == 2  # never tested again
-    assert "You tested this rule before" in out and "write your new rule" not in out
+    assert fix.read_split(ws).tests == tests  # never tested again
+    assert "You tested this LLM-as-a-judge before" in out
     assert result in out
     assert _next(first) == _next(out)
-
-
-def _fake_fix_judge(root, monkeypatch):
-    """The fake promptfoo of test_fix, counting its evals."""
-    from tests.test_fix import NEW_RULE, N, _person
-
-    project_promptfoo(root)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setattr(again, "which", lambda name: None)
-    holder = {"evals": 0}
-
-    def runner(argv, cwd, env=None, timeout=None):
-        if "fake" not in holder:
-            holder["fake"] = FakePromptfoo(Workspace(root), version="0.124.1")
-        fake = holder["fake"]
-        if "eval" in argv:
-            holder["evals"] += 1
-            path = Path(cwd) / argv[argv.index("-c") + 1]
-            config = json.loads(path.read_text(encoding="utf-8"))
-            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
-                               .read_text(encoding="utf-8"))
-            fake.flips = {(t["description"], 0) for t in tests
-                          if t["assert"][0]["value"] == NEW_RULE
-                          and fake.saved[t["vars"]["question"]][0] != _person(
-                              t["vars"]["question"], N // 2)}
-        return fake(argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", runner)
-    return holder
 
 
 def test_new_without_a_result_moves_the_marks_not_a_check(here, capsys):
@@ -823,90 +610,9 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
             "they come back when your results file is back.") in flat(out)
 
 
-def test_guard_stops_before_handing_the_old_grader(here, capsys,
-                                                                           grader,
-                                                                           monkeypatch):
-    """(a): the config judgekeeper hands to promptfoo holds the old grader (made by hand)."""
-    from judgekeeper.again import promptfoo as pf
+# Back to the marked judge ---------------------------------------------------------------------
 
-    ws = _marked(here)
-    _new_judge_on_a_few(here)
-    monkeypatch.setattr(pf, "_with_grader", lambda row, template: (row, {}, template[2]))
-    code, out = _check(capsys, "--yes")
-    assert code == 2, out
-    assert (f"judgekeeper asked the wrong model ({MODEL}, not {NEW}), so this check is not "
-            "saved.") in flat(out)
-    assert "fake" not in grader or not grader["fake"].graders  # no call was made
-    assert _history(ws) == [] and not (ws.dir / "verdicts").exists()
-
-
-# Found by the live check's rehearsal --------------------------------------------------------
-
-def test_fix_runs_in_the_same_second_keep_their_own_folders(tmp_path, capsys, monkeypatch):
-    """LE1: the old and the new rule's runs each get a folder, with fingerprinted grades."""
-    from judgekeeper import fix
-
-    monkeypatch.chdir(tmp_path)
-    holder = _fake_fix_judge(tmp_path, monkeypatch)
-    ws = _fix_ready(tmp_path, capsys)
-    monkeypatch.setattr(fix, "utc_now", lambda: "2026-10-18T00:41:06Z")
-    code, out = _jk(capsys, "fix", "--yes")
-    assert code == 0 and holder["evals"] == 2, out
-    folders = sorted((ws.dir / "fix" / "runs").iterdir())
-    assert len(folders) == 2, folders
-    for folder in folders:
-        assert folder.name.startswith("2026-10-18T00-41-06Z-")
-        assert (folder / "promptfoo.json").is_file()
-        lines = (folder / "fix-1.jsonl").read_text(encoding="utf-8").splitlines()
-        graded = [json.loads(x) for x in lines[1:]]
-        assert graded and all(g["fingerprint"]["model"] == "openai:gpt-4.1-mini" for g in graded)
-
-
-def _anthropic_only(tmp_path, monkeypatch):
-    """LE2: a DeepEval GEval judged by an Anthropic model; only ANTHROPIC_API_KEY is set, and
-    DeepEval's default OpenAI model can't be built without its key."""
-    from tests.test_again_tools import _deepeval_model
-
-    ws = _deepeval_model(tmp_path, "claude-haiku-5-5 (Anthropic)", monkeypatch)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-    monkeypatch.setenv("STUB_DEFAULT_NEEDS_KEY", "1")
-    return ws
-
-
-def test_deepeval_builds_its_anthropic_judge_never_the_default_first(tmp_path, stubs,
-                                                                    monkeypatch):
-    import sys
-
-    from judgekeeper.again import AgainOptions, make_plan
-
-    ws = _anthropic_only(tmp_path, monkeypatch)
-    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
-    assert p.status != again.CANT, p.why
-    assert p.key_ok
-    assert all(e["kwargs"]["model"] is not None for e in stubs("construct"))  # never the default
-    assert [(e["cls"], e["model"]) for e in stubs("model")] == [("AnthropicModel",
-                                                                 "claude-haiku-5-5")]
-
-
-def test_deepevals_own_setup_command_is_the_next_step(tmp_path, stubs, monkeypatch):
-    import sys
-
-    from judgekeeper.again import AgainOptions, make_plan
-
-    ws = _anthropic_only(tmp_path, monkeypatch)
-    monkeypatch.setenv("STUB_MODEL_ERROR", "Anthropic is not set up: run `deepeval "
-                                           "set-anthropic --save=dotenv` first")
-    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
-    assert p.status == again.CANT
-    assert p.install == "deepeval set-anthropic --save=dotenv"
-    monkeypatch.setenv("STUB_MODEL_ERROR", "a quota error")
-    p = make_plan(ws, AgainOptions(python=sys.executable, fields="input,actual_output"))
-    assert p.status == again.CANT and p.install is None  # never a guess
-
-
-def test_back_to_the_marked_judge_after_a_worse_check(here, capsys, no_calls):
+def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
     """LE3: a check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again."""
     from tests.test_check import LENIENT, MARKED, _results
 
@@ -925,9 +631,9 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys, no_calls):
     assert judge_models(ws) == [MODEL]
 
 
-def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls):
+def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     """LE3: a check moved the marks to another model; the eval runs with the old LLM-as-a-judge again:
-    no AI call, and the result is the marks' own again."""
+    the result is the marks' own again."""
     from tests.test_check import MARKED, _results
 
     ws = _marked(here)
@@ -948,62 +654,3 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys, no_calls)
     code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
     assert code == 0 and "back to the one you marked with" in flat(out), out
     assert "has not changed since your last check" in _check(capsys)[1]
-
-
-def _reask(ws):
-    import sys
-
-    from judgekeeper.again import AgainOptions, make_plan
-    from tests.test_fix_swap import _Quiet
-
-    plan = make_plan(ws, AgainOptions(times=1, python=sys.executable,
-                                      fields="input,actual_output"), dry=True)
-    assert plan.status != again.CANT, plan.why
-    return again.run_tool(ws, plan, _Quiet())
-
-
-def test_an_inspect_reask_records_the_model_that_answered(tmp_path, stubs, monkeypatch):
-    """LE4: Inspect's model usage names the model that graded; it feeds the guard."""
-    from judgekeeper import check
-    from tests.test_again_python_run import _checked, _inspect, _saved
-
-    monkeypatch.setenv("STUB_ANSWER_MODEL", "anthropic/claude-haiku-5-5")
-    ws = _checked(tmp_path, _inspect())
-    stubs.plan(verdicts=_saved(ws))
-    fresh = _reask(ws)
-    assert fresh.models_used() == {"anthropic/claude-haiku-5-5"}
-    found = SimpleNamespace(models=["anthropic/claude-sonnet-5-5"], fingerprint={})
-    assert check.wrong_model(fresh.models_used(), found) == (
-        "anthropic/claude-haiku-5-5", "anthropic/claude-sonnet-5-5")
-
-
-def test_an_mlflow_reask_records_the_model_that_answered(tmp_path, stubs, monkeypatch):
-    """LE4: MLflow's feedback names its source, the model that answered."""
-    from tests.test_again_python_run import _mlflow_ws
-
-    monkeypatch.setenv("STUB_ANSWER_MODEL", "openai:/gpt-4.1-nano")
-    ws, _, by_input, verdicts = _mlflow_ws(tmp_path, monkeypatch)
-    stubs.plan(verdicts=verdicts, by_input=by_input)
-    fresh = _reask(ws)
-    assert fresh.models_used() == {"openai:/gpt-4.1-nano"}
-    out = next((ws.dir / "again").glob("*/mlflow.jsonl")).read_text(encoding="utf-8")
-    assert '"model": "openai:/gpt-4.1-nano"' in out
-
-
-def test_model_names_are_compared_without_their_provider_words():
-    from judgekeeper import check
-
-    found = SimpleNamespace(models=["openai:chat:gpt-4.1-nano"], fingerprint={})
-    assert check.wrong_model({"openai:gpt-4.1-nano", "gpt-4.1-nano"}, found) is None
-    assert check.wrong_model({"openai:chat:gpt-4.1-mini"}, found) == (
-        "openai:chat:gpt-4.1-mini", "openai:chat:gpt-4.1-nano")
-    found = SimpleNamespace(models=["ollama:llama3:8b"], fingerprint={})
-    assert check.wrong_model({"ollama:mistral:8b"}, found) is not None  # never just "8b"
-
-
-def test_a_quoted_key_with_a_comment_loses_its_quotes(tmp_path):
-    from judgekeeper.keys import config_env
-
-    config = tmp_path / "promptfooconfig.yaml"
-    config.write_text('env:\n  OPENAI_API_KEY: "sk-abc-123456"  # my key\n', encoding="utf-8")
-    assert config_env(config) == {"OPENAI_API_KEY": "sk-abc-123456"}

@@ -2,8 +2,7 @@
 
 From MLflow 3.16 a folder store opens only when MLFLOW_ALLOW_FILE_STORE=true is set. When
 judgekeeper reads a folder store, it sets the variable only for that read: around its own
-MLflow calls (then removes it again, also after an error), and in the asking-again worker's
-environment only. It says so once per run. A value the user set is left as it is, with
+MLflow calls (then removes it again, also after an error). It says so once per run. A value the user set is left as it is, with
 nothing said. mlflow.db and server stores are never given it. The folder stays byte for byte
 as it was.
 """
@@ -14,8 +13,7 @@ import os
 
 import pytest
 
-from judgekeeper import start, start_label
-from judgekeeper.again import mlflow as mf
+from judgekeeper import start
 from judgekeeper.readers import mlflow_store
 from judgekeeper.readers.mlflow_store import ALLOW, FOLDER_NOTE
 
@@ -88,15 +86,6 @@ def test_a_folder_given_as_a_file_address_counts(tmp_path):
     assert not mlflow_store.is_folder_store(f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}")
 
 
-def test_the_worker_gets_it_in_its_own_environment_only(tmp_path, monkeypatch):
-    env = mf.worker_env(str(tmp_path))
-    assert env[ALLOW] == "true" and env["MLFLOW_DISABLE_TELEMETRY"] == "true"
-    assert ALLOW not in os.environ
-    assert ALLOW not in mf.worker_env("sqlite:////tmp/x/mlflow.db")
-    monkeypatch.setenv(ALLOW, "false")  # the user's own value reaches the worker as it is
-    assert ALLOW not in mf.worker_env(str(tmp_path))
-
-
 # A real mlruns/ folder made by the installed MLflow -------------------------------------------
 
 @pytest.fixture
@@ -125,31 +114,3 @@ def test_start_says_nothing_when_the_user_set_it(project, capsys, monkeypatch):
     start.find_judge(project, talk=start.Talk())
     assert NOTE not in capsys.readouterr().out
     assert os.environ[ALLOW] == "true"
-
-
-def test_asking_again_reads_a_real_folder_store(project):
-    before = _state(project / "mlruns")
-    info = mf.assessment_info(start_label.Workspace(project), "helpful")
-    assert info["source_id"] == "openai:/gpt-4.1" and len(info["traces"]) == 4
-    assert info["uri"] == str(project / "mlruns")
-    assert ALLOW not in os.environ
-    assert _state(project / "mlruns") == before
-
-
-def test_the_asking_again_plan_gives_the_worker_the_setting(project, monkeypatch):
-    found = start.find_judge(project)
-    ws = start_label.prepare(found, say=lambda line="": None)
-    seen = []
-
-    def worker(tool, python, job, cwd, env=None, **kwargs):
-        seen.append((job.get("uri"), dict(env or {})))
-        return {"ok": False, "error": "stopped here by the test"}
-
-    monkeypatch.setattr("judgekeeper.again.run_worker", worker)
-    answers = [{"id": a.id, "input": a.input, "output": a.output} for a in found.pool.answers]
-    from judgekeeper.again import AgainOptions
-
-    mf.plan(ws, answers, AgainOptions(times=1), talk=None, dry=True)
-    ((uri, env),) = seen
-    assert uri == str(project / "mlruns") and env[ALLOW] == "true"
-    assert ALLOW not in os.environ

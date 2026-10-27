@@ -116,8 +116,8 @@ def test_the_home_terminal_has_a_screen_for_each_step_and_the_fix_test():
     assert list(screens) == ["find", "mark", "measure", "fix", "fix_test", "check"]
     for name, text in screens.items():
         lines = text.splitlines()
-        command = "judgekeeper fix" if name.startswith("fix") else \
-            "judgekeeper check" if name == "check" else "judgekeeper"
+        command = {"fix": "judgekeeper fix", "fix_test": "judgekeeper fix new-rule.json",
+                   "check": "judgekeeper check"}.get(name, "judgekeeper")
         assert lines[:2] == [f"$ {command}", f"judgekeeper {__version__}"], name
         assert lines[-1] and not lines[-1].startswith(" "), name
     # Without JavaScript the terminal shows the first screen.

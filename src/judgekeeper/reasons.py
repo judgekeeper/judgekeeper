@@ -11,7 +11,7 @@ grade, and the person doesn't know yet where they disagree.
 on the marking page after the grades were shown is stamped "after_result" (saw_grades).
 
 All the rest is plain counting and fixed templates, no AI: `fix`'s first clue, the "missed it
-or allowed it" check (mentioned) and suggestions.md. judgekeeper never writes rule.txt.
+or allowed it" check (mentioned) and suggestions.md. judgekeeper never writes the rule.
 """
 
 from __future__ import annotations
@@ -556,19 +556,17 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
     return suggested, once
 
 
-def suggestions_md(rows: list[dict], fix_folder: str, command: str = "judgekeeper fix",
-                   can_test: bool = True) -> str:
+def suggestions_md(rows: list[dict]) -> str:
     """.judgekeeper/fix/suggestions.md: the suggested rule lines from the person's reasons on
     the marks they can see, then everything given once, each with its answer fenced as data.
     The warning comes before any of the person's words, and each note is fenced."""
     from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced
 
     suggested, once = suggestions(rows)
-    where = (f"into {fix_folder}/rule.txt, then run `{command}` to test the new rule on your "
-             "marks kept aside" if can_test else "into your rule where your eval keeps it")
     parts = ["# Suggested rule lines", "",
              ("From your reasons on the answers you can see, counted (no AI). Copy the ones you "
-              f"agree with {where}. judgekeeper never changes your rule itself."), ""]
+              "agree with into your rule where your eval keeps it. judgekeeper never changes "
+              "your rule itself."), ""]
     if suggested or once:
         parts += [f"{DATA_WARNING} {MARKS}", ""]
     for line, n, notes in suggested:

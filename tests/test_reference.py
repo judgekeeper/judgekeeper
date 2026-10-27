@@ -24,7 +24,7 @@ COMMANDS = {None: "judgekeeper: find, mark, measure",
             "check": "check: re-check your LLM-as-a-judge after a change"}
 GONE_FLAGS = ("--review", "--fix", "--ask-again", "--try-new-judge", "--label-more",
               "--test-pass-mark", "--rule-file", "--times", "--allow-calls", "--python",
-              "--judge-command", "--agent-prompt")
+              "--judge-command", "--agent-prompt", "--fields")
 # The code prints a link to this heading's id, so its words stay.
 RECORD_HEADING = "record(): save your own LLM-as-a-judge's verdicts with one line"
 
@@ -124,7 +124,7 @@ def test_the_exit_codes_are_the_ones_the_commands_use():
 FILES = (".gitignore", "judge.json", "judge-check.json", "judge-check.csv", "start.json",
          "pool.jsonl", "pool-judge.jsonl", "marks.jsonl", "server.json", "page.json",
          "results-seen.json", "result.json", "report.html", "history.jsonl", "anchors.jsonl",
-         "anchors.manifest.json", "fix/split.json", "fix/mistakes.md", "fix/rule.txt",
+         "anchors.manifest.json", "fix/split.json", "fix/mistakes.md", "fix/marked-answers.csv",
          "rules/", "verdicts/", "previous-<date>/")
 
 
@@ -202,13 +202,15 @@ def test_the_table_format_and_record_are_described():
     assert RECORD_HEADING in sections
 
 
-def test_keys_are_only_used_by_the_eval_tool_and_every_ai_call_asks_first():
+def test_no_key_is_needed_and_none_is_ever_written():
     flat = _flat(_sections()["Your API keys"])
-    for needed in ("Your key is used only by your own eval tool",
+    for needed in ("judgekeeper makes no AI call and needs no API key",
+                   "It never runs your eval tool or your project's code",
                    "judgekeeper never prints a key or writes one to a file",
-                   "Before any AI call, judgekeeper says how many calls it makes and asks first",
                    "There is no flag that takes a key"):
         assert needed in flat, needed
+    for gone in ("Before any AI call", "asks first", "--yes"):
+        assert gone not in flat, gone
 
 
 def test_the_reference_keeps_to_the_agreed_words():

@@ -107,18 +107,6 @@ def test_start_reads_a_real_store_through_a_copy(tmp_path, monkeypatch):
     assert {k: after[k] for k in before} == before  # nothing the user had is touched
 
 
-def test_asking_again_reads_a_real_store_through_a_copy(tmp_path):
-    from judgekeeper import start_label
-    from judgekeeper.again import mlflow as mf
-    from tests.conftest import build_mlflow_store
-
-    build_mlflow_store(tmp_path)
-    info = mf.assessment_info(start_label.Workspace(tmp_path), "correctness")
-    assert info["uri"].startswith("sqlite:///") and "mode=ro" not in info["uri"]
-    assert Path(info["uri"].removeprefix("sqlite:///")) != tmp_path / "mlflow.db"
-    assert Path(info["uri"].removeprefix("sqlite:///")).is_file()  # kept for the worker
-
-
 def test_a_folder_store_reads_and_stays_as_it_was(tmp_path, monkeypatch):
     """judgekeeper reads an mlruns/ folder in place, and nothing in it changes."""
     from tests.conftest import build_mlflow_folder_store

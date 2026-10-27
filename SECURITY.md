@@ -6,7 +6,7 @@ Please report it privately: [Report a vulnerability](https://github.com/judgekee
 
 ## Your keys
 
-judgekeeper needs no API key of its own: your eval tool reads its keys and makes the calls. judgekeeper never writes a key to a file, and hides keys and anything shaped like one as `[REDACTED]` before it writes or prints text ([which keys](docs/reference.md#your-api-keys)).
+judgekeeper needs no API key and makes no AI call. When you grade answers again, your own eval tool reads its keys and makes the calls. judgekeeper never writes a key to a file, and hides keys and anything shaped like one as `[REDACTED]` before it writes or prints text ([which keys](docs/reference.md#your-api-keys)).
 
 ## The marking page
 
@@ -18,16 +18,16 @@ The details are in the [reference](docs/reference.md#judgekeeper-find-mark-measu
 
 ## What judgekeeper writes
 
-- judgekeeper writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` after you say yes, and two temporary files next to your promptfoo config while it asks your LLM-as-a-judge again.
+- judgekeeper writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` after you say yes.
 - It never edits other tools' settings: no editor or agent hooks, no git hooks.
 - It never writes through links. Results outside your project are read only when you name them.
 - Pages and spreadsheets it writes escape every value.
 
 The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
-## When it runs your project's code
+## It only reads files
 
-Asking your LLM-as-a-judge again (`judgekeeper fix` and `judgekeeper check`) runs your own eval tool and Python, so use it only in projects you trust. It asks before any AI call. The DeepEval, Inspect AI and MLflow scripts run from an empty temporary folder, so a `.env` or a key file in your project is not picked up by them. What runs before it asks, which promptfoo graders it will and won't run, and the project settings that make it refuse, are in [eval-tools.md](docs/eval-tools.md#asking-again).
+judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call and costs nothing. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
 
 ## Other things
 

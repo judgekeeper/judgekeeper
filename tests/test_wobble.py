@@ -87,18 +87,3 @@ def test_a_wobbling_judge_gets_wider_ranges_and_the_same_numbers():
         width = wobbly[f"{k}_interval"][1] - wobbly[f"{k}_interval"][0]
         assert width > steady[f"{k}_interval"][1] - steady[f"{k}_interval"][0]
     assert wobbly["interval_methods"]["tpr"] == "jeffreys, with the judge's wobble"
-
-
-def test_check_widens_the_numbers_after_a_change_for_the_wobble():
-    from judgekeeper import check
-
-    n = check.AFTER_NUMBERS
-    marks = {f"p{i}": "pass" for i in range(n)} | {f"f{i}": "fail" for i in range(n)}
-    tested = {i: m if i not in ("p0", "f0") else ("fail" if m == "pass" else "pass")
-              for i, m in marks.items()}
-    picked = {i: m for i, m in marks.items()}
-    pool = {"pass": 800, "fail": 200}
-    steady = check._after_lines(marks, tested, picked, pool)
-    wobbly = check._after_lines(marks, tested, picked, pool, wobble=0.1)
-    assert steady[0] == wobbly[0] and steady[1] != wobbly[1]
-    assert "about 90% (between" in wobbly[1] and len(wobbly[1]) <= 80

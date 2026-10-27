@@ -4,10 +4,10 @@ every JSONL file is read by "\\n" only, so they stay inside their answer."""
 
 from __future__ import annotations
 
+import csv
 import json
 
-from judgekeeper import start, start_label
-from judgekeeper.again import AgainOptions, labeled_answers, make_plan
+from judgekeeper import fix, start, start_label
 from judgekeeper.start_label import StartSession
 from judgekeeper.textio import jsonl_lines
 from tests.start_projects import promptfoo_project, records_project, save_result, split
@@ -37,8 +37,9 @@ def test_an_answer_with_line_separators_goes_through_every_step(tmp_path):
     session = StartSession(ws)
     assert sorted(r["output"] for r in session.raw.values()) == sorted(outputs)
 
-    assert sorted(a["output"] for a in labeled_answers(ws)) == sorted(outputs)
-    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
+    fix.write_answers(ws, fix.Marks(ws))  # the answers to grade again keep them too
+    with (ws.dir / "fix" / fix.ANSWERS).open(encoding="utf-8", newline="") as f:
+        assert sorted(r["answer"] for r in csv.DictReader(f)) == sorted(outputs)
 
 
 def test_record_files_with_line_separators_are_read(tmp_path):

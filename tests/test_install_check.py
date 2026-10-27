@@ -363,17 +363,16 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
 
 
 def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
-    """With the new rule in the results: `check --yes` (the person's yes to any calls, with no
-    terminal) re-tests it on the marks; no flag of the automatic checks is run, and no step
-    runs `judgekeeper start`, which is gone."""
+    """With the new rule in the results: `check` re-tests it on the marks; no flag of the
+    automatic checks is run, and no step runs `judgekeeper start`, which is gone."""
     check, ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
     assert not [args for _, args, _, _ in ran if args[:1] == ["start"]]
     main = _in(ran, check.project)
     commands = [args for args, _, _ in main]
     end = commands.index(["--stop"])
-    assert commands[end + 1:] == [["fix"], ["fix", "--yes"], ["check", "--yes"]]
-    assert [args for _, args, _, _ in ran if args[:1] == ["check"]] == [["check", "--yes"]]
-    assert ran[-1][1] == ["check", "--yes"]
+    assert commands[end + 1:] == [["fix"], ["check"]]
+    assert [args for _, args, _, _ in ran if args[:1] == ["check"]] == [["check"]]
+    assert ran[-1][1] == ["check"]
     assert any("Agreed with you:" in e for e in main[-1][1])
 
 
@@ -399,22 +398,14 @@ def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_p
 
 
 def test_the_walk_runs_fix_after_the_result(ic, monkeypatch, tmp_path):
-    """`judgekeeper fix` (where the judge goes wrong), then for a judge whose rule it can swap,
-    a new rule in .judgekeeper/fix/rule.txt and `judgekeeper fix --yes` (the test). For one it
-    can't, fix says it can't ask that judge itself."""
-    check, ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path / "p")
-    main = _in(ran, check.project)
-    commands = [args for args, _, _ in main]
-    end = commands.index(["--stop"])
-    assert commands[end + 1:end + 3] == [["fix"], ["fix", "--yes"]]
-    assert any("Step 4 of 5: Fix" in e for e in main[end + 1][1])
-    assert any("tested on the" in e and "kept aside" in e for e in main[end + 2][1])
-    rule = check.project / ".judgekeeper" / "fix" / "rule.txt"
-    assert rule.read_text(encoding="utf-8").strip() == ic.rule_for("promptfoo", ic.RULE_NEW)
-    check, ran, _, _ = _walk(ic, monkeypatch, "table", tmp_path / "t")
-    main = _in(ran, check.project)
-    commands = [args for args, _, _ in main]
-    end = commands.index(["--stop"])
-    assert commands[end + 1] == ["fix"] and ["fix", "--yes"] not in commands
-    assert "judgekeeper can't ask this LLM-as-a-judge itself\\." in main[end + 1][1]
-    assert main[end + 1][2] == (3,)
+    """`judgekeeper fix` (where the judge goes wrong, and the marked answers to grade again),
+    for every tool; it never asks the judge or tests a rule itself."""
+    for tool in ("promptfoo", "table"):
+        check, ran, _, _ = _walk(ic, monkeypatch, tool, tmp_path / tool)
+        main = _in(ran, check.project)
+        commands = [args for args, _, _ in main]
+        end = commands.index(["--stop"])
+        assert commands[end + 1:] == [["fix"], ["check"]]
+        assert main[end + 1][1] == [r"Step 4 of 5: Fix", r"mistakes\.md",
+                                    r"marked-answers\.csv"]
+        assert main[end + 1][2] == (0,)

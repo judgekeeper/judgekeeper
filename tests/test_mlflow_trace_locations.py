@@ -6,8 +6,8 @@ the MLflow login in the environment, for any trace whose spans are not in the da
 judgekeeper reads only its own temporary copy of mlflow.db, and in that copy every location is
 pointed into the copy's own folder unless it is a local folder inside the folder that holds
 mlflow.db. Those traces are read from the short previews the store keeps, and said. While
-judgekeeper reads a store, and in every MLflow worker, the MLflow login is not in the
-environment: a local store never needs it.
+judgekeeper reads a store (also when `judgekeeper check` reads it again), the MLflow login is
+not in the environment: a local store never needs it.
 
 Every store is made by the installed MLflow in another process (skipped without it); a local
 listener counts every request that would have gone elsewhere.
@@ -15,7 +15,6 @@ listener counts every request that would have gone elsewhere.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import shutil
@@ -29,9 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import again, keys, start, start_label
-from judgekeeper.again import AgainOptions
-from judgekeeper.again import mlflow as mf
+from judgekeeper import keys, start, start_label
+from judgekeeper.cli import main
 from judgekeeper.readers import mlflow_store
 from judgekeeper.records import Damaged
 from judgekeeper.start_label import StartSession
@@ -188,32 +186,20 @@ def test_find_fetches_nothing_and_reads_the_previews(made, tmp_path, listener, c
     assert (root / "mlflow.db").read_bytes() == before  # the person's store: same bytes
 
 
-def test_the_plan_and_the_run_fetch_nothing(made, tmp_path, listener, stubs, monkeypatch):
-    from tests.test_again_run import ask_again
-
+def test_check_reads_the_store_again_and_fetches_nothing(made, tmp_path, listener, monkeypatch,
+                                                       capsys):
     address, asked = listener
     root = _project(made, tmp_path)
-    ws = _marked(root)
+    _marked(root)
     _elsewhere(root / "mlflow.db", address)
     before = (root / "mlflow.db").read_bytes()
     mlflow_store.remove_copies()
-    envs = []
-    real = again.run_process
-
-    def spy(argv, cwd, env=None, timeout=None):
-        envs.append(dict(env or {}))
-        return real(argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", spy)
-    plan = again.make_plan(ws, AgainOptions(python=sys.executable))
+    monkeypatch.chdir(root)
+    capsys.readouterr()
+    code = main(["check"])
+    out = " ".join(capsys.readouterr().out.split())
     assert asked == []
-    assert plan.status != again.CANT, plan.why
-    assert plan.answers == N
-    code, out = ask_again(ws, "--python", sys.executable, "--times", "1")
-    assert code == 0, out
-    assert asked == []
-    assert envs and all(not set(LOGIN) & set(env) for env in envs)
-    assert all(env.get("OPENAI_API_KEY") == "x" * 30 for env in envs)  # the judge's own key
+    assert code == 0 and "Your LLM-as-a-judge has not changed" in out, out
     assert (root / "mlflow.db").read_bytes() == before
 
 
@@ -229,29 +215,8 @@ def test_the_mlflow_login_is_out_of_the_environment_while_a_store_is_read(made, 
 
     monkeypatch.setattr(mlflow_store, "_traces", spy)
     start.find_judge(root)
-    mf.assessment_info(start_label.Workspace(root), "correctness")
     assert seen and all(s == set() for s in seen)
     assert os.environ["MLFLOW_TRACKING_PASSWORD"] == "not-a-real-password"  # put back after
-
-
-def test_the_worker_reads_a_trace_kept_elsewhere_from_the_store_alone(made, tmp_path,
-                                                                     listener):
-    address, asked = listener
-    root = _project(made, tmp_path)
-    _elsewhere(root / "mlflow.db", address)
-    info = mf.assessment_info(start_label.Workspace(root), "correctness")
-    spec = importlib.util.spec_from_file_location(
-        "jk_mlflow_worker", Path(again.__file__).parent / "workers" / "mlflow_worker.py")
-    worker = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(worker)
-    from mlflow import MlflowClient
-
-    client = MlflowClient(tracking_uri=info["uri"])
-    trace_id = next(iter(info["traces"].values()))
-    trace = worker.get_trace(client, info["uri"], trace_id, {})
-    assert asked == []
-    assert trace.info.trace_id == trace_id and not trace.data.spans
-    assert trace.info.assessments  # the expectations come from the trace's own assessments
 
 
 def test_a_trigger_in_the_store_cant_put_a_location_back(made, tmp_path, listener):
@@ -314,8 +279,6 @@ def test_an_older_store_with_spans_under_mlartifacts_is_read_in_full(made, tmp_p
     with mlflow_store.quiet():
         traces = list(mlflow_store._traces(client, exp))
     assert len(traces) == N and all(t.data.spans for t in traces)
-    info = mf.assessment_info(start_label.Workspace(root), "correctness")
-    assert len(info["traces"]) == N
     assert asked == []
 
 
@@ -388,7 +351,6 @@ def test_a_location_written_after_the_copy_is_made_is_never_fetched(made, tmp_pa
     finally:
         assert asked == []
     assert len(found.pool.answers) == N
-    mf.assessment_info(start_label.Workspace(root), "correctness")
     assert asked == []
 
 

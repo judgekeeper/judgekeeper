@@ -39,13 +39,13 @@ class MarkTalk(front.FrontTalk):
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
         experiment: str | None = None, tracking_uri: str | None = None,
         pass_if: str | None = None, label_map: str | None = None,
-        judge_model: str | None = None, fields: str | None = None, yes: bool = False,
+        judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
         wait: bool = False, stop: bool = False) -> int:
     """`judgekeeper mark`. Returns the exit code."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
-               "judge_model": judge_model, "fields": fields, "port": port,
+               "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = MarkTalk(yes=yes, path=path, options=options, new=new)
     return front.go(talk, Path(path), wait=wait, stop=stop, marking=True)

@@ -1,10 +1,8 @@
 """`judgekeeper check`: when the LLM-as-a-judge's setup changed since the last check, re-test the new
-judge on the person's marks. Free first (marked answers whose exact text is in the newest
-results), then, only after the person's yes, the person's own judge is asked about the rest;
-a one-sided paired test per group; a history line; exit 0, 1 (worse) or 3.
+judge on the person's marks: the marked answers whose exact text is in the newest results; a
+one-sided paired test per group; a history line; exit 0, 1 (a drop over 20 points) or 3.
 
-No test calls a paid API or needs promptfoo: asking again goes through the fake promptfoo of
-test_again_run.
+No test calls an LLM: check only reads the results files.
 """
 
 from __future__ import annotations
@@ -18,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import again, check, judge_setup, keys, start, start_label
+from judgekeeper import check, judge_setup, start, start_label
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import (
@@ -27,11 +25,9 @@ from tests.start_projects import (
     deepeval_data,
     deepeval_project,
     inspect_data,
-    project_promptfoo,
     promptfoo_data,
     split,
 )
-from tests.test_again_run import FakePromptfoo
 
 TAG = " SECRET-c4e1"
 HAIKU = "anthropic:claude-haiku-4-5"
@@ -88,45 +84,11 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.fixture
-def no_calls(monkeypatch):
-    """Any process judgekeeper starts to ask the LLM-as-a-judge fails the test."""
-    def refuse(*args, **kwargs):
-        raise AssertionError("the LLM-as-a-judge was asked")
-
-    monkeypatch.setattr(again, "run_process", refuse)
-
-
-@pytest.fixture
-def judge(monkeypatch, here):
-    """The project's own promptfoo (the fake, version 0.124.1) and a key in the shell."""
-    project_promptfoo(here)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-    monkeypatch.setattr(again, "which", lambda name: None)
-    holder = {}
-
-    def runner(argv, cwd, env=None, timeout=None):
-        if "fake" not in holder:  # the newest results are read when first called
-            holder["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-        return holder["fake"](argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", runner)
-    return holder
-
-
 def run(capsys, *argv, stdin=None, monkeypatch=None):
     code = main(["check", *argv])
     out, err = capsys.readouterr()
     assert TAG.strip() not in out + err
     return code, out
-
-
-def _evals(holder) -> int:
-    fake = holder.get("fake")
-    return sum("eval" in c.argv for c in fake.calls) if fake else 0
 
 
 def _history(ws):
@@ -166,7 +128,7 @@ def test_check_remembers_the_setup_and_reads_nothing_next_time(here, capsys, mon
     assert code == 0 and "Your LLM-as-a-judge has not changed" in out
 
 
-def test_check_reads_again_when_the_results_change(here, capsys, no_calls):
+def test_check_reads_again_when_the_results_change(here, capsys):
     _marked(here)
     run(capsys)
     _results(here, MARKED, version="0.125.0")  # the same size, maybe the same modified time
@@ -221,7 +183,6 @@ SCENE_6 = [
     "",
     "Your LLM-as-a-judge's model changed:",
     f"  {MODEL} -> {HAIKU}",
-    "Re-checked with no AI call, from your new results.",
     "",
     "Result: worse. Your new LLM-as-a-judge agrees with you less.",
     "",
@@ -233,10 +194,12 @@ SCENE_6 = [
     "On answers you fail, agreement drops by about 36 in every 100",
     "(somewhere between 22 and 52).",
     "",
+    check.ONE_RUN,
+    "",
 ]
 
 
-def test_a_model_change_rechecked_free(here, capsys, no_calls):
+def test_a_model_change_rechecked_free(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     code, out = run(capsys)
@@ -252,7 +215,7 @@ def test_a_model_change_rechecked_free(here, capsys, no_calls):
     assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
 
 
-def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_calls):
+def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _marked(here)
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
@@ -269,7 +232,7 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys, no_c
     assert f"Your LLM-as-a-judge has not changed since your last check ({day.day} " in out
 
 
-def test_the_same_judge_has_nothing_to_check(here, capsys, no_calls):
+def test_the_same_judge_has_nothing_to_check(here, capsys):
     _marked(here)
     code, out = run(capsys)
     assert code == 0
@@ -277,7 +240,7 @@ def test_the_same_judge_has_nothing_to_check(here, capsys, no_calls):
     assert _history(Workspace(here)) == []
 
 
-def test_a_rule_change(here, capsys, no_calls):
+def test_a_rule_change(here, capsys):
     _marked(here)
     _results(here, MARKED, rubric="Is polite, correct and short.")
     code, out = run(capsys)
@@ -285,7 +248,7 @@ def test_a_rule_change(here, capsys, no_calls):
     assert "Your LLM-as-a-judge changed: rule changed." in out
 
 
-def test_a_pass_mark_change(here, capsys, no_calls):
+def test_a_pass_mark_change(here, capsys):
     deepeval_project(here, split(25, 25), tag=TAG)
     (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
     found = start.find_judge(here)
@@ -303,18 +266,17 @@ def test_a_pass_mark_change(here, capsys, no_calls):
     assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in out
 
 
-def test_a_promptfoo_version_bump_only(here, capsys, no_calls):
+def test_a_promptfoo_version_bump_only(here, capsys):
     _marked(here)
     _results(here, MARKED, version="0.125.0")
     code, out = run(capsys)
     assert code == 0
     assert ("Your eval tool changed: promptfoo 0.124.1 -> 0.125.0. Your LLM-as-a-judge's rule and model "
             "are the same.") in _flat(out)
-    assert "Re-checked with no AI call, from your new results." in out
     assert TABLE_HEAD in out
 
 
-def test_an_inspect_version_bump_only(here, capsys, no_calls):
+def test_an_inspect_version_bump_only(here, capsys):
     log = inspect_data(split(25, 25), tag=TAG)
     log["eval"]["packages"] = {"inspect_ai": "0.3.278"}
     _write(here / "logs" / "a.json", log)
@@ -332,198 +294,54 @@ def test_an_inspect_version_bump_only(here, capsys, no_calls):
             "model are the same.") in _flat(out)
 
 
-# check: asking the judge, only after a yes -----------------------------------------------------
+# check: only the marked answers in the new results ----------------------------------------
 
-ASK = ("judgekeeper will have your new LLM-as-a-judge grade your 50 marked answers, twice each: "
-       "100 AI calls, paid with your own key.")
-
-
-@pytest.fixture
-def terminal(monkeypatch):
-    """A person at a terminal, answering the question with each of `answers` in turn."""
-    answers, prompts = [], []
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-
-    def fake_input(prompt=""):
-        prompts.append(prompt)
-        if not answers:
-            raise EOFError
-        return answers.pop(0)
-
-    monkeypatch.setattr("builtins.input", fake_input)
-    return answers, prompts
-
-
-def test_without_a_terminal_or_yes_the_judge_is_never_asked(here, capsys, judge):
-    ws = _marked(here)
-    before = (ws.dir / "judge.json").read_bytes()
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys)
-    assert code == 3
-    assert ASK in " ".join(out.split())
-    assert "Answers you passed" not in out
-    assert _next(out) == ("Next: run `judgekeeper check` in your terminal to answer, or "
-                          "`judgekeeper check --yes` to go ahead.")
-    assert (ws.dir / "judge.json").read_bytes() == before
-    assert _history(ws) == []
-    assert _evals(judge) == 0
-
-
-def test_with_yes_the_rest_is_asked_again(here, capsys, judge):
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys, "--yes")
-    assert code == 1
-    assert TABLE_HEAD in out
-    assert "Re-checked for free" not in out
-    assert "  When you said Fail    25 of 25             16 of 25             Worse" in out
-    assert _evals(judge) == 1
-    tests = judge["fake"].files_seen["tests"]
-    assert len(tests) == 50
-    assert all("(v2)" not in str(t["providerOutput"]) for t in tests)  # the marked answers
-    assert "close copy" not in out  # the same promptfoo version: exactly the judge
-
-
-def test_at_a_terminal_yes_asks_the_judge(here, capsys, judge, terminal):
-    answers, prompts = terminal
-    answers.append("y")
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys)
-    assert code == 1
-    assert prompts == ["Go ahead? [y/N] "]
-    assert ASK in " ".join(out.split())
-    assert _evals(judge) == 1
-
-
-@pytest.mark.parametrize("said", ["", "n", "no"])
-def test_at_a_terminal_no_is_the_default(here, capsys, judge, terminal, said):
-    terminal[0].append(said)
-    ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    code, out = run(capsys)
-    assert code == 3
-    assert "Your LLM-as-a-judge was not asked." in out
-    assert _history(ws) == []
-    assert _evals(judge) == 0
-
-
-def test_a_checks_folder_that_is_a_link_stops_check_before_any_call(here, capsys, judge,
-                                                                    tmp_path_factory):
-    ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    outside = tmp_path_factory.mktemp("outside")
-    shutil.rmtree(ws.dir / "checks", ignore_errors=True)
-    try:
-        os.symlink(outside, ws.dir / "checks", target_is_directory=True)
-    except (OSError, NotImplementedError):
-        pytest.skip("this system cannot make links")
-    code = main(["check", "--yes"])
-    out, err = capsys.readouterr()
-    assert code == 3
-    assert list(outside.iterdir()) == []
-    assert _evals(judge) == 0
-    assert f"error: {os.path.join('.judgekeeper', 'checks')} is a link." in err
-    assert "didn't expect" not in out + err
-    assert _history(ws) == []
-
-
-def test_when_every_call_fails_check_says_no_answer_was_graded(here, capsys, judge):
-    from tests.test_fix import AUTH_ERROR
-
-    ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-    fake.grader_errors, fake.error_text = {q["id"] for q in ws.data()["queue"]}, AUTH_ERROR
-    code, out = run(capsys, "--yes")
-    assert code == 3
-    assert "No answer was graded: every call failed (authentication error)." in _flat(out)
-    assert "not counted" not in out and TABLE_HEAD not in out
-    assert _history(ws) == []
-
-
-def test_when_every_new_call_fails_check_exits_3_after_the_free_ones(here, capsys, judge):
-    from tests.test_fix import AUTH_ERROR
-
-    _marked(here)
-    outputs = [answer(i, TAG) if i % 2 else f"{answer(i, TAG)} (v2)" for i in range(50)]
-    _results(here, MARKED, model=HAIKU, outputs=outputs)
-
-    class Every:  # each answer asked, whatever its new id
-        def __contains__(self, item):
-            return True
-
-    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-    fake.grader_errors, fake.error_text = Every(), AUTH_ERROR
-    code, out = run(capsys, "--yes")
-    flat = _flat(out)
-    assert "Re-checked with no AI call, from your new results." in flat
-    assert "No answer was graded: every call failed (authentication error)." in flat
-    assert "Next: check the key your LLM-as-a-judge uses" in flat
-    assert code == 3
-
-
-def test_a_free_recheck_asks_nothing(here, capsys, no_calls, terminal):
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU)
-    code, out = run(capsys)
-    assert code == 1
-    assert terminal[1] == [] and "Go ahead?" not in out
-
-
-def test_some_free_and_a_no_tests_the_free_ones(here, capsys, judge, terminal):
-    terminal[0].append("n")
+def test_some_marked_answers_not_in_the_new_results_are_left_out(here, capsys):
     _marked(here)
     outputs = [answer(i, TAG) if i < 20 or 25 <= i < 45 else f"{answer(i, TAG)} (v2)"
                for i in range(50)]
     _results(here, MARKED, model=HAIKU, outputs=outputs)
     code, out = run(capsys)
     assert code == 0
-    assert ("judgekeeper will have your new LLM-as-a-judge grade the other 10 marked answers, "
-            "twice each: 20 AI calls") in _flat(out)
+    assert check.NOT_IN.format(k=10, n="50 marked answers", them="them") \
+        in _flat(out)
     assert "Re-checked on 40 of your 50 marks:" in out
 
 
-def test_a_close_copy_is_said(here, capsys, judge):
-    _marked(here)
-    _results(here, MARKED, model=HAIKU, version="0.125.0", outputs=_new_outputs())
-    code, out = run(capsys, "--yes")
-    assert code == 0
-    assert re.search(r"This was a close copy of your LLM-as-a-judge, not an exact one: .*0\.124\.1.*"
-                     r"0\.125\.0", _flat(out))
-
-
-def test_free_first_then_asked(here, capsys, judge):
-    _marked(here)
-    outputs = [answer(i, TAG) if i % 2 else f"{answer(i, TAG)} (v2)" for i in range(50)]
-    _results(here, MARKED, model=HAIKU, outputs=outputs)
-    code, out = run(capsys, "--yes")
-    assert code == 0
-    assert TABLE_HEAD in out
-    assert len(judge["fake"].files_seen["tests"]) == 25
-
-
-def test_the_question_says_when_the_judge_can_change_files(here, capsys, judge):
-    _marked(here, agent=True)
-    _results(here, MARKED, model=HAIKU, outputs=_new_outputs(), agent=True)
-    code, out = run(capsys)
+def test_a_verdicts_folder_that_is_a_link_is_not_written_through(here, capsys,
+                                                                tmp_path_factory):
+    ws = _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    outside = tmp_path_factory.mktemp("outside")
+    shutil.rmtree(ws.dir / check.VERDICTS, ignore_errors=True)
+    try:
+        os.symlink(outside, ws.dir / check.VERDICTS, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this system cannot make links")
+    code = main(["check"])
+    out, err = capsys.readouterr()
     assert code == 3
-    assert "Your LLM-as-a-judge is an agent that can change files when it runs." in out
-    assert _evals(judge) == 0
+    assert list(outside.iterdir()) == []
+    assert f"error: {os.path.join('.judgekeeper', check.VERDICTS)} is a link." in err
+    assert "didn't expect" not in out + err
 
 
-def test_nothing_tested_keeps_the_check_pending(here, capsys, no_calls):
+def test_nothing_tested_keeps_the_check_pending(here, capsys):
     ws = _marked(here)
     before = (ws.dir / "judge.json").read_bytes()
     _results(here, MARKED, model=HAIKU, outputs=_new_outputs())
-    assert run(capsys)[0] == 3
+    code, out = run(capsys)
+    assert code == 3
+    assert check.NONE_IN.format(n="50 marked answers") in _flat(out)
+    assert "Answers you passed" not in out and TABLE_HEAD not in out
     assert (ws.dir / "judge.json").read_bytes() == before
+    assert _history(ws) == []
     assert run(capsys)[0] == 3  # said again, not "no change"
 
 
 # The old verdicts: the last check's, else the results the marks were made on -------------
 
-def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_calls):
+def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys):
     _marked(here)
     _results(here, MARKED, model=HAIKU)  # no drop: judge.json moves to this judge
     assert run(capsys)[0] == 0
@@ -537,7 +355,7 @@ def test_the_next_check_compares_with_the_last_checks_verdicts(here, capsys, no_
 
 # History and saved verdicts -------------------------------------------------------------------
 
-def test_a_history_line_per_check(here, capsys, no_calls):
+def test_a_history_line_per_check(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     run(capsys)
@@ -545,8 +363,8 @@ def test_a_history_line_per_check(here, capsys, no_calls):
     assert line["trigger"] == "by hand"
     assert line["before"]["models"] == [MODEL] and line["after"]["models"] == [HAIKU]
     assert line["changed"] == [f"model {MODEL} -> {HAIKU}"]
-    assert (line["marks"], line["free"], line["asked"], line["calls"]) == (50, 50, 0, 0)
-    assert line["exact"] == "exact"
+    assert (line["marks"], line["free"]) == (50, 50)
+    assert not {"asked", "calls", "exact"} & set(line)
     failed = line["groups"]["failed"]
     assert (failed["now_wrong"], failed["now_right"], failed["verdict"]) == (9, 0, "worse")
     assert line["groups"]["passed"]["verdict"] == "no_drop"
@@ -556,10 +374,10 @@ def test_a_history_line_per_check(here, capsys, no_calls):
     assert isinstance(line["smallest_drop"], int) and line["time"].endswith("Z")
 
 
-def test_no_answer_text_in_history_verdicts_or_output(here, capsys, judge):
+def test_no_answer_text_in_history_verdicts_or_output(here, capsys):
     ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    run(capsys, "--yes")  # run() checks the output
+    _results(here, LENIENT, model=HAIKU)
+    run(capsys)  # run() checks the output
     texts = [(ws.dir / "history.jsonl").read_text(encoding="utf-8")]
     texts += [p.read_text(encoding="utf-8") for p in (ws.dir / "verdicts").glob("*.jsonl")]
     assert len(texts) >= 2
@@ -567,7 +385,7 @@ def test_no_answer_text_in_history_verdicts_or_output(here, capsys, judge):
         assert TAG.strip() not in text and "Question" not in text and "Answer" not in text
 
 
-def test_verdicts_are_kept_by_setup(here, capsys, no_calls):
+def test_verdicts_are_kept_by_setup(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     run(capsys)
@@ -579,11 +397,11 @@ def test_verdicts_are_kept_by_setup(here, capsys, no_calls):
     assert len(lines) == 50 and set(lines[0]) == {"id", "verdict"}
 
 
-def test_history_and_verdicts_stay_on_new(here, capsys, no_calls):
+def test_history_and_verdicts_stay_on_new(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
     run(capsys)
-    from judgekeeper.start_again import move_to_previous
+    from judgekeeper.project import move_to_previous
 
     moved = move_to_previous(ws, _quiet)
     assert (ws.dir / "history.jsonl").is_file() and (ws.dir / "verdicts").is_dir()
@@ -592,7 +410,7 @@ def test_history_and_verdicts_stay_on_new(here, capsys, no_calls):
 
 # The report after a check ----------------------------------------------------------------------
 
-def test_a_check_writes_the_report_again_with_no_history_on_it(here, capsys, no_calls):
+def test_a_check_writes_the_report_again_with_no_history_on_it(here, capsys):
     from judgekeeper.cli import main as cli
 
     ws = _marked(here)

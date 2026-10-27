@@ -257,7 +257,8 @@ def test_fix_links_every_file_it_asks_you_to_open(here, capsys, monkeypatch):
     shown = linked(again)
     fix_folder = here / ".judgekeeper" / "fix"
     assert shown[".judgekeeper/fix/mistakes.md"] == _url_of(fix_folder / "mistakes.md")
-    assert shown[".judgekeeper/fix/rule.txt"] == _url_of(fix_folder / "rule.txt")
+    assert shown[".judgekeeper/fix/marked-answers.csv"] == _url_of(
+        fix_folder / "marked-answers.csv")
     assert shown["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
     assert "\x1b" not in LINK.sub("", again)
 

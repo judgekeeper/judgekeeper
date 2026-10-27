@@ -67,28 +67,15 @@ def test_the_old_words_are_gone():
 
 
 def test_the_new_words():
-    from judgekeeper import check, start
-    from judgekeeper.again import deepeval, inspect, mlflow, promptfoo
-
-    assert "Re-checked with no AI call, from your new results." in Path(check.__file__).read_text(
-        encoding="utf-8")
-    for module in (deepeval, inspect, mlflow, promptfoo):
-        text = Path(module.__file__).read_text(encoding="utf-8")
-        assert "Your eval's code is not run." in text, module.__name__
-        assert "Your app" not in text, module.__name__
-    assert "the trace of your app or agent's run" in Path(promptfoo.__file__).read_text(
-        encoding="utf-8")
     assert start_label.GITIGNORE.startswith("# judgekeeper's files hold your answers. ")
-    assert Path(start.__file__).read_text(encoding="utf-8").count("(it runs no test)") >= 2
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "Finding, marking and the result need no API key and make no AI call." in readme
-    assert "Fix and Re-check run your eval tool" in readme
-    assert "never runs your eval's code" not in readme  # Fix and Re-check do run it
+    assert ("judgekeeper only reads files. It never runs your eval tool, makes no AI call and "
+            "needs no API key.") in readme
+    assert "Fix and Re-check run your eval tool" not in readme
     assert "![judgekeeper finds the results, opens the marking page" in readme
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "What the first check found" in ref
-    assert "with the saved scores, with no AI call" in ref
-    assert "First, with no AI call: answers you marked" in ref
+    assert "judgekeeper makes no AI call and needs no API key." in ref
     assert "The browser check on the website (`check.html`)" in (
         ROOT / "SECURITY.md").read_text(encoding="utf-8")
 
@@ -423,9 +410,9 @@ def test_the_old_link_page_runs_no_script():
 # The Next step on the page, every answer marked ---------------------------------------------
 
 READING = {"tool": "mlflow", "experiment": "7", "tracking_uri": "sqlite:///m.db",
-           "metric": "tone", "fields": "question,answer", "judge_model": "gpt-4.1"}
+           "metric": "tone", "judge_model": "gpt-4.1"}
 READ = ("judgekeeper mark --tool mlflow --metric tone --experiment 7 --tracking-uri "
-        f"sqlite:///m.db --judge-model gpt-4.1 --fields {quote_arg('question,answer')}")
+        "sqlite:///m.db --judge-model gpt-4.1")
 # every flag that reads results, in start.REPEATED's order, quoted for the system in use
 
 

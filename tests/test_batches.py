@@ -665,7 +665,7 @@ def test_a_check_of_a_partial_eval_says_to_run_it_on_all_questions(here, capsys,
     partial = split(20, 16)[:10]
     partial[0] = not partial[0]
     table_project(here, partial)  # the eval ran on 10 questions, over the old file
-    _, out, _ = run(capsys, "check", "--yes")
+    _, out, _ = run(capsys, "check")
     assert "more questions" not in out, out
     assert _next(out) == ("Next: run your eval on all your questions, then run "
                           "`judgekeeper check`."), out

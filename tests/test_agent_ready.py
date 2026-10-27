@@ -19,7 +19,6 @@ import sys
 import pytest
 
 from judgekeeper import start, start_label
-from judgekeeper.again import inspect as again_inspect
 from judgekeeper.cli import main
 from judgekeeper.normalise import Normaliser
 from judgekeeper.readers import read_inspect
@@ -87,7 +86,7 @@ def test_two_inspect_runs_with_the_same_answer_stay_two_answers(tmp_path):
     pool = start.build_pool([("agent.json", records)], "model_graded_qa",
                             Normaliser(label_map={"C": "pass", "I": "fail"}))
     assert len(pool.answers) == 2 and pool.n_merged == 0
-    # asking again finds each answer's sample by the same key
+    # each answer keeps its own sample's key
     assert {a.id for a in pool.answers} == {sample_key(s) for s in data["samples"]}
 
 
@@ -102,13 +101,6 @@ def test_dict_valued_scores_are_one_judge_per_key(tmp_path):
     assert by_name["rubric.tone"].explanation == "reason 1"
     prompts = {r.evaluator["prompt"] for r in by_name.values()}
     assert len(prompts) == 1  # one scorer, one prompt
-
-
-def test_asking_again_about_one_key_of_a_dict_score_says_why_not():
-    spec = {"scorers": [{"name": "rubric", "options": {}}]}
-    assert "several decisions at once" in again_inspect.several_verdicts("rubric.tone", spec)
-    assert again_inspect.several_verdicts("model_graded_qa", spec) is None
-    assert again_inspect.several_verdicts("other.tone", spec) is None
 
 
 # MLflow ----------------------------------------------------------------------------------

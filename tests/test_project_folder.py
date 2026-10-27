@@ -3,9 +3,11 @@
 - A results file given by path keeps `.judgekeeper/` in the project the command runs from;
   every command finds the same marks and page from the project and from a folder inside it.
 - Every answer marked with too few of one kind is said plainly, in the same words everywhere.
-- A table judge whose grades changed in the newest results is re-checked on them (no AI
-  call), and after a check the result and `fix` describe the newest LLM-as-a-judge.
-- `fix` for an LLM-as-a-judge it can't ask never asks for a rule.txt.
+- A table judge whose grades changed in the newest results is re-checked on them (judgekeeper
+  only reads files), and after a check the result and `fix` describe the newest
+  LLM-as-a-judge.
+- `fix` for a table judge writes the marked answers to grade again with your own code, and
+  tests the new grades from a results file.
 - Edge cases: read-only `.judgekeeper/`, two runs at once, exit codes, wrong flags and a
   `--judge-model` remembered.
 No test calls an AI API.
@@ -26,6 +28,7 @@ from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project
 from tests.test_front import flat, next_lines, run
+from tests.test_only_reads import only_reads
 
 LINK = page.LINK
 ALL_MARKED = ("You've marked every answer: 28 Pass, 12 Fail. A result needs at least 15 of "
@@ -44,8 +47,9 @@ def here(tmp_path, monkeypatch):
 
 @pytest.fixture
 def no_calls(monkeypatch):
-    monkeypatch.setattr("judgekeeper.again.run_process",
-                        lambda *a, **k: pytest.fail("the LLM-as-a-judge was asked"))
+    """No program started and no network reached while the test runs."""
+    with only_reads(monkeypatch):
+        yield
 
 
 def _index(value) -> int:
@@ -288,42 +292,50 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     assert mistakes.count("## [M") == 1
 
 
-# fix for a judge it can't ask ----------------------------------------------------------------
-
-CANT_ASK = "judgekeeper can't ask this LLM-as-a-judge itself."
-NEXT_CANT_ASK = ("Next: change its rule where your eval keeps it, run your eval, then run "
-                 "`judgekeeper check`.")
-
+# fix for a table judge --------------------------------------------------------------------
 
 def _table_needs_work(root, capsys):
     """A table judge that needs work: it passes 12 of the answers the person fails."""
     table_project(root, split(30, 30))
     assert run(capsys)[0] == 0
-    _mark(Workspace(root), {i: "fail" for i in range(12)} | {i: "pass" for i in range(30, 34)})
+    _mark(Workspace(root), PERSON)
     _, out, _ = run(capsys)
     assert "Result: your LLM-as-a-judge needs work." in out, out
 
 
-def test_fix_for_a_table_judge_never_asks_for_a_rule(here, capsys):
+PERSON = {i: "fail" for i in range(12)} | {i: "pass" for i in range(30, 34)}
+
+
+def test_fix_for_a_table_judge_tests_new_grades_from_a_file(here, capsys, no_calls):
     _table_needs_work(here, capsys)
     code, first, _ = run(capsys, "fix")
-    assert CANT_ASK in flat(first) and _next(first) == NEXT_CANT_ASK
-    assert code == 3
-    (here / ".judgekeeper" / "fix" / "rule.txt").write_text("Be fair.", encoding="utf-8")
-    code, second, _ = run(capsys, "fix")
-    assert code == 3
-    assert CANT_ASK in flat(second) and _next(second) == NEXT_CANT_ASK
-    assert "rule.txt" not in first + second and "can't be asked again" not in second
+    assert code == 0, first
+    assert fix.OWN in flat(first) and "can't ask" not in first and "rule.txt" not in first
+    assert _next(first) == (
+        "Next: change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
+        ".judgekeeper/fix/marked-answers.csv again, save the results, then run "
+        "`judgekeeper fix <new results file>`.")
+    # graded again as the person marked them, in a table of the same shape
+    graded = [PERSON.get(i, "pass" if i < 30 else "fail") == "pass" for i in range(60)]
+    table_project(here, graded, name="regraded.csv")
+    code, out, _ = run(capsys, "fix", "regraded.csv")
+    assert code == 0, out
+    (test,) = fix.read_split(Workspace(here)).tests
+    n = test["hidden"]
+    assert test["n"] == n and test["broke"] == 0
+    assert f"tested on the {n} marks kept aside" in flat(out)
+    assert f"New rule: agreed with you on {n} of {n} answers." in out
 
 
-def test_the_report_says_the_same_for_a_judge_it_cant_ask(here, capsys):
+def test_the_report_says_how_to_test_a_new_rule(here, capsys):
     _table_needs_work(here, capsys)
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
-    assert "again to test it" not in report
+    assert "can&#x27;t re-run" not in report
     assert ("In your project folder, run <code>judgekeeper fix</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can&#x27;t re-run "
-            "this kind of LLM-as-a-judge itself, so change its rule where your eval keeps it, run your "
-            "eval, then run <code>judgekeeper check</code>.") in report
+            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with "
+            "marked-answers.csv. Change your rule in your eval tool, grade those answers again, "
+            "then run <code>judgekeeper fix &lt;new results file&gt;</code> to test it on the "
+            "marks kept aside.") in report
 
 
 # The folder and the page ---------------------------------------------------------------------

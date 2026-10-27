@@ -226,9 +226,12 @@ def test_screen_7_promptfoo_with_no_results_file(here, capsys):
         "saved results file yet. promptfoo keeps its results in its own",
         "database.",
         "",
-        "Next: save your last run with",
-        "`promptfoo export eval latest -o promptfoo-results.json` (it",
-        "runs no test), then run `judgekeeper` again.",
+        "Save them with `promptfoo eval -o promptfoo-results.json`, or",
+        "list your evals with `promptfoo list evals` and run",
+        "`promptfoo export eval <id> -o promptfoo-results.json`.",
+        "",
+        "Next: save your promptfoo results to a file as said above, then",
+        "run `judgekeeper` again.",
     ]
 
 
@@ -258,7 +261,7 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:24] == [
+    assert lines[:23] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
         "  1. Find      judgekeeper          finds your eval results and the",
@@ -266,14 +269,13 @@ def test_screen_8_help(capsys):
         "  2. Mark      in your browser      you mark answers Pass or Fail",
         "  3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees",
         "                                    with you, and where it goes wrong",
-        "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, write a",
-        "                                    better rule. promptfoo, DeepEval,",
-        "                                    Inspect AI and MLflow: tests it on marks",
-        "                                    kept aside. Your own file or record():",
-        "                                    change the rule where your eval keeps it,",
-        "                                    then judgekeeper check",
-        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, see",
-        "                                    if it still agrees with you",
+        "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change",
+        "                                    its rule, grade your marked answers again,",
+        "                                    and test the new rule on the half of your",
+        "                                    marks kept aside",
+        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge and",
+        "                                    run your eval, see if it still agrees",
+        "                                    with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV or JSONL file with these columns:",
@@ -284,10 +286,9 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[24:29] == [
-        "  fix     see where your LLM-as-a-judge goes wrong, then test a better rule",
-        "          (promptfoo, DeepEval, Inspect AI, MLflow) or change it in your eval",
-        "          (your own file, record())",
+    assert lines[23:27] == [
+        "  fix     see where your LLM-as-a-judge goes wrong; with the results of grading",
+        "          your marked answers again, test a better rule on the marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",
         "",
     ]

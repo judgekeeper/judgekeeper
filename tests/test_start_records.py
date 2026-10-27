@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import time
 
-from judgekeeper import again, find, start, start_again, start_label
+from judgekeeper import find, project, start, start_label
 from tests.start_projects import records_project, split
 
 NOW = time.time()
@@ -37,20 +37,11 @@ def test_new_keeps_the_records(tmp_path, capsys):
     two_processes(tmp_path)
     start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
     (tmp_path / ".judgekeeper" / "baseline.json").write_text("{}", encoding="utf-8")
-    moved = start_again.move_to_previous(start_label.Workspace(tmp_path), lambda line: None)
+    moved = project.move_to_previous(start_label.Workspace(tmp_path), lambda line: None)
     kept = sorted(p.name for p in (tmp_path / ".judgekeeper").iterdir())
     assert kept == [".gitignore", "baseline.json", moved.name, "records"]
     assert len(list((tmp_path / ".judgekeeper" / "records").glob("*.jsonl"))) == 2
     assert not (moved / "records").exists()
-
-
-def test_asking_again_says_record_judges_cannot_be_run(tmp_path):
-    two_processes(tmp_path)
-    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
-    plan = again.make_plan(ws, dry=False)
-    assert plan.status == again.CANT
-    assert "saved by judgekeeper.record()" in plan.why
-    assert "table" not in plan.why
 
 
 def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):

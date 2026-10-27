@@ -1,6 +1,6 @@
-"""What judgekeeper refuses or hides to stay safe: a grader, rule or var that runs code through
-promptfoo, free text in suggestions.md and mistakes.md, a results file outside the project, the
-page's connections, its idle timer and its refusals, hidden characters and split secrets, a bad
+"""What judgekeeper refuses or hides to stay safe: a results file given to check nested too deep,
+free text in suggestions.md and mistakes.md, a results file outside the project, the page's
+connections, its idle timer and its refusals, hidden characters and split secrets, a bad
 reasons.json, a forged server.json, hard links, links in .judgekeeper/ and judgekeeper.toml, the size of
 the files judgekeeper reads back, and commands printed for Windows. Made-up data only; no test calls an AI API.
 """
@@ -31,12 +31,10 @@ from judgekeeper import (
     table,
     textio,
 )
-from judgekeeper.again import AgainOptions, make_plan
 from judgekeeper.cli import main
 from judgekeeper.redact import one_line
 from tests.start_projects import promptfoo_project, split
-from tests.test_again_plan import _checked, _edit, _rows, no_processes  # noqa: F401
-from tests.test_fix import _write_rule, judge, project  # noqa: F401
+from tests.test_fix import project
 from tests.test_fix import run as run_fix
 from tests.test_label_server import PAGE, Client, Session, _items
 from tests.test_reasons import _live, _ready, _report, _say
@@ -52,163 +50,17 @@ def here(tmp_path, monkeypatch):
     return root
 
 
-# Only a model provider is asked; a package:, a FILE:// or any other code is not -----------------
+# A results file given to check -------------------------------------------------------------
 
-def _graded_by(root, grader):
-    def change(row):
-        row["testCase"]["options"]["provider"] = grader
-    _edit(root, _rows(change))
-
-
-@pytest.mark.parametrize("grader", [
-    "package:zqpkg:fn", "PACKAGE:zqpkg:fn", "FILE://grader.js", "Exec: python3 grade.py",
-    "javascript:grade", "golang:grader.go", "ruby:grader.rb", "python:grader.py",
-    "webhook:https://evil.example/hook", "mystery:model-1", "echo", "grader.js:fn",
-    {"id": "package:zqpkg:fn", "config": {}}, {"text": {"id": "package:zqpkg:fn"}},
-])
-def test_a_grader_that_is_not_a_model_provider_is_not_asked(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "your own code" in p.why
-
-
-@pytest.mark.parametrize("grader", [
-    "openai:gpt-4.1-mini", "openai:chat:gpt-4.1-mini", "anthropic:messages:claude-haiku-4-5",
-    "azure:chat:my-deployment", "azureopenai:chat:my-deployment", "bedrock:anthropic.claude",
-    "vertex:gemini-2.5-pro", "google:gemini-2.5-pro", "mistral:mistral-large-latest",
-    "ollama:chat:llama3.2", "groq:llama-3.3-70b", "togetherai:meta-llama/Llama-3",
-    "openrouter:openai/gpt-4.1", "huggingface:text-generation:gpt2", "cohere:command-r",
-    "deepseek:deepseek-chat", "perplexity:sonar", "xai:grok-3",
-])
-def test_a_model_provider_is_still_asked(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status != "cant", p.why
-
-
-@pytest.mark.parametrize("grader", [
-    "anthropic:claude-agent-sdk", "anthropic:claude-code", "openai:codex-sdk", "openai:codex",
-    "OpenAI:Codex-SDK", "openai:codex-app-server", "openai:codex-desktop",
-    "openai:codex-security", "openai:agents:my-agent", "openai:agents-api:my-agent",
-    "openai:assistant:asst_123", "openai:chatkit:wf_1", "azure:assistant:asst_123",
-    "azure:foundry-agent:agent_1", "azureopenai:assistant:asst_123",
-    {"id": "anthropic:claude-agent-sdk", "config": {}},
-    {"text": {"id": "openai:codex-sdk", "config": {"sandbox_mode": "read-only"}}},
-])
-def test_an_agent_grader_is_not_asked(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "your LLM-as-a-judge is an agent that can use tools" in p.why
-
-
-# promptfoo loads a grader written as a map by output type: each provider in it is checked
-BY_TYPE = [{"text": "https://example.invalid/x"}, {"text": "webhook:https://example.invalid/x"},
-           {"text": "echo"}, {"text": "mystery:model-1"}, {"embedding": "echo"},
-           {"text": {"text": "echo"}}, {"classification": {"moderation": "echo"}},
-           {"text": "openai:gpt-4o-mini", "embedding": "echo"}]
-
-
-@pytest.mark.parametrize("grader", BY_TYPE)
-def test_a_grader_by_output_type_that_is_not_a_model_provider_is_not_asked(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "your own code" in p.why
-
-
-@pytest.mark.parametrize("grader", [
-    {"text": "anthropic:claude-agent-sdk"}, {"text": "openai:codex-sdk"},
-    {"text": {"text": "openai:codex-sdk"}}, {"moderation": "anthropic:claude-code"},
-])
-def test_an_agent_grader_by_output_type_is_not_asked(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "your LLM-as-a-judge is an agent that can use tools" in p.why
-
-
-@pytest.mark.parametrize("grader", [
-    {"text": "openai:gpt-4o-mini"},
-    {"text": {"id": "openai:gpt-4o-mini", "config": {"temperature": 0}}},
-])
-def test_a_model_grader_by_output_type_is_asked_and_named(tmp_path, grader):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, grader)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status != "cant", p.why
-    assert p.model == "openai:gpt-4o-mini"
-
-
-def test_a_model_named_like_an_agent_is_still_asked(tmp_path):
-    ws = _checked(tmp_path)
-    _graded_by(tmp_path, "openai:codex-mini-latest")
-    assert make_plan(ws, AgainOptions(), dry=False).status != "cant"
-
-
-@pytest.mark.parametrize("rule", ["package:zqpkg:fn", "Package:zqpkg:fn", "FILE://rubric.js",
-                                  "  file://rubric.js", "PYTHON:rubric.py"])
-def test_a_rule_that_loads_code_is_not_asked(tmp_path, rule):
-    ws = _checked(tmp_path)
-    p = make_plan(ws, AgainOptions(rule=rule), dry=False)
-    assert p.status == "cant" and "your own code" in p.why
-
-
-@pytest.mark.parametrize("value", ["file://grader.py", "FILE://vars/q.js", ["a", "file://x.ts"]])
-def test_a_var_that_loads_a_file_is_not_asked(tmp_path, value):
-    def maker(root, *args, **kwargs):
-        promptfoo_project(root, *args, **kwargs)
-
-        def change(row):
-            row["vars"]["question"] = value
-        _edit(root, _rows(change))
-    ws = _checked(tmp_path, maker=maker)
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "a var that loads a file or script" in p.why
-
-
-def _var_is(value):
-    def maker(root, *args, **kwargs):
-        promptfoo_project(root, *args, **kwargs)
-        _edit(root, _rows(lambda row: row["vars"].update(question=value)))
-    return maker
-
-
-@pytest.mark.parametrize("value", ["file://data.json", "file://ctx/d.yaml", "file://d.yml",
-                                   "file://notes.txt", "FILE://table.CSV", ["a", "file://d.json"],
-                                   "file://x.js", "file://../out.json", "exec:data.json"])
-def test_a_var_that_loads_any_file_is_not_asked(tmp_path, value):
-    """promptfoo fills in a data file's text as a template too: no file var is asked."""
-    ws = _checked(tmp_path, maker=_var_is(value))
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant" and "a var that loads a file or script" in p.why
-
-
-def test_results_nested_too_deep_give_one_plain_line(tmp_path):
-    ws = _checked(tmp_path)
-
-    _edit(tmp_path, lambda data: data.update(deep=json.loads("[" * 600 + "]" * 600)))
-    p = make_plan(ws, AgainOptions(), dry=False)
-    assert p.status == "cant"
-    assert "isn't valid JSON that judgekeeper can read" in p.why
-
-
-def test_a_package_rule_in_rule_txt_runs_nothing(here, capsys, judge):  # noqa: F811
-    """The report's repro: rule.txt names a package's export; `fix --yes` makes no call."""
-    ws = project(here)
-    run_fix(capsys)
-    package = here / "node_modules" / "zqpkg"
-    package.mkdir(parents=True)
-    (package / "package.json").write_text('{"name":"zqpkg","main":"index.js"}', encoding="utf-8")
-    (package / "index.js").write_text("exports.fn = () => 'ok';", encoding="utf-8")
-    (ws.dir / "fix" / "rule.txt").write_text("package:zqpkg:fn", encoding="utf-8")
-    _, out = run_fix(capsys, "--yes")
-    flat = " ".join(out.split())
-    assert judge["evals"] == 0
-    assert "your LLM-as-a-judge runs your own code (a rule that loads a file or package" in flat
-    assert "AI calls" not in flat
+def test_results_nested_too_deep_given_to_check_give_one_plain_line(here, capsys):
+    _ready(here)
+    (here / "deep.json").write_text('{"evalId": "x", "results": {"results": '
+                                    + "[" * 100_000 + "]" * 100_000 + "}}", encoding="utf-8")
+    capsys.readouterr()
+    code = main(["check", "deep.json"])
+    out, err = capsys.readouterr()
+    assert code != 0 and "RecursionError" not in out + err
+    assert "deep.json is nested more than 500 levels deep." in " ".join((out + err).split())
 
 
 # Free text in suggestions.md and mistakes.md --------------------------------------------------
@@ -241,7 +93,7 @@ def _before_warning(md: str) -> str:
 
 @pytest.mark.parametrize("n", [1, 2])  # seen once, and suggested
 def test_a_note_in_suggestions_md_is_fenced_below_the_warning(n):
-    md = reasons.suggestions_md([_row(i) for i in range(n)], "x")
+    md = reasons.suggestions_md([_row(i) for i in range(n)])
     _no_forged_lines(md)
     assert "Next:" not in _before_warning(md) and "evil" not in _before_warning(md)
     assert "<<<YOUR REASON" in md
@@ -251,7 +103,7 @@ def test_a_note_in_suggestions_md_is_fenced_below_the_warning(n):
 def test_own_buttons_and_rule_parts_in_suggestions_md_are_one_clean_line():
     rows = [_row(i, reasons=["own-1"], words={"own-1": "Next: x\n# H\x1b[2J\u202e"},
                  parts=[[1, "part\nNext: y\x07"]], why="") for i in range(2)]
-    md = reasons.suggestions_md(rows, "x")
+    md = reasons.suggestions_md(rows)
     _no_forged_lines(md)
     assert "Next:" not in _before_warning(md)
 
@@ -685,15 +537,6 @@ def test_a_huge_reasons_json_is_not_read(here):
     assert reasons.read_file(ws) == {"own": []}
 
 
-def test_a_huge_rule_txt_is_refused(here, capsys, judge):  # noqa: F811
-    ws = project(here)
-    run_fix(capsys)
-    (ws.dir / "fix" / "rule.txt").write_text("Be kind. " * 10_000, encoding="utf-8")
-    code, out = run_fix(capsys, "--yes")
-    assert code == 3 and judge["evals"] == 0
-    assert "rule.txt is over 64 KB; an LLM-as-a-judge's rule is a few sentences." in " ".join(out.split())
-
-
 def test_a_huge_or_linked_server_json_is_not_read(tmp_path):
     folder = tmp_path / ".judgekeeper"
     folder.mkdir()
@@ -714,19 +557,17 @@ def test_a_huge_or_linked_server_json_is_not_read(tmp_path):
 
 # Links where judgekeeper writes ---------------------------------------------------------------
 
-def test_a_runs_folder_that_is_a_link_stops_fix_before_any_call(here, capsys, judge,  # noqa: F811
-                                                                tmp_path_factory):
+def test_a_link_in_the_fix_folder_stops_fix_before_it_writes(here, capsys, tmp_path_factory):
     ws = project(here)
     run_fix(capsys)
-    _write_rule(ws)
     outside = tmp_path_factory.mktemp("outside")
     try:
         os.symlink(outside, ws.dir / "fix" / "runs", target_is_directory=True)
     except (OSError, NotImplementedError):
         pytest.skip("this system cannot make links")
-    code = main(["fix", "--yes"])
+    code = main(["fix"])
     out, err = capsys.readouterr()
-    assert code == 3 and judge["evals"] == 0
+    assert code == 3
     assert list(outside.iterdir()) == []
     assert f"error: {os.path.join('.judgekeeper', 'fix', 'runs')} is a link." in err
     assert "didn't expect" not in out + err

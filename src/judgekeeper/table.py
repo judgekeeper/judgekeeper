@@ -16,6 +16,7 @@ from pathlib import Path
 
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
+from judgekeeper.redact import printable
 from judgekeeper.textio import jsonl_lines, make_private, read_utf8, write_replacing
 
 ID_LENGTH = 16
@@ -230,12 +231,17 @@ TEMPLATE_COLUMNS = {SINGLE: ("id", "input", "output", "human_label", "notes"),
 
 
 # A cell starting with one of these runs as a formula in Excel, Google Sheets and LibreOffice;
-# some read the full-width forms, or spaces before them, as the same.
+# some read the full-width forms, or spaces or characters no one sees before them, as the same.
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\uff1d", "\uff0b", "\uff0d", "\uff20")
 
 
 def _formula(text: str) -> bool:
-    return text.lstrip(" ").startswith(FORMULA_PREFIXES)
+    for i, ch in enumerate(text):
+        if text.startswith(FORMULA_PREFIXES, i):
+            return True
+        if ch != " " and printable(ch):  # printable drops the unseen characters
+            return False
+    return False
 
 
 def guard_cell(text: str) -> str:
