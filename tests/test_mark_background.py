@@ -83,8 +83,8 @@ def stop_page(project: Path) -> None:
     if pid and alive(pid):
         try:
             os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass  # it was on its way out
+        except (ProcessLookupError, PermissionError):
+            pass  # it was on its way out (Windows denies ending a process that is exiting)
 
 
 @pytest.fixture
