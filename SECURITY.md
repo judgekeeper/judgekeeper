@@ -10,7 +10,7 @@ judgekeeper needs no API key and makes no AI call. When you grade answers again,
 
 It hides:
 
-- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN` or `_SECRET`) in your shell, in your project's `.env` files and in promptfoo's config `env:` block;
+- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN` or `_SECRET`) in your shell, in your project's `.env` files and in promptfoo's config `env:` block (not in one that is a link or over 1 MB: judgekeeper doesn't read that file, and says so);
 - keys by their shape: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, AWS secrets next to their name or key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…` and a JWT;
 - `Bearer …` and `Basic …` headers, and the login part of a URL: `https://user:password@`, `https://:password@`, or a long token alone;
 - a key split by a hidden character such as a zero-width joiner.
@@ -34,7 +34,7 @@ The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
 ## It only reads files
 
-judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. To read MLflow results it loads MLflow's own library, which runs the system tools `uname` and `file` when it loads; judgekeeper itself starts nothing else. It makes no AI call and costs nothing. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
+judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call and costs nothing. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
 
 ## Other things
 

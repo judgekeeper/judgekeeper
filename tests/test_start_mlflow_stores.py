@@ -479,7 +479,8 @@ def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monke
     if os.name == "nt":
         pytest.skip("folder permissions work differently on Windows")
     locked = tmp_path / "locked"
-    locked.mkdir()
+    (locked / "0").mkdir(parents=True)  # a folder store's shape (find.is_mlflow_folder)
+    (locked / "0" / "meta.yaml").write_text("name: Default\n", encoding="utf-8")
     locked.chmod(0o500)
     if os.access(locked, os.W_OK):
         locked.chmod(0o700)
@@ -499,3 +500,43 @@ def test_a_tracking_uri_mlflow_cannot_write_in_names_that_folder(tmp_path, monke
     nxt = flat[flat.index("Next:"):]
     assert locked.as_uri() not in nxt and str(locked) not in nxt, out  # not the same bad flag
     assert "--tracking-uri PATH" in nxt and "with PATH your MLflow folder" in nxt, out
+
+
+def test_mlflows_root_logger_says_nothing_for_an_extra_folder_in_mlruns(folder_only):
+    """MLflow's folder store logs a broken experiment folder through Python's root logger,
+    with tracebacks: muted too while judgekeeper reads. In its own process, as for a person
+    (pytest's log capture would hide it here)."""
+    (folder_only / "mlruns" / "7").mkdir()  # an experiment folder with no meta.yaml
+    env = {k: v for k, v in os.environ.items() if not k.startswith("MLFLOW_")}
+    env["PYTHONPATH"] = str(ROOT / "src")
+    done = subprocess.run([sys.executable, "-m", "judgekeeper", "--no-browser", "--port", "0"],
+                          cwd=folder_only, env=env, capture_output=True, text=True, timeout=300,
+                          stdin=subprocess.DEVNULL, check=False)
+    out = done.stdout + done.stderr
+    assert done.returncode in (0, 3), out
+    assert "Traceback" not in out and "WARNING:root" not in out and "Malformed" not in out, out
+
+
+def test_the_root_logger_is_put_back_after_mlflow():
+    root = logging.getLogger()
+    before = (root.level, list(root.handlers))
+    with mlflow_store.quiet():
+        logging.warning("from MLflow")  # noqa: LOG015 - as MLflow logs
+        assert root.level == logging.CRITICAL
+    assert (root.level, list(root.handlers)) == before
+
+
+@pytest.mark.parametrize("value", ["", " ", ".", "./", "PROJECT", "OTHER"])
+def test_a_tracking_uri_that_is_no_store_is_refused_plainly(value, tmp_path, monkeypatch,
+                                                            capsys):
+    pytest.importorskip("mlflow")
+    project = tmp_path / "docs-qa"
+    (project / ".judgekeeper").mkdir(parents=True)  # MLflow would read it as an experiment
+    (tmp_path / "other" / "notes").mkdir(parents=True)
+    monkeypatch.chdir(project)
+    value = {"PROJECT": str(project), "OTHER": str(tmp_path / "other")}.get(value, value)
+    code, out = run(capsys, "--no-browser", "--port", "0", "--tracking-uri", value)
+    said = " ".join(out.split())
+    assert code == 2, said
+    assert "didn't expect" not in said and "report it" not in said, said
+    assert ("--tracking-uri is empty" if not value.strip() else "is not an MLflow store") in said

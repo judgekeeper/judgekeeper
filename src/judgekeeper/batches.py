@@ -20,7 +20,7 @@ import json
 import secrets
 from collections import Counter
 
-from judgekeeper.textio import plural
+from judgekeeper.textio import loads, plural
 
 MIN_MARKS = 5  # marks in each stratum of a batch before it counts (or every answer in it)
 ADDED = "Your newest results have {n} you haven't seen. {they} added for marking."
@@ -166,18 +166,29 @@ def _text(question, answer) -> str:
     return json.dumps([question, answer], sort_keys=True, ensure_ascii=False)
 
 
+POOL_DAMAGED = ("judgekeeper can't read .judgekeeper/pool.jsonl, so the answers there can't "
+                "be marked.")
+START_OVER = "run `{program} --new` to start over: your marks move to .judgekeeper/previous-<date>/"
+
+
 def new_answers(ws, found) -> list:
     """The graded answers in the newest results (`found`) that the pool does not hold, by their
-    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once."""
+    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. A damaged
+    pool.jsonl is a StartError (POOL_DAMAGED)."""
     from judgekeeper.redact import scrub_value
-    from judgekeeper.textio import jsonl_lines
+    from judgekeeper.start import StartError
+    from judgekeeper.textio import jsonl_lines, program
 
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
     seen = set()
     for raw in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if raw.strip():
-            row = json.loads(raw)
-            seen.add(_text(row.get("input"), row.get("output")))
+            try:
+                row = loads(raw)
+                seen.add(_text(row.get("input"), row.get("output")))
+            except (ValueError, AttributeError):  # damaged, or not an object
+                raise StartError(POOL_DAMAGED,
+                                 next_step=START_OVER.format(program=program())) from None
     out = []
     for a in found.pool.answers:
         key = _text(scrub_value(a.input), scrub_value(a.output))
@@ -204,7 +215,7 @@ def add(ws, found) -> int:
     if not new:
         return 0
     batch = max(of(data).values(), default=1) + 1
-    old_rows = [json.loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
+    old_rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                 if x.strip()]
     taken = {r["id"] for r in old_rows}
     named = []

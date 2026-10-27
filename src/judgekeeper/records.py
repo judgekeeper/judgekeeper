@@ -556,6 +556,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, RecordsError)
+        table.too_wide(table.header(text, suffix), path, RecordsError)
         reader = csv.DictReader(io.StringIO(text, newline=""), delimiter=_delimiter(text, suffix))
         rows = []
         for row in itertools.islice(reader, most + 1):  # one more: whether any is left out
@@ -579,6 +580,10 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
                 continue
             if lone_surrogate(row):
                 rows.append((n, NOT_TEXT, 0))
+                continue
+            if len(row) > table.MAX_COLUMNS:
+                wide = f"has {len(row):,} fields; judgekeeper reads up to {table.MAX_COLUMNS:,}"
+                rows.append((n, wide, 0))
                 continue
             rows.append((n, row, utf8_size(line)))
         return table.capped(rows, path), False

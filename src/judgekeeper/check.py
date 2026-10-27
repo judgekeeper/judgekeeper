@@ -44,6 +44,7 @@ from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import (
     flush_stdout,
     held_lines,
+    loads,
     make_private,
     old_hook,
     plural,
@@ -378,7 +379,7 @@ def _key(state: State, read: list[str]) -> str | None:
 
 def _seen(ws: Workspace) -> dict:
     try:
-        data = json.loads((ws.dir / SEEN).read_text(encoding="utf-8"))
+        data = loads((ws.dir / SEEN).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     ok = (isinstance(data, dict) and data.get("judgekeeper_version") == __version__
@@ -701,7 +702,7 @@ def _read_verdicts(ws: Workspace, setup_hash: str) -> dict[str, str]:
     out = {}
     for raw in text.splitlines()[1:]:
         try:
-            line = json.loads(raw)
+            line = loads(raw)
         except ValueError:
             continue
         if isinstance(line, dict) and line.get("verdict") in ("pass", "fail"):
@@ -839,7 +840,7 @@ def _history_all(ws: Workspace) -> list[dict]:
     out = []
     for raw in text.splitlines():
         try:
-            line = json.loads(raw)
+            line = loads(raw)
         except ValueError:
             continue
         if isinstance(line, dict):
@@ -939,7 +940,7 @@ def _history(ws: Workspace) -> list[dict]:
     out = []
     for raw in text.splitlines():
         try:
-            line = json.loads(raw)
+            line = loads(raw)
         except ValueError:
             continue
         if isinstance(line, dict) and line.get("kind") == "check":
@@ -1589,7 +1590,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
     from judgekeeper.start_label import StartSession, store_result, write_report
 
     try:
-        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     try:

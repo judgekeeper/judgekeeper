@@ -42,6 +42,7 @@ from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
     held_lines,
     jsonl_lines,
+    loads,
     make_private,
     old_hook,
     plural,
@@ -136,7 +137,7 @@ def _pool_rows(path: Path) -> dict:
     rows = {}
     for line in jsonl_lines(path.read_text(encoding="utf-8")):
         if line.strip():
-            row = json.loads(line)
+            row = loads(line)
             rows[row["id"]] = row
     return rows
 
@@ -351,7 +352,7 @@ def read_split(ws: Workspace) -> Split | None:
     if not path.exists() and not path.is_symlink():
         return None
     try:
-        d = json.loads(path.read_text(encoding="utf-8"))
+        d = loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         raise SplitError("it can't be read as JSON") from e
     why = _split_problem(ws, d)

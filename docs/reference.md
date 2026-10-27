@@ -159,8 +159,10 @@ It looks only inside your project folder, four folders deep; a results file outs
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
-- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns. It reads the first 100,000 answers of a table and says so when there are more. A table it can't read is left out, with one line saying how many;
+- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns, and at most 200 columns. A table it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
+
+It reads the first 100,000 answers of a results file, and the newest 100,000 records in `.judgekeeper/records/` in all, and says so when there are more.
 
 ## How grades are read
 
@@ -265,8 +267,8 @@ judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after yo
 
 ## Your API keys
 
-- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only program it starts is its own marking page. To read MLflow results it loads MLflow's own library, which runs the system tools `uname` and `file` when it loads; judgekeeper itself starts nothing else. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
-- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` files or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project.
+- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only program it starts is its own marking page. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
+- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` files or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project. A `.env` file or config that is a link, or over 1 MB, is not read, and judgekeeper says its keys are not hidden.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
 - There is no flag that takes a key, and there never will be.

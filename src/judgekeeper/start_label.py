@@ -43,6 +43,7 @@ from judgekeeper.textio import (
     hard_linked,
     jsonl_lines,
     link_in,
+    loads,
     make_private,
     plural,
     program,
@@ -137,7 +138,7 @@ class Workspace:
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
     def data(self) -> dict:
-        return json.loads(self.start.read_text(encoding="utf-8"))
+        return loads(self.start.read_text(encoding="utf-8"))
 
     def cached_data(self) -> dict:
         """start.json, parsed again only when it changed: for reading only (it is shared)."""
@@ -149,7 +150,7 @@ class Workspace:
 
 
 def _load_start(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return loads(path.read_text(encoding="utf-8"))
 
 
 def _start_strata(path: Path) -> tuple:
@@ -485,7 +486,7 @@ class StartSession(LabelSession):
         self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
         self._status: tuple | None = None  # (changes, start.json's stamp, the status)
         super().__init__(ws.pool, ws.marks)
-        raw = [json.loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
+        raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
 
@@ -741,7 +742,7 @@ def next_marks(ws: Workspace, step: str) -> str:
     if not every_marked(ws):
         return step
     try:
-        flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
+        flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
     return NEXT_ALL_MARKED.format(command=mark_command(command_from(flags)))
@@ -879,7 +880,7 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
     if recompute_old(ws, worse=worse):
         return
     try:
-        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     if isinstance(r, dict):
@@ -999,7 +1000,7 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
 def _same_result(ws: Workspace, digest: str) -> dict | None:
     """The saved result, when it was made from these same marks, with these numbers."""
     try:
-        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest and \
@@ -1011,7 +1012,7 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
     from start.json and the marks, with no AI call, the old one copied to history/. Whether it
     was. A result that can't be made again is left as it was saved."""
     try:
-        saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
     if not isinstance(saved, dict) or "labels" not in saved or \
@@ -1083,7 +1084,7 @@ def store_result(ws: Workspace, session: StartSession,
         make_private(ws.history)
         try:
             text = ws.result_json.read_text(encoding="utf-8")
-            made = json.loads(text).get("made_at")
+            made = loads(text).get("made_at")
         except (ValueError, AttributeError, RecursionError):
             made = None
         stamp = re.sub(r"[^0-9A-Za-z-]", "", str(made or "").replace(":", "-"))[:32] \
@@ -1118,7 +1119,7 @@ def _has_line(ws: Workspace, digest: str | None) -> bool:
         return False
     for raw in jsonl_lines(text):
         try:
-            line = json.loads(raw)
+            line = loads(raw)
         except ValueError:
             continue
         if isinstance(line, dict) and line.get("kind") == "result" and \
@@ -1148,7 +1149,7 @@ def repair(ws: Workspace) -> None:
     result.json first): when result.json is newer than report.html, report.html is drawn again,
     and when history.jsonl has no line for it, the line is added."""
     try:
-        r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     if not isinstance(r, dict) or "labels" not in r:

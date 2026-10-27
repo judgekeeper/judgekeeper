@@ -341,6 +341,19 @@ def read_json(path: str | Path, error: type[Exception]):
     return data
 
 
+def loads(text: str):
+    """json.loads for a file in judgekeeper's own folder: JSON nested deeper than MAX_NESTING
+    (a project can come with that folder) is a ValueError, as damaged JSON is, on every
+    Python version."""
+    try:
+        data = json.loads(text)
+    except RecursionError:
+        raise ValueError("nested too deep") from None
+    if too_deep(data):
+        raise ValueError("nested too deep")
+    return data
+
+
 def lone_surrogate(data) -> bool:
     """Whether a string in `data` (keys too, inside lists and objects) holds a lone surrogate:
     a JSON escape such as \\ud800 reads as one, and it can't be written as UTF-8. Walked
@@ -715,9 +728,10 @@ def quoted_name(value: str) -> str:
     it, as it can be pasted: quoted for the shell (quote_arg), in its quotes even when it
     needs none, so the names read alike and none reads as a line judgekeeper says (double
     on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of commands
-    (held_back) is shown between single quotes, as data."""
+    (held_back) is shown as PLACEHOLDER, and said as data under the line (held_lines), as
+    quote_arg does: between quotes it could still be pasted."""
     if held_back(value):
-        return f"'{value}'"
+        return quote_arg(value)
     quoted = quote_arg(value)
     mark = '"' if is_windows() else "'"
     return f"{mark}{value}{mark}" if quoted == value else quoted

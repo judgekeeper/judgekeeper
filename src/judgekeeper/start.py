@@ -27,7 +27,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from judgekeeper import find, judge_check, mapper, settings, targets, textio
+from judgekeeper import find, judge_check, keys, mapper, settings, table, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.links import said
 from judgekeeper.metrics import ERROR
@@ -601,11 +601,18 @@ def _unread(error: RecordsError, result: find.Result, root: Path) -> str:
     return str(error).replace(str(result.path), result.rel)  # never the full path
 
 
+RECORDS_CAPPED = "Read the newest {n:,} records in {folder}; the older ones are left out."
+
+
 def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
-    """The records files judgekeeper.record() wrote, newest first. A file that cannot be
-    read is left out, with how to see why; a last line cut short is left out too."""
-    loaded = []
+    """The records files judgekeeper.record() wrote, newest first, table.MAX_ROWS records in
+    all (RECORDS_CAPPED said when that leaves some out). A file that cannot be read is left
+    out, with how to see why; a last line cut short is left out too."""
+    loaded, room, cut = [], table.MAX_ROWS, False
     for r in results:
+        if room == 0:
+            cut = True
+            break
         try:
             try:
                 records = read_records(r.path, cut_end_ok=True, bad_lines_ok=True)
@@ -616,12 +623,18 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
             text = text[text.find("line "):] if "line " in text else text
             talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
+        if len(records) > room:
+            del records[room:]
+            cut = True
+        room -= len(records)
         if CUT_END in records.notes:
             talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
                      "writing it) and was left out.")
         for warning in records.warnings:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
+    if cut:
+        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=_folder_of(results[0]))}")
     return loaded
 
 
@@ -759,9 +772,11 @@ def _old_evaluate(uri: str) -> list[str]:
     (faithfulness/v1); [] when there are none."""
     from mlflow import MlflowClient
 
+    from judgekeeper.readers.mlflow_store import all_experiments
+
     client = MlflowClient(tracking_uri=uri)
     names = set()
-    for exp in client.search_experiments():
+    for exp in all_experiments(client):
         for run in client.search_runs([exp.experiment_id], max_results=100):
             names.update(m[1] for m in map(_OLD_METRIC.fullmatch, run.data.metrics) if m)
     return sorted(names)
@@ -769,7 +784,7 @@ def _old_evaluate(uri: str) -> list[str]:
 
 def _no_experiment(experiment: str,stores: list[tuple[find.Result, list[str]]]) -> StartError:
     """--experiment names none of the experiments: say each store searched and its own."""
-    where = [f"{_store_name(s)} (its experiments: {', '.join(names) or 'none'})"
+    where = [f"{_store_name(s)} (its experiments: {some(names, last=',') if names else 'none'})"
              for s, names in stores]
     return StartError(f"no MLflow experiment named {experiment!r} in {_or(where)}")
 
@@ -780,8 +795,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         ArtifactServer,
         JudgeCallsFailed,
         TracesMissing,
+        all_experiments,
         experiments_with_traces,
         folder_problem,
+        store_damage,
     )
 
     if experiment is not None:
@@ -798,7 +815,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
 
         found, missing, code_only = [], [], False
         try:
-            experiments = MlflowClient(tracking_uri=uri).search_experiments()
+            with store_damage(uri):
+                experiments = all_experiments(MlflowClient(tracking_uri=uri))
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
         for exp in experiments:
@@ -1130,6 +1148,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     found = find.search(root)
     for note in found.notes:
         _note(talk, note)
+    keys.said(found.notes)
     for big in found.too_big():
         talk.say(big.too_big_message(talk.command_at(big.rel, "--yes")))
     available = [t for t in find.TOOLS if found.readable(t)]
@@ -1696,15 +1715,19 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
-def _hide_keys(root: Path, kind: str) -> None:
+def _hide_keys(root: Path, talk: Talk | None = None) -> None:
     """The keys in the project's .env files (and its promptfoo configs' `env:` blocks) hidden
-    before anything is read or written, however the results were found (keys.hide_keys)."""
-    from judgekeeper import keys
+    before anything is read or written, however the results were found (keys.hide_keys): the
+    project's own folder, where .judgekeeper/ is, even for results named in a folder below it,
+    and the results' folder."""
+    from judgekeeper import project
 
     folder = root if root.is_dir() else root.parent
-    configs = ([folder / rel for rel in _promptfoo_configs(folder)] if kind == "promptfoo"
-               else [])
-    keys.hide_keys(folder, configs)
+    for where in dict.fromkeys((project.project_of(root), folder)):
+        keys.hide_keys(where, [where / rel for rel in _promptfoo_configs(where)])
+    if talk is not None:
+        for note in keys.unsaid():  # a .env not read (a link, or too big) the finder didn't say
+            _note(talk, note)
 
 
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
@@ -1740,7 +1763,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
-    _hide_keys(root, kind)
+    _hide_keys(root, talk)
     if only:
         results = [r for r in results if r.rel in only] or results
     if kind == "mlflow":
@@ -1918,6 +1941,10 @@ def _task_file(path: Path) -> str | None:
 
 
 SERVERS = ("http://", "https://", "databricks")
+NO_TRACKING_URI = ("--tracking-uri is empty: name your MLflow store, an mlflow.db file or an "
+                   "mlruns/ folder")
+NOT_A_STORE = ("{uri} is not an MLflow store: no experiment folder in it holds a meta.yaml. Name "
+               "an mlflow.db file or an mlruns/ folder")
 TRACKING_SERVER = ("{uri} is a tracking server. judgekeeper reads a local MLflow store instead: "
                    "an mlflow.db file or an mlruns/ folder in your project.")
 
@@ -1928,6 +1955,8 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
     from judgekeeper.readers.mlflow_store import folder_of
 
     text = str(uri)
+    if not text.strip():
+        raise StartError(NO_TRACKING_URI)
     if text.startswith(SERVERS):
         raise StartError(TRACKING_SERVER.format(uri=uri))
     if text.startswith("sqlite:///"):
@@ -1936,6 +1965,8 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
         store = folder_of(text) or Path(text)
     if not store.exists():
         raise StartError(f"no MLflow store at {uri}")
+    if store.is_dir() and not find.is_mlflow_folder(store):  # MLflow would read any folder
+        raise StartError(NOT_A_STORE.format(uri=uri))
     root = path.resolve() if path.is_dir() else path.resolve().parent
     store = store.resolve()
     rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)
@@ -1987,7 +2018,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
             return first(having[0])
         names = [n for s, n in zip(stores, names, strict=True) if s in having]
         stores = having
-    shown = [f"{_store_name(s)} ({', '.join(n) or 'no traces'})" for s, n in zip(
+    shown = [f"{_store_name(s)} ({some(n, last=',') if n else 'no traces'})" for s, n in zip(
         stores, names, strict=True)]
     count = {2: "Two", 3: "Three"}.get(len(stores), str(len(stores)))
     title = f"{count} MLflow stores found: {_and(shown)}."

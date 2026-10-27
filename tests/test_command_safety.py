@@ -183,3 +183,21 @@ def test_a_value_starting_with_a_dash_is_kept_as_flag_equals_value(name, flag, v
 def test_a_plain_value_keeps_its_space():
     flags = start.run_flags(metric="faithful")
     assert start.command_from(flags, "mark", kept=True) == "judgekeeper mark --metric faithful"
+
+
+# A held-back name in the "choose" line ---------------------------------------------------------
+
+def test_a_held_back_metric_in_the_choose_line_is_said_as_data_on_windows(windows, monkeypatch,
+                                                                         capsys, tmp_path):
+    monkeypatch.setattr(start, "_interactive", lambda: False)
+    talk = front.FrontTalk(yes=False, path=tmp_path, options={})
+    evil = "a'&calc&'\""
+    assert textio.held_back(evil)
+    with pytest.raises(start.Stop):
+        talk.choose("Several LLM-as-a-judge setups:", [evil, "plain"], "", flag="--metric",
+                    values=[evil, "plain"], what="which LLM-as-a-judge to check")
+    lines = capsys.readouterr().out.splitlines()
+    said = " ".join(" ".join(lines).split())
+    assert 'choose which LLM-as-a-judge to check (NAME, "plain")' in said, said
+    assert "'a'&calc" not in said.replace(f"NAME: {evil}", "")
+    assert f"  NAME: {evil}" in lines, lines
