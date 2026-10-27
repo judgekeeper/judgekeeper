@@ -545,16 +545,17 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
 def test_home_links_to_the_check_page_twice():
     links = [el for el in parse(WEBSITE / "index.html").iter()
              if el.tag == "a" and el.attrs.get("href") == "check.html"]
-    assert [" ".join(a.text().split()) for a in links] == ["Check in your browser"] * 2
+    assert [" ".join(a.text().split()) for a in links] == ["Try step 1 in your browser"] * 2
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
-    assert "(https://www.judgekeeper.com/check.html)" in (WEBSITE / "llms.txt").read_text(
-        encoding="utf-8")
+    assert "- [Try step 1 in your browser](https://www.judgekeeper.com/check.html): " in (
+        WEBSITE / "llms.txt").read_text(encoding="utf-8")
+    assert "Check in your browser" not in (WEBSITE / "llms.txt").read_text(encoding="utf-8")
 
 
 def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
-    for words in ("Check your LLM-as-a-judge in your browser.",
+    for words in ("Try step 1 in your browser.",
                   "Drop your results file here or click to choose one",
                   "promptfoo · DeepEval · CSV · JSONL",
                   "Waiting for your results file.",
