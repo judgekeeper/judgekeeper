@@ -188,3 +188,140 @@ def test_zipfile_and_inspect_read_the_last_copy_of_a_repeated_name(tmp_path):
             "the last copy")
     read = {s.id: s.output.completion for s in read_eval_log(str(path)).samples}
     assert read[1] == "the last copy"
+
+
+# One very long text ---------------------------------------------------------------------------
+
+def _text_sample(field: str, text: str) -> bytes:
+    sample = json.loads(_old_parts()["samples/1_epoch_1.json"])
+    if field == "metadata":
+        sample["metadata"] = {"pad": text}
+    elif field == "events":  # left out of the read, but still parsed
+        sample["events"] = [{"event": "info", "data": text}]
+    else:
+        sample["attachments"] = {"a" * 32: text}
+    return json.dumps(sample).encode()
+
+
+def _random(n: int, chars: str) -> str:
+    """`n` characters, each one of `chars` at random (so the text doesn't pack tightly)."""
+    import os
+
+    return os.urandom(n // 2 + 1).hex().translate(str.maketrans(
+        "0123456789abcdef", (chars * 16)[:16]))[:n]
+
+
+@pytest.mark.parametrize("field", ["metadata", "events", "attachments"])
+def test_one_text_over_8_mb_is_refused_fast(tmp_path, monkeypatch, field):
+    from judgekeeper.readers import inspect_logs
+
+    assert inspect_logs.MAX_STRING == 8 * MB
+    parts = _old_parts()
+    parts["samples/1_epoch_1.json"] = _text_sample(field, _random(9 * MB, "0123456789abcdef"))
+    path = _log(tmp_path, parts)
+    said, took = _refused(path, monkeypatch)
+    assert said == (f"{path} is too big for judgekeeper to read: one text in it is longer than "
+                    "8 MB, the most judgekeeper reads in one text of an Inspect AI log."), said
+    assert took < 5
+
+
+def test_escapes_count_as_the_characters_they_stand_for(tmp_path, monkeypatch):
+    """9 MB written as escapes (\\n, \\t: 18 MB in the file) is over the limit; 4 MB with
+    \\u00e9 in it (about 14 MB in the file) is under it."""
+    from judgekeeper.readers import inspect_logs
+
+    parts = _old_parts()
+    parts["samples/1_epoch_1.json"] = _text_sample("metadata", _random(9 * MB, "\n\t"))
+    said, _ = _refused(_log(tmp_path, parts), monkeypatch)
+    assert "one text in it is longer than 8 MB" in said, said
+    parts["samples/1_epoch_1.json"] = _text_sample("metadata", _random(4 * MB, "é\t"))
+    assert len(parts["samples/1_epoch_1.json"]) > 12 * MB
+    inspect_logs._check_unpacked(_log(tmp_path, parts))
+
+
+@pytest.mark.parametrize("step", [1, 2, 3, 7, 64])
+def test_the_longest_text_is_found_however_the_bytes_are_split(step):
+    from judgekeeper.readers import inspect_logs
+
+    text = json.dumps({"a": "x" * 40, "b": ['q\\"' + "y" * 55, "z" * 7], "c": "\\" * 9,
+                       "d": ""}).encode()
+    longest = max(len(s) for s in json.loads(text)["b"])  # the first, its escapes read
+    depth = inspect_logs._Depth(longest=longest)
+    for at in range(0, len(text), step):
+        depth.feed(text[at:at + step])
+    with pytest.raises(inspect_logs.TooLong):
+        too_short = inspect_logs._Depth(longest=longest - 1)
+        for at in range(0, len(text), step):
+            too_short.feed(text[at:at + step])
+
+
+def test_a_long_agent_sample_with_attachments_still_reads(tmp_path):
+    """A real-shaped agent sample of about 50 MB: many messages of about 120 KB, and a few
+    screenshots of 1 MB as base64 in its attachments."""
+    import base64
+    import os
+
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.readers import read_inspect
+
+    sample = json.loads(_old_parts()["samples/1_epoch_1.json"])
+    words = [os.urandom(4).hex() for _ in range(5000)]
+    messages = list(sample["messages"])
+    for i in range(400):
+        text = " ".join(words[(i * 7 + k) % 5000] for k in range(13_000))
+        messages.append({"role": "assistant" if i % 2 else "user", "content": text,
+                         "source": "generate" if i % 2 else "input"})
+    sample["messages"] = messages
+    sample["attachments"] = {f"{i:032x}": base64.b64encode(os.urandom(750_000)).decode()
+                             for i in range(3)}
+    parts = _old_parts()
+    parts["samples/1_epoch_1.json"] = json.dumps(sample).encode()
+    path = _log(tmp_path, parts)
+    assert 45 * MB < len(parts["samples/1_epoch_1.json"]) < 60 * MB
+    del parts, sample, messages
+    records = read_inspect(path)
+    assert len(records) == len(read_inspect(OLD_EVAL))
+
+
+# Many small samples, packed tightly -------------------------------------------------------------
+
+def test_400_tightly_packed_small_samples_are_refused_fast(tmp_path, monkeypatch):
+    """400 samples of 499,000 values each, about 2.4 KB packed: each under the ratio's floor
+    and under the limit of values for one sample, all together about 190 values per byte."""
+    import io
+
+    from judgekeeper.readers import inspect_logs
+
+    old = _old_parts()
+    base = json.loads(old["samples/1_epoch_1.json"])
+    base["metadata"] = {"pad": "PAD"}
+    wide = json.dumps(base).encode().replace(b'"PAD"', b"[" + b"0," * 498_999 + b"0]")
+    header = json.loads(old["header.json"])
+    header["eval"]["dataset"].update(samples=400, sample_ids=list(range(1, 401)))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        z.writestr("_journal/start.json", old["_journal/start.json"])
+        for i in range(1, 401):
+            z.writestr(f"samples/{i}_epoch_1.json", wide)
+        for name in ("summaries.json", "reductions.json"):
+            z.writestr(name, old[name])
+        z.writestr("header.json", json.dumps(header))
+    path = tmp_path / "2026-10-21_qa.eval"
+    path.write_bytes(out.getvalue())
+    assert path.stat().st_size < 2 * MB
+    said, took = _refused(path, monkeypatch)
+    assert said == (f"{path} is too big for judgekeeper to read: its samples would unpack to "
+                    f"more than {inspect_logs.VALUES_PER_BYTE} values for each byte they pack "
+                    "to, the most judgekeeper reads of an Inspect AI log."), said
+    assert took < 5
+
+
+def test_honest_logs_hold_far_fewer_values_per_byte():
+    from judgekeeper.readers import inspect_logs
+
+    assert inspect_logs.VALUES_PER_BYTE == 10
+    with zipfile.ZipFile(OLD_EVAL) as z, OLD_EVAL.open("rb") as f:
+        samples = [p for p in z.infolist() if p.filename.startswith("samples/")]
+        values = sum(inspect_logs._unpacks_to(f, p, 10**9)[1] for p in samples)
+        packed = sum(p.compress_size for p in samples)
+    assert values / packed < inspect_logs.VALUES_PER_BYTE / 20

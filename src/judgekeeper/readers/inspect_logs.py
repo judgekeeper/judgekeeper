@@ -105,6 +105,13 @@ SAMPLE_LIMIT = 200 * 2**20
 # aside) grow with them: summaries.json, reductions.json, _journal/summaries/...
 HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
 HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
+# bytes: one text (a JSON string) in a sample. inspect_ai's read takes time that grows with the
+# square of a text's length (an 8 MB text about 0.7 s, 20 MB about 3 s, 100 MB over a minute)
+# and with the sample's size: a sample of 200 MB in 8 MB texts reads in about 11 s. Above a
+# screenshot as base64, which is often under 1 MB.
+MAX_STRING = 8 * 2**20
+STRING_TOO_LONG = ("{path} is too big for judgekeeper to read: one text in it is longer than "
+                   "{limit}, the most judgekeeper reads in one text of an Inspect AI log.")
 # values (a comma or an opening bracket) in one part: inspect_ai takes GBs to read a few KB
 # that unpack to `[0,0,...]` with millions of zeros. A part that grows with the samples may
 # hold VALUES_PER_SAMPLE more per sample in the log.
@@ -119,6 +126,14 @@ SAMPLES_LIMIT = 4 * 2**30
 ALL_VALUES_LIMIT = 200_000_000
 ALL_TOO_BIG = ("{path} is too big for judgekeeper to read: it would unpack to more than "
                "{limit} in all, the most judgekeeper reads of one Inspect AI log.")
+# Values in all the samples, for each byte they pack to: honest logs hold about 0.15. Each
+# sample under RATIO_FLOOR passes PACKED_RATIO, and inspect_ai reads about a million values a
+# second, so without it 400 samples in 1 MB would take minutes. A log may always hold
+# VALUE_LIMIT values in its samples.
+VALUES_PER_BYTE = 10
+PACKED_VALUES = ("{path} is too big for judgekeeper to read: its samples would unpack to more "
+                 "than {ratio} values for each byte they pack to, the most judgekeeper reads of "
+                 "an Inspect AI log.")
 # A sample unpacks to at most PACKED_RATIO times its packed size (honest ones: under 30), once
 # past RATIO_FLOOR bytes: so what is read grows with the file, never 1,000 times over. Not the
 # summaries and reductions: their repeats pack 100 to 200 times, and they have their limits.
@@ -150,9 +165,9 @@ class _Packed:
         return data
 
 
-# In a part's JSON: an escape in a string (its backslash and the byte after it); the bytes that
-# are no list or object bracket; how each bracket changes the depth
-_ESCAPE = re.compile(rb"\\.", re.DOTALL)
+# In a part's JSON: an escape in a string (its backslash and the byte after it, or a whole
+# \uXXXX); the bytes that are no list or object bracket; how each bracket changes the depth
+_ESCAPE = re.compile(rb"\\(?:u[0-9A-Fa-f]{4}|.)", re.DOTALL)
 _NOT_BRACKETS = bytes(b for b in range(256) if b not in b"[]{}")
 _DEPTH_STEP = tuple(1 if b in b"[{" else -1 if b in b"]}" else 0 for b in range(256))
 
@@ -165,26 +180,33 @@ class TooWide(ValueError):
     """A part of a .eval log holds more values than it may."""
 
 
-class _Depth:
-    """How deep the lists and objects of JSON text go, and how many values it holds, fed a step
-    at a time, with regex and bytes methods only: escapes are taken out, the text between
-    quotes (the strings) left out, and the brackets left added up; commas and opening brackets
-    count as values. Whether a string, or an escape, goes on into the next step is carried.
-    TooDeep once past MAX_NESTING, TooWide once past `values` values."""
+class TooLong(ValueError):
+    """A part of a .eval log holds a text (a JSON string) longer than it may."""
 
-    def __init__(self, values: float = math.inf):
+
+class _Depth:
+    """How deep the lists and objects of JSON text go, how many values it holds and how long
+    its longest string is, fed a step at a time, with regex and bytes methods only: each escape
+    becomes one byte, the text between quotes (the strings) is measured and left out, and the
+    brackets left added up; commas and opening brackets count as values. Whether a string,
+    or an escape, goes on into the next step is carried. TooDeep once past MAX_NESTING,
+    TooWide once past `values` values, TooLong once a string is longer than `longest`."""
+
+    def __init__(self, values: float = math.inf, longest: float = math.inf):
         self.depth, self.in_string, self.escaped = 0, False, False
         self.values, self.most_values = 0, values
+        self.string, self.longest = 0, longest  # the open string's length so far
 
     def feed(self, text: bytes) -> None:
         if self.escaped:  # the step before ended on a backslash: this byte is escaped
-            text, self.escaped = text[1:], False
+            text, self.escaped = b"x" + text[1:], False
         if b"\\" in text:
-            text = _ESCAPE.sub(b"", text)
+            text = _ESCAPE.sub(b"x", text)  # one character, as it reads
             if text.endswith(b"\\"):  # its byte is in the next step
                 text, self.escaped = text[:-1], True
         pieces = text.split(b'"')  # inside and outside strings in turn
         outside = b"".join(pieces[1 if self.in_string else 0::2])
+        self._measure(pieces)
         self.in_string ^= len(pieces) % 2 == 0
         brackets = outside.translate(None, _NOT_BRACKETS)
         opens = brackets.count(b"[") + brackets.count(b"{")
@@ -196,13 +218,27 @@ class _Depth:
         if self.values > self.most_values:
             raise TooWide("too many values")
 
+    def _measure(self, pieces: list[bytes]) -> None:
+        """The strings in this step's `pieces` (split at quotes): the first goes on from the
+        step before when one was open, the last into the next when it stays open."""
+        inside = pieces[0 if self.in_string else 1::2]
+        if not inside:
+            return
+        first = len(inside[0]) + (self.string if self.in_string else 0)
+        longest = max(first, max(map(len, inside[1:]), default=0))
+        if longest > self.longest:
+            raise TooLong("a string too long")
+        still_open = self.in_string ^ (len(pieces) % 2 == 0)
+        self.string = (first if len(inside) == 1 else len(inside[-1])) if still_open else 0
 
-def _unpacks_to(f, part, most: int, values: float = math.inf) -> tuple[int, int]:
+
+def _unpacks_to(f, part, most: int, values: float = math.inf,
+                longest: float = math.inf) -> tuple[int, int]:
     """How many bytes the zip `part` unpacks to and how many values it holds, counted by
     unpacking it STEP bytes at a time and keeping none; the count stops once past `most`.
     What it unpacks to is also looked at for how deep it nests (_Depth): TooDeep past
     MAX_NESTING, as inspect_ai would take many GB to read a few KB nested 100,000 deep, and
-    TooWide past `values`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
+    TooWide past `values`, TooLong for a string over `longest`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
     trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
     compression, or encrypted."""
     import struct
@@ -215,7 +251,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf) -> tuple[int, int]
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values)
+    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values, longest)
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
@@ -432,9 +468,11 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
     _too_big(path, ((p.filename, p.file_size) for p in parts), whole)
 
     sizes: dict[str, int] = {}
+    packed_values = max(VALUE_LIMIT, VALUES_PER_BYTE * sum(
+        p.compress_size for p in parts if p.filename.startswith("samples/")))
 
     def unpacked(f):
-        all_values = sample_bytes = 0
+        all_values = sample_bytes = sample_values = 0
         for p in parts:
             sample = p.filename.startswith("samples/")
             most, values = (
@@ -443,9 +481,17 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
                 else (WHOLE_LIMIT, VALUE_LIMIT + VALUES_PER_SAMPLE * n_samples))
             tight = max(PACKED_RATIO * p.compress_size, RATIO_FLOOR) if sample else math.inf
             left = ALL_VALUES_LIMIT - all_values
+            packed_left = packed_values - sample_values if sample else math.inf
             try:
-                n, counted = _unpacks_to(f, p, min(most, tight), min(values, left))
+                n, counted = _unpacks_to(f, p, min(most, tight), min(values, left, packed_left),
+                                         MAX_STRING if sample else math.inf)
+            except TooLong:
+                raise RecordsError(STRING_TOO_LONG.format(path=path, limit=_size(MAX_STRING))
+                                   ) from None
             except TooWide:
+                if packed_left < min(values, left):
+                    raise RecordsError(PACKED_VALUES.format(path=path, ratio=VALUES_PER_BYTE)
+                                       ) from None
                 if left < values:
                     raise RecordsError(ALL_TOO_BIG.format(
                         path=path, limit=f"{ALL_VALUES_LIMIT:,} values")) from None
@@ -455,6 +501,7 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
                 raise RecordsError(PACKED_TOO_TIGHT.format(path=path, ratio=PACKED_RATIO))
             all_values += counted
             sample_bytes += n if sample else 0
+            sample_values += counted if sample else 0
             sizes[p.filename] = n
             yield p.filename, n
 
