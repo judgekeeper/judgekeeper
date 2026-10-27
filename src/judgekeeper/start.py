@@ -771,7 +771,7 @@ def _old_evaluate(uri: str) -> list[str]:
 
 def _no_experiment(experiment: str,stores: list[tuple[find.Result, list[str]]]) -> StartError:
     """--experiment names none of the experiments: say each store searched and its own."""
-    where = [f"{_store_name(s)} (its experiments: {', '.join(names) or 'none'})"
+    where = [f"{_store_name(s)} (its experiments: {some(names, last=',') if names else 'none'})"
              for s, names in stores]
     return StartError(f"no MLflow experiment named {experiment!r} in {_or(where)}")
 
@@ -1990,7 +1990,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
             return first(having[0])
         names = [n for s, n in zip(stores, names, strict=True) if s in having]
         stores = having
-    shown = [f"{_store_name(s)} ({', '.join(n) or 'no traces'})" for s, n in zip(
+    shown = [f"{_store_name(s)} ({some(n, last=',') if n else 'no traces'})" for s, n in zip(
         stores, names, strict=True)]
     count = {2: "Two", 3: "Three"}.get(len(stores), str(len(stores)))
     title = f"{count} MLflow stores found: {_and(shown)}."

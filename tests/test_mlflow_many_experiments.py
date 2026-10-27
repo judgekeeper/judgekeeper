@@ -84,3 +84,34 @@ def test_the_experiments_with_traces_are_found_on_every_page(project):
     with mlflow_store.quiet():
         names = mlflow_store.experiments_with_traces(uri)
     assert sorted(names) == [f"judged{e}" for e in range(JUDGED)]
+
+
+# Lists of experiments are capped ---------------------------------------------------------------
+
+def test_an_experiment_not_there_lists_at_most_20_names(tmp_path):
+    from judgekeeper import find, start
+
+    store = find.Result("mlflow", tmp_path / "mlflow.db", "mlflow.db", 1)
+    names = [f"exp{i:02d}" for i in range(25)]
+    said = str(start._no_experiment("nope", [(store, names)]))
+    assert "exp19" in said and "exp20" not in said and "and 5 more" in said, said
+
+
+def test_the_line_naming_each_stores_experiments_lists_at_most_20(tmp_path, monkeypatch,
+                                                                  capsys):
+    from judgekeeper import find, start
+    from judgekeeper.readers import mlflow_store as store_module
+
+    (tmp_path / "sub").mkdir()
+    stores = []
+    for rel in ("mlflow.db", "sub/mlflow.db"):
+        (tmp_path / rel).write_bytes(b"")
+        stores.append(find.Result("mlflow", tmp_path / rel, rel, 0))
+    names = [f"exp{i:02d}" for i in range(25)]
+    monkeypatch.setattr(store_module, "store_uri", lambda path, say=None: "sqlite:///x.db")
+    monkeypatch.setattr(store_module, "experiments_with_traces", lambda uri: names)
+    monkeypatch.setattr(start, "_has", lambda name: True)
+    monkeypatch.setattr(start, "_interactive", lambda: False)
+    start._choose_store(start.Talk(), tmp_path, stores, None, None)
+    said = " ".join(capsys.readouterr().out.split())
+    assert said.count("and 5 more") == 2 and "exp20" not in said, said
