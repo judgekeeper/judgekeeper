@@ -39,7 +39,7 @@ from judgekeeper import (
     targets,
 )
 from judgekeeper.fingerprint import rule_hash
-from judgekeeper.label import DEFAULT_PORT, is_open, page_folder
+from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
@@ -103,7 +103,7 @@ SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix`
 RESULT_OPEN = "Your result page is open in your browser."
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
-PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for {folder}."
+PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
 NEXT_STOP_THERE = "run `{stop}` there, or `{command}`."
 NEXT_ANY_PORT = "run `{command}` (it opens the page on any free port)."
 # A tool found here with no saved results: what saves them
@@ -1288,9 +1288,8 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             path, options = answered(talk, saved)
             command = " ".join((program(), *start.repeated_flags(path, **{**options,
                                                                           "port": 0})))
-            folder = page_folder(tried)
-            if folder is not None:  # another project's page: it can be closed there
-                talk.para(PORT_PAGE.format(port=tried, folder=folder))
+            if is_page(tried):  # another project's page (its name needs its token): close it
+                talk.para(PORT_PAGE.format(port=tried))
                 raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
                     stop=program("--stop"), command=command))
             talk.say(PORT_TAKEN.format(port=tried))

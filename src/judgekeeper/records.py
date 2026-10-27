@@ -34,7 +34,15 @@ from judgekeeper.table import (
     _delimiter,
     derive_id,
 )
-from judgekeeper.textio import MAX_NESTING, jsonl_lines, plural, read_utf8, reading, too_deep
+from judgekeeper.textio import (
+    MAX_NESTING,
+    jsonl_lines,
+    lone_surrogate,
+    plural,
+    read_utf8,
+    reading,
+    too_deep,
+)
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
@@ -75,6 +83,8 @@ def damaged(path: str | Path, tool: str, how: str) -> Damaged:
 
 
 NESTED = f"is nested more than {MAX_NESTING} levels deep"  # the same on every Python
+# A JSON escape such as \\ud800 alone: it can't be hashed or written as UTF-8
+NOT_TEXT = "holds a character that isn't text (a lone surrogate such as \\ud800)"
 
 
 def load_json(path: str | Path, tool: str):
@@ -95,6 +105,8 @@ def load_json(path: str | Path, tool: str):
         raise damaged(path, tool, "is damaged (judgekeeper can't read it as JSON)") from None
     if too_deep(data):
         raise damaged(path, tool, NESTED)
+    if lone_surrogate(data):
+        raise damaged(path, tool, NOT_TEXT)
     return data
 
 
@@ -558,6 +570,9 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
                 continue
             if not isinstance(row, dict):
                 rows.append((n, "each line must be a JSON object", 0))
+                continue
+            if lone_surrogate(row):
+                rows.append((n, NOT_TEXT, 0))
                 continue
             rows.append((n, row, utf8_size(line)))
         return rows, False

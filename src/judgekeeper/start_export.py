@@ -20,7 +20,6 @@ carries on.
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -37,6 +36,8 @@ QUESTION = ("Run this project's promptfoo ({program}) to export your latest resu
             "code from this folder, like running its tests. No AI call.")
 PATH_QUESTION = ("Run promptfoo ({program}) to export your latest results? It reads promptfoo's "
                  "database in your home folder and writes one file here. No AI call.")
+UNREADABLE = ("The file promptfoo exported can't be read (it is damaged, or nested too deep), "
+              f"so judgekeeper removed it ({LATEST}).")
 ANOTHER = ("That was your last promptfoo run, from another project. Find yours with promptfoo "
            "list evals -n 10, then run promptfoo export eval <id> -o promptfoo-results.json.")
 
@@ -78,7 +79,7 @@ def _this_project(path: Path | None, data: dict) -> bool:
     config: no."""
     from judgekeeper.start import config_description
 
-    if path is None or not path.is_file():
+    if path is None or not path.is_file():  # a named pipe is not a file: never read
         return False
     config = data.get("config") if isinstance(data.get("config"), dict) else {}
     theirs = config.get("description")
@@ -88,7 +89,10 @@ def _this_project(path: Path | None, data: dict) -> bool:
     prompts = _prompts(config)
     if not prompts:
         return True
-    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = textio.read_regular(path).decode("utf-8", errors="replace")
+    except OSError:
+        return False
     return any(p in text for p in prompts)
 
 
@@ -124,10 +128,12 @@ def offer(talk, root: Path, config: str | None) -> str:
         talk.say(f"promptfoo export did not work: {scrub(tail[-1]) if tail else 'no file'}")
         out.unlink(missing_ok=True)
         return "commands"
-    try:
-        data = json.loads(out.read_text(encoding="utf-8"))
-    except ValueError:
-        data = {}
+    try:  # nested thousands deep, a lone surrogate, not UTF-8, not JSON: removed, said
+        data = textio.read_json(out, ValueError)
+    except (ValueError, OSError):
+        out.unlink(missing_ok=True)
+        talk.say(UNREADABLE)
+        return "commands"
     found = root / config if config else None
     if not isinstance(data, dict) or not _this_project(found, data):
         out.unlink()

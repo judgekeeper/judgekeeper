@@ -11,7 +11,8 @@ line is read as dotenv reads it (`NAME=value`, `NAME: value`, `export`, quotes);
 kept, except for `passed_on`: when judgekeeper runs the judge's tool, the tool reads no `.env`
 of the project, and judgekeeper passes on the values of the API key names alone. Every key
 name found set in the shell, and every value passed on, is registered with `redact`, so its
-value is scrubbed from what a tool prints.
+value is scrubbed from what a tool prints. So is every credential in the project's .env files
+and promptfoo configs, as soon as the project is found (`hide_keys`): only to hide it.
 """
 
 from __future__ import annotations
@@ -23,7 +24,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from judgekeeper.redact import register_key_env, register_secret
+from judgekeeper import textio
+from judgekeeper.redact import is_credential, register_key_env, register_secret
 
 HOME = Path.home()
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
@@ -144,13 +146,19 @@ _DOTENV_LINE = re.compile(
     r"\s*\"(?:\\\"|[^\"])*\"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?$", re.MULTILINE)
 
 
+# Where JavaScript's `^` and `$` see a line end, as dotenv's LINE does: U+2028 and U+2029 too
+_JS_LINE_ENDS = re.compile("\r\n?|[\u2028\u2029]")
+
+
 def _dotenv_lines(path: Path):
-    """(name, the value as written) for each line dotenv reads in a .env file, in order."""
+    """(name, the value as written) for each line dotenv reads in a .env file, in order. A
+    byte order mark at its start is not part of the first name. Only a regular file is read:
+    a named pipe would wait forever."""
     try:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        text = textio.read_regular(path).decode("utf-8-sig", errors="replace")
     except OSError:
         return
-    for m in _DOTENV_LINE.finditer(text.replace("\r\n", "\n").replace("\r", "\n")):
+    for m in _DOTENV_LINE.finditer(_JS_LINE_ENDS.sub("\n", text)):
         yield m[1], m[2] or ""
 
 
@@ -246,14 +254,34 @@ def _scalar(text: str) -> str | None:
     return text or None
 
 
+# The name config_env gives an `env:` block it can't read whole: never passed on, so the
+# plan refuses the config, as for any name judgekeeper does not pass on
+UNREAD = "env"
+# A top-level `env` key in a form the line scan does not read: quoted, a space before the
+# colon, an anchor, a tag or an alias after it, a flow mapping over several lines, a complex
+# key (`? env`); a quoted key with an escape in it may be `env` too
+_ENV_KEY = re.compile(r"""^(?:\?\s*)?(["']?)env\1\s*(?::|$)""")
+_ESCAPED_KEY = re.compile(r"""^\??\s*"[^"]*\\""")
+_READABLE = (re.compile(r"env:\s*(#.*)?$"), re.compile(r"env:\s*\{(.*)\}\s*(#.*)?$"))
+_ENTRY = re.compile(r"""\s+["']?([A-Za-z_][A-Za-z0-9_]*)["']?\s*:(.*)$""")
+_FLOW_ENV = re.compile(r"""[{,]\s*["']?env["']?\s*:""")
+_ANY_ENV = re.compile(r"""(?:^|[\s{,?])["']?env["']?\s*:""", re.MULTILINE)
+
+
 def config_env(config: Path | None) -> dict[str, str | None]:
     """A promptfoo config's top-level `env:` block, {name: value}: from JSON (a `.json`
-    file, or JSON in a `.yaml` one, which YAML reads the same), else a line scan for YAML, in
-    block or one-line (`env: {A: x, B: y}`) form. A value it can't read as one line is None.
-    Values are passed on to promptfoo, never shown."""
-    if config is None or not Path(config).is_file():
+    file, or JSON in a `.yaml` one, which YAML reads the same), else with PyYAML when it can
+    be imported, else a line scan for YAML, in block or one-line (`env: {A: x, B: y}`) form.
+    A block the line scan can't read whole (another YAML form, js-yaml reads them all) gives
+    UNREAD, which is refused. A value it can't read as one line is None. Values are passed
+    on to promptfoo, never shown. Only a regular file is read."""
+    if config is None:
         return {}
-    text = Path(config).read_text(encoding="utf-8", errors="replace")
+    try:
+        text = textio.read_regular(config).decode("utf-8", errors="replace")
+    except OSError:
+        return {}
+    text = text.removeprefix(textio.BOM)
     if str(config).endswith(".json") or text.lstrip().startswith("{"):
         try:
             env = json.loads(text).get("env")
@@ -262,17 +290,54 @@ def config_env(config: Path | None) -> dict[str, str | None]:
         if isinstance(env, dict) or str(config).endswith(".json"):
             return ({str(k): (v if isinstance(v, str) else None) for k, v in env.items()
                      if NAME.match(str(k))} if isinstance(env, dict) else {})
+    parsed = _yaml_env(text)
+    return _scanned_env(text) if parsed is None else parsed
+
+
+def _yaml_env(text: str) -> dict[str, str | None] | None:
+    """The top-level `env:` block as PyYAML reads it (every name, so any other is refused),
+    or None when PyYAML can't be imported or can't read the text."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    try:
+        data = yaml.safe_load(text)
+    except (yaml.YAMLError, RecursionError, ValueError):
+        return None
+    env = data.get("env") if isinstance(data, dict) else None
+    if env is None:
+        return {}
+    if not isinstance(env, dict):
+        return {UNREAD: None}
+    return {str(k): (v if isinstance(v, str) else None) for k, v in env.items()}
+
+
+def _scanned_env(text: str) -> dict[str, str | None]:
+    """config_env's line scan."""
     found, inside, indent = {}, False, None
+    if text.lstrip().startswith("{") and _FLOW_ENV.search(text):
+        return {UNREAD: None}  # a flow mapping as the whole document
+    merges = any(re.match(r"<<\s*:", line) for line in text.splitlines())
+    if merges and _ANY_ENV.search(text):
+        return {UNREAD: None}  # `<<: *base` may bring in an env: block
     for line in text.splitlines():
-        flow = re.match(r"env:\s*\{(.*)\}\s*(#.*)?$", line)
+        if line[:1] not in ("", " ", "\t", "#") and (
+                _ENV_KEY.match(line) or _ESCAPED_KEY.match(line)) \
+                and not any(r.match(line) for r in _READABLE):
+            return {UNREAD: None}
+    for line in text.splitlines():
+        flow = _READABLE[1].match(line)
         if flow:  # the values may hold ":" (an address), so each entry is cut at its first one
             for entry in flow[1].split(","):
                 name, _, value = entry.partition(":")
                 name = name.strip().strip("'\"")
                 if NAME.match(name):
                     found[name] = _scalar(value)
+                elif name:
+                    return {UNREAD: None}
             return found
-        if re.match(r"env:\s*(#.*)?$", line):
+        if _READABLE[0].match(line):
             inside = True
             continue
         if not inside or not line.strip() or line.lstrip().startswith("#"):
@@ -281,10 +346,32 @@ def config_env(config: Path | None) -> dict[str, str | None]:
             break  # the next top-level key
         width = len(line) - len(line.lstrip())
         indent = width if indent is None else indent
-        m = re.match(r"\s+[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?\s*:(.*)$", line)
-        if m and width == indent:
-            found[m[1]] = _scalar(m[2])
+        if width != indent:
+            continue  # a value over several lines
+        m = _ENTRY.match(line)
+        if not m:
+            return {UNREAD: None}  # `? NAME`, an escaped name, `<<: *a`, a list
+        found[m[1]] = _scalar(m[2])
     return found
+
+
+def hide_keys(root: Path, configs=()) -> None:
+    """Register with `redact` the value of every credential (an API key name, or a name
+    ending in _API_KEY, _TOKEN or _SECRET) that the project's .env files and the promptfoo
+    configs `configs` set, so it is hidden from finding and marking on, not only once fix or
+    check pass it on. Nothing is passed on here, and no other value is kept."""
+    root = Path(root)
+    files = [root / ".env", root / ".env.local", _nearest_env(root)]
+    if os.environ.get("APP_ENV"):
+        files.append(root / f".env.{os.environ['APP_ENV'].strip()}")
+    for path in dict.fromkeys(files):
+        names = {n for n in names_in(path) if is_credential(n)}
+        for name, value in env_values(path, names).items():
+            register_secret(name, value)
+    for config in configs:
+        for name, value in config_env(config).items():
+            if isinstance(value, str):
+                register_secret(name, value)
 
 
 def _nearest_env(folder: Path) -> Path:

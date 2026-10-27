@@ -71,7 +71,9 @@ def test_only_the_head_of_a_json_file_is_read_to_sniff_it(tmp_path):
     assert len(find._head(big)) == find.HEAD_BYTES == 64 * 1024
 
 
-def test_a_dotenv_file_is_never_opened(tmp_path, capsys, monkeypatch):
+def test_only_the_projects_dotenv_is_read_to_hide_its_keys(tmp_path, capsys, monkeypatch):
+    """The project's .env is read for one thing, hiding its keys (keys.hide_keys); a .env
+    in a folder below is never opened."""
     key = "sk-test-" + "k" * 40
     (tmp_path / ".env").write_text(f"OPENAI_API_KEY={key}\n", encoding="utf-8")
     (tmp_path / "config").mkdir()
@@ -92,7 +94,8 @@ def test_a_dotenv_file_is_never_opened(tmp_path, capsys, monkeypatch):
     code, out, err = run(capsys, tmp_path)
     assert code == 0
     assert opened, "the spy saw no file at all"
-    assert not [p for p in opened if os.path.basename(p) == ".env"]
+    read = [p for p in opened if os.path.basename(p) == ".env"]
+    assert read and all(os.path.dirname(p) == os.fspath(tmp_path) for p in read), read
     assert key not in out + err
 
 

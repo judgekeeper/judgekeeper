@@ -772,11 +772,18 @@ def _rule_quote(rule: str) -> str:
 def read_rule(path: Path) -> str:
     """The rule in rule.txt, stripped. Only its first MAX_RULE bytes and one more are read: a
     longer file comes back longer than MAX_RULE, unstripped, and the checks refuse it."""
-    with Path(path).open("rb") as f:
-        raw = f.read(start_fix_rule.MAX_RULE + 1)
+    from judgekeeper.start import StartError
+    from judgekeeper.textio import BOM, decode_utf8, read_regular
+
+    raw = read_regular(path, start_fix_rule.MAX_RULE + 1)  # a named pipe: OSError, no rule
     if len(raw) > start_fix_rule.MAX_RULE:
         return raw.decode("utf-8", errors="replace")
-    return raw.decode("utf-8").strip()
+
+    try:  # saved as cp1252 or UTF-16 (Notepad's "ANSI" or "Unicode"): how to save it again
+        return decode_utf8(raw, path, ValueError).removeprefix(BOM).strip()
+    except ValueError as e:
+        raise StartError(str(e), f"save {Path(path).name} as UTF-8, then run "
+                         "`{command}`.") from None
 
 
 def _tested_rule(ws: Workspace, split: Split) -> tuple[str, dict] | None:
