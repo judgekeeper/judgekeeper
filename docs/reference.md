@@ -211,7 +211,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 | `score`, `pass_mark` | Instead of `verdict`: it passes when `score >= pass_mark`. A score with no pass mark waits for `--pass-if` |
 | `reason` | The LLM-as-a-judge's reason |
 | `judge` | The LLM-as-a-judge's model |
-| `rule` | The LLM-as-a-judge's rule, for `fix`; the marking page hides it |
+| `rule` | The LLM-as-a-judge's rule, for `fix`; the marking page shows it behind "Show the rule" |
 | `name` | Which LLM-as-a-judge or criterion (default `judge`) |
 | `temperature`, `id`, `metadata` | The temperature, the answer's id (else one is made), and a dict of anything else |
 
