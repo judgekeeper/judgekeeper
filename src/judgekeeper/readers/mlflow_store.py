@@ -51,7 +51,7 @@ from judgekeeper.records import (
     check_record,
     derive_record_id,
 )
-from judgekeeper.textio import get_extra, reading
+from judgekeeper.textio import get_extra, quoted_name, reading
 
 # The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
 LOGGERS = ("mlflow", "alembic", "sqlalchemy")
@@ -810,7 +810,7 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
         names = sorted({str(f[1]["name"]) for f in gone})
         raise JudgeCallsFailed(
             f"MLflow experiment {experiment!r}: every call of your LLM-as-a-judge "
-            f"{', '.join(names)} failed ({len(gone)} saved as errors).")
+            f"{', '.join(map(quoted_name, names))} failed ({len(gone)} saved as errors).")
     for run, fields, error in gone:
         evaluator = evaluators.get((run, fields["name"])) or evaluators.get(
             (None, fields["name"])) or {}  # a judge that only failed: its model unknown

@@ -46,12 +46,11 @@ from judgekeeper.records import RecordsError
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
-    held_back,
-    is_windows,
     old_hook,
     plural,
     program,
     quote_arg,
+    quoted_name,
     wrap,
 )
 
@@ -127,18 +126,6 @@ FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (f
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
-def _quoted(value: str) -> str:
-    """A judge's name in the line that says to choose one, as it can be pasted: quoted for
-    the shell (quote_arg), in its quotes even when it needs none, so the names read alike
-    (double on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of
-    commands (held_back) is shown between single quotes, as data."""
-    if held_back(value):
-        return f"'{value}'"
-    quoted = quote_arg(value)
-    mark = '"' if is_windows() else "'"
-    return f"{mark}{value}{mark}" if quoted == value else quoted
-
-
 class FrontTalk(start.Talk):
     """start.Talk for `judgekeeper`: printed commands start `judgekeeper`. Without a
     terminal a choice ends in a `Next:` line (stop), and a yes/no question is noted."""
@@ -192,7 +179,7 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(_quoted(str(v)) if flag == "--metric" else quote_arg(str(v))
+        names = ", ".join(quoted_name(str(v)) if flag == "--metric" else quote_arg(str(v))
                           for v in values)
         if len(values) > start.LIST_LIMIT:  # the list above holds the first ones
             names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"

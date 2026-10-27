@@ -710,6 +710,19 @@ def quote_arg(arg: str | Path, kept: bool = False) -> str:
     return shlex.quote(text)
 
 
+def quoted_name(value: str) -> str:
+    """A name read from a file (a metric, an LLM-as-a-judge) in a line or list that names
+    it, as it can be pasted: quoted for the shell (quote_arg), in its quotes even when it
+    needs none, so the names read alike and none reads as a line judgekeeper says (double
+    on Windows, where cmd.exe and PowerShell read them). One Windows leaves out of commands
+    (held_back) is shown between single quotes, as data."""
+    if held_back(value):
+        return f"'{value}'"
+    quoted = quote_arg(value)
+    mark = '"' if is_windows() else "'"
+    return f"{mark}{value}{mark}" if quoted == value else quoted
+
+
 def held_lines(text: str) -> list[str]:
     """A line for each value `quote_arg` left out of a command, as data, once `text` (a line
     about to be said) shows PLACEHOLDER; scrubbed, as every line said is, and on one line, so

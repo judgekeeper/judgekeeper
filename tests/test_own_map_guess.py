@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import sys
 import tomllib
 
 import pytest
@@ -123,8 +124,9 @@ def test_how_it_reads_says_where_the_pass_mark_and_model_come_from(tmp_path, cap
     answers += ["", "", "3", "1", ""]  # right; each its own; all; helpful for now; save
     code, out = setup(capsys, tmp_path / "history" / "evals.jsonl")
     assert code == 0
-    assert ("grade: answers.A.scores.safe_wording.score (LLM-as-a-judge names: safe_wording, helpful) and "
-            "the same under B") in " ".join(out.split())
+    q = '"' if sys.platform == "win32" else "'"  # quoted alike, as each shell reads
+    assert ("grade: answers.A.scores.safe_wording.score (LLM-as-a-judge names: "
+            f"{q}safe_wording{q}, {q}helpful{q}) and the same under B") in " ".join(out.split())
     assert "  model:           judge.model (claude-sonnet-5)" in out
     assert "  pass mark:       0.7 (judge.pass_mark in the file)" in out
     assert ": Pass at 0.7 or more" in out and "Pass mark:" not in out
