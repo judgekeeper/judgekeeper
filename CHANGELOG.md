@@ -5,7 +5,7 @@
 The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, run `pip install judgekeeper`, then `judgekeeper`, or `uvx judgekeeper`.
 
 - `judgekeeper` finds your eval results and their LLM-as-a-judge: promptfoo, DeepEval, Inspect AI, MLflow, a CSV or JSONL file, or `judgekeeper.record()`.
-- You mark answers Pass or Fail in your browser, with the grade hidden. The page accepts marks only from itself, so another website can't send marks. A program on your computer could, the same way it could edit your files.
+- You mark answers Pass or Fail in your browser, with the grade hidden. The page accepts marks only from itself, so marks from another website are refused. A program on your computer could, the same way it could edit your files.
 - Then see how often your LLM-as-a-judge agrees with you: TPR and TNR with ranges, and kappa.
 - `judgekeeper mark` marks more answers.
 - `judgekeeper fix` shows where your LLM-as-a-judge goes wrong and keeps half your marks aside. Grade the marked answers again with your new rule in your eval tool, then `judgekeeper fix <new results file>` tests it on the marks kept aside.

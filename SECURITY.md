@@ -18,7 +18,7 @@ It hides:
 ## The marking page
 
 - It runs on 127.0.0.1 only, with a random token in its link.
-- Every change must also come from the page itself: `Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser sends it. So another website can't send marks. A program on your computer could, the same way it could edit your files.
+- Every change must also come from the page itself: `Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser sends it. So marks from another website are refused. A program on your computer could, the same way it could edit your files.
 - It stops after 30 minutes without use.
 
 The details are in the [reference](docs/reference.md#judgekeeper-find-mark-measure).

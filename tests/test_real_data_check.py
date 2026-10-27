@@ -285,9 +285,13 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     grid = json.loads((ROOT / "docs/examples/coverage/coverage.json").read_text(
         encoding="utf-8"))
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
-    simulated = (f"In simulated checks, the TPR and TNR ranges held the true value at least "
-                 f"{pct(lowest_tpr_tnr_coverage(grid))} times in 100 in every setting tested, "
-                 f"and {pct(level['mean'])} times on average in the main test grid.")
+    cell = min(level["per_metric"][k] for k in ("tpr", "tnr"))
+    first = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
+                for k in ("tpr", "tnr"))
+    assert first == lowest_tpr_tnr_coverage(grid)  # the lowest anywhere is at the first result
+    simulated = (f"In simulated checks, judgekeeper's ranges held the true value at least "
+                 f"{pct(cell)} times in 100 in every cell of the main grid ({pct(level['mean'])} "
+                 f"on average), and at least {pct(first)} times at the very first result.")
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links
     report_md = _flat(OUT / "report.md")
