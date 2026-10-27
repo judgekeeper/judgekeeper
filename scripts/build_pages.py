@@ -45,7 +45,8 @@ li {{ margin: 12px 0; }}
 <h1>judgekeeper example reports</h1>
 <p>Reports committed under <code>docs/examples/</code> in the repository. All come
 from real runs on public datasets (of judgekeeper, or of a check script that uses its
-maths), except <code>site-example</code>: the made-up project the home page shows.</p>
+maths), except <code>site-example</code>: the made-up project the home page shows, and
+<code>kept-aside</code>: what <code>fix</code> says on simulated new rules.</p>
 <ul>
 {items}
 </ul>
