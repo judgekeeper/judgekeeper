@@ -433,8 +433,8 @@ BATCH, BATCH_BYTES = 100, 64 * 2**20
 def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     """(id, epoch) of each sample the log holds a part for, in the order inspect_ai reads
     them: by the ids the header lists, then by epoch up to the header's epochs. Only parts
-    that are there: inspect_ai would ask for every id in every epoch the header names, a
-    billion epochs in a 7 KB log."""
+    that are there, each once: inspect_ai would ask for every id in every epoch the header
+    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it."""
     dataset, config = spec.get("dataset") or {}, spec.get("config") or {}
     ids, most = dataset.get("sample_ids"), config.get("epochs") or 1
     if not isinstance(ids, list):
@@ -443,7 +443,12 @@ def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     for name in sizes:
         if m := _SAMPLE_PART.fullmatch(name):
             epochs.setdefault(m[1], []).append(int(m[2]))
-    return [(i, epoch) for i in ids for epoch in sorted(epochs.get(str(i), ())) if epoch <= most]
+    held, parts = [], sum(map(len, epochs.values()))
+    for i in ids:
+        if len(held) == parts:  # every part named once
+            break
+        held += [(i, epoch) for epoch in sorted(epochs.pop(str(i), ())) if epoch <= most]
+    return held
 
 
 def _batches(wanted, sizes: dict[str, int]):
