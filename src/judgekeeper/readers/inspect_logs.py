@@ -22,7 +22,8 @@ import re
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
-from itertools import accumulate
+from dataclasses import replace
+from itertools import accumulate, pairwise
 from pathlib import Path
 
 from judgekeeper.anchors import canonical_json
@@ -112,6 +113,13 @@ VALUES_PER_SAMPLE = 1_000
 UNPACKS_TOO_BIG = ("{path} would unpack to more than {limit} for {part}, the most judgekeeper "
                    "reads for {part} of an Inspect AI log, so it did not read it. The log may be "
                    "damaged, or not an Inspect AI log.")
+# The whole log: all its samples unpacked together (bytes), and the values in all its parts.
+# Each part on its own passing its limit, a few KB could still name millions of values.
+SAMPLES_LIMIT = 500 * 2**20
+ALL_VALUES_LIMIT = 20_000_000
+ALL_TOO_BIG = ("{path} would unpack to more than {limit} in all, the most judgekeeper reads "
+               "of one Inspect AI log, so it did not read it. The log may be damaged, or not an "
+               "Inspect AI log.")
 STEP = 2**20  # bytes unpacked at a time while a part of a .eval log is counted
 ZSTD = 93  # zstd's number as a zip compression method: inspect_ai's own
 
@@ -182,12 +190,12 @@ class _Depth:
             raise TooWide("too many values")
 
 
-def _unpacks_to(f, part, most: int, values: float = math.inf) -> int:
-    """How many bytes the zip `part` unpacks to, counted by unpacking it STEP bytes at a time
-    and keeping none; the count stops once past `most`. What it unpacks to is also looked at
-    for how deep it nests and how many values it holds (_Depth): TooDeep past MAX_NESTING, as
-    inspect_ai would take many GB to read a few KB nested 100,000 deep, and TooWide past
-    `values`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
+def _unpacks_to(f, part, most: int, values: float = math.inf) -> tuple[int, int]:
+    """How many bytes the zip `part` unpacks to and how many values it holds, counted by
+    unpacking it STEP bytes at a time and keeping none; the count stops once past `most`.
+    What it unpacks to is also looked at for how deep it nests (_Depth): TooDeep past
+    MAX_NESTING, as inspect_ai would take many GB to read a few KB nested 100,000 deep, and
+    TooWide past `values`. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
     trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
     compression, or encrypted."""
     import struct
@@ -205,7 +213,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf) -> int:
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
             depth.feed(out)
-        return n
+        return n, depth.values
     if part.compress_type == zipfile.ZIP_DEFLATED:
         unpack = zlib.decompressobj(-15)
         while n <= most and not unpack.eof:
@@ -215,7 +223,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf) -> int:
                 break
             n += len(out)
             depth.feed(out)
-        return n
+        return n, depth.values
     if part.compress_type == ZSTD:
         import zstandard
 
@@ -224,7 +232,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf) -> int:
         while n <= most and (out := reader.read(STEP)):
             n += len(out)
             depth.feed(out)
-        return n
+        return n, depth.values
     raise ValueError("not a compression inspect_ai writes")
 
 
@@ -235,15 +243,16 @@ def _what(name: str) -> str:
 def _too_big(path: Path, sizes, whole: bool) -> None:
     """RecordsError at the first of `sizes` (part name, its bytes unpacked) that passes a
     limit: one of HEADER_PARTS HEADER_LIMIT, the other header parts (they grow with the
-    samples) together WHOLE_LIMIT, one sample SAMPLE_LIMIT, and with `whole` (a log read
-    whole) all of it WHOLE_LIMIT."""
-    growing = total = 0
+    samples) together WHOLE_LIMIT, one sample SAMPLE_LIMIT, all samples together
+    SAMPLES_LIMIT, and with `whole` (a log read whole) all of it WHOLE_LIMIT."""
+    growing = total = samples = 0
     for name, n in sizes:
         total += n
         if whole and total > WHOLE_LIMIT:
             raise RecordsError(TOO_BIG.format(path=path, size=f"more than {_size(WHOLE_LIMIT)} "
                                               "unpacked", limit=_size(WHOLE_LIMIT)))
         if name.startswith("samples/"):
+            samples += n
             size, limit = n, SAMPLE_LIMIT
         elif name in HEADER_PARTS:
             size, limit = n, HEADER_LIMIT
@@ -253,6 +262,9 @@ def _too_big(path: Path, sizes, whole: bool) -> None:
         if size > limit:
             raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=_what(name),
                                                       limit=_size(limit)))
+        if samples > SAMPLES_LIMIT:
+            raise RecordsError(ALL_TOO_BIG.format(
+                path=path, limit=f"{_size(SAMPLES_LIMIT)} of samples"))
 
 
 EOCD, EOCD64, LOCATOR = b"PK\x05\x06", b"PK\x06\x06", b"PK\x06\x07"  # zip end records
@@ -295,12 +307,31 @@ def _one_table(f, parts) -> bool:
         (p.header_offset for p in parts), default=offset) == 0
 
 
+def _apart(f, parts, table: int) -> bool:
+    """Whether each of `parts` has its own bytes: from its local header to the end of its
+    packed data, no part runs into the next one, nor into the table of contents at `table`.
+    Else one stored part could be read under many names. A name may repeat with bytes of its
+    own: inspect_ai writes a requeued sample again under its name and reads the last."""
+    import struct
+
+    spans = []
+    for p in parts:
+        f.seek(p.header_offset)
+        head = f.read(30)
+        if len(head) < 30 or head[:4] != b"PK\x03\x04":
+            return False
+        name, extra = struct.unpack_from("<HH", head, 26)
+        spans.append((p.header_offset, p.header_offset + 30 + name + extra + p.compress_size))
+    return all(end <= after for (_, end), (after, _) in pairwise(sorted(spans) + [(table, 0)]))
+
+
 def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> None:
     """Refuse a .eval log (a zip) that zipfile can't open, or where it and inspect_ai could
-    find different parts (_one_table), or whose parts unpack too big (_too_big) or hold too
-    many values, before inspect_ai reads it: first by the sizes the zip declares, then by what
-    each part really unpacks to (_unpacks_to), as a zip can declare any size. Nothing unpacked
-    is kept, so memory stays low. `samples=False`: the header parts only."""
+    find different parts (_one_table), or whose parts share bytes (_apart), or whose
+    parts unpack too big (_too_big) or hold too many values, each or all together, before
+    inspect_ai reads it: first by the sizes the zip declares, then by what each part really
+    unpacks to (_unpacks_to), as a zip can declare any size. Nothing unpacked is kept, so
+    memory stays low. `samples=False`: the header parts only."""
     import zipfile
 
     unreadable = damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
@@ -308,7 +339,7 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> No
     try:
         with zipfile.ZipFile(path) as z, path.open("rb") as f:
             parts = z.infolist()
-            if not _one_table(f, parts):
+            if not _one_table(f, parts) or not _apart(f, parts, z.start_dir):
                 raise unreadable
     except (OSError, ValueError, zipfile.BadZipFile):
         raise unreadable from None
@@ -317,16 +348,25 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> No
     _too_big(path, ((p.filename, p.file_size) for p in parts), whole)
 
     def unpacked(f):
+        all_values = sample_bytes = 0
         for p in parts:
+            sample = p.filename.startswith("samples/")
             most, values = (
-                (SAMPLE_LIMIT, VALUE_LIMIT) if p.filename.startswith("samples/")
+                (min(SAMPLE_LIMIT, SAMPLES_LIMIT - sample_bytes), VALUE_LIMIT) if sample
                 else (HEADER_LIMIT, VALUE_LIMIT) if p.filename in HEADER_PARTS
                 else (WHOLE_LIMIT, VALUE_LIMIT + VALUES_PER_SAMPLE * n_samples))
+            left = ALL_VALUES_LIMIT - all_values
             try:
-                yield p.filename, _unpacks_to(f, p, most, values)
+                n, counted = _unpacks_to(f, p, most, min(values, left))
             except TooWide:
+                if left < values:
+                    raise RecordsError(ALL_TOO_BIG.format(
+                        path=path, limit=f"{ALL_VALUES_LIMIT:,} values")) from None
                 raise RecordsError(UNPACKS_TOO_BIG.format(path=path, part=_what(p.filename),
                                                           limit=f"{values:,} values")) from None
+            all_values += counted
+            sample_bytes += n if sample else 0
+            yield p.filename, n
 
     try:
         with path.open("rb") as f:
@@ -340,8 +380,8 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> No
 
 
 def _by_sample(path: Path, read_eval_log, read_samples) -> dict:
-    """A .eval log as its header and its samples, read one at a time, each kept to
-    SAMPLE_FIELDS."""
+    """A .eval log as its header and its samples: these are read one at a time as they are
+    gone through, once, each kept to SAMPLE_FIELDS, and never all held at once."""
     import inspect
 
     data = read_eval_log(str(path), header_only=True).model_dump(mode="json",
@@ -352,8 +392,17 @@ def _by_sample(path: Path, read_eval_log, read_samples) -> dict:
             options["exclude_fields"] = {"events", "attachments", "store"}
     except (TypeError, ValueError):
         pass
-    data["samples"] = [s.model_dump(mode="json", include=SAMPLE_FIELDS)
-                       for s in read_samples(str(path), all_samples_required=False, **options)]
+
+    def samples() -> Iterator[dict]:
+        try:
+            with quiet():
+                for s in read_samples(str(path), all_samples_required=False, **options):
+                    yield s.model_dump(mode="json", include=SAMPLE_FIELDS)
+        except Exception:  # noqa: BLE001 - a sample cut short or not Inspect's
+            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
+                                              "an Inspect AI log") from None
+
+    data["samples"] = samples()
     return data
 
 
@@ -532,19 +581,29 @@ def stopped_early(data: dict) -> str | None:
     """A note when the log's run did not finish (status error or cancelled): how far it got,
     and the type and count of the errors, never their text (an error Inspect saves can hold
     the eval's prompt and request); else None."""
+    samples = [s for s in data.get("samples") or [] if isinstance(s, dict)]
+    return _stopped(data, len(samples), Counter(filter(None, map(_error_kind, samples))))
+
+
+def _error_kind(sample: dict) -> str | None:
+    """The type of the error a sample stopped on, or None."""
+    error = sample.get("error")
+    if not error:
+        return None
+    return error_type(error.get("message") if isinstance(error, dict) else error)
+
+
+def _stopped(data: dict, samples: int, errored: Counter) -> str | None:
+    """stopped_early, from the log's header, how many samples it holds and their errors."""
     status = data.get("status")
     if status not in ("error", "cancelled"):
         return None
-    samples = [s for s in data.get("samples") or [] if isinstance(s, dict)]
     results = data.get("results") if isinstance(data.get("results"), dict) else {}
     total = (results.get("total_samples")
              or ((data.get("eval") or {}).get("dataset") or {}).get("samples"))
-    errored = Counter(error_type((s["error"] or {}).get("message")
-                                 if isinstance(s["error"], dict) else s["error"])
-                      for s in samples if s.get("error"))
     done = results.get("completed_samples")
     if not isinstance(done, int) or isinstance(done, bool):
-        done = len(samples) - sum(errored.values())
+        done = samples - sum(errored.values())
     far = f"{done} of {total} samples" if isinstance(total, int) and total else f"{done} samples"
     if status == "cancelled":
         return f"{STOPPED} ({far}): it was cancelled."
@@ -558,37 +617,56 @@ def stopped_early(data: dict) -> str | None:
 def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
     """ScoreRecords from one Inspect AI log: one LLM record per scorer per sample and epoch.
     `with_errors`: also one record per scorer for a sample that errored before it was scored
-    (see the module docstring)."""
+    (see the module docstring). The samples are gone through once, in order, and each let go
+    once its records are made."""
     path = Path(path)
     data = _load(path)
+    samples = data.get("samples") if isinstance(data, dict) else None
+    try:
+        return _read(path, data, samples, with_errors)
+    finally:
+        if isinstance(samples, Iterator):
+            samples.close()
+
+
+def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
     spec = data.get("eval") if isinstance(data, dict) else None
     if not isinstance(spec, dict):
         raise damaged(path, "Inspect AI", EVAL_DAMAGED if isinstance(data, dict) and "eval" in data
                       else "is not an Inspect AI log (no eval)")
-    samples = data.get("samples")
-    samples = samples if isinstance(samples, list) else None
-    if not samples:
-        raise RecordsError(f"{path}: the log has no samples (was it written with "
-                           "--no-log-samples?)")
+    no_samples = RecordsError(f"{path}: the log has no samples (was it written with "
+                              "--no-log-samples?)")
+    if not isinstance(samples, list | Iterator) or samples == []:
+        raise no_samples
     created_at = spec.get("created")
     grader_model, temperature = _model((spec.get("model_roles") or {}).get("grader"))
     scorer_options = {s.get("name"): s.get("options") or {}
                       for s in spec.get("scorers") or [] if isinstance(s, dict)}
-    _format_1(data, samples, scorer_options)
+    format_1 = _format_1(data, scorer_options)
 
     records = RecordList(version=data.get("version"), label_map=DEFAULT_LABELS)
     keys: dict[str, list[str]] = {}  # each scorer's judges, as its scores name them
-    for sample in samples:
-        scores = sample.get("scores") if isinstance(sample, dict) else None
-        for name, score in (scores if isinstance(scores, dict) else {}).items():
-            if isinstance(score, dict):
-                for key, _ in _verdicts(name, score.get("value")):
-                    keys.setdefault(name, [])
-                    if key not in keys[name]:
-                        keys[name].append(key)
-    stopped = stopped_early(data)
-    if stopped:
-        records.notes.append(stopped)
+    seen, errored = 0, Counter()  # samples, and the types of the errors they stopped on
+    # The records of samples that errored before they were scored, one per scorer: each
+    # stands for every judge of its scorer, known only once all samples are seen
+    waiting: list[tuple[int, ScoreRecord]] = []
+
+    def rows() -> Iterator[tuple[int, object]]:
+        nonlocal seen
+        for n, sample in enumerate(samples, 1):
+            if isinstance(sample, dict):
+                seen += 1
+                errored.update(filter(None, [_error_kind(sample)]))
+                if format_1 and "scores" not in sample and isinstance(sample.get("score"), dict):
+                    sample["scores"] = {format_1: sample["score"]}
+                scores = sample.get("scores")
+                for name, score in (scores if isinstance(scores, dict) else {}).items():
+                    if isinstance(score, dict):
+                        for key, _ in _verdicts(name, score.get("value")):
+                            keys.setdefault(name, [])
+                            if key not in keys[name]:
+                                keys[name].append(key)
+            yield n, sample
 
     def read_sample(sample: dict) -> None:
         if not (sample.get("id") is None or isinstance(sample["id"], str | int)) or \
@@ -624,8 +702,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
             edit = _human_edit(score)
             judged = edit[0] if edit else score
             code = name in CODE_SCORERS and not options.get("model")
-            judges = ([(key, None) for key in keys.get(name) or [name]]
-                      if judged.get("reason") == SAMPLE_ERROR else _verdicts(name, judged.get("value")))
+            stand_in = judged.get("reason") == SAMPLE_ERROR
+            judges = [(name, None)] if stand_in else _verdicts(name, judged.get("value"))
             for key, value in judges:
                 label, number = _value(value)
                 records.append(ScoreRecord(
@@ -634,6 +712,8 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                     explanation=judged.get("explanation") or None, run=epoch, **content,
                     evaluator=dict(evaluator), created_at=created_at,
                     mark=_mark(judged, label)))
+                if stand_in:
+                    waiting.append((len(records) - 1, records[-1]))
             if edit:
                 provenance = edit[1]["provenance"]
                 for key, value in _verdicts(name, score.get("value")):
@@ -643,24 +723,31 @@ def read_inspect(path: str | Path, with_errors: bool = False) -> RecordList:
                         score=human_score, explanation=provenance.get("reason") or None,
                         **content, created_at=provenance.get("timestamp")))
 
-    read_rows(records, enumerate(samples, 1), read_sample)
+    read_rows(records, rows(), read_sample)
+    if not seen and not records.left_out:
+        raise no_samples
+    for at, record in reversed(waiting):  # a row left out took its records with it
+        if at < len(records) and records[at] is record:
+            records[at:at + 1] = [replace(record, name=key, evaluator=dict(record.evaluator))
+                                  for key in keys.get(record.name) or [record.name]]
+    stopped = _stopped(data, seen, errored)
+    if stopped:
+        records.notes.append(stopped)
     all_damaged(path, "Inspect AI", records)
     return records
 
 
-def _format_1(data: dict, samples: list, scorer_options: dict) -> None:
+def _format_1(data: dict, scorer_options: dict) -> str | None:
     """Logs of format 1 (2024) hold one `score` per sample and name the scorer in
-    `results.scorer`: read as the current shape (`scores.<scorer>`), in place."""
+    `results.scorer`: its name, each sample's `score` then read as the current shape
+    (`scores.<scorer>`); else None."""
     results = data.get("results") if isinstance(data.get("results"), dict) else {}
     scorer = results.get("scorer") if isinstance(results.get("scorer"), dict) else None
     name = scorer.get("name") if scorer else None
     if not isinstance(name, str) or not name:
-        return
+        return None
     scorer_options.setdefault(name, scorer.get("params") or {})
-    for sample in samples:
-        if isinstance(sample, dict) and "scores" not in sample and isinstance(
-                sample.get("score"), dict):
-            sample["scores"] = {name: sample["score"]}
+    return name
 
 
 def _verdicts(name: str, value) -> list[tuple[str, object]]:

@@ -85,7 +85,7 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
 - **`--no-log-samples`** logs cannot be read.
-- **Very big parts.** A `.eval` log is not read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, or one sample to more than 200 MB. Nor is one with a part nested more than 500 levels deep, or holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions). judgekeeper counts what each part really unpacks to, how deep it nests and how many values it holds, before Inspect AI reads the log, and keeps none of it.
+- **Very big parts.** A `.eval` log is not read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, one sample to more than 200 MB, or all its samples to more than 500 MB together. Nor is one with a part nested more than 500 levels deep, or holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions), or with more than 20,000,000 values in all its parts. Nor is one whose parts share bytes. judgekeeper counts what each part really unpacks to, how deep it nests and how many values it holds, before Inspect AI reads the log, and keeps none of it. It then reads the samples one at a time.
 - **Damaged zips.** A `.eval` log that is not one plain zip (data before its first part, or a second table of contents) is not read.
 
 ## MLflow
