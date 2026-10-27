@@ -19,11 +19,12 @@
 <meta name="twitter:title" content="Try step 1 in your browser | judgekeeper">
 <meta name="twitter:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=8">
-<script src="assets/site.js?v=8" defer></script>
-<script src="assets/freecheck.js?v=5" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=9">
+<script src="assets/site.js?v=9" defer></script>
+<script src="assets/freecheck.js?v=6" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -38,7 +39,7 @@
     <h1>Try step 1 <span class="nb">in your browser.</span></h1>
     <div class="fc-zone">
       <button type="button" class="fc-drop ck2-drop" id="fc-drop">
-        <span class="fc-empty"><svg class="ck2-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4.5h16V15"/></svg><span class="fc-main"><b>Drop your results file here</b> <span class="ck2-or">or click to choose one</span></span><span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span></span>
+        <span class="fc-empty"><svg class="ck2-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4.5h16V15"/></svg><span class="fc-main"><b>Drop your results file here</b> <span class="ck2-or">or <span id="fc-verb">click</span> to choose one</span></span><span class="fc-kinds">promptfoo&nbsp;· DeepEval&nbsp;· CSV&nbsp;· JSONL</span></span>
         <span class="fc-loaded" hidden><svg class="fc-file-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5l2 2 4-4.5"/></svg><span class="fc-main"><b id="fc-name"></b></span><span class="fc-kinds">Drop another file to check it instead</span></span>
       </button>
       <button type="button" class="fc-clear" id="fc-clear" hidden><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>Clear</button>

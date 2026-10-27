@@ -1288,7 +1288,9 @@
     return row;
   }
   function termTop(pre) {
-    pre.appendChild(termLine([['t-prompt', '$ '], ['t-cmd', 'judgekeeper']]));
+    var command = termLine([['t-prompt', '$ '], ['t-cmd', 'judgekeeper']]);
+    command.classList.add('ln-cmd');  // one line on a phone too, never "$" above the command
+    pre.appendChild(command);
     pre.appendChild(termLine([['t-step', 'Step 1 of 5: Find']]));
     pre.appendChild(termLine([[null, '']]));
   }
@@ -1312,6 +1314,9 @@
     var examples = document.querySelector('.fc-try');
     if (!zone || !input || !out || !wait || !title || !clear || !empty || !loaded || !name || !examples) return;
     var waitTitle = title.textContent;
+    var media = function (q) { return !!(root.matchMedia && root.matchMedia(q).matches); };
+    var verb = document.getElementById('fc-verb');
+    if (verb && media('(hover: none)')) verb.textContent = 'tap';  // a phone: no mouse to click
 
     zone.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () { if (input.files && input.files[0]) take(input.files[0], input.files.length); input.value = ''; });
@@ -1375,6 +1380,9 @@
         var text = (root.JK_EXAMPLES || {})[file];
         if (!isStr(text)) return showError('The example file could not be loaded. Try again.', shown);
         show(checkBytes(new TextEncoder().encode(text).buffer, shown), 1, shown);
+        // one column: the result is below the examples, so it comes into view
+        var term = document.querySelector('.ck2-term');
+        if (term && media('(max-width: 1000px)')) term.scrollIntoView({ block: 'start' });
       }
       zone.classList.add('busy');
       if (root.JK_EXAMPLES && isStr(root.JK_EXAMPLES[file])) return ready();

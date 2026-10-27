@@ -13,6 +13,11 @@
 
   function $(id) { return document.getElementById(id); }
 
+  /* A phone: the width at which the home terminal wraps its lines (style.css, 600px). */
+  function narrow() {
+    return !!(window.matchMedia && window.matchMedia("(max-width: 600px)").matches);
+  }
+
   function $all(selector, root) {
     return Array.prototype.slice.call((root || document).querySelectorAll(selector));
   }
@@ -114,8 +119,12 @@
         var you = marks[i], judge = item[2], li = make("li", you === judge ? "agree" : "differ", "");
         li.appendChild(make("span", "dot", ""));
         li.appendChild(make("span", "q", item[0]));
-        li.appendChild(make("b", "g " + (you === "pass" ? "p" : "f"), you === "pass" ? "Pass" : "Fail"));
-        li.appendChild(make("b", "g " + (judge === "pass" ? "p" : "f"), judge === "pass" ? "Pass" : "Fail"));
+        var mine = make("b", "g " + (you === "pass" ? "p" : "f"), you === "pass" ? "Pass" : "Fail");
+        var its = make("b", "g " + (judge === "pass" ? "p" : "f"), judge === "pass" ? "Pass" : "Fail");
+        mine.setAttribute("data-label", "You");  // shown before the grade on a small phone
+        its.setAttribute("data-label", "LLM-as-a-judge");
+        li.appendChild(mine);
+        li.appendChild(its);
         list.appendChild(li);
       });
     }
@@ -239,6 +248,23 @@
     }).join("\n");
   }
 
+  /* On a phone the terminal wraps its own lines, so a line the screen broke only to fit 64
+     columns goes on after the one above it: a line that ends in a word or a comma, when neither
+     line is laid out in columns (two spaces inside it) and the one above is not the command. */
+  function joinLines(text) {
+    var cols = /\S {2,}\S/;
+    return text.split("\n").reduce(function (lines, line) {
+      var last = lines.length ? lines[lines.length - 1] : "";
+      if (line.trim() && /[A-Za-z,]$/.test(last) && !/^\$ /.test(last) && !cols.test(last) &&
+          !cols.test(line)) {
+        lines[lines.length - 1] = last + " " + line.trim();
+      } else {
+        lines.push(line);
+      }
+      return lines;
+    }, []).join("\n");
+  }
+
   /* The steps and their terminal. Each screen is typed the first time it shows; after that
      it shows at once, and Replay types it again. */
   function setUpTour() {
@@ -287,10 +313,14 @@
       tabs.hidden = current !== "fix";
     }
     function type(key, animate) {
-      var text = screens[key];
+      var text = narrow() ? joinLines(screens[key]) : screens[key];
       seen[key] = true;
       if (frame) { cancelAnimationFrame(frame); frame = null; }
+      out.style.minHeight = "";
       if (reduce || !animate) { out.innerHTML = shade(text); return; }
+      // the box takes the height of the whole screen first, so nothing below it moves as it types
+      out.innerHTML = shade(text);
+      out.style.minHeight = out.offsetHeight + "px";
       var cursor = make("span", "cursor", "▋");
       var perSecond = Math.max(420, text.length / 2.2), start = null, shown = 0;
       out.textContent = "";
@@ -304,7 +334,7 @@
           out.appendChild(cursor);
         }
         if (shown < text.length) frame = requestAnimationFrame(step);
-        else { cursor.remove(); out.innerHTML = shade(text); frame = null; }
+        else { cursor.remove(); out.innerHTML = shade(text); out.style.minHeight = ""; frame = null; }
       }
       frame = requestAnimationFrame(step);
     }
@@ -384,6 +414,7 @@
   function setUpCounts() {
     var nums = $all(".rt-n");
     if (!nums.length || reduce || !("IntersectionObserver" in window)) return;
+    if (narrow()) return;  // on a phone the numbers show as they are
     var seen = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
         if (!e.isIntersecting) return;
@@ -402,7 +433,71 @@
     nums.forEach(function (n) { seen.observe(n); });
   }
 
+  /* On a phone a picture of the Guide opens over the page, wide enough to read, to swipe
+     around; Close, a tap beside it or Escape closes it. Wider screens open the file. */
+  function setUpShots() {
+    var links = $all(".gx-shot a");
+    if (!links.length || typeof HTMLDialogElement !== "function") return;
+    var view = make("dialog", "shot-view"), bar = make("div", "shot-bar");
+    var close = make("button", "shot-close", "Close"), pane = make("div", "shot-pane");
+    var img = make("img", "", undefined);
+    close.type = "button";
+    view.setAttribute("aria-label", "Picture, full size");
+    pane.tabIndex = 0;
+    bar.appendChild(close);
+    pane.appendChild(img);
+    view.appendChild(bar);
+    view.appendChild(pane);
+    document.body.appendChild(view);
+    function shut() { if (view.open) view.close(); }
+    close.addEventListener("click", shut);
+    view.addEventListener("click", function (e) { if (e.target === view || e.target === pane) shut(); });
+    view.addEventListener("close", function () {
+      document.documentElement.classList.remove("has-view");
+      img.removeAttribute("src");
+    });
+    links.forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        if (!narrow()) return;
+        e.preventDefault();
+        var shown = a.querySelector("img");
+        img.src = a.getAttribute("href");
+        img.alt = shown ? shown.alt : "";
+        document.documentElement.classList.add("has-view");
+        view.showModal();
+        pane.scrollLeft = 0;
+        pane.scrollTop = 0;
+        close.focus();
+      });
+    });
+  }
+
+  /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
+     breaks at its hyphens, and a path in a sentence may break after each "/". */
+  function setUpPhoneBreaks() {
+    if (!narrow()) return;
+    $all(".steplist .d").forEach(function (d) {
+      var parts = d.textContent.split("LLM-as-a-judge");
+      if (parts.length < 2) return;
+      d.textContent = "";
+      parts.forEach(function (part, i) {
+        if (i) d.appendChild(make("span", "nb", "LLM-as-a-judge"));
+        d.appendChild(document.createTextNode(part));
+      });
+    });
+    $all("code.path").forEach(function (code) {
+      var parts = code.textContent.split("/");
+      code.textContent = "";
+      parts.forEach(function (part, i) {
+        if (i) code.appendChild(document.createElement("wbr"));
+        code.appendChild(document.createTextNode((i < parts.length - 1) ? part + "/" : part));
+      });
+    });
+  }
+
   setUpCopy();
+  setUpPhoneBreaks();
+  setUpShots();
   setUpDemo();
   setUpTour();
   setUpCounts();
