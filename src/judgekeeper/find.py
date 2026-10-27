@@ -668,6 +668,7 @@ def search(root: str | Path) -> Search:
             f"{rel} {why}, so it was left out." if len(bad) == 1 else
             f"{len(bad)} tables can't be read, so they were left out; the first, {rel}, {why}.")
     keys.hide_keys(root, [root / rel for rel in walk.search.signs.get("promptfoo", [])])
+    walk.search.notes.extend(n for n in keys.notes() if n not in walk.search.notes)
     _prefer_saved_runs(walk.search)
     if not any(walk.search.results.values()) and walk.search.stopped is None:
         _look_deeper(walk)

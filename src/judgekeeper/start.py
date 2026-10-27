@@ -27,7 +27,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from judgekeeper import find, judge_check, mapper, settings, targets, textio
+from judgekeeper import find, judge_check, keys, mapper, settings, targets, textio
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.links import said
 from judgekeeper.metrics import ERROR
@@ -1130,6 +1130,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     found = find.search(root)
     for note in found.notes:
         _note(talk, note)
+    keys.said(found.notes)
     for big in found.too_big():
         talk.say(big.too_big_message(talk.command_at(big.rel, "--yes")))
     available = [t for t in find.TOOLS if found.readable(t)]
@@ -1691,15 +1692,19 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
-def _hide_keys(root: Path, kind: str) -> None:
+def _hide_keys(root: Path, talk: Talk | None = None) -> None:
     """The keys in the project's .env files (and its promptfoo configs' `env:` blocks) hidden
-    before anything is read or written, however the results were found (keys.hide_keys)."""
-    from judgekeeper import keys
+    before anything is read or written, however the results were found (keys.hide_keys): the
+    project's own folder, where .judgekeeper/ is, even for results named in a folder below it,
+    and the results' folder."""
+    from judgekeeper import project
 
     folder = root if root.is_dir() else root.parent
-    configs = ([folder / rel for rel in _promptfoo_configs(folder)] if kind == "promptfoo"
-               else [])
-    keys.hide_keys(folder, configs)
+    for where in dict.fromkeys((project.project_of(root), folder)):
+        keys.hide_keys(where, [where / rel for rel in _promptfoo_configs(where)])
+    if talk is not None:
+        for note in keys.unsaid():  # a .env not read (a link, or too big) the finder didn't say
+            _note(talk, note)
 
 
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
@@ -1735,7 +1740,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
-    _hide_keys(root, kind)
+    _hide_keys(root, talk)
     if only:
         results = [r for r in results if r.rel in only] or results
     if kind == "mlflow":

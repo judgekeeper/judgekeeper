@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from judgekeeper import textio
-from judgekeeper.redact import is_credential, register_secret
+from judgekeeper.redact import is_credential, printable, register_secret
 
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
@@ -55,15 +55,70 @@ _DOTENV_LINE = re.compile(
 # Where JavaScript's `^` and `$` see a line end, as dotenv's LINE does: U+2028 and U+2029 too
 _JS_LINE_ENDS = re.compile("\r\n?|[\u2028\u2029]")
 
+# A .env file or a promptfoo config is a few KB: one over this is not read
+FILE_LIMIT = 2**20
+LINKED = "{file} is a link: judgekeeper doesn't follow links, so the keys in it are not hidden."
+TOO_BIG = "{file} is over 1 MB, so judgekeeper didn't read it: the keys in it are not hidden."
+_notes: list[str] = []  # one per file not read, for the finder's notes
+_noted: set[str] = set()
+_said: set[str] = set()
+
+
+def notes() -> list[str]:
+    """A note for each file not read (a link, or too big), once each."""
+    return _notes[:]
+
+
+def said(lines) -> None:
+    """These notes were said: unsaid() leaves them out."""
+    _said.update(lines)
+
+
+def unsaid() -> list[str]:
+    """The notes not said yet, now counted as said."""
+    out = [n for n in _notes if n not in _said]
+    said(out)
+    return out
+
+
+def _skipped(path: Path, why: str) -> None:
+    where = os.path.abspath(path)  # not resolved: that would follow the link
+    try:
+        shown = Path(os.path.relpath(where, os.path.abspath(Path.cwd()))).as_posix()
+    except (ValueError, OSError):
+        shown = path.name
+    if shown.startswith("../"):
+        shown = path.name
+    if where not in _noted:
+        _noted.add(where)
+        _notes.append(why.format(file=printable(shown)))
+
+
+def _small_file(path: Path) -> bytes | None:
+    """The bytes of `path` when it is a regular file of at most FILE_LIMIT; else None. A link
+    is never followed (it may lead out of the project, or to a huge file), and a bigger file
+    is not read: either is noted once (notes). A named pipe would wait forever: not read."""
+    try:
+        if os.path.islink(path):
+            _skipped(path, LINKED)
+            return None
+        data = textio.read_regular(path, FILE_LIMIT + 1)
+    except OSError:
+        return None
+    if len(data) > FILE_LIMIT:
+        _skipped(path, TOO_BIG)
+        return None
+    return data
+
 
 def _dotenv_lines(path: Path):
     """(name, the value as written) for each line dotenv reads in a .env file, in order. A
-    byte order mark at its start is not part of the first name. Only a regular file is read:
-    a named pipe would wait forever."""
-    try:
-        text = textio.read_regular(path).decode("utf-8-sig", errors="replace")
-    except OSError:
+    byte order mark at its start is not part of the first name. Only a small regular file is
+    read, never through a link (_small_file)."""
+    data = _small_file(path)
+    if data is None:
         return
+    text = data.decode("utf-8-sig", errors="replace")
     for m in _DOTENV_LINE.finditer(_JS_LINE_ENDS.sub("\n", text)):
         yield m[1], m[2] or ""
 
@@ -118,13 +173,14 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     be imported, else a line scan for YAML, in block or one-line (`env: {A: x, B: y}`) form.
     A block the line scan can't read whole (another YAML form, js-yaml reads them all) gives
     UNREAD. A value it can't read as one line is None. Values are only hidden (hide_keys),
-    never shown or passed on. Only a regular file is read."""
+    never shown or passed on. Only a small regular file is read, never through a link
+    (_small_file)."""
     if config is None:
         return {}
-    try:
-        text = textio.read_regular(config).decode("utf-8", errors="replace")
-    except OSError:
+    data = _small_file(Path(config))
+    if data is None:
         return {}
+    text = data.decode("utf-8", errors="replace")
     text = text.removeprefix(textio.BOM)
     if str(config).endswith(".json") or text.lstrip().startswith("{"):
         try:
@@ -135,7 +191,10 @@ def config_env(config: Path | None) -> dict[str, str | None]:
             return ({str(k): (v if isinstance(v, str) else None) for k, v in env.items()
                      if NAME.match(str(k))} if isinstance(env, dict) else {})
     parsed = _yaml_env(text)
-    return _scanned_env(text) if parsed is None else parsed
+    env = _scanned_env(text) if parsed is None else parsed
+    if UNREAD in env:  # still hidden: every credential-named `NAME: value` in the file
+        env.update({k: v for k, v in _credentials_in(text).items() if k not in env})
+    return env
 
 
 def _yaml_env(text: str) -> dict[str, str | None] | None:
@@ -155,6 +214,23 @@ def _yaml_env(text: str) -> dict[str, str | None] | None:
     if not isinstance(env, dict):
         return {UNREAD: None}
     return {str(k): (v if isinstance(v, str) else None) for k, v in env.items()}
+
+
+# `NAME: value` anywhere: in a block, after `{` or `,` in a flow mapping, or as `? NAME` with
+# `: value` on the next line
+_LOOSE = re.compile(r"""(?:^|[\s{,?])["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*(?:\n[ \t]*)?:"""
+                    r"""[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""", re.MULTILINE)
+
+
+def _credentials_in(text: str) -> dict[str, str]:
+    """Every credential-named `NAME: value` in a config, wherever it is: only to hide it
+    when its `env:` block can't be read whole."""
+    found = {}
+    for m in _LOOSE.finditer(text):
+        value = _scalar(m[2])
+        if is_credential(m[1]) and value:
+            found[m[1]] = value
+    return found
 
 
 def _scanned_env(text: str) -> dict[str, str | None]:

@@ -84,6 +84,16 @@ def fresh_key_registry(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def fresh_key_notes(monkeypatch):
+    """The .env files not read are noted once for the life of a process; each test starts
+    with none noted."""
+    from judgekeeper import keys
+
+    for name in ("_notes", "_noted", "_said"):
+        monkeypatch.setattr(keys, name, type(getattr(keys, name))())
+
+
+@pytest.fixture(autouse=True)
 def fresh_held_names(monkeypatch):
     """Names quote_arg left out of a command wait to be said for the life of a process; each
     test starts with none."""

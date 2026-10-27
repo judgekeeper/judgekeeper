@@ -13,6 +13,7 @@ The values here are made up. No test calls an AI API.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import urllib.request
 
@@ -225,3 +226,25 @@ def test_a_project_without_markers_never_reads_the_home_env(tmp_path, monkeypatc
     (home / ".env").write_text(f"COHERE_API_KEY={at_home}\n", encoding="utf-8")
     keys.hide_keys(folder)
     assert redact.scrub(at_home) == at_home
+
+
+@pytest.mark.parametrize("text", FORMS.values(), ids=FORMS.keys())
+def test_without_pyyaml_a_key_in_a_form_the_scan_cant_read_is_still_hidden(tmp_path, monkeypatch,
+                                                                          text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    text = text.replace("NODE_OPTIONS", "COHERE_API_KEY").replace("--require ./x.js", "x")
+    text = re.sub(r"\bx\b", COHERE, text)
+    config = _config(tmp_path, text)
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+
+
+@pytest.mark.parametrize("text", ["A_TOKEN:" + " " * 1000, "A_TOKEN" + " " * 1000 + "\n",
+                                  "a" + " " * 1000, "? "])
+def test_the_scan_for_keys_in_an_unread_block_is_quick_on_1_mb(text):
+    import time
+
+    start = time.monotonic()
+    keys._credentials_in(text * (keys.FILE_LIMIT // len(text)))
+    assert time.monotonic() - start < 3

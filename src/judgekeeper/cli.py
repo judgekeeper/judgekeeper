@@ -355,6 +355,19 @@ def refuse_linked_folder(path: str) -> None:
     given = Path(path)
     if given.exists():
         start_label.refuse_links(start_label.Workspace(project.project_of(given)))
+
+
+def hide_project_keys(path: str) -> None:
+    """The keys in the project's .env files and promptfoo configs hidden before any command
+    reads an answer: an answer's id is made from its text as shown, so a key must be hidden
+    from the first read on, not only once the results are chosen."""
+    from judgekeeper import start
+
+    given = Path(path)
+    if given.exists():
+        start._hide_keys(given)
+
+
 # The options that take a value: the word after one is never the command
 VALUED = ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if", "--label-map",
           "--judge-model", "--port")
@@ -446,6 +459,7 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_USAGE
     try:
         refuse_linked_folder(args.path)
+        hide_project_keys(args.path)
         return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         return _stopped(args_list)
