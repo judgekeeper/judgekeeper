@@ -31,7 +31,10 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     run = install.index("```\njudgekeeper\n```")
     assert pip < run < install.index("```\nuvx judgekeeper\n```")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
-        assert tool in sections["The 5 steps"], tool
+        assert tool in install, tool
+    steps = sections["The 5 steps"]
+    assert "marked-answers.csv" in steps and "judgekeeper fix <new results file>" in steps
+    assert "about 80 marks" in steps and '"safe to try", not "better"' in steps
 
 
 # The version -----------------------------------------------------------------------------

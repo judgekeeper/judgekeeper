@@ -557,7 +557,7 @@ def test_each_group_says_in_its_header_how_many_are_kept_aside():
             '1 more is kept aside to test a new rule fairly)</h2>') in html
     assert "*" not in _text(html) and 'class="note"' not in html
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
-    assert "kept aside" not in none
+    assert "more are kept aside" not in none and "more is kept aside" not in none
     assert f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"]})</h2>' in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
     assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail (0 shown; {c["strict"]} '
@@ -631,28 +631,32 @@ def test_can_t_tell_yet_keeps_everything_but_fix_it():
 
 
 def test_fix_it_is_only_for_a_judge_that_needs_work():
-    judge = {"tool": "promptfoo", "rule": "Is polite."}  # a rule fix can swap in
+    judge = {"tool": "promptfoo", "rule": "Is polite."}
     html = start_label.result_html(_result(*NOT_GATE_TNR, judge=judge))
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
     fix = program("fix")
     assert '<h2 id="fix-h">Fix it</h2>' in part
     assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong, saves them in .judgekeeper/fix/ and tells you where to write a "
-            f"better rule. Then run <code>{fix}</code> again to test it.</p>") in part
+            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. "
+            "Change your rule in your eval tool, grade those answers again, then run "
+            f"<code>{fix} &lt;new results file&gt;</code> to test it on the marks kept aside."
+            "</p>") in part
     assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
             'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
 
 
-def test_fix_it_says_what_fix_does_for_a_judge_judgekeeper_cant_ask():
-    """A table of grades: fix can't swap a rule in, so Fix it says what fix does and what to do
-    instead, in the words of the spec (S11)."""
+def test_fix_it_says_the_same_steps_for_a_table_of_grades():
+    """A table of grades has no rule judgekeeper can read: Fix it still says to grade the
+    marked answers again and give fix the new results, as for every eval tool."""
     html = start_label.result_html(_result(*NOT_GATE_TNR, judge={"tool": "table", "rule": None}))
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
-    fix, check = program("fix"), program("check")
+    fix = program("fix")
     assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/. judgekeeper can't re-run this "
-            "kind of LLM-as-a-judge itself, so change its rule where your eval keeps it, run your eval, "
-            f"then run <code>{check}</code>.</p>") in unescape(part), part
+            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. "
+            "Change your rule in your eval tool, grade those answers again, then run "
+            f"<code>{fix} <new results file></code> to test it on the marks kept aside."
+            "</p>") in unescape(part), part
+    assert "re-run" not in part
     for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):
         assert 'class="fix' not in start_label.result_html(_result(*counts)), counts
 

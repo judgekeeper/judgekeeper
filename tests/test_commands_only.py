@@ -1,10 +1,10 @@
 """1.0 is commands a person runs. judgekeeper writes only inside .judgekeeper/: a whole run (the
-first look, marking, the result, a re-check that asks the LLM-as-a-judge) on a git project
+first look, marking, the result, a re-check) on a git project
 leaves every other file as it was, `.claude/`, `.cursor/`, `.git/hooks/` and
 `.pre-commit-config.yaml` included. There is no page that turns on automatic checks, and the
 flags that served them (`check --on`, `--off`, `--hook`, `--fast`, `--ci`, `--baseline`,
-`--port`) are a usage error with one `Next:` line. No test calls an API: the re-check asks the
-fake promptfoo of test_again_run.
+`--port`) are a usage error with one `Next:` line. No test calls an API: the re-check reads the
+new results file.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import pytest
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.page_http import retried
-from tests.test_check import HAIKU, LENIENT, TAG, _new_outputs, _results, judge  # noqa: F401
+from tests.test_check import HAIKU, LENIENT, TAG, _results
 from tests.test_front import assert_one_next_at_the_end
 
 MARKED_25 = [True] * 25 + [False] * 25
@@ -72,7 +72,7 @@ def _cli(capsys, *argv):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
-def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys, judge):  # noqa: F811
+def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys):
     _git_project(here)
     _results(here, MARKED_25)
     before = _tree(here)
@@ -84,11 +84,11 @@ def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys, judge):  
     assert _cli(capsys, "mark")[0] == 0
     assert _cli(capsys, "--stop")[0] == 0
     assert _tree(here) == before
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())  # the person changed the judge
+    _results(here, LENIENT, model=HAIKU)  # the person changed the judge
     before = _tree(here)
-    code, out, _ = _cli(capsys, "check", "--yes")
+    code, out, _ = _cli(capsys, "check")
     assert code == 1, out
-    assert "will have your new LLM-as-a-judge grade" in out and "Agreed with you:" in out
+    assert "Agreed with you:" in out
     assert _tree(here) == before
     assert not (here / ".claude" / "settings.local.json").exists()
     assert not (here / ".cursor" / "hooks.json").exists()
@@ -107,11 +107,11 @@ def test_a_removed_check_flag_is_a_usage_error_with_one_next_line(here, capsys, 
         "Next: run `judgekeeper check --help` to see the options.")
 
 
-def test_check_help_shows_only_the_path_and_yes(capsys):
+def test_check_help_shows_only_the_path(capsys):
     assert main(["check", "--help"]) == 0
     out = capsys.readouterr().out
     options = set(re.findall(r"--[a-z-]+", out))
-    assert options == {"--help", "--yes"}
+    assert options == {"--help"}
 
 
 def test_the_hook_and_dev_requirement_code_is_gone():

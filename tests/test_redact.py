@@ -198,23 +198,13 @@ def test_a_bedrock_token_in_the_shell_is_redacted(monkeypatch):
     assert scrub(f"error: bad token {BEDROCK}") == f"error: bad token {REDACTED}"
 
 
-def test_every_key_name_passed_on_is_redacted():
+def test_every_known_key_name_in_the_shell_is_redacted(monkeypatch):
     from judgekeeper import keys
 
     for name in sorted(keys.key_names()):
         value = f"value-of-{name}-0123456789"
-        redact.register_secret(name, value)
+        monkeypatch.setenv(name, value)
         assert scrub(f"x {value} y") == f"x {REDACTED} y", name
-
-
-def test_a_checked_api_key_envar_is_redacted():
-    from judgekeeper.again import promptfoo
-
-    names = promptfoo._passed_on([{"id": "openai:gpt-4.1-mini",
-                                   "config": {"apiKeyEnvar": "MY_JUDGE_CRED"}}])
-    assert "MY_JUDGE_CRED" in names
-    redact.register_secret("MY_JUDGE_CRED", "judge-credential-0123456789")
-    assert scrub("judge-credential-0123456789") == REDACTED
 
 
 # Scrub the whole text, then wrap ------------------------------------------------------------

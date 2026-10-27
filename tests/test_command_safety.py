@@ -1,12 +1,10 @@
-"""Commands judgekeeper starts or prints are safe on Windows and when read back.
+"""Commands judgekeeper prints are safe on Windows and when read back.
 
-- A `.cmd` or `.bat` is never started with a cmd.exe special character in an argument.
 - A kept command (result.json, report.html, the page) never uses POSIX quotes on Windows: a
   held-back value shows as NAME, with the value beside it as data.
 - A held-back value is said on one line.
 - The command in result.json is rebuilt from the saved flags, never shown as it is.
 - After `python -P -m judgekeeper`, every later command keeps `-P`.
-- The export question says "runs code from this folder" for the project's own promptfoo.
 """
 
 from __future__ import annotations
@@ -16,13 +14,11 @@ import os
 import subprocess
 import sys
 from html import escape
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from judgekeeper import again, front, report_page, start, start_export, start_label, textio
-from judgekeeper.again.fresh import AgainError
+from judgekeeper import front, report_page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_project, split
@@ -32,52 +28,6 @@ from tests.start_projects import promptfoo_project, split
 def windows(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200, raising=False)
-
-
-@pytest.fixture
-def popen(monkeypatch):
-    """subprocess.Popen, recorded: the program is never there (exit 127)."""
-    calls = []
-
-    def fake(argv, *args, **kwargs):
-        calls.append(list(argv))
-        raise FileNotFoundError(argv[0])
-
-    monkeypatch.setattr(subprocess, "Popen", fake)
-    return calls
-
-
-# A .cmd or .bat with a cmd.exe special character --------------------------------------------
-
-@pytest.mark.parametrize("char", list("&|<>^%!\""))
-@pytest.mark.parametrize("program", ["promptfoo.cmd", "npx.CMD", "run.bat"])
-def test_a_cmd_file_is_not_started_with_a_special_character(windows, popen, tmp_path, char,
-                                                            program):
-    folder = f"C:\\Users\\me\\evals{char}calc{char}"
-    with pytest.raises(AgainError) as e:
-        again.run_process([f"C:\\tools\\{program}", "eval", "-o", f"{folder}\\out.json"],
-                          cwd=tmp_path)
-    assert popen == []
-    assert "folder" in str(e.value) and "Windows" in str(e.value)
-    again.run_process([f"C:\\tools\\{program}", "-o", "C:\\Users\\me\\my evals\\out.json"],
-                      cwd=tmp_path)  # a plain path still runs
-    again.run_process(["C:\\tools\\promptfoo.exe", "-o", f"{folder}\\out.json"],
-                      cwd=tmp_path)  # a program that is not a .cmd or .bat still runs
-    assert len(popen) == 2
-
-
-def test_the_export_is_not_started_from_a_folder_with_a_special_character(
-        windows, popen, tmp_path, monkeypatch):
-    root = tmp_path / "evals&calc&"
-    folder = root / "node_modules" / ".bin"
-    folder.mkdir(parents=True)
-    (folder / "promptfoo.cmd").write_text("", encoding="utf-8")
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    said = []
-    talk = SimpleNamespace(say=said.append, confirm=lambda *a, **k: True)
-    assert start_export.offer(talk, root, None) == "commands"
-    assert popen == []
-    assert any("move the project" in line for line in said), said
 
 
 # Kept commands on Windows ----------------------------------------------------------------------
@@ -206,26 +156,6 @@ def test_program_names_python_p_m_only_when_started_so(monkeypatch):
     assert textio.program("--stop") == "py -P -m judgekeeper --stop"
     monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/judgekeeper")
     assert textio.program("mark") == "judgekeeper mark"
-
-
-# The export question in npm workspaces ---------------------------------------------------------
-
-@pytest.mark.skipif(sys.platform == "win32", reason="npm's .bin holds links on macOS and Linux")
-def test_a_workspace_promptfoo_linking_out_of_the_project_still_says_it_runs_code(tmp_path):
-    repo = tmp_path / "mono"
-    (repo / "node_modules" / "promptfoo").mkdir(parents=True)
-    (repo / "node_modules" / "promptfoo" / "cli.js").write_text("", encoding="utf-8")
-    root = repo / "packages" / "app"
-    (root / "node_modules" / ".bin").mkdir(parents=True)
-    (root / "node_modules" / ".bin" / "promptfoo").symlink_to(
-        Path("../../../../node_modules/promptfoo/cli.js"))
-    command = again.node_bin(root, "promptfoo")
-    assert start_export._question(root, command) == start_export.QUESTION.format(
-        program="node_modules/.bin/promptfoo")
-    (root / "tools").mkdir()
-    (root / "tools" / "promptfoo").write_text("", encoding="utf-8")
-    question = start_export._question(root, str(root / "tools" / "promptfoo"))
-    assert question.startswith("Run this project's promptfoo")  # one the PATH leads into it
 
 
 # A value that starts with "-" ------------------------------------------------------------------

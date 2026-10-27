@@ -387,5 +387,31 @@ def tool_words(old: dict, new: dict) -> str:
             f"{new.get('tool_version') or 'version unknown'}")
 
 
-__all__ = ["AGENT", "FILE", "ONE_CALL", "PANEL", "changes", "from_start", "hash_of", "locked",
-           "of", "read", "save", "tool_only", "tool_words", "version_of"]
+def judge_change(old: dict, new: dict) -> str | None:
+    """What changed in the judge's identity, in words, or None."""
+    parts = []
+
+    def shown(value):
+        return "not recorded" if value is None else value
+
+    if old.get("model") != new.get("model"):
+        parts.append(f"the model was {shown(old.get('model'))}, now {shown(new.get('model'))}")
+    elif old.get("provider") != new.get("provider"):
+        parts.append(f"the provider was {shown(old.get('provider'))}, now "
+                     f"{shown(new.get('provider'))}")
+    if old.get("prompt_hash") != new.get("prompt_hash"):
+        if None in (old.get("prompt_hash"), new.get("prompt_hash")):  # unknown is not changed
+            was, now = (("recorded" if v else "not recorded")
+                        for v in (old.get("prompt_hash"), new.get("prompt_hash")))
+            parts.append(f"the prompt was {was}, now {now}")
+        else:
+            parts.append("the prompt changed")
+    if old.get("temperature") != new.get("temperature"):
+        parts.append(f"the temperature was {shown(old.get('temperature'))}, now "
+                     f"{shown(new.get('temperature'))}")
+    return "; ".join(parts) or None
+
+
+__all__ = ["AGENT", "FILE", "ONE_CALL", "PANEL", "changes", "from_start", "hash_of",
+           "judge_change", "locked", "of", "read", "save", "tool_only", "tool_words",
+           "version_of"]

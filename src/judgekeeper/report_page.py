@@ -628,22 +628,15 @@ def _details(r: dict) -> str:
 
 
 def _fix(r: dict) -> str:
-    """Fix it: the command that saves the clues and tests a new rule, with Copy. For a judge
-    judgekeeper can't ask (fix.can_test), the same words as `judgekeeper fix`."""
-    from judgekeeper.fix import CANT_RERUN, NEXT_CANT_ASK, can_test
+    """Fix it: the command that saves the clues and the marked answers to grade again with a
+    new rule, with Copy; the same steps as `judgekeeper fix`."""
+    from judgekeeper.fix import ANSWERS, NEW_RESULTS
 
     fix = _e(commands(r)["fix"])
-    judge = r.get("judge") or {}
-    rule = judge.get("rule") if judge.get("one_rule", True) else None
     saved = f"{FOLDER}/fix/"
-    if can_test(judge.get("tool"), rule):  # no tool (an own file): it can't be asked either
-        then = (f"It lists the answers your LLM-as-a-judge got wrong, saves them in {saved} and "
-                f"tells you where to write a better rule. Then run <code>{fix}</code> again to "
-                "test it.")
-    else:
-        check = NEXT_CANT_ASK.format(command=commands(r)["check"]).split("`")
-        then = (f"It lists the answers your LLM-as-a-judge got wrong and saves them in {saved}. "
-                f"{_e(CANT_RERUN)}, so {_e(check[0])}<code>{_e(check[1])}</code>{_e(check[2])}")
+    then = (f"It lists the answers your LLM-as-a-judge got wrong and saves them in {saved}, with "
+            f"{ANSWERS}. Change your rule in your eval tool, grade those answers again, then run "
+            f"<code>{fix} {_e(NEW_RESULTS)}</code> to test it on the marks kept aside.")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
             f"<p>In your project folder, run <code>{fix}</code>. {then}</p>"

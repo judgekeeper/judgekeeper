@@ -34,9 +34,9 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-Marks kept aside are marks that `fix` doesn't show you, so a new rule is tested on answers it wasn't written from. Testing a rule works with promptfoo, DeepEval, Inspect AI and MLflow.
+`fix` keeps half your marks aside and doesn't show them to you, so a new rule is tested on answers it wasn't written from. It saves every marked answer in `.judgekeeper/fix/marked-answers.csv`. Change your rule in your eval tool, grade those answers again, then run `judgekeeper fix <new results file>`. A clear answer needs about 80 marks. A good new rule usually comes out "safe to try", not "better".
 
-Finding, marking and the result need no API key and make no AI call. Fix and Re-check run your eval tool to grade answers again, and ask before any AI call. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
+judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
 ## What the numbers mean
 

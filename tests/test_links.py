@@ -12,7 +12,7 @@ import pytest
 
 from judgekeeper import start, start_label
 from judgekeeper.cli import main
-from judgekeeper.start_again import move_to_previous
+from judgekeeper.project import move_to_previous
 from judgekeeper.start_label import GITIGNORE, Workspace
 from judgekeeper.textio import link_in, write_replacing
 from tests.start_projects import promptfoo_project, records_project, split
@@ -189,7 +189,7 @@ def test_every_command_refuses_a_linked_judgekeeper_folder(tmp_path, monkeypatch
     _link(project / ".judgekeeper", victim / ".judgekeeper", folder=True)
     before = _snapshot(victim / ".judgekeeper")
     monkeypatch.chdir(project)
-    code = main([*command, "--yes"] if command[:1] != ["mark"] else [*command, "--no-browser"])
+    code = main(command if command[:1] != ["mark"] else [*command, "--no-browser"])
     out, err = capsys.readouterr()
     assert code == 2, out + err
     assert ("error: .judgekeeper is a link to another folder. judgekeeper does not write "

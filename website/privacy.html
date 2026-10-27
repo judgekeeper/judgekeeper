@@ -70,9 +70,9 @@
 <section id="local">
   <h2>judgekeeper on your computer</h2>
   <ul>
-    <li>Your answers, marks and results stay in the <code>.judgekeeper</code> folder in your project. To test a rule or re-check your LLM-as-a-judge, judgekeeper asks your eval tool to grade your saved answers again, using temporary copies of its files, and deletes them after.</li>
+    <li>Your answers, marks and results stay in the <code>.judgekeeper</code> folder in your project. judgekeeper only reads your eval results. It never runs your eval tool.</li>
     <li>judgekeeper sends nothing to me. There is no judgekeeper server.</li>
-    <li>An AI call happens only when you say yes, and it goes through your own eval tool, with your own key, to your own LLM-as-a-judge.</li>
+    <li>judgekeeper makes no AI call and needs no API key. When you grade answers again, your own eval tool makes the calls, with your own key.</li>
     <li>It never prints your keys or writes them to a file.</li>
   </ul>
 </section>

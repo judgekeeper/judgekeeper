@@ -111,7 +111,7 @@ def test_an_empty_promptfoo_results_file_is_named_not_exported(tmp_path, capsys)
     code, out = run(capsys, tmp_path)
     assert code == 2, out
     assert "results.json is empty, so judgekeeper can't read it." in out
-    assert "`promptfoo export eval latest -o results.json`" in out
+    assert "`promptfoo eval -o results.json`" in out and "latest" not in out
     assert "no saved results file" not in out.lower() and "own database" not in out
 
 

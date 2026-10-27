@@ -23,10 +23,11 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import page, recorder, start_export, table, textio
+from judgekeeper import page, recorder, table, textio
 from judgekeeper.table import derive_id
 from tests.start_projects import promptfoo_project, split, table_project
 from tests.test_front import run
+from tests.test_mark_background import stop_page
 
 ROOT = Path(__file__).resolve().parent.parent
 LINK = page.LINK
@@ -153,16 +154,18 @@ def test_a_named_pipe_never_hangs_judgekeeper(tmp_path, name, said):
     pipe.parent.mkdir(parents=True, exist_ok=True)
     os.mkfifo(pipe)
     began = time.monotonic()
-    done = subprocess.run([sys.executable, "-c", CHILD, "--no-browser", "--port", "0"],
-                          cwd=project, capture_output=True, text=True, timeout=60,
-                          stdin=subprocess.DEVNULL, check=False)
-    assert time.monotonic() - began < 30
+    try:
+        done = subprocess.run([sys.executable, "-c", CHILD, "--no-browser", "--port", "0"],
+                              cwd=project, capture_output=True, text=True, timeout=60,
+                              stdin=subprocess.DEVNULL, check=False)
+        took = time.monotonic() - began
+    finally:
+        stop_page(project)  # the run may have opened a real marking page
+    assert took < 30
     out = " ".join((done.stdout + done.stderr).split())
     assert done.returncode in (0, 2, 3), out
     assert UNEXPECTED not in out and "Traceback" not in out
     assert said in out
-    subprocess.run([sys.executable, "-c", CHILD, "--stop"], cwd=project, capture_output=True,
-                   timeout=60, stdin=subprocess.DEVNULL, check=False)
 
 
 @no_fifo
@@ -189,14 +192,15 @@ def test_a_named_pipe_at_a_project_file_is_left_out(tmp_path, name):
     project.mkdir()
     promptfoo_project(project, split(20, 16), config=name != "promptfooconfig.yaml")
     os.mkfifo(project / name)
-    done = subprocess.run([sys.executable, "-c", CHILD, "--no-browser", "--port", "0"],
-                          cwd=project, capture_output=True, text=True, timeout=60,
-                          stdin=subprocess.DEVNULL, check=False)
+    try:
+        done = subprocess.run([sys.executable, "-c", CHILD, "--no-browser", "--port", "0"],
+                              cwd=project, capture_output=True, text=True, timeout=60,
+                              stdin=subprocess.DEVNULL, check=False)
+    finally:
+        stop_page(project)  # the run opens a real marking page
     out = done.stdout + done.stderr
     assert done.returncode == 0, out
     assert LINK in out and UNEXPECTED not in out
-    subprocess.run([sys.executable, "-c", CHILD, "--stop"], cwd=project, capture_output=True,
-                   timeout=60, stdin=subprocess.DEVNULL, check=False)
 
 
 # A big table ------------------------------------------------------------------------------------
@@ -327,39 +331,6 @@ def test_a_bad_table_named_on_the_command_line_still_stops(here, capsys):
     code, out, err = run(capsys, "nul_results.csv", "--no-browser", "--port", "0")
     assert code == 2
     assert "nul_results.csv is not saved as UTF-8" in " ".join((out + err).split())
-
-
-# The promptfoo export -------------------------------------------------------------------------
-
-class Talk:
-    def __init__(self):
-        self.said = []
-
-    def say(self, line=""):
-        self.said.append(line)
-
-    def confirm(self, *a, **k):
-        return True
-
-
-def test_a_deeply_nested_export_is_refused_and_removed(here, monkeypatch):
-    from judgekeeper import again, start
-
-    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
-    monkeypatch.setattr(start, "_interactive", lambda: True)
-    monkeypatch.setattr(start_export, "_promptfoo", lambda root: "/usr/bin/promptfoo")
-
-    def export(argv, cwd, env=None, timeout=None):
-        out = Path(argv[argv.index("-o") + 1])
-        out.write_text("[" * 3000 + "]" * 3000, encoding="utf-8")
-        return subprocess.CompletedProcess(argv, 0, "", "")
-
-    monkeypatch.setattr(again, "run_process", export)
-    talk = Talk()
-    assert start_export.offer(talk, here, "promptfooconfig.yaml") == "commands"
-    assert not (here / start_export.LATEST).exists()
-    assert talk.said == [start_export.UNREADABLE]
-    assert "removed it (.judgekeeper/promptfoo-latest.json)" in start_export.UNREADABLE
 
 
 # record() at home --------------------------------------------------------------------------------

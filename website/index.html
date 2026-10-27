@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check your LLM-as-a-judge in 5 steps | judgekeeper</title>
-<meta name="description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. judgekeeper runs on your own computer.">
+<meta name="description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. judgekeeper only reads your eval results, on your own computer.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta property="og:description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. judgekeeper runs on your own computer.">
+<meta property="og:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. judgekeeper only reads your eval results, on your own computer.">
 <meta property="og:url" content="https://www.judgekeeper.com/">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
@@ -16,7 +16,7 @@
 <meta property="og:image:alt" content="The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. Find. Mark. Measure. Fix. Re-check. uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
-<meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would and find where it goes wrong. For promptfoo, DeepEval, Inspect AI and MLflow, test a better rule before you use it. judgekeeper runs on your own computer.">
+<meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. judgekeeper only reads your eval results, on your own computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -182,49 +182,48 @@ judgekeeper 1.0.0
 Step 4 of 5: Fix
 
 Where your LLM-as-a-judge goes wrong:
-  Your LLM-as-a-judge made 10 mistakes. In 5, it said Pass where
-  you said Fail. In the other 5, it said Fail where you said
+  Your LLM-as-a-judge made 8 mistakes. In 4, it said Pass where
+  you said Fail. In the other 4, it said Fail where you said
   Pass.
   Where it said Pass where you said Fail, the answers are long
-  (about 11 words, against 6).
+  (about 10 words, against 6).
 
-All 10 mistakes your LLM-as-a-judge made are saved in
+All 8 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
 hand it to a coding agent to help you write one.
 
 Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
 
-12 more of your marks are kept aside to test your new rule
-fairly.
+16 of your marks are kept aside to test your new rule fairly.
+.judgekeeper/fix/marked-answers.csv holds all 30 marked answers,
+questions and answers only, so you can't tell which are kept
+aside.
 
-Next: write your new rule in .judgekeeper/fix/rule.txt, then run
-`judgekeeper fix` again to test it.</template>
-<template data-screen="fix_test">$ judgekeeper fix
+promptfoo: use marked-answers.csv as your tests with the `echo`
+provider and your new rule; save with `-o`.
+
+Next: change your LLM-as-a-judge's rule in your eval tool, grade
+the answers in .judgekeeper/fix/marked-answers.csv again, save
+the results, then run `judgekeeper fix &lt;new results file&gt;`.</template>
+<template data-screen="fix_test">$ judgekeeper fix new-rule.json
 judgekeeper 1.0.0
 
 Step 4 of 5: Fix (testing your new rule)
 
-New rule:  "The answer fully solves the customer's problem, gives a c…"
-           (from .judgekeeper/fix/rule.txt)
+New results: new-rule.json
 
-To test it, judgekeeper asks your LLM-as-a-judge about the 12
-answers kept aside, once with the old rule and once with the new
-one. That is 24 AI calls, paid with your own key.
-Go ahead? [y/N] y
-
-Your LLM-as-a-judge, tested on the 12 marks kept aside:
-  Old rule: agreed with you on 6 of 12 answers.
-  New rule: agreed with you on 12 of 12 answers.
-  With the new rule, 6 answers went from wrong to right, and
+Your LLM-as-a-judge, tested on the 16 marks kept aside:
+  Old rule: agreed with you on 8 of 16 answers.
+  New rule: agreed with you on 16 of 16 answers.
+  With the new rule, 8 answers went from wrong to right, and
   none from right to wrong.
 
 Result: your new rule is better. A difference this large is
 unlikely to be a coincidence.
 
-Next: if you like it, copy the new rule into
-promptfooconfig.yaml, line 14. Then run your eval and
-`judgekeeper check`.</template>
+Next: keep your new rule: run your eval, then
+`judgekeeper check` to re-check it on all your marks.</template>
 <template data-screen="check">$ judgekeeper check
 judgekeeper 1.0.0
 
@@ -232,10 +231,6 @@ Step 5 of 5: Re-check
 
 Your LLM-as-a-judge's model changed:
   openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano
-
-judgekeeper will have your new LLM-as-a-judge grade your 30
-marked answers, twice each: 60 AI calls, paid with your own key.
-Go ahead? [y/N] y
 
 Result: worse. Your new LLM-as-a-judge agrees with you less.
 
@@ -246,10 +241,7 @@ Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
 On answers you pass, agreement drops by about 40 in every 100
 (somewhere between 19 and 61).
 
-Your new LLM-as-a-judge gave a different grade the second time
-on 3 of the 30 answers. It doesn't always grade the same answer
-the same way, so a difference of up to 3 answers between old and
-new may not be real.
+One run, so a small change may be chance.
 
 Next: go back to your old LLM-as-a-judge, or try another change
 and run `judgekeeper check` again.</template>

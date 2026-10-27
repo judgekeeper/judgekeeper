@@ -5,7 +5,7 @@ did you mark it Fail?" (or Pass), with reasons to tap, buttons from the parts of
 rule, their own reasons as buttons, an "Other…" box and "Mark this part" for words in the
 answer. Each change is a stamped line in marks.jsonl with the same mark. report.html shows the
 reasons read-only; `fix` counts them (plain counting, no AI), groups mistakes.md by them and
-writes suggestions.md. judgekeeper never writes rule.txt. No test calls an API.
+writes suggestions.md. judgekeeper never changes the rule. No test calls an API.
 """
 
 from __future__ import annotations
@@ -27,10 +27,10 @@ from judgekeeper import (
     reasons,
     report_page,
     start,
-    start_again,
     start_label,
 )
 from judgekeeper.cli import main
+from judgekeeper.project import move_to_previous
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data
 from tests.test_fix import TAG, N, _outputs, project
@@ -435,7 +435,8 @@ def test_typing_on_changes_the_button_and_never_makes_one_per_save(here):
     assert reasons.own_chips(ws) == []
 
 
-def test_at_most_8_of_your_own_buttons(here):
+def test_at_most_8_of_your_own_buttons(here, monkeypatch):
+    monkeypatch.setattr(fix, "HIDDEN_TENTHS", 3)  # enough mistakes left to see for 9 buttons
     ws, passes, fails, _ = _ready(here)
     ids = (passes + fails)[:9]
     assert len(ids) == 9
@@ -639,7 +640,8 @@ def test_the_check_matches_numbers_and_rare_words_ignoring_case():
     assert reasons.mentioned(rows) == (2, 1)  # (mentioned, not mentioned)
 
 
-def test_suggestions_md_reason_lines(here, capsys):
+def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
+    monkeypatch.setattr(fix, "HIDDEN_TENTHS", 3)  # two seen mistakes the LLM-as-a-judge failed
     ws, passes, fails, _ = _ready(here)
     _say(ws, passes[0], reasons=["wrong_fact", "left_out"], note="the order number")
     _say(ws, passes[1], reasons=["wrong_fact", "left_out"])
@@ -661,9 +663,8 @@ def test_suggestions_md_reason_lines(here, capsys):
     assert "Fail when: “the order number”" in once  # the person's own button
     flat = " ".join(out.split())
     assert ("Suggestions from your reasons are in .judgekeeper/fix/suggestions.md. Copy the "
-            "ones you agree with into .judgekeeper/fix/rule.txt, then run `judgekeeper fix` to "
-            "test the new rule on your marks kept aside.") in flat
-    assert (ws.dir / "fix" / "rule.txt").read_bytes() == b""  # made to write in, left empty
+            "ones you agree with into your rule where your eval keeps it.") in flat
+    assert not (ws.dir / "fix" / "rule.txt").exists()
 
 
 @pytest.mark.parametrize("reason, line", [
@@ -681,14 +682,14 @@ def test_each_suggested_line_comes_from_a_fixed_template(reason, line):
     rows = [{"id": f"a{n}", "judge": judge, "final": "fail" if judge == "pass" else "pass",
              "output": "An answer.", "reasons": [reason], "words": {}, "parts": [],
              "spans": [], "why": ""} for n in range(2)]
-    assert f"- {line}" in reasons.suggestions_md(rows, "x").split("## Seen once")[0]
+    assert f"- {line}" in reasons.suggestions_md(rows).split("## Seen once")[0]
 
 
 def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
     rows = [{"id": f"a{n}", "judge": "fail", "final": "pass", "output": "An answer.",
              "reasons": ["own-1"], "words": {"own-1": "No greeting"}, "parts": [],
              "spans": [], "why": ""} for n in range(2)]
-    assert "- Pass even when: “No greeting”" in reasons.suggestions_md(rows, "x")
+    assert "- Pass even when: “No greeting”" in reasons.suggestions_md(rows)
 
 
 # Batches, check and --new -----------------------------------------------------------------------
@@ -696,7 +697,7 @@ def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
 def test_new_moves_the_reasons_with_the_marks(here):
     ws, passes, _, _ = _ready(here)
     _say(ws, passes[0], reasons=[], note="My own words")
-    target = start_again.move_to_previous(ws, lambda line: None)
+    target = move_to_previous(ws, lambda line: None)
     assert (target / "reasons.json").is_file() and (target / "marks.jsonl").is_file()
     assert not (ws.dir / "reasons.json").exists()
 

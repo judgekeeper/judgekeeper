@@ -1,6 +1,5 @@
 """The reasons and the screens around them: an own button
-renamed on every answer, reasons for the other side, a rule that copies a short answer, a mark
-changed and changed back, overlapping marked parts, the mark command said three times, a
+renamed on every answer, reasons for the other side, a mark changed and changed back, overlapping marked parts, the mark command said three times, a
 program that sends no `seconds`, the old pre-commit line, and Ctrl-C under `python -m`. Every
 fixture here is made up.
 """
@@ -10,7 +9,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from judgekeeper import label, marks, reasons, start_fix_rule, start_label, textio
+from judgekeeper import label, marks, reasons, start_label, textio
 from tests.test_fix import N, project
 from tests.test_fix import run as run_fix
 from tests.test_front import assert_one_next_at_the_end
@@ -48,17 +47,6 @@ def test_a_reason_for_the_other_side_is_refused(here, served):  # noqa: F811
     assert status == 200
 
 
-# A rule that copies a whole short answer gets the copy warning ---------------------------
-
-def test_a_rule_that_copies_a_whole_short_answer_is_said_to_copy():
-    short = "ZQOUT11 Fact 11 is right text."  # 6 words, under COPIED
-    new = f"Answers like {short} should pass."
-    problems = start_fix_rule.checks("Grade the answer.", new, "promptfoo", [short, "Other."])
-    assert {"text": start_fix_rule.COPIES, "blocking": False} in problems
-    same = start_fix_rule.checks(new, new + " Be fair.", "promptfoo", [short])
-    assert start_fix_rule.COPIES not in [p["text"] for p in same]  # it was in the old rule
-
-
 # A mark changed and changed back is not "changed after seeing the grades" ---------------
 
 def test_a_mark_changed_and_changed_back_is_not_counted(here):  # noqa: F811
@@ -77,7 +65,7 @@ def test_overlapping_marked_parts_are_joined_in_suggestions_md():
     text = "ZQOUT16 Fact sixteen is correct."
     row = {"id": "a1", "judge": "pass", "final": "fail", "output": text, "reasons": [],
            "words": {}, "parts": [], "spans": [[2, 5], [3, 9], [10, 12]], "why": ""}
-    md = reasons.suggestions_md([row], "x")
+    md = reasons.suggestions_md([row])
     assert f"The part you marked: “{text[2:9]}”" in md
     assert f"The part you marked: “{text[10:12]}”" in md
     assert md.count("The part you marked:") == 2

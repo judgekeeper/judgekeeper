@@ -1,11 +1,12 @@
 """Command-line entry point.
 
 `judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
-it with no AI call, opens the marking page, and prints the result once there are enough marks.
-`mark` (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on
-the marks (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps hidden.
-`check` and `fix` ask before any call to the LLM-as-a-judge. Exit codes: 0 success, 2 usage
-error, 3 the person is needed (a link where judgekeeper writes, too), 130 Ctrl-C.
+it, opens the marking page, and prints the result once there are enough marks. `mark`
+(mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on the marks
+from its new results (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps
+hidden, from the results of grading them again. judgekeeper only reads files: it never runs an
+eval tool or calls an AI. Exit codes: 0 success, 2 usage error, 3 the person is needed (a link
+where judgekeeper writes, too), 130 Ctrl-C.
 
 Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
 with no better message never prints its own text, which can hold an answer's text: one line
@@ -74,21 +75,19 @@ STEPS = """\
   2. Mark      in your browser      you mark answers Pass or Fail
   3. Measure   judgekeeper          shows how often your LLM-as-a-judge agrees
                                     with you, and where it goes wrong
-  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, write a
-                                    better rule. promptfoo, DeepEval,
-                                    Inspect AI and MLflow: tests it on marks
-                                    kept aside. Your own file or record():
-                                    change the rule where your eval keeps it,
-                                    then judgekeeper check
-  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, see
-                                    if it still agrees with you"""
+  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change
+                                    its rule, grade your marked answers again,
+                                    and test the new rule on the half of your
+                                    marks kept aside
+  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge and
+                                    run your eval, see if it still agrees
+                                    with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV or JSONL file with these columns:
   input, output, verdict"""
-# fix: a new rule is tested only where judgekeeper can ask the judge (fix.can_test)
-FIX_HELP = ("see where your LLM-as-a-judge goes wrong, then test a better rule (promptfoo, "
-            "DeepEval, Inspect AI, MLflow) or change it in your eval (your own file, record())")
+FIX_HELP = ("see where your LLM-as-a-judge goes wrong; with the results of grading your marked "
+            "answers again, test a better rule on the marks kept aside")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -227,9 +226,6 @@ def _front_parser() -> argparse.ArgumentParser:
     _normaliser_args(p)
     p.add_argument("--judge-model", metavar="NAME",
                    help="the LLM-as-a-judge's model, when the results do not record it")
-    p.add_argument("--fields", metavar="LIST",
-                   help="a DeepEval GEval LLM-as-a-judge: the parts it reads, e.g. "
-                        "input,actual_output")
     p.add_argument("--yes", action="store_true",
                    help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(p)
@@ -267,9 +263,6 @@ def _parser() -> argparse.ArgumentParser:
     _normaliser_args(mk)
     mk.add_argument("--judge-model", metavar="NAME",
                     help="the LLM-as-a-judge's model, when the results do not record it")
-    mk.add_argument("--fields", metavar="LIST",
-                    help="a DeepEval GEval LLM-as-a-judge: the parts it reads, e.g. "
-                         "input,actual_output")
     mk.add_argument("--yes", action="store_true",
                     help="without a terminal: yes to the questions judgekeeper printed")
     _page_args(mk)
@@ -278,19 +271,15 @@ def _parser() -> argparse.ArgumentParser:
     ck = sub.add_parser("check", parents=[common],
                         help="when your LLM-as-a-judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="your project folder (default: this folder)")
-    ck.add_argument("--yes", action="store_true",
-                    help="without a terminal: go ahead and ask your LLM-as-a-judge (it makes AI "
-                         "calls, paid with your own key)")
+                    help="a new results file, or your project folder (default: this folder, "
+                         "with its newest results)")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
                         help=FIX_HELP)
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="your project folder (default: this folder)")
-    fx.add_argument("--yes", action="store_true",
-                    help="without a terminal: go ahead and test the new rule (it makes AI "
-                         "calls, paid with your own key)")
+                    help="the results of grading your marked answers again with a new rule, "
+                         "or your project folder (default: this folder)")
     fx.add_argument("--new", action="store_true",
                     help="keep a new set of your marks aside to test rules on")
     p.commands["fix"] = fx
@@ -329,20 +318,20 @@ def cmd_mark(args) -> int:
     return mark.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                     tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                     label_map=args.label_map, judge_model=args.judge_model,
-                    fields=args.fields, yes=args.yes, port=args.port,
+                    yes=args.yes, port=args.port,
                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path, yes=args.yes)
+    return check.run(args.path)
 
 
 def cmd_fix(args) -> int:
     from judgekeeper import fix
 
-    return fix.run(args.path, yes=args.yes, new=args.new)
+    return fix.run(args.path, new=args.new)
 
 
 def cmd_front(args) -> int:
@@ -351,7 +340,7 @@ def cmd_front(args) -> int:
     return front.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
                      tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                      label_map=args.label_map, judge_model=args.judge_model,
-                     fields=args.fields, yes=args.yes, port=args.port,
+                     yes=args.yes, port=args.port,
                      no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
 
 
@@ -361,14 +350,14 @@ COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_fron
 def refuse_linked_folder(path: str) -> None:
     """Stop (StartError) when the project's .judgekeeper/, or anything in it, is a link: once,
     before any command does its work, so none writes through it (`fix` writes in fix/)."""
-    from judgekeeper import start_again, start_label
+    from judgekeeper import project, start_label
 
     given = Path(path)
     if given.exists():
-        start_label.refuse_links(start_label.Workspace(start_again._project(given)))
+        start_label.refuse_links(start_label.Workspace(project.project_of(given)))
 # The options that take a value: the word after one is never the command
 VALUED = ("--tool", "--metric", "--experiment", "--tracking-uri", "--pass-if", "--label-map",
-          "--judge-model", "--fields", "--port")
+          "--judge-model", "--port")
 
 
 def command_first(args_list: list[str]) -> list[str]:

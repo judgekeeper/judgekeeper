@@ -6,10 +6,6 @@ import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# again_stubs: the stub DeepEval, Inspect AI and MLflow packages (the `stubs` fixture) for the
-# ask-again workers.
-pytest_plugins = ["tests.again_stubs"]
-
 
 @pytest.fixture(autouse=True)
 def no_browser(monkeypatch):

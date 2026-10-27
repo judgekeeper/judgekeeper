@@ -1,9 +1,8 @@
 """An MLflow make_judge's rule: its instructions, which MLflow saves with each assessment.
 
-They are the LLM-as-a-judge's rule everywhere `start` uses one (the first block, Fix your
-LLM-as-a-judge's prompt, --rule-file's template-part checks, where the rule probably is) and
-part of the judge's identity, so a changed rule is a new LLM-as-a-judge for Try your new
-LLM-as-a-judge.
+They are the LLM-as-a-judge's rule everywhere judgekeeper uses one (the first block,
+mistakes.md, where the rule probably is) and part of the judge's identity, so a changed rule
+is a new LLM-as-a-judge for `judgekeeper check`.
 
 The store is made by the installed MLflow in another process (skipped without it), with a real
 `make_judge` whose model call is replaced: MLflow itself saves the instructions.
@@ -76,7 +75,7 @@ wait_until_saved(result.run_id, "sum_check")
 
 @pytest.fixture(autouse=True)
 def keyed(monkeypatch):
-    for name in keys.all_names():
+    for name in keys.key_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
 
@@ -127,33 +126,6 @@ def test_the_instructions_are_the_rule_and_in_the_prompt_hash(tmp_path, stores):
 ])
 def test_the_instructions_in_an_assessments_metadata(meta, want):
     assert judge_instructions(meta) == want
-
-
-# A make_judge named like a built-in judge, and the menu's line --------------------------------
-
-def test_a_make_judge_named_correctness_is_not_the_built_in_one(tmp_path):
-    pytest.importorskip("mlflow")
-    from mlflow.genai import scorers
-
-    from judgekeeper import again
-    from judgekeeper.again import mlflow as mf
-
-    def dry(**job):
-        out = again.run_worker("mlflow", sys.executable, {"mode": "dry", **job}, tmp_path,
-                               env=mf.WORKER_ENV)
-        assert out["ok"], out
-        return out["builtin"]
-
-    fluency = scorers.Fluency().instructions  # a built-in judge that saves its instructions
-    assert dry(name="correctness") is True  # nothing saved: MLflow's own Correctness
-    assert dry(name="correctness", instructions=OLD) is False  # a make_judge
-    assert dry(name="fluency", instructions=fluency) is True
-    assert dry(name="sum_check", instructions=OLD) is False
-    for name, saved, want in (("correctness", None, True), ("correctness", OLD, False),
-                              ("fluency", fluency, True), ("sum_check", OLD, False)):
-        assert mf.is_builtin(scorers, name, saved) is want  # the copy says the same
-    info = {"name": "correctness", "instructions": True}
-    assert mf.classify(info, {"version": "3.17.0", "builtin": False})[0] == "close"
 
 
 # Failed judge calls ------------------------------------------------------------------------

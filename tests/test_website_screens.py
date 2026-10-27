@@ -2,11 +2,12 @@
 
 One example project, as the screens show it: promptfoo, 40 answers graded by
 openai:gpt-4.1-mini (23 Pass, 17 Fail), the rule on line 14 of promptfooconfig.yaml. The
-person marks 12 answers, then 30; `judgekeeper fix` keeps some aside, a new rule is tested on
-them, and the model changes to gpt-4.1-nano for `judgekeeper check`. The two steps that ask the
-judge use the fake promptfoo of the other tests (no AI call), and the person answers "y" at
-the terminal. Each screen on the Home page must be the
-output line for line, after the "$ judgekeeper ..." line the site adds.
+person marks 12 answers, then 30; `judgekeeper fix` keeps half aside, the person grades the
+marked answers again with a new rule and saves them as new-rule.json for `judgekeeper fix
+new-rule.json`, and the model changes to gpt-4.1-nano for `judgekeeper check`. The new
+results are written here as promptfoo would save them (no AI call), and the person answers "y"
+at the terminal. Each screen on the Home page must be the output line for line, after the
+"$ judgekeeper ..." line the site adds.
 
 The Measure step's report.html and result.json are committed in docs/examples/site-example/,
 so the figures on the screens come from a report (Home's terminal links it). To write them again:
@@ -25,11 +26,10 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import again, fix, keys, start
+from judgekeeper import fix, start
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import project_promptfoo, promptfoo_data, split
-from tests.test_again_run import FakePromptfoo
+from tests.start_projects import promptfoo_data, split
 from tests.website_pages import WEBSITE, as_shown, parse
 
 RULE = "The answer solves the customer's problem and is polite."
@@ -178,15 +178,18 @@ SHOP = [
 ]
 SEED = 7  # the marks fix keeps aside
 MEASURE_STEP = "measure-step"  # where the run keeps the Measure step's report
+NEW_RESULTS = "new-rule.json"  # the marked answers graded again with the new rule
 SITE_EXAMPLE = Path(__file__).resolve().parent.parent / "docs" / "examples" / "site-example"
 COMMANDS = {"find": "judgekeeper", "mark": "judgekeeper", "measure": "judgekeeper",
-            "fix": "judgekeeper fix", "fix_test": "judgekeeper fix", "check": "judgekeeper check"}
+            "fix": "judgekeeper fix", "fix_test": f"judgekeeper fix {NEW_RESULTS}",
+            "check": "judgekeeper check"}
 
 
-def _results(root, verdicts, model="openai:gpt-4.1-mini", outputs=None) -> None:
-    """results.json with the shop's questions and answers, and the judge's reason for the
-    grade it gave."""
-    data = promptfoo_data(verdicts, model=model, rubric=RULE, outputs=outputs)
+def _results(root, verdicts, model="openai:gpt-4.1-mini", outputs=None, rule=RULE,
+             name="results.json", created="2026-10-03T14:12:00.000Z") -> None:
+    """`name` (results.json) with the shop's questions and answers, and the judge's reason for
+    the grade it gave."""
+    data = promptfoo_data(verdicts, model=model, rubric=rule, outputs=outputs, created=created)
     data["metadata"]["promptfooVersion"] = "0.124.1"
     for i, row in enumerate(data["results"]["results"]):
         q, a, why_pass, why_fail = SHOP[i]
@@ -195,7 +198,7 @@ def _results(root, verdicts, model="openai:gpt-4.1-mini", outputs=None) -> None:
             row["response"]["output"] = a
         row["gradingResult"]["componentResults"][0]["reason"] = (
             why_pass if verdicts[i] else why_fail)
-    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    (root / name).write_text(json.dumps(data), encoding="utf-8")
 
 
 def _mark(root, plan, person: dict) -> None:
@@ -225,11 +228,6 @@ def _question_marks(root, person: dict) -> dict[str, bool]:
 
 def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
     """Run the example project through the five steps; what each run printed."""
-    project_promptfoo(root)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setattr(again, "which", lambda name: None)
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: SEED)
     monkeypatch.setattr(start, "_interactive", lambda: True)
 
@@ -261,45 +259,26 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
         shutil.copyfile(root / ".judgekeeper" / name, kept / name)
     run("fix", "fix")
 
+    # The new rule grades each marked answer as the person marked it
     marks = _question_marks(root, person)
-    holder = {}
+    old = split(23, 17)
+    regraded = [marks.get(q, old[i]) for i, (q, *_) in enumerate(SHOP)]
+    _results(root, regraded, rule=NEW_RULE, name=NEW_RESULTS, created="2026-10-03T15:05:00.000Z")
+    run("fix_test", "fix", NEW_RESULTS)
 
-    def promptfoo(argv, cwd, env=None, timeout=None):
-        """The old rule grades as saved; the new rule grades as the person marked."""
-        fake = holder.setdefault("fake", FakePromptfoo(Workspace(root), version="0.124.1"))
-        if "eval" in argv:
-            path = cwd / argv[argv.index("-c") + 1]
-            config = json.loads(path.read_text(encoding="utf-8"))
-            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
-                               .read_text(encoding="utf-8"))
-            fake.flips = set()
-            for t in tests:
-                q = t["vars"]["question"]
-                if t["assert"][0]["value"] == NEW_RULE and fake.saved[q][0] != marks[q]:
-                    fake.flips.add((t["description"], 0))
-                if holder.get("wobble") and q in holder["wobble"]:
-                    fake.flips.add((t["description"], 1))  # the second ask says the opposite
-        return fake(argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", promptfoo)
-    (root / ".judgekeeper" / "fix" / "rule.txt").write_text(NEW_RULE, encoding="utf-8")
-    run("fix_test", "fix")
-
-    # The model changes and the eval runs again: the new judge fails 6 answers the person
-    # passed that the old judge passed too, and swaps one right and one wrong answer the
-    # person failed. Asked twice, it changes its mind on 3.
-    passed_right = [q for q, ok in marks.items() if ok and holder["fake"].saved[q][0]][:6]
+    # The model changes and the same answers are graded again: the new judge fails 6 answers
+    # the person passed that the old judge passed too, and swaps one right and one wrong answer
+    # the person failed.
+    saved = dict(zip((q for q, *_ in SHOP), old))
+    passed_right = [q for q, ok in marks.items() if ok and saved[q]][:6]
     failed = [q for q, ok in marks.items() if not ok]
-    failed_right = [q for q in failed if not holder["fake"].saved[q][0]][:1]
-    failed_wrong = [q for q in failed if holder["fake"].saved[q][0]][:1]
+    failed_right = [q for q in failed if not saved[q]][:1]
+    failed_wrong = [q for q in failed if saved[q]][:1]
     new = split(23, 17)
     for i in range(40):
         if SHOP[i][0] in passed_right + failed_right + failed_wrong:
             new[i] = not new[i]
-    _results(root, new, model="openai:gpt-4.1-nano",
-             outputs=[f"{a} (new run)" for _, a, *_ in SHOP])
-    holder.pop("fake")
-    holder["wobble"] = set([q for q in marks if q not in passed_right][:3])
+    _results(root, new, model="openai:gpt-4.1-nano", created="2026-10-04T09:30:00.000Z")
     run("check", "check")
     return out
 
@@ -359,7 +338,7 @@ def test_site_example_report_is_the_measure_step():
     screens' numbers."""
     text = _report_text((SITE_EXAMPLE / "report.html").read_text(encoding="utf-8"))
     assert not re.search(r"Question \d+\?|Answer \d+\.|reason \d+", text)
-    assert len([q for q, *_ in SHOP if q in text]) == 10  # 5 shown of each kind of mistake
+    assert len([q for q, *_ in SHOP if q in text]) == 8  # 4 shown of each kind of mistake
     for gone in ("Last check", "old LLM-as-a-judge", "new LLM-as-a-judge"):
         assert gone not in text, gone
     for number in ("16 of 30 answers", ("You passed 15 answers. Of those, your LLM-as-a-judge "

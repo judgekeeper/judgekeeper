@@ -30,10 +30,10 @@ from judgekeeper import (
     marks,
     own_format,
     page,
+    project,
     report_page,
     settings,
     start,
-    start_again,
     start_fix_rule,
     start_label,
     targets,
@@ -246,13 +246,13 @@ class FrontTalk(start.Talk):
 def run(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
         experiment: str | None = None, tracking_uri: str | None = None,
         pass_if: str | None = None, label_map: str | None = None,
-        judge_model: str | None = None, fields: str | None = None, yes: bool = False,
+        judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
         wait: bool = False, stop: bool = False) -> int:
     """`judgekeeper`. Returns the exit code."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
-               "judge_model": judge_model, "fields": fields, "port": port,
+               "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = FrontTalk(yes=yes, path=path, options=options, new=new)
     return go(talk, Path(path), wait=wait, stop=stop, marking=False)
@@ -287,7 +287,7 @@ def _started(path: Path) -> bool:
     """Whether marking started in the project at `path` (or 0.2's marks are there)."""
     if not path.exists():
         return False
-    ws = Workspace(start_again._project(path))
+    ws = Workspace(project.project_of(path))
     return ws.start.is_file() or ws.labels.is_file()
 
 
@@ -315,7 +315,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
-        found = start.rebased(found, start_again._project(path))
+        found = start.rebased(found, project.project_of(path))
     return found, saved
 
 
@@ -369,7 +369,7 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
     o = talk.options
     if path.is_file() or find.is_mlflow_folder(path) or o["tool"] or o["tracking_uri"]:
         return path
-    ws = Workspace(start_again._project(path))
+    ws = Workspace(project.project_of(path))
     try:
         if not ws.start.is_file() or start._saved(ws.root) is not None:
             return path
@@ -400,7 +400,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
                 path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path) \
                 or find.title_row(path):
             return path, None  # find_judge reads it, or says why it can't
-        root = start_again._project(path)
+        root = project.project_of(path)
         return root, own_map.map_file(talk, root, path.resolve(), o["metric"], o["judge_model"],
                                       o["pass_if"], found=False)
     root = path.resolve()
@@ -471,7 +471,7 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
 def _given_model(path: Path) -> str | None:
     """The judge's model the person gave with --judge-model when marking started, kept in
     start.json: used while the results still don't name one."""
-    ws = Workspace(start_again._project(path))
+    ws = Workspace(project.project_of(path))
     try:
         fp = (ws.data().get("fingerprint") or {}) if ws.start.is_file() else {}
     except (OSError, ValueError, AttributeError):
@@ -480,8 +480,7 @@ def _given_model(path: Path) -> str | None:
     return model if isinstance(model, str) else None
 
 
-IGNORED = {"experiment": ("mlflow", "--experiment is for MLflow results, so it was ignored."),
-           "fields": ("deepeval", "--fields is for a DeepEval LLM-as-a-judge, so it was ignored.")}
+IGNORED = {"experiment": ("mlflow", "--experiment is for MLflow results, so it was ignored.")}
 
 
 def _ignored(talk: FrontTalk, found: start.Found) -> None:
@@ -634,7 +633,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
 
 def _saved_marks(root: Path) -> int:
     """How many marks the project's .judgekeeper/ holds."""
-    ws = Workspace(start_again._project(root))
+    ws = Workspace(project.project_of(root))
     try:
         return len(marks.read(ws.marks).counted()) if ws.marks.is_file() else 0
     except (OSError, ValueError):
@@ -703,14 +702,14 @@ def _other_projects(found: start.Found) -> str | None:
     """Run from a folder that is no project but holds several: which project the results
     are from, and the others that hold results (at most OTHERS), each with its command."""
     root = Path(found.root)
-    if found.given or start_again._is_project(root):
+    if found.given or project.is_project(root):
         return None
 
     def project_of(path: Path) -> str | None:
         for folder in path.parents:
             if folder == root or not folder.is_relative_to(root):
                 return None
-            if start_again._is_project(folder):
+            if project.is_project(folder):
                 return folder.relative_to(root).as_posix()
         return None
 
@@ -1169,7 +1168,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
-        start_again.move_to_previous(ws, talk.say)
+        project.move_to_previous(ws, talk.say)
     _write(found)  # judge.json and the free checks: the judge as it is now
     return _marking(talk, ws, found, wait, saved, marking)
 
@@ -1444,7 +1443,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     moved the marks to a new judge): which judge the result is about, as it was then."""
     data = ws.data()
     same_rule = rule_hash(data.get("rule")) == rule_hash(found.rule)
-    if same_rule and not start_again.judge_change(data["fingerprint"], found.fingerprint):
+    if same_rule and not judge_setup.judge_change(data["fingerprint"], found.fingerprint):
         return None
     head = marks.read(ws.marks).header or {}
     checked = data.get("checked_at")  # the judge a check moved the marks to (check._adopt)
@@ -1573,7 +1572,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project."""
     if not path.exists():
         raise not_found(path)
-    ws = Workspace(start_again._project(path))
+    ws = Workspace(project.project_of(path))
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):

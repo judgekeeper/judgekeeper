@@ -716,7 +716,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     # or code across the column, then the keys and the handy commands side by side
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
-        ("own-format", "Your own file or code"), ("keys", "API keys and costs"),
+        ("own-format", "Your own file or code"), ("keys", "No API key needed"),
         ("misc", "Handy commands")]
     for r in rows:
         (h3,) = _all(r, "h3")
@@ -728,8 +728,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "Steps 1 to 3 need no API key. Steps 4 and 5 may use your own key, and ask you first. "
-        "judgekeeper never saves your key.")
+        "judgekeeper only reads files. It makes no AI call, needs no API key, and costs nothing. "
+        "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
     # the steps and the windows below are as wide as the top section: "The 5 steps." starts
     # under "Install", and the windows end where the install window ends
@@ -850,22 +850,24 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test your rule. "
              "Read it to write a better rule yourself, or hand it to a coding agent to help you "
              "write one."),
-            ("Write your new rule in .judgekeeper/fix/rule.txt and run judgekeeper fix again. "
-             "judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
-             "better, worse, or if it can’t tell yet.")],
+            ("Change the rule in your eval tool. Have it grade the answers in "
+             ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
+            ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
+             "better, safe to try, worse, or if it can’t tell yet. A clear answer needs about 80 "
+             "marks. A good new rule usually comes out safe to try, not better.")],
         "step-check": [
-            ("Changed your LLM-as-a-judge’s model or rule, or moved to a new eval tool? Run "
-             "your eval again, then:"),
-            ("judgekeeper compares your LLM-as-a-judge’s new grades with the marks you already "
-             "made, and tells you if it still agrees with you. You don’t need to mark anything "
-             "again.")]}
+            ("Changed your LLM-as-a-judge’s model or rule? Run your eval again on the same "
+             "answers, then:"),
+            ("judgekeeper finds the answers you marked in your new results by their exact text, "
+             "compares the new grades with your marks, and tells you if your LLM-as-a-judge "
+             "still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
                     "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
-                                 "worse", "can’t tell yet"],
-                    "step-check": [("Changed your LLM-as-a-judge’s model or rule, or moved to a "
-                                    "new eval tool?")]}
+                                 "safe to try", "worse", "can’t tell yet", "safe to try",
+                                 "better"],
+                    "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
     assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
@@ -875,7 +877,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
     assert opening == ["h3", "p", "div", "p"]
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
-        "Testing works with promptfoo, DeepEval, Inspect AI and MLflow."]
+        ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
+         "the new results.")]
     # the two pictures sit in their step's window with a plain border, no second bar
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == ["step-mark", "step-measure"]
@@ -911,7 +914,8 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     install = ["pip install judgekeeper", "judgekeeper", "uvx judgekeeper"]  # one per box
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         *install, "judgekeeper", "judgekeeper path/to/results.json",
-        "judgekeeper mark", "judgekeeper fix", "judgekeeper check",
+        "judgekeeper mark", "judgekeeper fix", "judgekeeper fix new-results.json",
+        "judgekeeper check",
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
     for box in boxes:
         (button,) = _all(box, "button", "copy")
@@ -1233,30 +1237,38 @@ def test_on_a_phone_the_guides_pictures_open_full_size():
 TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
 
 
-def test_testing_a_new_rule_is_said_only_for_the_tools_fix_can_ask():
-    """fix can't ask a judge in your own file or record() (fix.can_test): the Guide's Fix step
-    names the tools it can test with (the reference says what to do instead). Home's step list
-    says "test it on marks kept aside" without the tool names; the limit is said where the
-    detail lives (the Guide's Fix step, the meta description)."""
-    assert set(fix.SWAPPABLE) == {"promptfoo", "deepeval", "inspect", "mlflow"}
+def test_testing_a_new_rule_is_said_for_every_eval_tool():
+    """fix reads the new results as step 1 reads results, so a new rule is tested the same way
+    for every eval tool, and fix prints how to grade the answers again for each (fix.REGRADE,
+    fix.OWN). No page limits testing to some tools, or says judgekeeper asks the
+    LLM-as-a-judge or keeps a rule in rule.txt."""
+    assert set(fix.REGRADE) == {"promptfoo", "deepeval", "inspect", "mlflow"} and fix.OWN
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    assert len(meta) == 3 and all(TOOLS in m and "on your own computer" in m for m in meta)
+    assert len(meta) == 3
+    assert all(TOOLS not in m and "test a better rule" in m and "on your own computer" in m
+               for m in meta)
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
-    assert step.endswith("Testing works with promptfoo, DeepEval, Inspect AI and MLflow.")
+    assert ".judgekeeper/fix/marked-answers.csv" in step
+    assert "judgekeeper fix new-results.json" in step
     assert "judgekeeper tests the new rule on the marks kept aside" in step
+    assert "Testing works with" not in step
     llms = (WEBSITE / "llms.txt").read_text(encoding="utf-8")
     assert "tests a better rule" not in llms  # the Guide line links the steps instead
     assert "re-checks your judge" not in llms
+    assert "costs" not in llms
     for page in pages():
-        assert "own terminal" not in _flat(_main(page)), page.name
+        text = _flat(_main(page))
+        for gone in ("own terminal", "rule.txt", "Go ahead?", "paid with your own key"):
+            assert gone not in text, (page.name, gone)
 
 
-def test_privacy_says_re_runs_use_temporary_copies():
+def test_privacy_says_judgekeeper_only_reads_files():
     local = _flat(_by_id(PRIVACY, "local"))
-    assert ("asks your eval tool to grade your saved answers again, using temporary copies of "
-            "its files, and deletes them after") in local
-    assert "runs your eval" not in local
+    assert "judgekeeper only reads your eval results. It never runs your eval tool." in local
+    assert "judgekeeper makes no AI call and needs no API key." in local
+    for gone in ("temporary copies", "say yes", "asks your eval tool"):
+        assert gone not in local, gone

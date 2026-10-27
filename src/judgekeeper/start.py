@@ -138,7 +138,7 @@ def _interactive() -> bool:
 # each hint adds when it needs it, and --new, --wait and --stop, which do one thing once.
 REPEATED = (("tool", "--tool"), ("metric", "--metric"), ("experiment", "--experiment"),
             ("tracking_uri", "--tracking-uri"), ("pass_if", "--pass-if"), ("label_map", "--label-map"),
-            ("judge_model", "--judge-model"), ("fields", "--fields"))
+            ("judge_model", "--judge-model"))
 NOT_REPEATED = frozenset({"new", "wait", "stop", "yes"})
 DEFAULT_PORT = 8765
 
@@ -345,6 +345,7 @@ class Pool:
     unmapped: list = field(default_factory=list)
     n_unmapped: dict = field(default_factory=dict)  # how many verdicts had each unmapped value
     n_merged: int = 0
+    n_repeats: int = 0  # repeats of an answer in one file with the same grade, counted once
     n_results: int = 0  # grades read for the chosen judge, repeats counted each
     repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
@@ -448,6 +449,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
             pool.repeat_sizes.add(len(judged))
             if passes in (0, len(judged)):  # the same grade every time: one answer
                 pool.n_merged += len(judged) - 1
+                pool.n_repeats += len(judged) - 1
                 judged = judged[-1:]
             else:
                 pool.split[key] = (len(judged), passes, len(judged) - passes)
@@ -1038,31 +1040,31 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     talk.say(POINT_ME.format(program=talk.program))
 
 
-EXPORT = "promptfoo export eval latest -o promptfoo-results.json"
+SAVE = "promptfoo eval -o promptfoo-results.json"
+EXPORT = "promptfoo export eval <id> -o promptfoo-results.json"
+LIST = "promptfoo list evals"
 
 
-def _promptfoo_export(talk: Talk) -> None:
-    """The commands that write promptfoo's last run to a file."""
+def _promptfoo_save(talk: Talk) -> None:
+    """How to save promptfoo's results to a file: judgekeeper runs nothing itself."""
     for line in (
-        "  Write your last run to a file (this runs nothing and costs nothing):",
+        "  Save your results to a file. Run your eval with -o:",
         "",
-        "    promptfoo list evals -n 10",
-        "    promptfoo export eval <eval id from that list> -o promptfoo-results.json",
+        f"    {SAVE}",
         "",
-        "  If your last promptfoo run was in this folder, this is the same:",
-        "    promptfoo export eval latest -o promptfoo-results.json",
+        "  or, for a run you already made, list your evals and export one by its id:",
         "",
-        "  Update promptfoo if this command is not found.",
+        f"    {LIST}",
+        f"    {EXPORT}",
+        "",
         f"  Then run {talk.program} again.",
     ):
         talk.say(line)
 
 
-def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
-    """promptfoo results only in promptfoo's database: offer to export them (start_export),
-    then carry on with the file; else print the export commands and stop."""
-    from judgekeeper import start_export
-
+def _export(talk: Talk, root: Path, config: str):
+    """promptfoo found by its config, with its results only in promptfoo's own database: how
+    to save them to a file, then stop. Nothing is run."""
     _misshapen(root)
     screens = getattr(talk, "screens", False)  # `judgekeeper`'s own words (front.FrontTalk)
     if screens:
@@ -1072,17 +1074,14 @@ def _export(talk: Talk, path: Path, tool: str | None, root: Path, config: str):
         talk.say(f"{tick()} Your eval tool: promptfoo ({config})")
         talk.say("  No promptfoo results file in this folder. promptfoo keeps them in its own "
                  "database.")
-    outcome = start_export.offer(talk, root, config)
-    if outcome == "done":
-        return _locate(talk, path, tool)
-    if outcome == "commands" and screens:
-        raise talk.stop(EXIT_OK, f"save your last run with `{EXPORT}` (it runs no test), "
-                                 f"then run `{talk.command()}` again.")
-    if outcome == "commands":
-        _promptfoo_export(talk)
-        raise talk.stop(EXIT_OK, f"run `{EXPORT}` (it runs no test and costs nothing), then "
+    if screens:
+        talk.say()
+        talk.para(f"Save them with `{SAVE}`, or list your evals with `{LIST}` and run "
+                  f"`{EXPORT}`.")
+        raise talk.stop(EXIT_OK, f"save your promptfoo results to a file as said above, then "
                                  f"run `{talk.command()}` again.")
-    raise talk.stop(EXIT_OK, "nothing. Find your promptfoo run as said above, then run "
+    _promptfoo_save(talk)
+    raise talk.stop(EXIT_OK, f"save your promptfoo results to a file as said above, then run "
                              f"`{talk.command()}` again.")
 
 
@@ -1156,7 +1155,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             if any(r.tool == tool for r in found.too_big()):
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
-                return _export(talk, path, tool, root, found.signs["promptfoo"][0])
+                return _export(talk, root, found.signs["promptfoo"][0])
             raise StartError(f"No saved {find.NAMES[tool]} results found in {root}.")
         available = [tool]
     if not available:
@@ -1169,7 +1168,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if found.stopped:  # only when nothing was found: results found are what was asked
             talk.say(f"{found.stopped} {POINT_ME.format(program=talk.program)}")
         if "promptfoo" in found.signs:
-            return _export(talk, path, tool, root, found.signs["promptfoo"][0])
+            return _export(talk, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
         raise Stop(EXIT_USAGE)
     by_date = {t: sorted(found.readable(t), key=lambda r: r.date(), reverse=True)
@@ -1272,8 +1271,8 @@ def _unreadable(found: find.Search) -> Damaged:
                                         "`{command}` again.")
     if "promptfoo" in found.signs and rel.endswith(".json"):
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
-                       f"save your last promptfoo run to it with `promptfoo export eval latest "
-                       f"-o {rel}` (it runs no test), then run `{{command}}` again.")
+                       f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
+                       "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel} again, then run `{{command}}` again.")
 

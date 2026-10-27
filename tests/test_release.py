@@ -554,18 +554,20 @@ def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path
 
 def test_changelog_entry_says_1_0_is_commands_you_run():
     """The 1.0.0 entry (1.0.0b2 was never published and is folded into it): the 5 steps, the
-    4 commands, the questions before AI calls and what is gone since 0.1.3."""
+    4 commands, that it only reads files and what is gone since 0.1.3."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
     assert len(entry.strip().splitlines()) < 20
     assert "## 1.0.0b2" not in text
     flat = " ".join(entry.split())
     for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
-                   "`judgekeeper fix`", "`judgekeeper check`", "ask first",
+                   "`judgekeeper fix`", "`judgekeeper check`", "only reads files",
+                   "no AI call", "`judgekeeper fix <new results file>`",
                    "your eval tool's version", "Find. Mark. Measure. Fix. Re-check.",
                    "Removed since 0.1.3:", "the GitHub Action and the agent skill"):
         assert needed in flat, needed
-    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook"):
+    for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook", "ask first",
+                 "AI calls"):
         assert gone not in flat, gone
 
 

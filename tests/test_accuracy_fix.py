@@ -1,9 +1,9 @@
 """The numbers around `judgekeeper fix` and `check`: hidden marks set aside at the first
-result and kept out of sight while in use, every fix test counted, few mistakes said up front,
-how many changes the marks have helped pick, the person's own slips, a range that stays honest
-while the person is still marking, and paid re-checks that ask twice.
+result and kept out of sight while in use, every fix test counted, how many changes the marks
+have helped pick, the person's own slips, and a range that stays honest while the person is
+still marking.
 
-No test calls an API: the LLM-as-a-judge is the faked promptfoo of tests/test_fix.py.
+No test calls an API: new grades come from results files, as tests/test_fix.py writes them.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ import pytest
 
 from judgekeeper import fix, targets
 from tests import test_fix as base
-from tests.test_fix import NEW_RULE, _split, _write_rule, project, run
+from tests.test_fix import _split, project, regraded, run
 
-here, judge = base.here, base.judge  # the fixtures: a project folder, and its faked judge
+here = base.here  # the fixture: a project folder
 
 
 def _flat(text: str) -> str:
@@ -40,38 +40,6 @@ def test_every_test_counts_whatever_the_last_verdict():
     split = fix.Split(seed=1, seen=[], hidden=[], tests=[
         {"kind": "rule", "verdict": "safe"}, {"kind": "rule", "verdict": "leans better"}])
     assert fix.next_test(split) == 3
-
-
-def test_few_mistakes_hidden_are_said_before_the_question(here, capsys, judge, monkeypatch):
-    monkeypatch.setattr(base, "WRONG_PASSES", 3)  # 3 + 1 mistakes: about 1 of them hidden
-    monkeypatch.setattr(base, "WRONG_FAILS", 1)
-    ws = project(here)
-    run(capsys)
-    split, marks = _split(ws), fix.Marks(ws)
-    wrong = sum(marks.judge[i] != marks.person[i] for i in split["hidden"])
-    assert wrong < 3
-    _write_rule(ws)
-    code, out = run(capsys)
-    assert code == 3  # no terminal: the question stops it
-    n = len(split["hidden"])
-    safe = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind in ("safe",
-                                                                                  "better"))
-    better = next(f for f in range(n + 1) if targets.fix_verdict(f, 0, n).kind == "better")
-    said = (f"The marks kept aside hold only {wrong} {'answer' if wrong == 1 else 'answers'} "
-            f"your LLM-as-a-judge got wrong. A new rule needs at least {safe} of those fixed to be "
-            f"called safe to try, and about {better} to be called better, so this test can "
-            "only catch a worse rule.")
-    assert said in _flat(out)
-    assert _flat(out).index(said) < _flat(out).index("To test it, judgekeeper asks")
-
-
-def test_enough_mistakes_hidden_say_nothing_more(here, capsys, judge):
-    ws = project(here)
-    run(capsys)
-    _write_rule(ws)
-    _, out = run(capsys)
-    assert "The marks kept aside hold only" not in out
-    assert json.dumps(NEW_RULE) not in out
 
 
 def test_the_reference_says_how_extra_tests_stay_fair():
@@ -112,6 +80,7 @@ def test_hidden_marks_never_show_while_the_set_is_in_use(here, capsys):
 
     ws = project(here)
     main(["--no-browser"])
+    capsys.readouterr()
     run(capsys)  # fix's first run: mistakes.md
     split = _split(ws)
     md = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
@@ -121,20 +90,19 @@ def test_hidden_marks_never_show_while_the_set_is_in_use(here, capsys):
         assert text not in md and text not in shown
 
 
-def test_a_retired_set_may_show_its_answers(here, capsys, judge):
+def test_a_retired_set_may_show_its_answers(here, capsys):
     """A rule tested on the set is now the LLM-as-a-judge's rule: the hidden marks are seen again, and
     the next marks make a new set."""
-    from judgekeeper import judge_setup
-    from judgekeeper.fingerprint import rule_hash
+    from judgekeeper import judge_setup, start
 
     ws = project(here)
     run(capsys)
-    _write_rule(ws)
-    run(capsys, "--yes")
+    run(capsys, regraded(here).name)
     hidden = _split(ws)["hidden"]
-    saved = judge_setup.read(ws)
-    setup = {**saved["setup"], "rule_hash": rule_hash(NEW_RULE)}
-    judge_setup.save(ws, setup, saved.get("metric"))
+    (here / "regraded.json").unlink()
+    regraded(here, name="results.json")  # the tested LLM-as-a-judge is the project's now
+    found = start.find_judge(here)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
     split = fix.current_split(ws, fix.Marks(ws))
     assert split.hidden == [] and set(hidden) <= set(split.seen)
     assert split.fresh == {"want": fix.FRESH}
@@ -144,7 +112,7 @@ def test_a_retired_set_may_show_its_answers(here, capsys, judge):
     assert wrong and all(fix._question(m, m.row(i))[:40] in shown for i in wrong)
 
 
-def test_three_rules_retire_the_set(here, capsys, judge):
+def test_three_rules_retire_the_set(here, capsys):
     ws = project(here)
     run(capsys)
     split = fix.read_split(ws)
@@ -438,62 +406,3 @@ def test_no_message_while_marking_compares_a_number_with_the_bar():
     for text in texts:
         for word in ("80%", "good enough", "clearly", "below the", "above the"):
             assert word not in text, (word, text)
-
-
-# Paid re-checks ask the judge twice ------------------------------------------------------------
-
-ASK_TWICE = ("judgekeeper will have your new LLM-as-a-judge grade your 50 marked answers, twice "
-             "each: 100 AI calls, paid with your own key.")
-
-
-@pytest.fixture
-def check_judge(monkeypatch, here):
-    from tests import test_check
-
-    return test_check.judge.__wrapped__(monkeypatch, here)
-
-
-def _new_judge(here):
-    from tests.test_check import HAIKU, LENIENT, _marked, _new_outputs, _results
-
-    ws = _marked(here)
-    _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-    return ws
-
-
-def test_a_paid_recheck_says_it_asks_twice(here, capsys, check_judge):
-    from judgekeeper.cli import main
-
-    _new_judge(here)
-    assert main(["check"]) == 3  # no terminal, no --yes: nothing is asked
-    assert ASK_TWICE in _flat(capsys.readouterr().out)
-
-
-def test_asked_twice_the_wobble_is_said_and_the_first_grades_decide(here, capsys, check_judge):
-    from judgekeeper import start_label
-    from judgekeeper.cli import main
-    from tests.test_again_run import FakePromptfoo
-
-    ws = _new_judge(here)
-    fake = check_judge["fake"] = FakePromptfoo(start_label.Workspace(here), version="0.124.1")
-    ids = [q["id"] for q in ws.data()["queue"]]
-    fake.flips = {(i, 1) for i in ids[:3]}  # 3 answers get another grade the second time
-    assert main(["check", "--yes"]) == 1
-    out = _flat(capsys.readouterr().out)
-    evals = [c.argv for c in fake.calls if "eval" in c.argv]
-    assert len(evals) == 1 and evals[0][evals[0].index("--repeat") + 1] == "2"
-    assert ("Your new LLM-as-a-judge gave a different grade the second time on 3 of the 50 "
-            "answers. It doesn't always grade the same answer the same way, so a difference of "
-            "up to 3 answers between old and new may not be real.") in out
-    assert "When you said Fail 25 of 25 16 of 25 Worse" in out
-
-
-def test_a_free_recheck_asks_nothing_extra(here, capsys):
-    from judgekeeper.cli import main
-    from tests.test_check import HAIKU, LENIENT, _marked, _results
-
-    _marked(here)
-    _results(here, LENIENT, model=HAIKU)
-    main(["check"])
-    out = _flat(capsys.readouterr().out)
-    assert "the second time" not in out and "twice each" not in out

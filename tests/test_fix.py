@@ -1,29 +1,36 @@
 """`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-First run (Screen 5a): some of the marks are set aside and hidden (about 30% of each group: the
+First run (Screen 5a): half of the marks are set aside and hidden (of each group: the
 LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
 and 5 marked Fail); the patterns in the LLM-as-a-judge's mistakes on the other marks;
 .judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason;
-where the judge's rule is written; Next: write the new rule in .judgekeeper/fix/rule.txt.
-Nothing about a hidden mark (its id or its text) is printed or written outside split.json. No
-test calls an API.
+where the judge's rule is written; .judgekeeper/fix/marked-answers.csv with every marked answer
+to grade again; Next: grade them again with a new rule and give `judgekeeper fix` the results.
+Nothing about a hidden mark (its id or its text) is printed or written outside split.json and
+marked-answers.csv, which never says which answers are hidden.
+
+Screen 5b: `judgekeeper fix <new results file>` reads the new grades of the hidden marks from
+the file and gives the verdict from targets.fix_verdict. No test calls an API.
 """
 
 from __future__ import annotations
 
+import contextlib
+import csv
+import io
 import json
 import os
 import re
 import stat
 import time
-from pathlib import Path
 
 import pytest
 
-from judgekeeper import __version__, fix, label, start_fix_rule
+from judgekeeper import __version__, fix, label, start_fix_rule, targets
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question
+from tests.test_only_reads import only_reads
 
 TAG = " SECRET-9b1d"
 WRONG = "Where your LLM-as-a-judge goes wrong:"
@@ -60,26 +67,42 @@ def _person(question_text: str, half: int = N // 2) -> bool:
     return i < half
 
 
+def _results(root, rule: str, verdicts, name: str = "results.json", n: int = N):
+    """promptfoo results of the `n` answers graded with `rule`."""
+    data = promptfoo_data(verdicts, rubric=rule, tag=TAG, outputs=_outputs(n))
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    path = root / name
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
 def project(root, rule: str = RULE, n: int = N, marked: int | None = None) -> Workspace:
     """`n` promptfoo answers (half passed, half failed by the LLM-as-a-judge), the first `marked` in
     the page's order marked (default: all): the person fails the first 10 the LLM-as-a-judge passed
-    and passes 3 it failed."""
+    and passes 3 it failed. What the setup prints is left out of the test's output."""
     (root / "promptfooconfig.yaml").write_text(
         f"description: support bot\ntests:\n  - assert:\n      - type: llm-rubric\n"
         f"        value: \"{rule}\"\n", encoding="utf-8")
     half = n // 2
-    verdicts = [True] * half + [False] * (n - half)
-    data = promptfoo_data(verdicts, rubric=rule, tag=TAG, outputs=_outputs(n))
-    data["metadata"]["promptfooVersion"] = "0.124.1"
-    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
-    assert main(["--no-browser"]) == 0
-    ws = Workspace(root)
-    closed(ws)
+    _results(root, rule, [True] * half + [False] * (n - half), n=n)
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        ws = Workspace(root)
+        closed(ws)
     session = StartSession(ws)
     for item in session.items[:marked]:
         label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
+
+
+def regraded(root, rule: str = NEW_RULE, grade=None, name: str = "regraded.json",
+             n: int = N):
+    """The marked answers graded again with `rule`, as promptfoo saves them: answer i graded
+    `grade(i)` (default: as the person marked it)."""
+    half = n // 2
+    verdicts = [grade(i) if grade else _person(question(i), half) for i in range(n)]
+    return _results(root, rule, verdicts, name=name, n=n)
 
 
 def closed(ws: Workspace, timeout: float = 30) -> None:
@@ -116,9 +139,8 @@ def _split(ws) -> dict:
 
 # The hidden marks -----------------------------------------------------------------------------
 
-def test_the_split_hides_about_30_percent_of_each_group(here, capsys):
+def test_the_split_hides_half_of_each_group(here, capsys):
     ws = project(here)
-    capsys.readouterr()
     run(capsys)
     split = _split(ws)
     hidden, visible = set(split["hidden"]), set(split["visible"])
@@ -128,7 +150,7 @@ def test_the_split_hides_about_30_percent_of_each_group(here, capsys):
         for agrees in (True, False):
             cell = {i for i in hidden | visible
                     if marks.judge[i] == judge and (marks.person[i] == judge) == agrees}
-            assert len(cell & hidden) == -(-len(cell) * 3 // 10) or len(cell) == 1
+            assert len(cell & hidden) == -(-len(cell) * 5 // 10) or len(cell) == 1
     assert sum(marks.person[i] == "pass" for i in hidden) >= 5
     assert sum(marks.person[i] == "fail" for i in hidden) >= 5
 
@@ -149,10 +171,10 @@ def test_the_split_stays_until_new(here, capsys):
 
 # Screen 5a -----------------------------------------------------------------------------------
 
-def test_the_first_run(here, capsys):
+def test_the_first_run(here, capsys, monkeypatch):
     ws = project(here)
-    capsys.readouterr()
-    code, out = run(capsys)
+    with only_reads(monkeypatch):
+        code, out = run(capsys)
     assert code == 0
     split = _split(ws)
     marks = fix.Marks(ws)
@@ -176,56 +198,33 @@ def test_the_first_run(here, capsys):
         ".judgekeeper/fix/mistakes.md. Use it to write a better rule, or hand it to a coding "
         "agent to help you write one. "
         f'Your LLM-as-a-judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
-        f"{len(split['hidden'])} more of your marks are kept aside to test your new rule "
-        "fairly. Next: write your new rule in .judgekeeper/fix/rule.txt, then run "
-        "`judgekeeper fix` again to test it.")
+        f"{len(split['hidden'])} of your marks are kept aside to test your new rule fairly. "
+        f".judgekeeper/fix/marked-answers.csv holds all {N} marked answers, questions and "
+        "answers only, so you can't tell which are kept aside. "
+        f"{fix.regrade_line('promptfoo')} "
+        "Next: change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
+        ".judgekeeper/fix/marked-answers.csv again, save the results, then run "
+        "`judgekeeper fix <new results file>`.")
     for gone in ("hidden", "set aside", "Each mistake, with", "Clues", "passed but you failed",
-                 "it passed", "it failed", "hand this file"):
+                 "it passed", "it failed", "hand this file", "rule.txt", "AI call", "--yes"):
         assert gone not in out, gone
+    assert not (ws.dir / "fix" / "rule.txt").exists()
 
 
-def test_fix_makes_an_empty_rule_txt_to_write_in(here, capsys):
-    ws = project(here)
-    rule = ws.dir / "fix" / "rule.txt"
-    assert not rule.exists()
-    capsys.readouterr()
-    first = run(capsys)
-    assert first[0] == 0 and rule.read_bytes() == b""
-    assert run(capsys) == first  # an empty rule.txt is no rule: the same first run
-
-
-@pytest.mark.parametrize("text", ["", "  \n\n "])
-def test_an_empty_rule_txt_is_not_tested(here, capsys, judge, text):
-    ws = project(here)
-    capsys.readouterr()
-    first = run(capsys)
-    _write_rule(ws, text)
-    assert run(capsys, "--yes") == first
-    assert judge["evals"] == 0
-
-
-@pytest.mark.parametrize("encoding", ["cp1252", "utf-16"])
-def test_a_rule_txt_not_saved_as_utf8_says_how_to_save_it(here, capsys, judge, encoding):
+def test_marked_answers_csv_holds_every_marked_answer_and_nothing_else(here, capsys):
     ws = project(here)
     run(capsys)
-    (ws.dir / "fix" / "rule.txt").write_bytes("Is polite \u2013 and \u201ccorrect\u201d.".encode(
-        encoding))
-    code, out = run(capsys, "--yes")
-    flat = " ".join(out.split())
-    assert code == 2, out
-    assert "error: rule.txt is not saved as UTF-8 text, so it cannot be read." in flat
-    assert "Next: save rule.txt as UTF-8, then run `judgekeeper fix --yes`." in flat
-    assert flat.count("UTF-8") == 2  # said once, then the Next line
-    assert judge["evals"] == 0 and "Please report it" not in flat
-
-
-def test_fix_never_overwrites_a_rule_txt(here, capsys):
-    ws = project(here)
-    run(capsys)
-    _write_rule(ws, NEW_RULE)
-    code, out = run(capsys, "--new")  # a first run again, with the rule kept
-    assert code == 0 and "Next: write your new rule in" in " ".join(out.split())
-    assert (ws.dir / "fix" / "rule.txt").read_text(encoding="utf-8") == NEW_RULE
+    path = ws.dir / "fix" / "marked-answers.csv"
+    rows = list(csv.reader(path.open(encoding="utf-8", newline="")))
+    assert rows[0] == ["question", "answer"]
+    assert sorted(rows[1:]) == sorted([question(i, TAG), out] for i, out in enumerate(_outputs()))
+    text = path.read_text(encoding="utf-8")
+    for i in _split(ws)["hidden"] + _split(ws)["visible"]:
+        assert i not in text  # no id, so the hidden marks can't be told from the others
+    for word in ("pass", "fail", "hidden", "kept"):
+        assert word not in text.lower(), word
+    if os.name != "nt":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 def test_mistakes_md_holds_the_visible_mistakes_with_the_judges_reason(here, capsys):
@@ -276,7 +275,6 @@ def test_mistakes_md_with_no_clear_pattern_says_so():
 
 def test_nothing_hidden_is_printed_or_written(here, capsys):
     ws = project(here)
-    capsys.readouterr()
     _, out = run(capsys)
     split = _split(ws)
     for i in split["hidden"]:
@@ -291,7 +289,6 @@ def test_a_judge_with_no_mistakes(here, capsys):
     session = StartSession(ws)  # every answer marked again, as the judge did
     for item in session.items:
         session.update({"id": item["id"], "label": session.groups[item["id"]], "seconds": 5})
-    capsys.readouterr()
     code, out = run(capsys)
     assert code == 0
     assert "Your LLM-as-a-judge agrees with every mark you can see, so there is nothing to fix." in \
@@ -311,13 +308,14 @@ def test_fix_needs_a_result_first(here, capsys):
     assert "Next: run `judgekeeper mark` to mark more answers." in " ".join(out.split())
 
 
-def test_a_judge_whose_rule_judgekeeper_cant_swap(here, capsys, monkeypatch):
+def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, monkeypatch):
     from tests.start_projects import table_project
 
     rows = [True] * 25 + [False] * 25
     table_project(here, rows, model="claude-haiku-4-5")
-    assert main(["--no-browser"]) == 0
-    main(["--stop"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        main(["--stop"])
     ws = Workspace(here)
     session = StartSession(ws)
     for n, item in enumerate(session.items):
@@ -325,18 +323,17 @@ def test_a_judge_whose_rule_judgekeeper_cant_swap(here, capsys, monkeypatch):
         if n < 6:
             label = "fail" if label == "pass" else "pass"
         session.update({"id": item["id"], "label": label, "seconds": 5})
-    capsys.readouterr()
-    code, out = run(capsys)
-    assert code == 3
+    with only_reads(monkeypatch):
+        code, out = run(capsys)
+    assert code == 0
     flat = " ".join(out.split())
-    assert "judgekeeper can't ask this LLM-as-a-judge itself." in flat
-    assert ("Next: change its rule where your eval keeps it, run your eval, then run "
-            "`judgekeeper check`.") in flat
+    assert fix.OWN in flat and "can't ask" not in flat
+    assert flat.endswith("then run `judgekeeper fix <new results file>`.")
+    assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
 def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
     project(here)
-    capsys.readouterr()
     _, out = run(capsys)
     assert "Question 1?" not in out and "Answer 1." not in out
     assert question(1) not in out
@@ -347,16 +344,15 @@ def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
 def score_project(root) -> Workspace:
     """A table judge that gives scores, passed at 0.5. The person fails what it passed with a
     score under 0.7: a better pass mark is 0.7."""
-    import csv
-
     scores = [0.52 + 0.019 * i for i in range(25)] + [0.02 + 0.019 * i for i in range(25)]
     with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])
         for i, s in enumerate(scores):
             w.writerow([question(i, TAG), answer(i, TAG), f"{s:.3f}"])
-    assert main(["--pass-if", "score>=0.5", "--no-browser"]) == 0
-    main(["--stop"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--pass-if", "score>=0.5", "--no-browser"]) == 0
+        main(["--stop"])
     ws = Workspace(root)
     session = StartSession(ws)
     by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
@@ -368,16 +364,10 @@ def score_project(root) -> Workspace:
 
 
 def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys, monkeypatch):
-    from judgekeeper import again
-
-    def refuse(*args, **kwargs):
-        raise AssertionError("the LLM-as-a-judge was asked")
-
-    monkeypatch.setattr(again, "run_process", refuse)
     ws = score_project(here)
-    capsys.readouterr()
-    run(capsys)
-    _, out = run(capsys)  # the second run shows the saved test, not a new one
+    with only_reads(monkeypatch):
+        run(capsys)
+        _, out = run(capsys)  # the second run shows the saved test, not a new one
     flat = " ".join(out.split())
     m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on the marks kept "
                   r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
@@ -392,47 +382,6 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------------
 
-@pytest.fixture
-def judge(here, monkeypatch):
-    """The project's own promptfoo, faked: the old rule grades as saved, NEW_RULE grades every
-    answer as the person marked it. `holder["fake"].calls` keeps each call."""
-    from judgekeeper import again, keys
-    from tests.start_projects import project_promptfoo
-    from tests.test_again_run import FakePromptfoo
-
-    project_promptfoo(here)
-    for name in keys.all_names():
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-    monkeypatch.setattr(again, "which", lambda name: None)
-    holder = {"evals": 0, "half": N // 2, "fixes": {}}
-
-    def runner(argv, cwd, env=None, timeout=None):
-        if "fake" not in holder:
-            holder["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-        fake = holder["fake"]
-        if "eval" in argv:
-            holder["evals"] += 1
-            path = Path(cwd) / argv[argv.index("-c") + 1]
-            config = json.loads(path.read_text(encoding="utf-8"))
-            tests = json.loads((path.parent / config["tests"].removeprefix("file://"))
-                               .read_text(encoding="utf-8"))
-            fake.flips = set()
-            for t in tests:
-                value, q = t["assert"][0]["value"], t["vars"]["question"]
-                fixes = value == NEW_RULE or q in holder["fixes"].get(value, ())
-                if fixes and fake.saved[q][0] != _person(q, holder["half"]):
-                    fake.flips.add((t["description"], 0))
-        return fake(argv, cwd, env, timeout)
-
-    monkeypatch.setattr(again, "run_process", runner)
-    return holder
-
-
-def _write_rule(ws, text: str = NEW_RULE) -> None:
-    (ws.dir / "fix" / "rule.txt").write_text(text, encoding="utf-8")
-
-
 def _hidden_counts(ws) -> tuple[int, int, int]:
     """(hidden, the old rule's right answers, fixed) when the new rule agrees with every mark."""
     split, marks = _split(ws), fix.Marks(ws)
@@ -440,64 +389,38 @@ def _hidden_counts(ws) -> tuple[int, int, int]:
     return len(split["hidden"]), right, len(split["hidden"]) - right
 
 
-def test_without_a_terminal_or_yes_the_rule_is_not_tested(here, capsys, judge):
+def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdict(
+        here, capsys, monkeypatch):
     ws = project(here)
     run(capsys)
-    _write_rule(ws)
-    code, out = run(capsys)
-    assert code == 3
-    n, _, _ = _hidden_counts(ws)
-    flat = " ".join(out.split())
-    assert out.splitlines()[2] == "Step 4 of 5: Fix (testing your new rule)"
-    assert (f"To test it, judgekeeper asks your LLM-as-a-judge about the {n} answers kept aside, once "
-            "with "
-            f"the old rule and once with the new one. That is {2 * n} AI calls, paid with your "
-            "own key.") in flat
-    assert flat.endswith("Next: run `judgekeeper fix` in your terminal to answer, or "
-                         "`judgekeeper fix --yes` to go ahead.")
-    assert judge["evals"] == 0
-    assert not (ws.dir / "rules").exists()
-
-
-def test_with_yes_both_rules_are_asked_and_the_verdict_comes_from_the_math(here, capsys,
-                                                                          judge):
-    from judgekeeper import targets
-
-    ws = project(here)
-    run(capsys)
-    _write_rule(ws)
-    code, out = run(capsys, "--yes")
+    new = regraded(here)
+    with only_reads(monkeypatch):
+        code, out = run(capsys, new.name)
     assert code == 0, out
-    assert judge["evals"] == 2  # the old and the new rule, in the same run
     n, right, fixed = _hidden_counts(ws)
     lines = out.splitlines()
+    flat = " ".join(out.split())
+    assert lines[2] == "Step 4 of 5: Fix (testing your new rule)"
+    assert "New results: regraded.json" in lines
     at = lines.index(f"Your LLM-as-a-judge, tested on the {n} marks kept aside:")
     assert lines[at + 1:at + 3] == [f"  Old rule: agreed with you on {right} of {n} answers.",
                                     f"  New rule: agreed with you on {n} of {n} answers."]
     went = f"{fixed} answers went" if fixed != 1 else "1 answer went"
-    assert (f"With the new rule, {went} from wrong to right, and none from right to wrong."
-            in " ".join(out.split()))
+    assert f"With the new rule, {went} from wrong to right, and none from right to wrong." in flat
     assert "fixed" not in out and "broke" not in out
     kind = targets.fix_verdict(fixed, 0, n).kind
-    words = {"better": "Result: your new rule is better. A difference this large is "
-                       "unlikely to be a coincidence.",
-             "safe": "Result: safe to try. Not clearly better yet, but unlikely to be more "
-                     "than 10 points worse."}
-    assert words[kind] in " ".join(out.split())
-    assert " ".join(out.split()).endswith(
-        "Next: if you like it, copy the new rule into promptfooconfig.yaml, line 5. Then "
-        "run your eval and `judgekeeper check`.")
-    assert lines[4] == f'New rule:  "{NEW_RULE[:57].rstrip()}…"'
-    assert lines[5] == "           (from .judgekeeper/fix/rule.txt)"
+    assert kind in ("better", "safe")
+    assert fix.RESULT[kind] in flat
+    assert flat.endswith("Next: keep your new rule: run your eval, then `judgekeeper check` to "
+                         "re-check it on all your marks.")
 
 
-def test_a_test_is_kept_without_answer_text(here, capsys, judge):
+def test_a_test_is_kept_without_answer_text(here, capsys):
     from judgekeeper.fingerprint import rule_hash
 
     ws = project(here)
     run(capsys)
-    _write_rule(ws)
-    run(capsys, "--yes")
+    run(capsys, regraded(here).name)
     h = rule_hash(NEW_RULE)
     saved = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
     assert saved.read_text(encoding="utf-8") == NEW_RULE
@@ -509,200 +432,58 @@ def test_a_test_is_kept_without_answer_text(here, capsys, judge):
     assert TAG.strip() not in text and "Question" not in text
     for i in _split(ws)["hidden"]:
         assert i not in text
+    if os.name != "nt":
+        assert all(stat.S_IMODE(p.stat().st_mode) == 0o600
+                   for p in (ws.dir / "fix").iterdir() if p.is_file())
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Windows has no owner-only file mode")
-def test_rule_txt_is_made_owner_only(here, capsys):
-    ws = project(here)
-    run(capsys)
-    assert stat.S_IMODE((ws.dir / "fix" / "rule.txt").stat().st_mode) == 0o600
-
-
-def test_the_kept_rule_is_scrubbed(here, capsys, judge):
-    from judgekeeper.fingerprint import rule_hash
-
+def test_the_kept_rule_is_scrubbed(here, capsys):
     ws = project(here)
     run(capsys)
     rule = f"{NEW_RULE} Bearer FAKERULEffffffff1fffff sk-ant-api03-FAKERULE2aaaaaaaaaa"
-    _write_rule(ws, rule)
-    run(capsys, "--yes")
-    h = rule_hash(rule)  # the hash of the rule as written
-    saved = ws.dir / "rules" / f"{h.removeprefix('sha256:')}.txt"
+    run(capsys, regraded(here, rule=rule).name)
+    (saved,) = (ws.dir / "rules").glob("*.txt")
     text = saved.read_text(encoding="utf-8")
     assert "FAKERULE" not in text and text.count("[REDACTED]") == 2
     assert text.startswith(NEW_RULE)
 
 
-def test_a_tested_rule_is_not_tested_again(here, capsys, judge):
+def test_the_same_results_are_not_tested_again(here, capsys):
     ws = project(here)
     run(capsys)
-    _write_rule(ws)
-    run(capsys, "--yes")
-    code, out = run(capsys)
-    assert code == 0 and judge["evals"] == 2
-    assert out.splitlines()[2] == "Step 4 of 5: Fix"
-    assert "You tested this rule before" in out
-
-
-def test_a_rule_that_cant_be_tested_is_refused(here, capsys, judge):
-    ws = project(here)
-    run(capsys)
-    _write_rule(ws, "Grade {{ output }} kindly.")
-    said = "The new rule adds a template part ({{ ... }}) the old rule did not have."
-    code, out = run(capsys, "--yes")
-    assert code == 3
-    assert said in " ".join(out.split())
-    assert judge["evals"] == 0
-    assert " ".join(out.split()).endswith(
-        "Next: change the rule in .judgekeeper/fix/rule.txt, then run `judgekeeper fix` again.")
-
-
-AUTH_ERROR = ('API error: 401 Unauthorized {"error":{"message":"Incorrect API key provided",'
-              '"type":"invalid_request_error","code":"invalid_api_key"}}')
-
-
-def test_when_every_call_fails_fix_says_no_answer_was_graded(here, capsys, judge):
-    from tests.test_again_run import FakePromptfoo
-
-    ws = project(here)
-    run(capsys)
-    _write_rule(ws)
-    fake = judge["fake"] = FakePromptfoo(Workspace(here), version="0.124.1")
-    fake.grader_errors, fake.error_text = set(_split(ws)["hidden"]), AUTH_ERROR
-    code, out = run(capsys, "--yes")
-    flat = " ".join(out.split())
-    assert code == 3
-    assert "No answer was graded: every call failed (authentication error)." in flat
-    assert "Result:" not in out and "More marks" not in out and "agreed with you" not in out
-    assert judge["evals"] == 1  # the new rule is not asked once the old one got no answer
-    assert not (ws.dir / "rules").exists()
-
-
-# One top-up after "can't tell yet", and at most 3 rules on one set of hidden marks ----------
-
-def _mark_more(ws, k: int, half: int) -> list[str]:
-    session = StartSession(ws)
-    todo = [i for i in session.items if not i["label"]][:k]
-    for item in todo:
-        label = "pass" if _person(question(_index(ws, item["id"])), half) else "fail"
-        session.update({"id": item["id"], "label": label, "seconds": 5})
-    return [i["id"] for i in todo]
-
-
-def _question(ws, item_id: str) -> str:
-    return question(_index(ws, item_id), TAG)
-
-
-def test_one_top_up_after_cant_tell_goes_to_the_hidden_marks(here, capsys, judge):
-    from judgekeeper import targets
-
-    judge["half"] = 40
-    ws = project(here, n=80, marked=60)
-    run(capsys)
-    split, marks = _split(ws), fix.Marks(ws)
-    one = next(i for i in split["hidden"] if marks.person[i] != marks.judge[i])
-    judge["fixes"] = {"Fix just one.": {_question(ws, one)}}
-    _write_rule(ws, "Fix just one.")
-    code, out = run(capsys, "--yes")
-    flat = " ".join(out.split())
+    new = regraded(here)
+    run(capsys, new.name)
+    code, out = run(capsys, new.name)
     assert code == 0
-    assert "Result: can't tell yet. That leans toward better" in flat
-    more = targets.top_up(len(split["hidden"]))
-    assert flat.endswith(f"Next: mark {more} more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again.")
-    first = _mark_more(ws, 3, 40)
-    code, out = run(capsys)
-    assert code == 0 and judge["evals"] == 2  # the clues, while the test waits
-    flat = " ".join(out.split())
-    assert flat.index(f"it couldn't tell yet. Mark {more - 3} more answers, and") < flat.index(
-        WRONG) < flat.index(f"You have marked 3 of the {more} more answers.")
-    assert flat.endswith(f"Next: mark {more - 3} more answers with `judgekeeper mark`, then "
-                         "run `judgekeeper fix` again.")
-    rest = _mark_more(ws, more - 3, 40)
-    code, out = run(capsys, "--yes")
-    assert code == 0 and judge["evals"] == 4  # the same rule, tested again once
-    after = _split(ws)
-    assert set(first + rest) <= set(after["hidden"])
-    assert len(after["hidden"]) == len(split["hidden"]) + more
-    assert [t["rule_hash"] for t in after["tests"] if t["kind"] == "rule"] == [
-        after["tests"][0]["rule_hash"]] * 2
-    assert "mark 10 more answers" in " ".join(out.split()) or "Result: better" in out \
-        or "Result: safe to try" in out
+    assert "You tested this LLM-as-a-judge before" in " ".join(out.split())
+    assert len(_split(ws)["tests"]) == 1
 
 
-KEY_RULE = "Fix just one. Bearer FAKERULEffffffff1fffff"
-KEY_HIDDEN = ("This rule held text shaped like a key, which judgekeeper keeps hidden, so it "
-              "can't test it again.")
-
-
-def _top_up_of_a_key_rule(ws, capsys, judge) -> str:
-    """A rule holding a key's shape leans toward better; its top-up is then marked. Its hash."""
-    from judgekeeper import targets
-    from judgekeeper.fingerprint import rule_hash
-
-    run(capsys)
-    split, marks = _split(ws), fix.Marks(ws)
-    one = next(i for i in split["hidden"] if marks.person[i] != marks.judge[i])
-    judge["fixes"] = {KEY_RULE: {_question(ws, one)}}
-    _write_rule(ws, KEY_RULE)
-    code, out = run(capsys, "--yes")
-    assert code == 0 and "That leans toward better" in " ".join(out.split()), out
-    _mark_more(ws, targets.top_up(len(split["hidden"])), 40)
-    return rule_hash(KEY_RULE)
-
-
-def _rule_tests(ws) -> list[str]:
-    return [t["rule_hash"] for t in _split(ws)["tests"] if t["kind"] == "rule"]
-
-
-def test_a_scrubbed_rule_is_tested_again_from_rule_txt(here, capsys, judge):
-    judge["half"] = 40
-    ws = project(here, n=80, marked=60)
-    h = _top_up_of_a_key_rule(ws, capsys, judge)
-    code, out = run(capsys, "--yes")
-    assert code == 0 and judge["evals"] == 4, out  # the rule as written, tested again
-    assert _rule_tests(ws) == [h, h]
-    assert "FAKERULE" not in out
-
-
-def test_a_scrubbed_rule_not_in_rule_txt_is_not_tested_until_written_again(here, capsys, judge):
-    judge["half"] = 40
-    ws = project(here, n=80, marked=60)
-    h = _top_up_of_a_key_rule(ws, capsys, judge)
-    _write_rule(ws, "")
-    code, out = run(capsys, "--yes")
-    flat = " ".join(out.split())
-    assert code == 3 and judge["evals"] == 2, out  # nothing asked
-    assert KEY_HIDDEN in flat and _rule_tests(ws) == [h]
-    assert flat.endswith("Next: write the rule in .judgekeeper/fix/rule.txt again, then run "
-                         "`judgekeeper fix` to test it.")
-    assert run(capsys, "--yes")[0] == 3 and judge["evals"] == 2  # still waits for it
-    _write_rule(ws, KEY_RULE)
-    code, out = run(capsys, "--yes")
-    assert code == 0 and judge["evals"] == 4, out
-    assert _rule_tests(ws) == [h, h]
-
-
-def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
-    judge["half"] = 40
+def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     ws = project(here, n=80, marked=60)
     run(capsys)
     for k in range(3):
-        _write_rule(ws, f"Rule number {k}.")
-        assert run(capsys, "--yes")[0] == 0
-    assert judge["evals"] == 6
-    _write_rule(ws, "Rule number 3.")
-    code, out = run(capsys, "--yes")
+        new = regraded(here, rule=f"Rule number {k}.", grade=lambda i: i < 40,
+                       name=f"rule{k}.json", n=80)
+        assert run(capsys, new.name)[0] == 0
+    assert len(_split(ws)["tests"]) == 3
+    new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80)
+    code, out = run(capsys, new.name)
     flat = " ".join(out.split())
-    assert code == 3 and judge["evals"] == 6
+    assert code == 3 and len(_split(ws)["tests"]) == 3  # the set is retired: no 4th test
     assert "You have tested 3 rules on these marks kept aside." in flat
     assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
-                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
-    new = _mark_more(ws, 10, 40)
-    code, out = run(capsys, "--yes")
-    assert code == 0 and judge["evals"] == 8
+                         "`judgekeeper fix` again: they become a new set of marks kept aside, "
+                         "and your new results are tested on them.")
+    session = StartSession(ws)
+    todo = [i for i in session.items if not i["label"]][:10]
+    for item in todo:
+        label = "pass" if _person(question(_index(ws, item["id"])), 40) else "fail"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    code, out = run(capsys, new.name)
+    assert code == 0, out
     split = _split(ws)
-    assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2
+    assert sorted(split["hidden"]) == sorted(i["id"] for i in todo) and split["set"] == 2
     assert [t["kind"] for t in split["tests"]] == ["rule"]
 
 
@@ -710,7 +491,6 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys, judge):
 
 def test_the_result_points_at_fix_and_leaves_the_clues_to_it(here, capsys):
     project(here)
-    capsys.readouterr()
     assert main([]) == 0
     out = capsys.readouterr().out
     assert "Where it goes wrong" not in out and "of its" not in out  # fix prints the clues
@@ -723,21 +503,20 @@ def test_the_result_uses_only_the_seen_marks_once_some_are_hidden(here, capsys):
     run(capsys)
     split, marks = _split(ws), fix.Marks(ws)
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
-    capsys.readouterr()
     main([])
+    capsys.readouterr()
     assert fix.where_wrong(ws)[1] == len(seen)  # what decides whether fix is the next step
 
 
 # report.html ----------------------------------------------------------------------------------
 
-def test_the_report_shows_the_seen_mistakes_and_never_a_hidden_one(here, capsys, judge):
+def test_the_report_shows_the_seen_mistakes_and_never_a_hidden_one(here, capsys):
     import html as html_lib
 
     ws = project(here)
     assert main([]) == 0  # the result: report.html
     run(capsys)
-    _write_rule(ws)
-    run(capsys, "--yes")
+    run(capsys, regraded(here).name)
     page = ws.report_html.read_text(encoding="utf-8")
     split, marks = _split(ws), fix.Marks(ws)
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
@@ -750,17 +529,16 @@ def test_the_report_shows_the_seen_mistakes_and_never_a_hidden_one(here, capsys,
         assert gone not in page, gone
 
 
-def test_check_names_a_rule_tested_with_fix(here, capsys, judge):
+def test_check_names_a_rule_tested_with_fix(here, capsys):
     from judgekeeper.check import _day
 
     ws = project(here)
     run(capsys)
-    _write_rule(ws)
-    run(capsys, "--yes")
-    data = promptfoo_data([True] * 25 + [False] * 25, rubric=NEW_RULE, tag=TAG,
-                          outputs=_outputs())  # the person put the new rule in, ran the eval
-    data["metadata"]["promptfooVersion"] = "0.124.1"
-    (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    new = regraded(here)
+    run(capsys, new.name)
+    new.unlink()
+    # the person put the new rule in and ran the eval
+    _results(here, NEW_RULE, [True] * 25 + [False] * 25)
     capsys.readouterr()
     main(["check"])
     out = " ".join(capsys.readouterr().out.split())

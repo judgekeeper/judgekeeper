@@ -164,33 +164,17 @@ def test_a_judge_that_fails_every_answer_gets_ranges_of_some_width(marks):
 
 # report.html after a check that ends Worse -------------------------------------------------
 
-@pytest.mark.parametrize("paid", [False, True])
-def test_report_after_worse_says_the_last_check_at_the_top(here, capsys, monkeypatch, paid):
-    from judgekeeper import again, keys
+def test_report_after_worse_says_the_last_check_at_the_top(here, capsys):
     from judgekeeper.start_label import StartSession, store_result
-    from tests.start_projects import project_promptfoo
-    from tests.test_again_run import FakePromptfoo
-    from tests.test_check import HAIKU, LENIENT, _marked, _new_outputs, _results
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
     from tests.test_check import run as check_run
 
     ws = _marked(here)
     store_result(ws, StartSession(ws))
     before = ws.report_html.read_text(encoding="utf-8")
     assert "Last check" not in before
-    if paid:
-        project_promptfoo(here)
-        for name in keys.all_names():
-            monkeypatch.delenv(name, raising=False)
-        monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "y" * 30)
-        monkeypatch.setattr(again, "which", lambda name: None)
-        _results(here, LENIENT, model=HAIKU, outputs=_new_outputs())
-        monkeypatch.setattr(again, "run_process", FakePromptfoo(ws, version="0.124.1"))
-        code, out = check_run(capsys, "--yes")
-    else:
-        monkeypatch.setattr(again, "run_process", lambda *a, **k: pytest.fail("asked"))
-        _results(here, LENIENT, model=HAIKU)
-        code, out = check_run(capsys)
+    _results(here, LENIENT, model=HAIKU)
+    code, out = check_run(capsys)
     assert code == 1, out
     html = ws.report_html.read_text(encoding="utf-8")
     top = html[html.index("Last check"):html.index('class="verdict')]

@@ -1,18 +1,10 @@
-"""Which key an LLM-as-a-judge will use, and whether it is set: names only, never a value.
+"""The API key names of the LLM providers judgekeeper knows, and the hiding of key values.
 
-Before judgekeeper asks a user's LLM-as-a-judge again, it says which key the judge's tool will
-read and where that key is: "Your LLM-as-a-judge will use your OpenAI key (OPENAI_API_KEY, set
-in your shell)." The tool reads the key itself; judgekeeper never needs, holds, prints,
-stores, logs or passes on a key value.
-
-The provider comes from the judge's model, never from which keys happen to exist (promptfoo's
-default grader is the one exception: promptfoo picks it from the key names present). A `.env`
-line is read as dotenv reads it (`NAME=value`, `NAME: value`, `export`, quotes); only names are
-kept, except for `passed_on`: when judgekeeper runs the judge's tool, the tool reads no `.env`
-of the project, and judgekeeper passes on the values of the API key names alone. Every key
-name found set in the shell, and every value passed on, is registered with `redact`, so its
-value is scrubbed from what a tool prints. So is every credential in the project's .env files
-and promptfoo configs, as soon as the project is found (`hide_keys`): only to hide it.
+judgekeeper never needs, holds, prints, stores, logs or passes on a key. These names tell
+`redact` which variables hold a key, so a value that turns up in a results file or an error is
+scrubbed before it is shown or written. So is every credential in the project's .env files and
+promptfoo configs, as soon as the project is found (`hide_keys`): only to hide it. A `.env`
+line is read as dotenv reads it (`NAME=value`, `NAME: value`, `export`, quotes).
 """
 
 from __future__ import annotations
@@ -20,123 +12,37 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from judgekeeper import textio
-from judgekeeper.redact import is_credential, register_key_env, register_secret
+from judgekeeper.redact import is_credential, register_secret
 
-HOME = Path.home()
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
-@dataclass(frozen=True)
-class Provider:
-    label: str  # "OpenAI", as in "your OpenAI key"
-    keys: tuple[tuple[str, ...], ...] = ()  # alternatives; each a set of names all needed
-    settings: tuple[str, ...] = ()
-    credentials: str | None = None  # "google" or "aws": a credential file may do instead
-
-
+# The API key names of each provider (some take a set of names together).
 PROVIDERS = {
-    "openai": Provider("OpenAI", (("OPENAI_API_KEY",),), (
-        "OPENAI_TEMPERATURE", "OPENAI_MAX_TOKENS", "OPENAI_MAX_COMPLETION_TOKENS",
-        "OPENAI_TOP_P", "OPENAI_BASE_URL", "OPENAI_API_HOST", "OPENAI_API_BASE_URL",
-        "OPENAI_API_BASE")),
-    "anthropic": Provider("Anthropic", (("ANTHROPIC_API_KEY",),), (
-        "ANTHROPIC_TEMPERATURE", "ANTHROPIC_MAX_TOKENS", "ANTHROPIC_BASE_URL")),
-    "azure": Provider("Azure OpenAI", (
-        ("AZURE_OPENAI_API_KEY",), ("AZURE_API_KEY",),
-        ("AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID")), (
-        "AZURE_OPENAI_API_HOST", "AZURE_OPENAI_BASE_URL")),
-    "google": Provider("Google AI Studio", (
-        ("GOOGLE_API_KEY",), ("GEMINI_API_KEY",), ("PALM_API_KEY",))),
-    "vertex": Provider("Google Vertex", (("VERTEX_API_KEY",), ("GOOGLE_API_KEY",)), (
-        "VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "VERTEX_REGION", "GOOGLE_CLOUD_LOCATION"),
-        credentials="google"),
-    "bedrock": Provider("AWS Bedrock", (
-        ("AWS_BEARER_TOKEN_BEDROCK",), ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")), (
-        "AWS_BEDROCK_REGION", "AWS_BEDROCK_TEMPERATURE", "AWS_BEDROCK_MAX_TOKENS",
-        "AWS_BEDROCK_TOP_P"), credentials="aws"),
-    "mistral": Provider("Mistral", (("MISTRAL_API_KEY",),), (
-        "MISTRAL_TEMPERATURE", "MISTRAL_MAX_TOKENS", "MISTRAL_API_HOST",
-        "MISTRAL_API_BASE_URL")),
-    "groq": Provider("Groq", (("GROQ_API_KEY",),)),
-    "openrouter": Provider("OpenRouter", (("OPENROUTER_API_KEY",),)),
-    "ollama": Provider("Ollama", (), ("OLLAMA_BASE_URL",)),
-    "xai": Provider("xAI", (("XAI_API_KEY",), ("GROK_API_KEY",))),
-    "codex": Provider("Codex", (("CODEX_API_KEY",),)),
-}
-# Settings a tool reads for every provider.
-TOOL_SETTINGS = {"deepeval": ("TEMPERATURE", "DEEPEVAL_MODEL_THINKING")}
-ALIASES = {
-    "openai": "openai", "anthropic": "anthropic", "azure": "azure", "azureopenai": "azure",
-    "azureai": "azure", "google": "google", "gemini": "google", "vertex": "vertex",
-    "vertexai": "vertex", "bedrock": "bedrock", "aws": "bedrock", "mistral": "mistral",
-    "groq": "groq", "openrouter": "openrouter", "ollama": "ollama", "xai": "xai",
-    "grok": "xai",
-}
-# DeepEval writes the provider as a suffix: "claude-sonnet-4-6 (Anthropic)".
-SUFFIX = re.compile(r"\s*\(([^()]+)\)\s*\Z")
-BARE = (("gpt-", "openai"), ("o1", "openai"), ("o3", "openai"), ("o4", "openai"),
-        ("claude-", "anthropic"), ("gemini-", "google"), ("mistral-", "mistral"),
-        ("grok-", "xai"))
-TOOLS = {"promptfoo": "promptfoo", "deepeval": "DeepEval", "inspect": "Inspect AI",
-         "mlflow": "MLflow"}
-LOADS_ENV = {"promptfoo", "deepeval"}
-# The tools that read no .env when judgekeeper runs them: it passes on the key names (passed_on)
-# and, for promptfoo, a number setting of the grader's provider written as a plain number
-KEYS_ONLY = {"promptfoo", "inspect", "deepeval"}
-NUMBER_SUFFIXES = ("_TEMPERATURE", "_MAX_TOKENS", "_MAX_COMPLETION_TOKENS", "_TOP_P")
-PLAIN_NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
-# Names that change the judge for any provider, and the credential files a provider reads: in a
-# .env judgekeeper does not pass on, they are named like a provider's settings
-ALSO_CHANGES = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")
-CREDENTIAL_FILES = {"google": ("GOOGLE_APPLICATION_CREDENTIALS",),
-                    "aws": ("AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE")}
-# promptfoo's default grader, per promptfoo version: family -> model (checked 2026-10-05).
-DEFAULT_GRADERS = {
-    "0.123.1": {"openai": "gpt-5.6-sol", "anthropic": "claude-sonnet-4-6",
-                "google": "gemini-3.8-flash", "vertex": "gemini-3.8-flash",
-                "mistral": "mistral-large-latest"},
+    "openai": ("OPENAI_API_KEY",),
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "azure": ("AZURE_OPENAI_API_KEY", "AZURE_API_KEY", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET",
+              "AZURE_TENANT_ID"),
+    "google": ("GOOGLE_API_KEY", "GEMINI_API_KEY", "PALM_API_KEY"),
+    "vertex": ("VERTEX_API_KEY", "GOOGLE_API_KEY"),
+    "bedrock": ("AWS_BEARER_TOKEN_BEDROCK", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
+    "mistral": ("MISTRAL_API_KEY",),
+    "groq": ("GROQ_API_KEY",),
+    "openrouter": ("OPENROUTER_API_KEY",),
+    "xai": ("XAI_API_KEY", "GROK_API_KEY"),
+    "codex": ("CODEX_API_KEY",),
 }
 
 
-def all_names() -> set[str]:
-    """Every variable name this module looks at."""
-    names = {n for p in PROVIDERS.values() for alt in p.keys for n in alt}
-    names |= {n for p in PROVIDERS.values() for n in p.settings}
-    names |= {n for s in TOOL_SETTINGS.values() for n in s}
-    names |= {"AZURE_DEPLOYMENT_NAME", "AZURE_OPENAI_DEPLOYMENT_NAME",
-              "GOOGLE_APPLICATION_CREDENTIALS", "AWS_PROFILE", "CODEX_HOME"}
-    return names
+def key_names() -> set[str]:
+    """The API key names of the providers judgekeeper knows."""
+    return {n for names in PROVIDERS.values() for n in names}
 
 
-def provider_of(model: str | None, provider: str | None = None) -> str | None:
-    """The provider of a judge's model, from the way each tool writes it: promptfoo
-    `openai:gpt-4.1-mini`, DeepEval `claude-x (Anthropic)` (a bare name is OpenAI), Inspect
-    `openai/gpt-4o`, MLflow `openai:/gpt-4.1-mini`. A known `provider` wins."""
-    if provider and ALIASES.get(str(provider).lower()):
-        return ALIASES[str(provider).lower()]
-    if not model:
-        return None
-    model = str(model).strip()
-    m = SUFFIX.search(model)
-    if m:
-        return ALIASES.get(m[1].lower().replace(" ", ""))
-    for sep in (":/", ":", "/"):  # Inspect's "ollama/llama3.2:3b" has a colon after the slash
-        if sep in model and model.split(sep, 1)[0].lower() in ALIASES:
-            return ALIASES[model.split(sep, 1)[0].lower()]
-    if any(sep in model for sep in (":", "/")):
-        return None
-    for prefix, name in BARE:
-        if model.lower().startswith(prefix):
-            return name
-    return None
-
-
-# Names in files ---------------------------------------------------------------------------
+# Hiding the values in the project's files --------------------------------------------------
 
 # dotenv's line (dotenv 17, lib/main.js LINE), which promptfoo, Inspect AI and DeepEval read
 # alike: `NAME=value` or `NAME: value`, after `export ` or not; a value quoted with ', " or `
@@ -182,67 +88,6 @@ def env_values(path: Path, names) -> dict[str, str]:
     return found
 
 
-def key_names() -> set[str]:
-    """The API key names of the providers judgekeeper knows."""
-    return {n for p in PROVIDERS.values() for alt in p.keys for n in alt}
-
-
-def number_settings(family: str | None) -> set[str]:
-    """The settings of a provider that are a number (temperature, max tokens, top p)."""
-    p = PROVIDERS.get(family or "")
-    return {n for n in (p.settings if p else ()) if n.endswith(NUMBER_SUFFIXES)}
-
-
-def _from_files(tool: str, folder: Path, names) -> dict[str, str]:
-    """The values of `names` in the .env files `tool` reads in `folder`, in the tool's own
-    order (DeepEval: .env, then .env.<APP_ENV>, then .env.local wins)."""
-    folder = Path(folder)
-    if tool == "deepeval":
-        files = [folder / ".env"]
-        if os.environ.get("APP_ENV"):
-            files.append(folder / f".env.{os.environ['APP_ENV'].strip()}")
-        files.append(folder / ".env.local")
-    else:
-        files = [_nearest_env(folder) if tool == "inspect" else folder / ".env"]
-    found: dict[str, str] = {}
-    for path in files:
-        found.update(env_values(path, names))
-    return found
-
-
-def passed_on(tool: str, folder: Path, names, numbers=()) -> dict[str, str]:
-    """The values of `names` (key names) and `numbers` (number_settings, kept only when
-    written as a plain number) that the .env files `tool` reads would give it, leaving out a
-    name the shell sets: the shell's own wins, as in the tool. judgekeeper passes these on
-    itself, since the tool reads no .env when judgekeeper runs it. Each value is registered
-    with `redact`."""
-    found = _from_files(tool, folder, set(names) | set(numbers))
-    found = {k: v for k, v in found.items() if k not in os.environ
-             and (k in names or PLAIN_NUMBER.fullmatch(v.strip()))}
-    for name, value in found.items():
-        register_secret(name, value)
-    return found
-
-
-def not_passed_line(names: list[str]) -> str:
-    """What the plan says about settings a .env sets that judgekeeper does not pass on."""
-    one = len(names) == 1
-    it = "it" if one else "them"
-    return (f"{_and(names)} {'is' if one else 'are'} set in .env, which judgekeeper does not "
-            f"pass on: your LLM-as-a-judge is asked without {it}. To use {it}, set {it} in your "
-            "shell.")
-
-
-def not_passed_why(names: list[str]) -> str:
-    """The reason a plan is a close copy when a .env sets a name judgekeeper does not pass on."""
-    return f"your .env sets {_and(names)}, which judgekeeper does not pass on"
-
-
-def config_env_names(config: Path | None) -> set[str]:
-    """The names in a promptfoo config's top-level `env:` block (config_env)."""
-    return set(config_env(config))
-
-
 def _scalar(text: str) -> str | None:
     """A YAML value written on its key's line, as text: quotes taken off, a comment cut;
     None when there is none (a nested block)."""
@@ -254,8 +99,7 @@ def _scalar(text: str) -> str | None:
     return text or None
 
 
-# The name config_env gives an `env:` block it can't read whole: never passed on, so the
-# plan refuses the config, as for any name judgekeeper does not pass on
+# The name config_env gives an `env:` block it can't read whole: it holds no value to hide
 UNREAD = "env"
 # A top-level `env` key in a form the line scan does not read: quoted, a space before the
 # colon, an anchor, a tag or an alias after it, a flow mapping over several lines, a complex
@@ -273,8 +117,8 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     file, or JSON in a `.yaml` one, which YAML reads the same), else with PyYAML when it can
     be imported, else a line scan for YAML, in block or one-line (`env: {A: x, B: y}`) form.
     A block the line scan can't read whole (another YAML form, js-yaml reads them all) gives
-    UNREAD, which is refused. A value it can't read as one line is None. Values are passed
-    on to promptfoo, never shown. Only a regular file is read."""
+    UNREAD. A value it can't read as one line is None. Values are only hidden (hide_keys),
+    never shown or passed on. Only a regular file is read."""
     if config is None:
         return {}
     try:
@@ -295,7 +139,7 @@ def config_env(config: Path | None) -> dict[str, str | None]:
 
 
 def _yaml_env(text: str) -> dict[str, str | None] | None:
-    """The top-level `env:` block as PyYAML reads it (every name, so any other is refused),
+    """The top-level `env:` block as PyYAML reads it (every name),
     or None when PyYAML can't be imported or can't read the text."""
     try:
         import yaml
@@ -358,8 +202,8 @@ def _scanned_env(text: str) -> dict[str, str | None]:
 def hide_keys(root: Path, configs=()) -> None:
     """Register with `redact` the value of every credential (an API key name, or a name
     ending in _API_KEY, _TOKEN or _SECRET) that the project's .env files and the promptfoo
-    configs `configs` set, so it is hidden from finding and marking on, not only once fix or
-    check pass it on. Nothing is passed on here, and no other value is kept."""
+    configs `configs` set, so it is hidden from the moment the project is found. Nothing is
+    passed on, and no other value is kept."""
     root = Path(root)
     files = [root / ".env", root / ".env.local", _project_env(root)]
     if os.environ.get("APP_ENV"):
@@ -391,224 +235,3 @@ def _project_env(folder: Path) -> Path:
         if find.is_project(parent):
             break
     return folder / ".env"
-
-
-def _nearest_env(folder: Path) -> Path:
-    """The nearest .env from `folder` upward, as Inspect AI finds it; `folder`'s own when
-    there is none."""
-    for parent in (folder, *folder.resolve().parents):
-        if (parent / ".env").is_file():
-            return parent / ".env" if parent != folder.resolve() else folder / ".env"
-    return folder / ".env"
-
-
-def _env_files(tool: str, folder: Path) -> list[Path]:
-    if tool == "inspect":
-        return [_nearest_env(folder)]
-    files = [folder / ".env"]
-    if tool == "promptfoo":
-        for name in ("DOTENV_PATH", "DOTENV_CONFIG_PATH"):
-            if os.environ.get(name):
-                files.insert(0, Path(os.environ[name]))
-    if tool == "deepeval":
-        if os.environ.get("APP_ENV"):
-            files.append(folder / f".env.{os.environ['APP_ENV']}")
-        files.append(folder / ".env.local")
-    return files
-
-
-def _shown(path: Path, folder: Path) -> str:
-    try:
-        return path.relative_to(folder).as_posix()
-    except ValueError:
-        return Path(os.path.relpath(path, folder)).as_posix()
-
-
-def set_in_shell(name: str) -> str:
-    """How to set a variable in the shell, for the platform judgekeeper runs on."""
-    return f"$env:{name} = '...'" if sys.platform == "win32" else f"export {name}=..."
-
-
-@dataclass
-class Sources:
-    """Where each name is set: the config's env: block, the shell, or an .env file."""
-
-    folder: Path
-    config: Path | None
-    env_files: list[Path]
-    in_config: set[str] = field(default_factory=set)
-    in_files: dict[str, Path] = field(default_factory=dict)  # name -> the first file
-
-    @classmethod
-    def read(cls, tool: str, folder: Path, config: Path | None = None) -> Sources:
-        folder = Path(folder)
-        s = cls(folder, config, _env_files(tool, folder))
-        s.in_config = config_env_names(config) if tool == "promptfoo" else set()
-        for path in reversed(s.env_files):  # earlier files win when listed again below
-            for name in names_in(path):
-                s.in_files[name] = path
-        return s
-
-    def shell(self, name: str) -> bool:
-        return bool(os.environ.get(name))
-
-    def anywhere(self, name: str) -> bool:
-        return name in self.in_config or self.shell(name) or name in self.in_files
-
-
-def _credentials(kind: str | None) -> str | None:
-    if kind == "google":
-        found = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or (
-            HOME / ".config" / "gcloud" / "application_default_credentials.json").is_file()
-        return ("Google default credentials found; your LLM-as-a-judge will use them." if found
-                else None)
-    if kind == "aws":
-        found = os.environ.get("AWS_PROFILE") or (HOME / ".aws" / "credentials").is_file() \
-            or (HOME / ".aws" / "config").is_file()
-        return "AWS profile found; your LLM-as-a-judge will use it." if found else None
-    return None
-
-
-def _and(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
-
-
-# The check -----------------------------------------------------------------------------------
-
-@dataclass
-class KeyCheck:
-    provider: str | None
-    name: str | None  # the key name the judge will use (or needs)
-    ok: bool
-    lines: list[str]
-    settings: list[str] = field(default_factory=list)  # setting names that are set
-    step: str | None = None  # when not ok: "set NAME in your shell or in .env", a Next: step
-    not_passed: list[str] = field(default_factory=list)  # set only in a .env, not passed on
-
-
-def check(model: str | None, tool: str, folder: Path, provider: str | None = None,
-          config: Path | None = None, key_env: str | None = None,
-          loads_env: bool | None = None) -> KeyCheck:
-    """Which key `model`'s provider needs when `tool` runs in `folder`, and where it is.
-    `loads_env` says whether the tool will load `.env` when judgekeeper runs it (default: as
-    the tool does on its own)."""
-    loads_env = tool in LOADS_ENV if loads_env is None else loads_env
-    folder = Path(folder)
-    family = provider_of(model, provider)
-    src = Sources.read(tool, folder, config)
-    changing = {*(PROVIDERS[family].settings if family else ()), *TOOL_SETTINGS.get(tool, ())}
-    not_passed = []
-    if tool in KEYS_ONLY:  # what only a .env sets is not passed on, but a plain number
-        changing |= {*ALSO_CHANGES,
-                  *CREDENTIAL_FILES.get(PROVIDERS[family].credentials if family else "", ())}
-        numbers = number_settings(family) if tool == "promptfoo" else set()
-        values = _from_files(tool, folder, numbers)
-        not_passed = sorted(n for n in changing if n in src.in_files and not src.shell(n)
-                            and n not in src.in_config
-                            and not PLAIN_NUMBER.fullmatch(values.get(n, "").strip()))
-    settings = sorted(n for n in changing if src.anywhere(n) and n not in not_passed)
-    setting_lines = []
-    if settings:
-        verb = "is" if len(settings) == 1 else "are"
-        pronoun = "it changes" if len(settings) == 1 else "they change"
-        setting_lines = [f"{_and(settings)} {verb} set; {pronoun} your LLM-as-a-judge."]
-    if not_passed:
-        setting_lines.append(not_passed_line(not_passed))
-    if family is None:
-        unknown = (f"I can't tell which key your LLM-as-a-judge needs (its model is {model}); your "
-                   "tool looks for it itself.")
-        return KeyCheck(None, None, True, [unknown, *setting_lines], settings,
-                        not_passed=not_passed)
-    p = PROVIDERS[family]
-    if family == "ollama":
-        return KeyCheck(family, None, True, ["Your LLM-as-a-judge runs on Ollama; it needs no key.",
-                                             *setting_lines], settings, not_passed=not_passed)
-    alternatives = [(key_env,)] if key_env else list(p.keys)
-    loader = TOOLS.get(tool, tool)
-    for alt in alternatives:
-        if all(src.shell(n) for n in alt):
-            for n in alt:
-                register_key_env(n)
-    for alt in alternatives:
-        name = " + ".join(alt)
-        where = None
-        if tool == "promptfoo" and all(n in src.in_config for n in alt) and config:
-            where = (f"in the env: block of {_shown(Path(config), folder)}; promptfoo uses it")
-        elif all(src.shell(n) for n in alt):
-            where = "set in your shell"
-        elif all(n in src.in_files for n in alt):
-            file = _shown(src.in_files[alt[0]], folder)
-            here = "in this folder" if "/" not in file else "above this folder"
-            if not loads_env:
-                how = ", ".join(set_in_shell(n) for n in alt)
-                return KeyCheck(family, name, False, [
-                    f"Your LLM-as-a-judge needs {name}. It is in {file} {here}, but {loader} does "
-                    "not load .env files"
-                    + (" when judgekeeper runs it" if tool == "inspect" else "")
-                    + f": set it in your shell ({how}).", *setting_lines], settings,
-                    step=f"set {name} in your shell", not_passed=not_passed)
-            where = f"in {file} {here}; {loader} loads it"
-        if where:
-            return KeyCheck(family, name, True, [
-                f"Your LLM-as-a-judge will use your {p.label} key ({name}, {where}).",
-                *setting_lines],
-                settings, not_passed=not_passed)
-    creds = _credentials(p.credentials)
-    if creds:
-        return KeyCheck(family, None, True, [creds, *setting_lines], settings,
-                        not_passed=not_passed)
-    names = [" + ".join(alt) for alt in alternatives]
-    needed = names[0] + (f" (or {' or '.join(names[1:])})" if len(names) > 1 else "")
-    return KeyCheck(family, names[0], False, [
-        f"Your LLM-as-a-judge needs {needed}. It is not set in your shell or in .env.",
-        *setting_lines],
-        settings, step=f"set {names[0]} in your shell" + (" or in .env" if loads_env else ""),
-        not_passed=not_passed)
-
-
-# promptfoo's default grader ------------------------------------------------------------------
-
-@dataclass
-class DefaultGrader:
-    family: str
-    model: str | None
-    version: str | None
-
-    @property
-    def words(self) -> str:
-        if self.model is None:
-            return "promptfoo's default grader for your promptfoo version"
-        return (f"promptfoo's default grader, probably {self.model} with promptfoo "
-                f"{self.version}")
-
-
-def promptfoo_default(folder: Path, config: Path | None, version: str | None) -> DefaultGrader:
-    """The family promptfoo picks its default grader from, by which key names are present, in
-    promptfoo's own order; and its model for the promptfoo versions judgekeeper knows."""
-    src = Sources.read("promptfoo", Path(folder), config)
-    has = src.anywhere
-    openai, anthropic = has("OPENAI_API_KEY"), has("ANTHROPIC_API_KEY")
-    azure_key = has("AZURE_OPENAI_API_KEY") or has("AZURE_API_KEY") or all(
-        has(n) for n in ("AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID"))
-    google = any(has(n) for n in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "PALM_API_KEY"))
-    codex = has("CODEX_API_KEY") or (Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
-                                     / "auth.json").is_file()
-    if not openai and azure_key and has("AZURE_DEPLOYMENT_NAME") \
-            and has("AZURE_OPENAI_DEPLOYMENT_NAME"):
-        family = "azure"
-    elif anthropic and not openai:
-        family = "anthropic"
-    elif google and not openai and not anthropic:
-        family = "google"
-    elif not openai and _credentials("google"):
-        family = "vertex"
-    elif not openai and has("MISTRAL_API_KEY"):
-        family = "mistral"
-    elif not openai and has("XAI_API_KEY"):
-        family = "xai"
-    elif not openai and codex:
-        family = "codex"
-    else:
-        family = "openai"
-    model = DEFAULT_GRADERS.get(version or "", {}).get(family)
-    return DefaultGrader(family, model, version)

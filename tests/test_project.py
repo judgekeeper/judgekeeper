@@ -1,5 +1,6 @@
 """Running `judgekeeper` again on what is saved in `.judgekeeper/`: `--new` moves it all to
-previous-<date>/ (nothing is deleted), and what changed in the judge is said in words."""
+previous-<date>/ (nothing is deleted), and what changed in the LLM-as-a-judge is said in
+words."""
 
 from __future__ import annotations
 
@@ -33,16 +34,13 @@ def run(capsys, *argv):
     return code, out, err
 
 
-# A result, and the same results ----------------------------------------------------------
-
-
 # --new -----------------------------------------------------------------------------------
 
 
 def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, monkeypatch):
     _checked(tmp_path, n_pass=20, n_fail=16)
     stamps = iter(["2026-10-05T10-00-00Z", "2026-10-06T10-00-00Z"])
-    monkeypatch.setattr("judgekeeper.start_again._stamp", lambda: next(stamps))
+    monkeypatch.setattr("judgekeeper.project._stamp", lambda: next(stamps))
     run(capsys, tmp_path, "--new", "--yes")
     run(capsys, tmp_path, "--new", "--yes")
     names = sorted(p.name for p in Workspace(tmp_path).dir.glob("previous-*"))
@@ -50,7 +48,7 @@ def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, monkeypatch):
 
 
 def test_an_unknown_new_prompt_is_not_called_a_change():
-    from judgekeeper.start_again import judge_change
+    from judgekeeper.judge_setup import judge_change
 
     assert judge_change({"prompt_hash": "abc"}, {"prompt_hash": None}) == \
         "the prompt was recorded, now not recorded"

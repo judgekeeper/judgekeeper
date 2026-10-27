@@ -71,21 +71,27 @@ def call(base: str, token: str, path: str, body=None):
     return retried(send)
 
 
-@pytest.fixture
-def project(tmp_path):
-    promptfoo_project(tmp_path, split(20, 16))
-    yield tmp_path
-    folder = tmp_path / ".judgekeeper"
+def stop_page(project: Path) -> None:
+    """Close the marking page `project` started as its own process, if any: never leave a
+    page running, after a failed test too."""
+    folder = project / ".judgekeeper"
     try:
         pid = json.loads((folder / label.LOCK).read_text(encoding="utf-8"))["pid"]
     except (OSError, ValueError, KeyError):
         pid = None
     background.stop(folder)
-    if pid and alive(pid):  # never leave a page running after a failed test
+    if pid and alive(pid):
         try:
             os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass  # it was on its way out
+        except (ProcessLookupError, PermissionError):
+            pass  # it was on its way out (Windows denies ending a process that is exiting)
+
+
+@pytest.fixture
+def project(tmp_path):
+    promptfoo_project(tmp_path, split(20, 16))
+    yield tmp_path
+    stop_page(tmp_path)
 
 
 def page_log(project: Path) -> str:

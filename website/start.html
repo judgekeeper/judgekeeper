@@ -80,14 +80,16 @@
       <p><b>Result says your LLM-as-a-judge needs work?</b> Run:</p>
       <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p>It saves the answers your LLM-as-a-judge got wrong in <code>.judgekeeper/fix/mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</p>
-      <p>Write your new rule in <code>.judgekeeper/fix/rule.txt</code> and run <code>judgekeeper fix</code> again. judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>worse</b>, or if it <b>can’t tell yet</b>.</p>
-      <p class="gx-small">Testing works with promptfoo, DeepEval, Inspect AI and MLflow.</p>
+      <p>Change the rule in your eval tool. Have it grade the answers in <code>.judgekeeper/fix/marked-answers.csv</code> again, save the results, then run:</p>
+      <div class="cmd"><code>judgekeeper fix new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      <p>judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>safe to try</b>, <b>worse</b>, or if it <b>can’t tell yet</b>. A clear answer needs about 80 marks. A good new rule usually comes out <b>safe to try</b>, not <b>better</b>.</p>
+      <p class="gx-small">judgekeeper prints how to grade the answers again with your eval tool. It only reads the new results.</p>
     </div></div></li>
     <li class="gl-step" id="step-check"><span class="gl-n" aria-hidden="true">5</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Re-check after you change your LLM-as-a-judge</span></div><div class="gl-body gx-text sw-body">
       <h3 class="sr">Re-check after you change your LLM-as-a-judge</h3>
-      <p><b>Changed your LLM-as-a-judge’s model or rule, or moved to a new eval tool?</b> Run your eval again, then:</p>
+      <p><b>Changed your LLM-as-a-judge’s model or rule?</b> Run your eval again on the same answers, then:</p>
       <div class="cmd"><code>judgekeeper check</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p>judgekeeper compares your LLM-as-a-judge’s new grades with the marks you already made, and tells you if it still agrees with you. You don’t need to mark anything again.</p>
+      <p>judgekeeper finds the answers you marked in your new results by their exact text, compares the new grades with your marks, and tells you if your LLM-as-a-judge still agrees with you. You don’t need to mark anything again.</p>
     </div></div></li>
   </ol>
 </div></section>
@@ -105,8 +107,8 @@ judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pr
   </div>
   <div class="gm-pair">
     <div class="gm-row" id="keys">
-      <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">API keys and costs</span></div><h3 class="sr">API keys and costs</h3>
-      <div class="gx-text"><p>Steps 1 to 3 need no API key. Steps 4 and 5 may use your own key, and ask you first. judgekeeper never saves your key.</p></div>
+      <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">No API key needed</span></div><h3 class="sr">No API key needed</h3>
+      <div class="gx-text"><p>judgekeeper only reads files. It makes no AI call, needs no API key, and costs nothing. When you grade answers again, your own eval tool makes the calls, with your own key.</p></div>
     </div>
     <div class="gm-row" id="misc">
       <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Handy commands</span></div><h3 class="sr">Handy commands</h3>

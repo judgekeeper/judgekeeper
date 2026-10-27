@@ -19,7 +19,7 @@ CELLS = [(0.9, 0.95, 0.6, 10), (0.5, 0.6, 0.6, 10), (0.7, 0.95, 0.95, 10)]
 
 def lowest_tpr_tnr_coverage(grid: dict) -> float:
     """The lowest TPR or TNR coverage anywhere in the committed grid: the main grid, after
-    asking again, the stopping rule, an LLM-as-a-judge that changes its mind, batches and
+    grading again, the stopping rule, an LLM-as-a-judge that changes its mind, batches and
     one grade."""
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
     summaries = [level, grid["general"]["now"], grid["batches"]["start"],

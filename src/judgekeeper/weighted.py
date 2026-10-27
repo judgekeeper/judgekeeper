@@ -4,7 +4,8 @@ judgekeeper shows the person half answers the LLM-as-a-judge passed and half it 
 more fails than the pool usually holds, so plain rates over the marks would be wrong. The rates
 are worked out per group and weighted by group size (the Begg-Greenes correction); kappa is
 Cohen's kappa on that weighted table. With batches the groups are strata, (batch, grade); after
-asking again they stay the saved grades, since that is how the answers were picked.
+a check moves the marks to a new LLM-as-a-judge they stay the saved grades, since that is how
+the answers were picked.
 
 Ranges are Jeffreys draws per group (DRAWS, a fixed SEED), cut at the middle LEVEL. LEVEL was
 picked by scripts/coverage_check.py, not assumed. A range is widened to hold the number itself,

@@ -19,7 +19,6 @@ import urllib.request
 import pytest
 
 from judgekeeper import keys, redact
-from judgekeeper.again.promptfoo import env_refusal
 from tests.start_projects import promptfoo_project, split
 from tests.test_front import run
 
@@ -135,15 +134,13 @@ def test_every_yaml_form_is_read_with_pyyaml(tmp_path, text):
     pytest.importorskip("yaml")
     config = _config(tmp_path, text)
     assert "NODE_OPTIONS" in keys.config_env(config)
-    assert env_refusal(config, []) == ("its config sets `NODE_OPTIONS`, which judgekeeper does "
-                                       "not pass on")
 
 
 @pytest.mark.parametrize("text", FORMS.values(), ids=FORMS.keys())
-def test_without_pyyaml_a_form_the_scan_cant_read_is_refused(tmp_path, monkeypatch, text):
+def test_without_pyyaml_a_form_the_scan_cant_read_is_said(tmp_path, monkeypatch, text):
     monkeypatch.setitem(sys.modules, "yaml", None)  # import yaml raises ImportError
     config = _config(tmp_path, text)
-    assert env_refusal(config, []) is not None
+    assert keys.UNREAD in keys.config_env(config)
 
 
 def test_without_pyyaml_the_plain_forms_are_still_read(tmp_path, monkeypatch):
@@ -152,7 +149,6 @@ def test_without_pyyaml_the_plain_forms_are_still_read(tmp_path, monkeypatch):
     assert keys.config_env(config) == {"OPENAI_API_KEY": "a"}
     config = _config(tmp_path, "env: {OPENAI_API_KEY: a, ANTHROPIC_API_KEY: b}\n")
     assert keys.config_env(config) == {"OPENAI_API_KEY": "a", "ANTHROPIC_API_KEY": "b"}
-    assert env_refusal(config, []) is None
 
 
 # A .env as dotenv reads it --------------------------------------------------------------------

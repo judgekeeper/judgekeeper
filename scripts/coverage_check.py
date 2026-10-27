@@ -4,13 +4,13 @@
 
 A "95%" range should hold the true value about 95 times in 100. This script checks that by
 simulation, for the ranges `judgekeeper` shows (weighted.corrected) and the ranges after
-asking the judge again (weighted.general).
+grading again (weighted.general: `check` on new results from your eval tool).
 
 One simulated check: the pool holds POOL answers, a share `pi` of them passed by the judge. An
 answer the judge passed is Correct with chance `a`; an answer it failed is Wrong with chance
 `w` (Correct with chance b = 1 - w). `n` answers are labeled in each group, each Correct with
 that chance. The true TPR, TNR and real pass rate follow from pi, a and b with weighted.py's
-formulas. For general(), the judge asked again gives the same verdicts as the saved ones (a
+formulas. For general(), the judge grading again gives the same verdicts as the saved ones (a
 steady judge). Kappa has no range, so it is not measured.
 
 The grid: pi in SHARES, a in CORRECT_IF_PASS, w in WRONG_IF_FAIL, n in LABELS; CHECKS checks
@@ -37,15 +37,15 @@ reached RELIABLE Correct and Wrong labels has both ranges no wider than each can
 The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
 word is said at the first result; how often the verdict is green when the lower of the true
-TPR and TNR is 75% and 80%; weighted.general when the judge asked again (twice, as a paid
-re-check does) changes its mind, with and without the wobble it showed; and how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
-own wobble when asked again.
+TPR and TNR is 75% and 80%; weighted.general when the judge, grading the same answers
+twice, changes its mind, with and without the wobble it showed; and how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
+own wobble when it grades again.
 
 The batch grid (`batches`): new answers join as batches (batches.py), and the numbers are
 stratified by (batch, the judge's grade). Two and three batches of different sizes, judges whose
 accuracy differs between batches, and BATCH_MARKS marks per stratum; the ranges judgekeeper
-shows (weighted.stratified, at weighted.LEVEL with weighted.DRAWS draws) and after asking a
-steady judge again (weighted.general_strata). The bar is the level's: FLOOR_CELL in every cell
+shows (weighted.stratified, at weighted.LEVEL with weighted.DRAWS draws) and after grading
+again with a steady judge (weighted.general_strata). The bar is the level's: FLOOR_CELL in every cell
 and FLOOR_MEAN on average.
 
     python scripts/coverage_check.py --batches   # only the batch grid, added to the files
@@ -54,7 +54,7 @@ and FLOOR_MEAN on average.
 The one-grade grid (`one_grade`): a judge that passed (or failed) every answer of the pool,
 with ONE_GRADE_MARKS marks, each the judge's own grade with chance ONE_GRADE_AGREE.
 
-Standard library only. Uses every processor core; the full grid takes a few minutes.
+Standard library only. Uses every processor core; the full grid takes over an hour on 8 cores.
 """
 
 from __future__ import annotations
@@ -100,10 +100,10 @@ KAPPA_CHECKS = 500
 STOP_CASES = RELIABLE_CASES
 # (judge's pass share, true TPR, true TNR): the lower of TPR and TNR at 75% and at 80%
 GREEN_CASES = [(0.9, 0.98, 0.75), (0.9, 0.98, 0.80), (0.5, 0.75, 0.95), (0.5, 0.80, 0.95)]
-CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge asked again turns round
+CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge grading again turns round
 # the judge also changed: the share of the answers it failed, that should fail, it now passes
 ALSO_CHANGED = (0.0, 0.3)
-WOBBLES = (0.0, 0.05, 0.10)  # the same judge asked again: the share of answers whose grade
+WOBBLES = (0.0, 0.05, 0.10)  # the same judge grading again: the share of answers whose grade
 # comes out different, half of them turning wrong and half turning right (nothing changed)
 WIDTHS = (0.25, 0.30, 0.35, 0.40)
 # The batch grid: answers per batch (the shapes 40 + 20 and 60 + 30 + 30, ten times over so a
@@ -120,7 +120,7 @@ BATCH_CHECKS = 1500
 ONE_GRADE_AGREE = (0.6, 0.8, 0.95)  # the chance a mark is the judge's own grade
 ONE_GRADE_MARKS = (20, 25, 30, 40)
 ONE_GRADE_CHECKS = 2000
-GENERAL_DRAWS = 4000  # after asking again, as the other re-check rows
+GENERAL_DRAWS = 4000  # after grading again, as the other re-check rows
 BOOT_SEED = 20261005
 RESAMPLES = 2000
 
@@ -152,7 +152,7 @@ def corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f) -> dict:
 
 
 def _items(n_p, c_p, n_f, c_f) -> list[tuple[str, str, str]]:
-    """A steady judge asked again: the fresh verdicts are the saved groups."""
+    """A steady judge grading again: the fresh verdicts are the saved groups."""
     return ([("pass", "pass", "pass")] * c_p + [("pass", "fail", "pass")] * (n_p - c_p)
             + [("fail", "pass", "fail")] * c_f + [("fail", "fail", "fail")] * (n_f - c_f))
 
@@ -507,10 +507,11 @@ def _green(args: tuple) -> dict:
 
 
 def _changes_mind(args: tuple) -> dict:
-    """weighted.general when the judge, asked again twice, turns round a share `flip` of its
-    grades at random each time (and, `changed`, now passes that share of the answers it failed
-    that should fail): how often its TPR and TNR ranges hold the asked judge's true rates, with
-    the wobble the two asks showed (`coverage`) and without it (`without`)."""
+    """weighted.general when the judge, grading the same answers twice, turns round a share
+    `flip` of its grades at random each time (and, `changed`, now passes that share of the
+    answers it failed that should fail): how often its TPR and TNR ranges hold the regrading
+    judge's true rates, with the wobble the two gradings showed (`coverage`) and without it
+    (`without`)."""
     pi, a, w, n, flip, changed = args
     rng = random.Random(SEED + int(flip * 1000) + n + int(pi * 10) + int(changed * 100))
     n_pass, n_fail = pool_counts(pi)
@@ -553,7 +554,7 @@ def _changes_mind(args: tuple) -> dict:
 
 def false_worse(n: int, right: float, wobble: float) -> dict:
     """How often `check` says "Worse" (and how often it exits 1) on one group of n marks when
-    the judge did not change, worked out exactly: asked again, a share `wobble` of the answers
+    the judge did not change, worked out exactly: grading again, a share `wobble` of the answers
     get another grade, half of them turning wrong and half turning right. (How often the judge
     is right does not enter: unchanged, it is as often right as before.)"""
     turn_wrong = turn_right = wobble / 2
@@ -627,14 +628,15 @@ def accuracy_markdown(acc: dict) -> list[str]:
     mind = acc["changes_mind"]
     low = min(row["coverage"][k] for row in mind for k in ("tpr", "tnr")
               if row["coverage"][k] is not None)
-    lines += ["", "### After asking again, an LLM-as-a-judge that changes its mind", "",
+    lines += ["", "### After grading again, an LLM-as-a-judge that changes its mind", "",
               (f"{ACCURACY_RUNS:,} simulated re-checks per row. weighted.general when the "
-               "LLM-as-a-judge, asked again twice as a paid re-check does, turns round a share of "
+               "LLM-as-a-judge, grading the same answers twice, turns round a share of "
                "its grades at random each time (a = 0.9, w = 0.85); in the lower half it also "
                "changed, and now passes 30% of the answers it failed that should fail. The first "
-               "grade counts. How often the ranges hold the asked LLM-as-a-judge's true TPR and "
-               "TNR, with the wobble the two asks showed (the share of answers whose two grades "
-               "differ, averaged) and, before, without it. In percent; lowest with the wobble: "
+               "grade counts. How often the ranges hold the regrading LLM-as-a-judge's true TPR "
+               "and TNR, with the wobble the two gradings showed (the share of answers whose two "
+               "grades differ, averaged) and, before, without it. In percent; lowest with the "
+               "wobble: "
                f"{_pct(low)}."), "",
               ("| pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | "
                "TNR before |"), "|---|---|---|---|---|---|---|---|---|"]
@@ -644,7 +646,7 @@ def accuracy_markdown(acc: dict) -> list[str]:
                      f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} | "
                      f"{_pct(row['without']['tpr'])} | {_pct(row['without']['tnr'])} |")
     lines += ["", "### `check` when nothing changed", "",
-              ("Worked out exactly for one group of marks: the same LLM-as-a-judge asked again, "
+              ("Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, "
                "a share of the answers getting another grade (the wobble), half turning wrong and "
                "half turning right. How often `check` says Worse, and how often it exits 1 "
                "(Worse, or Not sure with a drop of more than 20 points), in percent."),
@@ -741,13 +743,13 @@ def batches_markdown(g: dict) -> list[str]:
               "pi, a, w), and marks per stratum (in the first batch, then in each later one; "
               f"never more than the stratum holds). {g['checks_per_cell']:,} simulated checks "
               f"per cell, fixed seed {g['grid_seed']}. The ranges `judgekeeper` shows: level {g['level']:.0%}, "
-              f"{g['draws']:,} draws. After asking a steady LLM-as-a-judge again: "
+              f"{g['draws']:,} draws. After grading again with a steady LLM-as-a-judge: "
               f"{g['general_draws']:,} draws. The bar: at least {FLOOR_CELL:.0%} in every "
               f"cell and {FLOOR_MEAN:.0%} on average."), "",
              "| Ranges | Lowest cell | Average | Passes |", "|---|---|---|---|",
              (f"| `judgekeeper` (TPR, TNR, real pass rate) | {_pct(start['min_cell'])} | "
               f"{_pct(start['mean'])} | {'yes' if start['passes'] else 'no'} |"),
-             (f"| After asking again (TPR, TNR) | {_pct(again['min_cell'])} | "
+             (f"| After grading again (TPR, TNR) | {_pct(again['min_cell'])} | "
               f"{_pct(again['mean'])} | {'yes' if again['passes'] else 'no'} |"), "",
              "Coverage % / average width.", "",
              ("| Answers | LLM-as-a-judge per batch (pi, a, w) | Marks | TPR | TNR | Real pass "
@@ -887,8 +889,8 @@ def markdown(result: dict) -> str:
         lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['n']} | "
                      + " | ".join(cells_) + " |")
     g = result["general"]
-    lines += ["", "## After asking the LLM-as-a-judge again (`weighted.general`)", "",
-              "A steady LLM-as-a-judge: asked again, it gives the same verdicts. TPR and TNR.", "",
+    lines += ["", "## After grading again: new results from your eval tool (`weighted.general`)", "",
+              "A steady LLM-as-a-judge: grading again, it gives the same verdicts. TPR and TNR.", "",
               (f"Before (stratified bootstrap): lowest cell {_pct(g['before']['min_cell'])}, "
               f"average {_pct(g['before']['mean'])}. Now ({g['now_method']}): lowest cell "
               f"{_pct(g['now']['min_cell'])}, average {_pct(g['now']['mean'])}."), "",
@@ -951,7 +953,7 @@ def main() -> None:
         _write(result)
         b = result["batches"]
         print(f"batches: lowest cell {b['start']['min_cell']:.4f}, average "
-              f"{b['start']['mean']:.4f}, passes {b['start']['passes']}; after asking again "
+              f"{b['start']['mean']:.4f}, passes {b['start']['passes']}; after grading again "
               f"{b['general']['min_cell']:.4f}, {b['general']['mean']:.4f}, "
               f"passes {b['general']['passes']}")
         return
