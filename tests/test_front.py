@@ -12,6 +12,7 @@ import builtins
 import json
 import re
 import shlex
+import sys
 import tomllib
 
 import pytest
@@ -326,7 +327,7 @@ def test_several_judges(here, capsys):
     assert code == 3
     assert assert_one_next_at_the_end(out) == (
         "Next: choose which LLM-as-a-judge to check ('helpfulness', 'safety'), then run "
-        "`judgekeeper --metric NAME`.")
+        "`judgekeeper --metric NAME`.").replace("'", '"' if sys.platform == "win32" else "'")
     code, out, _ = run(capsys, "--metric", "safety")
     assert code == 0, out
     assert "LLM-as-a-judge:  safety, claude-opus-5" in out

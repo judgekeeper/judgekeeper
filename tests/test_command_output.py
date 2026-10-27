@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -567,7 +568,9 @@ def test_judge_names_in_a_list_are_quoted_alike(here, capsys):
     (here / ".deepeval" / ".latest_run_full.json").write_text(json.dumps(data),
                                                               encoding="utf-8")
     _, out, _ = run(capsys)
-    assert "('Answer Relevancy', 'Faithfulness')" in " ".join(out.split()), out
+    alike = ('("Answer Relevancy", "Faithfulness")' if sys.platform == "win32"
+             else "('Answer Relevancy', 'Faithfulness')")  # each shell's own quotes
+    assert alike in " ".join(out.split()), out
 
 
 def test_one_answer_is_not_each(here, capsys):

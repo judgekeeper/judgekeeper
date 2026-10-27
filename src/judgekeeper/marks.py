@@ -26,7 +26,14 @@ from pathlib import Path
 
 from judgekeeper import __version__
 from judgekeeper.fingerprint import utc_now
-from judgekeeper.textio import hard_linked, jsonl_lines, link_in, open_private, write_replacing
+from judgekeeper.textio import (
+    hard_linked,
+    is_link,
+    jsonl_lines,
+    link_in,
+    open_private,
+    write_replacing,
+)
 
 FILE = "marks.jsonl"
 VERSION = 1
@@ -115,9 +122,19 @@ def refuse_link(path: Path) -> None:
         raise _refused(path)
 
 
+WORKSPACE = ".judgekeeper"  # start_label.FOLDER
+
+
 def _refuse_links(path: Path) -> None:
     """A MarksError when `path`, its folder or a file in it is a link, or `path` is hard
-    linked."""
+    linked; and when any folder between the project's .judgekeeper/ (itself included) and
+    `path` is one: a link at .judgekeeper/fix would take a write to fix/runs/x elsewhere."""
+    path = Path(path)
+    above = path.parent.parents
+    top = next((i for i, folder in enumerate(above) if folder.name == WORKSPACE), None)
+    for folder in reversed(above[:top + 1] if top is not None else ()):
+        if is_link(folder):
+            raise _refused(folder)
     refuse_links_in(path.parent)
     refuse_link(path)
 

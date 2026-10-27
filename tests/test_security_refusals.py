@@ -726,9 +726,9 @@ def test_a_runs_folder_that_is_a_link_stops_fix_before_any_call(here, capsys, ju
         pytest.skip("this system cannot make links")
     code = main(["fix", "--yes"])
     out, err = capsys.readouterr()
-    assert code == 3 and judge["evals"] == 0
+    assert code == 2 and judge["evals"] == 0
     assert list(outside.iterdir()) == []
-    assert f"error: {os.path.join('.judgekeeper', 'fix', 'runs')} is a link." in err
+    assert "error: .judgekeeper/fix/runs is a link to another folder." in err
     assert "didn't expect" not in out + err
 
 
