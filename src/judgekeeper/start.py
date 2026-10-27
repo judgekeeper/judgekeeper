@@ -904,10 +904,11 @@ class Found:
     reference: bool = False  # it compares each answer with its test's reference answer
 
 
-def rebased(found: Found, root: Path) -> Found:
-    """`found` read from a results file (or MLflow store) given by path, with `root` as its
-    project folder: .judgekeeper/ stays in the project, never next to the file. Each file is
-    named from `root`, and `given` says where the file is."""
+def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
+    """`found` read from a results file (or MLflow store, or a `folder` in the project) given
+    by path, with `root` as its project folder: .judgekeeper/ stays in the project, never next
+    to the file. Each file is named from `root`, and `given` says where the file (or folder)
+    is."""
     root = Path(root).resolve()
 
     def rel(path: Path) -> str:
@@ -915,7 +916,7 @@ def rebased(found: Found, root: Path) -> Found:
         return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
 
     results = [replace(r, rel=rel(r.path)) for r in found.results]
-    given = rel(found.results[0].path) if found.tool != "mapped" else None
+    given = rel(folder or found.results[0].path) if found.tool != "mapped" else None
     return replace(found, root=root, results=results, given=given)
 
 
@@ -1247,13 +1248,16 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None,
                          "to Confident AI; your results aren't saved on this computer.",
                          LinkOnly.next_step)
     if prefer not in folders:
-        shown = [f"{f}/ ({_where(next(r for r in results if _eval_folder(r) == f))})"
-                 for f in folders]
-        commands = [talk.command_at(f) for f in folders]
+        newest = {f: next(r for r in results if _eval_folder(r) == f) for f in folders}
+        shown = [f"{f}/ ({_where(newest[f])})" for f in folders]
+        # the PATH that picks each: the project's own folder by its newest file, as "." is
+        # every folder again
+        paths = [f if f != "." else newest[f].rel for f in folders]
+        commands = [talk.command_at(p) for p in paths]
         prefer = folders[talk.choose(
             f"{what} in more than one folder:", shown,
             f"{what} in more than one folder; choose one with {_or(commands)}",
-            flag="PATH", values=folders, what=f"which {what} to check")]
+            flag="PATH", values=paths, what=f"which {what} to check")]
         talk.remember("PATH", prefer, f"(Next time: {talk.command_at(prefer)})")
     return [r for r in results if _eval_folder(r) in (prefer, None)]
 

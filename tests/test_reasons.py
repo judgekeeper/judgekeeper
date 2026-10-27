@@ -317,6 +317,34 @@ def test_at_most_6_parts_each_cut_to_60_characters_on_a_word():
     assert " ".join(parts[0][:-1].split()) == parts[0][:-1]  # cut on a word
 
 
+FACTS_FIRST = ("Hours are Monday to Friday. Returns take 30 days. Shipping is free over $50. "
+               "Support is by email. Refunds go to the card. The store is open 9am to 6pm. "
+               "Gift cards never expire. Fail any answer that promises a refund.")
+
+
+def test_a_long_rule_offers_its_first_parts_and_its_last():
+    parts = reasons.split_rule(FACTS_FIRST)
+    assert len(parts) == 6
+    assert parts[:5] == ["Hours are Monday to Friday", "Returns take 30 days",
+                         "Shipping is free over $50", "Support is by email",
+                         "Refunds go to the card"]
+    assert parts[5] == "Fail any answer that promises a refund"
+    assert reasons.parts_left_out({"rule": FACTS_FIRST, "tool": "promptfoo"}) == 2
+    assert reasons.parts_left_out({"rule": RULE, "tool": "promptfoo"}) == 0
+
+
+def test_the_page_says_other_covers_the_parts_left_out(here):
+    ws, passes, fails, _ = _ready(here, rule=FACTS_FIRST)
+    box = _box(_live(ws), (passes or fails)[0])
+    assert "6. Fail any answer that promises a refund" in box
+    assert "“Other…” covers the 2 other parts of your rule." in box
+
+
+def test_no_line_about_other_parts_when_every_part_has_a_button(here):
+    ws, passes, fails, _ = _ready(here)
+    assert "covers the" not in _box(_live(ws), (passes or fails)[0])
+
+
 def test_no_rule_buttons_without_one_rule_for_every_answer():
     assert reasons.rule_parts({"rule": RULE, "tool": "promptfoo", "one_rule": False}) == []
     assert reasons.rule_parts({"rule": None, "tool": "promptfoo"}) == []

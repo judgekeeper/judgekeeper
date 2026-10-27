@@ -16,6 +16,7 @@ No AI call and no key. Exit codes: 0 done, 3 the person is needed, 2 usage error
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -315,9 +316,47 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
+    root = project.project_of(path)
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
-        found = start.rebased(found, project.project_of(path))
+        found = start.rebased(found, root)
+        _folder_chosen(talk, found, path.resolve().parent)
+    elif root != path.resolve() and _log_folder_of(root, found):  # in the marked project
+        found = start.rebased(found, root, path)
+        _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _log_folder_of(root: Path, found: start.Found) -> bool:
+    """Whether `found` is read from a folder of logs (DeepEval, Inspect AI) of the eval tool the
+    project in `root` marks: the project's choice of folder, not a project of its own."""
+    from judgekeeper import start_label
+
+    if found.tool not in ("deepeval", "inspect"):
+        return False
+    try:
+        data = json.loads(start_label.Workspace(root).start.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return False
+    return isinstance(data, dict) and data.get("tool") == found.tool
+
+
+def _folder_chosen(talk: FrontTalk, found: start.Found, folder: Path) -> None:
+    """A PATH in the project that picks one of the folders its DeepEval results (or Inspect
+    logs) are in: kept in judgekeeper.toml after a yes, as when it is chosen at a terminal,
+    so plain commands stop asking (`judgekeeper mark` never saves it)."""
+    if found.tool not in ("deepeval", "inspect") or talk.store is not None or talk.subcommand:
+        return
+    rel = folder.relative_to(found.root).as_posix() if folder.is_relative_to(found.root) else None
+    try:
+        kept = settings.load(found.root)
+    except settings.SettingsError:
+        return  # said when it is read
+    if kept is not None and (kept.source, kept.file) == (found.tool, rel):
+        return
+    search = find.search(found.root)
+    folders = {start._eval_folder(r) for r in search.readable(found.tool)} - {None}
+    if len(folders) > 1 and rel in folders:
+        talk.remember("PATH", rel)
 
 
 def install_switch(files: list[str], used: list[str], can_read_eval: bool) -> str | None:
@@ -845,7 +884,10 @@ def _rule_file(found: start.Found) -> str | None:
     if found.tool == "promptfoo":
         return next((n for n in find.PROMPTFOO_CONFIGS if (Path(found.root) / n).is_file()),
                     None)
-    return found.task_file if found.tool == "inspect" else None
+    if found.tool == "inspect" and found.task_file and found.rule:
+        return start_fix_rule.opened_rule_file(Path(found.root), found.task_file, found.rule,
+                                               found.tool)
+    return None
 
 
 def _rule_lines(found: start.Found) -> list[str]:

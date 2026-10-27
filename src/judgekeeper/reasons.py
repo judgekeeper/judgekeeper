@@ -59,6 +59,7 @@ NOT_LISTED = ("this answer is not on your result page yet: reasons are only for 
 QUESTION = "Why did you mark it {mark}?"
 PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
                  "fail": "Which part did your LLM-as-a-judge get wrong?"}
+PARTS_LEFT_OUT = "\u201cOther\u2026\u201d covers the {n} other parts of your rule."
 ADD = "Add a reason to any answer below. `fix` uses them."
 
 
@@ -88,11 +89,10 @@ def _cut(text: str) -> str:
     return cut.rstrip(" ,;:") + "…"
 
 
-def split_rule(rule: str | None) -> list[str]:
-    """The parts of a rule, by plain text rules: one per line, bullet or numbered line and
+def _all_parts(rule: str | None) -> list[str]:
+    """Every part of a rule, by plain text rules: one per line, bullet or numbered line and
     sentence; a sentence is split on ";", and on "and" when it lists checks with commas. No
-    template part ({{ ... }}). At most MAX_PARTS, each cut to PART_CHARS on a word. Fewer than
-    two parts: none (the general buttons are enough)."""
+    template part ({{ ... }})."""
     parts: list[str] = []
     for line in (rule or "").splitlines():
         line = _BULLET.sub("", line).strip()
@@ -100,19 +100,38 @@ def split_rule(rule: str | None) -> list[str]:
             for piece in sentence.split(";"):
                 pieces = _LIST.split(piece) if "," in piece and " and " in piece else [piece]
                 parts += [p.strip().rstrip(".!?:,").strip() for p in pieces]
-    parts = [p for p in dict.fromkeys(parts) if p and "{" not in p and len(p.split()) >= 2]
-    parts = [_cut(p) for p in parts[:MAX_PARTS]]
+    return [p for p in dict.fromkeys(parts) if p and "{" not in p and len(p.split()) >= 2]
+
+
+def split_rule(rule: str | None) -> list[str]:
+    """The parts of a rule (_all_parts), each cut to PART_CHARS on a word. At most MAX_PARTS:
+    the first ones and the last (a rule often ends with what to fail). Fewer than two parts:
+    none (the general buttons are enough)."""
+    parts = _all_parts(rule)
+    if len(parts) > MAX_PARTS:
+        parts = parts[:MAX_PARTS - 1] + parts[-1:]
+    parts = [_cut(p) for p in parts]
     return parts if len(parts) > 1 else []
 
 
-def rule_parts(data: dict) -> list[str]:
-    """The rule's parts for a check whose start.json is `data`: none without one rule for every
+def _rule(data: dict) -> str | None:
+    """The rule's text for a check whose start.json is `data`: none without one rule for every
     answer."""
     from judgekeeper.start_fix_rule import rule_text
 
     if not data.get("rule") or not data.get("one_rule", True):
-        return []
-    return split_rule(rule_text(data["rule"], data.get("tool") or ""))
+        return None
+    return rule_text(data["rule"], data.get("tool") or "")
+
+
+def rule_parts(data: dict) -> list[str]:
+    """The rule's parts (split_rule) for a check whose start.json is `data`."""
+    return split_rule(_rule(data))
+
+
+def parts_left_out(data: dict) -> int:
+    """How many of the rule's parts have no button (more than MAX_PARTS)."""
+    return max(len(_all_parts(_rule(data))) - MAX_PARTS, 0)
 
 
 # The answer's text the spans point into -------------------------------------------------------

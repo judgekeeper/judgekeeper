@@ -1,7 +1,7 @@
 """Started by uvx, judgekeeper names itself the way it was started. uv and pip skip betas
-unless asked, and a person who ran `uvx judgekeeper@<version>` has no `judgekeeper` command:
-so every `Next:` line and every printed command says `uvx judgekeeper@<this version>`, with
-the same subcommand and flags. Otherwise, `judgekeeper` as before.
+unless asked, and a person who ran `uvx judgekeeper` has no `judgekeeper` command: so every
+`Next:` line and every printed command says `uvx judgekeeper` (`@<this version>` for a beta),
+with the same subcommand and flags. Otherwise, `judgekeeper` as before.
 
 uvx runs judgekeeper from a folder named `archive-v<N>/<id>` in uv's cache, and sets `UV`.
 """
@@ -19,7 +19,7 @@ from judgekeeper.cli import version_lines
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import next_lines, run
 
-UVX = f"uvx judgekeeper@{__version__}"
+UVX = f"uvx judgekeeper@{__version__}" if textio.is_prerelease() else "uvx judgekeeper"
 CACHES = ["/Users/me/.cache/uv/archive-v0/r-lOTHILJ6Qzv6Y1",
           "/home/me/.cache/uv/archive-v0/abc123",
           "C:\\Users\\me\\AppData\\Local\\uv\\cache\\archive-v0\\abc123",
@@ -54,6 +54,12 @@ def test_uv_s_cache_folder_and_uv_set_mean_uvx(monkeypatch, prefix):
     monkeypatch.setattr(sys, "prefix", prefix)
     assert textio.program() == UVX
     assert textio.program("mark") == f"{UVX} mark"
+
+
+@pytest.mark.parametrize("version, pin", [("1.0.0", ""), ("1.1.0", ""), ("1.1.0b2", "@1.1.0b2")])
+def test_only_a_beta_is_pinned(monkeypatch, by_uvx, version, pin):
+    monkeypatch.setattr("judgekeeper.__version__", version)
+    assert textio.program("check") == f"uvx judgekeeper{pin} check"
 
 
 @pytest.mark.parametrize("prefix", [

@@ -262,7 +262,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
     assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
-    file = fix.new_log(ws) if tool == "inspect" else fix.NEW_RESULTS
+    file = {"inspect": fix.new_log(ws), "mlflow": fix.mlflow_store(ws)}.get(tool, fix.NEW_RESULTS)
     assert f"fix {file}" in " ".join(out.split())
 
     gone = kept[0]  # not graded again: said, and no verdict without it
@@ -279,8 +279,8 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
         assert then == (f"Next: score your log again with your new rule: run "
                         f"`{fix.INSPECT_SCORE}` with `--output-file {fix.new_log(ws)}`, then "
                         f"run `judgekeeper fix {fix.new_log(ws)}`.")
-    else:
-        assert "marked-answers.csv" in then
+    else:  # MLflow: a new run in its store
+        assert (fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv") in then
     assert fix.read_split(ws).tests == []
 
     new = write_results(tool, here / NEW[tool], {i: person(i) for i in range(N)}, regraded=True)

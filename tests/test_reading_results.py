@@ -389,7 +389,8 @@ def test_the_eval_log_advice_keeps_the_reading_flags(here, capsys, monkeypatch, 
     flags = (f"--metric model_graded_qa --label-map {textio.quote_arg('maybe=error')} --port 0 "
              "--no-browser")
     if uvx:
-        said = (f'To read the newest, run `uvx --from "judgekeeper[inspect]=={__version__}" '
+        pin = f"=={__version__}" if textio.is_prerelease() else ""
+        said = (f'To read the newest, run `uvx --from "judgekeeper[inspect]{pin}" '
                 f"judgekeeper {flags}`.")
     else:
         said = (f"To read the newest, install the extra ({textio.install_extra('inspect')}), "

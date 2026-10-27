@@ -11,7 +11,9 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 ## Grading answers again
 
-judgekeeper never runs your eval tool and never asks your LLM-as-a-judge itself. To test a new rule, `judgekeeper fix` writes every answer you marked in `.judgekeeper/fix/marked-answers.csv`. You grade those answers again with your new rule in your eval tool, save the results, and run `judgekeeper fix <new results file>`. Each tool's part below says how. To re-check, `judgekeeper check` reads the results your eval saves next, and finds the answers you marked in them by their exact text.
+judgekeeper never runs your eval tool and never asks your LLM-as-a-judge itself. To test a new rule, `judgekeeper fix` writes every answer you marked in `.judgekeeper/fix/marked-answers.csv`, with two columns, `question` and `answer`. You grade those answers again with your new rule in your eval tool, keeping your LLM-as-a-judge's name the same, save the results, and run `judgekeeper fix <new results file>`. Each tool's part below says how. `fix` and `check` read the new results with the choices you made at the start (`--metric`, `--experiment`), so you don't give them again.
+
+To re-check after you change your LLM-as-a-judge, grade the answers you marked again the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by their exact text, and running your eval again usually makes new answers, which it can't compare.
 
 ## How failed calls are spotted
 
@@ -35,7 +37,22 @@ judgekeeper
 
 Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`. When results are only in promptfoo's database, it prints how to save them: `promptfoo eval -o promptfoo-results.json`, or `promptfoo list evals` and `promptfoo export eval <id> -o promptfoo-results.json`. It runs neither. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` shows is the assertion's `value`, unless it differs per test. Ids are the test's `description` when each is unique, else a hash of its vars.
 
-To grade the same answers again, use `marked-answers.csv` as your tests with the `echo` provider and your new rule, and save with `-o`.
+To grade the same answers again, save a config such as `regrade.yaml` with `marked-answers.csv` as its tests and the `echo` provider, which returns each answer as it is:
+
+```yaml
+prompts: ['{{answer}}']
+providers: [echo]
+tests: file://.judgekeeper/fix/marked-answers.csv
+defaultTest:
+  options:
+    provider: anthropic:messages:claude-haiku-5-5  # your grader, as before
+  assert:
+    - type: llm-rubric
+      metric: correctness  # the same metric: as before, if yours has one
+      value: Your new rule. The question was {{question}}.
+```
+
+The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json`, then `judgekeeper fix new.json`.
 
 **Traps.**
 
@@ -54,7 +71,7 @@ deepeval test run test_judge.py
 judgekeeper --metric "Correctness [GEval]"
 ```
 
-Tested with DeepEval 4.2, the version in tests/fixtures. It reads the newest `test_run_<date>.json` in your results folder (`DEEPEVAL_RESULTS_FOLDER`, or `DisplayConfig(results_folder=...)` in `evaluate()`), else `.deepeval/.latest_run_full.json`, which every run overwrites. Results are saved only by `deepeval test run` or `evaluate()`: calling a metric's `measure()` directly saves nothing. `--metric` is the metric's `name` (GEval: `"<name> [GEval]"`). The grade is `success`, or `score` with `--pass-if`. The rule `fix` shows is a GEval's evaluation steps or criteria. To grade the same answers again, build test cases from `marked-answers.csv` and run the metric. The version comes from your project's pin (`uv.lock`, `poetry.lock`, `pyproject.toml` or `requirements*.txt`).
+Tested with DeepEval 4.2, the version in tests/fixtures. It reads the newest `test_run_<date>.json` in your results folder (`DEEPEVAL_RESULTS_FOLDER`, or `DisplayConfig(results_folder=...)` in `evaluate()`), else `.deepeval/.latest_run_full.json`, which every run overwrites. Results are saved only by `deepeval test run` or `evaluate()`: calling a metric's `measure()` directly saves nothing. `--metric` is the metric's `name` (GEval: `"<name> [GEval]"`). The grade is `success`, or `score` with `--pass-if`. The rule `fix` shows is a GEval's evaluation steps or criteria. To grade the same answers again, make one `LLMTestCase(input=row["question"], actual_output=row["answer"])` for each row of `marked-answers.csv`, and run your metric with its new rule and the same `name` through `deepeval test run` or `evaluate()`. The run is saved as a new `test_run_<date>.json` in your results folder: run `judgekeeper fix deepeval-results/test_run_<date>.json` (your `DEEPEVAL_RESULTS_FOLDER`). `fix` and `check` keep the `--metric` you chose at the start. The version comes from your project's pin (`uv.lock`, `poetry.lock`, `pyproject.toml` or `requirements*.txt`).
 
 **Traps.**
 
@@ -70,7 +87,7 @@ inspect eval task.py
 judgekeeper --metric model_graded_qa
 ```
 
-Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 and 0.3.204 are tested too. Logs are in `./logs` or `INSPECT_LOG_DIR`. `.eval` logs need `pip install "judgekeeper[inspect]"` in your project's environment; else use `--log-format json` or `inspect log dump`. Logs in several folders are never read as one: it asks which and keeps the answer in `judgekeeper.toml`. `--metric` is the scorer's name under `samples[].scores`. Ids are `samples[].id`, repeats `samples[].epoch`. The rule `fix` shows is the scorer's instructions. To grade the same answers again, `inspect score <log> --scorer <name> --action overwrite --output-file logs/new.eval` with your scorer's new rule grades the log again without new answers: `--action overwrite` keeps the new grades under your scorer's name, and `--output-file` writes them to a new log in your log folder (`logs/` here), so yours stays as it was and `check` finds the new one there. Then run `judgekeeper fix logs/new.eval`.
+Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 and 0.3.204 are tested too. Logs are in `./logs` or `INSPECT_LOG_DIR`. `.eval` logs need `pip install "judgekeeper[inspect]"` in your project's environment; else use `--log-format json` or `inspect log dump`. Logs in several folders are never read as one: it asks which and keeps the answer in `judgekeeper.toml`. `--metric` is the scorer's name under `samples[].scores`. Ids are `samples[].id`, repeats `samples[].epoch`. The rule `fix` shows is the scorer's instructions. To grade the same answers again, grade your log again, with no new answers: `inspect score <log> --scorer model_graded_qa -S instructions="<new rule>" --action overwrite --output-file logs/new.eval`. `--scorer` takes the scorer's name: `model_graded_qa` (or `inspect_ai/model_graded_qa`) for Inspect's own, `task.py@<name>` for a scorer of your own. `-S` sets the scorer's options: give the ones you set before again, such as `-S model=...`. `--action overwrite` replaces the old grades in the new log, so your scorer's name holds the new ones (Inspect's default, `append`, keeps both). `--output-file` writes a new log in your log folder (`logs/` here), so yours stays as it was and `check` finds the new one there. Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspect]`). A rule with a comma needs Python: see the traps.
 
 **Traps.**
 
@@ -78,6 +95,20 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **A dict value** (`{"accuracy": "C", "tone": "I"}`) is one LLM-as-a-judge per key, like `rubric.tone`.
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
+- **A new rule with a comma.** `inspect score -S instructions="…"` cuts a rule at its commas: Inspect reads `-S` values as YAML, then splits text at commas. Grade the log again with Inspect's `score()` in Python instead, which keeps the whole rule under your scorer's name:
+
+  ```python
+  from pathlib import Path
+  from inspect_ai import score
+  from inspect_ai.log import read_eval_log, write_eval_log
+  from inspect_ai.scorer import model_graded_qa
+
+  log = read_eval_log("logs/<your log>.eval")
+  rule = Path("rule.txt").read_text()  # your new rule
+  write_eval_log(score(log, model_graded_qa(instructions=rule), action="overwrite"), "logs/new.eval")
+  ```
+
+  Then run `judgekeeper fix logs/new.eval`.
 - **`--no-log-samples`** logs cannot be read.
 - **Very big parts.** A `.eval` log is too big for judgekeeper to read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, one sample to more than 200 MB, or all its samples to more than 4 GB together. So is one with a part holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions), more than 200,000,000 values in all its parts, samples holding more than 10 values for each byte they pack to, a sample over 1 MB that unpacks to more than 200 times its packed size, or one text in a sample longer than 8 MB. The message says which limit it passed. A log with a part nested more than 500 levels deep is not read, nor one whose parts share bytes, give a part's size two ways or can be named two ways. judgekeeper counts what each part really unpacks to, how deep it nests, how many values it holds and how long its texts are, before Inspect AI reads the log, and keeps none of it. It then reads only the samples the log holds, each once, a few at a time.
 - **Damaged zips.** A `.eval` log that is not one plain zip (data before its first part, or a second table of contents) is not read.
@@ -89,7 +120,7 @@ pip install "judgekeeper[mlflow]"
 judgekeeper --experiment my-app-eval --metric correctness
 ```
 
-Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 3.1 or newer. It reads the assessments on your traces from the local store: `mlflow.db` (through a temporary copy) or `mlruns/` (`--tracking-uri` picks one). `--experiment` takes a name or id, `--metric` the assessment name. It reads the newest 30,000 traces. MLflow's usage tracking is off while judgekeeper reads a store (`MLFLOW_DISABLE_TELEMETRY=true`, and `DO_NOT_TRACK=1` unless your shell sets it). The rule `fix` shows is a `make_judge`'s instructions or a `Guidelines` text, not a registered or built-in scorer's. To grade the same answers again, run `mlflow.genai.evaluate()` on the existing traces with the new scorer.
+Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 3.1 or newer. It reads the assessments on your traces from the local store: `mlflow.db` (through a temporary copy) or `mlruns/` (`--tracking-uri` picks one). `--experiment` takes a name or id, `--metric` the assessment name. It reads the newest 30,000 traces. MLflow's usage tracking is off while judgekeeper reads a store (`MLFLOW_DISABLE_TELEMETRY=true`, and `DO_NOT_TRACK=1` unless your shell sets it). The rule `fix` shows is a `make_judge`'s instructions or a `Guidelines` text, not a registered or built-in scorer's. To grade the same answers again, run `mlflow.genai.evaluate()` on the existing traces with the new scorer, under the same name, in the same experiment. Then run `judgekeeper fix mlflow.db` (or `judgekeeper fix mlruns`): it reads the newest run of the experiment you chose at the start.
 
 **Traps.**
 
@@ -104,7 +135,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 
 ## A CSV or JSONL file
 
-A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column; with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code.
+A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column; with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
 
 ## Results in a format of its own
 

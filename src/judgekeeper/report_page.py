@@ -482,8 +482,9 @@ def _chip(text: str, pressed: bool, attr: str) -> str:
             f"{attr}>{_e(text)}</button>")
 
 
-def _box(m: dict, n: str, parts: list[str], own: list[dict]) -> str:
-    """The reason box of one disagreement on the live page."""
+def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) -> str:
+    """The reason box of one disagreement on the live page (`left_out`: the rule's parts with
+    no button)."""
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
     mark = "Fail" if m["final"] == "fail" else "Pass"
@@ -497,6 +498,8 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict]) -> str:
                    f'<div class="chips" role="group" aria-labelledby="p-{n}">'
                    + "".join(_chip(f"{k}. {text}", k in chosen, f'data-part="{k}"')
                              for k, text in enumerate(parts, 1)) + "</div>")
+        if left_out:
+            out.append(f'<p class="sub">{_e(reasons.PARTS_LEFT_OUT.format(n=left_out))}</p>')
     chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"')
              for k in reasons.offered(m["judge"])]
     chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"')
@@ -529,7 +532,7 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           hidden: int = 0) -> str:
+           hidden: int = 0, left_out: int = 0) -> str:
     """One group of disagreements: its title (with how many more are kept aside to test a new
     rule, `hidden`), "Show all" past ROWS_SHOWN rows, the table. Each row is followed by its
     reason box on the live page (`live`), or by the person's reasons, read-only, in
@@ -545,7 +548,7 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
-        after = (_box(m, n, parts, own) if live and m.get("id") is not None
+        after = (_box(m, n, parts, own, left_out) if live and m.get("id") is not None
                  else _said(m, parts, words))
         extra = ["extra"] if k >= ROWS_SHOWN else []
         hidden = " hidden" if extra else ""
@@ -589,7 +592,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         hidden = max(0, c[key] - len(rows))
         if rows or hidden:
             out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
-                              live, parts, own, hidden))
+                              live, parts, own, hidden, (fixing or {}).get("left_out", 0)))
     if mistakes and not live and mark:
         tell = SAY_WHY_RUN.format(n=c["strict"] + c["easy"], command=mark)
         uses = f'<p class="add-why">{_code_line(SAY_WHY_FIX.format(fix=fix))}</p>' if fix else ""

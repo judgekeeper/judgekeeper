@@ -100,16 +100,31 @@ UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade t
              "gave, so it changes nothing there to test.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
-    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests with the `echo` provider and your new "
-                  "rule; save with `-o`."),
-    "inspect": ("Inspect AI: grade your log again with the new scorer, no new answers needed. "
-                "`--action overwrite` keeps the new grades under your scorer's name, and "
-                "`--output-file` writes them to a new log next to yours, so yours stays as it "
-                "was and `judgekeeper check` finds the new one."),
-    "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer."),
-    "deepeval": f"DeepEval: build test cases from {ANSWERS} and run the metric.",
+    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
+                  "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
+                  "`defaultTest.options.provider` and the same `metric:` with your new rule; "
+                  "the rule's variables are the file's columns, `{{question}}` and "
+                  "`{{answer}}`. Save with `-o`. judgekeeper's docs/eval-tools.md shows the "
+                  "whole config."),
+    "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
+                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
+                "give the options you set before again with `-S`. `-S instructions=` takes a "
+                "rule with no comma (Inspect cuts `-S` values at commas); else grade it with "
+                "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
+                "`--action overwrite` replaces the old grades in the new log, so your "
+                "scorer's name holds the new ones, and `--output-file` writes a new log next "
+                "to yours, so yours stays as it was and `judgekeeper check` finds the new "
+                "one."),
+    "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
+               "under the same name."),
+    "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
+                 "`answer` as actual_output); run your metric with its new rule and the same "
+                 "name through `deepeval test run`, which saves a new test_run_<date>.json in "
+                 "your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
+TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
+         "`answer` as its output, and the grade.")
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -596,7 +611,8 @@ def report_section(ws: Workspace) -> dict | None:
                           "answer": cut_words(reasons.canonical(r["output"]), cut),
                           "reason": cut_words(r["reason"], cut), "why": why(r)}
                          for r in wrong],
-            "parts": m.parts, "own": list(m.own.values())}
+            "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
+            "own": list(m.own.values())}
 
 
 def cut_words(text: str, width: int) -> str:
@@ -976,9 +992,48 @@ def answer_text(value) -> str:
     return scrub(display(value))
 
 
+def mlflow_store(ws: Workspace) -> str | None:
+    """The MLflow store the marks were made on, as a path from where the command runs (the
+    new grades are a new run in it), or None for another eval tool."""
+    import os
+
+    try:
+        data = ws.cached_data()
+    except (OSError, ValueError):
+        return None
+    store = data.get("mlflow_store") if data.get("tool") == "mlflow" else None
+    if not isinstance(store, str) or not store:
+        return None
+    return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
+
+
+def _new_results(ws: Workspace) -> str:
+    """What `fix` is given next: the MLflow store, else NEW_RESULTS."""
+    return mlflow_store(ws) or NEW_RESULTS
+
+
+def _regrade_same(talk: Talk, ws: Workspace) -> str:
+    """The next step when answers kept aside are missing from the new results: Inspect AI
+    scores its log again, MLflow makes a new run in its store, others grade
+    marked-answers.csv."""
+    store = mlflow_store(ws)
+    if store:
+        return (f"run your new scorer on all the traces again, then run "
+                f"`{talk.command()} {store}`: it reads the newest run.")
+    try:
+        tool = ws.cached_data().get("tool")
+    except (OSError, ValueError, AttributeError):
+        tool = None
+    if tool == "inspect":  # the log itself is scored again
+        log = quote_arg(new_log(ws))
+        return (f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
+                f"`--output-file {log}`, then run `{talk.command()} {log}`.")
+    return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
+
+
 def regrade_line(tool: str | None) -> str:
     """How to grade the marked answers again with the person's own eval tool."""
-    return REGRADE.get(tool or "", OWN)
+    return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
 
 
 NEW_LOG = "new.eval"
@@ -1004,6 +1059,11 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
         log = quote_arg(new_log(ws))
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
                   f"then run `{talk.command()} {log}`.")
+        return
+    store = mlflow_store(ws) if tool == "mlflow" else None
+    if store:  # a new run in the same store
+        talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
+                  f"same traces, then run `{talk.command()} {store}`: it reads the newest run.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "
@@ -1060,6 +1120,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if where:
             talk.say(f"Your LLM-as-a-judge's rule is in {link(ws.root / where[0], where[0])}, "
                      f"line {where[1]}:")
+        elif start_fix_rule.rule_config(ws.root, tool or "", data):
+            talk.para("Your LLM-as-a-judge's rule is in "
+                      f"{start_fix_rule.rule_home(ws.root, tool or '', data)}:")
         else:
             talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
                       f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool or '', data)}:")
@@ -1192,12 +1255,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         errors = no_decision(found, [i for i in split.hidden if i not in new], ws)
         talk.para(MISSING.format(k=missing, n=len(split.hidden), have=_have(missing),
                                  why=_missing_why(missing - errors, errors)))
-        if m.data.get("tool") == "inspect":  # the log itself is scored again
-            log = quote_arg(new_log(ws))
-            talk.next(f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
-                      f"`--output-file {log}`, then run `{talk.command()} {log}`.")
-        else:
-            talk.next(REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command()))
+        talk.next(_regrade_same(talk, ws))
         return EXIT_NEEDS_YOU
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
@@ -1255,7 +1313,7 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str) -> str:
     if kind == "worse":
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "
-                f"run `{talk.command()} {NEW_RESULTS}` again.")
+                f"run `{talk.command()} {_new_results(ws)}` again.")
     return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 

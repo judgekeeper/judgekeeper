@@ -49,7 +49,7 @@ def test_started_by_uvx_the_advice_is_the_uvx_command_with_the_extra(
     monkeypatch.setitem(sys.modules, module, None)
     make(here)
     code, out, _ = run(capsys)
-    command = f'uvx --from "judgekeeper[{extra}]=={__version__}" judgekeeper'
+    command = f'uvx --from "judgekeeper[{extra}]{PIN}" judgekeeper'
     assert f"Reading {name} results needs judgekeeper's {extra} extra." in " ".join(out.split())
     assert " ".join(out.split()).count(command) == 1  # in the Next: line only
     assert "pip install" not in out
@@ -82,14 +82,20 @@ def test_a_beta_is_pinned():
 
 def test_started_by_uvx_with_an_extra_every_command_keeps_it(monkeypatch, by_uvx):
     monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
-    assert textio.program("mark") == (f'uvx --from "judgekeeper[mlflow]=={__version__}" '
+    assert textio.program("mark") == (f'uvx --from "judgekeeper[mlflow]{PIN}" '
                                       "judgekeeper mark")
 
 
 def test_a_second_extra_keeps_the_first(monkeypatch, by_uvx):
     monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
-    assert textio.uvx_with("inspect") == (f'uvx --from "judgekeeper[inspect,mlflow]=='
-                                          f'{__version__}" judgekeeper')
+    assert textio.uvx_with("inspect") == (f'uvx --from "judgekeeper[inspect,mlflow]{PIN}" '
+                                          "judgekeeper")
+
+
+def test_a_beta_keeps_its_version_with_an_extra(monkeypatch, by_uvx):
+    monkeypatch.setattr("judgekeeper.__version__", "1.1.0b2")
+    monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
+    assert textio.uvx_with() == 'uvx --from "judgekeeper[mlflow]==1.1.0b2" judgekeeper'
 
 
 def test_extras_here_names_the_extras_whose_module_is_installed(monkeypatch):
@@ -102,7 +108,7 @@ def test_extras_here_names_the_extras_whose_module_is_installed(monkeypatch):
 def test_started_by_uvx_with_an_extra_the_next_lines_keep_it(here, capsys, monkeypatch,
                                                             by_uvx):
     monkeypatch.setattr(textio, "extras_here", lambda: ("mlflow",))
-    command = f'uvx --from "judgekeeper[mlflow]=={__version__}" judgekeeper'
+    command = f'uvx --from "judgekeeper[mlflow]{PIN}" judgekeeper'
     (here / "survey.csv").write_text("No,Question,Answer\n1,q,a\n", encoding="utf-8")
     code, out, _ = run(capsys, "survey.csv")
     assert f"`{command} PATH`, with PATH the path of your CSV." in assert_one_next_at_the_end(

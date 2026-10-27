@@ -94,6 +94,7 @@ NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked 
            "exact text.")
 NEXT_GIVEN = ("Next: give `{command}` your new {tool} results for the LLM-as-a-judge your marks "
               "test, or run it in your project folder to read the newest results.")
+NEXT_STORE = "Next: run `{command} {store}`: it reads the newest run."
 NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
                "decision from your LLM-as-a-judge (such as an error).")
 NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
@@ -186,7 +187,7 @@ def _newest(state: State):
     fp = data.get("fingerprint") or {}
     options = {"metric": data.get("metric"), "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
-               "store": data.get("mlflow_store")}
+               "store": data.get("mlflow_store"), "experiment": data.get("experiment")}
     try:
         where = root
         if start._saved(root) is None:
@@ -221,7 +222,7 @@ def read_given(state: State, path: Path):
     options = {"metric": metric, "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
                "judge_model": fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU
-               else None}
+               else None, "experiment": data.get("experiment")}
     name = find.NAMES.get(tool, tool)
     shown = Path(path).name
     try:
@@ -1232,7 +1233,11 @@ def full(path: str, said: Said) -> int:
         if found is None:
             said.say(problem)
             said.say()
-            said.say(NEXT_GIVEN.format(tool=find.NAMES.get(state.data.get("tool"), "your eval"),
+            from judgekeeper.fix import mlflow_store
+
+            store = mlflow_store(state.ws)
+            said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
+                     NEXT_GIVEN.format(tool=find.NAMES.get(state.data.get("tool"), "your eval"),
                                        command=program("check")))
             return EXIT_USAGE
         now = Now(judge_setup.of(found), None, found, found.results[0].path)

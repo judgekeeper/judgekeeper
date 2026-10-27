@@ -233,6 +233,28 @@ def test_the_shortened_rule_links_its_config(here, capsys, links_on):
     assert linked(out)["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
 
 
+@pytest.mark.parametrize("task, where", [
+    ('scorer = model_graded_qa(instructions=open("rule.txt").read())\n', "rule.txt"),
+    ('scorer = model_graded_qa(instructions="""{rule}""")\n', "support_task.py"),
+])
+def test_the_shortened_inspect_rule_names_the_file_it_is_read_from(here, capsys, links_on, task,
+                                                                   where):
+    import json
+
+    from tests.start_projects import inspect_data
+
+    rule = "Grade the answer as C (correct) or I (incorrect). " * 3
+    data = inspect_data(split(20, 16))
+    data["eval"]["scorers"][0]["options"]["instructions"] = rule
+    (here / "logs").mkdir()
+    (here / "logs" / "2026-10-02_support.json").write_text(json.dumps(data), encoding="utf-8")
+    (here / "support_task.py").write_text(task.format(rule=rule), encoding="utf-8")
+    (here / "rule.txt").write_text(rule, encoding="utf-8")
+    out = _front(capsys)
+    assert f"(shortened; full rule in {where})" in plain(out), out
+    assert linked(out)[where] == _url_of(here / where)
+
+
 def test_the_result_links_the_full_report(here, capsys, links_on):
     from tests.test_fix import project
 

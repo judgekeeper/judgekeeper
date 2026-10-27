@@ -200,8 +200,12 @@ Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
 questions and answers only, so you can't tell which are kept
 aside.
 
-promptfoo: use marked-answers.csv as your tests with the `echo`
-provider and your new rule; save with `-o`.
+promptfoo: use marked-answers.csv as your tests
+(`tests: file://...`) with `prompts: ['{{answer}}']`, the `echo`
+provider, your grader as `defaultTest.options.provider` and the
+same `metric:` with your new rule; the rule's variables are the
+file's columns, `{{question}}` and `{{answer}}`. Save with `-o`.
+judgekeeper's docs/eval-tools.md shows the whole config.
 
 Next: change your LLM-as-a-judge's rule in your eval tool, grade
 the answers in .judgekeeper/fix/marked-answers.csv again, save
