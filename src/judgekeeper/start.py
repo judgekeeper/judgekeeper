@@ -759,9 +759,11 @@ def _old_evaluate(uri: str) -> list[str]:
     (faithfulness/v1); [] when there are none."""
     from mlflow import MlflowClient
 
+    from judgekeeper.readers.mlflow_store import all_experiments
+
     client = MlflowClient(tracking_uri=uri)
     names = set()
-    for exp in client.search_experiments():
+    for exp in all_experiments(client):
         for run in client.search_runs([exp.experiment_id], max_results=100):
             names.update(m[1] for m in map(_OLD_METRIC.fullmatch, run.data.metrics) if m)
     return sorted(names)
@@ -780,6 +782,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         ArtifactServer,
         JudgeCallsFailed,
         TracesMissing,
+        all_experiments,
         experiments_with_traces,
         folder_problem,
     )
@@ -798,7 +801,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
 
         found, missing, code_only = [], [], False
         try:
-            experiments = MlflowClient(tracking_uri=uri).search_experiments()
+            experiments = all_experiments(MlflowClient(tracking_uri=uri))
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
         for exp in experiments:

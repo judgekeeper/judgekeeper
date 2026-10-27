@@ -477,13 +477,29 @@ def _experiment(client, name_or_id: str):
     return exp
 
 
+# Experiments asked for per page: MLflow's own most (it returns 1,000 when given none)
+EXPERIMENT_PAGE = 1000
+
+
+def all_experiments(client) -> list:
+    """Every experiment in the store `client` reads, page after page (one call returns at most
+    a page)."""
+    found, token = [], None
+    while True:
+        page = client.search_experiments(max_results=EXPERIMENT_PAGE, page_token=token)
+        found.extend(page)
+        token = getattr(page, "token", None)
+        if not token:
+            return found
+
+
 def experiments_with_traces(uri: str) -> list[str]:
     """The names of the experiments in the store at `uri` that hold at least one trace, in
     MLflow's order. Call it inside folder_store_allowed and quiet."""
     client = _client(uri)
     names = []
     with logged_out(uri):
-        for exp in client.search_experiments():
+        for exp in all_experiments(client):
             scope = _trace_scope(client.search_traces, exp.experiment_id)
             if "include_spans" in inspect.signature(client.search_traces).parameters:
                 scope["include_spans"] = False
