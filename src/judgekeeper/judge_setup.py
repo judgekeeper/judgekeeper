@@ -387,10 +387,6 @@ def tool_words(old: dict, new: dict) -> str:
             f"{new.get('tool_version') or 'version unknown'}")
 
 
-__all__ = ["AGENT", "FILE", "ONE_CALL", "PANEL", "changes", "from_start", "hash_of", "locked",
-           "of", "read", "save", "tool_only", "tool_words", "version_of"]
-
-
 def judge_change(old: dict, new: dict) -> str | None:
     """What changed in the judge's identity, in words, or None."""
     parts = []
@@ -414,3 +410,8 @@ def judge_change(old: dict, new: dict) -> str | None:
         parts.append(f"the temperature was {shown(old.get('temperature'))}, now "
                      f"{shown(new.get('temperature'))}")
     return "; ".join(parts) or None
+
+
+__all__ = ["AGENT", "FILE", "ONE_CALL", "PANEL", "changes", "from_start", "hash_of",
+           "judge_change", "locked", "of", "read", "save", "tool_only", "tool_words",
+           "version_of"]

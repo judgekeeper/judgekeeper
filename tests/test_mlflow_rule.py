@@ -75,7 +75,7 @@ wait_until_saved(result.run_id, "sum_check")
 
 @pytest.fixture(autouse=True)
 def keyed(monkeypatch):
-    for name in keys.all_names():
+    for name in keys.key_names():
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "x" * 30)
 

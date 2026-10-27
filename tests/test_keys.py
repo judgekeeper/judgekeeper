@@ -14,7 +14,6 @@ def test_the_key_names_are_the_providers_keys():
     names = keys.key_names()
     assert {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY",
             "AWS_BEARER_TOKEN_BEDROCK", "AWS_SECRET_ACCESS_KEY"} <= names
-    assert names <= keys.all_names()
     assert "OPENAI_TEMPERATURE" not in names  # a setting is no key
 
 

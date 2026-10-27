@@ -149,7 +149,7 @@ def listener(monkeypatch):
 @pytest.fixture(autouse=True)
 def logged_in(monkeypatch):
     """The MLflow login a person may have in their shell for a server, and a judge key."""
-    for name in keys.all_names():
+    for name in keys.key_names():
         monkeypatch.delenv(name, raising=False)
     for name in ("MLFLOW_TRACKING_URI", mlflow_store.ALLOW):
         monkeypatch.delenv(name, raising=False)
