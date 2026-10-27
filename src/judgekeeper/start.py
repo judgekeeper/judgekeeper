@@ -434,7 +434,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
                     pool.n_unmapped[key] = pool.n_unmapped.get(key, 0) + 1
                     continue
                 if v.verdict == ERROR:
-                    kind = judge_check.EMPTY
+                    word = str(_verdict_value(r, norm.pass_if)).strip().lower()
+                    kind = judge_check.ERROR_GRADE if word == ERROR else judge_check.EMPTY
             groups.setdefault(key_of(r), []).append((r, v, kind))
         for key, seen in groups.items():
             judged = [(r, v) for r, v, kind in seen if kind is None]

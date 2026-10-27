@@ -199,6 +199,21 @@ SCENE_6 = [
 ]
 
 
+def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
+    """12 of 100 Fails now passed: the whole range is a drop ("Worse"), but its middle
+    estimate is 12 points, so `check` exits 0; exit 1 needs a drop over 20 points."""
+    _marked(here, 25, 100)
+    _results(here, [True] * 37 + [False] * 88, model=HAIKU)
+    code, out = run(capsys)
+    assert code == 0 and "Worse" in out, out
+    said = " ".join((Path(__file__).parents[1] / "docs" / "reference.md").read_text(
+        encoding="utf-8").split())
+    rule = "Worse or Not sure, when the drop's middle estimate is over 20 points"
+    assert f"| 1 | {rule}:" in said
+    assert ('It exits 1 on "Worse" or "Not sure" when the drop\'s middle estimate is over 20 '
+            "points.") in said
+
+
 def test_a_model_change_rechecked_free(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)

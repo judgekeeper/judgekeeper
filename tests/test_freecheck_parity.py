@@ -21,6 +21,7 @@ import pytest
 
 from judgekeeper import judge_check, start
 from tests.conftest import FIXTURES
+from tests.start_projects import table_project
 
 ROOT = Path(__file__).resolve().parent.parent
 CLI = ROOT / "tests" / "freecheck_cli.mjs"
@@ -140,3 +141,13 @@ def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
         "file has case, text and mark). In the browser it reads a CSV or JSONL file with a "
         "question column (input or question), an answer column (output or answer) and a grade "
         "column (verdict or grade) holding Pass or Fail."), said
+
+
+def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):
+    """A table whose grade is the word "error": no decision, said as such, not a blank one."""
+    path = table_project(tmp_path, [True] * 10 + [False] * 10 + ["error", None])
+    said = tool(path)
+    assert _page(browser(path)) == said
+    assert said["judges"]["verdict"]["findings"][0].startswith(
+        "Your LLM-as-a-judge made no real decision on 2 of 22 answers: 1 error, 1 empty "
+        "decision."), said

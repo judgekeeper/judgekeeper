@@ -38,8 +38,9 @@ The numbers on screen (`accuracy`): kappa's range; the ranges at the real stoppi
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
 word is said at the first result; how often the verdict is green when the lower of the true
 TPR and TNR is 75% and 80%; weighted.general when the judge, grading the same answers
-twice, changes its mind, with and without the wobble it showed; and how often `check` says "Worse" (and exits 1) when nothing changed, with and without the judge's
-own wobble when it grades again.
+twice, changes its mind, with and without the wobble it showed; and how often `check` says
+"Worse", and how often it exits 1, when nothing changed, with and without the judge's own
+wobble when it grades again.
 
 The batch grid (`batches`): new answers join as batches (batches.py), and the numbers are
 stratified by (batch, the judge's grade). Two and three batches of different sizes, judges whose
@@ -50,6 +51,7 @@ and FLOOR_MEAN on average.
 
     python scripts/coverage_check.py --batches   # only the batch grid, added to the files
     python scripts/coverage_check.py --one-grade # only the one-grade grid, added likewise
+    python scripts/coverage_check.py --false-worse # only `check` when nothing changed, likewise
 
 The one-grade grid (`one_grade`): a judge that passed (or failed) every answer of the pool,
 with ONE_GRADE_MARKS marks, each the judge's own grade with chance ONE_GRADE_AGREE.
@@ -552,11 +554,17 @@ def _changes_mind(args: tuple) -> dict:
             "without": {k: share[f"without/{k}"] for k in ("tpr", "tnr")}}
 
 
+def exits_1(v: dict) -> bool:
+    """Whether `check` exits 1 on a group with this targets.paired_verdict: its middle estimate
+    drops more than NO_DROP_MARGIN, whatever the verdict (check.py's `big`)."""
+    return round(-v["change"], 9) > targets.NO_DROP_MARGIN
+
+
 def false_worse(n: int, right: float, wobble: float) -> dict:
-    """How often `check` says "Worse" (and how often it exits 1) on one group of n marks when
-    the judge did not change, worked out exactly: grading again, a share `wobble` of the answers
-    get another grade, half of them turning wrong and half turning right. (How often the judge
-    is right does not enter: unchanged, it is as often right as before.)"""
+    """How often `check` says "Worse", and how often it exits 1 (exits_1), on one group of n
+    marks when the judge did not change, worked out exactly: grading again, a share `wobble` of
+    the answers get another grade, half of them turning wrong and half turning right. (How often
+    the judge is right does not enter: unchanged, it is as often right as before.)"""
     turn_wrong = turn_right = wobble / 2
     worse = exits = 0.0
     for k_wrong, p_wrong in enumerate(targets._pmf(n, turn_wrong)):
@@ -569,8 +577,12 @@ def false_worse(n: int, right: float, wobble: float) -> dict:
                 continue
             v = targets.paired_verdict(k_right, k_wrong, n)
             worse += p_wrong * p_right * (v["verdict"] == "worse")
-            exits += p_wrong * p_right * v["exit_worse"]
+            exits += p_wrong * p_right * exits_1(v)
     return {"n": n, "wobble": wobble, "worse": worse, "exit_1": exits}
+
+
+def false_worse_rows() -> list[dict]:
+    return [false_worse(n, 0.9, wobble) for n in (15, 25, 40) for wobble in WOBBLES]
 
 
 def accuracy(workers: int | None = None) -> dict:
@@ -583,9 +595,8 @@ def accuracy(workers: int | None = None) -> dict:
         mind = list(ex.map(_changes_mind, [(pi, 0.9, 0.85, n, flip, changed)
                                            for changed in ALSO_CHANGED for pi in SHARES
                                            for n in (15, 25) for flip in CHANGES_MIND]))
-    worse = [false_worse(n, 0.9, wobble) for n in (15, 25, 40) for wobble in WOBBLES]
     return {"kappa": kappa, "stopping": stopping, "green": green, "changes_mind": mind,
-            "false_worse": worse}
+            "false_worse": false_worse_rows()}
 
 
 def accuracy_markdown(acc: dict) -> list[str]:
@@ -649,7 +660,7 @@ def accuracy_markdown(acc: dict) -> list[str]:
               ("Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, "
                "a share of the answers getting another grade (the wobble), half turning wrong and "
                "half turning right. How often `check` says Worse, and how often it exits 1 "
-               "(Worse, or Not sure with a drop of more than 20 points), in percent."),
+               "(a drop whose middle estimate is over 20 points), in percent."),
               "", "| marks | wobble | Worse | exit 1 |", "|---|---|---|---|"]
     for row in acc["false_worse"]:
         lines.append(f"| {row['n']} | {row['wobble']:.0%} | {100 * row['worse']:.1f} | "
@@ -939,6 +950,13 @@ def _write(result: dict) -> None:
 
 
 def main() -> None:
+    if "--false-worse" in sys.argv[1:]:  # only `check` when nothing changed (exact, no draws)
+        result = json.loads((OUT / "coverage.json").read_text(encoding="utf-8"))
+        result["accuracy"]["false_worse"] = false_worse_rows()
+        _write(result)
+        print("false worse: exit 1 at most "
+              f"{max(r['exit_1'] for r in result['accuracy']['false_worse']):.4f}")
+        return
     if "--one-grade" in sys.argv[1:]:  # only the one-grade grid, added to the committed grid
         result = json.loads((OUT / "coverage.json").read_text(encoding="utf-8"))
         result["one_grade"] = one_grade_grid()

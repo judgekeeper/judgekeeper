@@ -769,7 +769,7 @@
     }
     if (!isStr(x)) return { verdict: 'error', rationale: '' };
     var t = x.trim();
-    if (!t) return { verdict: 'error', rationale: '' };
+    if (!t || NONE_WORDS.indexOf(t.toLowerCase()) >= 0) return { verdict: 'error', rationale: '' };  // normalise: no decision
     var m = LABEL_MAP[t.toLowerCase()];
     if (m) return { verdict: m, rationale: '' };
     var lead = /^\s*(pass|fail)\b/i.exec(t);
@@ -819,7 +819,10 @@
           if (unread.indexOf(String(v.unmapped)) < 0) unread.push(String(v.unmapped));
           return;
         }
-        if (v.verdict === 'error') kind = 'empty';
+        if (v.verdict === 'error') {
+          var word = String(r.label !== null && r.label !== undefined ? r.label : r.score).trim().toLowerCase();
+          kind = word === 'error' ? 'error_grade' : 'empty';
+        }
       }
       var key = canonical({ input: r.input === null ? '' : r.input, output: r.output === null ? '' : r.output });
       if (!groups.has(key)) groups.set(key, []);
@@ -909,12 +912,12 @@
     return false;
   }
 
-  var NO_DECISION = ['error', 'unreadable', 'empty_answer_refused', 'empty'];
+  var NO_DECISION = ['error', 'unreadable', 'empty_answer_refused', 'error_grade', 'empty'];
   var COUNTING_TOOLS = { promptfoo: 'promptfoo', deepeval: 'DeepEval' };  // tools that count decisions themselves
   var NO_DECISION_WORDS = {
     error: ['call failed', 'calls failed'], unreadable: ['reply could not be read', 'replies could not be read'],
     empty_answer_refused: ['empty answer it could not judge', 'empty answers it could not judge'],
-    empty: ['empty decision', 'empty decisions']
+    error_grade: ['error', 'errors'], empty: ['empty decision', 'empty decisions']
   };
   var COUNTED = {
     pass: ['counted it as a pass', 'counted them as passes'], fail: ['counted it as a fail', 'counted them as fails'],
@@ -927,7 +930,7 @@
   };
 
   function judgeCheck(pool, tool, scoreJudge) {
-    var counts = { error: 0, unreadable: 0, empty_answer_refused: 0, empty: 0, nothing_checked: 0, model_failed: 0, empty_answer_passed: 0, reason_says_opposite: 0 };
+    var counts = { error: 0, unreadable: 0, empty_answer_refused: 0, error_grade: 0, empty: 0, nothing_checked: 0, model_failed: 0, empty_answer_passed: 0, reason_says_opposite: 0 };
     var said = new Set();
     pool.left.forEach(function (l) { counts[l.kind] += 1; if (NO_DECISION.indexOf(l.kind) >= 0) said.add(l.r.countedAs); });
     pool.answers.forEach(function (a) {
