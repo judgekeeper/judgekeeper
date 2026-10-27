@@ -175,7 +175,7 @@ def _newest(state: State):
     fp = data.get("fingerprint") or {}
     options = {"metric": data.get("metric"), "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
-               "store": data.get("mlflow_store")}
+               "store": data.get("mlflow_store"), "experiment": data.get("experiment")}
     try:
         where = root
         if start._saved(root) is None:
@@ -212,7 +212,7 @@ def read_given(state: State, path: Path):
     options = {"metric": metric, "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
                "judge_model": fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU
-               else None}
+               else None, "experiment": data.get("experiment")}
     name = find.NAMES.get(tool, tool)
     shown = Path(path).name
     try:

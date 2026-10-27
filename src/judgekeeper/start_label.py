@@ -331,6 +331,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "description": found.description,
         "app_version": found.app_version,
         **({"mlflow_store": found.store} if found.store else {}),
+        **({"experiment": found.experiment} if getattr(found, "experiment", None) else {}),
         **({"given": found.given} if getattr(found, "given", None) else {}),
         "fingerprint": scrub_fingerprint(found.fingerprint),
         "pass_mark": found.pass_mark,
