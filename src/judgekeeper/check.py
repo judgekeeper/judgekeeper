@@ -747,6 +747,31 @@ class Said:
         self.lines.append(line)
 
 
+def path_problem(path: str) -> str | None:
+    """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
+    in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
+    inside a project. None for "." and for anything it can read."""
+    from judgekeeper.project import project_of as _project
+    from judgekeeper.textio import file_kind
+
+    if path == ".":
+        return None
+    given = Path(path)
+    name = given.name or path
+    if not given.exists():
+        return f"There is no file or folder named {name} here."
+    try:
+        kind = file_kind(given.stat().st_mode)
+    except OSError:
+        return f"There is no file or folder named {name} here."
+    if kind == "folder" and _project(given) != given.resolve():
+        return (f"{name} is a folder inside your project, not a results file or your project "
+                "folder.")
+    if kind not in (None, "folder"):
+        return f"{name} isn't a regular file: it is a {kind}."
+    return None
+
+
 def _not_set_up(path: str, state: State | None, said) -> int:
     """No marks to check with: where it looked, and where the marks are when a folder above
     holds them (check run from a folder inside the project, or in .judgekeeper/)."""
@@ -1177,6 +1202,13 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
 def full(path: str, said: Said) -> int:
     """`judgekeeper check [PATH]`: PATH a results file holds the new results; a folder (or
     none) is the project, read at its newest results."""
+    problem = path_problem(path)
+    if problem:
+        said.say(problem)
+        said.say()
+        said.say(f"Next: give `{program('check')}` your new results file, or run it in your "
+                 "project folder.")
+        return EXIT_USAGE
     state = _state(path)
     if state is None or not state.enough:
         return _not_set_up(path, state, said)

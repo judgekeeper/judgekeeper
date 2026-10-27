@@ -342,3 +342,49 @@ def test_a_new_rule_that_changes_no_grade_is_not_safe_to_try(here, capsys):
     code, out = run(capsys, "fix", write(here, "new.csv", rows))
     assert code == 3, out
     assert "Result" not in out and "safe to try" not in out
+
+
+# A PATH that is neither a results file nor the project folder --------------------------------
+
+def _odd_path(root, kind: str) -> str:
+    import os
+
+    if kind == "missing":
+        return "new.csv"
+    if kind == "dangling link":
+        os.symlink(root / "gone.csv", root / "new.csv")
+        return "new.csv"
+    if kind == "named pipe":
+        os.mkfifo(root / "new.csv")
+        return "new.csv"
+    if kind == "device":
+        return os.devnull
+    (root / "new").mkdir()
+    write(root / "new", "results.csv", [_row(i) for i in range(N)])
+    return "new"
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="no named pipes")
+@pytest.mark.parametrize("command", ["fix", "check"])
+@pytest.mark.parametrize("kind, said", [
+    ("missing", "There is no file or folder named new.csv here."),
+    ("dangling link", "There is no file or folder named new.csv here."),
+    ("named pipe", "new.csv isn't a regular file: it is a named pipe."),
+    ("device", "null isn't a regular file: it is a special file."),
+    ("folder", ("new is a folder inside your project, not a results file or your project "
+                "folder."))])
+def test_a_path_that_is_not_a_results_file_is_refused(here, capsys, command, kind, said):
+    project(here)
+    capsys.readouterr()
+    code, out = run(capsys, command, _odd_path(here, kind))
+    assert code == 2, out
+    assert said in out
+    assert "Where your LLM-as-a-judge goes wrong" not in out and "has not changed" not in out
+
+
+def test_the_project_folder_by_its_path_still_works(here, capsys):
+    project(here)
+    capsys.readouterr()
+    assert run(capsys, "fix", str(here))[0] == 0
+    code, out = run(capsys, "check", str(here))
+    assert code == 0 and "has not changed" in out, out

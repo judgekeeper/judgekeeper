@@ -817,8 +817,9 @@ def _rule_quote(rule: str) -> str:
 def run(path: str = ".", new: bool = False) -> int:
     """`judgekeeper fix [PATH]`: PATH a file holds new results to test a rule with; a folder
     (or none) is the project. Returns the exit code."""
-    from judgekeeper.check import _state
+    from judgekeeper.check import _state, path_problem
 
+    problem = path_problem(path)
     results = Path(path) if Path(path).is_file() else None
     talk = Talk("." if results is not None else path)
     talk.say(f"judgekeeper {__version__}")
@@ -827,6 +828,13 @@ def run(path: str = ".", new: bool = False) -> int:
     if hook:
         talk.para(hook)
         talk.say()
+    if problem:  # never a plain `fix` in its place
+        talk.say(STEP)
+        talk.say()
+        talk.para(problem)
+        talk.next(f"give `{program('fix')}` the results of grading {ANSWERS} again with your "
+                  "new rule, or run it in your project folder.")
+        return EXIT_USAGE
     state = _state(talk.path)
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
