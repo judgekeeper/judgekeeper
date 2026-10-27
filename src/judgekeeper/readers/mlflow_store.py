@@ -30,6 +30,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import struct
 import sys
 import tempfile
@@ -98,6 +99,9 @@ IN_DATABASE = "TRACKING_STORE"
 ARCHIVED = "ARCHIVE_REPO"
 # In a copy's folder, never made: where the copy points a trace's data kept elsewhere
 ELSEWHERE = "stored-elsewhere"
+SPANS_FILE = "traces.json"  # where MLflow keeps a trace's spans in its location
+# A trace's spans are KBs, a long agent's a few MB: a bigger traces.json is not read
+TRACE_LIMIT = 100 * 2**20
 # The MLflow login and TLS settings, for a tracking server: a local store never needs them
 LOGIN = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD", "MLFLOW_TRACKING_TOKEN",
          "MLFLOW_TRACKING_CLIENT_CERT_PATH", "MLFLOW_TRACKING_SERVER_CERT_PATH",
@@ -166,9 +170,26 @@ def kept_location(value, home: Path) -> Path | None:
         return None
     try:
         path = (Path(home) / text).resolve()
-        return path if path.is_relative_to(Path(home).resolve()) else None
+        if not path.is_relative_to(Path(home).resolve()):
+            return None
+        return path if _plain_trace_file(path) else None
     except (OSError, ValueError, RuntimeError):
         return None
+
+
+def _plain_trace_file(location: Path) -> bool:
+    """Whether MLflow may read the trace file at `location` (its folder's traces.json, or the
+    location itself when it is a file): none there yet, or a regular file of at most
+    TRACE_LIMIT. A named pipe would wait forever, and a huge (or sparse) file would be read
+    whole: such a location counts as stored elsewhere."""
+    try:
+        where = location / SPANS_FILE if stat.S_ISDIR(os.lstat(location).st_mode) else location
+        found = os.lstat(where)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return stat.S_ISREG(found.st_mode) and found.st_size <= TRACE_LIMIT
 
 
 TRIGGERS = "select name from sqlite_master where type = 'trigger'"
@@ -581,7 +602,8 @@ def _with_spans(trace, experiment_folder: Path):
         return None
     path = experiment_folder.joinpath(TRACE_FILE[0], trace_id, *TRACE_FILE[1:])
     try:
-        if not path.resolve().is_relative_to(experiment_folder.resolve()) or not path.is_file():
+        if (not path.resolve().is_relative_to(experiment_folder.resolve())
+                or not path.is_file() or not _plain_trace_file(path)):
             return None
         return Trace(trace.info, TraceData.from_dict(json.loads(
             path.read_text(encoding="utf-8"))))
