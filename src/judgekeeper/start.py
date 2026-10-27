@@ -146,12 +146,15 @@ DEFAULT_PORT = 8765
 def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
                    kept: bool = False, **values) -> tuple[str, ...]:
     """The words a printed command repeats: the path (unless this folder), each REPEATED flag
-    that was given, then --port (unless the default) and --no-browser. `kept`: for a command
-    kept in a file or on the page (quote_arg)."""
+    that was given, then --port (unless the default) and --no-browser. A value that starts
+    with "-" goes after its flag's "=" (`--metric=--yes`): argparse would read it as a flag.
+    `kept`: for a command kept in a file or on the page (quote_arg)."""
     words = [] if str(path) == "." else [quote_arg(path, kept)]
     for name, flag in REPEATED:
         if values.get(name) is not None:
-            words += [flag, quote_arg(str(values[name]), kept)]
+            value = quote_arg(str(values[name]), kept)
+            words += ([f"{flag}={value}"] if str(values[name]).startswith("-")
+                      else [flag, value])
     if port != DEFAULT_PORT:
         words += ["--port", str(port)]
     if no_browser:
