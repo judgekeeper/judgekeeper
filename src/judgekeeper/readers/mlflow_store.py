@@ -58,7 +58,9 @@ from judgekeeper.records import (
 from judgekeeper.textio import get_extra, quoted_name, reading
 
 # The loggers MLflow's reading goes through: MLflow's own, and the database layers under it
-LOGGERS = ("mlflow", "alembic", "sqlalchemy")
+# MLflow's loggers, the database layers' under it, and Python's root logger, which MLflow's
+# folder store logs a broken experiment folder to, with tracebacks
+LOGGERS = ("mlflow", "alembic", "sqlalchemy", "")
 
 NEEDS_EXTRA = "reading MLflow needs mlflow. To read it, {get}."
 KINDS = {"LLM_JUDGE": LLM, "AI_JUDGE": LLM, "HUMAN": HUMAN, "CODE": CODE}
@@ -349,8 +351,8 @@ def _platform_answered() -> Iterator[None]:
 def quiet() -> Iterator[None]:
     """Around judgekeeper's own MLflow calls: MLflow says nothing of its own. Its hint for
     coding agents (logged on `import mlflow` when an agent runs it) is switched off with
-    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (and the database layers' under it) show
-    only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
+    MLFLOW_DISABLE_AGENT_HINT=1, and its loggers (LOGGERS, Python's root logger among them)
+    show only CRITICAL: it warns once per trace it cannot download, and logs a traceback that
     holds the stored text when a trace has a byte that isn't UTF-8. Both are put back
     afterwards, also after an error; a value the user set is left as it is. Never for the
     user's shell, never in a file.
@@ -371,6 +373,7 @@ def quiet() -> Iterator[None]:
             pass
         loggers = [logging.getLogger(name) for name in LOGGERS]
         levels = [logger.level for logger in loggers]
+        handlers = list(logging.root.handlers)  # logging.warning() adds one when there is none
         for logger in loggers:
             logger.setLevel(logging.CRITICAL)
         try:
@@ -378,6 +381,9 @@ def quiet() -> Iterator[None]:
         finally:
             for logger, level in zip(loggers, levels):
                 logger.setLevel(level)
+            for handler in logging.root.handlers[:]:
+                if handler not in handlers:
+                    logging.root.removeHandler(handler)
             if set_hint:
                 os.environ.pop(HINT, None)
 
