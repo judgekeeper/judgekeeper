@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_data, split
+from tests.start_projects import deepeval_data, promptfoo_data, split
 from tests.test_check import HAIKU, MODEL, TAG, _marked
 from tests.test_front import flat, next_lines
 
@@ -121,6 +121,7 @@ def _rubric(root, verdicts, rule, name="results.json", only=None, model=MODEL):
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
 RULE_C = "Is correct, polite and kind."
+AS_MARKED = [8 <= i < 24 for i in range(40)]  # graded as the person marks them (_all_marked...)
 
 
 def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
@@ -132,7 +133,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     _mark(Workspace(here), person)
     said = [_jk(capsys)[1]]
     said.append(_jk(capsys, "fix")[1])
-    _rubric(here, split(20, 20), RULE_B, name="regraded.json")  # the marked answers, graded again
+    _rubric(here, AS_MARKED, RULE_B, name="regraded.json")  # the marked answers, graded again
     said.append(_jk(capsys, "fix", "regraded.json")[1])
     (here / "regraded.json").unlink()  # not the eval's newest results from here on
     _rubric(here, split(20, 20), RULE_B)  # the rule copied into the config, the eval run
@@ -141,13 +142,18 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     _rubric(here, split(20, 20), RULE_C, name="regraded-2.json")
     said.append(_jk(capsys, "fix", "regraded-2.json")[1])
     (here / "regraded-2.json").unlink()
+    (here / "other.json").write_text(json.dumps(deepeval_data(split(20, 20))), encoding="utf-8")
+    code, other = _jk(capsys, "fix", "other.json")  # another tool's file, while waiting
+    assert code == 2 and "again with your new rule, from promptfoo." in flat(other), other
+    (here / "other.json").unlink()
     _rubric(here, split(20, 20), RULE_B, only=range(10), model=NEW)  # 10 questions, new model
     said.append(_jk(capsys, "check")[1])
     for out in said:
         assert "Step" in out
         assert not says_mark(_next(out)), out
     assert "run your eval on more questions" in _next(said[4])  # fix after the rule was adopted
-    assert "You have tested 1 rule on these marks kept aside." in flat(said[4])
+    assert "You took on a rule tested on these marks kept aside." in flat(said[4])
+    assert "You have tested" not in flat(said[4]) + flat(said[5])  # taking one on is no test
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in mistakes  # the judge the marks test now
 
@@ -462,7 +468,7 @@ def test_fix_with_a_rule_it_tested_shows_that_result(here, capsys):
 
     ws = _all_marked_promptfoo(here, capsys)
     _jk(capsys, "fix")
-    _rubric(here, split(20, 20), RULE_B, name="regraded.json")
+    _rubric(here, AS_MARKED, RULE_B, name="regraded.json")
     code, first = _jk(capsys, "fix", "regraded.json")
     assert code == 0, first
     result = next(line for line in first.splitlines() if line.startswith("Result:"))

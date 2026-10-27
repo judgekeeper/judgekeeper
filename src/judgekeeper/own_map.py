@@ -20,6 +20,7 @@ from pathlib import Path
 from judgekeeper import mapper, own_format, settings, start
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
+from judgekeeper.redact import scrub
 from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
 from judgekeeper.textio import plural, quote_arg, quoted_name
 
@@ -190,8 +191,8 @@ def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str
     counts = {j: _count(units, g, j) for j in g.judges}
     judges = start.by_use(g.judges, counts)
     if metric is not None:
-        raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
-                         f"{start.some([repr(j) for j in judges], last=',')}")
+        raise StartError(f"no LLM-as-a-judge named {scrub(metric)!r}; the names are: "
+                         f"{start.some([repr(scrub(j)) for j in judges], last=',')}")
     options = [f"{j} ({plural(counts[j], 'answer')})" for j in judges]
     i = talk.choose("Which LLM-as-a-judge do you want to check?",
                     [*options, "All, one at a time"], "", flag="--metric",

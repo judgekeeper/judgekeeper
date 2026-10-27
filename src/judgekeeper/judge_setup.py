@@ -24,7 +24,7 @@ from pathlib import Path
 
 from judgekeeper import __version__, find
 from judgekeeper.fingerprint import rule_hash, utc_now
-from judgekeeper.redact import scrub_value
+from judgekeeper.redact import scrub, scrub_value
 from judgekeeper.textio import write_replacing
 
 FILE = "judge.json"
@@ -56,7 +56,7 @@ def of(found) -> dict:
     pm = found.pass_mark
     return {"tool": found.tool, "tool_version": version, "version_from": source,
             "kind": kind, "models": models, "vote": vote, "agent": agent,
-            "rule_hash": rule_hash(found.rule), "prompt_hash": fp.get("prompt_hash"),
+            "rule_hash": rule_hash(scrub(found.rule)), "prompt_hash": fp.get("prompt_hash"),
             "temperature": fp.get("temperature"),
             "pass_mark": {"mark": pm["mark"], "op": pm["op"]} if pm else None,
             "endpoint": fp.get("endpoint")}

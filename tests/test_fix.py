@@ -155,8 +155,18 @@ def test_the_split_hides_half_of_each_group(here, capsys):
     assert sum(marks.person[i] == "fail" for i in hidden) >= 5
 
 
+def _mark_more(ws, k: int, n: int = 80) -> list[str]:
+    """Mark the next `k` answers not marked yet, as the person sees them."""
+    session = StartSession(ws)
+    todo = [i for i in session.items if not i["label"]][:k]
+    for item in todo:
+        label = "pass" if _person(question(_index(ws, item["id"])), n // 2) else "fail"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return [i["id"] for i in todo]
+
+
 def test_the_split_stays_until_new(here, capsys):
-    ws = project(here)
+    ws = project(here, n=80, marked=60)
     run(capsys)
     first = _split(ws)
     run(capsys)
@@ -164,9 +174,33 @@ def test_the_split_stays_until_new(here, capsys):
     assert main(["check"]) in (0, 3)
     capsys.readouterr()
     assert _split(ws)["hidden"] == first["hidden"]
-    code, _ = run(capsys, "--new")
-    assert code == 0
-    assert _split(ws)["seed"] != first["seed"]
+    code, out = run(capsys, "--new")
+    flat = " ".join(out.split())
+    assert code == 3, out
+    assert "You asked for a new set of marks kept aside (`judgekeeper fix --new`)." in flat
+    assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
+                         "`judgekeeper fix` again: they become a new set of marks kept aside.")
+    split = _split(ws)
+    assert split["hidden"] == [] and split["set"] == 1
+    assert sorted(split["visible"]) == sorted(first["visible"] + first["hidden"])
+    new = _mark_more(ws, 10)
+    assert run(capsys)[0] == 0
+    split = _split(ws)
+    assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2  # never a seen mark
+
+
+def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    for k in range(3):
+        new = regraded(here, rule=f"Rule number {k}.", name=f"rule{k}.json", n=80)
+        assert run(capsys, new.name)[0] == 0
+    before = _split(ws)
+    code, out = run(capsys, "--new")
+    assert code == 3 and "You have tested 3 rules" in " ".join(out.split())
+    after = _split(ws)
+    assert after["tests"] == before["tests"] and after["set"] == 1  # the same marks: no new set
+    assert after["fresh"] == {"want": 10} and after["hidden"] == []
 
 
 # Screen 5a -----------------------------------------------------------------------------------
@@ -463,8 +497,7 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     ws = project(here, n=80, marked=60)
     run(capsys)
     for k in range(3):
-        new = regraded(here, rule=f"Rule number {k}.", grade=lambda i: i < 40,
-                       name=f"rule{k}.json", n=80)
+        new = regraded(here, rule=f"Rule number {k}.", name=f"rule{k}.json", n=80)
         assert run(capsys, new.name)[0] == 0
     assert len(_split(ws)["tests"]) == 3
     new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80)
@@ -475,15 +508,14 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     assert flat.endswith("Next: mark 10 more answers with `judgekeeper mark`, then run "
                          "`judgekeeper fix` again: they become a new set of marks kept aside, "
                          "and your new results are tested on them.")
-    session = StartSession(ws)
-    todo = [i for i in session.items if not i["label"]][:10]
-    for item in todo:
-        label = "pass" if _person(question(_index(ws, item["id"])), 40) else "fail"
-        session.update({"id": item["id"], "label": label, "seconds": 5})
+    todo = _mark_more(ws, 10)
+    first = _index(ws, todo[0])  # graded unlike the old rule, so the new rule changes a grade
+    new = regraded(here, rule="Rule number 3.", name="rule3.json", n=80,
+                   grade=lambda i: i >= 40 if i == first else _person(question(i), 40))
     code, out = run(capsys, new.name)
-    assert code == 0, out
+    assert code in (0, 1), out
     split = _split(ws)
-    assert sorted(split["hidden"]) == sorted(i["id"] for i in todo) and split["set"] == 2
+    assert sorted(split["hidden"]) == sorted(todo) and split["set"] == 2
     assert [t["kind"] for t in split["tests"]] == ["rule"]
 
 
@@ -558,3 +590,86 @@ def test_the_result_page_shows_the_input_as_the_marking_page_does(value, output,
 
     m = SimpleNamespace(rows={"a": {"input": value}})
     assert fix._question(m, {"id": "a", "output": output}) == shown
+
+
+def test_a_new_rule_that_changes_no_grade_kept_aside_gets_no_verdict(here, capsys):
+    ws = project(here)
+    run(capsys)
+    code, out = run(capsys, regraded(here, grade=lambda i: i < N // 2).name)
+    flat = " ".join(out.split())
+    assert code == 3, out
+    n = len(_split(ws)["hidden"])
+    assert fix.UNCHANGED.format(n=n) in flat and "Result" not in flat
+    assert _split(ws)["tests"] == []
+
+
+# A damaged or hand-changed split.json is refused, never replaced ---------------------------------
+
+def _overlap(d):
+    d["visible"] += d["hidden"][:3]
+
+
+def _shrunk(d):
+    d["visible"] += d["hidden"][:-5]
+    d["hidden"] = d["hidden"][-5:]
+
+
+def _unknown(d):
+    d["hidden"].append("not-an-answer")
+
+
+def _forged_test(d):
+    d["tests"] = [{"kind": "rule", "n": 5, "fixed": 20, "broke": 0, "verdict": "better",
+                   "test": 1, "hidden": 25}]
+
+
+def _wrong_verdict(d):
+    d["tests"] = [{"kind": "rule", "n": 25, "fixed": 1, "broke": 0, "verdict": "better",
+                   "test": 1, "hidden": 25}]
+
+
+@pytest.mark.parametrize("change, why", [
+    (_overlap, "it names some marks as both kept aside and shown"),
+    (_shrunk, "it keeps far fewer than half of your marks aside"),
+    (_unknown, "it names answers judgekeeper doesn't have"),
+    (_forged_test, "a test in it has counts that don't fit its marks"),
+    (_wrong_verdict, "a test in it has a result its counts don't give"),
+    (lambda d: d.update(set="x"), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(visible="abc"), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(tests=["x"]), "a test in it has counts that don't fit its marks")])
+def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    change(d)
+    path.write_text(json.dumps(d), encoding="utf-8")
+    before = path.read_bytes()
+    for argv in ((), (regraded(here).name,)):
+        code, out = run(capsys, *argv)
+        flat = " ".join(out.split())
+        assert code == 2, out
+        assert (f"judgekeeper can't use .judgekeeper/fix/split.json: {why}. It says which of "
+                "your marks are kept aside") in flat
+        assert "pool-judge.jsonl" not in flat and "Result" not in flat
+        assert path.read_bytes() == before
+    assert fix.report_section(ws) is None  # the result page shows none of the marks
+
+
+def test_a_split_that_is_not_json_is_refused_and_kept(here, capsys):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    path.write_text("{not json", encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 2 and "it can't be read as JSON" in " ".join(out.split())
+    assert path.read_text(encoding="utf-8") == "{not json"
+
+
+def test_new_with_no_split_keeps_none_of_the_marks_aside(here, capsys):
+    ws = project(here, n=80, marked=60)
+    run(capsys)
+    (ws.dir / "fix" / "split.json").unlink()
+    code, _ = run(capsys, "--new")
+    split = _split(ws)
+    assert code == 3 and split["hidden"] == [] and split["fresh"]["want"] == 10
