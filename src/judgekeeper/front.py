@@ -174,14 +174,18 @@ class FrontTalk(start.Talk):
         self.answers[flag] = chosen
 
     def choose(self, title, options, flag_hint, ask="Which one?", flag=None, values=(),
-               what=None) -> int:
+               what=None, keep=0) -> int:
         if start._interactive():
-            return super().choose(title, options, flag_hint, ask, flag=flag, values=values)
+            return super().choose(title, options, flag_hint, ask, flag=flag, values=values,
+                                  keep=keep)
         self.say(title)
-        for option in options[:start.LIST_LIMIT]:
+        left = len(options) - keep - start.LIST_LIMIT
+        for option in options[:start.LIST_LIMIT] if left > 0 else options:
             self.say(f"  {option}")
-        if len(options) > start.LIST_LIMIT:
-            self.say(f"  {start.more(len(options) - start.LIST_LIMIT)}")
+        if left > 0:
+            self.say(f"  {start.more(left)}")
+            for option in options[len(options) - keep:]:
+                self.say(f"  {option}")
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
@@ -191,7 +195,7 @@ class FrontTalk(start.Talk):
             names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
-            then = start._or(commands)
+            then = start.some(commands)
         else:
             then = f"`{self.command(flag, 'NAME')}`"
         raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")

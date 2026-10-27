@@ -103,3 +103,103 @@ def test_on_windows_the_names_read_alike_in_double_quotes(tmp_path, monkeypatch,
     code, out = _run(capsys)
     assert code == 3
     assert '("Answer Relevancy", "Correct")' in next_lines(out)[-1], out
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    """A person at a terminal who types `answers` in order."""
+    from judgekeeper import start
+
+    answers: list[str] = []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": answers.pop(0))
+    return answers
+
+
+@pytest.mark.parametrize("flag", [None, "PATH"])
+def test_a_choice_that_is_not_a_name_shows_and_takes_every_option(terminal, capsys, flag):
+    from judgekeeper.start import Talk
+
+    terminal.append("26")
+    options = [f"part {i}" for i in range(1, 27)]
+    assert Talk().choose("Which path holds the score?", options, "", flag=flag,
+                         values=options) == 25
+    out = capsys.readouterr().out
+    assert "  26. part 26" in out and "more" not in out
+
+
+def _judges(n: int, most: str = "zzz"):
+    """An own-format guess with `n` LLM-as-a-judge names, `most` used on every line and each
+    other on one line."""
+    from judgekeeper import mapper
+
+    names = [f"j{i:02}" for i in range(n - 1)] + [most]
+    units = [{"q": "q", "a": "a", "s": {most: 1, names[i]: 1}} for i in range(n - 1)]
+    return units, mapper.Guess(each="", input="q", output="a", score="s.{judge}",
+                               judges=names)
+
+
+def test_all_one_at_a_time_stays_a_choice_beside_26_judges(terminal, capsys):
+    from judgekeeper import own_map
+    from judgekeeper.start import Talk
+
+    units, g = _judges(26)
+    terminal.append("21")
+    assert own_map._choose_judge(Talk(), units, g, None) == "*"
+    out = capsys.readouterr().out
+    assert "  21. All, one at a time" in out and "and 6 more" in out, out
+
+
+def test_the_most_used_judge_is_among_the_20_shown(terminal, capsys):
+    from judgekeeper import own_map
+    from judgekeeper.start import Talk
+
+    units, g = _judges(26)
+    terminal.append("1")
+    assert own_map._choose_judge(Talk(), units, g, None) == "zzz"
+    assert "  1. zzz (25 answers)" in capsys.readouterr().out
+
+
+def test_the_most_used_metric_is_among_the_20_shown(tmp_path, monkeypatch, capsys):
+    _metrics(tmp_path, [f"m{i}" for i in range(30)], rows={0})
+    _metrics_add(tmp_path, "zzz")
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(capsys)
+    assert code == 3
+    listed = out.split("and 11 more")[0]
+    assert "  zzz (" in listed, out
+
+
+def _metrics_add(root, name) -> None:
+    """`name` also grades every row of results.json."""
+    data = json.loads((root / "results.json").read_text(encoding="utf-8"))
+    for row in data["results"]["results"]:
+        c = copy.deepcopy(row["gradingResult"]["componentResults"][0])
+        c["assertion"] = {**c["assertion"], "metric": name}
+        row["gradingResult"]["componentResults"].append(c)
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_own_format_judge_lists_say_at_most_20_names():
+    from judgekeeper import own_map
+    from judgekeeper.start import StartError, Talk
+
+    units, g = _judges(30)
+    grade = next(x for x in own_map.how_lines(g) if "LLM-as-a-judge names" in x)
+    assert "and 10 more" in grade and "j25" not in grade, grade
+    with pytest.raises(StartError) as e:
+        own_map._choose_judge(Talk(), units, g, "nope")
+    assert "and 10 more" in str(e.value) and str(e.value).count("'j") <= 20, e.value
+
+
+def test_a_long_list_of_folders_names_at_most_20_commands(tmp_path, capsys):
+    from judgekeeper.front import FrontTalk
+    from judgekeeper.start import Stop
+
+    talk = FrontTalk(yes=False, path=tmp_path, options={})
+    folders = [f"evals/run{i:02}" for i in range(30)]
+    with pytest.raises(Stop):
+        talk.choose("DeepEval results in more than one folder:", folders, "", flag="PATH",
+                    values=folders, what="which DeepEval results to check")
+    line = next_lines(capsys.readouterr().out)[-1]
+    assert "run19" in line and "run20" not in line and "and 10 more" in line, line
