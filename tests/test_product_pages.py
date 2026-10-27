@@ -429,7 +429,7 @@ def test_the_result_top_bar_has_the_judge_and_the_logo_only():
     (NOT_GATE_TPR, "needs", "Your LLM-as-a-judge needs work."),
     (CHECK, "plain", "Too early to tell."),
     (TOO_EARLY, "plain", "Too early to tell."),
-    (TOO_FEW, "plain", "Too early to tell.")])
+    (TOO_FEW, "plain", "Mark a few more answers to see your result.")])
 def test_each_result_level_shows_its_state(counts, state, headline):
     html = start_label.result_html(_result(*counts))
     assert f'<h1 id="verdict-h" class="{state}">{headline}</h1>' in html

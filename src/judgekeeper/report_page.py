@@ -20,7 +20,7 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, FOLDER, GOOD, MARK_MORE, NEEDS
+from judgekeeper.start_label import EARLY, FOLDER, GOOD, MARK_MORE, NEEDS, VERDICTS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -396,6 +396,8 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
+    if level is None and not all_labeled(r):  # before a result: what the terminal says
+        headline = VERDICTS[None]
     if worse:
         then = "" if above else _code_line(worse)
     elif cls != "plain":
