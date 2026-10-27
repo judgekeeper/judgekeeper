@@ -14,6 +14,7 @@ import unicodedata
 from pathlib import Path
 
 from judgekeeper.links import link
+from judgekeeper.redact import scrub
 
 CUT = 1500  # characters of each text in the prompt
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
@@ -81,11 +82,14 @@ _OPEN, _CLOSE = re.compile(r"<(?=<<)"), re.compile(r">(?=>>)")
 
 
 def fenced(name: str, text, cut: bool = True) -> str:
-    """`text` (cut, unless `cut` is False) between a <<<NAME line and a NAME>>> line. Every
-    <<< or >>> in the text is broken up first, so nothing in it can close the marker or open
-    another."""
+    """`text` (cut, unless `cut` is False) between a <<<NAME line and a NAME>>> line. The
+    text is cleaned as the whole file is (reasons.cleaned, keys hidden) first, so no hidden
+    character left out later joins up what comes next: every <<< or >>> in it is broken up,
+    so nothing in it can close the marker or open another."""
+    from judgekeeper.reasons import cleaned
+
     text = _cut(text) if cut else ("" if text is None else str(text))
-    text = _CLOSE.sub("> ", _OPEN.sub("< ", text))
+    text = _CLOSE.sub("> ", _OPEN.sub("< ", scrub(cleaned(text))))
     return f"<<<{name}\n{text}\n{name}>>>"
 
 
