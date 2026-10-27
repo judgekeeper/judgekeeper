@@ -135,3 +135,28 @@ def test_the_batch_grid_is_committed_and_holds_the_bar():
     for figure in (f"{start['min_cell'] * 100:.1f}", f"{start['mean'] * 100:.1f}"):
         assert figure in batches, figure
         assert figure not in reference, figure
+
+
+@pytest.mark.parametrize("passed_fails,worse,code", [
+    (5, True, 0),  # "Worse", but the middle estimate drops 20 points, not more: exit 0
+    (9, True, 1),  # "Worse", down 36 points: exit 1
+    (0, False, 0),  # nothing changed
+])
+def test_the_grid_counts_exit_1_as_check_decides_it(tmp_path, monkeypatch, capsys,
+                                                    passed_fails, worse, code):
+    """coverage_check's exit 1 (exits_1) is check's own: the same marks, the same new grades,
+    the same exit code."""
+    from judgekeeper import targets
+    from tests.start_projects import split
+    from tests.test_check import HAIKU, _marked, _results, run
+
+    monkeypatch.chdir(tmp_path)
+    _marked(tmp_path)  # 25 Pass and 25 Fail, the LLM-as-a-judge right on all of them
+    new = split(25, 25)
+    new[25:25 + passed_fails] = [True] * passed_fails  # passes some answers marked Fail
+    _results(tmp_path, new, model=HAIKU)
+    got, out = run(capsys)
+    v = targets.paired_verdict(0, passed_fails, 25)
+    assert (v["verdict"] == "worse") is worse
+    assert ("Worse" in out) is worse
+    assert got == code == int(_module().exits_1(v))

@@ -371,19 +371,19 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### `check` when nothing changed
 
-Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (Worse, or Not sure with a drop of more than 20 points), in percent.
+Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, a share of the answers getting another grade (the wobble), half turning wrong and half turning right. How often `check` says Worse, and how often it exits 1 (a drop whose middle estimate is over 20 points), in percent.
 
 | marks | wobble | Worse | exit 1 |
 |---|---|---|---|
 | 15 | 0% | 0.0 | 0.0 |
-| 15 | 5% | 0.4 | 0.4 |
-| 15 | 10% | 1.9 | 1.9 |
+| 15 | 5% | 0.4 | 0.0 |
+| 15 | 10% | 1.9 | 0.3 |
 | 25 | 0% | 0.0 | 0.0 |
-| 25 | 5% | 1.4 | 1.4 |
-| 25 | 10% | 4.0 | 4.0 |
+| 25 | 5% | 1.4 | 0.0 |
+| 25 | 10% | 4.0 | 0.1 |
 | 40 | 0% | 0.0 | 0.0 |
-| 40 | 5% | 3.0 | 3.0 |
-| 40 | 10% | 5.0 | 5.0 |
+| 40 | 5% | 3.0 | 0.0 |
+| 40 | 10% | 5.0 | 0.0 |
 
 ## Batches
 
