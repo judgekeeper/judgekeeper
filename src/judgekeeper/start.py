@@ -1573,9 +1573,10 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         cleaned = [n for n in counts if scrub(n) == metric]
         metric = cleaned[0] if len(cleaned) == 1 else metric
     if metric is not None:
-        if metric not in counts:
-            raise StartError(f"no LLM-as-a-judge named {metric!r}; the names are: "
-                             f"{some([repr(n) for n in names], last=',')}",
+        if metric not in counts:  # keys hidden before repr(): it writes a hidden character
+            # that splits one as \u, which scrub can then no longer join
+            raise StartError(f"no LLM-as-a-judge named {scrub(metric)!r}; the names are: "
+                             f"{some([repr(scrub(n)) for n in names], last=',')}",
                              f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
         return metric
     if len(names) == 1:
