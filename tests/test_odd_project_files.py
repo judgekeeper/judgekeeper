@@ -183,23 +183,19 @@ def test_a_table_of_a_million_rows_is_read_up_to_the_cap(here, capsys):
     assert seconds < 60, seconds  # it took 100 seconds and 4 GB before the cap
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="resource is POSIX only")
 def test_reading_a_million_rows_stays_small(tmp_path):
-    import resource
-
+    """Memory as Python counts it (tracemalloc): a process's peak size can be its parent's."""
     _million(tmp_path / "results.csv")
-    script = ("import resource, sys, time; from judgekeeper.table import read_table; "
-              "t = time.monotonic(); rows = read_table(sys.argv[1]); "
-              "print(len(rows), time.monotonic() - t, "
-              "resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)")
+    script = ("import sys, time, tracemalloc; from judgekeeper.table import read_table; "
+              "tracemalloc.start(); t = time.monotonic(); rows = read_table(sys.argv[1]); "
+              "print(len(rows), time.monotonic() - t, tracemalloc.get_traced_memory()[1])")
     done = subprocess.run([sys.executable, "-c", script, str(tmp_path / "results.csv")],
                           capture_output=True, text=True, timeout=120, check=True)
-    n, seconds, rss = done.stdout.split()
-    megabytes = int(rss) / (1 if sys.platform != "darwin" else 1024) / 1024
+    n, seconds, peak = done.stdout.split()
+    megabytes = int(peak) / 1e6
     assert int(n) == table.MAX_ROWS
-    assert float(seconds) < 10 and megabytes < 400, (seconds, megabytes)
+    assert float(seconds) < 20 and megabytes < 300, (seconds, megabytes)
     assert done.stderr.count("Read the first 100,000 answers") == 1
-    del resource
 
 
 # Unreadable input: a plain line, nothing written --------------------------------------------

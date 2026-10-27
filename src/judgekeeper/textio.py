@@ -244,12 +244,13 @@ def not_a_file(path: str | Path) -> NotAFile | None:
 def open_regular(path: str | Path):
     """`path` opened for reading as bytes, only when it is a regular file; else NotAFile. It
     is opened without waiting (a named pipe would wait for a writer), then checked."""
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+    nonblock = getattr(os, "O_NONBLOCK", 0)  # none on Windows, where a file never waits
+    fd = os.open(path, os.O_RDONLY | nonblock | getattr(os, "O_BINARY", 0))
     try:
         kind = file_kind(os.fstat(fd).st_mode)
         if kind is not None:
             raise NotAFile(path, kind)
-        if hasattr(os, "set_blocking"):
+        if nonblock:
             os.set_blocking(fd, True)
     except BaseException:
         os.close(fd)
