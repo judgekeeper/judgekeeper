@@ -245,7 +245,7 @@ def read_given(state: State, path: Path):
         found = start.rebased(found, state.ws.root)
     if found.tool != tool:
         return None, _other_tool(shown, found.tool, name)
-    if found.metric != metric:
+    if scrub(found.metric) != scrub(metric):  # start.json keeps it with keys hidden
         return None, (f"{shown} has no LLM-as-a-judge named {metric}, the one your marks "
                       "test.")
     return found, None

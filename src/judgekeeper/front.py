@@ -43,6 +43,7 @@ from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
+from judgekeeper.redact import scrub
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
@@ -1186,7 +1187,7 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
         tool, metric, judge = data["tool"], data["metric"], data["judge"]
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
-    if (found.tool, found.metric) != (tool, metric):
+    if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
                  f"({tool}), and these results are of {found.judge}.")]
     return [] if talk.new else None
@@ -1445,7 +1446,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     """When the judge's rule or model changed since marking started (or since the check that
     moved the marks to a new judge): which judge the result is about, as it was then."""
     data = ws.data()
-    same_rule = rule_hash(data.get("rule")) == rule_hash(found.rule)
+    same_rule = rule_hash(data.get("rule")) == rule_hash(scrub(found.rule))  # as start.json
     if same_rule and not judge_setup.judge_change(data["fingerprint"], found.fingerprint):
         return None
     head = marks.read(ws.marks).header or {}
