@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_data, split
+from tests.start_projects import deepeval_data, promptfoo_data, split
 from tests.test_check import HAIKU, MODEL, TAG, _marked
 from tests.test_front import flat, next_lines
 
@@ -142,13 +142,18 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     _rubric(here, split(20, 20), RULE_C, name="regraded-2.json")
     said.append(_jk(capsys, "fix", "regraded-2.json")[1])
     (here / "regraded-2.json").unlink()
+    (here / "other.json").write_text(json.dumps(deepeval_data(split(20, 20))), encoding="utf-8")
+    code, other = _jk(capsys, "fix", "other.json")  # another tool's file, while waiting
+    assert code == 2 and "again with your new rule, from promptfoo." in flat(other), other
+    (here / "other.json").unlink()
     _rubric(here, split(20, 20), RULE_B, only=range(10), model=NEW)  # 10 questions, new model
     said.append(_jk(capsys, "check")[1])
     for out in said:
         assert "Step" in out
         assert not says_mark(_next(out)), out
     assert "run your eval on more questions" in _next(said[4])  # fix after the rule was adopted
-    assert "You have tested 1 rule on these marks kept aside." in flat(said[4])
+    assert "You took on a rule tested on these marks kept aside." in flat(said[4])
+    assert "You have tested" not in flat(said[4]) + flat(said[5])  # taking one on is no test
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in mistakes  # the judge the marks test now
 

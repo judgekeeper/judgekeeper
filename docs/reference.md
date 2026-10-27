@@ -96,7 +96,7 @@ judgekeeper fix [PATH] [--new]
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse, how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
-After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, 10 new marks become a new set kept aside. Each rule tested is saved in `rules/`.
+After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule, run your eval, then `judgekeeper check`. Each extra test on the same marks is stricter (the levels divided by the number of tests), so trying rule after rule can't turn a coincidence into "better". After 3 rules, or once `check` takes on a rule tested on them, 10 new marks become a new set kept aside. Each rule tested is saved in `rules/`.
 
 ## check: re-check your LLM-as-a-judge after a change
 

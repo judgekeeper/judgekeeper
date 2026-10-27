@@ -105,7 +105,7 @@ def test_a_retired_set_may_show_its_answers(here, capsys):
     judge_setup.save(ws, judge_setup.of(found), found.metric)
     split = fix.current_split(ws, fix.Marks(ws))
     assert split.hidden == [] and set(hidden) <= set(split.seen)
-    assert split.fresh == {"want": fix.FRESH}
+    assert split.fresh == {"want": fix.FRESH, "adopted": True}
     wrong = [i for i in hidden if fix.Marks(ws).judge[i] != fix.Marks(ws).person[i]]
     shown = json.dumps(fix.report_section(ws))
     m = fix.Marks(ws)

@@ -268,8 +268,8 @@ class Split:
     made_at: str = ""
     tests: list[dict] = field(default_factory=list)
     pass_mark: dict | None = None
-    fresh: dict | None = None  # {"want"}: after MAX_RULES rules or `fix --new` ("asked"), new
-    # marks make a new set
+    fresh: dict | None = None  # {"want"}: after MAX_RULES rules, `fix --new` ("asked") or a
+    # rule taken on ("adopted"), new marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a new set
 
     def to_json(self) -> dict:
@@ -390,8 +390,10 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
         split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
-    elif not split.fresh and (len(split.rules()) >= MAX_RULES or _adopted(ws, split)):
+    elif not split.fresh and len(split.rules()) >= MAX_RULES:
         retire(split)
+    elif not split.fresh and _adopted(ws, split):
+        retire(split, adopted=True)
     elif new and not split.fresh:
         retire(split, asked=True)
     known = set(split.seen) | set(split.hidden)
@@ -434,12 +436,14 @@ def _adopted(ws: Workspace, split: Split) -> bool:
     return False
 
 
-def retire(split: Split, asked: bool = False) -> None:
+def retire(split: Split, asked: bool = False, adopted: bool = False) -> None:
     """The set's hidden marks are seen like the others from now on; the next FRESH new marks
-    make a new set. `asked`: by `fix --new`, not after MAX_RULES rules."""
+    make a new set. `asked`: by `fix --new`; `adopted`: a rule tested on the set was taken on
+    (_adopted); neither: after MAX_RULES rules."""
     split.seen = sorted(set(split.seen) | set(split.hidden))
     split.hidden = []
-    split.fresh = {"want": FRESH, **({"asked": True} if asked else {})}
+    split.fresh = {"want": FRESH, **({"asked": True} if asked else {}),
+                   **({"adopted": True} if adopted else {})}
 
 
 def prepare_split(ws: Workspace) -> None:
@@ -859,7 +863,9 @@ def run(path: str = ".", new: bool = False) -> int:
         step = f"run `{program('mark')}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
-    if split.fresh:
+    if split.fresh:  # new results from another tool are refused first (exit 2)
+        if results is not None and _given(talk, state, m, results) is None:
+            return EXIT_USAGE
         return _waiting(talk, ws, m, split, tested=results is not None)
     if results is not None:
         return test_results(talk, state, m, split, results)
@@ -895,6 +901,9 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     if split.fresh.get("asked"):
         talk.para(f"You asked for a new set of marks kept aside (`{program('fix')} --new`). The "
                   "marks you have made are all seen now, so the new set is made of new marks.")
+    elif split.fresh.get("adopted"):
+        talk.para("You took on a rule tested on these marks kept aside. Testing the next rule "
+                  "on the same marks would make a coincidence look like a better rule.")
     else:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
                   "aside. More tests on the same marks would make a coincidence look like a "
@@ -1051,6 +1060,19 @@ def _better_needs(n: int, k: int) -> int:
                  if targets.fix_verdict(f, 0, max(n, f), test=k).kind == "better"), n)
 
 
+def _given(talk: Talk, state, m: Marks, path: Path):
+    """The new results in `path`, read as step 1 reads results (check.read_given); None, said
+    with what to give instead, when they can't be read or are from another tool."""
+    from judgekeeper.check import read_given
+
+    found, problem = read_given(state, path)
+    if found is None:
+        talk.para(problem)
+        talk.next(f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
+                  f"again with your new rule, from {_tool_name(m.data.get('tool'))}.")
+    return found
+
+
 def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     """Screen 5b: the new results in `path`, read as step 1 reads results, on the hidden
     marks: how the old and the new grades agree with the person's marks, and the verdict from
@@ -1061,17 +1083,13 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         lookup,
         mixed_line,
         no_decision,
-        read_given,
         repeats_line,
         unknown_grades,
     )
 
     ws = state.ws
-    found, problem = read_given(state, path)
+    found = _given(talk, state, m, path)
     if found is None:
-        talk.para(problem)
-        talk.next(f"give `{talk.command()}` the results of grading {_file(ws, ANSWERS)} again "
-                  f"with your new rule, from {_tool_name(m.data.get('tool'))}.")
         return EXIT_USAGE
     unknown = unknown_grades(found, path)
     if unknown:
