@@ -100,13 +100,14 @@ def test_every_kind_of_file_is_compared():
 
 def _tool_run(path: Path) -> str:
     """What `judgekeeper <file>` prints for a table it reads by its columns' names (its own map,
-    saved in judgekeeper.toml): the tool asks no question for these names."""
+    saved in judgekeeper.toml): the tool asks no question for these names. Its input is an empty
+    pipe: on Windows the empty device counts as a terminal, and the tool would ask."""
     run = [sys.executable, "-m", "judgekeeper"]
     out = subprocess.run([*run, path.name, "--no-browser", "--port", "0", "--yes"], check=False,
                          cwd=path.parent, capture_output=True, text=True, timeout=120,
-                         stdin=subprocess.DEVNULL, encoding="utf-8").stdout
+                         input="", encoding="utf-8").stdout
     subprocess.run([*run, "--stop"], check=False, cwd=path.parent, capture_output=True,
-                   stdin=subprocess.DEVNULL, timeout=60)
+                   input="", text=True, timeout=60)
     return " ".join(out.split())
 
 
