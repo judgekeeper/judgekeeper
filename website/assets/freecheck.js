@@ -1115,7 +1115,7 @@
     };
   }
 
-  /* ---------- what it says (front.py's Find block and free check) ---------- */
+  /* ---------- what it says (front.py's Find block and the check in your browser) ---------- */
 
   // The note under Answers when answers are in the file more than once: repeats with the same
   // grade count once, repeats with different grades each count (front.repeats_note).
