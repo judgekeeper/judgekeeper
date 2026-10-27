@@ -231,8 +231,11 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         report = tile.attrs["href"].split("/blob/main/", 1)[1]
         (n,) = [el for el in tile.iter() if "rt-n" in el.classes()]
         (big,) = [el for el in tile.iter() if "rt-big" in el.classes()]
+        (line,) = [el for el in tile.iter() if "rt-line" in el.classes()]
         assert int(n.attrs["data-to"]) == int(n.text()), report
         found[report] = (int(n.attrs["data-to"]), big.text().strip())
+        if "jailbreakbench" in report:  # the count is of draws with all three inside
+            assert line.text().strip().startswith("times all three true numbers"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")

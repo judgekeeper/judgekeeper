@@ -638,9 +638,10 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     tiles = _all(win, "a", "rt")
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
+    assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
+        "times all three true numbers were in judgekeeper's ranges",
+        "times the true number was in judgekeeper's range"]
     for tile in tiles:
-        assert _flat(_all(tile, "span", "rt-line")[0]) == (
-            "times the true number was in judgekeeper's range")
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")
     assert "repeat(2, minmax(0, 1fr))" in _rule(".rt-grid")
