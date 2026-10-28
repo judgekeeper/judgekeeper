@@ -134,7 +134,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 ### The maths (you can skip this)
 
-**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
+**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are the answers you marked Pass, so a = c_p / n_p. In its fail group, c_f of the n_f you marked are the answers you marked Pass, so b = c_f / n_f. Skipped answers don't count.
 
 ```
 TPR             = pi a / (pi a + (1 - pi) b)
