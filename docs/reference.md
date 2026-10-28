@@ -41,7 +41,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first; nothing is deleted) |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
-| `--version` | Show the version and exit |
+| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.0.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.0.0" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See your result" appears once there are enough marks of each kind. The page stops after 30 minutes with no use.

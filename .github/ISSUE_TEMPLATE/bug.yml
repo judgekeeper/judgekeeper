@@ -33,8 +33,8 @@ body:
     id: version
     attributes:
       label: judgekeeper version
-      description: What `judgekeeper --version` prints.
-      placeholder: judgekeeper 1.0.0
+      description: What `judgekeeper --version` prints. At a terminal its first line is "✓ judgekeeper 1.0.0 is ready".
+      placeholder: ✓ judgekeeper 1.0.0 is ready
     validations:
       required: true
   - type: dropdown
