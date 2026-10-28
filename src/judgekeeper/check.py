@@ -112,7 +112,6 @@ TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you
            "{f} you marked Fail; a re-check needs {need} of each.")
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
-NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -1447,7 +1446,7 @@ def full(path: str, said: Said) -> int:
         said.say("Next: " + worse_step(old, new, _command(state)))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
-        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+        said.say("Next: " + regrade_marked(state))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1591,8 +1590,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say("Next: " + (regrade_marked(state) if c else  # the eval wrote new answers
-                             NEXT_ALL_QUESTIONS.format(command=_command(state))))
+        said.say("Next: " + regrade_marked(state))  # new answers can't be compared
     return few
 
 
