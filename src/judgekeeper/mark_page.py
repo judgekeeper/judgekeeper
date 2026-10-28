@@ -29,6 +29,8 @@ SEGMENTS = 16  # the bar's cells
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
+SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
+SHORT_ANSWER, LONG_ANSWER = 300, 1500  # an answer's size: 20 px up to 300, 18 up to 1500, 17
 
 CROSS = ('<svg class="btn-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
          '<path d="M4 4l8 8M12 4l-8 8"/></svg>')
@@ -73,6 +75,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   border-left: 2px solid transparent; text-align: left; color: var(--muted); font-size: 15px;
   line-height: 1.4; text-decoration: none; }
 .item .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item { position: relative; }  /* its screen-reader words stay inside the list */
 .item:hover { background: var(--hover); color: var(--text); }
 .item[aria-current] { background: var(--current); color: var(--text); border-left-color: var(--text); }
 .item .num { font-family: var(--mono); font-size: 12px; color: var(--faint); }
@@ -156,6 +159,35 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
+.answer code.block { display: block; margin: 12px 0; padding: 14px 16px; font-family: var(--mono);
+  font-size: 14px; line-height: 1.55; white-space: pre; overflow-x: auto; overflow-wrap: normal;
+  border: 1px solid var(--line); background: var(--hover); text-align: left;
+  font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+.q-more { padding: 6px 0; margin-top: 8px; font-size: 13px; text-decoration: underline;
+  text-underline-offset: 3px; }
+.q-more:hover { background: none; }
+@media (min-width: 761px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { min-height: 0; }
+  .wrap { height: auto; grid-template-rows: minmax(0, 1fr); }
+  .main { overflow: hidden; }
+  .card { min-height: 0; }
+  .row-q { flex: none; padding-top: 26px; padding-bottom: 22px; }
+  .row-a { flex: 1 1 auto; min-height: 0; overflow: auto; padding-top: 26px; overscroll-behavior: contain; }
+  .row-a.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+  .actions, .sub, .status, .foot { flex: none; }
+  .question.long { font-size: 17px; font-weight: 400; line-height: 1.6; letter-spacing: 0;
+    max-width: 75ch; max-height: calc(4 * 1.6em); overflow: hidden; }
+  .question.long .field-name { line-height: 1.5; }
+  .question.long .field + .field-name { margin-top: 6px; }
+  .question.long.cut:not(.open) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent); }
+  .question.long.open { max-height: calc((100vh - 72px) * .4); overflow: auto; }
+  .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
+  .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
+  .rule { max-height: calc((100vh - 72px) * .35); overflow: auto; }
+}
 @media (max-width: 760px) {
   html, body { height: auto; }
   #app, .wrap { flex: none; min-height: 0; }
@@ -186,8 +218,8 @@ __TOP__
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text"></h1></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="answer" id="a-text"></p></div>
+    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="answer" id="a-text" dir="auto"></p></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
@@ -214,6 +246,9 @@ __TOP__
 "use strict";
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
+  // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
+  // size by length (up to SHORT_A, up to LONG_A, longer).
+  var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
   var total = data.total || items.length;  // the page holds the next answers, not all of them
@@ -278,16 +313,92 @@ __TOP__
     value = value.filter(function (pair) { return String(pair[1]).trim() !== answer; });
     return value.length > 1 ? value : value.length ? String(value[0][1]) : "";
   }
+  function chars(text) { return Array.from(String(text)).length; }
+  // A short one-line question is the big heading; a longer one, or several named values, reads
+  // at normal size, about 4 lines of it, then "Show all".
   function showQuestion(it) {
     var value = question(it), into = $("q-text");
+    var long = Array.isArray(value) || chars(value) > SHORT_Q || value.indexOf("\\n") > -1;
     into.textContent = "";
+    into.className = long ? "question long" : "question";
+    into.scrollTop = 0;
+    setText("q-more", "Show all"); $("q-more").setAttribute("aria-expanded", "false");
     setText("q-label", Array.isArray(value) ? "Input" : "Question");
     $("q-row").hidden = Array.isArray(it.input) && value === "";
-    if (!Array.isArray(value)) { into.textContent = value; return; }
-    value.forEach(function (pair) {
-      into.appendChild(el("span", "field-name", pair[0]));
-      into.appendChild(el("span", "field", pair[1]));
-    });
+    if (!Array.isArray(value)) { into.textContent = value; }
+    else {
+      value.forEach(function (pair) {
+        var name = el("span", "field-name", pair[0]), field = el("span", "field", pair[1]);
+        name.setAttribute("dir", "auto"); field.setAttribute("dir", "auto");
+        into.appendChild(name); into.appendChild(field);
+      });
+    }
+    fitQuestion();
+  }
+  // "Show all" only when the question is longer than its 4 lines.
+  function fitQuestion() {
+    var into = $("q-text"), open = into.classList.contains("open");
+    var cut = into.classList.contains("long") && into.scrollHeight > into.clientHeight + 1;
+    into.classList.toggle("cut", cut);
+    $("q-more").hidden = !(cut || open);
+  }
+  $("q-more").addEventListener("mousedown", function (e) { e.preventDefault(); });
+  $("q-more").addEventListener("click", function () {
+    var into = $("q-text"), open = !into.classList.contains("open");
+    into.classList.toggle("open", open);
+    if (!open) { into.scrollTop = 0; }
+    $("q-more").setAttribute("aria-expanded", String(open));
+    setText("q-more", open ? "Show less" : "Show all");
+    fitQuestion();
+  });
+
+  // The answer, never cut: its text as text, a ``` fenced block in a box of its own (still
+  // text), in an area that scrolls by itself, a fade at its bottom while there is more.
+  var FENCE = /```[^\\n`]*\\n([\\s\\S]*?)```/g;
+  function showAnswer(text) {
+    var into = $("a-text"), at = 0, found;
+    text = text == null ? "" : String(text);
+    into.textContent = "";
+    into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
+                                 chars(text) > SHORT_A ? " a-mid" : "");
+    function prose(part) { if (part) { into.appendChild(document.createTextNode(part)); } }
+    FENCE.lastIndex = 0;
+    while ((found = FENCE.exec(text)) !== null) {
+      prose(text.slice(at, found.index).replace(/\\n+$/, ""));
+      var code = el("code", "block", found[1].replace(/\\n$/, ""));
+      code.setAttribute("dir", "ltr");
+      into.appendChild(code);
+      at = FENCE.lastIndex;
+      text = text.slice(0, at) + text.slice(at).replace(/^\\n+/, "");
+    }
+    prose(text.slice(at));
+    var area = answerArea();
+    if (area) { area.scrollTop = 0; fade(); }
+  }
+  function answerArea() { return $("a-text").parentNode; }
+  function fade() {  // more text below, not only the area's bottom padding
+    var area = answerArea();
+    if (!area) { return; }
+    var pad = window.getComputedStyle ? parseFloat(getComputedStyle(area).paddingBottom) || 0 : 0;
+    area.classList.toggle("more-below",
+      area.scrollTop + area.clientHeight < area.scrollHeight - pad - 2);
+  }
+  if (answerArea()) { answerArea().addEventListener("scroll", fade); }
+  window.addEventListener && window.addEventListener("resize", function () {
+    fade(); fitQuestion(); });
+  // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
+  // back), also held; not on a phone, where the page itself scrolls.
+  function scrollAnswer(e, k) {
+    var area = answerArea();
+    if (!area || media("(max-width: 760px)")) { return false; }
+    var page = Math.max(area.clientHeight - 60, 40);
+    var by = {" ": e.shiftKey ? -page : page, pagedown: page, pageup: -page,
+              arrowdown: 40, arrowup: -40}[k];
+    if (by === undefined) { return false; }
+    area.scrollTop = Math.max(0, Math.min(area.scrollTop + by,
+                                          area.scrollHeight - area.clientHeight));
+    fade();
+    return true;
   }
   function firstLine(it) {
     var value = question(it);
@@ -354,7 +465,7 @@ __TOP__
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
     }
     showQuestion(it);
-    setText("a-text", it.output);
+    showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
     $("pass").setAttribute("aria-pressed", String(it.label === "pass"));
     renderQueue(); renderProgress();
@@ -486,10 +597,13 @@ __TOP__
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
   document.addEventListener("keydown", function (e) {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
     var tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") { return; }
     var k = (e.key || "").toLowerCase();
+    if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
+      e.preventDefault(); return; }
+    if (e.repeat) { return; }
     if (KEYS[k]) { mark(KEYS[k]); }
     else if (k === "s") { skip(); }
     else if (k === "z" || k === "u") { undo(); }
@@ -588,6 +702,8 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST))
             .replace("__SEGMENTS__", str(SEGMENTS))
+            .replace("__SHORT_Q__", str(SHORT_QUESTION))
+            .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
             .replace("__DOT_NONE__", DOTS["none"]).replace("__DOT_PASS__", DOTS["pass"])

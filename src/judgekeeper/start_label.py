@@ -397,12 +397,29 @@ def display(value) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
+ASKED = frozenset({"question", "input", "query", "prompt"})  # a field the user's question is in
+BACKGROUND = frozenset({"system", "context"})  # a field that sets the scene: after the rest
+SHORT_FIELD = 140  # characters of a field that reads as one line
+
+
+def _field_order(pair: list[str]) -> int:
+    """Where a named value goes: the one that looks like the user's question first (named
+    question, input, query or prompt), then short ones, then long ones and system or context."""
+    words = set(re.findall(r"[a-z]+", pair[0].lower()))
+    if words & BACKGROUND:
+        return 2
+    if words & ASKED:
+        return 0
+    return 1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2
+
+
 def question_view(value):
     """A question as the page shows it: text as written; of a set of named values (such as
-    promptfoo's vars), one value alone, or several as [[name, value as text], ...]."""
+    promptfoo's vars), one value alone, or several as [[name, value as text], ...], the
+    question-like one first (_field_order; the rest as written)."""
     if isinstance(value, dict) and len(value) > 1:
-        return [[str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
-                for k, v in value.items()]
+        return sorted(([str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
+                       for k, v in value.items()), key=_field_order)
     if isinstance(value, dict) and value:
         value = next(iter(value.values()))
     return display(value)
