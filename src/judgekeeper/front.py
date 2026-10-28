@@ -17,6 +17,7 @@ No AI call and no key. Exit codes: 0 done, 3 the person is needed, 2 usage error
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -316,6 +317,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if not path.exists():
         raise not_found(path)
     path = _remembered(talk, path)
+    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
+            sessions := _sessions_below(path)):  # never a second session above one
+        raise _go_to(talk, sessions)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -640,6 +644,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return talk.stop(EXIT_QUESTION, (f"give the path of your results: run "
                                          f"`{talk.command_at('PATH')}` with their file or "
                                          "folder."))
+    if nested and len(sessions := _sessions_below(root, nested)) == len(nested):
+        return _go_to(talk, sessions)
     if nested:
         talk.para(_nested_line(nested))
         where = start._or([f"{p}/" for p in nested])
@@ -676,11 +682,46 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
 
 def _saved_marks(root: Path) -> int:
     """How many marks the project's .judgekeeper/ holds."""
-    ws = Workspace(project.project_of(root))
+    return _marks_in(Workspace(project.project_of(root)))
+
+
+def _marks_in(ws: Workspace) -> int:
     try:
         return len(marks.read(ws.marks).counted()) if ws.marks.is_file() else 0
     except (OSError, ValueError):
         return 0
+
+
+def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[str, int]]:
+    """(name, its marks) of each folder right below `folder` (or of `names`, paths from it)
+    whose .judgekeeper/ holds a session."""
+    if names is None:
+        try:
+            names = sorted(e.name for e in os.scandir(folder)
+                           if e.is_dir(follow_symlinks=False) and e.name != FOLDER)
+        except OSError:
+            return []
+    out = []
+    for name in names:
+        ws = Workspace(folder / name)
+        if ws.start.is_file() or ws.labels.is_file():
+            out.append((name, _marks_in(ws)))
+    return out
+
+
+def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
+    """Sessions in folders below this one: where they are, never a second one here."""
+    if len(sessions) == 1:
+        (name, n), = sessions
+        talk.para(f"{name}/ already holds your judgekeeper session ({_n(n, 'mark')}): "
+                  "judgekeeper keeps a project's marks in its own folder.")
+    else:
+        named = start._and([f"{name}/ ({_n(n, 'mark')})" for name, n in sessions])
+        talk.para(f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
+                  "project's marks in its own folder.")
+    folder = "that folder" if len(sessions) == 1 else "one of those folders"
+    return talk.stop(EXIT_QUESTION, f"go to {folder} (`cd {quote_arg(sessions[0][0])}`), then "
+                                    f"run `{program()}` there.")
 
 
 def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:
