@@ -300,8 +300,9 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
         if ws.marks.is_file() and marks.read(ws.marks).counted():
-            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results. Move "
-                             f"{FOLDER}/ somewhere else to start fresh; nothing was changed.")
+            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results; nothing "
+                             f"was changed. To start over, run {program()} --new (your marks "
+                             f"move to {FOLDER}/previous-<date>/).")
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
     first = old is None
