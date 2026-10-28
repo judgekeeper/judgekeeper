@@ -83,6 +83,16 @@ def test_a_pass_mark_on_each_item_is_read_too():
     assert (g.pass_mark, g.pass_mark_key, g.pass_mark_sure) == (4, "threshold", True)
 
 
+def test_a_pass_mark_it_is_not_sure_of_is_not_known():
+    """Scores past 1 and no pass mark in the file: no number, since the next line asks for one."""
+    from judgekeeper import own_map
+
+    units = [{"question": f"q{i}", "answer": f"a{i}", "score": 1 + i % 5} for i in range(40)]
+    g = mapper.guess(units)
+    assert not g.pass_mark_sure and g.pass_mark_key is None
+    assert own_map.how_lines(g)[-1] == "  pass mark:       not known"
+
+
 @pytest.mark.parametrize("key", ["pass_mark", "passMark", "threshold", "pass_threshold",
                                  "passing_score"])
 def test_pass_mark_names(key):
