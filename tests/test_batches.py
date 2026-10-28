@@ -658,7 +658,13 @@ def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
 
 # A check of a partial eval --------------------------------------------------------------------
 
-def test_a_check_of_a_partial_eval_says_to_run_it_on_all_questions(here, capsys, pages):
+REGRADE = ("Next: run `judgekeeper fix` to write the answers you marked to "
+           ".judgekeeper/fix/marked-answers.csv, grade them again with your LLM-as-a-judge as "
+           "it is now, then run `judgekeeper check <new results file>`.")
+
+
+def test_a_check_of_a_partial_eval_says_to_grade_the_marked_answers_again(here, capsys, pages):
+    """Running the eval again makes new answers, which judgekeeper can't compare."""
     table_project(here, split(20, 16))
     assert run(capsys, "--no-browser")[0] == 0
     ws = Workspace(here)
@@ -669,5 +675,16 @@ def test_a_check_of_a_partial_eval_says_to_run_it_on_all_questions(here, capsys,
     table_project(here, partial)  # the eval ran on 10 questions, over the old file
     _, out, _ = run(capsys, "check")
     assert "more questions" not in out, out
-    assert _next(out) == ("Next: run your eval on all your questions, then run "
-                          "`judgekeeper check`."), out
+    assert _next(out) == REGRADE, out
+
+
+def test_a_check_with_grades_left_empty_says_to_grade_the_marked_answers_again(here, capsys,
+                                                                                pages):
+    table_project(here, split(20, 16))
+    assert run(capsys, "--no-browser")[0] == 0
+    _mark(Workspace(here))
+    run(capsys, "--no-browser")
+    table_project(here, [*split(2, 2), *[None] * 32], name="new.csv")  # no decision on most
+    _, out, _ = run(capsys, "check", "new.csv")
+    assert "no decision from your LLM-as-a-judge" in flat(out), out
+    assert _next(out) == REGRADE, out
