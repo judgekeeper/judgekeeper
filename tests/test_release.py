@@ -11,6 +11,7 @@ import sys
 import tarfile
 import tomllib
 import zipfile
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -85,6 +86,15 @@ def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
     assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+
+
+def test_the_lead_changelog_entry_has_its_release_date():
+    """Filled on release day: never the YYYY-MM-DD placeholder."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    lead = re.search(r"^## (\S+) \((.*)\)$", text, flags=re.MULTILINE)
+    assert lead and lead[1] == VERSION
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", lead[2]), lead[2]
+    date.fromisoformat(lead[2])  # a real day
 
 
 # Workflows
