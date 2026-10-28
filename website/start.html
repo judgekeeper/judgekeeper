@@ -67,22 +67,22 @@
       <p class="gx-tap">Tap to enlarge</p>
       <p class="done">When <b>See your result</b> appears, click it.</p>
     </div></div></li>
-    <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">See how often your LLM-as-a-judge agrees with you</span></div><div class="gl-body gx-text sw-body">
-      <h3 class="sr">See how often your LLM-as-a-judge agrees with you</h3>
+    <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Measure: see how often your LLM-as-a-judge agrees with you</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Measure: see how often your LLM-as-a-judge agrees with you</h3>
       <p>The result page tells you one of three things: your LLM-as-a-judge is good enough to use, it needs work, or it’s too early to tell. Below that, it lists the answers where you and your LLM-as-a-judge disagreed.</p>
       <figure class="gx-shot"><a href="assets/shots/result.webp"><img src="assets/shots/result.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The result page: &quot;Your LLM-as-a-judge needs work. You and your LLM-as-a-judge disagreed on 13 of 40 answers.&quot; Under it, the answers where you said Fail and your LLM-as-a-judge said Pass, each with buttons to say why you marked it Fail."></a></figure>
       <p class="gx-tap">Tap to enlarge</p>
       <p class="done"><b>Result says it’s too early to tell?</b> Your LLM-as-a-judge needs more of your marks to be measured. Mark more answers, then look again:</p>
       <div class="cmd"><code>judgekeeper mark</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
     </div></div></li>
-    <li class="gl-step" id="step-fix"><span class="gl-n" aria-hidden="true">4</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Write a better rule and test it</span></div><div class="gl-body gx-text sw-body">
-      <h3 class="sr">Write a better rule and test it</h3>
+    <li class="gl-step" id="step-fix"><span class="gl-n" aria-hidden="true">4</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Fix: write a better rule and test it</span></div><div class="gl-body gx-text sw-body">
+      <h3 class="sr">Fix: write a better rule and test it</h3>
       <p><b>Result says your LLM-as-a-judge needs work?</b> Run:</p>
       <div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p>It saves the answers your LLM-as-a-judge got wrong in <code>.judgekeeper/fix/mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</p>
       <p>Change the rule in your eval tool. Have it grade the answers in <code>.judgekeeper/fix/marked-answers.csv</code> again, save the results, then run:</p>
       <div class="cmd"><code>judgekeeper fix new-results.json</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
-      <p>judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>safe to try</b>, <b>worse</b>, or if it <b>can’t tell yet</b>. How many marks a clear answer needs depends on how big the change is. For a new rule that fixes about a quarter of the mistakes and breaks few right answers, it needs about 80 marks, and the answer is usually <b>safe to try</b>, not <b>better</b>. A large fix of a clearly wrong rule (about 9 in 10 of its mistakes fixed) usually comes out <b>better</b> with 80 marks; a small fix that also breaks a few right answers needs more (<a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md">simulation</a>).</p>
+      <p>judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>safe to try</b>, <b>worse</b>, or if it <b>can’t tell yet</b>. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads <b>safe to try</b> (<a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md">simulation</a>).</p>
       <p class="gx-small">judgekeeper prints how to grade the answers again with your eval tool. It only reads the new results.</p>
     </div></div></li>
     <li class="gl-step" id="step-check"><span class="gl-n" aria-hidden="true">5</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Re-check after you change your LLM-as-a-judge</span></div><div class="gl-body gx-text sw-body">
@@ -108,7 +108,7 @@ judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pr
   <div class="gm-pair">
     <div class="gm-row" id="keys">
       <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">No API key needed</span></div><h3 class="sr">No API key needed</h3>
-      <div class="gx-text"><p>judgekeeper only reads files. It makes no AI call, needs no API key, and costs nothing. When you grade answers again, your own eval tool makes the calls, with your own key.</p></div>
+      <div class="gx-text"><p>judgekeeper only reads files. It makes no AI call and needs no API key. When you grade answers again, your own eval tool makes the calls, with your own key.</p></div>
     </div>
     <div class="gm-row" id="misc">
       <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Handy commands</span></div><h3 class="sr">Handy commands</h3>

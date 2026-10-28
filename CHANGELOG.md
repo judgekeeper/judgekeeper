@@ -5,13 +5,13 @@
 The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, run `pip install judgekeeper`, then `judgekeeper`, or `uvx judgekeeper`.
 
 - `judgekeeper` finds your eval results and their LLM-as-a-judge: promptfoo, DeepEval, Inspect AI, MLflow, a CSV or JSONL file, or `judgekeeper.record()`.
-- You mark answers Pass or Fail in your browser, with the grade hidden. The page accepts marks only from itself, so marks from another website are refused. A program on your computer could, the same way it could edit your files.
+- You mark answers Pass or Fail in your browser, with the grade hidden. The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files.
 - Then see how often your LLM-as-a-judge agrees with you: TPR and TNR with ranges, and kappa.
 - `judgekeeper mark` marks more answers.
 - `judgekeeper fix` shows where your LLM-as-a-judge goes wrong and keeps half your marks aside. Grade the marked answers again with your new rule in your eval tool, then `judgekeeper fix <new results file>` tests it on the marks kept aside.
-- `judgekeeper check` re-checks it on your marks, from your new results, when its model, rule, pass mark or your eval tool's version changes.
+- `judgekeeper check` re-checks it on your marks, from your new results, when its model, rule, grading prompt, pass mark, temperature, your eval tool's version or more changes (the reference lists them).
 - judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key.
-- Removed since 0.1.3: every 0.1 command, the built-in runners, the pytest plugin, the GitHub Action and the agent skill.
+- Removed since 0.1.3: every 0.1 command, the built-in runners that called an AI, the pytest plugin, the GitHub Action and the agent skill.
 
 ## 1.0.0b1 (2026-10-12)
 

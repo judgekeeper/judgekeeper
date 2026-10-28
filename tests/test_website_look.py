@@ -639,8 +639,8 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "times all three true numbers were in judgekeeper's ranges at once",
-        "times each true number, checked on its own, was in judgekeeper's range"]
+        "times TPR, TNR and kappa were all in judgekeeper's ranges at once",
+        "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
     for tile in tiles:
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")
@@ -675,8 +675,8 @@ def test_the_demo_card_is_a_window_called_marking_page():
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
 GUIDE_STEPS = [("step-find", "Find your eval results"),
                ("step-mark", "Mark your answers Pass or Fail"),
-               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
-               ("step-fix", "Write a better rule and test it"),
+               ("step-measure", "Measure: see how often your LLM-as-a-judge agrees with you"),
+               ("step-fix", "Fix: write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
@@ -728,7 +728,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "judgekeeper only reads files. It makes no AI call, needs no API key, and costs nothing. "
+        "judgekeeper only reads files. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
     # the steps and the windows below are as wide as the top section: "The 5 steps." starts
@@ -853,12 +853,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
-             "better, safe to try, worse, or if it can’t tell yet. How many marks a clear "
-             "answer needs depends on how big the change is. For a new rule that fixes about a "
-             "quarter of the mistakes and breaks few right answers, it needs about 80 marks, and "
-             "the answer is usually safe to try, not better. A large fix of a clearly wrong rule "
-             "(about 9 in 10 of its mistakes fixed) usually comes out better with 80 marks; a "
-             "small fix that also breaks a few right answers needs more (simulation).")],
+             "better, safe to try, worse, or if it can’t tell yet. A rule that fixes about a "
+             "quarter of its mistakes needs about 80 marks for a clear answer, and usually "
+             "reads safe to try (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade the answers you marked again "
              "the same way as in step 4, then:"),
@@ -869,8 +866,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
                     "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
-                                 "safe to try", "worse", "can’t tell yet", "safe to try",
-                                 "better", "better"],
+                                 "safe to try", "worse", "can’t tell yet", "safe to try"],
                     "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
@@ -1023,7 +1019,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert [_flat(el) for el in empty.iter() if el.tag in ("b", "span") and el.classes() & {
         "ck2-or", "fc-kinds"} or el.tag == "b"] == [
         "Drop your results file here", "or click to choose one",
-        "promptfoo · DeepEval · CSV · JSONL"]
+        "promptfoo · DeepEval · CSV · TSV · JSONL"]
     assert _flat(_all(loaded, "span", "fc-kinds")[0]) == "Drop another file to check it instead"
     (name,) = _all(loaded, "b")
     assert name.attrs.get("id") == "fc-name"

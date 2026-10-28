@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Try step 1 in your browser | judgekeeper</title>
-<meta name="description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
+<meta name="description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV, TSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Try step 1 in your browser | judgekeeper">
-<meta property="og:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
+<meta property="og:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV, TSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta property="og:url" content="https://www.judgekeeper.com/check.html">
 <meta property="og:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <meta property="og:image:width" content="1200">
@@ -17,7 +17,7 @@
 <meta property="og:image:alt" content="The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. Find. Mark. Measure. Fix. Re-check. uvx judgekeeper">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Try step 1 in your browser | judgekeeper">
-<meta name="twitter:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
+<meta name="twitter:description" content="Drop the results file your eval tool saved: promptfoo, DeepEval, or your own CSV, TSV or JSONL file. judgekeeper's first check runs in this page, and your file stays on your computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -38,13 +38,13 @@
     <h1>Try step 1 <span class="nb">in your browser.</span></h1>
     <div class="fc-zone">
       <button type="button" class="fc-drop ck2-drop" id="fc-drop">
-        <span class="fc-empty"><svg class="ck2-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4.5h16V15"/></svg><span class="fc-main"><b>Drop your results file here</b> <span class="ck2-or">or click to choose one</span></span><span class="fc-kinds">promptfoo · DeepEval · CSV · JSONL</span></span>
+        <span class="fc-empty"><svg class="ck2-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4.5h16V15"/></svg><span class="fc-main"><b>Drop your results file here</b> <span class="ck2-or">or click to choose one</span></span><span class="fc-kinds">promptfoo · DeepEval · CSV · TSV · JSONL</span></span>
         <span class="fc-loaded" hidden><svg class="fc-file-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M6 2.75h8.5L19.25 7.5v13.75H6z"/><path d="M14.25 2.75V7.75h5"/><path d="M9 12.5l2 2 4-4.5"/></svg><span class="fc-main"><b id="fc-name"></b></span><span class="fc-kinds">Drop another file to check it instead</span></span>
       </button>
       <button type="button" class="fc-clear" id="fc-clear" hidden><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>Clear</button>
     </div>
     <input type="file" id="fc-file" class="sr" tabindex="-1" aria-hidden="true">
-    <p class="gx-small">This check reads promptfoo, DeepEval, CSV and JSONL files. For Inspect AI and MLflow, run judgekeeper itself in your project (<a href="start.html">see the Guide</a>).</p>
+    <p class="gx-small">This check reads promptfoo, DeepEval, CSV, TSV and JSONL files. For Inspect AI and MLflow, run judgekeeper itself in your project (<a href="start.html">see the Guide</a>).</p>
     <div class="fc-try">
       <p class="ex-or"><span>or try an example</span></p>
       <div class="ex-row">

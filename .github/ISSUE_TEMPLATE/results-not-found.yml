@@ -1,5 +1,6 @@
 name: Results not found
 description: judgekeeper did not find or could not read your LLM-as-a-judge's results.
+labels: [question]
 body:
   - type: markdown
     attributes:
