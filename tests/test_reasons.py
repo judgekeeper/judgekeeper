@@ -397,6 +397,21 @@ def test_fix_counts_the_rule_parts(here, capsys):
             "by the article' (2).") in " ".join(out.split())
 
 
+def _outside_fences(md: str) -> str:
+    return re.sub(r"<<<([A-Z' -]+)\n.*?\n\1>>>", "", md, flags=re.DOTALL)
+
+
+def test_mistakes_md_fences_the_rule_parts_text(here, capsys):
+    ws, passes, _, _ = _ready(here)
+    for i in passes[:2]:
+        _say(ws, i, reasons=[], rule_parts=[1])
+    run_fix(capsys)
+    md = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert ("Your marks say your LLM-as-a-judge misses rule part 1 (2):\n<<<RULE PART\nEvery "
+            "claim is supported by the article\nRULE PART>>>") in md
+    assert "Every claim" not in _outside_fences(md)
+
+
 def test_rule_parts_of_an_older_rule_are_not_counted(here):
     ws, passes, _, _ = _ready(here)
     _say(ws, passes[0], reasons=[], rule_parts=[1])
@@ -685,8 +700,9 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
     assert "- A short answer that answers the question is a Pass." in suggested
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once
-    assert ("Make this part of your rule more exact: 'it never promises a refund'. Your LLM-as-a-judge "
-            "missed it 1 time.") in once
+    assert ("- Make rule part 3 more exact: your LLM-as-a-judge missed it 1 time.\n"
+            "<<<RULE PART\nit never promises a refund\nRULE PART>>>") in once
+    assert "refund" not in _outside_fences(md)  # the rule's words are data, as the answers
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data
     assert "Fail when: “the order number”" in once  # the person's own button
     flat = " ".join(out.split())

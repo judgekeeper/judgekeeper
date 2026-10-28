@@ -173,28 +173,41 @@ START_OVER = "run `{program} --new` to start over: your marks move to .judgekeep
 
 def new_answers(ws, found) -> list:
     """The graded answers in the newest results (`found`) that the pool does not hold, by their
-    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. A damaged
+    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. An answer
+    asked as a pool row's question is that row's, as check.lookup finds it: grading
+    marked-answers.csv again (promptfoo's vars then hold the answer too) adds none. A damaged
     pool.jsonl is a StartError (POOL_DAMAGED)."""
+    from judgekeeper.check import _questions, _same_question, _shared
+    from judgekeeper.check import _text as answer_text
     from judgekeeper.redact import scrub_value
     from judgekeeper.start import StartError
     from judgekeeper.textio import jsonl_lines, program
 
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
     seen = set()
+    by_answer: dict[str, list[dict]] = {}
+    rows = {}
     for raw in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if raw.strip():
             try:
                 row = loads(raw)
                 seen.add(_text(row.get("input"), row.get("output")))
+                by_answer.setdefault(answer_text(row.get("output")), []).append(row)
+                rows[len(rows)] = row
             except (ValueError, AttributeError):  # damaged, or not an object
                 raise StartError(POOL_DAMAGED,
                                  next_step=START_OVER.format(program=program())) from None
+    shared = _shared(rows)
     out = []
     for a in found.pool.answers:
         key = _text(scrub_value(a.input), scrub_value(a.output))
-        if a.source in newest and a.verdict in ("pass", "fail") and key not in seen:
-            seen.add(key)
-            out.append(a)
+        if a.source not in newest or a.verdict not in ("pass", "fail") or key in seen:
+            continue
+        if _questions(a.input) and any(_same_question(a, row, shared)
+                                       for row in by_answer.get(answer_text(a.output), [])):
+            continue
+        seen.add(key)
+        out.append(a)
     return out
 
 

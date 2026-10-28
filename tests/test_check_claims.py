@@ -58,6 +58,7 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
+        "New results: results.json", "",
         "Your LLM-as-a-judge has not changed since you marked your answers.",
         "Same model, same rule, same eval tool.", "",
         "Next: nothing to do. Run `judgekeeper check` again after you",
@@ -105,6 +106,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
+        "New results: results.json", "",
         "Your LLM-as-a-judge's settings changed after your last eval run,",
         "so the grades judgekeeper has are out of date.", "",
         "Next: run your eval again, then run `judgekeeper check`."]
@@ -197,8 +199,9 @@ def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys):
     assert code == 0
     flat = _flat(out)
     assert "Your eval tool changed: promptfoo 0.121.0 -> 0.130.0." in flat
-    assert ("Your LLM-as-a-judge's settings changed after your last eval run, so the grades "
-            "judgekeeper has are out of date.") in flat
+    assert ("Your eval tool was updated after your last eval run, so your newest results come "
+            "from the old version. judgekeeper compared no grades.") in flat
+    assert "settings changed" not in flat  # only the version did
     assert _next(out) == "Next: run your eval again, then run `judgekeeper check`."
     assert "Re-checked" not in out and "No drop" not in out
     assert (ws.dir / "judge.json").read_bytes() == before

@@ -5,6 +5,7 @@ marked-answers.csv or a new results file."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -42,8 +43,10 @@ class _Marks:
 def test_the_lines_after_a_test_name_the_mlflow_store(here):  # noqa: F811
     ws = project(here)
     _as_mlflow(ws, "mlflow.db")
-    worse = fix._after_step(_Talk(), ws, _Marks(), "worse")
+    worse = fix._after_step(_Talk(), ws, _Marks(), "worse", Path("mlflow.db"))
     assert "run `judgekeeper fix mlflow.db` again" in worse, worse
+    better = fix._after_step(_Talk(), ws, _Marks(), "better", Path("mlflow.db"))
+    assert "then run `judgekeeper check mlflow.db` to re-check it" in better, better
     missing = fix._regrade_same(_Talk(), ws)
     assert "`judgekeeper fix mlflow.db`" in missing and "marked-answers" not in missing, missing
 

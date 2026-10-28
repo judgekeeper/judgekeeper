@@ -181,6 +181,8 @@ TABLE_HEAD = "Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge"
 SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
+    "New results: results.json",
+    "",
     "Your LLM-as-a-judge's model changed:",
     f"  {MODEL} -> {HAIKU}",
     "",
