@@ -159,8 +159,14 @@ def register_secret(name: str, value: str) -> None:
 
 def register_value(value: str) -> None:
     """Treat `value` as a credential from now on: a value that may be one, whatever its name."""
-    if len(value) >= MIN_SECRET_LENGTH:
-        _named_values.add(value)
+    _named_values.update(_forms(value))
+
+
+def _forms(value: str) -> set[str]:
+    """`value` as written and without the spaces or line break at its ends (a key is sent
+    without them), when that is MIN_SECRET_LENGTH or longer; else none."""
+    core = value.strip()
+    return {value, core} if len(core) >= MIN_SECRET_LENGTH else set()
 
 
 def _is_credential_var(name: str) -> bool:
@@ -195,8 +201,8 @@ def _secret_values() -> list[str]:
     if key is not None and _cached[0] == key:
         return _cached[1]
     values = {
-        value for name, value in os.environ.items()
-        if _is_credential_var(name) and len(value) >= MIN_SECRET_LENGTH
+        form for name, value in os.environ.items() if _is_credential_var(name)
+        for form in _forms(value)
     } | _named_values
     # Longest first, so a value that contains another is replaced whole.
     found = sorted(values, key=len, reverse=True)
