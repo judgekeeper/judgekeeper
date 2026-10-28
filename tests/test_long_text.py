@@ -262,14 +262,16 @@ def test_field_names_are_small_mono_labels():
             "font-weight: 400; letter-spacing: .06em; text-transform: uppercase;") in laptop
 
 
-def test_named_lines_read_back_as_fields():
-    shown = start_label.question_view("question: If my bag is late?\nsystem: You are kind.\n"
-                                      "\n1. Bags: free.\nNote: be short.")
-    assert shown == [["question", "If my bag is late?"],
-                     ["system", "You are kind.\n\n1. Bags: free.\nNote: be short."]]
-    for text in ("Context:\nfoo\n\nQuestion: bar?", "question: one field only",
-                 "Note: x\nTip: y", "Plain text: with a colon\nsystem: x"):
+def test_text_is_never_split_into_fields_by_its_name_lines():
+    chat = ("system: Be kind.\nnote: refunds take 7 days\nuser: Hi\nassistant: Hello\n"
+            "user: Where is my refund?")
+    for text in (chat, "question: If my bag is late?\nsystem: You are kind.",
+                 "Context:\nfoo\n\nQuestion: bar?"):
         assert start_label.question_view(text) == text
+        assert start_label.question_view({"question": text}) == text
+    # named fields come from the reader as data: a value is never split again
+    shown = start_label.question_view({"question": chat, "language": "en"})
+    assert shown == [["question", chat], ["language", "en"]]
 
 
 def test_show_all_on_a_long_question():
