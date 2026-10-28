@@ -193,3 +193,14 @@ def test_shutting_a_focused_box_by_its_button_leaves_focus_on_the_button():
                data=_one("Q " * 100), before='document.getElementById("rule").hidden = true;')
     assert got == [True, True]
 
+
+def test_a_flag_keeps_its_tags_and_stray_tags_still_go():
+    from judgekeeper import redact
+
+    england = "\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F"
+    assert redact.visible(f"Go {england}!") == f"Go {england}!"
+    assert redact.visible("a\U000E0067\U000E007Fb") == "ab"  # no black flag before them
+    assert redact.visible("\U0001F3F4\U000E0067\U000E0062x") == "\U0001F3F4x"  # never ended
+    assert redact.visible("\U0001F3F4\u200b\U000E0067\U000E007F") == "\U0001F3F4"
+    assert redact.printable(england) == "\U0001F3F4"  # the terminal: as before
+

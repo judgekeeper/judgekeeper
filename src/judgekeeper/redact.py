@@ -132,12 +132,21 @@ def _style_kept(text: str, at: int) -> bool:
     return before in "0123456789#*" and before != "" and text[at + 1:at + 2] == "\u20e3"
 
 
+# A flag such as England's is a black flag (U+1F3F4) then tag characters (U+E0020 to U+E007E)
+# ending with U+E007F: those tags stay, every other tag character goes.
+_FLAG_TAGS = re.compile("(?<=\U0001F3F4)[\U000E0020-\U000E007E]+\U000E007F")
+
+
 def visible(text: str) -> str:
     """`text` for a page: control characters (ESC among them), zero-width and bidirectional
     controls dropped; a no-break space, an ideographic space and a Unicode line or paragraph
-    separator each a plain space; tabs, line breaks, the zero-width joiners and an emoji's own
-    variation selector (_style_kept) stay."""
+    separator each a plain space; tabs, line breaks, the zero-width joiners, an emoji's own
+    variation selector (_style_kept) and a flag's tags (_FLAG_TAGS) stay."""
+    flags = {i for m in _FLAG_TAGS.finditer(text) for i in range(m.start(), m.end())}
+
     def drop(m: re.Match) -> str:
+        if m.start() in flags:
+            return m[0]
         return m[0] if m[0] in _STYLE and _style_kept(text, m.start()) else ""
 
     return _ODD_SPACES.sub(" ", _UNSEEN.sub(drop, text))
