@@ -465,11 +465,29 @@ def clue_lines(rows: list[dict], fence=None) -> list[str]:
         out.append(f"In {plural(yes, 'answer')} your LLM-as-a-judge mentioned the part you "
                    "marked but still said Pass: your rule seems to allow this. Say in the rule "
                    "that it's a Fail.")
+    for text, hits in notes(rows):
+        if len(hits) >= TWICE and fence is not None:  # the person's words: fenced below
+            out.append(f"You wrote the same note on {len(hits)} answers:\n"
+                       + fence("YOUR REASON", text))
+        elif len(hits) >= TWICE:
+            out.append(f"You wrote the same note on {len(hits)} answers: “{text}”.")
     unsure = sum(UNSURE in (r.get("reasons") or []) for r in rows)
     if unsure:
         out.append(f"You weren't sure about {unsure} of your marks: they're listed last in "
                    "mistakes.md.")
     return out
+
+
+def notes(rows: list[dict]) -> list[tuple[str, list[dict]]]:
+    """Each note of the person's once, on one line, with the answers it was given on, the
+    most given first: counted the same in the terminal and in suggestions.md. A note that is
+    the words of their own button, or what an answer leaves out, is said with that."""
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        own = set(r.get("words", {}).values())
+        if r.get("why") and r["why"] not in own and "left_out" not in (r.get("reasons") or []):
+            out.setdefault(one_line(r["why"]), []).append(r)
+    return sorted(out.items(), key=lambda x: -len(x[1]))
 
 
 def said_line(row: dict) -> str | None:
@@ -568,11 +586,10 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
         data = [(RULE_PART, one_line(text))]
         (suggested.append((line, len(hits), data)) if len(hits) >= TWICE
          else once.append((line, hits, data)))
+    for text, hits in notes(rows):
+        (suggested.append(("Your own words", len(hits), [text])) if len(hits) >= TWICE
+         else once.append(("Your own words", hits, [text])))
     for r in rows:
-        own = {w for w in r.get("words", {}).values()}
-        if r.get("why") and r["why"] not in own and not any(
-                k == "left_out" for k in r.get("reasons") or []):
-            once.append(("Your own words:", [r], [r["why"]]))
         text = canonical(r.get("output") or "")
         for words in marked(text, merged(r.get("spans"), len(text))):  # as mistakes.md joins
             once.append((f"The part you marked: “{one_line(' '.join(words.split()))}”", [r],
