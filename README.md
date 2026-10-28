@@ -33,7 +33,7 @@ Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment:
 ```
 uvx judgekeeper
 ```
-Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
+Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
 
 ## The 5 steps
 
@@ -43,7 +43,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule in your eval tool, grade `.judgekeeper/fix/marked-answers.csv` again, then run `judgekeeper fix <new results file>`. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads "safe to try" ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
+`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule and grade `.judgekeeper/fix/marked-answers.csv` again with your own eval tool, then run `judgekeeper fix <new results file>`. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads "safe to try" ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
 
 judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
@@ -51,7 +51,7 @@ judgekeeper only reads files. It never runs your eval tool, makes no AI call and
 
 - **TPR:** of the answers you passed, how many your LLM-as-a-judge passed too.
 - **TNR:** of the answers you failed, how many it failed too.
-- **Kappa:** how much you agree beyond what agreeing at random would give. It is in the report's details and never decides the result.
+- **Kappa:** how much you agree beyond what agreeing at random would give. It moves with your mix of Pass and Fail, so it is only in the report's details and never decides the result.
 
 Each number comes with a range, for example "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
 
