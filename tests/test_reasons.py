@@ -1033,7 +1033,9 @@ f.addEventListener("load", function () {
     sent.push({url: url, body: JSON.parse(opts.body)});
     return Promise.resolve({ok: true, json: function () { return Promise.resolve({}); }});
   };
-  var box = d.querySelector(".why"), all = d.querySelectorAll(".why button, .why input");
+  var box = d.querySelector(".why");
+  box.querySelector(".add-reason").click();  // the reason box opens behind "Add a reason"
+  var all = d.querySelectorAll(".why button, .why input");
   out.wide = d.documentElement.scrollWidth > w.innerWidth + 1;
   out.outside = Array.prototype.filter.call(all, function (e) {
     var r = e.getBoundingClientRect(); return r.right > w.innerWidth + 1 || r.left < -1;

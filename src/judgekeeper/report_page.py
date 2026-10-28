@@ -33,14 +33,36 @@ TICK = ('<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
 SCRIPT = """
   (function () {
-    Array.prototype.forEach.call(document.querySelectorAll(".more"), function (b) {
+    function each(list, f) { Array.prototype.forEach.call(list, f); }
+    // A row's "Show all": only when one of its cells is longer than its 4 lines.
+    function fit() {
+      each(document.querySelectorAll(".open-row"), function (b) {
+        var row = b.parentNode.parentNode;
+        if (row.hasAttribute("data-open")) { b.hidden = false; return; }
+        b.hidden = !Array.prototype.some.call(row.querySelectorAll("td[data-label]"),
+          function (td) { return td.scrollHeight > td.clientHeight + 1; });
+      });
+    }
+    each(document.querySelectorAll(".open-row"), function (b) {
+      b.addEventListener("click", function () {
+        var row = b.parentNode.parentNode, open = !row.hasAttribute("data-open");
+        if (open) { row.setAttribute("data-open", ""); } else { row.removeAttribute("data-open"); }
+        b.setAttribute("aria-expanded", String(open));
+        b.textContent = open ? "Show less" : "Show all";
+        fit();
+      });
+    });
+    fit();
+    window.addEventListener("resize", fit);
+    if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fit); }
+    each(document.querySelectorAll(".more"), function (b) {
       b.addEventListener("click", function () {
         var open = b.getAttribute("aria-expanded") !== "true";
         b.setAttribute("aria-expanded", String(open));
         var table = document.getElementById(b.getAttribute("aria-controls"));
-        Array.prototype.forEach.call(table.querySelectorAll("tr.extra"), function (row) {
-          row.hidden = !open; });
+        each(table.querySelectorAll("tr.extra"), function (row) { row.hidden = !open; });
         b.textContent = open ? "Show fewer" : "Show all";
+        fit();
       });
     });
     Array.prototype.forEach.call(document.querySelectorAll(".kappa .i"), function (b) {
@@ -83,6 +105,8 @@ REASONS_SCRIPT = """
           other = box.querySelector(".other"), mark = box.querySelector(".mark-part"),
           clear = box.querySelector(".clear-part"),
           cell = document.getElementById(box.getAttribute("data-answer")),
+          add = box.querySelector(".add-reason"), now = box.querySelector(".said-now"),
+          said = box.querySelector(".said-text"),
           text = cell.textContent, shown = parseInt(box.getAttribute("data-len"), 10),
           spans = JSON.parse(box.getAttribute("data-spans") || "[]"),
           sent = input.value, last = 0, timer = null, pick = null;
@@ -95,12 +119,28 @@ REASONS_SCRIPT = """
                   .map(function (b) { return Number(b.getAttribute("data-part")); }),
                 spans: spans, note: input.value};
       }
+      // "Your reason: ... · Change" from what is saved, or "Add a reason".
+      function line() {
+        var taps = Array.prototype.filter.call(box.querySelectorAll(".chip[aria-pressed]"), on);
+        var words = taps.filter(function (b) { return b.hasAttribute("data-reason"); })
+          .concat(taps.filter(function (b) { return b.hasAttribute("data-part"); }))
+          .map(function (b) { return b.getAttribute("data-said"); });
+        if (input.value.trim()) { words.push("\u201c" + input.value.trim() + "\u201d"); }
+        said.textContent = "Your reason: " + words.join("; ");
+        now.hidden = !words.length;
+        add.textContent = words.length ? "Change" : "Add a reason";
+      }
+      add.addEventListener("click", function () {
+        var open = add.getAttribute("aria-expanded") !== "true";
+        add.setAttribute("aria-expanded", String(open));
+        document.getElementById(add.getAttribute("aria-controls")).hidden = !open;
+      });
       function send() {
         clearTimeout(timer); last = Date.now(); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; return; }
+            if (r.ok) { saved.textContent = "Saved"; line(); return; }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
@@ -194,7 +234,7 @@ table { border-collapse: collapse; width: 100%; }
 .more { font-size: 14px; color: var(--text); text-decoration: underline;
   text-underline-offset: 3px; white-space: nowrap; }
 .tbl { margin-top: 32px; table-layout: fixed; }
-.tbl col.c1 { width: 26%; } .tbl col.c2 { width: 48%; } .tbl col.c3 { width: 26%; }
+.tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
 .tbl th, .panel th { font-family: var(--mono); font-weight: 400; font-size: 12px;
   letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left;
   border-bottom: 1px solid var(--line); }
@@ -204,6 +244,16 @@ table { border-collapse: collapse; width: 100%; }
 .tbl th:last-child, .tbl td:last-child { padding-right: 0; }
 .tbl td:last-child { color: var(--muted); }
 .note { margin: 16px 0 0; font-size: 13px; color: var(--muted); text-align: left; }
+.tbl td.row-more { padding: 0; border: 0; }
+.open-row, .add-reason { font-size: 14px; color: var(--text); text-decoration: underline;
+  text-underline-offset: 3px; white-space: nowrap; }
+.open-row { margin-top: 10px; color: var(--muted); }
+.open-row:hover { color: var(--text); }
+.why-line { margin: 0; display: flex; align-items: baseline; gap: 0; min-width: 0;
+  font-size: 15px; color: var(--muted); }
+.said-now { display: inline-flex; min-width: 0; white-space: pre; }
+.said-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.why-body { margin-top: 16px; }
 .add-why { margin: 24px 0 0; font-size: 15px; color: var(--muted); }
 .add-why code { font-size: 14px; color: var(--text); }
 .tbl tr.has-why td { border-bottom: 0; padding-bottom: 10px; }
@@ -266,6 +316,22 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .cmd button.done svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
   stroke-linejoin: round; }
+@media (min-width: 721px) {
+  .tbl, .tbl thead, .tbl tbody { display: block; }
+  .tbl colgroup { display: none; }
+  .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
+    border-bottom: 1px solid var(--line); }
+  .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
+  .tbl thead th { padding-bottom: 14px; }
+  .tbl tbody tr { padding: 22px 0; }
+  .tbl td[data-label] { font-size: 16px; line-height: 1.55; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+  .tbl tr[data-open] td[data-label] { display: block; }
+  .tbl td.row-more, .tbl td.why-cell { grid-column: 1 / -1; }
+  .tbl tr.has-why { border-bottom: 0; padding-bottom: 4px; }
+  .tbl tr.why-row { padding: 6px 0 22px; }
+  .tbl tr.has-why td { padding-bottom: 0; }
+}
 @media (max-width: 720px) {
   :root { --gutter: 16px; }
   .verdict { padding-top: 72px; padding-bottom: 64px; }
@@ -286,6 +352,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl tr.has-why { border-bottom: 0; padding-bottom: 8px; }
   .tbl tr.why-row { padding-top: 0; }
   .tbl td.why-cell::before { content: none; }
+  .tbl td.row-more { display: none; }
   .panel, .panel tbody, .panel tr, .panel th, .panel td, .panel caption { display: block; }
   .panel tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
   .panel th, .panel td { border: 0; padding: 0; }
@@ -489,22 +556,37 @@ def _answer(text: str, spans) -> str:
     return "".join(out) + _e(text[at:])
 
 
-def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
-    """"Your reason: ..." for report.html, or nothing when the person gave none."""
+def _part_said(n: int, part: str) -> str:
+    return f"rule part {n} (\u201c{reasons.short(part)}\u201d)"
+
+
+def _reason_said(k: str, own: dict[str, str]) -> str:
+    return (reasons.lower(reasons.REASONS[k][0]) if k in reasons.REASONS
+            else f"\u201c{own[k]}\u201d")
+
+
+def _said_words(m: dict, parts: list[str], own: dict[str, str]) -> list[str]:
+    """The person's reasons on one answer, each as it reads in "Your reason: ...": the reasons
+    tapped, the rule parts (each cut as its button), the note."""
     why = m.get("why") or {}
-    said = [reasons.lower(reasons.REASONS[k][0]) if k in reasons.REASONS
-            else f"\u201c{own[k]}\u201d" for k in why.get("reasons") or []
+    said = [_reason_said(k, own) for k in why.get("reasons") or []
             if k in reasons.REASONS or k in own]
-    said += [f"rule part {n} (\u201c{parts[n - 1]}\u201d)" for n in why.get("rule_parts") or []
+    said += [_part_said(n, parts[n - 1]) for n in why.get("rule_parts") or []
              if 1 <= n <= len(parts)]
     if why.get("note"):
         said.append(f"\u201c{why['note']}\u201d")
+    return said
+
+
+def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
+    """"Your reason: ..." for report.html, or nothing when the person gave none."""
+    said = _said_words(m, parts, own)
     return f'<p class="said">Your reason: {_e("; ".join(said))}</p>' if said else ""
 
 
-def _chip(text: str, pressed: bool, attr: str) -> str:
+def _chip(text: str, pressed: bool, attr: str, said: str = "") -> str:
     return (f'<button type="button" class="chip" aria-pressed="{str(pressed).lower()}" '
-            f"{attr}>{_e(text)}</button>")
+            f'{attr} data-said="{_e(said)}">{_e(text)}</button>')
 
 
 def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) -> str:
@@ -513,21 +595,33 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
     mark = "Fail" if m["final"] == "fail" else "Pass"
+    words = {c["id"]: c["text"] for c in own}
+    said = _said_words(m, parts, words)
     out = [(f'<div class="why" data-id="{_e(m["id"])}" data-answer="a-{n}" '
             f'data-len="{len(m["answer"]) - m["answer"].endswith("…")}" '
             f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
             f'aria-labelledby="q-{n}">'),
+           (f'<p class="why-line"><span class="said-now"{"" if said else " hidden"}>'
+            f'<span class="said-text">Your reason: {_e("; ".join(said))}</span>'
+            '<span aria-hidden="true"> · </span></span><button type="button" '
+            f'class="add-reason" aria-expanded="false" aria-controls="wb-{n}">'
+            f'{"Change" if said else "Add a reason"}</button></p>'),
+           f'<div class="why-body" id="wb-{n}" hidden>',
            f'<p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}</p>']
     if parts:
         out.append(f'<p class="sub" id="p-{n}">{_e(reasons.PART_QUESTION[m["judge"]])}</p>'
                    f'<div class="chips" role="group" aria-labelledby="p-{n}">'
-                   + "".join(_chip(f"{k}. {text}", k in chosen, f'data-part="{k}"')
+                   + "".join(_chip(f"{k}. {reasons.short(text)}", k in chosen,
+                                   f'data-part="{k}"' + (f' title="{_e(text)}"'
+                                                        if reasons.short(text) != text else ""),
+                                   _part_said(k, text))
                              for k, text in enumerate(parts, 1)) + "</div>")
         if left_out:
             out.append(f'<p class="sub">{_e(reasons.PARTS_LEFT_OUT.format(n=left_out))}</p>')
-    chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"')
+    chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"', _reason_said(k, words))
              for k in reasons.offered(m["judge"])]
-    chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"')
+    chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"',
+                    _reason_said(c["id"], words))
               for c in own if c.get("from") != m["id"]]
     note, opened = why.get("note") or "", bool(why.get("note"))
     chips.append(f'<button type="button" class="chip other" aria-expanded="'
@@ -542,7 +636,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
                'part</button><button type="button" class="clear-part"'
                f'{"" if why.get("spans") else " hidden"}>Clear marked words</button>'
                '<span class="saved" aria-live="polite"></span></div>')
-    return "".join(out) + "</div>"
+    return "".join(out) + "</div></div>"
 
 
 def _made(r: dict) -> str:
@@ -557,19 +651,14 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           hidden: int = 0, left_out: int = 0) -> str:
-    """One group of disagreements: its title (with how many more are kept aside to test a new
-    rule, `hidden`), "Show all" past ROWS_SHOWN rows, the table. Each row is followed by its
-    reason box on the live page (`live`), or by the person's reasons, read-only, in
-    report.html."""
+           left_out: int = 0) -> str:
+    """One group of disagreements: its title with how many it shows, "Show all" past
+    ROWS_SHOWN rows, the table. Each row's cells show 4 lines, then the row's own "Show all"
+    (SCRIPT). Each row is followed by its reason box, behind "Add a reason", on the live page
+    (`live`), or by the person's reasons, read-only, in report.html."""
     why = f"Why your LLM-as-a-judge {judge} it"
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
-    count = (f"{len(rows)} shown; {hidden} more {'is' if hidden == 1 else 'are'} kept aside to "
-             "test a new rule fairly" if hidden else f"{len(rows)}")
-    if not rows:  # every one is kept aside: the title alone
-        return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-                f'<h2 id="g-{key}">{said} ({count})</h2></div></section>')
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -584,14 +673,15 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     f'<td data-label="{why}">{_e(m.get("reason") or "No reason given")}</td>'
-                    "</tr>")
+                    '<td class="row-more"><button type="button" class="open-row" '
+                    'aria-expanded="false" hidden>Show all</button></td></tr>')
         if after:
             body.append(f'<tr class="{" ".join(extra + ["why-row"])}"{hidden}>'
                         f'<td colspan="3" class="why-cell">{after}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" '
             f'aria-controls="t-{key}">Show all</button>' if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{said} ({count})</h2>{more}</div>'
+            f'<h2 id="g-{key}">{said} ({len(rows)})</h2>{more}</div>'
             f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
             '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
             f'<th scope="col">Answer</th><th scope="col">{why}</th></tr></thead>'
@@ -600,9 +690,9 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
             mark: str | None = None, fix: str | None = None) -> str:
-    """The disagreements on the marks the person can see, in two groups, each saying in its
-    title how many more are among the hidden marks. On the live page, a line first: add a
-    reason. In report.html, which can't save one, two lines last: to say why, run `mark`, and
+    """The disagreements on the marks the person can see, in two groups (a group with none
+    to show is left out), then a footnote: how many more are among the marks kept aside. On
+    the live page, a line first: add a reason. In report.html, which can't save one, two lines last: to say why, run `mark`, and
     `fix` uses the reasons (`mark`, `fix`: the commands)."""
     from judgekeeper.start_label import SAY_WHY_FIX, SAY_WHY_RUN
 
@@ -611,13 +701,17 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     out = []
     if live and mistakes:
         out.append(f'<div class="band"><p class="add-why">{_code_line(reasons.ADD)}</p></div>')
+    kept = 0
     for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
                              ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
-        hidden = max(0, c[key] - len(rows))
-        if rows or hidden:
+        kept += max(0, c[key] - len(rows))
+        if rows:
             out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
-                              live, parts, own, hidden, (fixing or {}).get("left_out", 0)))
+                              live, parts, own, (fixing or {}).get("left_out", 0)))
+    if kept:
+        out.append(f'<div class="band"><p class="note kept">* {kept} more '
+                   f'{"is" if kept == 1 else "are"} kept aside to test a new rule fairly.</p></div>')
     if mistakes and not live and mark:
         tell = SAY_WHY_RUN.format(n=c["strict"] + c["easy"], command=mark)
         uses = f'<p class="add-why">{_code_line(SAY_WHY_FIX.format(fix=fix))}</p>' if fix else ""
