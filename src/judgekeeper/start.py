@@ -306,9 +306,12 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(said(text))
-        for line in held_lines(text):  # a name left out of the command above, as data
-            print(said(line))
+        try:  # stdout closed by the program reading it: the exit code stays the command's
+            print(said(text))
+            for line in held_lines(text):  # a name left out of the command above, as data
+                print(said(line))
+        except OSError:
+            pass
         flush_stdout()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
