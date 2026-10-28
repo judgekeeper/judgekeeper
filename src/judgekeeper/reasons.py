@@ -219,6 +219,12 @@ def _write(ws, data: dict) -> None:
     write_replacing(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
+def same_words(a: str, b: str) -> bool:
+    """Whether two notes are the same words, as a button matches them: any case, one space
+    between words."""
+    return " ".join(a.split()).casefold() == " ".join(b.split()).casefold()
+
+
 def own_chips(ws) -> list[dict]:
     """The person's own buttons: [{"id", "text", "from": the answer whose box it was typed in}]."""
     return read_file(ws)["own"]
@@ -511,8 +517,9 @@ def notes(rows: list[dict]) -> list[tuple[str, list[dict]]]:
     the words of their own button, or what an answer leaves out, is said with that."""
     out: dict[str, list[dict]] = {}
     for r in rows:
-        own = set(r.get("words", {}).values())
-        if r.get("why") and r["why"] not in own and "left_out" not in (r.get("reasons") or []):
+        own = r.get("words", {}).values()
+        if r.get("why") and not any(same_words(r["why"], w) for w in own) and \
+                "left_out" not in (r.get("reasons") or []):
             out.setdefault(one_line(r["why"]), []).append(r)
     return sorted(out.items(), key=lambda x: -len(x[1]))
 
@@ -523,7 +530,7 @@ def said_line(row: dict, own: dict | None = None) -> str | None:
     The note is fenced, not here."""
     said = [_words(row, k, own) for k in row.get("reasons") or [] if not k.startswith(OWN)]
     said += [_words(row, k, own) for k in row.get("reasons") or [] if k.startswith(OWN)
-             and row.get("words", {}).get(k) != row.get("why")]
+             and not same_words(row.get("words", {}).get(k, ""), row.get("why") or "")]
     said += [f"rule part {n}" for n, _ in row.get("parts") or []]
     if row.get("spans"):
         said.append("the words in bold")
