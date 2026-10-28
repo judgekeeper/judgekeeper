@@ -1154,7 +1154,8 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
                  f"judgekeeper.record() line where it runs: {own_format.RECORD_URL} shows the "
                  "line.")
     talk.say("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and "
-             "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
+             "MLflow save, or a CSV, TSV or JSONL file with input, output and verdict "
+             "columns.")
     talk.say(POINT_ME.format(program=talk.program))
 
 

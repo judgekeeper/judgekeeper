@@ -70,8 +70,8 @@ SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it f
 QUESTIONS = "judgekeeper needs your answer to {which}:"
 # Questions whose answer changes what is counted: the counts are printed after them
 COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
-READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV "
-         "or JSONL file.")
+READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
+         "TSV or JSONL file.")
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
