@@ -336,6 +336,37 @@ def test_long_texts_of_escapes_over_11_million_together_are_refused_fast(tmp_pat
     assert _refused(path, monkeypatch)[0] == ESCAPES.format(path=path)
 
 
+SLOW = ("{path} is too big for judgekeeper to read: its samples hold so many special "
+        "characters such as \\n or \\\" that reading them would take as long as reading more "
+        "than {limit} of plain text, the most judgekeeper reads of one Inspect AI log.")
+
+
+def test_each_escape_counts_as_24_bytes_of_the_samples_limit():
+    from judgekeeper.readers import inspect_logs
+
+    assert inspect_logs.ESCAPE_COST == 24 and inspect_logs.SAMPLES_LIMIT == 4 * 2**30
+
+
+def test_texts_of_escapes_just_under_1_mb_are_refused_fast(tmp_path, monkeypatch):
+    """Escapes in texts under COUNTED_TEXT, which ESCAPES_LIMIT leaves out: inspect_ai reads
+    a million of them in about 0.2 s in such texts, against 2 MB of plain text in about
+    0.02 s. With a samples limit of 256 MB, 20 such texts (20.8 million escapes, 42 MB) are
+    refused before Inspect AI reads them; the same bytes of plain text pass."""
+    from judgekeeper.readers import inspect_logs
+
+    monkeypatch.setattr(inspect_logs, "SAMPLES_LIMIT", 256 * MB)
+    texts = _texts(1_040_000 / MB, 20, "\n\t")
+    assert all(len(t) < inspect_logs.COUNTED_TEXT for t in texts)
+    path = _texts_log(tmp_path, texts[:10], texts[10:])
+    said, took = _refused(path, monkeypatch)
+    assert said == SLOW.format(path=path, limit="256 MB"), said
+    assert took < 3
+    inspect_logs._check_unpacked(_texts_log(tmp_path, [_random(2_080_000, "abcdefgh")
+                                                       for _ in range(20)]))
+    outputs = [_json_output(1.5, i) for i in range(4)]  # an escape every 6 or 7 characters
+    inspect_logs._check_unpacked(_texts_log(tmp_path, outputs))
+
+
 def _json_output(mb: float, seed: int) -> str:
     """An API response dumped as indented JSON, `mb` MB of it: kept in a log as a string, it
     holds an escape (\\" or \\n) every 6 or 7 characters."""
