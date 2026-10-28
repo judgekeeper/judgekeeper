@@ -324,6 +324,7 @@ __TOP__
   function showRule(show) {
     if (!$("rule-btn") || !$("rule")) { return; }
     $("rule").hidden = !show;
+    tabStop($("rule"), show);
     $("rule-btn").setAttribute("aria-expanded", String(show));
     setText("rule-btn", show ? "Hide the rule" : "Show the rule");
   }
@@ -335,6 +336,13 @@ __TOP__
       showRule(show);
       fitQuestion();
     });
+  }
+  // An open question or rule is a tab stop of its own, so the keys can scroll it; shut, it is
+  // not, and focus on it goes back to the answer.
+  function tabStop(box, on) {
+    if (on) { box.setAttribute("tabindex", "0"); return; }
+    box.removeAttribute("tabindex");
+    if (document.activeElement === box) { focusCard(); }
   }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -440,6 +448,7 @@ __TOP__
     var into = $("q-text");
     if (into.classList.contains("open") === open) { return; }
     into.classList.toggle("open", open);
+    tabStop(into, open);
     into.scrollTop = 0;
     drawQuestion(open);
     $("q-more").setAttribute("aria-expanded", String(open));
@@ -533,17 +542,18 @@ __TOP__
   window.addEventListener && window.addEventListener("resize", function () {
     fitAnswer(); fade(); fitQuestion(); edges(); });
   // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
-  // back), also held; not on a phone, where the page itself scrolls.
+  // back), also held, Home and End to its top and bottom; the open question or rule instead
+  // while it has focus. Not on a phone, where the page itself scrolls.
   function scrollAnswer(e, k) {
-    var area = answerArea();
+    var t = e.target, area = (t === $("q-text") || t === $("rule")) &&
+      t.getAttribute("tabindex") === "0" ? t : answerArea();
     if (!area || media("(max-width: 760px)")) { return false; }
-    var page = Math.max(area.clientHeight - 60, 40);
+    var page = Math.max(area.clientHeight - 60, 40), most = area.scrollHeight - area.clientHeight;
     var by = {" ": e.shiftKey ? -page : page, pagedown: page, pageup: -page,
-              arrowdown: 40, arrowup: -40}[k];
+              arrowdown: 40, arrowup: -40, home: -Infinity, end: Infinity}[k];
     if (by === undefined) { return false; }
-    area.scrollTop = Math.max(0, Math.min(area.scrollTop + by,
-                                          area.scrollHeight - area.clientHeight));
-    fade();
+    area.scrollTop = Math.max(0, Math.min(area.scrollTop + by, most));
+    if (area === answerArea()) { fade(); }
     return true;
   }
   // The list's title for an answer: the question at the end of a long text, without its

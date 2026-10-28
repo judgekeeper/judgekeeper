@@ -167,6 +167,53 @@ def test_scroll_keys_leave_a_focused_button_and_the_welcome_box_alone():
     assert got == {"prevented": False, "top": 0}
 
 
+_BOXES = _AREA + """
+  var qBox = document.getElementById("q-text"), ruleBox = document.getElementById("rule");
+  ruleBox.hidden = true;
+  qBox.clientHeight = 100; qBox.scrollHeight = 900;
+  ruleBox.clientHeight = 100; ruleBox.scrollHeight = 700;
+"""
+
+
+def test_an_open_question_or_rule_takes_focus_and_its_own_scroll_keys():
+    got = _run("""
+      var q = ids["q-text"], rule = ids["rule"], area = ids["a-text"].parentNode;
+      var shut = [q.getAttribute("tabindex"), rule.getAttribute("tabindex")];
+      ids["q-more"].fire("click");  // the question, open
+      var open = q.getAttribute("tabindex");
+      q.focus();
+      var keys = ["PageDown", " ", "ArrowDown", "End"].map(function (k) {
+        var e = key(k); return [q.scrollTop, e.defaultPrevented]; });
+      key("Home"); var home = q.scrollTop;
+      key(" ", {shiftKey: true}); var upAtTop = q.scrollTop;
+      ids["rule-btn"].fire("click");  // the rule, open: the question shuts
+      var qShut = [q.getAttribute("tabindex"), document.activeElement === q];
+      rule.focus(); key("PageDown"); key("ArrowDown"); var ruleTop = rule.scrollTop;
+      key("End"); var ruleEnd = rule.scrollTop;
+      var answerTop = area.scrollTop;
+      key("ArrowRight"); await settle();  // the mark keys still work
+      console.log(JSON.stringify({shut: shut, open: open, keys: keys, home: home, upAtTop: upAtTop,
+        qShut: qShut, ruleTab: rule.getAttribute("tabindex"), ruleTop: ruleTop, ruleEnd: ruleEnd,
+        answerTop: answerTop, sent: sent.length}));""", data=_one("Q " * 100), before=_BOXES)
+    assert got["shut"] == [None, None] and got["open"] == "0"
+    tops = [t for t, _ in got["keys"]]
+    assert all(p for _, p in got["keys"])
+    assert 0 < tops[0] < tops[1] < tops[2] < tops[3] == 800  # End: the bottom of the question
+    assert got["home"] == 0 and got["upAtTop"] == 0
+    assert got["qShut"] == [None, False]  # shut: no tab stop, and focus back on the answer
+    assert got["ruleTab"] == "0" and 0 < got["ruleTop"] < got["ruleEnd"] == 600
+    assert got["answerTop"] == 0  # the answer did not move
+    assert got["sent"] == 1
+
+
+def test_home_and_end_move_the_answer_by_default():
+    got = _run("""
+      var area = ids["a-text"].parentNode;
+      key("End"); var end = area.scrollTop; key("Home");
+      console.log(JSON.stringify([end, area.scrollTop]));""", before=_AREA)
+    assert got == [2600, 0]
+
+
 def _laptop() -> str:
     return mark_page.STYLE.split("@media (min-width: 761px) {", 1)[1].split("\n}\n", 1)[0]
 
