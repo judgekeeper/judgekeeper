@@ -456,23 +456,42 @@ __TOP__
 
   // The answer, never cut: its text as text, a ``` fenced block in a box of its own (still
   // text), in an area that scrolls by itself, a fade at its bottom while there is more.
-  var FENCE = /```[^\\n`]*\\n([\\s\\S]*?)```/g;
+  // A fence opens on a line that starts with ```: the rest of that line is its language when
+  // it is one word (not shown), else the box's first line. It closes on a line that is just
+  // ``` (spaces allowed). One never closed stays text. No other character is left out.
+  var LANG = /^[A-Za-z0-9+#._-]+$/, CLOSE = /^\\s*```\\s*$/;
+  function fences(text) {
+    var lines = text.split("\\n"), parts = [], prose = [], i = 0;
+    while (i < lines.length) {
+      var line = lines[i], end = -1, j;
+      if (line.slice(0, 3) === "```") {
+        for (j = i + 1; j < lines.length; j++) { if (CLOSE.test(lines[j])) { end = j; break; } }
+      }
+      if (end < 0) { prose.push(line); i++; continue; }
+      var rest = line.slice(3), body = lines.slice(i + 1, end);
+      if (rest.trim() && !LANG.test(rest.trim())) { body.unshift(rest); }
+      parts.push({text: prose.join("\\n")}, {code: body.join("\\n")});
+      prose = [];
+      i = end + 1;
+    }
+    parts.push({text: prose.join("\\n")});
+    return parts;
+  }
   function showAnswer(text) {
-    var into = $("a-text"), at = 0, found;
+    var into = $("a-text");
     text = text == null ? "" : String(text);
     codes = [];
     into.textContent = "";
     into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
                                  chars(text) > SHORT_A ? " a-mid" : "");
-    function prose(part) { if (part) { into.appendChild(document.createTextNode(part)); } }
-    FENCE.lastIndex = 0;
-    while ((found = FENCE.exec(text)) !== null) {
-      prose(text.slice(at, found.index).replace(/\\n+$/, ""));
-      into.appendChild(codeBox(found[1].replace(/\\n$/, "")));
-      at = FENCE.lastIndex;
-      text = text.slice(0, at) + text.slice(at).replace(/^\\n+/, "");
-    }
-    prose(text.slice(at));
+    var parts = fences(text);
+    parts.forEach(function (part, k) {  // the line breaks next to a box are the box's edges
+      if (part.code != null) { into.appendChild(codeBox(part.code)); return; }
+      var t = part.text;
+      if (k > 0) { t = t.replace(/^\\n+/, ""); }
+      if (k < parts.length - 1) { t = t.replace(/\\n+$/, ""); }
+      if (t) { into.appendChild(document.createTextNode(t)); }
+    });
     edges();
     var area = answerArea();
     if (area) { area.scrollTop = 0; fitAnswer(); fade(); }

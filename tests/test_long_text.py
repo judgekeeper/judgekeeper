@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from judgekeeper import mark_page, reasons, report_page, start_label
 from tests.test_mark_page_script import _data, _run
 from tests.test_product_pages import NOT_GATE_TNR, _mistakes, _result
@@ -98,6 +100,28 @@ def test_an_unclosed_fence_and_inline_backticks_stay_plain_text():
           console.log(JSON.stringify(ids["a-text"].children.map(function (c) {
             return c.tagName; })));""", data=_one("Q?", answer))
         assert got == ["#TEXT"]
+
+
+PARTS = """
+  console.log(JSON.stringify(ids["a-text"].children.map(function (c) {
+    return [c.tagName, c.textContent]; })));"""
+
+
+@pytest.mark.parametrize("answer, parts", [
+    # not a language: the rest of the line is the box's first line; ``` inside a line is text
+    ("```<img src=x onerror=alert(1)>\ncode ``` inside\n```\nAfter.\n```",
+     [["SPAN", "<img src=x onerror=alert(1)>\ncode ``` inside"], ["#TEXT", "After.\n```"]]),
+    ("```c++\nint x;\n```", [["SPAN", "int x;"]]),  # one word: its language, not shown
+    ("``` python \nx = 1\n   ```  \nDone.", [["SPAN", "x = 1"], ["#TEXT", "Done."]]),
+    ("```js two words\nx\n```", [["SPAN", "js two words\nx"]]),
+    ("A ```x``` b\n```\nnever closed", [["#TEXT", "A ```x``` b\n```\nnever closed"]]),
+    ("Text ```\ncode\n```", [["#TEXT", "Text ```\ncode\n```"]]),  # opens only at a line's start
+    ("```\na\n```\nMid\n```\nb\n```",
+     [["SPAN", "a"], ["#TEXT", "Mid"], ["SPAN", "b"]]),
+    ("```\r\na\r\n```\r\nEnd", [["SPAN", "a\r"], ["#TEXT", "End"]]),
+])
+def test_a_fence_opens_at_a_line_start_and_closes_on_a_line_of_its_own(answer, parts):
+    assert _run(PARTS, data=_one("Q?", answer)) == parts
 
 
 def test_question_and_answer_read_in_their_own_direction():
