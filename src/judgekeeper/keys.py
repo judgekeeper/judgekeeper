@@ -386,6 +386,9 @@ def _scanned_env(text: str) -> dict[str, str | None]:
         if (_ENV_KEY.match(key) or _ESCAPED_KEY.match(key)) \
                 and (properties or not any(r.match(line) for r in _READABLE)):
             return {UNREAD: None}  # `&k env:`, `!!str env:`: env, with its block unread
+    if _ANY_ENV.search(text) and not any(r.match(line) for line in text.splitlines()
+                                         for r in _READABLE):
+        return {UNREAD: None}  # `? &k env`, `--- {env: ...}`, an indented document
     for line in text.splitlines():
         flow = _READABLE[1].match(line)
         if flow:  # the values may hold ":" (an address), so each entry is cut at its first one
