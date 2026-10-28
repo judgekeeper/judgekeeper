@@ -47,6 +47,7 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
         flags["start_new_session"] = True
     try:
         with open_private(folder / LOG, "ab") as log:
+            # -E on purpose: a PYTHONPATH set in the project must not put its code in the page
             proc = subprocess.Popen([sys.executable, "-E", "-P", "-m", "judgekeeper.page"],
                                     cwd=tempfile.gettempdir(), stderr=log, **flags)
     except OSError:
