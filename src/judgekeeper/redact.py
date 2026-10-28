@@ -17,10 +17,11 @@ anything there.
 
 from __future__ import annotations
 
+import bisect
 import functools
-import itertools
 import os
 import re
+from array import array
 
 REDACTED = "[REDACTED]"
 _MASK = "\ue000"  # where a credential was, while scrub() works out what to hide
@@ -47,32 +48,37 @@ _URL_USERINFO = re.compile(
 # A token as the whole login (`https://<token>@host`): long, with a digit, so `git@` stays
 _URL_TOKEN = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?=[^/@\s:]*\d)"
                         r"[A-Za-z0-9._~+=-]{20,}@")
-_START = r"(?<![A-Za-z0-9])"  # a key starts after anything but a letter or digit (`key_sk-`)
-# Each key shape as (what must not come before it, the key)
-_SHAPES = (
-    (_START, r"sk-ant-[A-Za-z0-9_-]{8,}"),
-    (_START, r"sk-[A-Za-z0-9_-]{20,}"),
-    (r"\b", r"(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access keys
-    (r"\b", r"gh[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
-    (r"\b", r"github_pat_[A-Za-z0-9_]{30,}"),
-    (r"\b", r"AIza[A-Za-z0-9_-]{30,}"),  # Google API keys
-    (r"\b", r"xox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
-    (_START, r"gsk_[A-Za-z0-9]{20,}"),  # Groq
-    (_START, r"hf_[A-Za-z0-9]{30,}"),  # Hugging Face
-    (_START, r"xai-[A-Za-z0-9]{20,}"),  # xAI
+# A key starts after anything but an ASCII letter or digit (`key_sk-`, `café` and a key). The
+# check comes after its first letter, which lets the search jump from one such letter to the next.
+def _key(first: str, rest: str, before: str = "A-Za-z0-9") -> re.Pattern:
+    return re.compile(f"{first}(?<![{before}]{first}){rest}")
+
+
+_KEY_SHAPES = (
+    _key("s", r"k-ant-[A-Za-z0-9_-]{8,}"),
+    _key("s", r"k-[A-Za-z0-9_-]{20,}"),
+    _key("A", r"(?:KIA|SIA)[A-Z0-9]{16}(?![A-Za-z0-9])"),  # AWS access keys
+    _key("g", r"h[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
+    _key("g", r"ithub_pat_[A-Za-z0-9_]{30,}"),
+    _key("A", r"Iza[A-Za-z0-9_-]{30,}"),  # Google API keys
+    _key("x", r"ox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
+    _key("g", r"sk_[A-Za-z0-9]{20,}"),  # Groq
+    _key("h", r"f_[A-Za-z0-9]{30,}"),  # Hugging Face
+    _key("x", r"ai-[A-Za-z0-9]{20,}"),  # xAI
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
-    (r"(?<![A-Za-z0-9_-])", r"eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
+    _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", "A-Za-z0-9_-"),
 )
-_KEY_SHAPES = tuple(re.compile(before + key) for before, key in _SHAPES)
-# The same keys with nothing checked before them: for a key right after a hidden character,
-# which reads as a space even with a letter before it (`key<ZWSP>sk-…`)
-_KEY_ANYWHERE = tuple(re.compile(key) for _, key in _SHAPES)
+# How each key above starts: its first letters, before a hidden character could split it
+_KEY_BEGINS = r"(?:sk|AKIA|ASIA|gh|github|AIza|xox|gsk|hf_|xai|eyJ)"
+# An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
+# `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
+_ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
 _AWS_SECRET = re.compile(
     r"(\baws_secret_access_key[\"']?(?:\s*[:=]\s*|\s+)[\"']?)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
-_AWS_KEY_ID = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
+_AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
 
@@ -93,6 +99,10 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # What can hide inside a credential: every character `printable` drops (a carriage return
 # too), so a key split by one is never joined back when it prints
 _SPLITTERS = _CONTROL
+_SPLIT_RUNS = re.compile(f"{_SPLITTERS.pattern}+")
+# Hidden characters between a letter and the start of a key (`key<ZWSP>sk-…`)
+_GLUED = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?={_KEY_BEGINS})")
+_MASKED = re.compile(f"{_MASK}+")
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
 # The spaces that look like none or like a line break on a page (_ODD_SPACES) each show as
@@ -191,32 +201,78 @@ def scrub(text: str | None) -> str | None:
     after one, is found too: then the text comes back without its hidden characters."""
     if not text:
         return text
-    scrubbed = _scrub(text)
+    escaped = _ESCAPED_KEY.search(text) is not None
+    if not escaped and not _SPLITTERS.search(text):
+        return _scrub(text)
+    as_is = _spans(text)
+    if escaped:  # read once more with each such escape's last character a space
+        as_is += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", text))
+    as_is = _merged(as_is)
     if not _SPLITTERS.search(text):
-        return scrubbed
-    # Read three ways: as it is, with the hidden characters dropped (a key split by one), and
-    # with a key starting right after one even when a letter comes before. What any of them
-    # hides stays hidden.
-    kept = [i for i, c in enumerate(text) if not _SPLITTERS.match(c)]
-    joined = "".join(text[i] for i in kept)
-    as_is = _hidden(text)
-    before = [as_is[i] for i in kept]
-    hidden = [a or b for a, b in zip(before, _hidden(joined))]
-    for at, i in enumerate(kept):
-        if i and _SPLITTERS.match(text[i - 1]):
-            for pattern in _KEY_ANYWHERE:
-                if found := pattern.match(joined, at):
-                    hidden[at:found.end()] = [True] * (found.end() - at)
-    if hidden == before:
-        return scrubbed
-    return "".join(REDACTED if hide else "".join(c for c, _ in run)
-                   for hide, run in itertools.groupby(zip(joined, hidden), lambda c: c[1]))
+        return _redacted(text, as_is)
+    # Read as it is; with each hidden character a space (a key right after one, even after a
+    # letter); with them dropped (a key split by one); and, when one is between a letter and a
+    # key's start, with that one a space and the others dropped (a key after one and split by
+    # another). What any reading hides stays hidden.
+    to_joined = _shift(_SPLIT_RUNS.finditer(text))
+    joined = _SPLITTERS.sub("", text)
+    found = [*as_is, *_spans(_SPLITTERS.sub(" ", text))]
+    found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
+    glued = [to_joined(m.start()) + n for n, m in enumerate(_GLUED.finditer(text))]
+    if glued:  # each a space put into `joined` at that place
+        for a, b in _spans(_SPLITTERS.sub("", _GLUED.sub(" ", text))):
+            found.append((a - bisect.bisect_left(glued, a), b - bisect.bisect_left(glued, b)))
+    found = _merged(found)
+    if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
+        return _redacted(text, as_is)
+    return _redacted(joined, found)
 
 
-def _hidden(text: str) -> list[bool]:
-    """Which characters of `text` _scrub hides."""
+def _spans(text: str) -> list[tuple[int, int]]:
+    """Where in `text` _scrub hides a credential, as (start, end) spans."""
     masked = _scrub(text, lambda found: _MASK * len(found))
-    return [m == _MASK != c for m, c in zip(masked, text)]
+    return [m.span() for m in _MASKED.finditer(masked) if text[m.start():m.end()] != m[0]]
+
+
+def _shift(cuts):
+    """A function from a position in a text to the same position once the matches `cuts`
+    (in order, apart) are taken out of it. Kept as arrays: a text may hold millions."""
+    starts, ends, before = array("q"), array("q"), array("q", [0])
+    for m in cuts:
+        starts.append(m.start())
+        ends.append(m.end())
+        before.append(before[-1] + m.end() - m.start())
+
+    def at(p: int) -> int:
+        k = bisect.bisect_right(starts, p) - 1
+        if k < 0:
+            return p
+        return p - before[k] - min(p, ends[k]) + starts[k]
+
+    return at
+
+
+def _merged(spans) -> list[tuple[int, int]]:
+    """`spans` in order, those that overlap or touch made one, empty ones left out."""
+    out: list[tuple[int, int]] = []
+    for a, b in sorted(spans):
+        if a >= b:
+            continue
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def _redacted(text: str, spans: list[tuple[int, int]]) -> str:
+    """`text` with each of `spans` (merged) replaced by [REDACTED]."""
+    out, at = [], 0
+    for a, b in spans:
+        out += [text[at:a], REDACTED]
+        at = b
+    out.append(text[at:])
+    return "".join(out)
 
 
 def _scrub(text: str, hide=lambda found: REDACTED) -> str:
