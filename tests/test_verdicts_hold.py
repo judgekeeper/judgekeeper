@@ -400,3 +400,79 @@ def test_measure_after_a_worse_check_says_why_it_says_go_back(here, capsys):
     closed(ws)
     assert ("Your last check found your LLM-as-a-judge in your newest results worse than this "
             "one. Next: go back to your old LLM-as-a-judge") in out, out
+
+
+# H1 with repeats: the same question asked twice is not a shared value ------------------------
+
+def _rows_of(path: Path, questions: list[int], outputs: list[str], rubric: str,
+             right=None) -> Path:
+    """promptfoo results: row k asks question questions[k] with answer outputs[k], each with the
+    same persona var; graded right (Yes is right on even questions) unless `right` says."""
+    right = right or [(o == "Yes.") == (q % 2 == 0) for q, o in zip(questions, outputs,
+                                                                     strict=True)]
+    data = promptfoo_data(right, rubric=rubric, outputs=outputs)
+    for row, q in zip(data["results"]["results"], questions, strict=True):
+        row["vars"] = row["testCase"]["vars"] = {"question": f"Question {q}: is claim {q} true?",
+                                                 "persona": PERSONA}
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def _marked_rows(root: Path, questions: list[int], outputs: list[str]) -> Workspace:
+    (root / "promptfooconfig.yaml").write_text(
+        "description: support bot\nprompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+    _rows_of(root / "results.json", questions, outputs, "Right answer only.")
+    assert main(["--no-browser"]) == 0
+    ws = Workspace(root)
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    for item in session.items:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
+    main(["mark", "--no-browser", "--stop"])
+    return ws
+
+
+def test_a_question_asked_twice_is_found_after_the_echo_regrade(here, capsys):
+    """Each question twice, with a different answer each time (as promptfoo --repeat): the echo
+    regrade finds every answer kept aside, and adds none of them back as new."""
+    from tests.test_only_reads import closed
+
+    questions = [i % 30 for i in range(60)]
+    ws = _marked_rows(here, questions, ["Yes." if i < 30 else "No." for i in range(60)])
+    assert len(ws.pool.read_text(encoding="utf-8").splitlines()) == 60
+    assert main(["fix"]) == 0
+    kept = len(fix.read_split(ws).hidden)
+    with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    asked = [int(re.search(r"Question (\d+):", r["question"])[1]) for r in rows]
+    data = promptfoo_data([(r["answer"] == "Yes.") != (q % 2 == 0) for r, q in
+                           zip(rows, asked, strict=True)], rubric="Right answers only, please.",
+                          outputs=[r["answer"] for r in rows])  # every grade the other way
+    for row, r in zip(data["results"]["results"], rows, strict=True):
+        row["vars"] = row["testCase"]["vars"] = {"question": r["question"],
+                                                 "answer": r["answer"]}
+    (here / "regraded.json").write_text(json.dumps(data), encoding="utf-8")
+    capsys.readouterr()
+    code, out = run(capsys, "fix", "regraded.json")
+    assert code == 0 and f"tested on the {kept} marks kept aside" in out, out
+    main(["check", "regraded.json"])
+    capsys.readouterr()
+    _, out = run(capsys, "--no-browser")
+    closed(ws)
+    assert "you haven't seen" not in out, out
+
+
+def test_a_shared_var_never_stands_in_for_the_one_row_with_that_answer(here, capsys):
+    """Only question 1 answered "No." when marked. The new run leaves question 1 out and
+    answers "No." to question 4: the persona both share never makes that question 1's."""
+    ws = _marked_rows(here, list(range(60)), ["No." if i == 1 else "Yes." for i in range(60)])
+    assert ws.pool.is_file()
+    capsys.readouterr()
+    questions = [i for i in range(60) if i != 1]
+    new = _rows_of(here / "new.json", questions, ["No." if q == 4 else "Yes." for q in questions],
+                   "Right answers only, please.")
+    code, out = run(capsys, "check", new.name)
+    assert code == 0, out
+    assert ("2 of your 60 marked answers had no grade in your new results, so judgekeeper left "
+            "them out") in out, out
+    assert "counted against" not in out, out

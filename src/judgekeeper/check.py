@@ -1002,15 +1002,15 @@ def _rows(ws: Workspace) -> dict:
 
 
 def _shared(rows: dict) -> set[str]:
-    """The question texts in the input of more than one pool.jsonl row: a persona or a system
-    prompt many questions share, which names none of them."""
-    seen: set[str] = set()
-    shared: set[str] = set()
+    """The question texts in the inputs of pool.jsonl rows that ask different questions (not
+    the same whole input): a persona or a system prompt many questions share, which names none
+    of them. A question asked twice (promptfoo's --repeat) still names its own."""
+    inputs: dict[str, set[str]] = {}
     for row in rows.values():
-        texts = _questions(row.get("input"))
-        shared |= texts & seen
-        seen |= texts
-    return shared
+        whole = _text(row.get("input"))
+        for text in _questions(row.get("input")):
+            inputs.setdefault(text, set()).add(whole)
+    return {text for text, wholes in inputs.items() if len(wholes) > 1}
 
 
 def _same_question(a, row: dict, shared: set[str]) -> bool:
