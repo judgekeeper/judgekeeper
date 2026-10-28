@@ -349,6 +349,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         **({"judge_check": found.check.block()} if found.check is not None else {}),
         "seed": seed,
         "queue": queue,
+        **({"runs": runs} if (runs := repeat_runs(p)) else {}),
         "started_at": started or utc_now(),
         "updated_at": utc_now(),
     })
@@ -357,6 +358,17 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     if first:
         say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
+
+
+def repeat_runs(pool) -> dict:
+    """{answer id: [its run, how many runs]} for each answer the LLM-as-a-judge graded more
+    than once with different grades (start.build_pool's split: the first run keeps the id,
+    run k is "<id>#k"). The marking page says "Run 2 of 3: graded differently" on its card;
+    never the grade."""
+    ids = {a.id for a in pool.answers}
+    runs = {(key if k == 1 else f"{key}#{k}"): [k, n] for key, (n, _, _) in pool.split.items()
+            for k in range(1, n + 1)}
+    return {i: run for i, run in runs.items() if i in ids}
 
 
 def judge_record(a, found) -> dict:
@@ -541,17 +553,32 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     return status
 
 
+def _runs(runs) -> dict:
+    """start.json's "runs" (repeat_runs) as read back: only [run, count] pairs of whole
+    numbers, 1 <= run <= count; anything else is left out."""
+    if not isinstance(runs, dict):
+        return {}
+
+    def whole(x) -> bool:
+        return isinstance(x, int) and not isinstance(x, bool)
+
+    return {i: [k, n] for i, v in runs.items() if isinstance(v, list) and len(v) == 2
+            for k, n in [v] if whole(k) and whole(n) and 1 <= k <= n}
+
+
 class StartSession(LabelSession):
     """The pool in queue order and the person's marks. Skip is the label session's defer. Each
     change is one stamped line in marks.jsonl (marks.py), with this session's `sitting` and
     the `seconds` the page sends; a session made again reads the marks back. The page gets
-    ids, text, the person's labels and the line under the meters (`status`, by default
-    start_status) only."""
+    ids, text, the person's labels, the line under the meters (`status`, by default
+    start_status) and, for a repeat graded differently, its run and the count (repeat_runs)
+    only."""
 
     def __init__(self, ws: Workspace, status=None):
         self.workspace = ws
         data = ws.data()
         self.groups = {q["id"]: q["group"] for q in data.get("queue", [])}
+        self.runs = _runs(data.get("runs"))
         self.pool = data.get("pool", {})
         self.status = status or start_status
         self.sitting = marks.new_sitting()
@@ -678,7 +705,9 @@ class StartSession(LabelSession):
                                                           self.raw[i["id"]].get("input"),
                                                           self.raw[i["id"]].get("output")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
-                  "skipped": i["deferred"]} for i in shown]
+                  "skipped": i["deferred"],
+                  **({"run": self.runs[i["id"]]} if i["id"] in self.runs else {})}
+                 for i in shown]
         return {"items": items, "total": len(self.items), "start": start,
                 "counts": self.counts(), "status": self.current_status()}
 

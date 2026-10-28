@@ -474,3 +474,21 @@ def test_the_next_answer_sets_the_heading_and_row_again():
       console.log(JSON.stringify({label: ids["q-label"].hidden,
         hidden: ids["q-row"].hidden}));""", data=data)
     assert got == {"label": True, "hidden": False}
+
+
+def test_a_repeat_graded_differently_says_its_run_and_nothing_else():
+    """An answer the LLM-as-a-judge graded more than once, with different grades: its card
+    says which run it is in one short line, never the grade; other cards say nothing."""
+    data = _data(2)
+    data["items"][0]["run"] = [2, 3]
+    got = _run("""
+      var first = [ids["a-run"].textContent, ids["a-run"].hidden];
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({first: first,
+        second: [ids["a-run"].textContent, ids["a-run"].hidden]}));""", data=data)
+    assert got == {"first": ["Run 2 of 3: graded differently", False], "second": ["", True]}
+
+
+def test_the_run_line_is_on_the_page_hidden_until_an_answer_has_one():
+    page = mark_page.label_page("support bot", "judgekeeper mark")
+    assert '<p class="run" id="a-run" hidden></p>' in page
