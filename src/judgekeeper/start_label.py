@@ -398,20 +398,28 @@ def display(value) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
-ASKED = frozenset({"question", "input", "query", "prompt"})  # a field the user's question is in
-BACKGROUND = frozenset({"system", "context"})  # a field that sets the scene: after the rest
+# A field that sets the scene goes last, even when its name also holds an asked word
+# (system_prompt, agent_prompt, context_input); checked first.
+BACKGROUND = frozenset({"system", "context", "agent", "assistant", "instruction",
+                        "instructions", "persona", "policy", "document", "documents", "docs",
+                        "guideline", "guidelines", "knowledge", "rules", "reference",
+                        "background"})
+# A field the user's question is in: first.
+ASKED = frozenset({"question", "input", "query", "prompt", "user", "message", "ask",
+                   "request"})
 SHORT_FIELD = 140  # characters of a field that reads as one line
 
 
-def _field_order(pair: list[str]) -> int:
-    """Where a named value goes: the one that looks like the user's question first (named
-    question, input, query or prompt), then short ones, then long ones and system or context."""
+def _field_order(pair: list[str]) -> tuple[int, int]:
+    """Where a named value goes: one that looks like the user's question first (its name has
+    an ASKED word and no BACKGROUND word; the shorter of them first), then short ones, then
+    long ones and those that set the scene (BACKGROUND). The rest keep their order."""
     words = set(re.findall(r"[a-z]+", pair[0].lower()))
     if words & BACKGROUND:
-        return 2
+        return 2, 0
     if words & ASKED:
-        return 0
-    return 1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2
+        return 0, len(pair[1])
+    return (1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2), 0
 
 
 def say_why_run(n: int, command: str) -> str:

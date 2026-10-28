@@ -524,3 +524,43 @@ def test_own_question_and_reference_answer_values_still_show_both(tmp_path, monk
         "question", "answer"] for i in items)
     m = fix.Marks(ws)
     assert fix._fields(m, {"id": items[0]["id"], "output": items[0]["output"]})
+
+
+# The user's own field first, whatever its name -------------------------------------------------
+
+PROMPT = "You are the customer support assistant.\nAnswer from the policy only.\n" * 3
+
+
+def test_the_users_field_comes_first_and_the_scene_last():
+    for user, scene in (("user_message", "agent_prompt"), ("user_input", "system_prompt"),
+                        ("prompt", "context"), ("input", "instructions"),
+                        ("query", "documents"), ("message", "persona"),
+                        ("question", "system"), ("ask", "guidelines"),
+                        ("request", "knowledge"), ("user", "background"),
+                        ("prompt", "context_input")):
+        for value in ({scene: PROMPT, user: "Where is my bag?"},
+                      {user: "Where is my bag?", scene: PROMPT}):
+            shown = start_label.question_view(value)
+            assert [k for k, _ in shown] == [user, scene], (user, scene)  # names as written
+
+
+def test_two_neutral_names_show_the_short_one_first():
+    shown = start_label.question_view({"a": "Line one\nline two\n" * 20, "b": "Short."})
+    assert [k for k, _ in shown] == ["b", "a"]
+
+
+def test_of_two_asked_fields_the_shorter_comes_first():
+    shown = start_label.question_view({"prompt": "Long " * 80, "user_message": "Hi?"})
+    assert [k for k, _ in shown] == ["user_message", "prompt"]
+
+
+def test_the_list_title_and_the_result_page_follow_the_same_order():
+    shown = start_label.question_view({"agent_prompt": PROMPT, "user_message": "Where is it?"})
+    got = _run("""
+      var a = ids["queue"].children[0].children[0];
+      var q = a.children.filter(function (c) { return c.className === "q"; })[0];
+      console.log(JSON.stringify(q.textContent));""",
+               data=_one(shown))
+    assert got == "Where is it?"
+    html = _html([{**_mistakes(1, 0)[0], "fields": shown}])
+    assert html.index("Where is it?") < html.index("You are the customer support assistant.")
