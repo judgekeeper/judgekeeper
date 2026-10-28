@@ -52,7 +52,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    quoted_name,
     wrap,
 )
 
@@ -181,13 +180,16 @@ class FrontTalk(start.Talk):
         if flag is None:
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
-        names = ", ".join(quoted_name(str(v)) if flag == "--metric" else quote_arg(str(v))
-                          for v in values)
-        if len(values) > start.LIST_LIMIT:  # the list above holds the first ones
-            names = f"{start.LIST_LIMIT} of the {len(values):,} are listed above"
+        names = ", ".join(start.shown_name(str(v), quoted=True) if flag == "--metric"
+                          else quote_arg(str(v)) for v in values)
+        if len(values) - keep > start.LIST_LIMIT:  # the list above holds the first ones; the
+            # kept last options ("All, one at a time") are choices, not names
+            names = f"{start.LIST_LIMIT} of the {len(values) - keep:,} are listed above"
         if flag == "PATH":
             commands = [f"`{self.command_at(v)}`" for v in values]
             then = start.some(commands)
+        elif any(str(v).startswith("-") for v in values):  # argparse reads `--metric --yes`
+            then = f"`{self.command(f'{flag}=NAME')}`"  # as two flags
         else:
             then = f"`{self.command(flag, 'NAME')}`"
         raise self.stop(EXIT_QUESTION, f"choose {what} ({names}), then run {then}.")

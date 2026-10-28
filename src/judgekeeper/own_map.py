@@ -192,8 +192,10 @@ def _choose_judge(talk: Talk, units, g: mapper.Guess, metric: str | None) -> str
     judges = start.by_use(g.judges, counts)
     if metric is not None:
         raise StartError(f"no LLM-as-a-judge named {scrub(metric)!r}; the names are: "
-                         f"{start.some([repr(scrub(j)) for j in judges], last=',')}")
-    options = [f"{j} ({plural(counts[j], 'answer')})" for j in judges]
+                         f"{start.some([repr(scrub(j)) for j in judges], last=',')}",
+                         f"run `{{command}} {start._braces(start.flag_word('--metric', judges[0]))}`.",
+                         "--metric")
+    options = [f"{start.shown_name(j)} ({plural(counts[j], 'answer')})" for j in judges]
     i = talk.choose("Which LLM-as-a-judge do you want to check?",
                     [*options, "All, one at a time"], "", flag="--metric",
                     values=[*judges, "all"], what="which LLM-as-a-judge to check", keep=1)

@@ -66,7 +66,15 @@ from judgekeeper.table import (
     read_table,
     sheet_id,
 )
-from judgekeeper.textio import flush_stdout, held_lines, plural, quote_arg, read_utf8, tick
+from judgekeeper.textio import (
+    flush_stdout,
+    held_lines,
+    plural,
+    quote_arg,
+    quoted_name,
+    read_utf8,
+    tick,
+)
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -162,6 +170,27 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
     if no_browser:
         words.append("--no-browser")
     return tuple(words)
+
+
+def flag_word(flag: str, value: str) -> str:
+    """`flag value` as a printed command says it, quoted (quote_arg): a value that starts with
+    "-" after "=" (`--metric=--yes`), as repeated_flags does."""
+    quoted = quote_arg(str(value))
+    return f"{flag}={quoted}" if str(value).startswith("-") else f"{flag} {quoted}"
+
+
+def _braces(text: str) -> str:
+    """`text` in a Next: line that is formatted with {command}: its braces doubled."""
+    return text.replace("{", "{{").replace("}", "}}")
+
+
+def shown_name(name: str, quoted: bool = False) -> str:
+    """A name read from a file (an LLM-as-a-judge, an experiment) in a line: quoted
+    (quoted_name) when `quoted` or when it holds "Next:", so it never reads as a line
+    judgekeeper says, and on one line (repr) when it holds a line break."""
+    if any(c in name for c in "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"):
+        return repr(name)
+    return quoted_name(name) if quoted or "next:" in name.lower() else name
 
 
 def run_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
@@ -867,9 +896,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         if len(found) > 1:
             names = [name for name, _ in found]
             found = [found[talk.choose(
-                "Several MLflow experiments have LLM-as-a-judge results:", names,
+                "Several MLflow experiments have LLM-as-a-judge results:",
+                [shown_name(n) for n in names],
                 "Several MLflow experiments have LLM-as-a-judge results; choose one with "
-                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}",
+                f"{_or([flag_word('--experiment', n) for n in names])}",
                 flag="--experiment", values=names, what="which MLflow experiment to read")]]
             _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
@@ -1630,15 +1660,16 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
             # that splits one as \u, which scrub can then no longer join
             raise StartError(f"no LLM-as-a-judge named {scrub(metric)!r}; the names are: "
                              f"{some([repr(scrub(n)) for n in names], last=',')}",
-                             f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
+                             f"run `{{command}} {_braces(flag_word('--metric', names[0]))}`.",
+                             "--metric")
         return metric
     if len(names) == 1:
         return names[0]
-    options = [f"{n} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
+    options = [f"{shown_name(n)} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
     name = names[talk.choose(
         "These results hold more than one LLM-as-a-judge:", options,
         "Several LLM-as-a-judge metrics found; choose one with "
-        f"{some([f'--metric {quote_arg(n)}' for n in names])}",
+        f"{some([flag_word('--metric', n) for n in names])}",
         flag="--metric", values=names, what="which LLM-as-a-judge to check")]
     _next_time(talk, "--metric", name)
     return name
