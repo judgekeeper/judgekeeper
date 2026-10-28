@@ -77,11 +77,15 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
              f"clear answer, and usually reads \"safe to try\"")
     readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))
     site = _flat((ROOT / "website" / "start.html").read_text(encoding="utf-8")).replace("’", "'")
-    assert claim in readme
     assert claim.replace('"', "") in site
     for page in ("README.md", "website/start.html"):
         assert LINK in (ROOT / page).read_text(encoding="utf-8"), page
     need = result["needed"]
+    # the README: how many marks depends on how big the change is
+    assert (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
+            f"10 of its mistakes is clear from about {need['fixes 90%, breaks 2%']['marks']} "
+            f"marks, one that fixes a quarter from about {n}, and one that fixes 1 in 10 and "
+            f"breaks 5 in 100 right answers needs more than {_module().MARKS[-1]} ") in readme
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"gets a clear answer most of the time from about {n} marks, mostly \"Safe to "

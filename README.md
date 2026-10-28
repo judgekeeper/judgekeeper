@@ -43,7 +43,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule and grade `.judgekeeper/fix/marked-answers.csv` again with your own eval tool, then run `judgekeeper fix <new results file>`. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads "safe to try" ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
+`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule and grade `.judgekeeper/fix/marked-answers.csv` again with your own eval tool, then run `judgekeeper fix <new results file>`. How many marks you need depends on how big the change is. A rule that fixes 9 in 10 of its mistakes is clear from about 50 marks, one that fixes a quarter from about 80, and one that fixes 1 in 10 and breaks 5 in 100 right answers needs more than 120 ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
 
 judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
