@@ -29,6 +29,7 @@ from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from judgekeeper.readers import mlflow_store
 from judgekeeper.readers.mlflow_store import ALLOW, HINT
+from judgekeeper.records import Damaged
 from judgekeeper.textio import quote_arg
 from tests.test_front import assert_one_next_at_the_end
 from tests.test_mark_background import stop_page
@@ -108,6 +109,7 @@ def fresh(monkeypatch):
     for name in (ALLOW, HINT, "MLFLOW_TRACKING_URI"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(mlflow_store, "_noted", False)
+    monkeypatch.setattr(mlflow_store, "_walked", set())
 
 
 def run(capsys, *argv):
@@ -626,6 +628,65 @@ def test_a_big_artifact_is_not_a_tag(folder_only, capsys):
     assert "Store:           mlruns, experiment qa-folder" in out, out
 
 
+# Size rules only where MLflow keeps a file it reads whole: an artifact, a logged dataset or a
+# folder a run's artifacts happen to name "params" can be any size.
+
+def _store_file(root, rel, size):
+    path = root / "mlruns" / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        f.truncate(size)  # sparse: no space on disk
+    return path
+
+
+METRIC_PLACES = ["1/a1b2/metrics/loss", "1/datasets/d-1/meta.yaml", "1/a1b2/inputs/i-1/meta.yaml"]
+
+
+@pytest.mark.parametrize("rel", [
+    "1/meta.yaml", "1/tags/team", "1/tags/mlflow/note", "1/a1b2/meta.yaml", "1/a1b2/tags/k",
+    "1/a1b2/params/p", "1/traces/tr-1/trace_info.yaml", "1/traces/tr-1/tags/k",
+    "1/traces/tr-1/request_metadata/k", "1/traces/tr-1/assessments/a-1", ".trash/2/meta.yaml"])
+def test_a_file_over_1_mb_where_mlflow_keeps_a_small_value_is_refused(tmp_path, rel):
+    path = _store_file(tmp_path, rel, 2**20 + 1)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (path, "big")
+
+
+@pytest.mark.parametrize("rel", [
+    *METRIC_PLACES, "1/a1b2/artifacts/out/params/w.bin", "1/a1b2/artifacts/meta.yaml",
+    "1/a1b2/artifacts/data/tags/t", "1/traces/tr-1/artifacts/traces.json",
+    "1/models/m-1/artifacts/tags/t", "0/notes/big.txt", "models/m/params/p"])
+def test_any_other_file_over_1_mb_is_left_to_mlflow(tmp_path, rel):
+    _store_file(tmp_path, rel, 2**20 + 1)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None
+
+
+@pytest.mark.parametrize("rel", METRIC_PLACES)
+def test_a_metric_or_logged_dataset_file_over_100_mb_is_refused(tmp_path, rel):
+    _store_file(tmp_path, rel, 100 * 2**20 + 1)
+    with pytest.raises(Damaged) as e:
+        mlflow_store.check_folder_store(tmp_path / "mlruns")
+    assert f"mlruns/{rel} is over 100 MB, more than MLflow keeps there" in str(e.value)
+
+
+@POSIX
+def test_a_runs_artifacts_are_not_looked_into(tmp_path):
+    """MLflow doesn't open them to read traces (judgekeeper reads a trace's spans itself)."""
+    artifacts = tmp_path / "mlruns" / "1" / "a1b2" / "artifacts"
+    artifacts.mkdir(parents=True)
+    os.mkfifo(artifacts / "pipe")
+    (artifacts / "model").symlink_to("/dev/zero")
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None
+
+
+def test_the_store_is_looked_at_once_however_many_experiments(folder_only, capsys, monkeypatch):
+    walks = []
+    walk = mlflow_store.unsafe_file
+    monkeypatch.setattr(mlflow_store, "unsafe_file", lambda folder: walks.append(1) or walk(folder))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+    assert len(walks) == 1
+
+
 # Limits on what one read takes ------------------------------------------------------------
 # 120 sparse trace files of 99 MB (3 MB on disk) took 3.7 GB; 2,000 empty experiments took
 # half a minute. The trace files' real sizes count, not their space on disk.
@@ -695,7 +756,8 @@ def test_the_limits_are_said_in_the_reference():
             f"newest {mlflow_store.MAX_TRACES:,} traces of an experiment.") in flat
     assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
             "`-shm` files") in flat
-    assert mlflow_store.SMALL_LIMIT == 2**20 and "a tag, setting or assessment file over 1 MB" in flat
+    assert (mlflow_store.SMALL_LIMIT, mlflow_store.LARGE_LIMIT) == (2**20, 100 * 2**20)
+    assert "a tag, setting or assessment file over 1 MB or a metric file over 100 MB" in flat
 
 
 # Messages that say what is true -----------------------------------------------------------

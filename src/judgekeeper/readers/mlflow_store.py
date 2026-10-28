@@ -82,17 +82,18 @@ BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is co
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
 STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copied at most
 
-# In a folder store, the files MLflow reads whole: each tag, setting and request metadata value,
-# each assessment, and the meta.yaml and trace_info.yaml files. MLflow keeps them in a few KB.
-SMALL_FOLDERS = ("tags", "params", "request_metadata", "assessments")
-SMALL_FILES = ("meta.yaml", "trace_info.yaml")
+# In a folder store, the files MLflow reads whole (see size_limit): each tag, setting, request
+# metadata value and assessment, and the meta.yaml and trace_info.yaml files, kept in a few KB;
+# a metric's history and a logged dataset's meta.yaml, which can be MBs
 SMALL_LIMIT = 2**20  # bytes
+LARGE_LIMIT = 100 * 2**20
+TRACE_FOLDERS = ("tags", "request_metadata", "assessments")
 UNSAFE = {  # why MLflow is not let read a file, and the Next: step
     "link": ("is a link, which can lead to any file on this computer",
              "replace {file} with a copy of the file it links to (or remove it)"),
     "special": (("is not a plain file (a pipe or a device), which MLflow would wait on or "
                  "read without end"), "remove {file}"),
-    "big": ("is over 1 MB, more than MLflow keeps there",
+    "big": ("is over {limit}, more than MLflow keeps there",
             "check {file} and remove it if your evaluation didn't save it"),
 }
 
@@ -103,6 +104,7 @@ TELEMETRY_OFF = {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
 FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
                "this read only (MLFLOW_ALLOW_FILE_STORE).")
 _noted = False  # FOLDER_NOTE was said in this run
+_walked: set[Path] = set()  # folder stores check_folder_store found safe, this process
 
 _copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
 _homes: dict[Path, Path] = {}  # a copy -> the folder that holds the person's mlflow.db
@@ -254,21 +256,57 @@ def _plain_trace_file(location: Path) -> bool:
     return stat.S_ISREG(found.st_mode) and found.st_size <= TRACE_LIMIT
 
 
+def size_limit(parts: tuple[str, ...]) -> int | None:
+    """The most MLflow keeps in the folder store's file at `parts` (its path in the store) when
+    MLflow reads that file whole: SMALL_LIMIT or LARGE_LIMIT, by where MLflow keeps it
+    (mlflow/store/tracking/file_store.py); None for any other file, such as an artifact."""
+    if parts[:1] == (".trash",):  # a deleted experiment: MLflow lists it too
+        parts = parts[1:]
+    if len(parts) < 2 or not parts[0].isdigit():
+        return None
+    place = parts[1:]  # in the experiment's folder
+    if place == ("meta.yaml",) or len(place) > 1 and place[0] == "tags":
+        return SMALL_LIMIT
+    if place[0] == "traces":
+        trace = place[2:]
+        small = trace == ("trace_info.yaml",) or len(trace) > 1 and trace[0] in TRACE_FOLDERS
+        return SMALL_LIMIT if small else None
+    if place[0] == "datasets":
+        return LARGE_LIMIT if place[2:] == ("meta.yaml",) else None
+    run = place[1:]
+    if run == ("meta.yaml",) or len(run) > 1 and run[0] in ("tags", "params"):
+        return SMALL_LIMIT
+    if len(run) > 1 and run[0] == "metrics" or len(run) == 3 and run[::2] == ("inputs",
+                                                                               "meta.yaml"):
+        return LARGE_LIMIT
+    return None
+
+
+def _artifacts(parts: tuple[str, ...]) -> bool:
+    """Whether the store's folder at `parts` holds a run's, a model's or a trace's artifacts:
+    files of any kind that MLflow doesn't open to read traces (judgekeeper reads a trace's
+    spans itself, _with_spans)."""
+    if parts[:1] == (".trash",):
+        parts = parts[1:]
+    return (parts[-1:] == ("artifacts",) and parts[0].isdigit()
+            and (len(parts) == 3 or len(parts) == 4 and parts[1] in ("traces", "models")))
+
+
 def unsafe_file(folder: Path) -> tuple[Path, str] | None:
     """The first file in the folder store at `folder` that MLflow must not open, and why (a
-    key of UNSAFE): a link (a junction on Windows too), a pipe or a device, or one of the files
-    MLflow reads whole over SMALL_LIMIT. Looked at with lstat, never opened or followed; a
-    folder that can't be listed is left to MLflow."""
-    stack = [Path(folder)]
+    key of UNSAFE): a link (a junction on Windows too), a pipe or a device, or a file MLflow
+    reads whole over its size_limit. Looked at with lstat, never opened or followed; artifacts
+    are not looked into, and a folder that can't be listed is left to MLflow."""
+    stack: list[tuple[Path, tuple[str, ...]]] = [(Path(folder), ())]
     while stack:
-        here = stack.pop()
+        here, parts = stack.pop()
         try:
             with os.scandir(here) as found:
                 entries = sorted(found, key=lambda e: e.name, reverse=True)
         except OSError:
             continue
         for entry in entries:
-            path = Path(entry.path)
+            path, place = Path(entry.path), (*parts, entry.name)
             try:
                 info = entry.stat(follow_symlinks=False)
             except OSError:
@@ -276,28 +314,31 @@ def unsafe_file(folder: Path) -> tuple[Path, str] | None:
             if stat.S_ISLNK(info.st_mode) or _junction(path):
                 return path, "link"
             if stat.S_ISDIR(info.st_mode):
-                stack.append(path)
+                if not _artifacts(place):
+                    stack.append((path, place))
             elif not stat.S_ISREG(info.st_mode):
                 return path, "special"
-            elif info.st_size > SMALL_LIMIT and (here.name in SMALL_FOLDERS
-                                                 or entry.name in SMALL_FILES):
+            elif info.st_size > (size_limit(place) or info.st_size):
                 return path, "big"
     return None
 
 
 def check_folder_store(folder: Path) -> None:
     """Damaged, naming the file, when the folder store at `folder` holds a file MLflow must not
-    open (unsafe_file). Run before MLflow opens the store."""
+    open (unsafe_file). Run before MLflow opens the store: once per store in a process."""
+    key = Path(folder).resolve()
+    if key in _walked:
+        return
     found = unsafe_file(folder)
     if found is None:
+        _walked.add(key)
         return
     path, kind = found
     name = Path(folder).name
-    try:
-        shown = f"{name}/{path.relative_to(folder).as_posix()}"
-    except ValueError:
-        shown = str(path)
+    rel = path.relative_to(folder)
+    shown = f"{name}/{rel.as_posix()}"
     why, step = UNSAFE[kind]
+    why = why.format(limit=f"{(size_limit(rel.parts) or 0) // 2**20} MB")
     braces = shown.replace("{", "{{").replace("}", "}}")
     raise Damaged(f"judgekeeper didn't let MLflow read {name}/: {shown} {why}.",
                   step.format(file=braces) + ", then run `{command}`.")
