@@ -140,6 +140,27 @@ def test_keys_in_each_env_file_up_to_the_project_are_hidden(layout, tmp_path, mo
         assert [p.name for p, text in saved.items() if value in text] == []
 
 
+# The page hides them too -----------------------------------------------------------------------
+
+def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
+    """The page runs in a process of its own: a key typed into a reason note is hidden there."""
+    import io
+    import json
+
+    from judgekeeper import page
+
+    monkeypatch.setenv("APP_ENV", "staging")
+    (here / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    (here / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    given = {"token": "t" * 40, "root": str(here), "port": 0, "flags": {}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(given) + "\n"))
+    monkeypatch.setattr(page, "_watch", lambda: None)
+    monkeypatch.setattr(page, "server_for", lambda ws, settings, token: None)
+    monkeypatch.setattr(page, "serve", lambda server: None)
+    assert page.main() == 0
+    assert redact.scrub(f"note {LOCAL} {STAGING}") == f"note {redact.REDACTED} {redact.REDACTED}"
+
+
 # A .env that is a link, or huge -----------------------------------------------------------------
 
 def _link(link: Path, target: Path) -> None:

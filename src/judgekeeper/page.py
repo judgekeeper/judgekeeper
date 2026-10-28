@@ -358,6 +358,12 @@ def main() -> int:
         print("judgekeeper: the page's token is too short, so it did not start.",
               file=sys.stderr)
         return 2
+    try:  # a key typed into a note is hidden here too: the project's and the results' .env keys
+        results = start.results_path(root, Workspace(root).data())
+    except (OSError, ValueError):
+        results = root
+    for where in dict.fromkeys((root, results)):
+        start._hide_keys(where)
     try:
         server = server_for(Workspace(root), settings, token)
     except (LabelError, OSError) as e:
