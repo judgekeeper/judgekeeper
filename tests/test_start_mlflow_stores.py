@@ -112,7 +112,7 @@ def fresh(monkeypatch):
     for name in (ALLOW, HINT, "MLFLOW_TRACKING_URI"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(mlflow_store, "_noted", False)
-    monkeypatch.setattr(mlflow_store, "_walked", set())
+    monkeypatch.setattr(mlflow_store, "_walked", {})
 
 
 def run(capsys, *argv):
@@ -649,7 +649,7 @@ METRIC_PLACES = ["1/a1b2/metrics/loss", "1/datasets/d-1/meta.yaml", "1/a1b2/inpu
     "1/meta.yaml", "1/tags/team", "1/tags/mlflow/note", "1/a1b2/meta.yaml", "1/a1b2/tags/k",
     "1/a1b2/params/p", "1/traces/tr-1/trace_info.yaml", "1/traces/tr-1/tags/k",
     "1/traces/tr-1/request_metadata/k", "1/traces/tr-1/assessments/a-1", ".trash/2/meta.yaml",
-    "1/tags/artifacts/k", "1/a1b2/tags/artifacts/k"])
+    "1/tags/artifacts/k", "1/a1b2/tags/artifacts/k", "x0/tags/k", "x0/a1b2/params/p"])
 def test_a_file_over_1_mb_where_mlflow_keeps_a_small_value_is_refused(tmp_path, rel):
     path = _store_file(tmp_path, rel, 2**20 + 1)
     assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (path, "big")
@@ -672,6 +672,22 @@ def test_a_metric_or_logged_dataset_file_over_100_mb_is_refused(tmp_path, rel):
     assert f"mlruns/{rel} is over 100 MB, more than MLflow keeps there" in str(e.value)
 
 
+def test_metric_and_dataset_files_over_100_mb_together_are_refused(tmp_path):
+    """judgekeeper never uses run metrics: five 99 MB metric files took 2 GB and 27 s."""
+    _store_file(tmp_path, "1/a1b2/metrics/loss", 60 * 2**20)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None  # one: read
+    _store_file(tmp_path, "1/datasets/d-1/meta.yaml", 30 * 2**20)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None  # 90 MB together: read
+    _store_file(tmp_path, "1/c3d4/metrics/acc", 20 * 2**20)
+    with pytest.raises(Damaged) as e:
+        mlflow_store.check_folder_store(tmp_path / "mlruns")
+    assert e.value.args[0] in (
+        f"judgekeeper didn't let MLflow read mlruns/: mlruns/1/{where} takes the store's run "
+        "metric and dataset files over 100 MB together, more than MLflow keeps there."
+        for where in ("a1b2/metrics", "c3d4/metrics", "datasets/d-1"))
+    assert "remove the files your evaluation didn't save" in e.value.next_step
+
+
 @POSIX
 def test_a_runs_artifacts_are_not_looked_into(tmp_path):
     """MLflow doesn't open them to read traces (judgekeeper reads a trace's spans itself)."""
@@ -685,7 +701,7 @@ def test_a_runs_artifacts_are_not_looked_into(tmp_path):
 def test_the_store_is_looked_at_once_however_many_experiments(folder_only, capsys, monkeypatch):
     walks = []
     walk = mlflow_store.unsafe_file
-    monkeypatch.setattr(mlflow_store, "unsafe_file", lambda folder: walks.append(1) or walk(folder))
+    monkeypatch.setattr(mlflow_store, "unsafe_file", lambda *a: walks.append(1) or walk(*a))
     _, out = run(capsys, folder_only, "--no-browser")
     assert "Store:           mlruns, experiment qa-folder" in out, out
     assert len(walks) == 1
@@ -716,14 +732,48 @@ def test_a_junction_in_the_store_is_refused(tmp_path):
 # 120 sparse trace files of 99 MB (3 MB on disk) took 3.7 GB; 2,000 empty experiments took
 # half a minute. The trace files' real sizes count, not their space on disk.
 
-def test_trace_files_over_the_limit_together_are_refused(folder_only, capsys, monkeypatch):
+def _reads(monkeypatch) -> list:
+    """The trace files judgekeeper reads from now on."""
+    read, with_spans = [], mlflow_store._with_spans
+    monkeypatch.setattr(mlflow_store, "_with_spans",
+                        lambda *a, **k: read.append(a[0]) or with_spans(*a, **k))
+    return read
+
+
+@pytest.mark.parametrize("named", [False, True])
+def test_trace_files_over_the_limit_together_are_refused_before_one_is_read(folder_only, capsys,
+                                                                           monkeypatch, named):
+    """Their sizes are added up first: nine 99 MB trace files were read for 31 s before."""
     sizes = [p.stat().st_size for p in _trace_files(folder_only)]
     monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes) - 1)
-    code, out = run(capsys, folder_only, "--no-browser")
+    read = _reads(monkeypatch)
+    code, out = run(capsys, folder_only, "--no-browser",
+                    *(["--experiment", "qa-folder"] if named else []))
     flat = " ".join(out.split())
-    assert code == 2, out
+    assert code == 2 and not read, out
     assert "the trace files of MLflow experiment 'qa-folder' in mlruns are over" in flat, out
     assert "Next: keep fewer or smaller traces in that experiment" in flat, out
+
+
+def _trace(root, experiment, n, size, info=True):
+    trace = root / "mlruns" / experiment / "traces" / f"tr-{n}"
+    (trace / "artifacts").mkdir(parents=True)
+    if info:
+        (trace / "trace_info.yaml").write_text("x: 1\n", encoding="utf-8")
+    with open(trace / "artifacts" / "traces.json", "wb") as f:
+        f.truncate(size)
+
+
+def test_the_sizes_added_up_first_are_those_of_the_trace_files_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(mlflow_store, "MAX_TRACES", 2)
+    for n in range(2):
+        _trace(tmp_path, "1", n, 1000)
+    _trace(tmp_path, "1", 9, 5000, info=False)  # no trace there for MLflow: never read
+    _trace(tmp_path, "2", 0, mlflow_store.TRACE_LIMIT + 1)  # too big: never read
+    for n in range(3):  # more than MAX_TRACES: only the newest are read, counted as read
+        _trace(tmp_path, "3", n, 1000)
+    sizes = mlflow_store.trace_sizes(tmp_path / "mlruns")
+    assert sizes == {"1": 2000, "2": 0}
 
 
 @pytest.fixture(scope="module")
@@ -736,27 +786,30 @@ def with_prod(tmp_path_factory):
     return build / "mlruns"
 
 
-def test_the_trace_limit_is_per_experiment_and_names_the_judged_ones(with_prod, tmp_path,
-                                                                     capsys, monkeypatch):
+def test_the_trace_limit_is_shared_by_the_experiments_read(with_prod, tmp_path, capsys,
+                                                          monkeypatch):
+    """200 experiments of 9 sparse 99 MB trace files each were all read, one by one. Each one
+    named with --experiment is still read: only its own trace files count then."""
     project = tmp_path / "docs-qa"
     shutil.copytree(with_prod, project / "mlruns")
     prod = next(p.parent for p in (project / "mlruns").glob("*/meta.yaml")
                 if "name: prod" in p.read_text(encoding="utf-8"))
-    qa = [p for p in _trace_files(project) if prod not in p.parents]
-    for path in _trace_files(project):
-        if prod in path.parents:  # JSON with spaces after it: read the same, bigger
-            path.write_bytes(path.read_bytes() + b" " * 100_000)
-    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(p.stat().st_size for p in qa))
+    files = _trace_files(project)
+    each = [sum(p.stat().st_size for p in files if (prod in p.parents) == is_prod)
+            for is_prod in (False, True)]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", max(each))  # each fits, not both
+    read = _reads(monkeypatch)
     code, out = run(capsys, project, "--no-browser")
     flat = " ".join(out.split())
-    assert code == 2, out
-    assert ("the trace files of MLflow experiment 'prod' in mlruns are over" in flat
-            and "judgekeeper reads at most" in flat and "of trace files from one experiment"
-            in flat), out
-    assert re.search(r"--no-browser --experiment NAME`, with NAME the experiment to read "
-                     r"\(LLM-as-a-judge assessments are in (['\"])qa-folder\1\)\.$", flat), out
+    assert code == 2 and not read, out
+    assert re.search(r"the trace files of MLflow experiments (['\"])(qa-folder|prod)\1 and "
+                     r"\1(prod|qa-folder)\1 in mlruns are over [\d,]+ bytes together: judgekeeper "
+                     r"reads at most [\d,]+ bytes of trace files in one go\.", flat), out
+    assert flat.endswith("--no-browser --experiment NAME`, with NAME one of these experiments."), out
     code, out = run(capsys, project, "--no-browser", "--experiment", "qa-folder")
     assert "Store:           mlruns, experiment qa-folder" in out, out
+    code, out = run(capsys, project, "--no-browser", "--experiment", "prod")
+    assert "are over" not in out and "no LLM-as-a-judge" in " ".join(out.split()), out
 
 
 def test_trace_files_under_the_limit_are_read(folder_only, capsys, monkeypatch):
@@ -780,16 +833,20 @@ def test_a_store_with_more_experiments_than_the_limit_is_refused(folder_only, ca
 
 
 @pytest.mark.parametrize("count", [3, 4])
+@pytest.mark.parametrize("name", ["{}", "x{}"])
 def test_experiment_folders_over_the_limit_are_counted_before_mlflow_lists_them(tmp_path,
                                                                                 monkeypatch,
-                                                                                count):
+                                                                                count, name):
     """A page of a folder store's list reads every experiment's meta.yaml: 20,000 took over
-    15 minutes."""
+    15 minutes. MLflow takes any folder for an experiment, whatever its name."""
     monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 3)
     for i in range(count):
-        (tmp_path / "mlruns" / str(i)).mkdir(parents=True)
-        (tmp_path / "mlruns" / str(i) / "meta.yaml").write_text(f"name: e{i}\n", encoding="utf-8")
-    (tmp_path / "mlruns" / "models").mkdir()  # MLflow's own folders are not experiments
+        (tmp_path / "mlruns" / name.format(i)).mkdir(parents=True)
+        (tmp_path / "mlruns" / name.format(i) / "meta.yaml").write_text(f"name: e{i}\n",
+                                                                        encoding="utf-8")
+    for other in (".trash", "models"):  # MLflow's own folders are not experiments
+        (tmp_path / "mlruns" / other).mkdir()
+        (tmp_path / "mlruns" / other / "meta.yaml").write_text("name: o\n", encoding="utf-8")
     (tmp_path / "mlruns" / "9").mkdir()
     listed = []
     client = SimpleNamespace(tracking_uri=str(tmp_path / "mlruns"),
@@ -832,13 +889,14 @@ def test_a_cloned_folder_store_beside_mlflow_db_is_read_when_chosen(two, capsys,
 
 def test_the_limits_are_said_in_the_reference():
     flat = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments, "
-            f"and from one experiment at most {mlflow_store.TRACES_LIMIT // 10**9} GB of trace "
-            f"files and the newest {mlflow_store.MAX_TRACES:,} traces.") in flat
+    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments "
+            f"and {mlflow_store.TRACES_LIMIT // 10**9} GB of trace files in one go, and the "
+            f"newest {mlflow_store.MAX_TRACES:,} traces of an experiment.") in flat
     assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
             "`-shm` files") in flat
     assert (mlflow_store.SMALL_LIMIT, mlflow_store.LARGE_LIMIT) == (2**20, 100 * 2**20)
-    assert "a tag, setting or assessment file over 1 MB or a metric file over 100 MB" in flat
+    assert ("a tag, setting or assessment file over 1 MB, or run metric and dataset files over "
+            "100 MB together") in flat
 
 
 # Messages that say what is true -----------------------------------------------------------
