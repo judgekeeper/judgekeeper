@@ -24,6 +24,7 @@ import os
 import re
 import stat
 import time
+from pathlib import Path
 
 import pytest
 
@@ -623,7 +624,8 @@ def test_check_names_a_rule_tested_with_fix(here, capsys):
 def test_the_result_page_shows_the_input_as_the_marking_page_does(value, output, shown):
     from types import SimpleNamespace
 
-    m = SimpleNamespace(rows={"a": {"input": value}})
+    m = SimpleNamespace(rows={"a": {"input": value}},
+                        ws=SimpleNamespace(pool=Path("no-such-pool.jsonl")))
     assert fix._question(m, {"id": "a", "output": output}) == shown
 
 

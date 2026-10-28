@@ -204,3 +204,85 @@ def test_a_flag_keeps_its_tags_and_stray_tags_still_go():
     assert redact.visible("\U0001F3F4\u200b\U000E0067\U000E007F") == "\U0001F3F4"
     assert redact.printable(england) == "\U0001F3F4"  # the terminal: as before
 
+
+# Found by hand: names kept through fix and a grade of marked-answers.csv again ----------------
+
+SYSTEM = "You are the support assistant.\nAnswer from the policy only."
+CHAT = "user: Where is my bag?\nassistant: Let me look.\nuser: Is it lost?"
+
+
+def _named_project(root):
+    """A promptfoo project whose questions are two named values, every answer marked."""
+    import contextlib
+    import io
+    import json
+
+    from judgekeeper.cli import main
+    from judgekeeper.start_label import StartSession, Workspace
+    from tests.start_projects import promptfoo_data, question
+    from tests.test_fix import closed
+
+    n = 60
+    data = promptfoo_data([i % 2 == 0 for i in range(n)])
+    for i, row in enumerate(data["results"]["results"]):
+        row["vars"] = row["testCase"]["vars"] = (
+            {"question": question(i), "system": SYSTEM} if i else {"question": CHAT})
+    (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        ws = Workspace(root)
+        closed(ws)
+        session = StartSession(ws)
+        for k, item in enumerate(session.items):
+            session.update({"id": item["id"], "label": "pass" if k % 2 else "fail",
+                            "seconds": 3})
+        main(["fix"])
+    return ws, data
+
+
+def test_a_grade_of_marked_answers_again_keeps_the_names_on_both_pages(tmp_path, monkeypatch):
+    import csv
+    import json
+
+    from judgekeeper import batches, fix, start
+    from judgekeeper.start_label import StartSession
+
+    root = tmp_path / "bot"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    ws, data = _named_project(root)
+    with open(ws.dir / "fix" / "marked-answers.csv", encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    named = next(r for r in rows if r["question"].startswith("question: "))
+    assert named["question"].endswith("system: " + SYSTEM)  # display(vars): one text
+    # the eval asks marked-answers.csv again: its question comes back as one value, with a
+    # new answer, so it joins as a new batch
+    again = json.loads(json.dumps(data))
+    row = again["results"]["results"][0]
+    row["vars"] = row["testCase"]["vars"] = {"question": named["question"], "answer": "New."}
+    row["response"]["output"] = "New."
+    again["results"]["results"] = [row]
+    (root / "again.json").write_text(json.dumps(again), encoding="utf-8")
+    assert batches.add(ws, start.find_judge(root)) == 1
+    new = next(r for r in StartSession(ws).state()["items"] if r["output"] == "New.")
+    assert new["input"][0] == ["question", named["question"].split("\n")[0][len("question: "):]]
+    assert ["system", SYSTEM] in new["input"]  # the marking page and its list: the names
+    m = fix.Marks(ws)
+    shown = fix._fields(m, {"id": new["id"], "output": "New."})
+    assert shown and ["system", SYSTEM] in shown  # the result page and report.html
+
+
+def test_a_chat_transcript_stays_plain_text_on_both_pages(tmp_path, monkeypatch):
+    from judgekeeper import fix
+    from judgekeeper.start_label import StartSession, shown_question
+
+    root = tmp_path / "bot"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    ws, _ = _named_project(root)
+    items = StartSession(ws).state()["items"]
+    chat = [i for i in items if i["input"] == CHAT]
+    assert chat  # shown as it is
+    assert shown_question(ws, CHAT) == CHAT
+    m = fix.Marks(ws)
+    assert fix._question(m, {"id": chat[0]["id"], "output": ""}) == CHAT

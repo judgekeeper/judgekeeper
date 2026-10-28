@@ -675,9 +675,9 @@ def report_section(ws: Workspace) -> dict | None:
 def _fields(m: Marks, row: dict) -> list[list[str]] | None:
     """A mistake's question as named values, as the marking page shows them, when two or more
     are left (none is the answer itself); else None."""
-    from judgekeeper.start_label import question_view
+    from judgekeeper.start_label import shown_question
 
-    shown = question_view(m.rows.get(row["id"], {}).get("input"))
+    shown = shown_question(m.ws, m.rows.get(row["id"], {}).get("input"))
     if not isinstance(shown, list):
         return None
     shown = [[k, v] for k, v in shown if v.strip() != str(row["output"]).strip()]
@@ -687,9 +687,9 @@ def _fields(m: Marks, row: dict) -> list[list[str]] | None:
 def _question(m: Marks, row: dict) -> str:
     """A mistake's question as the marking page showed it: of named values, those that are not
     the answer itself (it shows next to it); one left as its value alone."""
-    from judgekeeper.start_label import question_view
+    from judgekeeper.start_label import shown_question
 
-    shown = question_view(m.rows.get(row["id"], {}).get("input"))
+    shown = shown_question(m.ws, m.rows.get(row["id"], {}).get("input"))
     if not isinstance(shown, list):
         return shown
     shown = [(k, v) for k, v in shown if v.strip() != str(row["output"]).strip()]

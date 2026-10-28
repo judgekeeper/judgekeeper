@@ -432,6 +432,42 @@ def question_view(value):
     return display(value)
 
 
+def _fields_index(path: Path) -> dict[str, dict]:
+    """{a question's text as matched: its named values} for every answer in pool.jsonl asked by
+    two or more named values (such as promptfoo's vars), by its whole text and as
+    marked-answers.csv holds it (check._marked_question)."""
+    from judgekeeper.check import _marked_question
+
+    out: dict[str, dict] = {}
+    for line in jsonl_lines(path.read_text(encoding="utf-8")):
+        if not line.strip():
+            continue
+        value = loads(line).get("input")
+        if isinstance(value, dict) and len(value) > 1:
+            for text in _marked_question(value):
+                out.setdefault(text, value)
+    return out
+
+
+def shown_question(ws: Workspace, value):
+    """A question as the pages show it (question_view), the marking page, its list and the
+    result page alike. A question that is exactly the text of one judgekeeper already holds
+    as named values (a grade of marked-answers.csv again hands those back as one text) shows
+    with those names. Text is never split by its own "name:" lines."""
+    from judgekeeper.check import _questions
+
+    texts = _questions(value)
+    if any(": " in t for t in texts) and ws.pool.is_file():
+        try:
+            known = read_cached(ws.pool, _fields_index)
+        except (OSError, ValueError, KeyError, AttributeError):
+            known = {}
+        for text in sorted(texts):
+            if text in known and known[text] is not value:
+                return question_view(known[text])
+    return question_view(value)
+
+
 def _all_exact(r: dict) -> bool:
     """Whether both ranges have no width: more marks can't change them."""
     ends = [r.get(f"{k}_interval") or [None, None] for k in ("tpr", "tnr")]
@@ -624,7 +660,8 @@ class StartSession(LabelSession):
         shown = self.items[:touched + 1 + AHEAD]
         start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
-        items = [{"id": i["id"], "input": question_view(self.raw[i["id"]].get("input")),
+        items = [{"id": i["id"], "input": shown_question(self.workspace,
+                                                          self.raw[i["id"]].get("input")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in shown]
         return {"items": items, "total": len(self.items), "start": start,
