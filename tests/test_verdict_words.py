@@ -117,7 +117,7 @@ def test_a_new_set_after_fix_new_still_reads_its_own_marks(here, capsys):
 
     ws = project(here)
     capsys.readouterr()
-    assert run(capsys, "fix", "--new")[0] == 0
+    assert run(capsys, "fix", "--new")[0] == 3  # mark more: they make the new set
     rows = [_row(i) for i in range(100)]
     _write(here / "results.csv", rows)
     assert run(capsys, "--no-browser")[0] == 0

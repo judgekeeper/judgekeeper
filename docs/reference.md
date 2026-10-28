@@ -259,7 +259,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `opening` | Empty: a run is opening the page |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date |
 | `history/` | Earlier results |
-| `history.jsonl` | One line per result, fix test and check: counts and numbers, no answer text |
+| `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a fixed set with its sha256 |
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them |
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |

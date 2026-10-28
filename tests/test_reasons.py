@@ -704,7 +704,8 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
             "<<<RULE PART\nit never promises a refund\nRULE PART>>>") in once
     assert "refund" not in _outside_fences(md)  # the rule's words are data, as the answers
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data
-    assert "Fail when: “the order number”" in once  # the person's own button
+    assert ("- Fail when what you wrote below is true\n<<<YOUR REASON\nthe order number\n"
+            "YOUR REASON>>>") in once  # the person's own button, fenced as data
     flat = " ".join(out.split())
     assert ("Suggestions from your reasons are in .judgekeeper/fix/suggestions.md. Copy the "
             "ones you agree with into your rule where your eval keeps it.") in flat
@@ -733,7 +734,8 @@ def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
     rows = [{"id": f"a{n}", "judge": "fail", "final": "pass", "output": "An answer.",
              "reasons": ["own-1"], "words": {"own-1": "No greeting"}, "parts": [],
              "spans": [], "why": ""} for n in range(2)]
-    assert "- Pass even when: “No greeting”" in reasons.suggestions_md(rows)
+    assert ("- Pass even when what you wrote below is true (2 answers)\n<<<YOUR REASON\n"
+            "No greeting\nYOUR REASON>>>") in reasons.suggestions_md(rows)
 
 
 # Batches, check and --new -----------------------------------------------------------------------
