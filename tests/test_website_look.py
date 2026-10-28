@@ -239,7 +239,7 @@ def test_monospace_text_shows_what_you_type():
 
 # Dark only ---------------------------------------------------------------------------------
 
-DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#585e68",
+DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#767c86",
         "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
         "rule": "#343941", "term-bg": "#07080a", "term-bar": "#101215", "term-dot": "#33373e",
         "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40"}
@@ -288,13 +288,13 @@ def test_text_colours_meet_wcag_aa():
 def test_keyboard_focus_shows_a_soft_ring_and_a_click_leaves_none():
     assert "outline: none" in _rule(":focus")
     ring = _rule(":focus-visible")
-    assert "outline: 2px solid var(--green)" in ring and "border-radius: 4px" in ring
+    assert "outline: 2px solid var(--fg)" in ring and "border-radius: 4px" in ring
     assert "border-radius: 12px" in _rule(".jk-card:focus-visible")
     # the five words show focus with their own green line, so no ring around them
     assert "outline: none" in _rule(".five a:focus-visible")
     assert ".five a:focus-visible::after" in CSS
-    # no rule brings back the white box
-    assert not [s for s, d in _rules() if "focus" in s and "var(--fg)" in d]
+    # the one ring is in the text colour; no other focus rule brings back a white box
+    assert [s for s, d in _rules() if "focus" in s and "var(--fg)" in d] == [":focus-visible"]
     assert ".skip:focus" in CSS
 
 

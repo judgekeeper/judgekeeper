@@ -240,7 +240,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 
 - On macOS and Linux, only your user can read its files (0600) and folders (0700). Each file is written whole, replacing the old one.
 - It does not write through links: if `.judgekeeper/` or anything in it is a symlink (a cloned repository can hold one) or a hard link, it stops before writing and says which.
-- Text from results files is cleaned of keys before it is written. Pages escape every value, spreadsheets stop cells from running as formulas (the id column too), and the terminal gets no control or invisible characters (bidirectional controls, zero-width and tag characters). Pages drop the same characters but keep the two zero-width joiners (U+200C, U+200D), which joined emoji and scripts such as Hindi and Persian need. A key split by one is still replaced.
+- Text from results files is cleaned of keys before it is written. Pages escape every value, spreadsheets stop cells from running as formulas (the id column too), and the terminal gets no control or invisible characters (bidirectional controls, zero-width and tag characters). Pages drop the same characters but keep the two zero-width joiners (U+200C, U+200D), which joined emoji and scripts such as Hindi and Persian need, plus emoji variation selectors and the tag characters of the England, Scotland and Wales flags. A key split by one is still replaced.
 - `mistakes.md` and `suggestions.md` start with a warning that what follows is data, with your notes and own reasons, the rule, and each question, answer, part you marked and LLM-as-a-judge's reason fenced below it.
 - A `judgekeeper.toml` that names a results file outside the project is refused.
 

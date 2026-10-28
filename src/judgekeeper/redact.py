@@ -132,11 +132,12 @@ def _style_kept(text: str, at: int) -> bool:
     return before in "0123456789#*" and before != "" and text[at + 1:at + 2] == "\u20e3"
 
 
-# A flag such as England's is a black flag (U+1F3F4), then 2 to 6 tag letters a-z or digits
-# (U+E0061 to U+E007A, U+E0030 to U+E0039), then U+E007F: those tags stay, every other tag
-# character goes, so no hidden text rides on a flag.
-_FLAG_TAGS = re.compile("(?<=\U0001F3F4)[\U000E0030-\U000E0039\U000E0061-\U000E007A]{2,6}"
-                        "\U000E007F")
+# The three standard subdivision flags (England, Scotland, Wales) are a black flag (U+1F3F4),
+# their tag letters, then U+E007F: those tags stay, every other tag character goes, so no
+# hidden text rides on a flag.
+_FLAG_CODES = ("gbeng", "gbsct", "gbwls")
+_FLAG_TAGS = re.compile("(?<=\U0001F3F4)(?:" + "|".join(
+    "".join(chr(0xE0000 + ord(c)) for c in code) for code in _FLAG_CODES) + ")\U000E007F")
 
 
 def visible(text: str) -> str:

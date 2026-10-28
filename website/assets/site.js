@@ -49,7 +49,8 @@
         var sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        try { document.execCommand("copy"); } catch (e) { /* the text stays selected */ }
+        try { document.execCommand("copy"); } catch (e) { /* nothing more to try */ }
+        sel.removeAllRanges();
         done();
       }
       button.addEventListener("click", function () {

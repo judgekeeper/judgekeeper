@@ -425,8 +425,8 @@ def test_result_counts_and_left_out_line(tmp_path,
     r = save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
-    assert ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on 1 answer. It is left '
-            "out.</p>") in html
+    assert ('<p class="left-out band">Your <span class="term">LLM-as-a-judge</span> gave no Pass '
+            "or Fail on 1 answer. It is left out.</p>") in html
     assert judge_check.TITLE not in html  # the full findings: the terminal and the CSV file
 
 

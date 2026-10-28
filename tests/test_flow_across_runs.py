@@ -205,7 +205,7 @@ def _said_in_report(report: str) -> list[str]:
     """The headline, the two counts and the kept-aside line, as report.html says them."""
     text = re.sub(r"<[^>]+>", "", report)
     return re.findall(r"Your LLM-as-a-judge [^.]*\.|Too early to tell\.|You (?:passed|failed) \d+ "
-                      r"answers\. Of those, your LLM-as-a-judge passed \d+ and failed \d+\.|"
+                      r"answers\. It passed \d+ and failed \d+\.|"
                       r"\* \d+ more (?:is|are) kept aside", text)
 
 
@@ -223,7 +223,7 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
     code, out = _check(capsys)
     assert code == 0, out
     after_check = _report(here)
-    assert ("You failed 38 answers. Of those, your LLM-as-a-judge passed 2 and failed 36."
+    assert ("You failed 38 answers. It passed 2 and failed 36."
             in _said_in_report(after_check)), _said_in_report(after_check)
     _jk(capsys)
     assert _said_in_report(_report(here)) == _said_in_report(after_check)
@@ -286,7 +286,8 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "re-check your changed LLM-as-a-judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
     report = _report(here)
-    assert ("Go back to your old LLM-as-a-judge or change its rule, run <code>judgekeeper fix"
+    assert ('Go back to your old <span class="term">LLM-as-a-judge</span> or change its rule, '
+            "run <code>judgekeeper fix"
             "</code> to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "
             "grade them again with it, then run <code>judgekeeper check &lt;new results file&gt;"
             "</code>.") in report

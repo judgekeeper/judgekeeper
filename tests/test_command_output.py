@@ -873,10 +873,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
 
 # The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 
-S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your LLM-as-a-judge got "
-           "wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. Change your rule "
-           "in your eval tool, grade those answers again, then run "
-           "`judgekeeper fix <new results file>` to test it on the marks kept aside.")
+S11_FIX = "Fix it Run it in your project folder to see what to change. `judgekeeper fix`"
 
 
 def _page_text(html: str) -> str:
