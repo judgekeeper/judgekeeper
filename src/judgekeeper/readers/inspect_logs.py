@@ -119,18 +119,19 @@ HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
 # made only of escapes: 8 MB in 8.9 s, 32 MB in minutes. So a text over LONG_TEXT (as before:
 # any text up to it) may hold at most one escape for every ESCAPE_SPACING characters, and the
 # texts over LONG_TEXT may add up to LONG_TEXTS_LIMIT in the whole log: about 11.4 s at most.
-# A sample of 200 MB in 8 MB texts reads in about 11 s. Texts of escapes only, each s per MB:
-# 8 MB 1.06, 2 MB 0.34, 1 MB 0.21, 256 KB 0.12, 64 KB 0.09; so a sample of 200 MB holding
-# them (100 MB of text) would read in about 100 s in 8 MB texts, 21 s in 1 MB ones, 12 s in
-# 256 KB ones. Texts over DENSE_TEXT with more than one escape for every ESCAPE_SPACING
-# characters may add up to DENSE_TEXTS_LIMIT in the whole log: about 11.6 s at most (8 MB and
-# 4 MB). DENSE_TEXT is not under STEP, so such a text spans steps.
+# A sample of 200 MB in 8 MB texts reads in about 11 s. The time follows the escapes: texts of
+# escapes only take, per million escapes, 1.06 s in 8 MB texts, 0.34 s in 2 MB ones, 0.21 s
+# in 1 MB, 0.12 s in 256 KB, 0.09 s in 64 KB (a sample of 200 MB of them: about 100 s in 8 MB
+# texts, 21 s in 1 MB, 12 s in 256 KB); JSON kept as a string, an escape every 6.6
+# characters, 20 texts of 1.5 MB (4.8 million escapes) in 1.6 s. So the escapes in texts over
+# COUNTED_TEXT may add up to ESCAPES_LIMIT in the whole log: about 11.7 s at most, in 8 MB
+# texts. COUNTED_TEXT is not under STEP, so such a text spans steps.
 MAX_STRING = 32 * 2**20
 LONG_TEXT = 8 * 2**20
 ESCAPE_SPACING = 32
 LONG_TEXTS_LIMIT = 64 * 2**20
-DENSE_TEXT = 2**20
-DENSE_TEXTS_LIMIT = 12 * 2**20
+COUNTED_TEXT = 2**20
+ESCAPES_LIMIT = 11_000_000
 STRING_TOO_LONG = ("{path} is too big for judgekeeper to read: one text in it is longer than "
                    "{limit}, the most judgekeeper reads in one text of an Inspect AI log.")
 SPECIAL_TEXT = ("{path} is too big for judgekeeper to read: one text in it is over {long} and "
@@ -138,9 +139,9 @@ SPECIAL_TEXT = ("{path} is too big for judgekeeper to read: one text in it is ov
                 "text of an Inspect AI log only up to {long}.")
 LONG_TEXTS = ("{path} is too big for judgekeeper to read: its texts over {long} add up to more "
               "than {limit}, the most judgekeeper reads of long texts in one Inspect AI log.")
-DENSE_TEXTS = ("{path} is too big for judgekeeper to read: its texts over {dense} full of special "
-               "characters such as \\n or \\\" add up to more than {limit}, the most judgekeeper "
-               "reads of such texts in one Inspect AI log.")
+ESCAPES = ("{path} is too big for judgekeeper to read: its texts over {counted} hold more than "
+           "{limit} special characters such as \\n or \\\" together, the most judgekeeper reads "
+           "of them in one Inspect AI log.")
 # values (a comma or an opening bracket) in one part: inspect_ai takes GBs to read a few KB
 # that unpack to `[0,0,...]` with millions of zeros. A part that grows with the samples may
 # hold VALUES_PER_SAMPLE more per sample in the log.
@@ -224,8 +225,8 @@ class TooManyLong(ValueError):
     """The texts over LONG_TEXT in a .eval log add up to more than they may."""
 
 
-class TooManyDense(ValueError):
-    """The texts over DENSE_TEXT full of escapes in a .eval log add up to more than they may."""
+class TooManyEscapes(ValueError):
+    """The texts over COUNTED_TEXT in a .eval log hold more escapes together than they may."""
 
 
 class _Depth:
@@ -237,18 +238,18 @@ class _Depth:
     MAX_NESTING, TooWide once past `values` values, TooLong once a string is longer than
     `longest`; a string over LONG_TEXT: TooSpecial with more than one escape for every
     ESCAPE_SPACING characters, TooManyLong once those strings add up to more than `long_left`;
-    a string over DENSE_TEXT, up to LONG_TEXT, with more escapes than that: TooManyDense once
-    such strings add up to more than `dense_left`. A step is at most STEP bytes, not over
-    DENSE_TEXT: only a string carried from step to step can grow over it."""
+    TooManyEscapes once the strings over COUNTED_TEXT hold more than `escapes_left` escapes
+    together. A step is at most STEP bytes, not over COUNTED_TEXT: only a string carried from
+    step to step can grow over it."""
 
     def __init__(self, values: float = math.inf, longest: float = math.inf,
-                 long_left: float = math.inf, dense_left: float = math.inf):
+                 long_left: float = math.inf, escapes_left: float = math.inf):
         self.depth, self.in_string, self.escaped = 0, False, False
         self.values, self.most_values = 0, values
         self.string, self.longest = 0, longest  # the open string's length so far
         self.escapes = 0  # the open string's escapes so far
         self.long, self.long_left = 0, long_left  # the strings over LONG_TEXT: their length
-        self.dense, self.dense_left = 0, dense_left  # the dense ones over DENSE_TEXT: theirs
+        self.counted, self.escapes_left = 0, escapes_left  # escapes, in those over COUNTED_TEXT
 
     def feed(self, text: bytes) -> None:
         if self.escaped:  # the step before ended on a backslash: this byte is escaped
@@ -283,21 +284,20 @@ class _Depth:
             raise TooLong("a string too long")
         still_open = self.in_string ^ (len(pieces) % 2 == 0)
         escapes = inside[0].count(_ESCAPED) + (self.escapes if self.in_string else 0)
-        if first > DENSE_TEXT:
+        if first > COUNTED_TEXT:
             self._long(first, escapes, closed=len(inside) > 1 or not still_open)
         if still_open and len(inside) > 1:  # a new string, open into the next step
             first, escapes = len(inside[-1]), inside[-1].count(_ESCAPED)
         self.string, self.escapes = (first, escapes) if still_open else (0, 0)
 
     def _long(self, n: int, escapes: int, closed: bool) -> None:
-        """A string over DENSE_TEXT, `n` long with `escapes` so far; `closed`: it ends here.
-        Over LONG_TEXT, refused as soon as it can't pass, so a text of escapes is not read to
-        its end."""
+        """A string over COUNTED_TEXT, `n` long with `escapes` so far; `closed`: it ends here.
+        Refused as soon as it can't pass, so a text of escapes is not read to its end."""
+        if self.counted + escapes > self.escapes_left:
+            raise TooManyEscapes("too many escapes in long strings")
+        if closed:
+            self.counted += escapes
         if n <= LONG_TEXT:
-            if closed and escapes * ESCAPE_SPACING > n:
-                self.dense += n
-                if self.dense > self.dense_left:
-                    raise TooManyDense("dense strings adding up too long")
             return
         if escapes * ESCAPE_SPACING > (n if closed else self.longest):
             raise TooSpecial("a long string of escapes")
@@ -309,14 +309,15 @@ class _Depth:
 
 def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = math.inf,
                 long_left: float = math.inf,
-                dense_left: float = math.inf) -> tuple[int, int, int, int]:
+                escapes_left: float = math.inf) -> tuple[int, int, int, int]:
     """How many bytes the zip `part` unpacks to, how many values it holds and how long its
-    strings over LONG_TEXT, and its dense ones over DENSE_TEXT, are together, counted by unpacking it STEP bytes at a time and
+    strings over LONG_TEXT are together and how many escapes its strings over COUNTED_TEXT
+    hold, counted by unpacking it STEP bytes at a time and
     keeping none; the count stops once past `most`. What it unpacks to is also looked at for
     how deep it nests (_Depth): TooDeep past MAX_NESTING, as inspect_ai would take many GB to
     read a few KB nested 100,000 deep, and TooWide past `values`, TooLong for a string over
     `longest`, TooSpecial and TooManyLong (`long_left`) for strings over LONG_TEXT,
-    TooManyDense (`dense_left`) for dense ones over DENSE_TEXT. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
+    TooManyEscapes (`escapes_left`) for the escapes in those over COUNTED_TEXT. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
     trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
     compression, or encrypted."""
     import struct
@@ -329,12 +330,12 @@ def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = m
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values, longest, long_left, dense_left)
+    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values, longest, long_left, escapes_left)
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
             depth.feed(out)
-        return n, depth.values, depth.long, depth.dense
+        return n, depth.values, depth.long, depth.counted
     if part.compress_type == zipfile.ZIP_DEFLATED:
         unpack = zlib.decompressobj(-15)
         while n <= most and not unpack.eof:
@@ -346,7 +347,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = m
             depth.feed(out)
         if n <= most and not unpack.eof:  # the packed data goes on past where the part ends
             raise ValueError("packed data cut short")
-        return n, depth.values, depth.long, depth.dense
+        return n, depth.values, depth.long, depth.counted
     if part.compress_type == ZSTD:
         import zstandard
 
@@ -355,7 +356,7 @@ def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = m
         while n <= most and (out := reader.read(STEP)):
             n += len(out)
             depth.feed(out)
-        return n, depth.values, depth.long, depth.dense
+        return n, depth.values, depth.long, depth.counted
     raise ValueError("not a compression inspect_ai writes")
 
 
@@ -525,8 +526,8 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
     declares, then by what each part really unpacks to (_unpacks_to), as a zip can declare
     any size. A sample may also unpack to at most PACKED_RATIO times its packed size and hold
     no text longer than MAX_STRING (over LONG_TEXT: with few escapes, and all of those in the
-    log together at most LONG_TEXTS_LIMIT; over DENSE_TEXT with many escapes: all of those
-    together at most DENSE_TEXTS_LIMIT), and all samples together at most VALUES_PER_BYTE
+    log together at most LONG_TEXTS_LIMIT; in those over COUNTED_TEXT at most ESCAPES_LIMIT
+    escapes together), and all samples together at most VALUES_PER_BYTE
     values for each byte they pack to. Each part is checked, a repeated name's every part too.
     Nothing unpacked is kept, so memory stays low.
     `samples=False`: the header parts only. Returns what each part really unpacks to, by name
@@ -552,7 +553,7 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
         p.compress_size for p in parts if p.filename.startswith("samples/")))
 
     def unpacked(f):
-        all_values = sample_bytes = sample_values = long_texts = dense_texts = 0
+        all_values = sample_bytes = sample_values = long_texts = escapes = 0
         for p in parts:
             sample = p.filename.startswith("samples/")
             most, values = (
@@ -563,11 +564,11 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
             left = ALL_VALUES_LIMIT - all_values
             packed_left = packed_values - sample_values if sample else math.inf
             try:
-                n, counted, long, dense = _unpacks_to(
+                n, counted, long, escaped = _unpacks_to(
                     f, p, min(most, tight), min(values, left, packed_left),
                     MAX_STRING if sample else math.inf,
                     LONG_TEXTS_LIMIT - long_texts if sample else math.inf,
-                    DENSE_TEXTS_LIMIT - dense_texts if sample else math.inf)
+                    ESCAPES_LIMIT - escapes if sample else math.inf)
             except TooLong:
                 raise RecordsError(STRING_TOO_LONG.format(path=path, limit=_size(MAX_STRING))
                                    ) from None
@@ -577,9 +578,9 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
             except TooManyLong:
                 raise RecordsError(LONG_TEXTS.format(path=path, long=_size(LONG_TEXT),
                                                      limit=_size(LONG_TEXTS_LIMIT))) from None
-            except TooManyDense:
-                raise RecordsError(DENSE_TEXTS.format(path=path, dense=_size(DENSE_TEXT),
-                                                      limit=_size(DENSE_TEXTS_LIMIT))) from None
+            except TooManyEscapes:
+                raise RecordsError(ESCAPES.format(path=path, counted=_size(COUNTED_TEXT),
+                                                  limit=f"{ESCAPES_LIMIT:,}")) from None
             except TooWide:
                 if packed_left < min(values, left):
                     raise RecordsError(PACKED_VALUES.format(path=path, ratio=VALUES_PER_BYTE)
@@ -593,7 +594,7 @@ def _check_unpacked(path: Path, whole: bool = False, samples: bool = True) -> di
                 raise RecordsError(PACKED_TOO_TIGHT.format(path=path, ratio=PACKED_RATIO))
             all_values += counted
             long_texts += long
-            dense_texts += dense
+            escapes += escaped
             sample_bytes += n if sample else 0
             sample_values += counted if sample else 0
             sizes[p.filename] = n
