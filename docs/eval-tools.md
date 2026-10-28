@@ -106,8 +106,8 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 
   log = read_eval_log("logs/<your log>.eval")
   rule = Path("rule.txt").read_text()  # your new rule
-  judge = model_graded_qa(instructions=rule, model="<the grader model you used>")
-  write_eval_log(score(log, judge, action="overwrite"), "logs/new.eval")
+  scorer = model_graded_qa(instructions=rule, model="<the grader model you used>")
+  write_eval_log(score(log, scorer, action="overwrite"), "logs/new.eval")
   ```
 
   `model=` writes your grader model into the new log, so `check` can name your LLM-as-a-judge. Then run `judgekeeper fix logs/new.eval`.
