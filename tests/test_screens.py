@@ -285,7 +285,7 @@ def test_screen_8_help(capsys):
         "                                    with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
-        "MLflow, or a CSV or JSONL file with these columns:",
+        "MLflow, or a CSV, TSV or JSONL file with these columns:",
         "  input, output, verdict",
         "",
         "usage: judgekeeper [PATH] [options]",

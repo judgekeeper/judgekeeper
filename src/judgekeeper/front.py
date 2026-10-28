@@ -563,7 +563,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         n = found.pool.n_unmapped.get(repr("P"), 0)
         for line in found_block(found):  # what was found; the count waits for the answer
             if not line.startswith("Answers:"):
-                talk.say(line)
+                _say_found(talk, line)
         talk.say()
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
@@ -993,6 +993,14 @@ def passed_failed(n_pass: int, n_fail: int) -> str:
     return f"Your LLM-as-a-judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
 
+def _say_found(talk: FrontTalk, line: str) -> None:
+    """A line of the Find block; a note under a value is wrapped under it."""
+    if line.startswith(f"{INDENT}("):
+        talk.para(line[len(INDENT):], indent=INDENT)
+    else:
+        talk.say(line)
+
+
 def found_block(found: start.Found, pass_if: str | None = None,
                 mapped: settings.StartSettings | None = None) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the file, the answers, the judge, its rule and
@@ -1010,6 +1018,8 @@ def found_block(found: start.Found, pass_if: str | None = None,
                      f"({unscored} failed before scoring)")
     elif not pool.answers and not pool.unread:
         lines.append(f"Answers:         {_n(answers, 'answer')}, none with a clear grade")
+    elif pool.split:  # repeats graded both ways each count: more to mark than answers
+        lines.append(f"Answers:         {answers} to mark")
     else:
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
@@ -1114,7 +1124,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     listed = _listed(found)
     talk.say()  # a blank line after what Find said first (a file left out), never two
     for line in found_block(found, talk.options["pass_if"], mapped):
-        talk.say(line)
+        _say_found(talk, line)
     if found.tool == "table" and _columns_line(found, talk.options["pass_if"]):
         talk.para(SCORE_READ)
     talk.say()
@@ -1614,8 +1624,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
     talk.para(verdict_line(r))
     for line in agreement_lines(r):
-        if line.startswith("  "):  # an indented count is said whole, never wrapped
-            talk.say(line)
+        if line.startswith("  "):  # an indented count, wrapped under itself
+            talk.para(line[2:], indent="  ")
         else:
             talk.para(line)
     step = report_page.next_step(r)  # the report's next step

@@ -705,8 +705,10 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         else:
             self.mark_step(f"{n}. judgekeeper prints the result: {result}", self.front(),
                            [RESULT[result],
-                            r"You passed \d+ answers\. Of those, your LLM-as-a-judge passed",
-                            r"You failed \d+ answers\. Of those, your LLM-as-a-judge passed",
+                            (r"You\s+passed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+"
+                             r"LLM-as-a-judge\s+passed"),  # the count may wrap
+                            (r"You\s+failed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+"
+                             r"LLM-as-a-judge\s+passed"),
                             r"Step 3 of 5: Measure", *uvx], cwd=cwd)
         self.mark_step(f"{n}. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"], cwd=cwd)

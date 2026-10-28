@@ -312,7 +312,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     first = " ".join(main[0][1])
     assert "Open this link" in first and "Your LLM-as-a-judge passed 28 answers and failed 22" in first
     result = " ".join(main[1][1])
-    assert "You passed \\d+ answers\\. Of those, your LLM-as-a-judge passed" in result
+    assert r"You\s+passed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+" in result
     assert "Result: your LLM-as-a-judge is good enough to use" in result and main[1][2] == (0,)
     assert "automatic" not in result.lower()
     assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
