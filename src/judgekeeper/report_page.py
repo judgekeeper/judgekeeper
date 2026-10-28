@@ -411,7 +411,8 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   display: block; }
 @media (hover: hover) { .kappa:hover .tip { display: block; } }
 .fix { border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
-.fix-in { display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
+.fix-in { display: grid; grid-template-columns: 1fr minmax(min(380px, 100%), auto); gap: 24px 48px;
+  align-items: center; }
 .fix-in h2, .fix-in p { grid-column: 1; }
 .fix-in .cmd { grid-column: 2; grid-row: 1 / span 2; }
 .fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }

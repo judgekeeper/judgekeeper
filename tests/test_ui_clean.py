@@ -313,3 +313,11 @@ def test_the_website_copy_clears_its_selection_after_the_fallback():
     js = _site("site.js")
     select = js.split("function select() {", 1)[1].split("\n      }", 1)[0]
     assert select.index('document.execCommand("copy")') < select.rindex("removeAllRanges()")
+
+
+def test_the_fix_it_copy_box_keeps_one_width_when_copied():
+    # a percentage min-width does not hold in an auto grid column: the column itself keeps 380px
+    assert (".fix-in { display: grid; grid-template-columns: 1fr minmax(min(380px, 100%), auto);"
+            in report_page.STYLE)
+    phone = report_page.STYLE.split(".fix-in { grid-template-columns: 1fr; }", 1)
+    assert len(phone) == 2  # one column on a narrow screen, the box at full width
