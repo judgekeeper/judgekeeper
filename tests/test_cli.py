@@ -184,3 +184,16 @@ def test_stdout_on_dev_full_exits_0_not_120(tmp_path):
                               timeout=60, check=False)
     assert done.returncode == 0, done.stderr
     assert "Traceback" not in done.stderr
+
+
+# --- the help screens ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("columns", ["80", "60", "100"])
+@pytest.mark.parametrize("command", [[], ["mark"]])  # the help screens that say it
+def test_help_never_splits_llm_as_a_judge_across_lines(monkeypatch, capsys, command, columns):
+    monkeypatch.setenv("COLUMNS", columns)
+    assert main([*command, "--help"]) == 0
+    out = capsys.readouterr().out
+    assert "LLM-as-a-judge" in out
+    words = out.split()
+    assert not [w for w in words if w.startswith("LLM-") and "LLM-as-a-judge" not in w], out

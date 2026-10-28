@@ -100,9 +100,24 @@ REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import",
            "start")
 
 
+class _Help(argparse.HelpFormatter):
+    """argparse's help, with no line break inside a word with hyphens ("LLM-as-a-judge")."""
+
+    def _split_lines(self, text, width):
+        return textwrap.wrap(" ".join(text.split()), width, break_on_hyphens=False)
+
+    def _fill_text(self, text, width, indent):
+        return textwrap.fill(" ".join(text.split()), width, initial_indent=indent,
+                             subsequent_indent=indent, break_on_hyphens=False)
+
+
 class _Parser(argparse.ArgumentParser):
     """argparse echoes bad argument values in its errors; scrub them too. The Next: line that
     follows is said by `_main`."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("formatter_class", _Help)
+        super().__init__(*args, **kwargs)
 
     def error(self, message):
         self.print_usage(sys.stderr)
@@ -117,7 +132,7 @@ class _TopParser(_Parser):
         width = max(len(name) for name, _ in COMMANDS_HELP) + 3
         commands = [line for name, text in COMMANDS_HELP for line in textwrap.wrap(
             text, HELP_WIDTH, initial_indent=f"  {name:<{width}}",
-            subsequent_indent=" " * (2 + width))]
+            subsequent_indent=" " * (2 + width), break_on_hyphens=False)]
         usage, _, options = super().format_help().partition("\n\n")
         lines = [MESSAGE, "", STEPS, "", READS, "", usage.strip(), "", "Commands:", *commands,
                  "", options.rstrip()]
@@ -209,7 +224,7 @@ def _port(value: str) -> int:
 def _front_parser() -> argparse.ArgumentParser:
     """`judgekeeper` with no command. Each option answers a question its Next: line asks."""
     p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
-                   formatter_class=lambda prog: argparse.HelpFormatter(prog, width=HELP_WIDTH))
+                   formatter_class=lambda prog: _Help(prog, width=HELP_WIDTH))
     p._positionals.title, p._optionals.title = "Arguments", "Options"
     p.add_argument("path", nargs="?", default=".", metavar="PATH",
                    help="your project folder (default: this folder), one results file, or an "
