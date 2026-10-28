@@ -1021,13 +1021,14 @@ def _questions(value) -> set[str]:
     return texts - {""}
 
 
-def _marked_question(value) -> tuple[str, ...]:
+def _marked_question(value, output=None) -> tuple[str, ...]:
     """A marked answer's question as it is matched: its whole input, and as marked-answers.csv
-    holds it (fix.question_text), which a regrade of that file asks. Never one value of a set
-    of them: a persona, a document or an expected answer many questions share is no question."""
+    holds it (fix.question_text, of the answer `output`), which a regrade of that file asks.
+    Never one value of a set of them: a persona, a document or an expected answer many
+    questions share is no question."""
     from judgekeeper.fix import question_text
 
-    return tuple(sorted({_text(value), _text(question_text(value))} - {""}))
+    return tuple(sorted({_text(value), _text(question_text(value, output))} - {""}))
 
 
 def _rows(ws: Workspace) -> dict:
@@ -1046,7 +1047,7 @@ def _same_answer(a, row: dict) -> bool:
     same answer text, and the row's whole question asked (_marked_question). An answer with no
     question is only a marked answer with none: another question's answer may read the same."""
     text = _text(row.get("output"))
-    asked, marked = _questions(a.input), set(_marked_question(row.get("input")))
+    asked, marked = _questions(a.input), set(_marked_question(row.get("input"), row.get("output")))
     return bool(text) and _text(a.output) == text and (
         bool(asked & marked) if marked else not asked)
 
@@ -1069,7 +1070,7 @@ def _candidates(index: dict, row: dict) -> list:
     if not text:
         return []
     found = {}
-    for q in _marked_question(row.get("input")) or (None,):
+    for q in _marked_question(row.get("input"), row.get("output")) or (None,):
         for a in index.get((text, q), []):
             found.setdefault(id(a), a)
     return list(found.values())
@@ -1621,7 +1622,7 @@ def _asked_again(found, ids, ws: Workspace) -> int:
     rows = _rows(ws)
     return sum(1 for i in ids if (row := rows.get(i)) and any(
         answers.get(q, set()) - {_text(row.get("output"))}
-        for q in _marked_question(row.get("input"))))
+        for q in _marked_question(row.get("input"), row.get("output"))))
 
 
 def regrade_marked(state: State) -> str:

@@ -1050,8 +1050,9 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     """fix/marked-answers.csv: every marked answer, `question,answer` only, shuffled, each
     once; cells guarded as a spreadsheet would run them (table.guard_cell). No mark, grade or
     id: the answers kept aside can't be told from the others. How many rows it holds."""
-    rows = list(dict.fromkeys((question_text(m.rows.get(i, {}).get("input")),
-                               answer_text(m.rows.get(i, {}).get("output")))
+    rows = list(dict.fromkeys((question_text((r := m.rows.get(i, {})).get("input"),
+                                             r.get("output")),
+                               answer_text(r.get("output")))
                               for i in m.person))
     random.SystemRandom().shuffle(rows)
     buf = io.StringIO()
@@ -1078,7 +1079,8 @@ def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> Non
     except (OSError, UnicodeDecodeError, csv.Error):
         held = set()
     rows = (m.rows.get(i, {}) for i in ids)
-    if all((guard_cell(question_text(r.get("input"))), guard_cell(answer_text(r.get("output"))))
+    if all((guard_cell(question_text(r.get("input"), r.get("output"))),
+            guard_cell(answer_text(r.get("output"))))
            in held for r in rows):
         return
     write_answers(ws, m)
@@ -1086,14 +1088,28 @@ def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> Non
     talk.para(REWROTE.format(answers=_file(ws, ANSWERS)))
 
 
-def question_text(value) -> str:
+def question_text(value, output=None) -> str:
     """A question as marked-answers.csv holds it: text as written; of a set of named values
-    (such as promptfoo's vars), one value alone, or several as `name: value` lines."""
+    (such as promptfoo's vars), one value alone, or several as `name: value` lines. An answer
+    graded again from that file (_regraded) keeps the question the file held, so each round
+    writes the same text and is matched the same way."""
     from judgekeeper.start_label import display
 
-    if isinstance(value, dict) and len(value) == 1:
+    if _regraded(value, output):
+        value = value["question"]
+    elif isinstance(value, dict) and len(value) == 1:
         value = next(iter(value.values()))
     return scrub(display(value))
+
+
+def _regraded(value, output) -> bool:
+    """Whether `value` is how a grade of marked-answers.csv hands a row back: its two columns
+    as the named values, the answer the one graded (`output`, as the `echo` provider gives)."""
+    from judgekeeper.check import _text
+
+    return (isinstance(value, dict) and set(value) == set(ANSWER_COLUMNS)
+            and isinstance(value["question"], str) and output is not None
+            and _text(output) != "" and _text(value["answer"]) == _text(output))
 
 
 def answer_text(value) -> str:

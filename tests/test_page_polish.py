@@ -426,3 +426,62 @@ def test_the_foot_line_is_centred_under_the_buttons_on_a_wide_screen():
     short = short.split("\n}\n", 1)[0]
     assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short
     assert ".foot { padding-top: 8px; padding-bottom: 8px; }" in short
+
+
+def _graded_again(root, data, rows, created: str, name: str, changed: str = ""):
+    """marked-answers.csv's `rows` graded again as promptfoo's echo regrade saves them: vars
+    {question, answer}, the answer as the output. `changed`: the first row's new answer."""
+    import json
+
+    from tests.start_projects import promptfoo_data
+
+    answers = [r["answer"] for r in rows]
+    if changed:
+        answers[0] = changed
+    again = promptfoo_data([k % 2 == 0 for k in range(len(rows))], outputs=answers,
+                           created=created)
+    for r, row in zip(rows, again["results"]["results"]):
+        row["vars"] = row["testCase"]["vars"] = {"question": r["question"],
+                                                 "answer": row["response"]["output"]}
+    (root / name).write_text(json.dumps(again), encoding="utf-8")
+
+
+def _held(ws) -> list[dict]:
+    import csv
+
+    with open(ws.dir / "fix" / "marked-answers.csv", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def test_two_grades_of_marked_answers_in_a_row_hold_the_same_questions(tmp_path, monkeypatch):
+    """Round 1: marked-answers.csv graded again, one answer new (it joins and is marked).
+    Round 2: `fix` writes the file again, and it is graded again. Each round the file holds
+    the questions as the person marked them, the same text, and each grade is matched."""
+    import os
+
+    from judgekeeper import batches, check, fix, start
+    from judgekeeper.start_label import StartSession
+
+    root = tmp_path / "bot"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    ws, data = _named_project(root)
+    first = _held(ws)
+    _graded_again(root, data, first, "2026-10-04T10:00:00.000Z", "again.json", changed="New.")
+    found = start.find_judge(root)
+    marked = sorted(fix.Marks(ws).person)
+    assert len(check.lookup(found, marked, ws)[0]) == len(marked) - 1  # all but the changed
+    assert batches.add(ws, start.find_judge(root)) == 1
+    session = StartSession(ws)
+    new = next(i for i in session.items if i["output"] == "New.")
+    session.update({"id": new["id"], "label": "pass", "seconds": 3})
+    m = fix.Marks(ws)
+    assert fix.write_answers(ws, m) == len(first) + 1
+    second = _held(ws)
+    assert {r["question"] for r in second} == {r["question"] for r in first}
+    _graded_again(root, data, second, "2026-10-05T10:00:00.000Z", "again2.json")
+    os.utime(root / "again2.json", (2_000_000_000, 2_000_000_000))
+    found = start.find_judge(root)
+    marked = sorted(m.person)
+    assert len(check.lookup(found, marked, ws)[0]) == len(marked)  # every one, the new too
+    assert batches.add(ws, found) == 0  # nothing new
