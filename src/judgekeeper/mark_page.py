@@ -221,8 +221,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .question.long.open.more-below {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
     mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent); }
-  .question.long.open:focus-visible { -webkit-mask-image: none; mask-image: none;
-    outline-offset: 6px; }
+  .question.long.open { padding: 6px 10px; margin: -6px -10px; }
+  .question.long.open:focus-visible { -webkit-mask-image: none; mask-image: none; }
   .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
   .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
   .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
