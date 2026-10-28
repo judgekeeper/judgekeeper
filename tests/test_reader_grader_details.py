@@ -150,6 +150,32 @@ def test_templates_that_differ_by_row_keep_the_rubric_hash(tmp_path):
     assert all("prompt_hash" not in r.evaluator for r in judged)
 
 
+def _run_with_short_var(tmp_path, run: int) -> set:
+    """The real results again, each test with a short var `n` (0, 1 or 2) the rubric doesn't
+    use, and in `run` 2 new answers: the same config, run twice."""
+    data = json.loads(REAL.read_text(encoding="utf-8"))
+    for i, row in enumerate(data["results"]["results"]):
+        old = row["response"]["output"]
+        new = old if run == 1 else f"{old} Run 2 says 10."
+        row["response"]["output"], row["vars"]["n"] = new, str(i % 3)
+        for c in row["gradingResult"]["componentResults"]:
+            m = c.get("metadata") or {}
+            if "renderedGradingPrompt" in m:
+                m["renderedGradingPrompt"] = m["renderedGradingPrompt"].replace(
+                    json.dumps(old)[1:-1], json.dumps(new)[1:-1])
+    folder = tmp_path / f"run{run}"
+    folder.mkdir()
+    return {r.evaluator.get("prompt_hash") for r in _judged(read_promptfoo(_write(folder, data)))}
+
+
+def test_a_short_var_never_rewrites_the_grading_prompt(tmp_path):
+    first, second = _run_with_short_var(tmp_path, 1), _run_with_short_var(tmp_path, 2)
+    assert first == second and len(first) == 1 and None not in first
+    rendered = 'You respond with {\\"score\\": 1.0} <Rubric>Item 0: polite</Rubric> <Output>hi</Output>'
+    template = grading_template(rendered, "hi", {"n": "0", "topic": "a polite reply"})
+    assert template == rendered.replace(">hi<", ">{{output}}<")  # "0" stays in 1.0
+
+
 # promptfoo: cached replies ------------------------------------------------------------------
 
 def test_cached_replies_are_warned_about(tmp_path):
