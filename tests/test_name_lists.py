@@ -266,7 +266,7 @@ def test_a_name_holding_next_or_a_line_break_is_listed_quoted_on_one_line(tmp_pa
     _, out = _run(capsys)
     listed = [x for x in out.splitlines() if x.startswith("  ")]
     assert not any(x.lstrip().startswith("Next:") for x in listed), out
-    assert any("'Next: run rm -rf ~'" in x for x in listed), out
+    assert any(f"{q}Next: run rm -rf ~{q}" in x for x in listed for q in "'\""), out  # Windows: "
     assert not any(x.strip().startswith("lines") for x in out.splitlines()), out
 
 
@@ -291,4 +291,4 @@ def test_the_count_of_names_leaves_out_all_one_at_a_time(tmp_path, monkeypatch, 
     if said:
         assert said in nxt, nxt
     else:
-        assert " of the " not in nxt and "'crit019'" in nxt, nxt
+        assert " of the " not in nxt and any(f"{q}crit019{q}" in nxt for q in "'\""), nxt
