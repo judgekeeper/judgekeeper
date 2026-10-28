@@ -531,6 +531,76 @@ def test_the_reasons_script_updates_the_line_after_a_save():
     assert "data-said" in s
 
 
+_REASONS_DOM = r"""
+var NOW = 0, timers = [], sent = [];
+Date.now = function () { return NOW; };
+function setTimeout(f, ms) { timers.push({f: f, at: NOW + ms, live: true}); return timers.length; }
+function clearTimeout(n) { if (n && timers[n - 1]) { timers[n - 1].live = false; } }
+function wait(ms) {  // time passes: the timers due run
+  NOW += ms;
+  timers.forEach(function (t) { if (t.live && t.at <= NOW) { t.live = false; t.f(); } });
+}
+function El(tag) { this.tagName = tag; this.attrs = {}; this.listeners = {}; this.hidden = false;
+  this.textContent = ""; this.value = ""; this.firstChild = null; }
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.hasAttribute = function (k) { return k in this.attrs; };
+El.prototype.removeAttribute = function (k) { delete this.attrs[k]; };
+El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
+El.prototype.fire = function (t, extra) {
+  var e = Object.assign({key: "", preventDefault: function () { this.prevented = true; }},
+                        extra || {});
+  if (this.listeners[t]) { this.listeners[t](e); } return e; };
+El.prototype.focus = function () {};
+El.prototype.appendChild = function () {};
+var parts = {".saved": new El("p"), "input": new El("input"), ".other": new El("button"),
+  ".mark-part": new El("button"), ".clear-part": new El("button"),
+  ".add-reason": new El("button"), ".said-now": new El("span"), ".said-text": new El("span")};
+var box = new El("div"), cell = new El("td");
+box.attrs = {"data-answer": "a-0", "data-id": "x1", "data-len": "10", "data-spans": "[]"};
+box.querySelector = function (s) { return parts[s]; };
+box.querySelectorAll = function () { return []; };
+var document = {getElementById: function () { return cell; },
+  querySelectorAll: function () { return [box]; }, addEventListener: function () {},
+  createRange: function () {}};
+var location = {search: "?token=t"};
+var window = {getSelection: function () { return {rangeCount: 0}; },
+  fetch: function (url, o) { sent.push(JSON.parse(o.body).note);
+    return {then: function () {}}; }};
+var input = parts["input"];
+function type(text) { input.value = text; input.fire("input"); }
+"""
+
+
+def test_the_other_box_saves_when_typing_pauses_on_enter_and_on_leaving():
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("needs node to run the page's script")
+    scenario = """
+      var steps = [];
+      type("G"); wait(400); type("Gi"); wait(1000); type("Giv"); wait(1400);
+      steps.push(sent.slice());  // still typing: nothing saved
+      wait(100); steps.push(sent.slice());  // 1.5 s after the last letter
+      type("Gives a"); input.fire("keydown", {key: "Enter"}); steps.push(sent.slice());
+      wait(2000); steps.push(sent.length);  // Enter saved it: no second save
+      type("Gives a price"); input.fire("blur"); steps.push(sent.slice());
+      input.fire("blur"); steps.push(sent.length);  // nothing new: no save
+      console.log(JSON.stringify(steps));"""
+    with tempfile.TemporaryDirectory() as folder:
+        script = Path(folder) / "page.js"
+        script.write_text(_REASONS_DOM + report_page.REASONS_SCRIPT + scenario, encoding="utf-8")
+        out = subprocess.run([node, str(script)], check=True, capture_output=True, text=True,
+                             encoding="utf-8", timeout=60)
+    got = json.loads(out.stdout.strip().splitlines()[-1])
+    assert got == [[], ["Giv"], ["Giv", "Gives a"], 2, ["Giv", "Gives a", "Gives a price"], 3]
+
+
 def test_the_group_link_says_show_less():
     assert '"Show less" : "Show all " + b.getAttribute("data-n")' in report_page.SCRIPT
     assert "Show fewer" not in report_page.SCRIPT

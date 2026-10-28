@@ -98,10 +98,11 @@ SCRIPT = """
   })();
 """.replace("__TICK__", TICK)
 # The live page's second script: the reason boxes. Each change is saved at once (the "Other…"
-# box when it is left, and at most once a second while typing); the token is the page's own.
+# box when typing pauses, on Enter and when it is left); the token is the page's own.
 REASONS_SCRIPT = """
   (function () {
-    var token = new URLSearchParams(location.search).get("token") || "", MAX = __MAX__;
+    var token = new URLSearchParams(location.search).get("token") || "", MAX = __MAX__,
+        PAUSE = 1500;
     function count(text) { return Array.from(text).length; }
     function each(list, f) { Array.prototype.forEach.call(list, f); }
     function on(b) { return b.getAttribute("aria-pressed") === "true"; }
@@ -114,7 +115,7 @@ REASONS_SCRIPT = """
           said = box.querySelector(".said-text"),
           text = cell.textContent, shown = parseInt(box.getAttribute("data-len"), 10),
           spans = JSON.parse(box.getAttribute("data-spans") || "[]"),
-          sent = input.value, last = 0, timer = null, pick = null;
+          sent = input.value, timer = null, pick = null;
       function body() {
         var taps = Array.prototype.filter.call(box.querySelectorAll(".chip[aria-pressed]"), on);
         return {id: box.getAttribute("data-id"),
@@ -150,7 +151,7 @@ REASONS_SCRIPT = """
         document.getElementById(add.getAttribute("aria-controls")).hidden = !open;
       });
       function send() {
-        clearTimeout(timer); last = Date.now(); sent = input.value; saved.textContent = "";
+        clearTimeout(timer); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
@@ -183,10 +184,12 @@ REASONS_SCRIPT = """
         document.getElementById(other.getAttribute("aria-controls")).hidden = !open;
         if (open) { input.focus(); }
       });
+      // Saved once typing pauses, on Enter and on leaving the box: never a half-typed word.
       input.addEventListener("input", function () {
-        var wait = 1000 - (Date.now() - last);
-        clearTimeout(timer);
-        if (wait <= 0) { send(); } else { timer = setTimeout(send, wait); }
+        clearTimeout(timer); timer = setTimeout(send, PAUSE);
+      });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); if (input.value !== sent) { send(); } }
       });
       input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
       document.addEventListener("selectionchange", function () {
