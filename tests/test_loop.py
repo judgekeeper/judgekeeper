@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-from judgekeeper import __version__, background, label, marks, page, report_page, start_label
+from judgekeeper import __version__, background, label, marks, page, report_page, start, start_label
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
@@ -531,8 +531,8 @@ class _Stream:
 @pytest.mark.parametrize("stdin,stdout,expected", [(True, True, True), (True, False, False),
                                                    (False, True, False)])
 def test_a_terminal_needs_both_input_and_output(monkeypatch, stdin, stdout, expected):
-    """On Windows the NUL device says it is a terminal: a command run with its input from NUL
-    and its output read by an agent is not at a terminal."""
+    """A command whose output an agent reads is not at a terminal, even when its input is one."""
     monkeypatch.setattr("sys.stdin", _Stream(stdin))
+    monkeypatch.setattr(start, "_console", lambda stream: True)  # on Windows, a console
     monkeypatch.setattr("sys.stdout", _Stream(stdout))
     assert page.terminal() is expected

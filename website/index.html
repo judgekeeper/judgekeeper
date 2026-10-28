@@ -18,10 +18,11 @@
 <meta name="twitter:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
 <meta name="twitter:description" content="See if your LLM-as-a-judge grades the way you would, find where it goes wrong, and test a better rule before you use it. judgekeeper only reads your eval results, on your own computer.">
 <meta name="twitter:image" content="https://www.judgekeeper.com/assets/social-preview.png">
+<meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=8">
-<script src="assets/site.js?v=8" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=9">
+<script src="assets/site.js?v=9" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -58,7 +59,7 @@
       <div class="jk-row jk-end-head"><div class="jk-end-top"><div class="jk-label">Your result</div><button type="button" class="jk-again" id="d-again">↻ Try again</button></div><h2 id="d-sum"></h2></div>
       <ul class="jk-end-list" id="d-list" aria-label="Your marks and the LLM-as-a-judge's grades"></ul>
       <div class="jk-end-actions">
-        <a class="jk-go" href="start.html">Check your own <span class="nb">LLM-as-a-judge</span></a>
+        <a class="jk-go" href="start.html"><span>Check your own <span class="nb">LLM-as-a-judge</span></span></a>
       </div>
     </div>
     <script type="application/json" id="demo-items">[["Can I return a lamp after 60 days?", "Of course! We accept returns at any time, no questions asked.", "pass"], ["Is there a student discount?", "Yes, 10% with a valid student email through our partner page.", "pass"], ["My lamp arrived broken. What now?", "Sorry about that. Reply with a photo and your order number, and we will send a free replacement.", "fail"], ["Do you ship to Canada?", "Yes, in 5 to 8 working days. Duties are included at checkout.", "pass"]]</script>
@@ -257,12 +258,12 @@ and run `judgekeeper check` again.</template>
   <div class="rt-grid">
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md">
       <span class="rt-big"><span class="rt-n" data-to="93">93</span> of 100</span>
-      <span class="rt-line">times all three true numbers were in judgekeeper's ranges at once</span>
+      <span class="rt-line">times TPR, TNR and kappa were all in judgekeeper's ranges at once</span>
       <span class="rt-src">JailbreakBench</span>
     </a>
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md">
       <span class="rt-big"><span class="rt-n" data-to="96">96</span> in 100</span>
-      <span class="rt-line">times each true number, checked on its own, was in judgekeeper's range</span>
+      <span class="rt-line">times, on average over TPR and TNR, the true value was in judgekeeper's range</span>
       <span class="rt-src">Real-data check</span>
     </a>
   </div></div>

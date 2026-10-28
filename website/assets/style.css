@@ -501,7 +501,7 @@ td:first-child { min-width: 14ch; }
 .fc-file-ico { width: 32px; height: 32px; color: var(--green); }
 .fc-main { display: flex; flex-direction: column; gap: 4px; font-size: 18px; line-height: 1.4; }
 .fc-main b { font-weight: 800; }
-.fc-loaded .fc-main b { font-family: var(--mono); font-variant-ligatures: none; font-weight: 600; font-size: 16px; word-break: break-all; }
+.fc-loaded .fc-main b { font-family: var(--mono); font-variant-ligatures: none; font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
 .ck2-or { font-size: 14px; color: var(--muted); }
 .fc-kinds { font-family: var(--mono); font-variant-ligatures: none; font-size: 13px; color: var(--muted); }
 .fc-clear { position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bar); color: var(--fg); font: 500 13.5px/1 var(--sans); }
@@ -574,6 +574,115 @@ td:first-child { min-width: 14ch; }
 @media (max-width: 860px) {
   .notfound .wrap { padding-block: 56px; }
   .notfound h1 { font-size: 36px; }
+}
+
+/* ---- phones and touch screens: bigger text, room for fingers, nothing cut. Laptops keep the
+   rules above unchanged; each block here is for a touch screen or a narrow one only. ---- */
+/* a tablet held in the hand: the links and buttons are 44px tall, as on a phone */
+@media (pointer: coarse) {
+  .menu .brand { min-height: 44px; }
+  .gh { height: 44px; }
+  .foot-r { row-gap: 0; }
+  .foot-r a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+/* no keyboard: the demo's key hints (left, right, S, Z) are left out */
+@media (hover: none) {
+  .jk-btn .key, .jk-sub .key { display: none; }
+}
+/* Privacy's "On this page": the links wrap into rows, never off the screen */
+@media (max-width: 860px) {
+  .g-nav { display: flex; flex-wrap: wrap; gap: 0 18px; overflow-x: visible; }
+}
+@media (max-width: 760px) {
+  /* Home and Guide are 44px tall; the current page's line is an underline under its word */
+  .menu-l { padding: 0 0 4px; }
+  .menu-l a { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+  .menu-l a[aria-current] { border-bottom-color: transparent; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+  /* the browser check: Clear under the file's name, and the whole result in the page */
+  .fc-loaded { transform: none; }
+  .fc-clear { position: static; transform: none; align-self: center; margin-top: 12px; }
+  .ck2-term .ck-out { max-height: none; overflow-y: visible; }
+  .fc-term .ln-cmd { flex-direction: row; }  /* "$ judgekeeper" stays on one line */
+}
+@media (max-width: 600px) {
+  /* Home: labels, the pill, window titles and the status bar at 14px; the terminal at 13px */
+  .jk-label, .jk-state, .jk-end-top .jk-again { font-size: 14px; }
+  .term-bar, .rt-bar, .term-foot, .steplist .n { font-size: 14px; }
+  .term-out { font-size: 14px; }
+  .rt-src { font-size: 14px; }
+  .foot .wrap { font-size: 15px; }
+  /* the Guide: code and the handy commands at 14px, a path breaks after its "/", "$" on the
+     command's first line, and Copy shows only its tick (the word stays for screen readers) */
+  .gx-code, .gm-pre { font-size: 14px; }
+  .gx-text .gx-tap { font-size: 15px; }
+  .gx-text code.path { white-space: normal; overflow-wrap: anywhere; }
+  .cmd code { align-items: flex-start; }
+  .cmd .copy.done .copied { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  /* the browser check: the result at 14px, the lines under the box at 15px */
+  .ck-out { font-size: 14px; }
+  .ex-or, .fc-kinds, .ck2-term .term-bar { font-size: 15px; }
+  .ex-t span { font-size: 14px; }
+  /* a picture of the Guide, opened over the page: wide enough to read, swiped around */
+  .shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
+  .shot-view[open] { display: flex; flex-direction: column; }
+  .shot-view::backdrop { background: var(--bg); }
+  .shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
+  .shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
+  .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .shot-pane img { display: block; width: 1100px; max-width: none; height: auto; }
+  html.has-view, html.has-view body { overflow: hidden; }
+}
+@media (max-width: 480px) {
+  /* the demo: the pill above the question; on the end card each question on its own line,
+     the two grades under it, each with its label */
+  .jk-row-q { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .jk-row-q .jk-state { order: -1; justify-self: start; }
+  .jk-end-list li.head { display: none; }
+  .jk-end-list li { grid-template-columns: 10px auto minmax(0, 1fr); grid-template-areas: "dot q q" ". you judge"; gap: 6px 14px; }
+  .jk-end-list .dot { grid-area: dot; }
+  .jk-end-list .q { grid-area: q; white-space: normal; overflow: visible; }
+  .jk-end-list li > b.g { grid-area: you; font-size: 14px; }
+  .jk-end-list li > b.g + b.g { grid-area: judge; }
+  .jk-end-list li > b.g::before { content: attr(data-label) " "; font-family: var(--sans); font-weight: 600; color: var(--muted); }
+  /* the Guide: the step's number sits in its window's bar, so a command has the whole width */
+  .gl-step { display: block; }
+  .gl-step::before, .gl-step::after { display: none; }
+  .gl-n { position: absolute; z-index: 1; left: 12px; top: 8px; width: 28px; height: 28px; margin: 0; font-size: 14px; background: var(--term-bar); }
+  .sw-bar { padding-left: 52px; }
+  .sw-bar::before { display: none; }
+}
+/* the smallest phones (and a phone with its text made bigger): the five words wrap at 14px or
+   more, and a button's words wrap instead of being cut */
+@media (max-width: 359px) {
+  .five { font-size: max(14px, min(17px, calc((100vw - 40px) / 19))); }
+  .b-main, .b-side { white-space: normal; height: auto; min-height: 46px; padding-block: 10px; text-align: center; }
+  /* the demo's end card: each grade on its own line under the question */
+  .jk-end-list li { grid-template-areas: "dot q q" ". you you" ". judge judge"; }
+  .jk-end-top .jk-again { white-space: nowrap; }
+}
+/* 300px and less: narrower margins and boxes, so the header fits and a command breaks only at
+   a space or after a "/" */
+@media (max-width: 300px) {
+  .wrap { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  .menu .brand { font-size: 18px; gap: 8px; }
+  .menu .brand .logo { width: 24px; height: 27px; }
+  .gh { padding: 0 10px; font-size: 14px; }
+  /* a window's title wraps, and a status-bar link wraps */
+  .rt-bar, .term-bar { padding: 0 12px; }
+  .rt-bar::before, .term-bar::before { display: none; }  /* no room for the three dots */
+  .rt-title, .term-title { white-space: normal; }
+  .tf-link { white-space: normal; }
+  .ck2-l h1 { font-size: 30px; }
+  .ck2-l h1 .nb { white-space: normal; }
+  .gwin-body { padding: 16px 10px; }
+  .sw-body, .gm-row > .gx-text { padding: 14px 10px 16px; }
+  .cmd code, .gx-pair .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
+  .cmd .copy { padding: 0 8px; }
+  .gm-pre { padding: 14px 10px; }
+  .jk-row { padding: 16px 12px; }
+  .jk-actions { padding: 14px 12px 10px; }
+  .jk-end-list { padding: 4px 12px; }
+  .close-win .close-box { padding: 20px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

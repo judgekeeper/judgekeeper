@@ -11,7 +11,7 @@ No AI calls were made. The GPT-4 grades come from the paper's own run.
 - **In 93 of 100 draws with 100 marks each, judgekeeper's ranges held all three real values for GPT-4 against experts:** TPR, TNR and kappa in the same draw. Each on its own: TPR in 99 of 100, TNR in 94 of 100, kappa in 100 of 100. Each draw marked the 100 answers judgekeeper's marking page offered, on judgekeeper 1.0.0, commit `7ec7a5e`, on 2026-10-27. See "100 draws, 100 marks each" below.
 - **How wide the ranges were, on average over the 100 draws:** 11.6 points for TPR, 18.3 points for TNR, and 0.247 for kappa.
 - **With 250 marks per draw, in 20 of 20 draws** (two batches, commit `bc0d099`), the ranges held all three real values. See "Two batches, 20 draws, 250 marks per draw" below.
-- **One more single draw, on judgekeeper 1.0.0b2 (commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One round on commit `6437d85`" below.
+- **One more single draw, on judgekeeper 1.0.0b2 (commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One draw on commit `6437d85`" below.
 - **An earlier run of 20 single draws** (commit `e3052c7`) held all three real values in 20 of 20.
 
 ## What was checked
@@ -65,7 +65,7 @@ The paper gives no ranges and no kappa. Kappa 0.795 is computed from the dataset
 
 ## 100 draws, 100 marks each (commit `7ec7a5e`)
 
-This is how a person would mark: one round of 100 answers. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed a different 100 (the seed of each draw is in `hundred-marks/draws.csv`).
+This is how a person would mark: one draw of 100 answers. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed a different 100 (the seed of each draw is in `hundred-marks/draws.csv`).
 
 1. **Find.** The results file held all 300 answers. `judgekeeper` read it and opened the marking page.
 2. **Mark.** The page offered 100 answers in its normal order: 50 the LLM-as-a-judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes).
@@ -138,9 +138,9 @@ How often your LLM-as-a-judge agrees with you (estimates):
 
 Every draw's estimates and ranges are in `two-batches/draws.csv`.
 
-## One round on commit `6437d85`
+## One draw on commit `6437d85`
 
-The first round of the check (100 marks, one batch) was run once more on judgekeeper 1.0.0b2, commit `6437d85`. It was not run again on `bc0d099`. Measure printed (`measure-round-1.txt`, the result lines copied exactly):
+The first draw of the check (100 marks, one batch) was run once more on judgekeeper 1.0.0b2, commit `6437d85`. It was not run again on `bc0d099`. Measure printed, in the wording of an older version (`measure-round-1.txt`, the result lines copied exactly):
 
 ```
 Result: your judge is good enough to use.
@@ -180,7 +180,7 @@ judgekeeper shows half Pass and half Fail answers from the LLM-as-a-judge, so it
 
 ### After 200 marks
 
-The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed (`first-run/measure-round-2.txt`, the result lines copied exactly):
+The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed, in the wording of an older version (`first-run/measure-round-2.txt`, the result lines copied exactly):
 
 ```
 Result: your judge is good enough to use.
@@ -204,9 +204,9 @@ The second 100 happened to split exactly like the first (47, 3, 7, 43). So the e
 | TNR | 90.9% (84.1% to 95.0%) | about 90% (78% to 97%) | Yes | about 90% (82% to 96%) | Yes |
 | Kappa | 0.795 | 0.81 (0.65 to 0.90) | Yes | 0.81 (0.70 to 0.88) | Yes |
 
-### The same first round, 20 more times
+### The same first draw, 20 more times
 
-The marking page picks its 100 answers at random, so a new project folder gets a different 100. The first round ran again in 20 fresh folders (`first-run/repeat-draws.csv`).
+The marking page picks its 100 answers at random, so a new project folder gets a different 100. The first draw ran again in 20 fresh folders (`first-run/repeat-draws.csv`).
 
 - In all 20, the real TPR, TNR and kappa were each inside judgekeeper's range.
 - After 100 marks, 7 of the 20 said "Your judge is good enough to use." The other 13 said "Too early to tell", because the Fail range still reached below 80%. None said the LLM-as-a-judge needs work.
@@ -227,8 +227,8 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 - **`load.py`:** downloads the dataset at the pinned revision, checks its SHA-256, and writes it as a results file judgekeeper reads (`python3 -I load.py`). Its `cache/` folder is never committed.
 - **`hundred_marks.py`:** runs the 100 draws of 100 marks (`python3 -I hundred_marks.py`). It downloads the data through `load.py`; the draws' project folders stay in `cache/`.
 - **`hundred-marks/`:** `draws.csv` (each draw's seed, counts, ranges and inside yes/no), `summary.json` (the real values, the counts and the average range widths), and draw 1's Measure screen.
-- **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the round on `6437d85`. No text.
-- **`measure-round-1.txt`, `true-figures.json`:** the Measure screen and the figures of the round on `6437d85`.
+- **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the draw on `6437d85`. No text.
+- **`measure-round-1.txt`, `true-figures.json`:** the Measure screen and the figures of the draw on `6437d85`.
 - **`two-batches/`** (250 marks per draw): `draws.csv` (each draw's counts, ranges and inside yes/no), `summary.json` (the real values and the 20-draw result), and draw 1's Measure screens after batch 1 and after both batches.
 - **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id.
 - **`first-run/`:** the first run's Measure screens, report page after 100 marks, ids and grades, figures, and the 20 repeat draws.

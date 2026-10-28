@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -95,6 +96,52 @@ def test_every_kind_of_file_is_compared():
                  "table.jsonl", "ab.csv", "not-results.json", "broken.json", "not-utf8.csv",
                  "rules-in-code.json", "empty.jsonl"):
         assert name in names, name
+
+
+def _tool_run(path: Path) -> str:
+    """What `judgekeeper <file>` prints for a table it reads by its columns' names (its own map,
+    saved in judgekeeper.toml): the tool asks no question for these names. Its input is an empty
+    pipe: on Windows the empty device counts as a terminal, and the tool would ask."""
+    run = [sys.executable, "-m", "judgekeeper"]
+    out = subprocess.run([*run, path.name, "--no-browser", "--port", "0", "--yes"], check=False,
+                         cwd=path.parent, capture_output=True, text=True, timeout=120,
+                         input="", encoding="utf-8").stdout
+    subprocess.run([*run, "--stop"], check=False, cwd=path.parent, capture_output=True,
+                   input="", text=True, timeout=60)
+    return " ".join(out.split())
+
+
+@pytest.mark.parametrize("columns", [("question", "answer", "grade"),
+                                     ("Prompt", "Response", "Score"),
+                                     ("question", "answer", "grade", "explanation")])
+def test_a_table_with_other_common_names_reads_as_the_tool_reads_it(columns, tmp_path):
+    path = tmp_path / "my-results.csv"
+    rows = [",".join(columns)]
+    for i in range(20):
+        why = ["passes, it is fine" if i % 2 else "it fails"] if len(columns) == 4 else []
+        rows.append(",".join([f"Question {i}?", f"Answer {i}.", "pass" if i % 3 else "fail",
+                              *[f'"{w}"' for w in why]]))
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    said = _tool_run(path)
+    (judge,) = browser(path)["judges"]
+    assert f"passed {judge['pass']} answers and failed {judge['fail']}." in said, said
+    assert (judge["pass"], judge["fail"]) == (13, 7)
+    for line in judge["findings"]:
+        assert " ".join(line.split()).rstrip(".")[:60] in said, line
+    assert judge["readRows"] == [["question", f"the {columns[0]} column"],
+                                 ["answer", f"the {columns[1]} column"],
+                                 ["grade", f"the {columns[2]} column"]]
+
+
+def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
+    path = tmp_path / "scores.csv"
+    path.write_text("case,text,mark\n1,hello,7\n", encoding="utf-8")
+    said = browser(path)
+    assert said["ok"] is False and said["message"].startswith(
+        "judgekeeper can't tell which columns hold the question, the answer and the grade (this "
+        "file has case, text and mark). In the browser it reads a CSV or JSONL file with a "
+        "question column (input or question), an answer column (output or answer) and a grade "
+        "column (verdict or grade) holding Pass or Fail."), said
 
 
 def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):

@@ -18,7 +18,7 @@ It hides:
 ## The marking page
 
 - It runs on 127.0.0.1 only, with a random token in its link.
-- Every change must also come from the page itself: `Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser sends it. So marks from another website are refused. A program on your computer could, the same way it could edit your files.
+- Every change must also come from the page itself: `Origin: http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser sends it. So other websites can't send marks. A program already running on your computer could, just as it can edit your files.
 - It stops after 30 minutes without use.
 
 The details are in the [reference](docs/reference.md#judgekeeper-find-mark-measure).
@@ -35,10 +35,10 @@ The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
 ## It only reads files
 
-judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call and costs nothing. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
+judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
 
 ## Other things
 
 - judgekeeper has no runtime dependencies. The two optional extras install Inspect AI and MLflow, nothing else.
 - The browser check on the website (`check.html`) reads your file inside the page. Its script sends nothing, and the page's Content-Security-Policy (`connect-src 'none'`) blocks every connection, so the file never leaves your computer. The only thing it loads is an example file from the same site, when you click one.
-- judgekeeper 1.0 is made for a person to run in their own terminal and mark in their own browser. Running it through a coding agent isn't supported in 1.0.
+- judgekeeper 1.0 is made for a person to run in their own terminal and mark in their own browser. Running it through a coding agent isn't supported in 1.0: a coding agent can help you write a better rule, but run judgekeeper yourself.

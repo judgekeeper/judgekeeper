@@ -73,11 +73,8 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     # out better with N marks"
     assert large["marks"] == n and large["rule"] == "fixes 90%, breaks 2%"
     assert large["agree"] < 0.8 and large["better"] > 50
-    claim = (f"For a new rule that fixes about a quarter of the mistakes and breaks few right "
-             f"answers, it needs about {n} marks, and the answer is usually \"safe to try\", "
-             f"not \"better\". A large fix of a clearly wrong rule (about 9 in 10 of its "
-             f"mistakes fixed) usually comes out \"better\" with {n} marks; a small fix that "
-             f"also breaks a few right answers needs more")
+    claim = (f"A rule that fixes about a quarter of its mistakes needs about {n} marks for a "
+             f"clear answer, and usually reads \"safe to try\"")
     readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))
     site = _flat((ROOT / "website" / "start.html").read_text(encoding="utf-8")).replace("’", "'")
     assert claim in readme

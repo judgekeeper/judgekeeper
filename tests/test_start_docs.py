@@ -34,7 +34,7 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
         assert tool in install, tool
     steps = sections["The 5 steps"]
     assert "marked-answers.csv" in steps and "judgekeeper fix <new results file>" in steps
-    assert "about 80 marks" in steps and '"safe to try", not "better"' in steps
+    assert "about 80 marks" in steps and 'usually reads "safe to try"' in steps
     assert "docs/examples/kept-aside/report.md" in steps
 
 
