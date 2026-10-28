@@ -75,7 +75,7 @@ def test_a_rerun_with_new_text_says_how_many_marked_answers_it_holds(here, capsy
         said = _flat(out)
         assert code == 0 and "nothing to do" not in said, out
         assert ("20 of your 50 marked answers had no grade in your new results, so judgekeeper "
-                "left them out.") in said
+                "left them out. It finds a marked answer by its exact text and question.") in said
         command = " ".join(("judgekeeper check", *given))
         assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results: "
                               f"they join your marks as a new batch. Then run `{command}` again.")
@@ -263,7 +263,7 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     assert code == 3
     flat = _flat(out)
     assert ("None of your 50 marked answers is in your new results. judgekeeper finds a marked "
-            "answer by its exact text.") in flat
+            "answer by its exact text and question.") in flat
     assert "labeled" not in flat
     assert _next(out) == ("Next: run your eval on the questions you marked, then run "
                           "`judgekeeper check` again; or start over on your new answers with "

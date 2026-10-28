@@ -146,6 +146,17 @@ def test_same_ids_with_other_answers_are_not_there(here, capsys):
     assert "None of your" in out
 
 
+def test_fix_with_none_kept_aside_says_how_it_finds_them(here, capsys):
+    project(here, ids=True)
+    run(capsys, "fix")
+    rows = [{"id": str(i + 1)} | _row(i) for i in range(N)]
+    for row in rows:
+        row["output"] = row["output"].replace("Answer", "Reply")
+    code, out = run(capsys, "fix", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert "judgekeeper finds them by their exact text and question." in " ".join(out.split())
+
+
 # Answers kept aside with no grade: never "better" ------------------------------------------------
 
 def _number(answer: str) -> int:
