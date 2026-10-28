@@ -427,6 +427,25 @@ def test_a_flag_a_next_line_adds_takes_the_place_of_the_one_given(name, flag):
     assert [w.split("=")[0] for w in at].count(flag) == 1, at
 
 
+@pytest.mark.parametrize(("rule", "said"), [("x>=3", True), ("score>=3", False),
+                                             (">=3", False)])
+def test_a_pass_if_name_plain_number_scores_do_not_use_is_said(here, capsys, rule, said):
+    table_project(here, [str(1 + i % 5) for i in range(40)])
+    code, out, _ = run(capsys, "--pass-if", rule, "--no-browser", "--port", "0")
+    assert code == 0, out
+    note = ("--pass-if x>=3: your scores are plain numbers, so the name x is not used; it reads "
+            "as score>=3.")
+    assert (note in flat(out)) is said, out
+
+
+def test_a_label_map_given_as_one_word_adds_to_the_map_given():
+    talk = front.FrontTalk(yes=False, path=".", options={"label_map": "good=pass,bad=fail",
+                                                         "port": 8765, "no_browser": False})
+    words = shlex.split(talk.command("--label-map=P=pass"))
+    assert [w.split("=")[0] for w in words].count("--label-map") == 1, words
+    assert "good=pass,bad=fail,P=pass" in " ".join(words), words
+
+
 def test_an_own_format_needs_the_persons_yes_before_judgekeeper_toml(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys)

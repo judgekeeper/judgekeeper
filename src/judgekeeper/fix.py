@@ -199,6 +199,7 @@ class Marks:
         self.reasons = dict(said["reasons"])  # judge_now changes these two
         self.scores = dict(said["scores"])
         self.rows = read_cached(ws.pool, _pool_rows)  # read only
+        self.worse_from: str | None = None  # judge_now: the results the new judge's grades are in
 
     def enough(self) -> bool:
         values = list(self.person.values())
@@ -214,6 +215,7 @@ class Marks:
             self.judge[i] = a.verdict
             self.reasons[i] = scrub(a.reason or "")
             self.scores[i] = a.score
+        self.worse_from = one_line(str(found.results[0].rel))
 
     def row(self, i: str) -> dict:
         """One mark as the patterns and mistakes.md read it."""
@@ -717,19 +719,26 @@ def clue_lines(rows: list[dict], mark: float | None = None) -> list[str]:
         rows, mark)
 
 
-def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -> str:
+WORSE_JUDGE = ("These are the mistakes of your new LLM-as-a-judge, whose grades are in {file}: "
+               "`{check}` found it worse than the one you marked against.")
+
+
+def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
+                worse_from: str | None = None) -> str:
     """The clue file, ready for a person or a coding agent: the task, the clues (the person's
     reasons and the pattern sentences the terminal prints; `mark` is the pass mark when the
     grades follow the scores), the judge's rule now, then each mistake on the seen marks,
     fenced as data; grouped by the person's reasons when they gave any. The warning comes
     before any of the person's or the app's words; the person's words outside a fence are on
-    one line."""
+    one line. `worse_from`: after a check found the new judge worse, the results its grades
+    are in (Marks.judge_now): the mistakes are that judge's."""
     fenced = start_fix_rule.fenced
     clues = clue_lines(rows, mark) or [NO_PATTERN]
     parts = ["# Your LLM-as-a-judge's mistakes", "", TASK, "",
-             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", "",
-             f"## {WHERE_WRONG.rstrip(':')}", "",
-             *clues, ""]
+             f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
+    if worse_from:
+        parts += [WORSE_JUDGE.format(file=worse_from, check=program("check")), ""]
+    parts += [f"## {WHERE_WRONG.rstrip(':')}", "", *clues, ""]
     if rule:
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
     parts += ["## Mistakes", ""]
@@ -1242,7 +1251,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval "
                       f"tool, run `{talk.command('check')}`.")
             return EXIT_OK
-        _write_mistakes(ws, rule, seen_rows, mark)  # both files fit the set kept aside now
+        _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)  # both fit the set kept aside
         n = write_answers(ws, m)
         talk.say()
         talk.para(_answers_line(ws, split, n))
@@ -1266,7 +1275,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     fresh = split.pass_mark is None  # no pass mark tested on these marks yet
     tested = test_pass_mark(m, split)
     save_split(ws, split)
-    _write_mistakes(ws, rule, seen_rows, mark)
+    _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
@@ -1289,11 +1298,11 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
 
 
 def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
-                    mark: float | None) -> None:
+                    mark: float | None, worse_from: str | None = None) -> None:
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, mistakes_md(rule, rows, mark))
+    write_replacing(path, mistakes_md(rule, rows, mark, worse_from))
 
 
 def _answers_line(ws: Workspace, split: Split, n: int) -> str:

@@ -665,7 +665,8 @@ def table_lines(g: dict) -> list[str]:
 def expect_lines(g: dict) -> list[str]:
     """What to expect, one line per group whose outcome says something: for Worse, by about
     how much agreement drops in every 100 answers and the range; for no big drop, the most
-    it could drop. A Not sure group gets no line: its word says it."""
+    it could drop, or "no drop" when it didn't drop. A Not sure group gets no line: its word
+    says it. A clear rise in both groups is said last."""
     out = []
     for key, _, said in SIDES:
         x = g[key]
@@ -677,9 +678,14 @@ def expect_lines(g: dict) -> list[str]:
                        f"(somewhere between {_points(x['high'])} and {_points(x['low'])}).")
         elif x["low"] >= 0:
             out.append(f"{lead} none of the range is a drop.")
+        elif x["change"] >= 0:  # no drop seen; the range can't rule one out
+            out.append(f"{lead} no drop, though these marks can't rule out one of up to "
+                       f"{_points(x['low'])} in every 100.")
         else:
             out.append(f"{lead} agreement drops by no more than {_points(x['low'])} in "
                        "every 100.")
+    if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
+        out.append("Agreement rose in both groups.")
     return out
 
 
