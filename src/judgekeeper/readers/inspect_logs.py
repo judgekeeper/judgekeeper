@@ -317,9 +317,10 @@ def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = m
     how deep it nests (_Depth): TooDeep past MAX_NESTING, as inspect_ai would take many GB to
     read a few KB nested 100,000 deep, and TooWide past `values`, TooLong for a string over
     `longest`, TooSpecial and TooManyLong (`long_left`) for strings over LONG_TEXT,
-    TooManyEscapes (`escapes_left`) for the escapes in those over COUNTED_TEXT. Never through zipfile.open(): for zstd it unpacks a whole chunk at once, and it
-    trusts the size the zip declares. ValueError for a part inspect_ai never writes: another
-    compression, or encrypted."""
+    TooManyEscapes (`escapes_left`) for the escapes in those over COUNTED_TEXT. Never through
+    zipfile.open(): for zstd it unpacks a whole chunk at once, and it trusts the size the zip
+    declares. ValueError for a part inspect_ai never writes: another compression, or
+    encrypted."""
     import struct
     import zipfile
     import zlib
@@ -330,7 +331,8 @@ def _unpacks_to(f, part, most: int, values: float = math.inf, longest: float = m
         raise ValueError("not a part of an Inspect AI log")
     name, extra = struct.unpack_from("<HH", head, 26)
     f.seek(part.header_offset + 30 + name + extra)
-    packed, n, depth = _Packed(f, part.compress_size), 0, _Depth(values, longest, long_left, escapes_left)
+    packed, n = _Packed(f, part.compress_size), 0
+    depth = _Depth(values, longest, long_left, escapes_left)
     if part.compress_type == zipfile.ZIP_STORED:  # kept as it is: its size is what it holds
         while n <= most and (out := packed.read(STEP)):
             n += len(out)
