@@ -303,7 +303,7 @@ __TOP__
 <script nonce="__NONCE__">
 "use strict";
 (function () {
-  var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
+  var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -730,17 +730,21 @@ __TOP__
     busy = true; $("pass").disabled = true; $("fail").disabled = true;
     change.id = items[pos].id;
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
+    // No answer in SAVE_MS (judgekeeper stopped, or the computer slept): not saved, as below.
+    var stop = new AbortController(), waited = setTimeout(function () { stop.abort(); }, SAVE_MS);
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      referrerPolicy: "same-origin", body: JSON.stringify(change)
+      referrerPolicy: "same-origin", body: JSON.stringify(change), signal: stop.signal
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
+      clearTimeout(waited);
       if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
     }).catch(function () {
+      clearTimeout(waited);
       render();
       say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
