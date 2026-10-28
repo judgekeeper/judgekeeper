@@ -65,7 +65,6 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers you failed"))
 SAID = {"passed": "You passed", "failed": "You failed"}
 NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
-NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 NO_DROP = round(targets.NO_DROP_MARGIN * 100)
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
                  "no_drop": f"No drop bigger than {NO_DROP} points"}
@@ -82,6 +81,8 @@ SIDES = (("passed", "Pass", "pass"), ("failed", "Fail", "fail"))  # group, what 
 
 CONFIG_NEWER = ("Your LLM-as-a-judge's settings changed after your last eval run, so the grades "
                 "judgekeeper has are out of date.")
+LOCK_NEWER = ("Your eval tool was updated after your last eval run, so your newest results come "
+              "from the old version. judgekeeper compared no grades.")
 SAME = "Same model, same rule, same eval tool."
 SAME_GRADES = "Same model, same grades on your marked answers, same eval tool."  # no rule
 NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
@@ -101,12 +102,17 @@ NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judg
                "error).")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text.")
-EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-judge, only from "
-           "one before it, so judgekeeper left {them} out of the table.")
+NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
+         "`{command} {file}`.")
+CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
+           "eval wrote new answers, and judgekeeper compares only the answers you marked.")
+EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-judge, so "
+           "judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
+NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -480,16 +486,38 @@ def _command(state_or_path) -> str:
 def _old_verdicts(state: State, old: dict) -> dict[str, str]:
     """The old judge's (`old`, a setup) verdicts on the marked answers: the last check's for
     that setup, else start.json's: the grades of the judge judge.json keeps (_adopt), or for
-    an earlier judge the grades the marks were made on (`picked`)."""
+    the judge the marks were made on the grades they were made on (`picked`). Never another
+    judge's grade as this one's: a mark it never graded is left out."""
     data = state.data
     pool = {q["id"]: q["group"] for q in data.get("queue") or []}
     setup_hash = judge_setup.hash_of(old)
     if setup_hash != state.saved["setup_hash"]:
-        pool.update((data.get("picked") or {}).get("groups") or {})
+        marked = _marked_setup(state.ws)
+        if marked is None or judge_setup.hash_of(marked) == setup_hash:
+            picked = (data.get("picked") or {}).get("groups") or {}
+            late = _batches_after_check(state.ws, data)  # graded by a judge taken on since
+            batch = batches.of(data)
+            pool.update(picked)
+            pool = {i: g for i, g in pool.items() if batch.get(i, 1) not in late}
+        else:  # a judge taken on after the marks began: only the grades it gave
+            pool = {}
     else:  # never an earlier judge's grade as this one's
         for i in data.get("earlier_grades") or []:
             pool.pop(i, None)
     return {**pool, **_read_verdicts(state.ws, setup_hash)}
+
+
+def _batches_after_check(ws: Workspace, data: dict) -> set[int]:
+    """The batches of answers added after the first check since the marks began: the judge
+    the marks were made on never graded them."""
+    since = str((marks.read(ws.marks).header or {}).get("created_at") or "")
+    first = next((str(x.get("time") or "") for x in _history(ws)
+                  if str(x.get("time") or "") >= since), None)
+    if first is None:
+        return set()
+    return {b["batch"] for b in data.get("batches") or []
+            if isinstance(b, dict) and isinstance(b.get("batch"), int)
+            and str(b.get("added_at") or "") > first}
 
 
 def _picks(state: State) -> tuple[dict[str, tuple[int, str]], dict[tuple[int, str], int]]:
@@ -969,12 +997,22 @@ def _text(value) -> str:
 
 
 def _questions(value) -> set[str]:
-    """A question's texts: the whole, and each named value of a set of them (promptfoo's
-    vars), so a question graded again under another name is found."""
+    """The texts a results row asks its question by: the whole, and each named value of a set
+    of them (promptfoo's vars), since grading marked-answers.csv again puts the marked
+    question in one of them (`question`)."""
     texts = {_text(value)}
     if isinstance(value, dict):
         texts |= {_text(v) for v in value.values()}
     return texts - {""}
+
+
+def _marked_question(value) -> tuple[str, ...]:
+    """A marked answer's question as it is matched: its whole input, and as marked-answers.csv
+    holds it (fix.question_text), which a regrade of that file asks. Never one value of a set
+    of them: a persona, a document or an expected answer many questions share is no question."""
+    from judgekeeper.fix import question_text
+
+    return tuple(sorted({_text(value), _text(question_text(value))} - {""}))
 
 
 def _rows(ws: Workspace) -> dict:
@@ -990,11 +1028,35 @@ def _rows(ws: Workspace) -> dict:
 
 def _same_answer(a, row: dict) -> bool:
     """Whether the answer (or record) `a` is the marked answer pool.jsonl keeps as `row`: the
-    same answer text, and the same question when `a` holds one."""
+    same answer text, and the row's whole question asked when `a` holds one (_marked_question)."""
     text = _text(row.get("output"))
     asked = _questions(a.input)
     return bool(text) and _text(a.output) == text and (
-        not asked or bool(asked & _questions(row.get("input"))))
+        not asked or bool(asked & set(_marked_question(row.get("input")))))
+
+
+def _index(answers) -> dict[tuple[str, str | None], list]:
+    """The answers by (answer text, each question text they ask), or (answer text, None) when
+    they ask none: a marked answer is then found in a few lookups, never by a scan."""
+    out: dict[tuple[str, str | None], list] = {}
+    for a in answers:
+        text = _text(a.output)
+        for q in _questions(a.input) or {None}:
+            out.setdefault((text, q), []).append(a)
+    return out
+
+
+def _candidates(index: dict, row: dict) -> list:
+    """The answers in `index` (_index) that are the marked answer `row` (_same_answer), each
+    once, in the results' order."""
+    text = _text(row.get("output"))
+    if not text:
+        return []
+    found = {}
+    for q in (*_marked_question(row.get("input")), None):
+        for a in index.get((text, q), []):
+            found.setdefault(id(a), a)
+    return list(found.values())
 
 
 def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
@@ -1031,17 +1093,9 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     left = [i for i in marked if i not in out and i not in mixed]
     if not left:
         return out, mixed
-    by_text: dict[str, list] = {}
-    for a in answers:
-        by_text.setdefault(_text(a.output), []).append(a)
+    index = _index(answers)
     for i in left:
-        row = rows.get(i) or {}
-        text = _text(row.get("output"))
-        if not text:
-            continue
-        asked = _questions(row.get("input"))
-        same = [a for a in by_text.get(text, [])
-                if not _questions(a.input) or _questions(a.input) & asked]
+        same = _candidates(index, rows.get(i) or {})
         if same:
             take(i, same)
     return out, mixed
@@ -1050,13 +1104,9 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
 def no_decision(found, ids, ws: Workspace) -> int:
     """How many of the marked answers `ids` are in the results with no decision from the
     judge (an error, an empty grade), found as lookup finds an answer by its text."""
-    by_text: dict[str, list] = {}
-    for _, r in found.pool.left.values():
-        by_text.setdefault(_text(r.output), []).append(r)
+    index = _index(r for _, r in found.pool.left.values())
     rows = _rows(ws)
-    return sum(1 for i in ids
-               if any(_same_answer(r, rows.get(i) or {})
-                      for r in by_text.get(_text((rows.get(i) or {}).get("output")), [])))
+    return sum(1 for i in ids if _candidates(index, rows.get(i) or {}))
 
 
 UNKNOWN = ("judgekeeper can't tell which of the grades in {file} mean Pass and which mean "
@@ -1269,6 +1319,16 @@ def full(path: str, said: Said) -> int:
         then = NEXT_CHOOSE if problem.endswith(CHOOSE) else NEXT_RUN_EVAL  # as the line says
         said.say(then.format(command=_command(state)))
         return EXIT_NEEDS_YOU
+    read = _read_line(state, path, now)
+    if read:
+        said.say(read)
+        said.say()
+    newer = None if Path(path).is_file() or now is None else _newer_elsewhere(state, now.newest)
+    if newer is not None:  # a note: the check reads what judgekeeper.toml says, as always
+        tool = state.data.get("tool")
+        said.say(NEWER.format(tool=find.NAMES.get(tool, tool), file=quote_arg(newer),
+                              command=program("check")))
+        said.say()
     unknown = unknown_grades(found, found.results[0].path) if found is not None else None
     if unknown:
         said.say(unknown)
@@ -1326,7 +1386,7 @@ def full(path: str, said: Said) -> int:
     if tested:
         said.say(tested)
     if _lock_newer(state, old, new, found.results[0].path if found else now.newest):
-        said.say(CONFIG_NEWER)  # the results were made before the update: out of date
+        said.say(LOCK_NEWER)  # the results were made before the update: nothing compared
         said.say()
         said.say(NEXT_EVAL.format(command=_command(state)))
         return EXIT_OK
@@ -1424,6 +1484,77 @@ def full(path: str, said: Said) -> int:
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
 
 
+def _read_line(state: State, path: str, now: Now | None) -> str | None:
+    """The line that names the results the check reads: the file given, else the newest
+    file read (for MLflow, the newest run in its store)."""
+    if Path(path).is_file():
+        return f"New results: {Path(path).as_posix()}"
+    if now is None or now.newest is None:
+        return None
+    if state.data.get("tool") == "mlflow":
+        from judgekeeper.fix import mlflow_store
+
+        store = mlflow_store(state.ws)
+        return f"New results: the newest run in {store}" if store else None
+    root = Path(state.ws.root).resolve()
+    newest = Path(now.newest).resolve()
+    shown = newest.relative_to(root).as_posix() if newest.is_relative_to(root) else str(newest)
+    return f"New results: {shown}"
+
+
+def _newer_elsewhere(state: State, newest: Path | None) -> str | None:
+    """With a saved choice (judgekeeper.toml), newer results of the same eval that it leaves
+    out: the newest one's path from the project folder, else None. Newer by the date the
+    reader goes by (find.Result.date); the same eval: the same eval tool, for Inspect AI the
+    same task, for DeepEval a run that holds the same metric. Unknown is never the same."""
+    tool = state.data.get("tool")
+    if newest is None or tool not in ("promptfoo", "deepeval", "inspect"):
+        return None
+    root = Path(state.ws.root).resolve()
+    try:
+        if start._saved(root) is None:
+            return None
+        read = find.Result(tool, Path(newest).resolve(), "")
+        after, task = read.date(), _task(read.path) if tool == "inspect" else None
+        if tool == "inspect" and task is None:
+            return None
+        newer = [r for r in find.search(root).readable(tool)
+                 if r.path.resolve() != read.path and r.date() > after
+                 and _same_eval(tool, r.path, task, state.data.get("metric"))]
+    except (start.StartError, OSError, ValueError):
+        return None
+    return max(newer, key=lambda r: r.date()).rel if newer else None
+
+
+def _task(path: Path) -> str | None:
+    """The task an Inspect AI log ran, or None."""
+    from judgekeeper.readers.inspect_logs import eval_header
+
+    try:
+        task = eval_header(path).get("task")
+    except (OSError, ValueError, KeyError, AttributeError):
+        return None
+    return task.strip() if isinstance(task, str) and task.strip() else None
+
+
+def _same_eval(tool: str, path: Path, task: str | None, metric) -> bool:
+    """Whether the results at `path` are of the same eval: for Inspect AI the task `task`, for
+    DeepEval a run with the metric `metric`; promptfoo results are one eval."""
+    if tool == "inspect":
+        return _task(path) == task
+    if tool == "deepeval":
+        from judgekeeper.readers.deepeval import _load
+
+        try:
+            cases = _load(path).get("testCases") or []
+            return any(isinstance(md, dict) and md.get("name") == metric
+                       for case in cases if isinstance(case, dict)
+                       for md in case.get("metricsData") or [])
+        except (RecordsError, OSError, ValueError, AttributeError, TypeError):
+            return False
+    return True
+
+
 def _too_few(said: Said, state: State, found, looked=None) -> bool:
     """Whether the results hold too few of the marked answers with a grade for a re-check
     (fewer than targets.ROUGH of each mark), said with why: not there, or there with no
@@ -1448,6 +1579,9 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                                else "them"))
         if e:
             said.say(NO_DECISION.format(e=e, are=_are(e)))
+    c = _asked_again(found, gone, state.ws) if gone else 0
+    if c:
+        said.say(CHANGED.format(c=c))
     if mixed:
         said.say(mixed_line(len(mixed)))
     if repeats_line(found):
@@ -1457,8 +1591,48 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+        said.say("Next: " + (regrade_marked(state) if c else  # the eval wrote new answers
+                             NEXT_ALL_QUESTIONS.format(command=_command(state))))
     return few
+
+
+def _asked_again(found, ids, ws: Workspace) -> int:
+    """How many of the marked answers `ids` the results ask again with another answer: the
+    marked question asked (_marked_question), a different answer text."""
+    answers: dict[str, set[str]] = {}
+    for a in found.pool.answers:
+        for q in _questions(a.input):
+            answers.setdefault(q, set()).add(_text(a.output))
+    rows = _rows(ws)
+    return sum(1 for i in ids if (row := rows.get(i)) and any(
+        answers.get(q, set()) - {_text(row.get("output"))}
+        for q in _marked_question(row.get("input"))))
+
+
+def regrade_marked(state: State) -> str:
+    """The way to new grades on the answers marked (without "Next: "): grade them again as
+    the eval tool does, then `check` the new results. Running the eval again would make new
+    answers, which can't be compared."""
+    from judgekeeper import fix
+
+    ws, tool = state.ws, state.data.get("tool")
+    check = program("check")
+    store = fix.mlflow_store(ws) if tool == "mlflow" else None
+    if store:
+        return (f"evaluate the same traces again with your LLM-as-a-judge as it is now "
+                f"(`mlflow.genai.evaluate()`), then run `{check} {store}`: it reads the newest "
+                f"run.")
+    if tool == "inspect":
+        log = quote_arg(fix.new_log(ws))
+        return (f"score your marked log again with your LLM-as-a-judge as it is now: run "
+                f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then run `{check} {log}`.")
+    answers = fix._folder(ws) / fix.ANSWERS
+    if answers.is_file():
+        return (f"grade the answers in {fix._file(ws, fix.ANSWERS)} again with your "
+                f"LLM-as-a-judge as it is now, then run `{check} {fix.NEW_RESULTS}`.")
+    return (f"run `{program('fix')}` to write the answers you marked to "
+            f"{fix._file(ws, fix.ANSWERS)}, grade them again with your LLM-as-a-judge as it is "
+            f"now, then run `{check} {fix.NEW_RESULTS}`.")
 
 
 def _are(k: int) -> str:
@@ -1557,13 +1731,21 @@ def back_to_marked(ws: Workspace, found) -> str | None:
     last check was of another judge: the line that says so, else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
     they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
-    "Worse" no longer applies (open_worse)."""
+    "Worse" no longer applies (open_worse). Only for a judge whose results hold its rule, and
+    that gives the marked answers the grades they were made on: a table's model name alone
+    is not that judge."""
     marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
     if marked is None or saved is None or not checks:
         return None
     now = judge_setup.of(found)
-    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+    if (not now.get("rule_hash") or judge_setup.hash_of(now) != judge_setup.hash_of(marked)
             or judge_setup.hash_of(checks[-1].get("after") or {}) == judge_setup.hash_of(now)):
+        return None
+    data = ws.data()
+    made_on = (data.get("picked") or {}).get("groups") or {
+        q["id"]: q["group"] for q in data.get("queue") or []}
+    graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
+    if any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None
     if saved["setup_hash"] != judge_setup.hash_of(now):
         _restore(ws, found, now)

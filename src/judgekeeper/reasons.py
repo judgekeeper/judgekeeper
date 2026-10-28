@@ -429,12 +429,13 @@ def mentioned(rows: list[dict]) -> tuple[int, int]:
     return yes, no
 
 
-def clue_lines(rows: list[dict]) -> list[str]:
+def clue_lines(rows: list[dict], fence=None) -> list[str]:
     """The first clue, from the person's reasons on the mistakes they can see: the reasons
     counted, a line when "the rule doesn't say" or "wrong fact" (on the judge's passes) was
     tapped TWICE or more, the rule parts tapped TWICE or more, the "missed it or allowed it"
     check on the answers with words marked, and how many marks the person wasn't sure
-    about."""
+    about. `fence` (start_fix_rule.fenced, for mistakes.md) puts a rule part's words in a
+    fence below its line."""
     counts, names = tally(rows), _names(rows)
     out = []
     if counts:
@@ -449,7 +450,10 @@ def clue_lines(rows: list[dict]) -> list[str]:
                    "that one wrong fact is a Fail.")
     parts = Counter((n, text) for r in rows for n, text in r.get("parts") or [])
     for (n, text), k in sorted(parts.items(), key=lambda x: (-x[1], x[0][0])):
-        if k >= TWICE:
+        if k >= TWICE and fence is not None:  # the rule's words are data: fenced below
+            out.append(f"Your marks say your LLM-as-a-judge misses rule part {n} ({k}):\n"
+                       + fence(RULE_PART, one_line(text)))
+        elif k >= TWICE:
             out.append(f"Your marks say your LLM-as-a-judge misses rule part {n}, "
                        f"'{one_line(text)}' ({k}).")
     yes, no = mentioned(rows)
@@ -517,8 +521,8 @@ TEMPLATES = {
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
     "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
 }
-PART_LINE = ("Make this part of your rule more exact: '{part}'. Your LLM-as-a-judge missed it "
-             "{times}.")
+PART_LINE = "Make rule part {n} more exact: your LLM-as-a-judge missed it {times}."
+RULE_PART = "RULE PART"  # the fence its words go in: data, as an answer's
 SUGGESTIONS = "suggestions.md"
 SHOWN = 300  # characters of an answer in suggestions.md
 
@@ -559,10 +563,11 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
     for r in rows:
         for n, text in r.get("parts") or []:
             parts.setdefault((n, text), []).append(r)
-    for (_, text), hits in sorted(parts.items(), key=lambda x: (-len(x[1]), x[0][0])):
-        line = PART_LINE.format(part=one_line(text), times=plural(len(hits), "time"))
-        (suggested.append((line, len(hits), [])) if len(hits) >= TWICE
-         else once.append((line, hits, [])))
+    for (n, text), hits in sorted(parts.items(), key=lambda x: (-len(x[1]), x[0][0])):
+        line = PART_LINE.format(n=n, times=plural(len(hits), "time"))
+        data = [(RULE_PART, one_line(text))]
+        (suggested.append((line, len(hits), data)) if len(hits) >= TWICE
+         else once.append((line, hits, data)))
     for r in rows:
         own = {w for w in r.get("words", {}).values()}
         if r.get("why") and r["why"] not in own and not any(
@@ -588,15 +593,19 @@ def suggestions_md(rows: list[dict]) -> str:
               "your rule itself."), ""]
     if suggested or once:
         parts += [f"{DATA_WARNING} {MARKS}", ""]
+    def fence(note) -> str:  # the person's note, or a rule part's words (RULE_PART)
+        return fenced(*note) if isinstance(note, tuple) else fenced("YOUR REASON",
+                                                                     one_line(note))
+
     for line, n, notes in suggested:
         parts.append(f"- {line} ({plural(n, 'answer')})")
-        parts += [fenced("YOUR REASON", one_line(note)) for note in notes]
+        parts += [fence(note) for note in notes]
     if not suggested:
         parts.append("None yet: a line is suggested once a reason is given on 2 answers.")
     parts += ["", "## Seen once (not suggested yet)", ""]
     for line, hits, notes in once:
         parts.append(f"- {line}")
-        parts += [fenced("YOUR REASON", one_line(note)) for note in notes]
+        parts += [fence(note) for note in notes]
         for r in hits:
             parts.append(fenced("ANSWER", canonical(r.get("output") or "")[:SHOWN]))
         parts.append("")

@@ -227,12 +227,15 @@ Your LLM-as-a-judge, tested on the 16 marks kept aside:
 Result: your new rule is better. A difference this large is
 unlikely to be a coincidence.
 
-Next: keep your new rule: run your eval, then
-`judgekeeper check` to re-check it on all your marks.</template>
+Next: keep your new rule, then run
+`judgekeeper check new-rule.json` to re-check it on all your
+marks.</template>
 <template data-screen="check">$ judgekeeper check
 judgekeeper 1.0.0
 
 Step 5 of 5: Re-check
+
+New results: results.json
 
 Your LLM-as-a-judge's model changed:
   openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano

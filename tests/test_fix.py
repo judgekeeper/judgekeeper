@@ -188,6 +188,11 @@ def test_the_split_stays_until_new(here, capsys):
     assert run(capsys)[0] == 0
     split = _split(ws)
     assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2  # never a seen mark
+    assert split["earlier"] == len(first["visible"]) + len(first["hidden"])
+    more = _mark_more(ws, 10)  # the new set takes in later marks, about half kept aside
+    assert run(capsys)[0] == 0
+    split = _split(ws)
+    assert set(new) <= set(split["hidden"]) and set(more) & set(split["hidden"])
 
 
 def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
@@ -451,8 +456,8 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     kind = targets.fix_verdict(fixed, 0, n).kind
     assert kind in ("better", "safe")
     assert fix.RESULT[kind] in flat
-    assert flat.endswith("Next: keep your new rule: run your eval, then `judgekeeper check` to "
-                         "re-check it on all your marks.")
+    assert flat.endswith(f"Next: keep your new rule, then run `judgekeeper check {new.name}` "
+                         "to re-check it on all your marks.")
 
 
 def test_a_test_is_kept_without_answer_text(here, capsys):
@@ -622,6 +627,11 @@ def _shrunk(d):
     d["hidden"] = d["hidden"][-5:]
 
 
+def _shrunk_later_set(d):  # a later set's own marks are those its earlier sets don't hold
+    _shrunk(d)
+    d["set"] = 2
+
+
 def _unknown(d):
     d["hidden"].append("not-an-answer")
 
@@ -639,6 +649,11 @@ def _wrong_verdict(d):
 @pytest.mark.parametrize("change, why", [
     (_overlap, "it names some marks as both kept aside and shown"),
     (_shrunk, "it keeps far fewer than half of your marks aside"),
+    (_shrunk_later_set, "it keeps far fewer than half of your marks aside"),
+    (lambda d: d.update(set=2, earlier=-1), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(earlier=len(d["visible"])), "it is not as judgekeeper writes it"),
+    (lambda d: d.update(set=2, earlier=len(d["visible"]) + 1),
+     "it is not as judgekeeper writes it"),
     (_unknown, "it names answers judgekeeper doesn't have"),
     (_forged_test, "a test in it has counts that don't fit its marks"),
     (_wrong_verdict, "a test in it has a result its counts don't give"),

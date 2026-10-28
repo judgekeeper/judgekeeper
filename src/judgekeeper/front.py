@@ -83,6 +83,7 @@ RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks
 RAN_AGAIN_CHECKED = ("Your eval ran again. Your LLM-as-a-judge is the one your last check "
                      "re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
+WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 5: {name}"
@@ -1600,7 +1601,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     if start_label.all_labeled(r) or is_open(ws.dir) or wait or not (mark_next or why):
         talk.say()
-    if worse:
+    if worse:  # why "go back" next to this result
+        talk.para(WORSE_LAST)
+        talk.say()
         next_step = worse
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))

@@ -173,28 +173,39 @@ START_OVER = "run `{program} --new` to start over: your marks move to .judgekeep
 
 def new_answers(ws, found) -> list:
     """The graded answers in the newest results (`found`) that the pool does not hold, by their
-    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. A damaged
+    exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. An answer
+    asked as a pool row's question is that row's, as check.lookup finds it: grading
+    marked-answers.csv again (promptfoo's vars then hold the answer too) adds none. A damaged
     pool.jsonl is a StartError (POOL_DAMAGED)."""
+    from judgekeeper.check import _marked_question, _questions
+    from judgekeeper.check import _text as answer_text
     from judgekeeper.redact import scrub_value
     from judgekeeper.start import StartError
     from judgekeeper.textio import jsonl_lines, program
 
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
     seen = set()
+    marked = set()  # (answer text, question text) of each pool row, as check.lookup finds it
     for raw in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if raw.strip():
             try:
                 row = loads(raw)
                 seen.add(_text(row.get("input"), row.get("output")))
+                text = answer_text(row.get("output"))
+                marked |= {(text, q) for q in _marked_question(row.get("input"))}
             except (ValueError, AttributeError):  # damaged, or not an object
                 raise StartError(POOL_DAMAGED,
                                  next_step=START_OVER.format(program=program())) from None
     out = []
     for a in found.pool.answers:
         key = _text(scrub_value(a.input), scrub_value(a.output))
-        if a.source in newest and a.verdict in ("pass", "fail") and key not in seen:
-            seen.add(key)
-            out.append(a)
+        if a.source not in newest or a.verdict not in ("pass", "fail") or key in seen:
+            continue
+        text = answer_text(a.output)
+        if any((text, q) in marked for q in _questions(a.input)):
+            continue
+        seen.add(key)
+        out.append(a)
     return out
 
 
