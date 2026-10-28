@@ -410,6 +410,8 @@ def score_project(root) -> Workspace:
 
 def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys, monkeypatch):
     ws = score_project(here)
+    # a split that leaves a better pass mark to find on the seen marks (not every split does)
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     with only_reads(monkeypatch):
         run(capsys)
         _, out = run(capsys)  # the second run shows the saved test, not a new one

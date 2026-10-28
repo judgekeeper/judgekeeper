@@ -576,9 +576,9 @@ def test_new_answers_with_changed_grades_wait_and_the_screen_says_so(here, capsy
         assert len(ws.data()["queue"]) == 36  # they join no batch
 
 
-# "Your eval ran again" once --------------------------------------------------------------
+# "Your answers were graded again" once ----------------------------------------------------------
 
-RAN_AGAIN = "Your eval ran again."
+RAN_AGAIN = "Your answers were graded again."
 
 
 def test_ran_again_is_said_once_after_a_batch_from_a_new_file(here, capsys, pages):

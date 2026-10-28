@@ -67,8 +67,8 @@ def test_overlapping_marked_parts_are_joined_in_suggestions_md():
     row = {"id": "a1", "judge": "pass", "final": "fail", "output": text, "reasons": [],
            "words": {}, "parts": [], "spans": [[2, 5], [3, 9], [10, 12]], "why": ""}
     md = reasons.suggestions_md([row])
-    assert f"The part you marked: “{text[2:9]}”" in md
-    assert f"The part you marked: “{text[10:12]}”" in md
+    assert f"The part you marked:\n<<<MARKED PART\n{text[2:9]}\nMARKED PART>>>" in md
+    assert f"The part you marked:\n<<<MARKED PART\n{text[10:12]}\nMARKED PART>>>" in md
     assert md.count("The part you marked:") == 2
 
 

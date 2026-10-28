@@ -459,8 +459,8 @@ def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys):
     _rubric(here, split(20, 20), RULE_B, name="results-2.json")  # the eval ran again
     out = _jk(capsys)[1]
     assert "Your LLM-as-a-judge is the same" not in out, out
-    assert ("Your eval ran again. Your LLM-as-a-judge is the one your last check re-tested, so your marks "
-            "still test it.") in flat(out)
+    assert ("Your answers were graded again. Your LLM-as-a-judge is the one your last check "
+            "re-tested, so your marks still test it.") in flat(out)
 
 
 def test_fix_with_a_rule_it_tested_shows_that_result(here, capsys):
