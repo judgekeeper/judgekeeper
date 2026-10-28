@@ -66,7 +66,7 @@ SCRIPT = """
         b.setAttribute("aria-expanded", String(open));
         var table = document.getElementById(b.getAttribute("aria-controls"));
         each(table.querySelectorAll("tr.extra"), function (row) { row.hidden = !open; });
-        b.textContent = open ? "Show fewer" : "Show all " + b.getAttribute("data-n");
+        b.textContent = open ? "Show less" : "Show all " + b.getAttribute("data-n");
         fit();
       });
     });

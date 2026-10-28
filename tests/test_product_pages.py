@@ -841,7 +841,7 @@ function clearTimeout() {}
     out = subprocess.run([node, str(script)], check=True, capture_output=True, text=True,
                          encoding="utf-8", timeout=60)
     got = json.loads(out.stdout.strip().splitlines()[-1])
-    assert got["opened"] == ["Show fewer", "true", [False, False]]
+    assert got["opened"] == ["Show less", "true", [False, False]]
     assert got["closed"] == ["Show all 2", [True, True]]
     assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
     assert got["back"] == ["Copy", ""]

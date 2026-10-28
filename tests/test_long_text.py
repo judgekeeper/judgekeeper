@@ -531,6 +531,11 @@ def test_the_reasons_script_updates_the_line_after_a_save():
     assert "data-said" in s
 
 
+def test_the_group_link_says_show_less():
+    assert '"Show less" : "Show all " + b.getAttribute("data-n")' in report_page.SCRIPT
+    assert "Show fewer" not in report_page.SCRIPT
+
+
 def test_an_emoji_keeps_its_variation_selector_and_other_hidden_marks_still_go():
     from judgekeeper import redact
 
