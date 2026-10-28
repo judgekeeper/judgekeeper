@@ -346,6 +346,50 @@ def test_without_pyyaml_a_tagged_env_key_never_reaches_disk_or_the_terminal(
     assert all(COHERE not in t for t in [out, err, more, err2, *saved])
 
 
+# Plain values holding `!` or `&` before a comment: the whole value is hidden, not a part
+MARKED = {"A_TOKEN": "tok-abc!def1234567", "B_TOKEN": "x&y-1234567890abcdef"}
+
+
+def test_without_pyyaml_a_value_with_a_bang_or_an_ampersand_is_hidden_whole(
+        here, capsys, monkeypatch, no_browser):
+    from judgekeeper.start_label import Workspace
+    from tests.test_flow_across_runs import _mark
+
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = "env:\n" + "".join(f"  {k}: {v} # prod\n" for k, v in MARKED.items())
+    assert keys.config_env(_config(here, config)) == MARKED
+    values = list(MARKED.values())
+    outputs = [f"Use {values[i % 2]} to call it" if i < 4 else f"Answer {i}" for i in range(36)]
+    promptfoo_project(here, split(20, 16), outputs=outputs)
+    (here / "promptfooconfig.yaml").write_text(
+        "description: support bot\n" + config + "prompts:\n  - 'Answer: {{question}}'\n",
+        encoding="utf-8")
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    _mark(Workspace(here), {i: "fail" for i in range(4)})
+    _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
+    assert "Step 3 of 5: Measure" in more, more + err2
+    folder = here / ".judgekeeper"
+    assert redact.REDACTED in (folder / "pool.jsonl").read_text(encoding="utf-8")
+    assert "Use " in (folder / "report.html").read_text(encoding="utf-8")
+    saved = [p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()]
+    for value in values:
+        assert all(value not in t for t in [out, err, more, err2, *saved]), value
+
+
+def test_keys_names_each_module_level_value_once():
+    """A second assignment would quietly replace the first for every function using it."""
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path(keys.__file__).read_text(encoding="utf-8"))
+    names = [t.id for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign))
+             for t in (node.targets if isinstance(node, ast.Assign) else [node.target])
+             if isinstance(t, ast.Name)]
+    assert sorted({n for n in names if names.count(n) > 1}) == []
+    assert keys._PROPERTIES.pattern.startswith("^")
+
+
 # A value continued on the next line (x and y its two halves): js-yaml folds the line break
 CONTINUED = {
     "a single-quoted value over two lines": "env:\n  COHERE_API_KEY: 'x\n    y'\n",

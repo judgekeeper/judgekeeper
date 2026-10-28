@@ -193,8 +193,6 @@ ANCHORED = "&"
 # key (`? env`); a quoted key with an escape in it may be `env` too
 _ENV_KEY = re.compile(r"""^(?:\?\s*)?(["']?)env\1\s*(?::|$)""")
 _ESCAPED_KEY = re.compile(r"""^\??\s*"[^"]*\\""")
-# A top-level key's node properties: tags (`!!str`, `!<tag:...>`) and anchors (`&k`) before it
-_PROPERTIES = re.compile(r"(?:[!&]\S*\s+)+")
 _READABLE = (re.compile(r"env:\s*(#.*)?$"), re.compile(r"env:\s*\{(.*)\}\s*(#.*)?$"))
 _ENTRY = re.compile(r"""\s+["']?([A-Za-z_][A-Za-z0-9_]*)["']?\s*:(.*)$""")
 _FLOW_ENV = re.compile(r"""[{,]\s*["']?env["']?\s*:""")
@@ -381,7 +379,7 @@ def _scanned_env(text: str) -> dict[str, str | None]:
     for line in text.splitlines():
         if line[:1] in ("", " ", "\t", "#"):
             continue
-        properties = _PROPERTIES.match(line)
+        properties = _PROPERTIES.match(line)  # tags and anchors before the key
         key = line[properties.end():] if properties else line
         if key.startswith("*"):
             return {UNREAD: None}  # an alias as a key may stand for `env`
