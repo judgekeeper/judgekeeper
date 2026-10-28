@@ -88,6 +88,7 @@ STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copie
 SMALL_LIMIT = 2**20  # bytes
 LARGE_LIMIT = 100 * 2**20
 TRACE_FOLDERS = ("tags", "request_metadata", "assessments")
+JUNCTION = 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT: a Windows junction's reparse tag
 UNSAFE = {  # why MLflow is not let read a file, and the Next: step
     "link": ("is a link, which can lead to any file on this computer",
              "replace {file} with a copy of the file it links to (or remove it)"),
@@ -186,7 +187,7 @@ def _store_parts(path: Path) -> dict[Path, os.stat_result]:
             if suffix:
                 continue
             raise
-        kind = ("link" if stat.S_ISLNK(found.st_mode) or _junction(part)
+        kind = ("link" if stat.S_ISLNK(found.st_mode) or _junction(part, found)
                 else None if stat.S_ISREG(found.st_mode) else "special")
         if kind == "special" and not suffix:  # never "remove" it: it may be /dev/null
             raise Damaged(f"{part.name} is not an MLflow store: it is not a plain file (a pipe "
@@ -206,12 +207,17 @@ def _store_parts(path: Path) -> dict[Path, os.stat_result]:
     return parts
 
 
-def _junction(path: Path) -> bool:
-    """Whether `path` is a Windows junction (a link lstat doesn't call one)."""
-    try:
-        return bool(getattr(os.path, "isjunction", lambda p: False)(path))
-    except OSError:
+def _junction(path: Path, found) -> bool:
+    """Whether `path` (`found`: its lstat) is a Windows junction, a link lstat doesn't call
+    one, told by its reparse tag as Python 3.12's os.path.isjunction does (3.11 has none).
+    Another reparse point (a OneDrive file) is no link."""
+    if not getattr(found, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
         return False
+    try:
+        tag = getattr(found, "st_reparse_tag", 0) or os.lstat(path).st_reparse_tag
+    except (OSError, AttributeError):
+        return False
+    return tag == JUNCTION
 
 
 def kept_location(value, home: Path) -> Path | None:
@@ -311,7 +317,7 @@ def unsafe_file(folder: Path) -> tuple[Path, str] | None:
                 info = entry.stat(follow_symlinks=False)
             except OSError:
                 continue
-            if stat.S_ISLNK(info.st_mode) or _junction(path):
+            if stat.S_ISLNK(info.st_mode) or _junction(path, info):
                 return path, "link"
             if stat.S_ISDIR(info.st_mode):
                 if not _artifacts(place):

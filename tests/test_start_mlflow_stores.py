@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -685,6 +686,27 @@ def test_the_store_is_looked_at_once_however_many_experiments(folder_only, capsy
     _, out = run(capsys, folder_only, "--no-browser")
     assert "Store:           mlruns, experiment qa-folder" in out, out
     assert len(walks) == 1
+
+
+def test_a_windows_junction_is_a_link_on_every_python():
+    """os.path.isjunction is Python 3.12's: on 3.11 the junction's reparse tag tells it."""
+    reparse = stat.FILE_ATTRIBUTE_REPARSE_POINT
+    junction = SimpleNamespace(st_file_attributes=reparse,
+                               st_reparse_tag=mlflow_store.JUNCTION)
+    onedrive = SimpleNamespace(st_file_attributes=reparse, st_reparse_tag=0x9000601A)
+    assert mlflow_store._junction(Path("j"), junction)
+    assert not mlflow_store._junction(Path("f"), onedrive)  # a OneDrive file: a plain file
+    assert not mlflow_store._junction(Path(__file__), os.lstat(__file__))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a junction is Windows'")
+def test_a_junction_in_the_store_is_refused(tmp_path):
+    tags = tmp_path / "mlruns" / "1" / "traces" / "tr-1" / "tags"
+    tags.mkdir(parents=True)
+    (tmp_path / "outside").mkdir()
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(tags / "mlflow"), str(tmp_path / "outside")],
+                   check=True, capture_output=True)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (tags / "mlflow", "link")
 
 
 # Limits on what one read takes ------------------------------------------------------------
