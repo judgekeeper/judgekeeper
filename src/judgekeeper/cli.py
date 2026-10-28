@@ -162,7 +162,8 @@ def version_lines(stream=None) -> list[str]:
 
 class _Version(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        print("\n".join(version_lines()))
+        for line in version_lines():  # a full disk: no traceback, as every line said
+            _say(line)
         parser.exit()
 
 
@@ -455,7 +456,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _stopped(args_list: list[str]) -> int:
-    print("\nStopped.")
+    _say("")
+    _say("Stopped.")  # stdout can't take it: still stopped (130)
     _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
     return EXIT_STOPPED
 
@@ -497,7 +499,10 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
-            print(printable(scrub(_frames(e))), file=sys.stderr, end="")
+            try:
+                print(printable(scrub(_frames(e))), file=sys.stderr, end="")
+            except OSError:  # stderr can't take it: still an error (2)
+                flush_stdout(err=True)
         workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
         if workspace:
             _error(workspace[0])
