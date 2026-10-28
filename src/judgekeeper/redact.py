@@ -6,7 +6,7 @@ ending in _API_KEY, _TOKEN or _SECRET); values shorter than 8 characters are ign
 they would match ordinary text. Second, as a backstop for keys not in the environment, strings
 shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the login part of a URL
 (`user:password@`, `:password@`, or a long token alone). A key split by a hidden character is
-looked for with the character dropped.
+looked for with the character dropped, and a key right after one even after a letter.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -18,10 +18,12 @@ anything there.
 from __future__ import annotations
 
 import functools
+import itertools
 import os
 import re
 
 REDACTED = "[REDACTED]"
+_MASK = "\ue000"  # where a credential was, while scrub() works out what to hide
 CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LANGFUSE_PUBLIC_KEY",
                    "LANGFUSE_SECRET_KEY", "MLFLOW_TRACKING_PASSWORD", "AWS_ACCESS_KEY_ID",
                    "AWS_SECRET_ACCESS_KEY")
@@ -46,20 +48,25 @@ _URL_USERINFO = re.compile(
 _URL_TOKEN = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?=[^/@\s:]*\d)"
                         r"[A-Za-z0-9._~+=-]{20,}@")
 _START = r"(?<![A-Za-z0-9])"  # a key starts after anything but a letter or digit (`key_sk-`)
-_KEY_SHAPES = (
-    re.compile(rf"{_START}sk-ant-[A-Za-z0-9_-]{{8,}}"),
-    re.compile(rf"{_START}sk-[A-Za-z0-9_-]{{20,}}"),
-    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access keys
-    re.compile(r"\bgh[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
-    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{30,}"),
-    re.compile(r"\bAIza[A-Za-z0-9_-]{30,}"),  # Google API keys
-    re.compile(r"\bxox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
-    re.compile(rf"{_START}gsk_[A-Za-z0-9]{{20,}}"),  # Groq
-    re.compile(rf"{_START}hf_[A-Za-z0-9]{{30,}}"),  # Hugging Face
-    re.compile(rf"{_START}xai-[A-Za-z0-9]{{20,}}"),  # xAI
+# Each key shape as (what must not come before it, the key)
+_SHAPES = (
+    (_START, r"sk-ant-[A-Za-z0-9_-]{8,}"),
+    (_START, r"sk-[A-Za-z0-9_-]{20,}"),
+    (r"\b", r"(?:AKIA|ASIA)[A-Z0-9]{16}\b"),  # AWS access keys
+    (r"\b", r"gh[opsu]_[A-Za-z0-9]{30,}"),  # GitHub tokens
+    (r"\b", r"github_pat_[A-Za-z0-9_]{30,}"),
+    (r"\b", r"AIza[A-Za-z0-9_-]{30,}"),  # Google API keys
+    (r"\b", r"xox[bp]-[A-Za-z0-9-]{20,}"),  # Slack tokens
+    (_START, r"gsk_[A-Za-z0-9]{20,}"),  # Groq
+    (_START, r"hf_[A-Za-z0-9]{30,}"),  # Hugging Face
+    (_START, r"xai-[A-Za-z0-9]{20,}"),  # xAI
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
-    re.compile(r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
+    (r"(?<![A-Za-z0-9_-])", r"eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
 )
+_KEY_SHAPES = tuple(re.compile(before + key) for before, key in _SHAPES)
+# The same keys with nothing checked before them: for a key right after a hidden character,
+# which reads as a space even with a letter before it (`key<ZWSP>sk-…`)
+_KEY_ANYWHERE = tuple(re.compile(key) for _, key in _SHAPES)
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
@@ -180,31 +187,58 @@ def _secret_values() -> list[str]:
 
 def scrub(text: str | None) -> str | None:
     """Return `text` with every credential replaced by [REDACTED]. None passes through. A
-    credential split by a hidden character (which a page or the terminal then drops) is found
-    too: then the text comes back without its hidden characters."""
+    credential split by a hidden character (which a page or the terminal then drops), or right
+    after one, is found too: then the text comes back without its hidden characters."""
     if not text:
         return text
     scrubbed = _scrub(text)
-    if _SPLITTERS.search(text):  # looked for with them dropped, so a key is hidden whole
-        seen = _scrub(_SPLITTERS.sub("", text))
-        if seen != _SPLITTERS.sub("", scrubbed):
-            return seen
-    return scrubbed
+    if not _SPLITTERS.search(text):
+        return scrubbed
+    # Read three ways: as it is, with the hidden characters dropped (a key split by one), and
+    # with a key starting right after one even when a letter comes before. What any of them
+    # hides stays hidden.
+    kept = [i for i, c in enumerate(text) if not _SPLITTERS.match(c)]
+    joined = "".join(text[i] for i in kept)
+    as_is = _hidden(text)
+    before = [as_is[i] for i in kept]
+    hidden = [a or b for a, b in zip(before, _hidden(joined))]
+    for at, i in enumerate(kept):
+        if i and _SPLITTERS.match(text[i - 1]):
+            for pattern in _KEY_ANYWHERE:
+                if found := pattern.match(joined, at):
+                    hidden[at:found.end()] = [True] * (found.end() - at)
+    if hidden == before:
+        return scrubbed
+    return "".join(REDACTED if hide else "".join(c for c, _ in run)
+                   for hide, run in itertools.groupby(zip(joined, hidden), lambda c: c[1]))
 
 
-def _scrub(text: str) -> str:
+def _hidden(text: str) -> list[bool]:
+    """Which characters of `text` _scrub hides."""
+    masked = _scrub(text, lambda found: _MASK * len(found))
+    return [m == _MASK != c for m, c in zip(masked, text)]
+
+
+def _scrub(text: str, hide=lambda found: REDACTED) -> str:
+    """`text` with every credential found in it put through `hide`."""
+    def after_name(m):  # the name before a credential stays
+        return m[1] + hide(m[0][len(m[1]):])
+
+    def login(m):  # and the @ after a URL's login
+        return m[1] + hide(m[0][len(m[1]):-1]) + "@"
+
     for value in _secret_values():
-        text = text.replace(value, REDACTED)
-    text = _BEARER.sub(rf"\g<1>{REDACTED}", text)
-    text = _BASIC.sub(rf"\g<1>{REDACTED}", text)
-    text = _URL_USERINFO.sub(rf"\g<1>{REDACTED}@", text)
-    text = _URL_TOKEN.sub(rf"\g<1>{REDACTED}@", text)
-    text = _AWS_SECRET.sub(rf"\g<1>{REDACTED}", text)
+        text = text.replace(value, hide(value))
+    text = _BEARER.sub(after_name, text)
+    text = _BASIC.sub(after_name, text)
+    text = _URL_USERINFO.sub(login, text)
+    text = _URL_TOKEN.sub(login, text)
+    text = _AWS_SECRET.sub(after_name, text)
     if _AWS_KEY_ID.search(text):
-        text = _LINE.sub(lambda m: _AWS_SECRET_SHAPE.sub(REDACTED, m[0])
+        text = _LINE.sub(lambda m: _AWS_SECRET_SHAPE.sub(lambda s: hide(s[0]), m[0])
                          if _AWS_KEY_ID.search(m[0]) else m[0], text)
     for pattern in _KEY_SHAPES:
-        text = pattern.sub(REDACTED, text)
+        text = pattern.sub(lambda m: hide(m[0]), text)
     return text
 
 

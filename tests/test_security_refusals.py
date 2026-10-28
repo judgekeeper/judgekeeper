@@ -759,6 +759,29 @@ def test_a_key_split_by_any_dropped_character_stays_hidden(monkeypatch):
     assert shown == []
 
 
+SHAPED_KEYS = ["sk-ant-api03-" + "A" * 30, "sk-proj-" + "B" * 30, "AKIA" + "C" * 16,
+               "ghp_" + "H" * 36, "github_pat_" + "p" * 30, "AIza" + "y" * 35,
+               "xoxb-" + "1" * 24, "gsk_" + "g" * 24, "hf_" + "h" * 34, "xai-" + "z" * 24,
+               "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"]
+
+
+@pytest.mark.parametrize("key", SHAPED_KEYS)
+def test_a_hidden_character_after_a_letter_never_shows_a_key(key):
+    dropped = [chr(c) for c in range(0x110000) if redact._CONTROL.match(chr(c))]
+    shown = []
+    for c in dropped:
+        out = redact.scrub(f"key{c}{key} d")
+        if any(key in f(out) for f in (redact.printable, redact.one_line, redact.visible)):
+            shown.append(hex(ord(c)))
+    assert shown == []
+
+
+@pytest.mark.parametrize("key", SHAPED_KEYS)
+def test_a_key_after_a_letter_and_split_in_two_stays_hidden(key):
+    out = redact.scrub(f"key\u200b{key[:9]}\u2060{key[9:]} d")
+    assert redact.printable(out) == f"key{redact.REDACTED} d"
+
+
 # Cells a spreadsheet could run ----------------------------------------------------------------
 
 @pytest.mark.parametrize("cell", ["\uff1d1+1", "\uff0b1", "\uff0d1", "\uff20SUM(A1)", "  =1+1",
