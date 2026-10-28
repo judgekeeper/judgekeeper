@@ -648,7 +648,8 @@ METRIC_PLACES = ["1/a1b2/metrics/loss", "1/datasets/d-1/meta.yaml", "1/a1b2/inpu
 @pytest.mark.parametrize("rel", [
     "1/meta.yaml", "1/tags/team", "1/tags/mlflow/note", "1/a1b2/meta.yaml", "1/a1b2/tags/k",
     "1/a1b2/params/p", "1/traces/tr-1/trace_info.yaml", "1/traces/tr-1/tags/k",
-    "1/traces/tr-1/request_metadata/k", "1/traces/tr-1/assessments/a-1", ".trash/2/meta.yaml"])
+    "1/traces/tr-1/request_metadata/k", "1/traces/tr-1/assessments/a-1", ".trash/2/meta.yaml",
+    "1/tags/artifacts/k", "1/a1b2/tags/artifacts/k"])
 def test_a_file_over_1_mb_where_mlflow_keeps_a_small_value_is_refused(tmp_path, rel):
     path = _store_file(tmp_path, rel, 2**20 + 1)
     assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (path, "big")

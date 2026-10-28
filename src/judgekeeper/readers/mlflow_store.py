@@ -294,8 +294,10 @@ def _artifacts(parts: tuple[str, ...]) -> bool:
     spans itself, _with_spans)."""
     if parts[:1] == (".trash",):
         parts = parts[1:]
+    kept = ("traces", "models")  # the experiment's folders of these; any other holds a run's
     return (parts[-1:] == ("artifacts",) and parts[0].isdigit()
-            and (len(parts) == 3 or len(parts) == 4 and parts[1] in ("traces", "models")))
+            and (len(parts) == 3 and parts[1] not in (*kept, "tags", "datasets")
+                 or len(parts) == 4 and parts[1] in kept))
 
 
 def unsafe_file(folder: Path) -> tuple[Path, str] | None:
