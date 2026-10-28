@@ -321,3 +321,12 @@ def test_the_fix_it_copy_box_keeps_one_width_when_copied():
             in report_page.STYLE)
     phone = report_page.STYLE.split(".fix-in { grid-template-columns: 1fr; }", 1)
     assert len(phone) == 2  # one column on a narrow screen, the box at full width
+
+
+def test_every_website_page_loads_the_new_site_js_and_style_css():
+    from pathlib import Path
+
+    site = Path(__file__).resolve().parents[1] / "website"
+    for page in [*site.glob("*.html"), site / "errors" / "404.html"]:
+        refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
+        assert refs and set(refs) == {"10"}, (page.name, refs)
