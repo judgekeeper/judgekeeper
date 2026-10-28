@@ -291,6 +291,61 @@ def test_without_pyyaml_a_key_in_a_form_only_js_yaml_reads_is_hidden(tmp_path, m
     assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
 
 
+# An anchor or a tag on the top-level `env` key itself (with x as the key): js-yaml reads the
+# block all the same
+TAGGED = {
+    "an anchor": "&k env:\n  COHERE_API_KEY: x\n",
+    "a tag": "!!str env:\n  COHERE_API_KEY: x\n",
+    "a verbatim tag": "!<tag:yaml.org,2002:str> env:\n  COHERE_API_KEY: x\n",
+    "a tag on a quoted key": "!!str 'env':\n  COHERE_API_KEY: x\n",
+    "an anchor and a tag": "&a !!str env:\n  COHERE_API_KEY: x\n",
+    "an alias as the key": "base: &e env\n*e :\n  COHERE_API_KEY: x\n",
+}
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_with_pyyaml_a_tagged_env_key_is_the_env_block(tmp_path, text):
+    pytest.importorskip("yaml")
+    config = _config(tmp_path, re.sub(r"\bx\b", COHERE, text))
+    assert keys.config_env(config) == {"COHERE_API_KEY": COHERE}
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_without_pyyaml_a_tagged_env_key_is_unread_and_hidden(tmp_path, monkeypatch, text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = _config(tmp_path, re.sub(r"\bx\b", COHERE, text))
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_without_pyyaml_a_tagged_env_key_never_reaches_disk_or_the_terminal(
+        here, capsys, monkeypatch, no_browser, text):
+    """The key in three answers the person marks the other way: kept out of pool.jsonl, the
+    terminal and report.html, where those answers are listed."""
+    from judgekeeper.start_label import Workspace
+    from tests.test_flow_across_runs import _mark
+
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    outputs = [f"Use {COHERE} to call it" if i < 3 else f"Answer {i}" for i in range(36)]
+    promptfoo_project(here, split(20, 16), outputs=outputs)
+    (here / "promptfooconfig.yaml").write_text(
+        "description: support bot\n" + re.sub(r"\bx\b", COHERE, text)
+        + "prompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    _mark(Workspace(here), {i: "fail" for i in range(3)})
+    _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
+    assert "Step 3 of 5: Measure" in more, more + err2
+    folder = here / ".judgekeeper"
+    pool, report = (folder / name for name in ("pool.jsonl", "report.html"))
+    assert redact.REDACTED in pool.read_text(encoding="utf-8")
+    saved = [p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()]
+    assert report.is_file() and "Use " in report.read_text(encoding="utf-8")
+    assert all(COHERE not in t for t in [out, err, more, err2, *saved])
+
+
 # A value continued on the next line (x and y its two halves): js-yaml folds the line break
 CONTINUED = {
     "a single-quoted value over two lines": "env:\n  COHERE_API_KEY: 'x\n    y'\n",
