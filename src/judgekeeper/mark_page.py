@@ -328,10 +328,10 @@ __TOP__
   }
   // The rule, behind its button: shown when asked for, the same for every answer. It and the
   // whole question are never open together, so the answer always keeps its room.
-  function showRule(show) {
+  function showRule(show, back) {
     if (!$("rule-btn") || !$("rule")) { return; }
     $("rule").hidden = !show;
-    tabStop($("rule"), show);
+    tabStop($("rule"), show, back);
     $("rule-btn").setAttribute("aria-expanded", String(show));
     setText("rule-btn", show ? "Hide the rule" : "Show the rule");
     $("rule").scrollTop = 0;
@@ -349,17 +349,19 @@ __TOP__
     $("rule-btn").addEventListener("mousedown", function (e) { e.preventDefault(); });
     $("rule-btn").addEventListener("click", function () {
       var show = $("rule").hidden;
-      if (show) { openQuestion(false); }
-      showRule(show);
+      if (show) { openQuestion(false, $("rule-btn")); }
+      showRule(show, $("rule-btn"));
       fitQuestion();
     });
   }
   // An open question or rule is a tab stop of its own, so the keys can scroll it; shut, it is
   // not, and focus on it goes back to the answer.
-  function tabStop(box, on) {
+  // Shut while it has focus, focus goes to `back` (the button that shut it), else the answer.
+  function tabStop(box, on, back) {
     if (on) { box.setAttribute("tabindex", "0"); return; }
+    var had = document.activeElement === box;
     box.removeAttribute("tabindex");
-    if (document.activeElement === box) { focusCard(); }
+    if (had) { if (back) { back.focus(); } else { focusCard(); } }
   }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -438,6 +440,7 @@ __TOP__
     whole = !Array.isArray(value) && long && !media("(max-width: 760px)") && headTail(value) ?
       value : "";
     into.className = long ? "question long" + (whole ? " ht" : "") : "question";
+    tabStop(into, false);  // shut again for the next answer: no tab stop of its own
     into.scrollTop = 0;
     setText("q-more", "Show all"); $("q-more").setAttribute("aria-expanded", "false");
     setText("q-label", "Question");
@@ -465,11 +468,11 @@ __TOP__
       open && !whole && into.scrollTop + into.clientHeight < into.scrollHeight - 2);
     $("q-more").hidden = !(cut || open || whole);
   }
-  function openQuestion(open) {
+  function openQuestion(open, back) {
     var into = $("q-text");
     if (into.classList.contains("open") === open) { return; }
     into.classList.toggle("open", open);
-    tabStop(into, open);
+    tabStop(into, open, back);
     into.scrollTop = 0;
     drawQuestion(open);
     $("q-more").setAttribute("aria-expanded", String(open));
@@ -480,8 +483,8 @@ __TOP__
   $("q-more").addEventListener("mousedown", function (e) { e.preventDefault(); });
   $("q-more").addEventListener("click", function () {
     var open = !$("q-text").classList.contains("open");
-    if (open) { showRule(false); }
-    openQuestion(open);
+    if (open) { showRule(false, $("q-more")); }
+    openQuestion(open, $("q-more"));
   });
 
   // The answer, never cut: its text as text, a ``` fenced block in a box of its own (still

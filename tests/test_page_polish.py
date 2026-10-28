@@ -163,3 +163,33 @@ def test_an_opened_row_shows_its_whole_text_without_scroll_boxes():
     html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": _mistakes(1, 0)})
     assert "60vh" not in html
 
+
+# Found by hand: an open box's tab stop and focus ----------------------------------------------
+
+def test_the_next_answer_shuts_the_question_and_its_tab_stop():
+    data = _data(2)
+    data["items"][0].update(input="Q " * 100)
+    data["items"][1].update(input="Line one\nline two " * 30)
+    got = _run("""
+      var q = ids["q-text"]; q.scrollHeight = 900; q.clientHeight = 100;
+      ids["q-more"].fire("click");
+      var open = q.getAttribute("tabindex");
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify([open, q.getAttribute("tabindex"),
+        q.className.split(" ").indexOf("open")]));""", data=data)
+    assert got == ["0", None, -1]
+
+
+def test_shutting_a_focused_box_by_its_button_leaves_focus_on_the_button():
+    got = _run("""
+      var q = ids["q-text"], rule = ids["rule"];
+      q.scrollHeight = 900; q.clientHeight = 100;
+      ids["q-more"].fire("click"); q.focus();
+      ids["q-more"].fire("click");  // Show less
+      var afterQuestion = document.activeElement === ids["q-more"];
+      ids["rule-btn"].fire("click"); rule.focus();
+      ids["rule-btn"].fire("click");  // Hide the rule
+      console.log(JSON.stringify([afterQuestion, document.activeElement === ids["rule-btn"]]));""",
+               data=_one("Q " * 100), before='document.getElementById("rule").hidden = true;')
+    assert got == [True, True]
+
