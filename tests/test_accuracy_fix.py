@@ -267,15 +267,18 @@ def _tested_by_fix(root, ws) -> None:
 
 
 def _backdate(ws, before: int) -> None:
-    """The first check's line goes back to 2026-01-01, and the first `before` marks in the
-    page's order to 2025: the rest were made after the change was first seen."""
+    """The first check's line goes back to 2026-01-01, and `before` marks to 2025, half from
+    each group by id (never the page's order, which is shuffled): the rest were made after the
+    change was first seen."""
     path = ws.history_jsonl
     lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
     for x in lines:
         if x.get("kind") == "check":
             x["time"] = "2026-01-01T00:00:00Z"
     path.write_text("".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8")
-    first = {q["id"] for q in ws.data()["queue"][:before]}
+    queue = ws.data()["queue"]
+    first = {i for group in ("pass", "fail")
+             for i in sorted(q["id"] for q in queue if q["group"] == group)[:before // 2]}
     rows = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()]
     for x in rows:
         if x.get("id") in first:
