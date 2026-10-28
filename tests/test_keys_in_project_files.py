@@ -324,3 +324,45 @@ def test_judgekeeper_says_once_that_a_linked_env_was_not_read(here, capsys):
     assert main(["--no-browser", "--port", "0"]) == 0
     said = " ".join("".join(capsys.readouterr()).split())
     assert said.count(keys.LINKED.format(file=".env")) == 1, said
+
+
+# Passwords: a name ending in _PASSWORD is hidden like a key -----------------------------------
+
+DB_PASSWORD = "dbMadeUpPassword" + "P8" * 6
+PG_PASSWORD = "pgMadeUpPassword" + "W2" * 6
+
+
+def test_passwords_in_env_files_and_the_promptfoo_config_are_hidden(here, capsys, monkeypatch):
+    for name in ("DB_PASSWORD", "PG_PASSWORD"):
+        monkeypatch.delenv(name, raising=False)
+    (here / ".env").write_text(f"DB_PASSWORD={DB_PASSWORD}\n", encoding="utf-8")
+    (here / "promptfooconfig.yaml").write_text(
+        f"description: support bot\nenv:\n  PG_PASSWORD: {PG_PASSWORD}\n"
+        "prompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+    plain = test_only_reads.answer
+    monkeypatch.setattr(test_only_reads, "answer", lambda i: f"{plain(i)} Use {DB_PASSWORD} "
+                        f"and {PG_PASSWORD}." if i < 3 else plain(i))
+    write_results("promptfoo", here / "evals" / "results.json", {i: judge(i) for i in range(N)})
+    code = main(["evals/results.json", "--no-browser", "--port", "0"])
+    out, err = capsys.readouterr()
+    assert code == 0, out + err
+    ws = Workspace(here)
+    state = _state(out)
+    mark_all(ws)
+    closed(ws)
+    main(["evals/results.json", "--no-browser", "--port", "0"])
+    out += "".join(capsys.readouterr())
+    saved = {p.name: p.read_text(encoding="utf-8", errors="replace")
+             for p in ws.dir.rglob("*") if p.is_file()}
+    assert redact.REDACTED in saved["pool.jsonl"]
+    for value in (DB_PASSWORD, PG_PASSWORD):
+        assert value not in out and value not in state
+        assert [n for n, text in saved.items() if value in text] == []
+
+
+def test_a_name_ending_in_password_is_a_credential(monkeypatch):
+    assert redact.is_credential("DB_PASSWORD") and redact.is_credential("smtp_password")
+    assert not redact.is_credential("PASSWORD_HINT")
+    monkeypatch.setenv("DB_PASSWORD", "short")  # under 8 characters: never hidden
+    monkeypatch.setenv("REDIS_PASSWORD", "madeUpRedisPw9")
+    assert redact.scrub("short madeUpRedisPw9") == f"short {redact.REDACTED}"
