@@ -164,6 +164,8 @@ It looks only inside your project folder, four folders deep; a results file outs
 
 It reads the first 100,000 answers of a results file, and the newest 100,000 records in `.judgekeeper/records/` in all, and says so when there are more.
 
+From an MLflow store it reads at most 1,000 experiments and 1 GB of trace files in one go, and the newest 30,000 traces of an experiment. It doesn't let MLflow open an `mlruns/` folder holding a link, a pipe or a device, or a tag, setting or assessment file over 1 MB, nor copy an `mlflow.db` that is a link or a pipe, or an `mlflow.db` over 10 GB with its `-wal` and `-shm` files. The message names the file or the limit.
+
 ## How grades are read
 
 Every grade, and every mark, becomes `pass`, `fail` or `error`, plus a reason.
@@ -230,7 +232,7 @@ Without the import, or in another language, copy [jk_record.py](examples/records
 
 ## The .judgekeeper/ folder
 
-judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It never changes other tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no requirements files, no `.gitignore` but its own. The folder holds your answers' text, so commit it only if your data may live in your repository.
+In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. Outside your project it writes only a copy of an `mlflow.db` it reads (with its `-wal` and `-shm` files) in your temporary folder (`judgekeeper-mlflow-*`), removed when judgekeeper ends. MLflow makes `mlruns/.trash` when it opens a folder store without one: judgekeeper removes `mlruns/.trash` again. It never changes other tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no requirements files, no `.gitignore` but its own. The folder holds your answers' text, so commit it only if your data may live in your repository.
 
 - On macOS and Linux, only your user can read its files (0600) and folders (0700). Each file is written whole, replacing the old one.
 - It does not write through links: if `.judgekeeper/` or anything in it is a symlink (a cloned repository can hold one) or a hard link, it stops before writing and says which.

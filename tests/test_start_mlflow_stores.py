@@ -667,3 +667,13 @@ def test_listing_two_stores_leaves_no_trash_folder(two, capsys):
     _, out = run(capsys, two, "--no-browser")
     assert "Two MLflow stores found" in out, out
     assert not (two / "mlruns" / ".trash").exists()
+
+
+def test_the_limits_are_said_in_the_reference():
+    flat = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments "
+            f"and {mlflow_store.TRACES_LIMIT // 10**9} GB of trace files in one go, and the "
+            f"newest {mlflow_store.MAX_TRACES:,} traces of an experiment.") in flat
+    assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
+            "`-shm` files") in flat
+    assert mlflow_store.SMALL_LIMIT == 2**20 and "a tag, setting or assessment file over 1 MB" in flat
