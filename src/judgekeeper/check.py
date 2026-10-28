@@ -111,8 +111,8 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
            "judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
-NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
-                   "again; or start over on your new answers with `{new}`.")
+# Running the eval again makes new answers, which can't be compared: grade the marked ones
+NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -1595,7 +1595,11 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
-        said.say(NEXT_NOT_MARKED.format(command=_command(state), new=program("--new")))
+        from judgekeeper import fix
+
+        answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
+        regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
+        said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
         return True
     if not few and looked is None:
         return False  # the check goes on, and says them there
