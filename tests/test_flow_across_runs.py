@@ -549,9 +549,9 @@ def test_fix_names_where_the_eval_keeps_the_rule_when_no_file_holds_it(tmp_path,
     assert "can't tell which file" not in flat(out)
 
 
-def _fixed(root, capsys) -> str:
-    """What `fix` says after marking the results in `root`, the first 10 answers marked the
-    other way from the LLM-as-a-judge."""
+def _marked_here(root) -> Workspace:
+    """The results in `root` marked, the first 10 answers the other way from the
+    LLM-as-a-judge."""
     from judgekeeper import judge_setup, start, start_label
 
     found = start.find_judge(root)
@@ -562,6 +562,12 @@ def _fixed(root, capsys) -> str:
     for n, q in enumerate(ws.data()["queue"]):
         other = {"pass": "fail", "fail": "pass"}[q["group"]]
         session.update({"id": q["id"], "label": other if n < 10 else q["group"], "seconds": 5})
+    return ws
+
+
+def _fixed(root, capsys) -> str:
+    """What `fix` says after marking the results in `root` (_marked_here)."""
+    _marked_here(root)
     capsys.readouterr()
     _, out = _jk(capsys, "fix")
     return flat(out)
@@ -607,6 +613,62 @@ def test_deepeval_fix_names_the_field_the_results_hold(tmp_path, capsys, monkeyp
     path.write_text(json.dumps(_steps_only(data) if steps else data), encoding="utf-8")
     said = _fixed(tmp_path, capsys)
     assert f"Your LLM-as-a-judge's rule is in {field} in your eval's code:" in said, said
+
+
+# Another tool's results ------------------------------------------------------------------
+
+def test_check_names_a_plain_table_in_words_that_read_right(tmp_path, capsys, monkeypatch):
+    from tests.start_projects import table_project
+
+    monkeypatch.chdir(tmp_path)
+    table_project(tmp_path, split(20, 16), name="mine.csv")
+    _marked_here(tmp_path)
+    (tmp_path / "other.json").write_text(json.dumps(promptfoo_data(split(20, 16))),
+                                         encoding="utf-8")
+    code, out = _jk(capsys, "check", "other.json")
+    said = flat(out)
+    assert code == 2
+    assert ("other.json holds promptfoo results, but your marks are on your own results "
+            "file.") in said, said
+    assert ("Next: give `judgekeeper check` your new results file for the LLM-as-a-judge your "
+            "marks test,") in said, said
+    assert "a plain table results" not in said and "new a plain table" not in said
+
+
+def test_check_names_another_tools_plain_table_in_words_that_read_right(tmp_path, capsys,
+                                                                       monkeypatch):
+    from tests.start_projects import table_project
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(tmp_path, split(20, 16), RULE_A)
+    _marked_here(tmp_path)
+    table_project(tmp_path / "other", split(20, 16), name="mine.csv")
+    code, out = _jk(capsys, "check", "other/mine.csv")
+    said = flat(out)
+    assert code == 2
+    assert "mine.csv is a plain table of results, but your marks are on promptfoo results." \
+        in said, said
+    assert "Next: give `judgekeeper check` your new promptfoo results for" in said, said
+
+
+def test_inspect_fix_given_another_tools_results_says_to_score_the_log_again(tmp_path, capsys,
+                                                                            monkeypatch):
+    from tests.start_projects import inspect_data
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "2026-10-02_support.json").write_text(
+        json.dumps(inspect_data(split(20, 16))), encoding="utf-8")
+    _marked_here(tmp_path)
+    _jk(capsys, "fix")
+    (tmp_path / "other.json").write_text(json.dumps(promptfoo_data(split(20, 16))),
+                                         encoding="utf-8")
+    code, out = _jk(capsys, "fix", "other.json")
+    said = flat(out)
+    assert code == 2 and "within one eval tool" in said, said
+    assert "Next: score your log again with your new rule: run `inspect score" in said, said
+    assert "marked-answers.csv" not in said.split("Next:")[1]
 
 
 # Nested projects -----------------------------------------------------------------------------

@@ -1241,8 +1241,10 @@ def _given(talk: Talk, state, m: Marks, path: Path):
     found, problem = read_given(state, path)
     if found is None:
         talk.para(problem)
-        talk.next(f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
-                  f"again with your new rule, from {_tool_name(m.data.get('tool'))}.")
+        tool = m.data.get("tool")
+        talk.next(_regrade_same(talk, state.ws) if tool == "inspect" else  # the log, scored again
+                  f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
+                  f"again with your new rule, from {_tool_name(tool)}.")
     return found
 
 
