@@ -230,7 +230,8 @@ def test_fix_it_is_one_line_and_the_websites_command_box():
 
 def test_the_copy_script_is_the_websites_and_clears_its_selection():
     s = report_page.SCRIPT
-    assert 'querySelectorAll("[data-copy]")' in s and "Copy failed" not in s
+    assert 'querySelectorAll("[data-copy]")' in s
+    assert 'said.textContent = ok ? "Copied" : "Copy failed";' in s  # only when it worked
     assert 'document.execCommand("copy")' in s
     assert s.index('document.execCommand("copy")') < s.rindex("removeAllRanges()")
     assert "1500" in s

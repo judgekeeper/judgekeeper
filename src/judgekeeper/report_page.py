@@ -94,31 +94,33 @@ SCRIPT = """
     });
     // Copy, as on the website: the command (never its "$"), a green tick and "Copied" for
     // 1.5 s; where the clipboard can't be used, the command is selected and copied, then the
-    // selection is cleared.
+    // selection is cleared. A copy that did not work says "Copy failed" instead.
     each(document.querySelectorAll("[data-copy]"), function (button) {
       var code = button.parentNode.querySelector("code"), said = button.querySelector(".copied"),
           timer;
-      function done() {
-        button.classList.add("done");
-        said.textContent = "Copied";
+      function done(ok) {
+        button.classList.remove(ok ? "failed" : "done");
+        button.classList.add(ok ? "done" : "failed");
+        said.textContent = ok ? "Copied" : "Copy failed";
         clearTimeout(timer);
         timer = setTimeout(function () {
           button.classList.remove("done");
+          button.classList.remove("failed");
           said.textContent = "";
         }, 1500);
       }
       function select() {
-        var range = document.createRange(), sel = window.getSelection();
+        var range = document.createRange(), sel = window.getSelection(), ok = false;
         range.selectNodeContents(code);
         sel.removeAllRanges();
         sel.addRange(range);
-        try { document.execCommand("copy"); } catch (e) { /* nothing more to try */ }
+        try { ok = document.execCommand("copy") === true; } catch (e) { /* nothing more to try */ }
         sel.removeAllRanges();
-        done();
+        done(ok);
       }
       button.addEventListener("click", function () {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(code.textContent).then(done, select);
+          navigator.clipboard.writeText(code.textContent).then(function () { done(true); }, select);
         } else {
           select();
         }
@@ -434,6 +436,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .cmd .copied { display: none; font-family: var(--mono); font-variant-ligatures: none;
   font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .cmd .copy.done .copied { display: inline; }
+.cmd .copy.failed .copied { display: inline; }
 @media (min-width: 721px) {
   .tbl, .tbl thead, .tbl tbody { display: block; }
   .tbl colgroup { display: none; }
