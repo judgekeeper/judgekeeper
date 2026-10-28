@@ -77,7 +77,7 @@ def test_the_open_rule_fits_its_text():
 
 def test_wide_screens_keep_a_comfortable_width():
     laptop = _laptop()
-    assert ".row, .actions, .status { padding-right: max(40px, calc(100cqw - 1160px)); }" in laptop
+    assert ".row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }" in laptop
     assert ".main { container-type: inline-size; }" in laptop
     assert ("padding-left: max(var(--gutter), calc((100% - 1376px) / 2));"
             in report_page.STYLE.split(".band {", 1)[1])
@@ -398,3 +398,14 @@ def test_answers_questions_and_reasons_show_no_ligatures():
     assert (".tbl td[data-label], .said, .why" + NO_LIGATURES) in report_page.STYLE
     html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": _mistakes(1, 0)})
     assert ".tbl td[data-label], .said, .why" + NO_LIGATURES in html  # the live result page
+
+
+def test_the_foot_line_is_centred_under_the_buttons_on_a_wide_screen():
+    laptop = _laptop()
+    assert (".row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }"
+            in laptop)
+    # a short wide screen keeps that right padding: no shorthand puts 40px back
+    short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
+    short = short.split("\n}\n", 1)[0]
+    assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short
+    assert ".foot { padding-top: 8px; padding-bottom: 8px; }" in short

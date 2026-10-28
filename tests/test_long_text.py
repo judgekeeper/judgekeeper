@@ -232,7 +232,7 @@ def test_the_page_is_one_screen_on_a_laptop_and_the_answer_always_has_room():
     assert ".row-q { flex: 0 1 auto; min-height: 0;" in laptop
     assert "@media (max-width: 760px) {" in mark_page.STYLE  # the phone's CSS, as it was
     short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
-    assert ".actions { padding: 12px 40px 8px; }" in short and ".btn { height: 44px; }" in short
+    assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short and ".btn { height: 44px; }" in short
     page = mark_page.label_page("bot", "judgekeeper mark")
     assert ('<div class="label">Answer</div><div class="a-scroll" id="a-scroll">'
             '<p class="answer" id="a-text" dir="auto"></p></div>') in page

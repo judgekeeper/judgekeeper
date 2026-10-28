@@ -209,9 +209,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
   .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
   .actions, .sub, .status, .foot { flex: none; }
-  /* Wide: the text and the buttons keep to 1120px; the hairlines run the full width */
+  /* Wide: the text, the buttons and the foot line keep to 1120px; the hairlines run the
+     full width */
   .main { container-type: inline-size; }
-  .row, .actions, .status { padding-right: max(40px, calc(100cqw - 1160px)); }
+  .row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }
   .sub { padding-right: max(24px, calc(100cqw - 1160px)); }
   .a-scroll { margin-right: calc(-1 * max(40px, calc(100cqw - 1160px)));
     padding-right: max(40px, calc(100cqw - 1160px)); }
@@ -241,11 +242,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .graded { margin-bottom: 10px; }
   .rule { margin-bottom: 12px; }
   .q-more { margin-top: 4px; }
-  .actions { padding: 12px 40px 8px; }
+  .actions { padding-top: 12px; padding-bottom: 8px; }
   .btn { height: 44px; }
   .sub { padding-bottom: 2px; }
   .sub .quiet { padding: 6px 16px; }
-  .foot { padding: 8px 40px; }
+  .foot { padding-top: 8px; padding-bottom: 8px; }
 }
 @media (max-width: 760px) {
   html, body { height: auto; }
