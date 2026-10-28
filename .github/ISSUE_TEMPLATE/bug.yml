@@ -46,7 +46,7 @@ body:
         - DeepEval
         - Inspect AI
         - MLflow
-        - A CSV or JSONL file
+        - A CSV, TSV or JSONL file
         - judgekeeper.record() in my own code
         - Another results file
         - None of these
