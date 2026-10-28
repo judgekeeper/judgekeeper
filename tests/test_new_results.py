@@ -268,3 +268,27 @@ def test_a_rule_with_commas_graded_again_in_python_as_the_docs_show(here, capsys
     code, out = run(capsys, "fix", "logs/new.eval")
     assert code == 0 and "Result:" in out, out
     assert fix.read_split(ws).tests[-1]["rule_hash"] == rule_hash(new_rule)
+
+
+def test_the_docs_python_regrade_names_the_llm_as_a_judge(here, capsys):
+    """The Python snippet in docs/eval-tools.md, run as written: it passes `model=`, so the new
+    log names the grader and `check` sees the same model, with only the rule changed."""
+    pytest.importorskip("inspect_ai")
+    import subprocess
+    import sys
+
+    docs = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    snippet = docs.split("```python\n", 1)[1].split("```", 1)[0]
+    assert 'model="<the grader model you used>"' in snippet, snippet
+    log, _ = _marked_inspect_log(here, capsys)
+    (here / "rule.txt").write_text("New rule. GRADE: C or GRADE: I.", encoding="utf-8")
+    script = "\n".join(line.removeprefix("  ") for line in snippet.splitlines())
+    script = (script.replace("logs/<your log>.eval", log.relative_to(here).as_posix())
+              .replace("<the grader model you used>", "mockllm/model"))
+    mock = ("from inspect_ai.model._providers.mockllm import MockLLM\n"
+            "MockLLM.default_output = 'GRADE: C'\n")  # a grader whose reply holds a grade
+    done = subprocess.run([sys.executable, "-c", mock + script], cwd=here, capture_output=True,
+                          text=True, timeout=300, stdin=subprocess.DEVNULL, check=False)
+    assert done.returncode == 0, done.stdout + done.stderr
+    _, out = run(capsys, "check", "logs/new.eval")
+    assert "Your LLM-as-a-judge changed: rule changed." in flat(out), out

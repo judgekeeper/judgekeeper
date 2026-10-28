@@ -3,9 +3,9 @@ served by a process of its own (background.py) or, with --wait, by the command i
 
 The page's link holds its token. The command makes the token, hands it to the page's process
 on its stdin (`main`) and opens the link in the browser itself (`show`), so the output prints
-no link unless no browser opens (or with --no-browser). Marks made through a link printed for
-another program are stamped "link": "printed", and with BROWSER set "link": "browser-env".
-A link printed at the person's own terminal is not stamped.
+no link unless no browser opens (or with --no-browser). Marks made through a link printed with
+no terminal (`terminal`: another program reads the output) are stamped "link": "printed", and
+with BROWSER set "link": "browser-env". A link printed at a terminal is not stamped.
 
 The token is kept in server.json (owner-only, removed when the page stops), so a second run
 prints the same link and the open tab keeps working: a page already showing the same thing

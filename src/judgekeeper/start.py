@@ -2013,7 +2013,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  n_rules=n_rules, reference=bool(records) and all(
                      (r.metadata or {}).get("reference") for r in records),
                  task_file=_task_file(newest.path) if kind == "inspect" else None,
-                 rule_field=_inspect_field(records) if kind == "inspect" and rule else None,
+                 rule_field=(_inspect_field(records) if kind == "inspect" and rule else
+                             _geval_field(records) if kind == "deepeval" and rule else None),
                  models=models, model_source=model_source, experiment=name,
                  stopped=list(dict.fromkeys(n for x in used for n in x.records.notes))
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
@@ -2030,6 +2031,17 @@ def _rule_key(r, kind: str) -> str | None:
     if rule is None or kind != "deepeval":
         return rule
     return rule.split(GEVAL_PARTS)[0].strip()
+
+
+def _geval_field(records) -> str | None:
+    """Which of GEval's options the rule is (_geval_rule): "criteria", or "evaluation_steps"
+    for a GEval built with steps and no criteria; None when no saved prompt says."""
+    for r in records:
+        prompt = r.evaluator.get("prompt")
+        if isinstance(prompt, str) and prompt.strip().startswith("Criteria:"):
+            criteria = prompt.strip()[len("Criteria:"):].split(GEVAL_PARTS)[0].strip()
+            return "criteria" if criteria and criteria != "None" else "evaluation_steps"
+    return None
 
 
 def _inspect_field(records) -> str:

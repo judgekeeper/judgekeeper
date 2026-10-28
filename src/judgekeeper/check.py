@@ -93,8 +93,9 @@ PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make yo
 ONE_RUN = "One run, so a small change may be chance."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by its "
            "exact text.")
-NEXT_GIVEN = ("Next: give `{command}` your new {tool} results for the LLM-as-a-judge your marks "
-              "test, or run it in your project folder to read the newest results.")
+NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
+              "it in your project folder to read the newest results.")
+OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
 NEXT_STORE = "Next: run `{command} {store}`: it reads the newest run."
 NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
                "decision from your LLM-as-a-judge (such as an error).")
@@ -112,7 +113,6 @@ TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you
            "{f} you marked Fail; a re-check needs {need} of each.")
 NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
                    "again; or start over on your new answers with `{new}`.")
-NEXT_ALL_QUESTIONS = "run your eval on all your questions, then run `{command}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -228,14 +228,14 @@ def read_given(state: State, path: Path):
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
                "judge_model": fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU
                else None, "experiment": data.get("experiment")}
-    name = find.NAMES.get(tool, tool)
+    name = _results(tool)
     shown = Path(path).name
     try:
         kind = find.classify_file(Path(path))
     except (OSError, ValueError):
         kind = None
     if kind is not None and kind != tool and tool != "mapped":
-        return None, _other_tool(shown, kind, name)
+        return None, _other_tool(shown, kind, tool)
     saved = start._saved(state.ws.root) if tool == "mapped" else None
     if saved is not None:  # read with the map judgekeeper.toml keeps, the file given
         from dataclasses import replace
@@ -249,23 +249,39 @@ def read_given(state: State, path: Path):
     try:
         found = start.find_judge(state.ws.root if saved is not None else path, **options)
     except start.StartError as e:
-        return None, f"judgekeeper can't read {shown} as {name} results: {scrub(str(e))}"
+        return None, f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
     except (start.Stop, RecordsError, OSError, ValueError):
-        return None, (f"judgekeeper can't read {shown} as {name} results with your "
+        return None, (f"judgekeeper can't read {shown} as {name} with your "
                       f"LLM-as-a-judge {metric}.")
     if saved is None:  # the project is where .judgekeeper/ is, not the file's folder
         found = start.rebased(found, state.ws.root)
     if found.tool != tool:
-        return None, _other_tool(shown, found.tool, name)
+        return None, _other_tool(shown, found.tool, tool)
     if scrub(found.metric) != scrub(metric):  # start.json keeps it with keys hidden
         return None, (f"{shown} has no LLM-as-a-judge named {metric}, the one your marks "
                       "test.")
     return found, None
 
 
-def _other_tool(shown: str, kind: str, name: str) -> str:
-    return (f"{shown} holds {find.NAMES.get(kind, kind)} results, but your marks are on {name} "
-            "results. judgekeeper compares an LLM-as-a-judge only within one eval tool.")
+def _results(tool: str | None) -> str:
+    """A tool's results as words: "promptfoo results", "a plain table of results"."""
+    return "a plain table of results" if tool == "table" else \
+        f"{find.NAMES.get(tool or '', tool)} results"
+
+
+def _new_results(tool: str | None) -> str:
+    """What NEXT_GIVEN asks for: "your new promptfoo results", "your new results file"."""
+    if tool in ("table", "mapped"):
+        return "your new results file"
+    return f"your new {find.NAMES[tool]} results" if tool in find.NAMES else "your new results"
+
+
+def _other_tool(shown: str, kind: str, tool: str | None) -> str:
+    """`shown` holds `kind` results, while the marks are on `tool`'s."""
+    held = f"is {_results(kind)}" if kind == "table" else f"holds {_results(kind)}"
+    ours = OWN_RESULTS if tool in ("table", "mapped") else _results(tool)
+    return (f"{shown} {held}, but your marks are on {ours}. judgekeeper compares an "
+            "LLM-as-a-judge only within one eval tool.")
 
 
 def _configs(found) -> list[Path]:
@@ -1287,7 +1303,7 @@ def full(path: str, said: Said) -> int:
 
             store = mlflow_store(state.ws)
             said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
-                     NEXT_GIVEN.format(tool=find.NAMES.get(state.data.get("tool"), "your eval"),
+                     NEXT_GIVEN.format(results=_new_results(state.data.get("tool")),
                                        command=program("check")))
             return EXIT_USAGE
         now = Now(judge_setup.of(found), None, found, found.results[0].path)
@@ -1447,7 +1463,7 @@ def full(path: str, said: Said) -> int:
         said.say("Next: " + worse_step(old, new, _command(state), state.ws))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
-        said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
+        said.say("Next: " + regrade_marked(state))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1591,8 +1607,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say("Next: " + (regrade_marked(state) if c else  # the eval wrote new answers
-                             NEXT_ALL_QUESTIONS.format(command=_command(state))))
+        said.say("Next: " + regrade_marked(state))  # new answers can't be compared
     return few
 
 
