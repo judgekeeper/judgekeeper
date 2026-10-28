@@ -492,7 +492,7 @@ def test_trace_files_a_copy_names_count_toward_the_limit(made, tmp_path, monkeyp
     monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", total - 1)
     with pytest.raises(start.StartError) as e:
         start.find_judge(root)
-    assert "the trace files judgekeeper would read from mlflow.db are over" in " ".join(
+    assert "the trace files of MLflow experiment 'qa' in mlflow.db are over" in " ".join(
         str(e.value).split())
 
 

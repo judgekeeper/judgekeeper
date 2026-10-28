@@ -17,6 +17,7 @@ import builtins
 import json
 import logging
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -56,15 +57,16 @@ for i, question in enumerate(["one", "two", "three", "four"]):
     app(question)
     mlflow.flush_trace_async_logging()
     trace_id = mlflow.get_last_active_trace_id()
-    mlflow.log_feedback(trace_id=trace_id, name="faithful", value=i % 2 == 0, source=judge)
+    if sys.argv[3:] != ["unjudged"]:
+        mlflow.log_feedback(trace_id=trace_id, name="faithful", value=i % 2 == 0, source=judge)
 """
 
 
-def _make(folder: Path, uri: str, experiment: str) -> None:
+def _make(folder: Path, uri: str, experiment: str, *how: str) -> None:
     script = folder / "make_store.py"
     script.write_text(STORE, encoding="utf-8")
-    subprocess.run([sys.executable, str(script), uri, experiment], check=True, cwd=folder,
-                   capture_output=True)
+    subprocess.run([sys.executable, str(script), uri, experiment, *how], check=True,
+                   cwd=folder, capture_output=True)
     script.unlink()
 
 
@@ -719,8 +721,41 @@ def test_trace_files_over_the_limit_together_are_refused(folder_only, capsys, mo
     code, out = run(capsys, folder_only, "--no-browser")
     flat = " ".join(out.split())
     assert code == 2, out
-    assert "the trace files judgekeeper would read from mlruns are over" in flat, out
-    assert "judgekeeper reads at most" in flat and "Next:" in flat, out
+    assert "the trace files of MLflow experiment 'qa-folder' in mlruns are over" in flat, out
+    assert "Next: keep fewer or smaller traces in that experiment" in flat, out
+
+
+@pytest.fixture(scope="module")
+def with_prod(tmp_path_factory):
+    """mlruns/ with qa-folder (LLM-as-a-judge assessments) and prod (traces only)."""
+    pytest.importorskip("mlflow")
+    build = tmp_path_factory.mktemp("build-prod")
+    _make(build, "mlruns", "qa-folder")
+    _make(build, "mlruns", "prod", "unjudged")
+    return build / "mlruns"
+
+
+def test_the_trace_limit_is_per_experiment_and_names_the_judged_ones(with_prod, tmp_path,
+                                                                     capsys, monkeypatch):
+    project = tmp_path / "docs-qa"
+    shutil.copytree(with_prod, project / "mlruns")
+    prod = next(p.parent for p in (project / "mlruns").glob("*/meta.yaml")
+                if "name: prod" in p.read_text(encoding="utf-8"))
+    qa = [p for p in _trace_files(project) if prod not in p.parents]
+    for path in _trace_files(project):
+        if prod in path.parents:  # JSON with spaces after it: read the same, bigger
+            path.write_bytes(path.read_bytes() + b" " * 100_000)
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(p.stat().st_size for p in qa))
+    code, out = run(capsys, project, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert ("the trace files of MLflow experiment 'prod' in mlruns are over" in flat
+            and "judgekeeper reads at most" in flat and "of trace files from one experiment"
+            in flat), out
+    assert re.search(r"--no-browser --experiment NAME`, with NAME the experiment to read "
+                     r"\(LLM-as-a-judge assessments are in (['\"])qa-folder\1\)\.$", flat), out
+    code, out = run(capsys, project, "--no-browser", "--experiment", "qa-folder")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
 
 
 def test_trace_files_under_the_limit_are_read(folder_only, capsys, monkeypatch):
@@ -773,9 +808,9 @@ def test_a_cloned_folder_store_beside_mlflow_db_is_read_when_chosen(two, capsys,
 
 def test_the_limits_are_said_in_the_reference():
     flat = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
-    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments "
-            f"and {mlflow_store.TRACES_LIMIT // 10**9} GB of trace files in one go, and the "
-            f"newest {mlflow_store.MAX_TRACES:,} traces of an experiment.") in flat
+    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments, "
+            f"and from one experiment at most {mlflow_store.TRACES_LIMIT // 10**9} GB of trace "
+            f"files and the newest {mlflow_store.MAX_TRACES:,} traces.") in flat
     assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
             "`-shm` files") in flat
     assert (mlflow_store.SMALL_LIMIT, mlflow_store.LARGE_LIMIT) == (2**20, 100 * 2**20)
