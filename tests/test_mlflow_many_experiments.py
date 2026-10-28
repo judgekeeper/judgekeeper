@@ -1,6 +1,8 @@
-"""A store with more experiments than MLflow returns in one call (1,000): every one is read.
-The judged experiments are the oldest, behind 2,000 newer empty ones. Made by the installed
-MLflow in another process (skipped without it); the empty ones are added to the database."""
+"""A store with more experiments than MLflow returns in one call (1,000): every one is read,
+up to judgekeeper's limit (MAX_EXPERIMENTS, set above this store's size here; past it the read
+stops and says so). The judged experiments are the oldest, behind 2,000 newer empty ones. Made
+by the installed MLflow in another process (skipped without it); the empty ones are added to
+the database."""
 
 from __future__ import annotations
 
@@ -66,6 +68,7 @@ def project(made, tmp_path, monkeypatch):
     root.mkdir()
     shutil.copy2(made, root / "mlflow.db")
     monkeypatch.chdir(root)
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 3 * mlflow_store.EXPERIMENT_PAGE)
     yield root
     mlflow_store.remove_copies()
 
@@ -84,6 +87,14 @@ def test_the_experiments_with_traces_are_found_on_every_page(project):
     with mlflow_store.quiet():
         names = mlflow_store.experiments_with_traces(uri)
     assert sorted(names) == [f"judged{e}" for e in range(JUDGED)]
+
+
+def test_past_the_limit_the_read_stops_and_says_so(project, capsys, monkeypatch):
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 1000)
+    code = main(["--no-browser", "--port", "0"])
+    out = " ".join("".join(capsys.readouterr()).split())
+    assert code == 2, out
+    assert "mlflow.db has more than 1,000 experiments" in out, out
 
 
 # Lists of experiments are capped ---------------------------------------------------------------
