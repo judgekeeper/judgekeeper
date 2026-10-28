@@ -194,6 +194,64 @@ def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
     assert redact.scrub("the quarterly numbers") == "the quarterly numbers"
 
 
+# Every .env file -----------------------------------------------------------------------------
+
+MODES = ("production", "development", "development.local", "test", "staging")
+
+
+def _mode_value(mode: str) -> str:
+    return f"{mode.replace('.', '')}MadeUpToken" + "M3" * 8
+
+
+def test_keys_in_every_env_file_of_the_project_are_hidden(tmp_path, monkeypatch, capsys):
+    """.env.production, .env.development and the others a tool loads by its mode, with no
+    APP_ENV set: each one's keys are hidden like the .env's."""
+    monkeypatch.delenv("APP_ENV", raising=False)
+    root = tmp_path / "web"
+    (root / ".git").mkdir(parents=True)
+    for n, mode in enumerate(MODES):
+        monkeypatch.delenv(f"MODE{n}_TOKEN", raising=False)
+        (root / f".env.{mode}").write_text(f"MODE{n}_TOKEN={_mode_value(mode)}\n",
+                                           encoding="utf-8")
+    values = [_mode_value(mode) for mode in MODES]
+    plain = test_only_reads.answer
+    monkeypatch.setattr(test_only_reads, "answer", lambda i: f"{plain(i)} Use "
+                        f"{' and '.join(values)}." if i < 3 else plain(i))
+    write_results("promptfoo", root / "evals" / "results.json", {i: judge(i) for i in range(N)})
+    monkeypatch.chdir(root)
+    code = main(["evals/results.json", "--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert code == 0, out
+    saved = {p.name: p.read_text(encoding="utf-8", errors="replace")
+             for p in (root / ".judgekeeper").rglob("*") if p.is_file()}
+    assert redact.REDACTED in saved["pool.jsonl"]
+    for value in values:
+        assert value not in out
+        assert [name for name, text in saved.items() if value in text] == []
+
+
+def test_at_most_50_env_files_are_read_in_a_folder(here):
+    for n in range(60):
+        (here / f".env.m{n:02}").write_text(f"M{n:02}_TOKEN=manyMadeUpToken{n:02}xxxxx\n",
+                                            encoding="utf-8")
+    (here / ".env.d").mkdir()  # a folder of that name is no .env file
+    keys.hide_keys(here)
+    values = [f"manyMadeUpToken{n:02}xxxxx" for n in range(60)]
+    assert [n for n, v in enumerate(values) if redact.scrub(v) != v] == list(range(50))
+    assert keys.notes() == [keys.TOO_MANY.format(folder="support-bot", count=60)]
+
+
+def test_with_no_project_the_nearest_folder_with_any_env_file_is_read(tmp_path, monkeypatch):
+    monkeypatch.delenv("LOCAL_SECRET", raising=False)
+    top = tmp_path / "p10"
+    (top / "evals").mkdir(parents=True)
+    (top / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert keys._env_folders(top / "evals") == [top / "evals", top]
+    keys.hide_keys(top / "evals")
+    assert redact.scrub(LOCAL) == redact.REDACTED
+
+
 # A .env that is a link, or huge -----------------------------------------------------------------
 
 def _link(link: Path, target: Path) -> None:
@@ -203,7 +261,7 @@ def _link(link: Path, target: Path) -> None:
         pytest.skip("this system cannot make links")
 
 
-@pytest.mark.parametrize("name", [".env", ".env.local", ".env.staging"])
+@pytest.mark.parametrize("name", [".env", ".env.local", ".env.staging", ".env.production"])
 def test_a_env_linked_to_a_huge_file_is_skipped_at_once(here, monkeypatch, name):
     monkeypatch.setenv("APP_ENV", "staging")
     huge = here.parent / "huge"

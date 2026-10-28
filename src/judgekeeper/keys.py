@@ -59,6 +59,10 @@ _JS_LINE_ENDS = re.compile("\r\n?|[\u2028\u2029]")
 FILE_LIMIT = 2**20
 LINKED = "{file} is a link: judgekeeper doesn't follow links, so the keys in it are not hidden."
 TOO_BIG = "{file} is over 1 MB, so judgekeeper didn't read it: the keys in it are not hidden."
+# A folder holds a few .env files: in one with more, only this many are read
+ENV_FILES_LIMIT = 50
+TOO_MANY = ("{folder} holds {count} .env files: judgekeeper read 50 of them, so the keys in the "
+            "others are not hidden.")
 _notes: list[str] = []  # one per file not read, for the finder's notes
 _noted: set[str] = set()
 _said: set[str] = set()
@@ -81,17 +85,17 @@ def unsaid() -> list[str]:
     return out
 
 
-def _skipped(path: Path, why: str) -> None:
+def _skipped(path: Path, why: str, **more) -> None:
     where = os.path.abspath(path)  # not resolved: that would follow the link
     try:
         shown = Path(os.path.relpath(where, os.path.abspath(Path.cwd()))).as_posix()
     except (ValueError, OSError):
         shown = path.name
-    if shown.startswith("../"):
-        shown = path.name
+    if shown == "." or shown.startswith("../"):
+        shown = Path(where).name
     if where not in _noted:
         _noted.add(where)
-        _notes.append(why.format(file=printable(shown)))
+        _notes.append(why.format(file=printable(shown), folder=printable(shown), **more))
 
 
 def _small_file(path: Path) -> bytes | None:
@@ -322,10 +326,7 @@ def hide_keys(root: Path, configs=()) -> None:
     ending in _API_KEY, _TOKEN or _SECRET) that the project's .env files and the promptfoo
     configs `configs` set, so it is hidden from the moment the project is found. Nothing is
     passed on, and no other value is kept."""
-    names = [".env", ".env.local"]
-    if os.environ.get("APP_ENV"):
-        names.append(f".env.{os.environ['APP_ENV'].strip()}")
-    for path in [folder / name for folder in _env_folders(Path(root)) for name in names]:
+    for path in [p for folder in _env_folders(Path(root)) for p in _env_files(folder)]:
         found = {n for n in names_in(path) if is_credential(n)}
         for name, value in env_values(path, found).items():
             register_secret(name, value)
@@ -335,10 +336,32 @@ def hide_keys(root: Path, configs=()) -> None:
                 register_secret(name, value)
 
 
+def _env_names(folder: Path) -> list[str]:
+    """The names of the .env and .env.* files in `folder` (links too: they are noted, never
+    followed), the ones most tools read first."""
+    try:
+        with os.scandir(folder) as entries:
+            names = [e.name for e in entries if (e.name == ".env" or e.name.startswith(".env."))
+                     and not e.is_dir(follow_symlinks=False)]
+    except OSError:
+        return []
+    first = [".env", ".env.local", f".env.{os.environ.get('APP_ENV', '').strip()}"]
+    return sorted(names, key=lambda n: (first.index(n) if n in first else len(first), n))
+
+
+def _env_files(folder: Path) -> list[Path]:
+    """The .env files read in `folder`: at most ENV_FILES_LIMIT, and a note when there are
+    more."""
+    names = _env_names(folder)
+    if len(names) > ENV_FILES_LIMIT:
+        _skipped(folder, TOO_MANY, count=len(names))
+    return [folder / name for name in names[:ENV_FILES_LIMIT]]
+
+
 def _env_folders(folder: Path) -> list[Path]:
     """`folder` and each folder above it up to the project's own folder (find.is_project),
     never above it and never the home folder: where a tool run in `folder` may read .env
-    files. With no project above, `folder` and the nearest folder up with a .env."""
+    files. With no project above, `folder` and the nearest folder up with a .env file."""
     from judgekeeper import find  # find imports this module
 
     try:
@@ -352,5 +375,5 @@ def _env_folders(folder: Path) -> list[Path]:
         folders.append(parent)
         if find.is_project(parent):
             return folders
-    nearest = next((f for f in folders if (f / ".env").is_file()), folder)
+    nearest = next((f for f in folders if _env_names(f)), folder)
     return list(dict.fromkeys((folder, nearest)))
