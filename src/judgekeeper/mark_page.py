@@ -2,7 +2,8 @@
 
 One self-contained page (look.py: nothing loaded from anywhere else). It shows one answer at a
 time with the person's own marks and never anything the LLM-as-a-judge decided: no grade, no
-reason, no agreement. What it grades is shown: the metric's name above the answer, and its
+reason, no agreement (an answer it graded more than once with different grades says only which
+run it is: "Run 2 of 3: graded differently"). What it grades is shown: the metric's name above the answer, and its
 rule behind a "Show the rule" button when the results hold one. Text reaches it through
 textContent. The server fills in __DATA__ (start_label.StartSession.state), __TOKEN__ and
 __NONCE__.
@@ -96,6 +97,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said { font-weight: 600; }
 .state .said.pass { color: var(--green); }
 .state .said.fail { color: var(--red); }
+.run { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 .question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
@@ -198,7 +200,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .row-a:has(> .rule:not([hidden])) { min-height: calc((100vh - 72px) * .35 + 150px); }
   .card:has(.rule:not([hidden])) .question.long:not(.open) { max-height: calc(2 * 1.6em); }
   .card:has(.rule:not([hidden])) .question.ht:not(.open) > :not(.q-tail) { display: none; }
-  .row-a > .graded, .row-a > .label { flex: none; }
+  .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
@@ -274,7 +276,7 @@ __TOP__
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
     <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite"></div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
@@ -654,6 +656,11 @@ __TOP__
       state.appendChild(el("span", "", "Marked "));
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
     }
+    // An answer the LLM-as-a-judge graded more than once, with different grades: which run
+    // this card is, never its grade.
+    setText("a-run", it.run ? "Run " + it.run[0] + " of " + it.run[1] +
+      ": graded differently" : "");
+    $("a-run").hidden = !it.run;
     showQuestion(it);
     showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));

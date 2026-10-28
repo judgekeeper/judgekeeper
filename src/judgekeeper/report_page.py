@@ -94,31 +94,33 @@ SCRIPT = """
     });
     // Copy, as on the website: the command (never its "$"), a green tick and "Copied" for
     // 1.5 s; where the clipboard can't be used, the command is selected and copied, then the
-    // selection is cleared.
+    // selection is cleared. A copy that did not work says "Copy failed" instead.
     each(document.querySelectorAll("[data-copy]"), function (button) {
       var code = button.parentNode.querySelector("code"), said = button.querySelector(".copied"),
           timer;
-      function done() {
-        button.classList.add("done");
-        said.textContent = "Copied";
+      function done(ok) {
+        button.classList.remove(ok ? "failed" : "done");
+        button.classList.add(ok ? "done" : "failed");
+        said.textContent = ok ? "Copied" : "Copy failed";
         clearTimeout(timer);
         timer = setTimeout(function () {
           button.classList.remove("done");
+          button.classList.remove("failed");
           said.textContent = "";
         }, 1500);
       }
       function select() {
-        var range = document.createRange(), sel = window.getSelection();
+        var range = document.createRange(), sel = window.getSelection(), ok = false;
         range.selectNodeContents(code);
         sel.removeAllRanges();
         sel.addRange(range);
-        try { document.execCommand("copy"); } catch (e) { /* nothing more to try */ }
+        try { ok = document.execCommand("copy") === true; } catch (e) { /* nothing more to try */ }
         sel.removeAllRanges();
-        done();
+        done(ok);
       }
       button.addEventListener("click", function () {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(code.textContent).then(done, select);
+          navigator.clipboard.writeText(code.textContent).then(function () { done(true); }, select);
         } else {
           select();
         }
@@ -434,6 +436,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .cmd .copied { display: none; font-family: var(--mono); font-variant-ligatures: none;
   font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .cmd .copy.done .copied { display: inline; }
+.cmd .copy.failed .copied { display: inline; }
 @media (min-width: 721px) {
   .tbl, .tbl thead, .tbl tbody { display: block; }
   .tbl colgroup { display: none; }
@@ -534,14 +537,16 @@ def counts(r: dict) -> dict:
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, made again from the flags of the run that made the result
     (r["flags"], start.run_flags; never the text of r["command"]), as the terminal prints
-    them: `mark` keeps every flag, `check` and `fix` the path only, `more`
-    (start_label.mark_command) the flags that read results. On Windows a value no quotes keep
-    as text shows as NAME (said by held_note)."""
+    them: `mark` keeps every flag but --port, `check` and `fix` the path only, `more`
+    (start_label.mark_command) the flags that read results. --port is the page's of that run:
+    report.html outlives it, and the page finds a free port by itself. On Windows a value no
+    quotes keep as text shows as NAME (said by held_note)."""
     from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
 
-    flags = r.get("flags")
-    path = {"path": saved_flags(flags).get("path", ".")}
+    flags = saved_flags(r.get("flags"))
+    flags.pop("port", None)
+    path = {"path": flags.get("path", ".")}
     run = command_from(flags, kept=True)
     return {"run": run, "mark": command_from(flags, "mark", kept=True),
             "check": command_from(path, "check", kept=True),

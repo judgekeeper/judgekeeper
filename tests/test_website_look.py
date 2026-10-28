@@ -708,7 +708,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     pairs = [[_flat(c) for c in _all(p, "code")] for p in _all(card, "div", "gx-pair")]
     assert pairs == [["pip install judgekeeper", "judgekeeper"], ["uvx judgekeeper"]]
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
-    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip", "With uv"]
+    # pip into the project's virtual environment: a system Python refuses it (PEP 668)
+    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
+        "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14."]
     assert not _all(_main(GUIDE), "nav")  # no side list
@@ -753,8 +755,8 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
     own = _all(_by_id(GUIDE, "own-format"), "div", "gx-text")[0]
     said = [(el.tag, _flat(el)) for el in own.children if isinstance(el, Element)]
     assert said == [
-        ("p", ("No eval tool? Save your results as a CSV or JSONL file with three columns: input "
-              "(the question), output (the answer) and verdict (Pass or Fail from your "
+        ("p", ("No eval tool? Save your results as a CSV, TSV or JSONL file with three columns: "
+              "input (the question), output (the answer) and verdict (Pass or Fail from your "
               "LLM-as-a-judge). Then run:")),
         ("div", "judgekeeper results.csv"),
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
@@ -930,6 +932,59 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert "position" not in _rule(".cmd .copied") and "display: inline" in _rule(
         ".cmd .copy.done .copied")
     assert "padding: 12px 18px" in _rule(".cmd code")
+    # a copy that failed says so in the button, never "Copied"
+    assert "display: inline" in _rule(".cmd .copy.failed .copied")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
+def test_copy_says_copied_only_when_the_copy_worked():
+    """site.js's copy buttons, run in node: the clipboard, then the select-and-copy fallback;
+    "Copied" only when one of them worked, else "Copy failed"."""
+    body = JS[JS.index("  function setUpCopy() {"):]
+    body = body[:body.index("\n  }\n") + 4]
+    stub = r"""
+var timers = [], sel = [], works = true, execWorks = true, execThrows = false;
+function setTimeout(f, ms) { timers.push([f, ms]); return timers.length; }
+function clearTimeout() {}
+var code = {textContent: "judgekeeper fix"}, said = {textContent: ""}, classes = [];
+var button = {parentNode: {querySelector: function () { return code; }},
+  querySelector: function () { return said; },
+  classList: {add: function (c) { if (classes.indexOf(c) < 0) classes.push(c); },
+              remove: function (c) { classes = classes.filter(function (x) { return x !== c; }); }},
+  addEventListener: function (t, f) { button.click = f; }};
+function $all() { return [button]; }
+var document = {createRange: function () { return {selectNodeContents: function () {}}; },
+  execCommand: function (c) { sel.push(c); if (execThrows) throw new Error("no");
+    return execWorks; }};
+var window = {getSelection: function () {
+  return {removeAllRanges: function () {}, addRange: function () {}}; }};
+var navigator = {clipboard: {writeText: function () {
+  return works ? Promise.resolve() : Promise.reject(new Error("no")); }}};
+"""
+    scenario = r"""
+(async function () {
+  function tick() { return new Promise(function (r) { setImmediate(r); }); }
+  setUpCopy();
+  var got = {};
+  button.click(); await tick(); got.clipboard = [said.textContent, classes.slice()];
+  works = false; button.click(); await tick();
+  got.fallback = [said.textContent, classes.slice(), sel.length];
+  execWorks = false; button.click(); await tick();
+  got.failed = [said.textContent, classes.slice()];
+  timers[timers.length - 1][0](); got.after = [said.textContent, classes.slice()];
+  execThrows = true; button.click(); await tick(); got.thrown = [said.textContent, classes.slice()];
+  process.stdout.write(JSON.stringify(got));
+})();
+"""
+    code = "(function () {" + stub + body + "\n" + scenario + "})();"  # node's own navigator
+    out = subprocess.run([shutil.which("node"), "-e", code],
+                         capture_output=True, text=True, check=True, timeout=30)
+    got = json.loads(out.stdout)
+    assert got["clipboard"] == ["Copied", ["done"]]
+    assert got["fallback"] == ["Copied", ["done"], 1]
+    assert got["failed"] == ["Copy failed", ["failed"]]
+    assert got["after"] == ["", []]
+    assert got["thrown"] == ["Copy failed", ["failed"]]
 
 
 # Privacy ------------------------------------------------------------------------------------

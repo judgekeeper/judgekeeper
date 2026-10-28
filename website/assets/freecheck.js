@@ -713,7 +713,7 @@
   var OUTPUT_WORDS = ['output', 'outputs', 'answer', 'answers', 'response', 'responses', 'completion', 'reply', 'generation'];
   var SCORE_WORDS = ['score', 'verdict', 'passed', 'pass', 'label', 'success', 'grade', 'rating', 'judgment', 'judgement'];
   var REASON_WORDS = ['reason', 'reasoning', 'explanation', 'rationale', 'comment', 'feedback', 'justification', 'why'];
-  var READ_NAMES = 'In the browser it reads a CSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
+  var READ_NAMES = 'In the browser it reads a CSV, TSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
   function commonNames(rows, header) {
     var one = function (list) {
       var found = header.filter(function (h) { return isStr(h) && list.indexOf(h.trim().toLowerCase()) >= 0; });
