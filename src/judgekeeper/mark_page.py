@@ -101,22 +101,23 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said.fail { color: var(--red); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
-.question .field-name { display: block; font-size: 12px; font-weight: 600; color: var(--faint);
-  letter-spacing: 0; }
+.question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); line-height: 1.5; }
 .question .field { display: block; }
 .question .field + .field-name { margin-top: 10px; }
 .graded { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
-  margin-bottom: 14px; }
+  margin-bottom: 22px; }
 .graded .label { margin: 0; }
 .metric-name { font-family: var(--mono); font-size: 13px; color: var(--text);
   overflow-wrap: anywhere; min-width: 0; }
-.rule-btn { padding: 6px 10px; font-size: 13px; margin-left: auto; }
+.rule-btn { margin-left: auto; }
 .rule { margin: 0 0 18px; padding: 12px 16px; border-left: 2px solid var(--line);
-  background: var(--hover); }
+  background: var(--hover); width: fit-content; max-width: 100%; }
 .rule-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); max-width: 70ch;
   white-space: pre-wrap; overflow-wrap: anywhere; }
 .answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; white-space: pre-wrap;
   overflow-wrap: anywhere; }
+.answer:dir(rtl), .question:dir(rtl) { margin-left: auto; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
 .btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
   gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
@@ -124,7 +125,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn:disabled { cursor: default; }
 .btn-ico { width: 15px; height: 15px; }
 .btn-ico path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
-.btn kbd { font-family: var(--mono); font-size: 12px; font-weight: 400; opacity: .85; margin-left: 8px; }
+.btn kbd { font-family: var(--sans); font-size: 13px; font-weight: 400; margin-left: 8px; }
 .btn.fail { background: var(--red-fill); }
 .btn.pass { background: var(--green-fill); }
 .btn.fail:hover { filter: brightness(1.08); }
@@ -136,6 +137,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .status { margin: 0; padding: 0 40px 10px; text-align: center; font-size: 13px; font-weight: 600;
   color: var(--red); }
 .status:empty { display: none; }
+.status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
   text-align: center; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
@@ -171,13 +173,16 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .answer code.block { scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
 }
 .code-wrap.more-right::after { content: ""; position: absolute; top: 1px; right: 1px;
-  bottom: 9px; width: 48px; pointer-events: none;
+  bottom: 9px; width: 1.5em; pointer-events: none;
   background: linear-gradient(to right, transparent, var(--hover)); }
 .question .q-head, .question .q-gap, .question .q-tail, .question .q-start,
 .question .q-end { display: block; }
-.q-more { padding: 6px 0; margin-top: 8px; font-size: 13px; text-decoration: underline;
-  text-underline-offset: 3px; }
-.q-more:hover { background: none; }
+.q-more { margin-top: 8px; }
+/* One link style: "Show all" and "Show the rule" */
+.quiet.q-more, .quiet.rule-btn { padding: 6px 0; font-size: 14px; color: var(--muted);
+  text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.quiet.q-more:hover, .quiet.rule-btn:hover, .quiet.q-more:focus-visible,
+.quiet.rule-btn:focus-visible { color: var(--text); background: none; }
 @media (min-width: 761px) {
   html, body { height: 100%; overflow: hidden; }
   body { min-height: 0; }
@@ -199,30 +204,29 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
   .row-a:has(> .a-scroll.fits) { min-height: 0; }
-  .a-scroll.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+  .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
+  .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
   .actions, .sub, .status, .foot { flex: none; }
+  /* Wide: the text and the buttons keep to 1120px; the hairlines run the full width */
+  .main { container-type: inline-size; }
+  .row, .actions, .status { padding-right: max(40px, calc(100cqw - 1160px)); }
+  .sub { padding-right: max(24px, calc(100cqw - 1160px)); }
+  .a-scroll { margin-right: calc(-1 * max(40px, calc(100cqw - 1160px)));
+    padding-right: max(40px, calc(100cqw - 1160px)); }
   .question:not(.long) { max-width: 75ch; }
   .question.long { font-size: 17px; font-weight: 400; line-height: 1.6; letter-spacing: 0;
     max-width: 75ch; max-height: calc(4 * 1.6em); overflow: hidden; }
-  .question.long .field-name { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: .06em; text-transform: uppercase;
-    line-height: 1.5; color: var(--faint); }
   .question.long .field + .field-name { margin-top: 6px; }
-  .question.long.cut:not(.open) { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - .9em), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - .9em), transparent); }
   .question.long.ht:not(.open) { max-height: none; }
   .question .q-head, .question .q-tail { max-height: calc(2 * 1.6em); overflow: hidden; }
   .question .q-tail { display: flex; flex-direction: column; justify-content: flex-end; }
-  .question .q-gap { color: var(--faint); }
+  .question .q-gap { font-size: 13px; letter-spacing: .3em; color: var(--muted); }
   .question.open .q-end { position: sticky; bottom: 0; background: var(--bg);
     border-top: 1px solid var(--line); padding-top: 4px; }
   .question.long.open { max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
     overscroll-behavior: contain; }
-  .question.long.open.more-below {
-    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent); }
-  .question.long.open { padding: 6px 10px; margin: -6px -10px; }
-  .question.long.open:focus-visible { -webkit-mask-image: none; mask-image: none; }
+  .question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;
+    mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }
   .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
   .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
   .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
@@ -279,6 +283,7 @@ __TOP__
     </div>
     <div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S"><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <p class="status" id="status" role="status"></p>
+    <p class="sr" id="done" role="status"></p>
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
@@ -329,7 +334,17 @@ __TOP__
     tabStop($("rule"), show);
     $("rule-btn").setAttribute("aria-expanded", String(show));
     setText("rule-btn", show ? "Hide the rule" : "Show the rule");
+    $("rule").scrollTop = 0;
+    fitRule();
   }
+  // The open rule: a fade at its bottom while there is more below, as the answer has.
+  function fitRule() {
+    var box = $("rule");
+    if (!box) { return; }
+    box.classList.toggle("more-below",
+      !box.hidden && box.scrollTop + box.clientHeight < box.scrollHeight - 2);
+  }
+  if ($("rule")) { $("rule").addEventListener("scroll", fitRule); }
   if ($("rule-btn")) {
     $("rule-btn").addEventListener("mousedown", function (e) { e.preventDefault(); });
     $("rule-btn").addEventListener("click", function () {
@@ -354,8 +369,9 @@ __TOP__
   }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
   // A line that a mark was not saved is brought into view, also on a phone.
-  function say(text) {
+  function say(text, calm) {
     setText("status", text);
+    $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
   // On a phone the card comes first, then the list: the card is scrolled into view (at once under
@@ -407,7 +423,9 @@ __TOP__
       return;
     }
     into.appendChild(el("span", "q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
-    into.appendChild(el("span", "q-gap", "\u2026"));
+    var gap = el("span", "q-gap", "\u2026");
+    gap.setAttribute("aria-hidden", "true");
+    into.appendChild(gap);
     into.appendChild(el("span", "q-tail", parts[1]));
   }
   // A short one-line question is the big heading; a longer one, or several named values, reads
@@ -422,7 +440,8 @@ __TOP__
     into.className = long ? "question long" + (whole ? " ht" : "") : "question";
     into.scrollTop = 0;
     setText("q-more", "Show all"); $("q-more").setAttribute("aria-expanded", "false");
-    setText("q-label", Array.isArray(value) ? "Input" : "Question");
+    setText("q-label", "Question");
+    $("q-label").hidden = Array.isArray(value);  // its fields are labelled
     $("q-row").hidden = Array.isArray(it.input) && value === "";
     if (whole) { drawQuestion(false); }
     else if (!Array.isArray(value)) { into.textContent = value; }
@@ -542,7 +561,7 @@ __TOP__
   }
   if (answerArea()) { answerArea().addEventListener("scroll", fade); }
   window.addEventListener && window.addEventListener("resize", function () {
-    fitAnswer(); fade(); fitQuestion(); edges(); });
+    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); });
   // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
   // back), also held, Home and End to its top and bottom; the open question or rule instead
   // while it has focus. Not on a phone, where the page itself scrolls.
@@ -568,8 +587,9 @@ __TOP__
       return lines[lines.length - 1].replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
     }
     lines = String(Array.isArray(value) ? value[0][1] : value).split("\\n");
-    return lines.filter(function (line) {
-      return line.trim() && !/^[^:]{1,40}:$/.test(line.trim()); })[0] || lines[0];
+    return (lines.filter(function (line) {
+      return line.trim() && !/^[^:]{1,40}:$/.test(line.trim()); })[0] || lines[0])
+      .replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
   }
 
   // The answers list: the person's own marks only.
@@ -583,7 +603,9 @@ __TOP__
       a.href = "#"; a.setAttribute("data-k", String(k));
       if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
       a.appendChild(el("span", "num", k < 99 ? ("0" + (k + 1)).slice(-2) : String(k + 1)));
-      a.appendChild(el("span", "q", firstLine(it)));
+      var title = el("span", "q", firstLine(it));
+      title.setAttribute("dir", "auto");
+      a.appendChild(title);
       var dot = el("span", "dot-wrap");
       dot.setAttribute("aria-hidden", "true");
       dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
@@ -731,24 +753,26 @@ __TOP__
     if (ended || locked()) { return; }
     var it = items[pos];
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos); next(); focusCard(); });
+      it.label = value; it.skipped = false; history.push(pos);
+      setText("done", value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
   function skip() {
     if (ended || locked()) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos); next(); focusCard(); });
+      it.label = null; it.skipped = true; history.push(pos);
+      setText("done", "Skipped."); next(); focusCard(); });
   }
 
   function undo() {
-    if (!history.length) { say("Nothing to undo."); return; }
+    if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked()) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
     var it = items[pos];
     send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; render(); focusCard(); });
+      it.label = null; it.skipped = false; setText("done", "Undone."); render(); focusCard(); });
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.

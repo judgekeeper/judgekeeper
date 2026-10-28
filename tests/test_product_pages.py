@@ -137,7 +137,7 @@ def test_dark_only():
 def test_the_colours():
     dark = _tokens()
     assert (dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"]) == (
-        "#0b0c0e", "#e6e8eb", "#8b919a", "#585e68", "#262a30")
+        "#0b0c0e", "#e6e8eb", "#8b919a", "#767c86", "#262a30")
     assert (dark["hover"], dark["current"]) == ("#121418", "#17191e")
     # Green and red: Pass and Fail (their fill, hover and dots) and the "See your result" link
     assert (dark["green-fill"], dark["green"], dark["red-fill"], dark["red"]) == (
@@ -178,7 +178,9 @@ def test_text_contrast():
 def test_focus_rings_and_no_focus_on_load():
     for name, page in _new().items():
         style = page.split("<style>")[1].split("</style>")[0]
-        assert re.findall(r"outline-offset: ([^;]+);", style) == ["-2px"], name
+        # one ring everywhere; the open question and rule: a thin one, clear of their text
+        assert set(re.findall(r"outline-offset: ([^;]+);", style)) <= {"-2px", "4px"}, name
+        assert re.findall(r"outline-offset: 4px", style) in ([], ["outline-offset: 4px"]), name
         assert ":focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }" in style
         assert "autofocus" not in page, name
     for name, page in (("marking", _marking()), ("old link", mark_page.old_link_page())):
@@ -536,8 +538,8 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert '<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5)</h2>' in first
     assert f'* {c["easy"] + c["strict"] - 7} more are kept aside' in html
-    assert ('<button type="button" class="more" aria-expanded="false" data-n="5" '
-            'aria-controls="t-easy">Show all 5</button>') in first
+    assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
+            'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
             '<th scope="col">Why your LLM-as-a-judge passed it</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
@@ -710,7 +712,8 @@ def test_what_is_gone_from_the_result_page(counts):
 
 def test_the_result_page_style():
     style = report_page.STYLE
-    for rule in (".band { padding-left: var(--gutter); padding-right: var(--gutter); }",
+    for rule in ((".band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));\n"
+                  "  padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }"),
                  ":root { --gutter: 32px; }",
                  ".verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }",
                  (".verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); "
@@ -725,16 +728,18 @@ def test_the_result_page_style():
                   "var(--line); display: grid; grid-template-columns: 1fr 1fr; }"),
                  (".counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; "
                   "line-height: 1.4; font-weight: 500; }"),
-                 ".left-out { margin: 16px 0 0; font-size: 15px; color: var(--muted); }",
+                 (".left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
+                  "max-width: 80ch; }"),
                  ".group { padding-top: 64px; }",
                  (".gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; "
                   "color: var(--amber); }"),
-                 ".more { font-size: 14px; color: var(--text); text-decoration: underline;",
+                 (".more, .open-row { font-size: 14px; color: var(--muted); text-decoration: "
+                  "underline;\n  text-decoration-color: var(--faint); text-underline-offset: 3px;"),
                  (".tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } "
                   ".tbl col.c3 { width: 28%; }"),
                  ".tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0;",
-                 (".note { margin: 16px 0 0; font-size: 13px; color: var(--muted); "
-                  "text-align: left; }"),
+                 (".note { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
+                  "text-align: left;\n  max-width: 80ch; }"),
                  ".details { padding-top: 64px; }",
                  (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
                   ".panel col.d3 { width: 26%; }"),
@@ -810,7 +815,7 @@ var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
 ids["fix-cmd"].textContent = "judgekeeper fix";
 ids.copy.attrs["data-copy"] = "fix-cmd";
 var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.attrs["data-n"] = "2";
-more.textContent = "Show all 2";
+more.textContent = "Show 2 more";
 ids["t-easy"].rows = [new El(), new El()]; ids["t-easy"].rows.forEach(function (r) { r.hidden = true; });
 var document = {documentElement: new El("html"),
   getElementById: function (id) { return ids[id] || null; },
@@ -842,7 +847,7 @@ function clearTimeout() {}
                          encoding="utf-8", timeout=60)
     got = json.loads(out.stdout.strip().splitlines()[-1])
     assert got["opened"] == ["Show less", "true", [False, False]]
-    assert got["closed"] == ["Show all 2", [True, True]]
+    assert got["closed"] == ["Show 2 more", [True, True]]
     assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
     assert got["back"] == ["Copy", ""]
 

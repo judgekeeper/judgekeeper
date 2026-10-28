@@ -204,9 +204,9 @@ def test_an_open_question_or_rule_takes_focus_and_its_own_scroll_keys():
     assert got["ruleTab"] == "0" and 0 < got["ruleTop"] < got["ruleEnd"] == 600
     assert got["answerTop"] == 0  # the answer did not move
     assert got["sent"] == 1
-    # its focus ring sits outside the text, with no fade over it
-    assert ".question.long.open { padding: 6px 10px; margin: -6px -10px; }" in _laptop()
-    assert (".question.long.open:focus-visible { -webkit-mask-image: none; mask-image: none; }"
+    # its focus ring: thin, outside the text, with no fade over it
+    assert (".question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;\n"
+            "    mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }"
             in _laptop())
 
 
@@ -260,7 +260,7 @@ def test_the_rule_and_the_whole_question_are_never_open_together():
 
 
 def test_the_opened_question_fades_while_there_is_more_below():
-    assert ".question.long.open.more-below {" in _laptop()
+    assert ".question.long.open.more-below," in _laptop()
     got = _run("""
       var q = ids["q-text"]; q.scrollHeight = 500; q.clientHeight = 100;
       ids["q-more"].fire("click");
@@ -307,10 +307,13 @@ def test_a_long_field_that_does_not_end_with_a_question_folds_as_before():
     assert got["side"] == "Bags are free. " * 40
 
 
-def test_field_names_are_small_mono_labels():
-    laptop = _laptop()
-    assert (".question.long .field-name { font-family: var(--mono); font-size: 11px; "
-            "font-weight: 400; letter-spacing: .06em; text-transform: uppercase;") in laptop
+def test_field_names_are_small_labels_like_the_others():
+    style = mark_page.STYLE
+    assert (".question .field-name { display: block; font-size: 11px; font-weight: 600; "
+            "letter-spacing: .1em;\n  text-transform: uppercase; color: var(--faint);") in style
+    assert (".label { font-size: 11px; font-weight: 600; letter-spacing: .1em; "
+            "text-transform: uppercase; color: var(--faint);") in style
+    assert ".field-name { font-family" not in style  # one font, one tracking
 
 
 def test_text_is_never_split_into_fields_by_its_name_lines():
@@ -409,8 +412,7 @@ def test_rows_fold_to_four_lines_with_one_show_all_per_row():
     assert "max-height: calc(4 * 1.55em);" in laptop and "line-height: 1.55;" in laptop
     assert "line-clamp" not in style  # a fade, never "…" after a full stop
     assert "grid-template-columns: 28fr 44fr 28fr;" in laptop
-    assert (".tbl tr[data-open] td[data-label] { max-height: 60vh; overflow: auto;"
-            in laptop)
+    assert ".tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }" in laptop
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
     assert ".open-row[hidden] + .dot { display: none; }" in style
 
@@ -431,9 +433,11 @@ def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in
     assert 'class="ht"' not in plain  # no question at the end: 4 lines, as before
 
 
-def test_an_opened_row_leaves_room_above_its_foot_line():
-    laptop = report_page.STYLE.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
-    assert ".tbl tr[data-open] td.why-cell { padding-top: 8px; }" in laptop
+def test_the_foot_line_sits_12px_under_the_text_on_both_pages():
+    style = report_page.STYLE
+    assert ".row-foot, .why-line { margin: 12px 0 0; }" in style
+    assert "td.why-cell { padding-top: 8px; }" not in style  # no second margin
+    assert ".row-foot > .open-row" not in style and ".why-line > .open-row" not in style
 
 
 def test_a_rule_part_in_the_reason_line_is_cut_at_60_characters():
@@ -457,8 +461,8 @@ def test_a_rule_part_in_the_reason_line_is_cut_at_60_characters():
 
 def test_the_group_link_says_how_many_it_shows():
     html = _html(_mistakes(7, 1))
-    assert ('aria-controls="t-easy">Show all 7</button>') in html
-    assert '"Show all " + b.getAttribute("data-n")' in report_page.SCRIPT
+    assert 'data-n="4" aria-controls="t-easy">Show 4 more</button>' in html
+    assert '"Show " + b.getAttribute("data-n") + " more"' in report_page.SCRIPT
 
 
 def test_the_verdict_heading_wraps_evenly():
@@ -606,7 +610,7 @@ def test_the_other_box_saves_when_typing_pauses_on_enter_and_on_leaving():
 
 
 def test_the_group_link_says_show_less():
-    assert '"Show less" : "Show all " + b.getAttribute("data-n")' in report_page.SCRIPT
+    assert '"Show less" : "Show " + b.getAttribute("data-n") + " more"' in report_page.SCRIPT
     assert "Show fewer" not in report_page.SCRIPT
 
 

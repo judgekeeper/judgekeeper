@@ -66,7 +66,7 @@ SCRIPT = """
         b.setAttribute("aria-expanded", String(open));
         var table = document.getElementById(b.getAttribute("aria-controls"));
         each(table.querySelectorAll("tr.extra"), function (row) { row.hidden = !open; });
-        b.textContent = open ? "Show less" : "Show all " + b.getAttribute("data-n");
+        b.textContent = open ? "Show less" : "Show " + b.getAttribute("data-n") + " more";
         fit();
       });
     });
@@ -230,7 +230,10 @@ STYLE = """
 :root { --gutter: 32px; }
 table { border-collapse: collapse; width: 100%; }
 .mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
-.band { padding-left: var(--gutter); padding-right: var(--gutter); }
+/* Wide: the lists, the notes, More details and Fix it keep to 1376px, in the middle; the
+   hairlines run the full width */
+.band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));
+  padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }
 .verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }
 .verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); line-height: 1.1;
   letter-spacing: -.02em; font-weight: 800; max-width: 20ch; text-wrap: balance; }
@@ -245,12 +248,16 @@ table { border-collapse: collapse; width: 100%; }
 .counts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
 .counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; line-height: 1.4; font-weight: 500; }
 .counts p + p { border-left: 1px solid var(--line); }
-.left-out { margin: 16px 0 0; font-size: 15px; color: var(--muted); }
+.counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));
+  padding-right: max(0px, calc((100% - 1376px) / 2 - var(--gutter))); }
+.left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .group { padding-top: 64px; }
 .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
 .gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; color: var(--amber); }
-.more { font-size: 14px; color: var(--text); text-decoration: underline;
-  text-underline-offset: 3px; white-space: nowrap; }
+/* One link style: a group's "Show N more" and a row's "Show all" */
+.more, .open-row { font-size: 14px; color: var(--muted); text-decoration: underline;
+  text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
+.more:hover, .more:focus-visible, .open-row:hover, .open-row:focus-visible { color: var(--text); }
 .tbl { margin-top: 32px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
 .tbl th, .panel th { font-family: var(--mono); font-weight: 400; font-size: 12px;
@@ -260,24 +267,24 @@ table { border-collapse: collapse; width: 100%; }
 .tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0; vertical-align: top;
   border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tbl th:last-child, .tbl td:last-child { padding-right: 0; }
-.tbl td:last-child { color: var(--muted); }
-.note { margin: 16px 0 0; font-size: 13px; color: var(--muted); text-align: left; }
-.open-row, .add-reason { font-size: 14px; color: var(--text); text-decoration: underline;
+.tbl td[data-label]:nth-child(3) { color: var(--muted); }
+.note { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: left;
+  max-width: 80ch; }
+.add-reason { font-size: 14px; color: var(--text); text-decoration: underline;
   text-underline-offset: 3px; white-space: nowrap; }
-.open-row { margin-top: 10px; color: var(--muted); }
-.open-row:hover { color: var(--text); }
-.why-line { margin: 0; display: flex; align-items: baseline; gap: 0; min-width: 0;
+.open-row, .add-reason { padding: 3px 0; }
+.why-line { display: flex; align-items: baseline; gap: 0; min-width: 0;
   font-size: 15px; color: var(--muted); }
 .said-now { display: inline-flex; min-width: 0; white-space: pre; }
 .said-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.why-body { margin-top: 16px; }
-.add-why { margin: 24px 0 0; font-size: 15px; color: var(--muted); }
+.why-body { margin-top: 16px; padding-left: 16px; border-left: 2px solid var(--line); }
+.add-why { margin: 24px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .add-why code { font-size: 14px; color: var(--text); }
 .tbl td[data-label] { border-bottom: 0; padding-bottom: 10px; }
 .tbl td.why-cell { white-space: normal; padding-top: 0; color: var(--text); }
-.row-foot { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
-.row-foot > .open-row, .row-foot > .said { display: inline-block; margin-top: 10px; }
-.why-line > .open-row { margin-top: 0; }
+.row-foot { font-size: 15px; line-height: 1.5; color: var(--muted); }
+.row-foot, .why-line { margin: 12px 0 0; }
+.dot { padding: 0 2px; }
 .open-row[hidden] + .dot { display: none; }
 .dot { white-space: pre; }
 .said { color: var(--muted); }
@@ -292,6 +299,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .why .sub { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips + .sub, .chips + .chips { margin-top: 14px; }
+.chips.parts { flex-direction: column; align-items: flex-start; }
 .chip { font-size: 14px; line-height: 1.35; padding: 8px 12px; border: 1px solid var(--line);
   color: var(--muted); text-align: left; max-width: 100%; overflow-wrap: anywhere; }
 .chip:hover { color: var(--text); background: var(--hover); }
@@ -302,7 +310,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .other-box { margin-top: 12px; display: grid; gap: 6px; max-width: 640px; }
 .other-box label { font-size: 13px; color: var(--muted); }
 .other-box input { font: inherit; font-size: 15px; color: var(--text); background: var(--bg);
-  border: 1px solid var(--line); padding: 10px 12px; width: 100%; }
+  border: 1px solid var(--faint); padding: 10px 12px; width: 100%; }
 .marked { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center;
   gap: 8px 16px; min-height: 24px; }
 .mark-part, .clear-part { font-size: 14px; text-decoration: underline;
@@ -311,7 +319,8 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .details { padding-top: 64px; }
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .panel { margin-top: 32px; table-layout: fixed; }
-.panel caption { text-align: left; font-size: 13px; color: var(--muted); padding: 0 0 12px; }
+.panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 12px;
+  max-width: 80ch; }
 .panel caption .weighted { display: block; margin-top: 4px; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
 .panel th { padding: 0 24px 10px 0; }
@@ -322,7 +331,8 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   text-transform: none; color: var(--text); padding: 20px 32px 20px 0; vertical-align: top; }
 .panel tbody td { font-family: var(--mono); font-size: 15px; white-space: nowrap; }
 .kappa { position: relative; display: inline-block; }
-.kappa .i { font-size: 15px; color: var(--muted); margin-left: 6px; line-height: 1; }
+.kappa .i { font-size: 15px; color: var(--muted); margin-left: 6px; line-height: 1;
+  min-width: 24px; min-height: 24px; }
 .kappa .tip { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(320px, 80vw);
   background: var(--bg); border: 1px solid var(--line); padding: 10px 12px; font-size: 13px;
   line-height: 1.45; color: var(--text); white-space: normal; display: none; z-index: 2; }
@@ -353,14 +363,13 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl tbody tr { padding: 22px 0; }
   .tbl td[data-label] { font-size: 16px; line-height: 1.55; max-height: calc(4 * 1.55em);
     overflow: hidden; }
-  .tbl td[data-label].cut { -webkit-mask-image: linear-gradient(#000 60%, transparent);
-    mask-image: linear-gradient(#000 60%, transparent); }
-  .tbl tr[data-open] td[data-label] { max-height: 60vh; overflow: auto; }
-  .tbl tr[data-open] td.why-cell { padding-top: 8px; }
+  .tbl td[data-label].cut { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
+  .tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }
   .tbl td.ht { max-height: calc(5 * 1.55em); }
   .tbl tr:not([data-open]) td.ht .q-peek, .tbl tr:not([data-open]) td.ht .q-end {
     display: block; max-height: calc(2 * 1.55em); overflow: hidden; }
-  .tbl tr:not([data-open]) td.ht .q-gap { display: block; color: var(--faint); }
+  .tbl tr:not([data-open]) td.ht .q-gap { display: block; font-size: 13px; letter-spacing: .3em;
+    color: var(--muted); }
   .tbl tr:not([data-open]) td.ht .q-full { display: none; }
   .tbl tr:not([data-open]) td.ht .q-end { display: flex; flex-direction: column;
     justify-content: flex-end; }
@@ -381,6 +390,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl tr { padding: 18px 0; border-bottom: 1px solid var(--line); }
   .tbl td { border: 0; padding: 0; font-size: 16px; }
   .tbl td + td { margin-top: 10px; }
+  .tbl td.why-cell { margin-top: 0; }
   .tbl td::before { content: attr(data-label); display: block; font-family: var(--mono);
     font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
     margin-bottom: 3px; }
@@ -701,7 +711,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
            f'<p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}</p>']
     if parts:
         out.append(f'<p class="sub" id="p-{n}">{_e(reasons.PART_QUESTION[m["judge"]])}</p>'
-                   f'<div class="chips" role="group" aria-labelledby="p-{n}">'
+                   f'<div class="chips parts" role="group" aria-labelledby="p-{n}">'
                    + "".join(_chip(f"{k}. {reasons.short(text)}", k in chosen,
                                    f'data-part="{k}"' + (f' title="{_e(text)}"'
                                                         if reasons.short(text) != text else ""),
@@ -765,8 +775,8 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
                     f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     f'<td data-label="{why}">{_e(m.get("reason") or "No reason given")}</td>'
                     f'<td colspan="3" class="why-cell">{foot}</td></tr>')
-    more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows)}" '
-            f'aria-controls="t-{key}">Show all {len(rows)}</button>'
+    more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
+            f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
             f'<h2 id="g-{key}">{said} ({len(rows)})</h2>{more}</div>'
