@@ -279,6 +279,13 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
 - There is no flag that takes a key, and there never will be.
 
+## When something goes wrong
+
+- **Port 8765 is taken:** judgekeeper tries 8766 to 8785 and uses the first free one. If those are taken too, it says so, and its `Next:` line gives the command that opens the page on any free port.
+- **The browser didn't open:** open the link judgekeeper printed.
+- **"This link no longer works":** each time judgekeeper opens its page, it makes a new link, and older links stop working. Your marks are saved. Run `judgekeeper mark` to open the page again.
+- **To remove judgekeeper:** run `pip uninstall judgekeeper`, then delete `.judgekeeper/` and `judgekeeper.toml` from your project.
+
 ## Exit codes
 
 | exit code | meaning | commands |
