@@ -429,7 +429,7 @@ def _env_files(folder: Path) -> list[Path]:
 def _env_folders(folder: Path) -> list[Path]:
     """`folder` and each folder above it up to the project's own folder (find.is_project),
     never above it and never the home folder: where a tool run in `folder` may read .env
-    files. With no project above, `folder` and the nearest folder up with a .env file."""
+    files. With no project above, `folder` and the nearest folder above it with a .env file."""
     from judgekeeper import find  # find imports this module
 
     try:
@@ -443,5 +443,5 @@ def _env_folders(folder: Path) -> list[Path]:
         folders.append(parent)
         if find.is_project(parent):
             return folders
-    nearest = next((f for f in folders if _env_names(f)), folder)
+    nearest = next((f for f in folders[1:] if _env_names(f)), folder)
     return list(dict.fromkeys((folder, nearest)))

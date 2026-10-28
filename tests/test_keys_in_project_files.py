@@ -241,15 +241,18 @@ def test_at_most_50_env_files_are_read_in_a_folder(here):
     assert keys.notes() == [keys.TOO_MANY.format(folder="support-bot", count=60)]
 
 
-def test_with_no_project_the_nearest_folder_with_any_env_file_is_read(tmp_path, monkeypatch):
-    monkeypatch.delenv("LOCAL_SECRET", raising=False)
+def test_with_no_project_the_nearest_folder_above_with_any_env_file_is_read(tmp_path,
+                                                                           monkeypatch):
+    for name in ("LOCAL_SECRET", "SUB_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
     top = tmp_path / "p10"
     (top / "evals").mkdir(parents=True)
     (top / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    (top / "evals" / ".env.local").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     assert keys._env_folders(top / "evals") == [top / "evals", top]
     keys.hide_keys(top / "evals")
-    assert redact.scrub(LOCAL) == redact.REDACTED
+    assert redact.scrub(f"{LOCAL} {SUB}") == f"{redact.REDACTED} {redact.REDACTED}"
 
 
 # A .env that is a link, or huge -----------------------------------------------------------------
