@@ -6,7 +6,7 @@
 @font-face { font-family: "JetBrains Mono"; font-weight: 500; font-style: normal; font-display: swap; src: url(fonts/jetbrains-mono-latin-500-normal.woff2) format("woff2"); }
 
 :root { color-scheme: dark;
-  --bg: #0b0c0e; --fg: #e6e8eb; --muted: #8b919a; --faint: #585e68; --line: #262a30;
+  --bg: #0b0c0e; --fg: #e6e8eb; --muted: #8b919a; --faint: #767c86; --line: #262a30;
   --hover: #121418; --current: #17191e; --panel: #0b0c0e; --rule: #343941;
   --term-bg: #07080a; --term-bar: #101215; --term-dot: #33373e;
   --green: #10B981; --green-fill: #047857; --red: #e5484d; --red-fill: #c73b40;
@@ -24,9 +24,9 @@ code, pre, kbd, samp { font-family: var(--mono); font-variant-ligatures: none; }
 .mono { font-family: var(--mono); font-variant-ligatures: none; }
 img, svg { max-width: 100%; }
 [hidden] { display: none !important; }
-/* a soft green ring for the keyboard only, so a mouse click never leaves a box */
+/* a ring in the text colour for the keyboard only, so a mouse click never leaves a box */
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 4px; }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: 16px; top: -100px; z-index: 10; padding: 10px 16px; background: var(--fg); color: var(--bg); font-weight: 700; text-decoration: none; }
 .skip:focus { top: 12px; }
 .wrap { max-width: 1280px; margin: 0 auto; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
