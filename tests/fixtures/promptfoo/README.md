@@ -18,3 +18,11 @@ Where the shape comes from:
 Traps it exercises: three repeats with no index; on t2 and t5 the human rating overrides the
 row's `success`; t2 has no grader provider anywhere, so promptfoo's default grader judged it;
 a `contains` (code) and a `factuality` component sit next to the llm-rubric judge.
+
+## default-test-grader-0.124.0.json
+
+Shaped like a real `promptfoo eval -o` file from promptfoo 0.124.0 with the grader set as
+`defaultTest.options.provider: anthropic:messages:claude-haiku-4-5-20251001`, cut down to six
+rows with made-up text and the provider's client object shortened. promptfoo saves that
+grader in each `testCase.options.provider` as the provider it made: a `modelName` and its
+`config`, with no `id`, as a grader given with `--grader` is saved. The config keeps the id.
