@@ -173,7 +173,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .code-wrap.more-right::after { content: ""; position: absolute; top: 1px; right: 1px;
   bottom: 9px; width: 48px; pointer-events: none;
   background: linear-gradient(to right, transparent, var(--hover)); }
-.question .q-head, .question .q-gap, .question .q-tail { display: block; }
+.question .q-head, .question .q-gap, .question .q-tail, .question .q-start,
+.question .q-end { display: block; }
 .q-more { padding: 6px 0; margin-top: 8px; font-size: 13px; text-decoration: underline;
   text-underline-offset: 3px; }
 .q-more:hover { background: none; }
@@ -213,6 +214,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .question .q-head, .question .q-tail { max-height: calc(2 * 1.6em); overflow: hidden; }
   .question .q-tail { display: flex; flex-direction: column; justify-content: flex-end; }
   .question .q-gap { color: var(--faint); }
+  .question.open .q-end { position: sticky; bottom: 0; background: var(--bg);
+    border-top: 1px solid var(--line); padding-top: 4px; }
   .question.long.open { max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
     overscroll-behavior: contain; }
   .question.long.open.more-below {
@@ -370,28 +373,32 @@ __TOP__
   }
   function chars(text) { return Array.from(String(text)).length; }
   // A long text whose last paragraph (or line) is a question: its start, then that question.
-  // [start, end] cut where they meet, or null. Not on a phone, which shows the whole text.
+  // [start, end, the line break between] cut where they meet, or null.
   function headTail(text) {
     var at = text.lastIndexOf("\\n\\n"), gap = 2;
     if (at < 0) { at = text.lastIndexOf("\\n"); gap = 1; }
-    if (at < 0 || media("(max-width: 760px)")) { return null; }
+    if (at < 0) { return null; }
     var head = text.slice(0, at), tail = text.slice(at + gap);
     if (!/\\?\\s*$/.test(tail) || !tail.trim() ||
         (chars(head) <= 200 && head.split("\\n").length <= 3)) { return null; }
-    return [head, tail];
+    return [head, tail, text.slice(at, at + gap)];
   }
   var whole = "";  // the question as text, when it folds to its start and its end
   // Folded: the first 2 lines (a blank line is not one of them), a "…" line, the last 2
-  // lines, in their order.
+  // lines, in their order. Shown all: the whole text in order, its question kept in view at
+  // the bottom until the person scrolls to it.
   function drawQuestion(open) {
-    var into = $("q-text"), parts = whole && !open ? headTail(whole) : null;
-    if (!whole) { return; }
-    into.textContent = parts ? "" : whole;
-    if (parts) {
-      into.appendChild(el("span", "q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
-      into.appendChild(el("span", "q-gap", "\u2026"));
-      into.appendChild(el("span", "q-tail", parts[1]));
+    var into = $("q-text"), parts = whole ? headTail(whole) : null;
+    if (!parts) { return; }
+    into.textContent = "";
+    if (open) {
+      into.appendChild(el("span", "q-start", parts[0] + parts[2]));
+      into.appendChild(el("span", "q-end", parts[1]));
+      return;
     }
+    into.appendChild(el("span", "q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
+    into.appendChild(el("span", "q-gap", "\u2026"));
+    into.appendChild(el("span", "q-tail", parts[1]));
   }
   // A short one-line question is the big heading; a longer one, or several named values, reads
   // at normal size, about 4 lines of it, then "Show all".
@@ -399,7 +406,9 @@ __TOP__
     var value = question(it), into = $("q-text");
     var long = Array.isArray(value) || chars(value) > SHORT_Q || value.indexOf("\\n") > -1;
     into.textContent = "";
-    whole = !Array.isArray(value) && long && headTail(value) ? value : "";
+    // not on a phone, which shows the whole text
+    whole = !Array.isArray(value) && long && !media("(max-width: 760px)") && headTail(value) ?
+      value : "";
     into.className = long ? "question long" + (whole ? " ht" : "") : "question";
     into.scrollTop = 0;
     setText("q-more", "Show all"); $("q-more").setAttribute("aria-expanded", "false");
@@ -424,7 +433,7 @@ __TOP__
               into.scrollHeight > into.clientHeight + 1;
     into.classList.toggle("cut", cut);
     into.classList.toggle("more-below",
-      open && into.scrollTop + into.clientHeight < into.scrollHeight - 2);
+      open && !whole && into.scrollTop + into.clientHeight < into.scrollHeight - 2);
     $("q-more").hidden = !(cut || open || whole);
   }
   function openQuestion(open) {
@@ -518,10 +527,15 @@ __TOP__
     fade();
     return true;
   }
-  // The list's title for an answer: the first line with real words ("Context:" alone is only
-  // a label), of the question-like field when there are several.
+  // The list's title for an answer: the question at the end of a long text, without its
+  // label ("Question: "); else the first line with real words ("Context:" alone is only a
+  // label), of the question-like field when there are several.
   function firstLine(it) {
-    var value = question(it), lines;
+    var value = question(it), lines, parts = Array.isArray(value) ? null : headTail(value);
+    if (parts) {
+      lines = parts[1].split("\\n").filter(function (line) { return line.trim(); });
+      return lines[lines.length - 1].replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
+    }
     lines = String(Array.isArray(value) ? value[0][1] : value).split("\\n");
     return lines.filter(function (line) {
       return line.trim() && !/^[^:]{1,40}:$/.test(line.trim()); })[0] || lines[0];

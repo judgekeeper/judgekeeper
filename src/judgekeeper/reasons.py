@@ -50,6 +50,7 @@ MAX_OWN = 8
 MAX_FILE = 64 * 1024  # bytes of reasons.json read: MAX_OWN buttons are far less
 MAX_PARTS = 6
 PART_CHARS = 90  # of a rule part shown on its button (short)
+SAID_CHARS = 60  # of a rule part quoted in "Your reason: ..." on the result page
 TWICE = 2  # taps that make a clue line or a suggested rule line
 # The one refusal for an answer the result page lists no reason box for: kept aside, graded
 # as the person marked it, or no result shown yet. Which of them it is would tell the judge's
@@ -85,12 +86,12 @@ _STEP = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
 
 
-def short(part: str) -> str:
-    """A rule part as its button shows it: cut to PART_CHARS on a word, with "…" (the button's
-    title holds it whole)."""
-    if len(part) <= PART_CHARS:
+def short(part: str, width: int = PART_CHARS) -> str:
+    """A rule part as its button shows it: cut to `width` characters on a word, with "…" (the
+    button's title holds it whole)."""
+    if len(part) <= width:
         return part
-    cut = part[:PART_CHARS - 1]
+    cut = part[:width - 1]
     if " " in cut:
         cut = cut[:cut.rindex(" ")]
     return cut.rstrip(" ,;:.") + "…"  # never "….": a cut is not a sentence's end

@@ -217,8 +217,13 @@ def test_a_question_at_the_end_of_a_long_field_shows_its_start_and_its_end():
     # in order, nothing moved, nothing lost; folded, a blank line is not one of the 2 lines
     assert head[1] + "\n\n" + tail[1] == CONTEXT.replace("\n\nA missing", "\nA missing")
     assert got["more"] is False
-    assert got["open"] == CONTEXT and got["openParts"] == []  # Show all: everything, in order
-    assert got["side"].startswith("Pets in the cabin")  # "Context:" alone is only a label
+    # Show all: everything, in order; the question at its end stays in view until reached
+    assert got["open"] == CONTEXT
+    start, end = CONTEXT.rsplit("\n\n", 1)
+    assert got["openParts"] == [["q-start", start + "\n\n"], ["q-end", end]]
+    assert ".question.open .q-end { position: sticky; bottom: 0;" in _laptop()
+    # the list's title is the question itself, without its label
+    assert got["side"] == "How long do I have to report a missing bag?"
 
 
 def test_a_long_field_that_does_not_end_with_a_question_folds_as_before():
@@ -319,6 +324,46 @@ def test_rows_fold_to_four_lines_with_one_show_all_per_row():
             in laptop)
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
     assert ".open-row[hidden] + .dot { display: none; }" in style
+
+
+def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in_rows():
+    m = {**_mistakes(1, 0)[0], "question": CONTEXT}
+    html = _html([m])
+    cell = re.search(r'<td data-label="Question" class="ht">(.*?)</td>', html, re.DOTALL)[1]
+    start, end = CONTEXT.rsplit("\n\n", 1)
+    peek = "Context:\n" + ("Pets in the cabin cost $125 each way. " * 30)[:300]
+    assert cell == (f'<span class="q-peek" aria-hidden="true">{peek}</span>'
+                    '<span class="q-gap" aria-hidden="true">…</span>'
+                    f'<span class="q-full">{start}\n\n</span><span class="q-end">{end}</span>')
+    laptop = report_page.STYLE.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
+    assert ".tbl td.ht { max-height: calc(5 * 1.55em); }" in laptop
+    assert 'td.classList.contains("ht")' in report_page.SCRIPT  # always "Show all"
+    plain = _html([{**_mistakes(1, 0)[0], "question": "Policy:\n" + "Bags are free. " * 40}])
+    assert 'class="ht"' not in plain  # no question at the end: 4 lines, as before
+
+
+def test_an_opened_row_leaves_room_above_its_foot_line():
+    laptop = report_page.STYLE.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
+    assert ".tbl tr[data-open] td.why-cell { padding-top: 8px; }" in laptop
+
+
+def test_a_rule_part_in_the_reason_line_is_cut_at_60_characters():
+    long = ("Determine whether the Actual Output sounds confident and does not refuse to help, "
+            "and mark it Fail when it is rude")
+    why = {"reasons": [], "rule_parts": [2], "note": ""}
+    html = _html([_with_reason(why)], live=True, parts=["Be polite", long])
+    cut = reasons.short(long, reasons.SAID_CHARS)
+    assert reasons.SAID_CHARS == 60 and len(cut) <= 60 and cut.endswith("…")
+    line = re.search(r'<p class="why-line">.*?</p>', html)[0]
+    assert (f'<span class="said-text" title="Your reason: rule part 2 (\u201c{long}\u201d)">'
+            f"Your reason: rule part 2 (\u201c{cut}\u201d)</span>") in line
+    chip = re.search(r'<button[^>]*data-part="2"[^>]*>', html)[0]
+    assert f'data-said="rule part 2 (\u201c{cut}\u201d)"' in chip
+    assert f'data-whole="rule part 2 (\u201c{long}\u201d)"' in chip
+    assert "data-whole" in report_page.REASONS_SCRIPT and "said.title" in report_page.REASONS_SCRIPT
+    report = _html([_with_reason(why)], parts=["Be polite", long])
+    assert (f'<span class="said" title="Your reason: rule part 2 (\u201c{long}\u201d)">'
+            f"Your reason: rule part 2 (\u201c{cut}\u201d)</span>") in report
 
 
 def test_the_group_link_says_how_many_it_shows():

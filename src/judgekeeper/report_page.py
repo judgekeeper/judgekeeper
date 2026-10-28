@@ -40,8 +40,9 @@ SCRIPT = """
       each(document.querySelectorAll(".open-row"), function (b) {
         var row = b.closest("tr"), open = row.hasAttribute("data-open"), cut = false;
         each(row.querySelectorAll("td[data-label]"), function (td) {
-          var more = !open && td.scrollHeight > td.clientHeight + 1;
-          td.classList.toggle("cut", more);
+          var ht = td.classList.contains("ht");
+          var more = !open && (ht || td.scrollHeight > td.clientHeight + 1);
+          td.classList.toggle("cut", more && !ht);
           cut = cut || more;
         });
         b.hidden = !open && !cut;
@@ -129,8 +130,17 @@ REASONS_SCRIPT = """
         var words = taps.filter(function (b) { return b.hasAttribute("data-reason"); })
           .concat(taps.filter(function (b) { return b.hasAttribute("data-part"); }))
           .map(function (b) { return b.getAttribute("data-said"); });
-        if (input.value.trim()) { words.push("\u201c" + input.value.trim() + "\u201d"); }
+        var whole = taps.filter(function (b) { return b.hasAttribute("data-reason"); })
+          .concat(taps.filter(function (b) { return b.hasAttribute("data-part"); }))
+          .map(function (b) { return b.getAttribute("data-whole") || b.getAttribute("data-said"); });
+        if (input.value.trim()) {
+          words.push("\u201c" + input.value.trim() + "\u201d");
+          whole.push("\u201c" + input.value.trim() + "\u201d");
+        }
         said.textContent = "Your reason: " + words.join("; ");
+        // the whole rule parts on hover, when one is cut
+        if (whole.join() !== words.join()) { said.title = "Your reason: " + whole.join("; "); }
+        else { said.removeAttribute("title"); }
         now.hidden = !words.length;
         add.textContent = words.length ? "Change" : "Add a reason";
       }
@@ -268,6 +278,8 @@ table { border-collapse: collapse; width: 100%; }
 .open-row[hidden] + .dot { display: none; }
 .dot { white-space: pre; }
 .said { color: var(--muted); }
+.q-peek, .q-gap { display: none; }
+.q-full, .q-end { display: block; }
 .fname { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400;
   letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
@@ -340,6 +352,14 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl td[data-label].cut { -webkit-mask-image: linear-gradient(#000 60%, transparent);
     mask-image: linear-gradient(#000 60%, transparent); }
   .tbl tr[data-open] td[data-label] { max-height: 60vh; overflow: auto; }
+  .tbl tr[data-open] td.why-cell { padding-top: 8px; }
+  .tbl td.ht { max-height: calc(5 * 1.55em); }
+  .tbl tr:not([data-open]) td.ht .q-peek, .tbl tr:not([data-open]) td.ht .q-end {
+    display: block; max-height: calc(2 * 1.55em); overflow: hidden; }
+  .tbl tr:not([data-open]) td.ht .q-gap { display: block; color: var(--faint); }
+  .tbl tr:not([data-open]) td.ht .q-full { display: none; }
+  .tbl tr:not([data-open]) td.ht .q-end { display: flex; flex-direction: column;
+    justify-content: flex-end; }
   .tbl td.why-cell { grid-column: 1 / -1; }
   .tbl td[data-label], .tbl td.why-cell { padding-bottom: 0; border-bottom: 0; }
 }
@@ -565,12 +585,40 @@ OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden
 DOT = '<span class="dot" aria-hidden="true"> · </span>'
 
 
-def _question(m: dict) -> str:
-    """A row's question: each field under its name when it has several (fix.py's "fields")."""
+PEEK_CHARS = 300  # of each of the first 2 lines a folded question shows before its "…"
+
+
+def head_tail(text: str) -> tuple[str, str, str] | None:
+    """A long text whose last paragraph (or line) is a question, as the marking page folds it:
+    (its start, the line break, that question); None for any other text."""
+    at, gap = text.rfind("\n\n"), 2
+    if at < 0:
+        at, gap = text.rfind("\n"), 1
+    if at < 0:
+        return None
+    head, tail = text[:at], text[at + gap:]
+    if not tail.strip() or not tail.rstrip().endswith("?") or (
+            len(head) <= 200 and head.count("\n") < 3):
+        return None
+    return head, text[at:at + gap], tail
+
+
+def _question(m: dict) -> tuple[str, str]:
+    """A row's question cell (its class, its HTML): each field under its name when it has
+    several (fix.py's "fields"); a long text ending in a question folded to its first 2 lines,
+    "…" and that question, the whole text in order when the row is open (SCRIPT, STYLE)."""
     fields = m.get("fields")
-    if not fields:
-        return _e(m["question"])
-    return "\n".join(f'<span class="fname">{_e(k)}</span>{_e(v)}' for k, v in fields)
+    if fields:
+        return "", "\n".join(f'<span class="fname">{_e(k)}</span>{_e(v)}' for k, v in fields)
+    parts = head_tail(m["question"])
+    if not parts:
+        return "", _e(m["question"])
+    head, gap, tail = parts
+    peek = "\n".join([line[:PEEK_CHARS] for line in head.split("\n") if line.strip()][:2])
+    return " ht", (f'<span class="q-peek" aria-hidden="true">{_e(peek)}</span>'
+                   '<span class="q-gap" aria-hidden="true">…</span>'
+                   f'<span class="q-full">{_e(head + gap)}</span>'
+                   f'<span class="q-end">{_e(tail)}</span>')
 
 
 def _answer(text: str, spans) -> str:
@@ -582,8 +630,10 @@ def _answer(text: str, spans) -> str:
     return "".join(out) + _e(text[at:])
 
 
-def _part_said(n: int, part: str) -> str:
-    return f"rule part {n} (\u201c{reasons.short(part)}\u201d)"
+def _part_said(n: int, part: str, whole: bool = False) -> str:
+    """A rule part in "Your reason: ...", cut at reasons.SAID_CHARS unless `whole`."""
+    shown = part if whole else reasons.short(part, reasons.SAID_CHARS)
+    return f"rule part {n} (\u201c{shown}\u201d)"
 
 
 def _reason_said(k: str, own: dict[str, str]) -> str:
@@ -591,29 +641,37 @@ def _reason_said(k: str, own: dict[str, str]) -> str:
             else f"\u201c{own[k]}\u201d")
 
 
-def _said_words(m: dict, parts: list[str], own: dict[str, str]) -> list[str]:
+def _said_words(m: dict, parts: list[str], own: dict[str, str],
+                whole: bool = False) -> list[str]:
     """The person's reasons on one answer, each as it reads in "Your reason: ...": the reasons
-    tapped, the rule parts (each cut as its button), the note."""
+    tapped, the rule parts (each cut, or `whole` for the line's title), the note."""
     why = m.get("why") or {}
     said = [_reason_said(k, own) for k in why.get("reasons") or []
             if k in reasons.REASONS or k in own]
-    said += [_part_said(n, parts[n - 1]) for n in why.get("rule_parts") or []
+    said += [_part_said(n, parts[n - 1], whole) for n in why.get("rule_parts") or []
              if 1 <= n <= len(parts)]
     if why.get("note"):
         said.append(f"\u201c{why['note']}\u201d")
     return said
 
 
+def _whole_title(m: dict, parts: list[str], own: dict[str, str]) -> str:
+    """A title with the whole "Your reason: ..." when a rule part in it is cut."""
+    said, whole = _said_words(m, parts, own), _said_words(m, parts, own, whole=True)
+    return f' title="{_e("Your reason: " + "; ".join(whole))}"' if whole != said else ""
+
+
 def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
     """"Your reason: ..." for report.html, or nothing when the person gave none."""
     said = _said_words(m, parts, own)
-    return (f'{DOT}<span class="said">Your reason: {_e("; ".join(said))}</span>' if said
-            else "")
+    return (f'{DOT}<span class="said"{_whole_title(m, parts, own)}>Your reason: '
+            f'{_e("; ".join(said))}</span>' if said else "")
 
 
-def _chip(text: str, pressed: bool, attr: str, said: str = "") -> str:
+def _chip(text: str, pressed: bool, attr: str, said: str = "", whole: str = "") -> str:
+    whole = f' data-whole="{_e(whole)}"' if whole and whole != said else ""
     return (f'<button type="button" class="chip" aria-pressed="{str(pressed).lower()}" '
-            f'{attr} data-said="{_e(said)}">{_e(text)}</button>')
+            f'{attr} data-said="{_e(said)}"{whole}>{_e(text)}</button>')
 
 
 def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) -> str:
@@ -630,7 +688,8 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
             f'aria-labelledby="q-{n}">'),
            (f'<p class="why-line">{OPEN_ROW}{DOT}<span class="said-now"'
             f'{"" if said else " hidden"}>'
-            f'<span class="said-text">Your reason: {_e("; ".join(said))}</span>'
+            f'<span class="said-text"{_whole_title(m, parts, words)}>Your reason: '
+            f'{_e("; ".join(said))}</span>'
             '<span aria-hidden="true"> · </span></span><button type="button" '
             f'class="add-reason" aria-expanded="false" aria-controls="wb-{n}">'
             f'{"Change" if said else "Add a reason"}</button></p>'),
@@ -642,7 +701,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
                    + "".join(_chip(f"{k}. {reasons.short(text)}", k in chosen,
                                    f'data-part="{k}"' + (f' title="{_e(text)}"'
                                                         if reasons.short(text) != text else ""),
-                                   _part_said(k, text))
+                                   _part_said(k, text), _part_said(k, text, whole=True))
                              for k, text in enumerate(parts, 1)) + "</div>")
         if left_out:
             out.append(f'<p class="sub">{_e(reasons.parts_left_out_line(left_out))}</p>')
@@ -694,8 +753,10 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
         foot = (_box(m, n, parts, own, left_out) if box
                 else f'<p class="row-foot">{OPEN_ROW}{_said(m, parts, words)}</p>')
         extra = ' class="extra" hidden' if k >= ROWS_SHOWN else ""
+        ht, question = _question(m)
+        ht = f' class="{ht.strip()}"' if ht else ""
         body.append(f'<tr{extra}>'
-                    f'<td data-label="Question">{_question(m)}</td>'
+                    f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     f'<td data-label="{why}">{_e(m.get("reason") or "No reason given")}</td>'
