@@ -161,6 +161,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
+/* the text as written: no font ligature turns -> into an arrow */
+.question, .answer, .item .q, .rule { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
 .answer .code-wrap { position: relative; display: block; margin: 12px 0; }
 .answer code.block { display: block; margin: 0; padding: 14px 16px; font-family: var(--mono);
   font-size: 14px; line-height: 1.55; white-space: pre; overflow-x: auto; overflow-wrap: normal;

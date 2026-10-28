@@ -295,6 +295,8 @@ table { border-collapse: collapse; width: 100%; }
 .open-row[hidden] + .dot { display: none; }
 .dot { white-space: pre; }
 .said { color: var(--muted); }
+/* the text as written: no font ligature turns -> into an arrow */
+.tbl td[data-label], .said, .why { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
 .q-peek, .q-gap { display: none; }
 .q-full, .q-end { display: block; }
 .fname { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400;

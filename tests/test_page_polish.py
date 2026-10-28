@@ -386,3 +386,15 @@ def test_a_shut_row_or_group_above_the_screen_comes_back_into_view():
       seen.push(scrolled.splice(0));
       console.log(JSON.stringify(seen));""")
     assert got == [[["row", "start"]], [], [["section", "start"]], []]
+
+
+# What the person reads is the text as written: "->" stays "->" ------------------------------
+
+NO_LIGATURES = ' { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }'
+
+
+def test_answers_questions_and_reasons_show_no_ligatures():
+    assert (".question, .answer, .item .q, .rule" + NO_LIGATURES) in mark_page.STYLE
+    assert (".tbl td[data-label], .said, .why" + NO_LIGATURES) in report_page.STYLE
+    html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": _mistakes(1, 0)})
+    assert ".tbl td[data-label], .said, .why" + NO_LIGATURES in html  # the live result page
