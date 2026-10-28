@@ -280,13 +280,12 @@ def hide_keys(root: Path, configs=()) -> None:
     ending in _API_KEY, _TOKEN or _SECRET) that the project's .env files and the promptfoo
     configs `configs` set, so it is hidden from the moment the project is found. Nothing is
     passed on, and no other value is kept."""
-    root = Path(root)
-    files = [root / ".env", root / ".env.local", _project_env(root)]
+    names = [".env", ".env.local"]
     if os.environ.get("APP_ENV"):
-        files.append(root / f".env.{os.environ['APP_ENV'].strip()}")
-    for path in dict.fromkeys(files):
-        names = {n for n in names_in(path) if is_credential(n)}
-        for name, value in env_values(path, names).items():
+        names.append(f".env.{os.environ['APP_ENV'].strip()}")
+    for path in [folder / name for folder in _env_folders(Path(root)) for name in names]:
+        found = {n for n in names_in(path) if is_credential(n)}
+        for name, value in env_values(path, found).items():
             register_secret(name, value)
     for config in configs:
         for name, value in config_env(config).items():
@@ -294,20 +293,21 @@ def hide_keys(root: Path, configs=()) -> None:
                 register_secret(name, value)
 
 
-def _project_env(folder: Path) -> Path:
-    """The nearest .env from `folder` up to the project's own folder (find.is_project), never
-    above it and never in the home folder; `folder`'s own when there is none."""
+def _env_folders(folder: Path) -> list[Path]:
+    """`folder` and each folder above it up to the project's own folder (find.is_project),
+    never above it and never the home folder: where a tool run in `folder` may read .env
+    files."""
     from judgekeeper import find  # find imports this module
 
     try:
         home = Path.home().resolve()
     except (RuntimeError, OSError):
         home = None
+    folders = []
     for parent in (folder, *folder.resolve().parents):
         if parent.resolve() == home:
             break
-        if (parent / ".env").is_file():
-            return parent / ".env"
+        folders.append(parent)
         if find.is_project(parent):
             break
-    return folder / ".env"
+    return folders or [folder]

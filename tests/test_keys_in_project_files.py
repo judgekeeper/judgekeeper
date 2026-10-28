@@ -88,6 +88,58 @@ def test_root_keys_are_hidden_when_results_below_are_named(tool, named, command,
         assert [n for n, text in saved.items() if value in text] == []
 
 
+# Keys in every .env file from the results' folder up to their project -------------------------
+
+ROOT = "rootMadeUpToken" + "R5" * 8
+SUB = "subMadeUpToken" + "S6" * 8
+SUBPROJECT = (SUB, LOCAL, STAGING)
+
+
+@pytest.mark.parametrize("layout", ["subproject", "named from outside"])
+def test_keys_in_each_env_file_up_to_the_project_are_hidden(layout, tmp_path, monkeypatch,
+                                                            capsys):
+    """A subproject's .env.local and .env.<APP_ENV>, read like its .env; and when the results
+    are named from outside their project, the .env files of that project too."""
+    for name in ("ROOT_TOKEN", "SUB_TOKEN", "LOCAL_SECRET", "APPENV_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("APP_ENV", "staging")
+    top = tmp_path / "top"
+    (top / ".git").mkdir(parents=True)
+    (top / ".env").write_text(f"ROOT_TOKEN={ROOT}\n", encoding="utf-8")
+    if layout == "subproject":  # apps/x is a project of its own inside top
+        env = top / "apps" / "x"
+        env.mkdir(parents=True)
+        (env / "package.json").write_text("{}", encoding="utf-8")
+        (env / ".env").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+        results = env / "evals" / "results.json"
+        monkeypatch.chdir(top)
+        named = "apps/x/evals/results.json"
+    else:  # the folder the command runs in is no project
+        env = top
+        results = top / "evals" / "results.json"
+        results.parent.mkdir()
+        (results.parent / ".env").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+        (tmp_path / "elsewhere").mkdir()
+        monkeypatch.chdir(tmp_path / "elsewhere")
+        named = str(results)
+    (env / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    (env / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    plain = test_only_reads.answer
+    monkeypatch.setattr(test_only_reads, "answer", lambda i: f"{plain(i)} Use "
+                        f"{' and '.join((ROOT, *SUBPROJECT))}." if i < 3 else plain(i))
+    write_results("promptfoo", results, {i: judge(i) for i in range(N)})
+    code = main([named, "--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert code == 0, out
+    saved = {p: p.read_text(encoding="utf-8", errors="replace") for p in tmp_path.rglob("*")
+             if p.is_file() and ".judgekeeper" in p.parts}
+    pool = [text for p, text in saved.items() if p.name == "pool.jsonl"]
+    assert len(pool) == 1 and redact.REDACTED in pool[0]
+    for value in (ROOT, *SUBPROJECT) if layout == "named from outside" else SUBPROJECT:
+        assert value not in out
+        assert [p.name for p, text in saved.items() if value in text] == []
+
+
 # A .env that is a link, or huge -----------------------------------------------------------------
 
 def _link(link: Path, target: Path) -> None:
