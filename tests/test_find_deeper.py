@@ -59,6 +59,9 @@ def test_a_linked_results_file_is_named(here, tmp_path, capsys):
     assert "results.json (a link: judgekeeper doesn't follow links)" in _flat(out)
     assert "run your eval" not in _flat(out)
     assert code == 3
+    nxt = _flat(out)[_flat(out).index("Next:"):]  # never the command that reads it anyway
+    assert "judgekeeper results.json" not in nxt, nxt
+    assert "copy the file it links to into your project" in nxt, nxt
 
 
 def test_results_in_the_project_folder_above_are_read(here, capsys, monkeypatch):

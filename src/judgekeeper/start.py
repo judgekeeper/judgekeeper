@@ -1332,7 +1332,15 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
     which = "that is" if len(found.skipped) == 1 else "one of these is"
-    first, why = found.skipped[0]
+    readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
+    if not readable:  # never a command that reads a link: it leads anywhere
+        it = "it links" if len(found.skipped) == 1 else "they link"
+        next_step = (f"if {which} your results, copy the file {it} to into your project in its "
+                     f"place, then run `{talk.command()}` again.")
+        if not getattr(talk, "screens", False):
+            talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
+        return talk.stop(EXIT_USAGE, next_step)
+    first, why = readable[0]
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
         which = "that is" if len(found.skipped) == 1 else f"{first} is"
         next_step = (f"if {which} your results, save it as UTF-8, then run "
