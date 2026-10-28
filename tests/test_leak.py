@@ -203,6 +203,22 @@ def test_a_key_in_the_rule_is_not_a_rule_change(tmp_path, monkeypatch, capsys):
     assert "Result:" in said and "FAKERULE" not in said
 
 
+@pytest.mark.parametrize("value", ["promptfoo", "one call", "gpt-4.1-mini"])
+def test_a_credential_equal_to_a_setup_name_hides_only_the_model(tmp_path, monkeypatch, value):
+    """A credential's value that happens to be the tool's name or the kind of judge never
+    changes them: only what comes from the results (the model here) is hidden."""
+    from judgekeeper import judge_setup, start
+    from tests.start_projects import promptfoo_project, split
+
+    monkeypatch.setenv("X_TOKEN", value)
+    promptfoo_project(tmp_path, split(20, 12), model="openai:gpt-4.1-mini")
+    setup = judge_setup.of(start.find_judge(tmp_path))
+    assert setup["tool"] == "promptfoo" and setup["kind"] == judge_setup.ONE_CALL
+    assert setup["rule_hash"].startswith("sha256:") and "REDACTED" not in setup["rule_hash"]
+    model = "openai:[REDACTED]" if value == "gpt-4.1-mini" else "openai:gpt-4.1-mini"
+    assert setup["models"] == [model]
+
+
 def test_a_key_in_the_model_is_not_a_judge_change(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     said = _marked_records(tmp_path, capsys, "helpfulness", "Be polite.", model=KEY_MODEL)
