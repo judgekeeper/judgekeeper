@@ -144,14 +144,31 @@ def env_values(path: Path, names) -> dict[str, str]:
 
 
 def _scalar(text: str) -> str | None:
-    """A YAML value written on its key's line, as text: quotes taken off, a comment cut;
-    None when there is none (a nested block)."""
+    """A YAML value written on its key's line, as text: quotes taken off (a double-quoted
+    one's escapes read), a comment cut; None when there is none (a nested block)."""
     text = text.strip()
     quoted = re.match(r"([\"'])(.*)\1\s*(#.*)?$", text)
     if quoted:
-        return quoted[2]
+        return _unescaped(quoted[2]) if quoted[1] == '"' else quoted[2].replace("''", "'")
     text = re.split(r"\s+#", text, maxsplit=1)[0].strip()
     return text or None
+
+
+# YAML's escapes in a double-quoted value
+_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)")
+_ESCAPED = {"0": "\0", "a": "\a", "b": "\b", "t": "\t", "\t": "\t", "n": "\n", "v": "\v",
+            "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"', "/": "/", "\\": "\\",
+            "N": "\x85", "_": "\xa0", "L": "\u2028", "P": "\u2029"}
+
+
+def _unescaped(text: str) -> str:
+    def one(m):
+        if len(m[1]) > 1:
+            code = int(m[1][1:], 16)
+            return chr(code) if code < 0x110000 else m[0]
+        return _ESCAPED.get(m[1], m[0])
+
+    return _ESCAPE.sub(one, text)
 
 
 # The name config_env gives an `env:` block it can't read whole: it holds no value to hide
@@ -172,9 +189,9 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     file, or JSON in a `.yaml` one, which YAML reads the same), else with PyYAML when it can
     be imported, else a line scan for YAML, in block or one-line (`env: {A: x, B: y}`) form.
     A block the line scan can't read whole (another YAML form, js-yaml reads them all) gives
-    UNREAD. A value it can't read as one line is None. Values are only hidden (hide_keys),
-    never shown or passed on. Only a small regular file is read, never through a link
-    (_small_file)."""
+    UNREAD, and so does a value below its name (a block scalar, or on the next line), which
+    is None. Values are only hidden (hide_keys), never shown or passed on. Only a small
+    regular file is read, never through a link (_small_file)."""
     if config is None:
         return {}
     data = _small_file(Path(config))
@@ -193,7 +210,7 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     parsed = _yaml_env(text)
     env = _scanned_env(text) if parsed is None else parsed
     if UNREAD in env:  # still hidden: every credential-named `NAME: value` in the file
-        env.update({k: v for k, v in _credentials_in(text).items() if k not in env})
+        env.update({k: v for k, v in _credentials_in(text).items() if env.get(k) is None})
     return env
 
 
@@ -220,16 +237,39 @@ def _yaml_env(text: str) -> dict[str, str | None] | None:
 # `: value` on the next line
 _LOOSE = re.compile(r"""(?:^|[\s{,?])["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*(?:\n[ \t]*)?:"""
                     r"""[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""", re.MULTILINE)
+# A complex key's value that is a `NAME: value` (`? env` then `: NAME: value`): the `: ` is
+# blanked out, so the name is found, not taken as the value of the key above it
+_VALUE_OF_KEY = re.compile(r"""^([ \t]*):[ \t]+(?=["']?[A-Za-z_][A-Za-z0-9_]*["']?[ \t]*:)""",
+                           re.MULTILINE)
+_BLOCK = re.compile(r"[|>][-+0-9]*")  # a block scalar's first line: its value is below
+# `NAME:` with its value on the lines below (nothing after it, or a block scalar's `|` or `>`)
+_HEAD = re.compile(r"""([ \t]*)(?:\?[ \t]*|:[ \t]+)?["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:"""
+                   r"""[ \t]*([|>][-+0-9]*)?[ \t]*(?:#.*)?$""")
 
 
 def _credentials_in(text: str) -> dict[str, str]:
     """Every credential-named `NAME: value` in a config, wherever it is: only to hide it
     when its `env:` block can't be read whole."""
     found = {}
-    for m in _LOOSE.finditer(text):
+    for m in _LOOSE.finditer(_VALUE_OF_KEY.sub(lambda m: " " * len(m[0]), text)):
         value = _scalar(m[2])
-        if is_credential(m[1]) and value:
+        if is_credential(m[1]) and value and not _BLOCK.fullmatch(value):
             found[m[1]] = value
+    lines = text.split("\n")
+    for at, line in enumerate(lines):
+        m = _HEAD.match(line)
+        if m is None or not is_credential(m[2]):
+            continue
+        parts, end = [], at + 1
+        while end < len(lines):  # the lines indented more than the name
+            after = lines[end].strip()
+            if after and len(lines[end]) - len(lines[end].lstrip()) <= len(m[1]):
+                break
+            if after:
+                parts.append(after)
+            end += 1
+        if parts:  # a literal block (`|`) keeps its line breaks; the others fold them
+            found[m[2]] = ("\n" if (m[3] or "").startswith("|") else " ").join(parts)
     return found
 
 
@@ -272,6 +312,8 @@ def _scanned_env(text: str) -> dict[str, str | None]:
         if not m:
             return {UNREAD: None}  # `? NAME`, an escaped name, `<<: *a`, a list
         found[m[1]] = _scalar(m[2])
+        if found[m[1]] is None or _BLOCK.fullmatch(found[m[1]]):  # its value is below it
+            found[m[1]], found[UNREAD] = None, None
     return found
 
 
