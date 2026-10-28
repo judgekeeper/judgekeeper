@@ -330,4 +330,6 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
     site = Path(__file__).resolve().parents[1] / "website"
     for page in [*site.glob("*.html"), site / "errors" / "404.html"]:
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
-        assert refs and set(refs) == {"10"}, (page.name, refs)
+        assert refs and set(refs) == {"11"}, (page.name, refs)
+    # the browser check's script is new too: check.html loads it again
+    assert "assets/freecheck.js?v=8" in (site / "check.html").read_text(encoding="utf-8")
