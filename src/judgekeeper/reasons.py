@@ -49,7 +49,7 @@ MAX_SPANS = 3
 MAX_OWN = 8
 MAX_FILE = 64 * 1024  # bytes of reasons.json read: MAX_OWN buttons are far less
 MAX_PARTS = 6
-PART_CHARS = 60
+PART_CHARS = 90  # of a rule part shown on its button (short)
 TWICE = 2  # taps that make a clue line or a suggested rule line
 # The one refusal for an answer the result page lists no reason box for: kept aside, graded
 # as the person marked it, or no result shown yet. Which of them it is would tell the judge's
@@ -75,42 +75,43 @@ def lower(text: str) -> str:
 
 # The parts of the rule ------------------------------------------------------------------------
 
-_BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+_STEP = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
-_LIST = re.compile(r",\s*(?:and\s+)?|\s+and\s+")
 
 
-def _cut(text: str) -> str:
-    if len(text) <= PART_CHARS:
-        return text
-    cut = text[:PART_CHARS - 1]
+def short(part: str) -> str:
+    """A rule part as its button shows it: cut to PART_CHARS on a word, with "…" (the button's
+    title holds it whole)."""
+    if len(part) <= PART_CHARS:
+        return part
+    cut = part[:PART_CHARS - 1]
     if " " in cut:
         cut = cut[:cut.rindex(" ")]
     return cut.rstrip(" ,;:") + "…"
 
 
 def _all_parts(rule: str | None) -> list[str]:
-    """Every part of a rule, by plain text rules: one per line, bullet or numbered line and
-    sentence; a sentence is split on ";", and on "and" when it lists checks with commas. No
-    template part ({{ ... }})."""
+    """Every part of a rule, by whole step: a numbered or bulleted line ("1.", "2)", "-", "*",
+    "•") is one part, whatever its commas and sentences; any other line, one part per
+    sentence. Never at commas, ";", "and" or "or". No template part ({{ ... }})."""
     parts: list[str] = []
     for line in (rule or "").splitlines():
-        line = _BULLET.sub("", line).strip()
-        for sentence in _SENTENCE.split(line):
-            for piece in sentence.split(";"):
-                pieces = _LIST.split(piece) if "," in piece and " and " in piece else [piece]
-                parts += [p.strip().rstrip(".!?:,").strip() for p in pieces]
+        if _STEP.match(line):
+            parts.append(_STEP.sub("", line))
+        else:
+            parts += _SENTENCE.split(line)
+    parts = [p.strip().rstrip(".!?:,;").strip() for p in parts]
     return [p for p in dict.fromkeys(parts) if p and "{" not in p and len(p.split()) >= 2]
 
 
 def split_rule(rule: str | None) -> list[str]:
-    """The parts of a rule (_all_parts), each cut to PART_CHARS on a word. At most MAX_PARTS:
-    the first ones and the last (a rule often ends with what to fail). Fewer than two parts:
-    none (the general buttons are enough)."""
+    """The parts of a rule (_all_parts), whole. At most MAX_PARTS: the first ones and the last
+    (a rule often ends with what to fail). Fewer than two parts: none (the general buttons are
+    enough). The one splitting everywhere rule parts show (the result page, mistakes.md and
+    suggestions.md), so their numbers match."""
     parts = _all_parts(rule)
     if len(parts) > MAX_PARTS:
         parts = parts[:MAX_PARTS - 1] + parts[-1:]
-    parts = [_cut(p) for p in parts]
     return parts if len(parts) > 1 else []
 
 
@@ -482,7 +483,7 @@ def clue_lines(rows: list[dict], fence=None) -> list[str]:
                        + fence(RULE_PART, one_line(text)))
         elif k >= TWICE:
             out.append(f"Your marks say your LLM-as-a-judge misses rule part {n}, "
-                       f"'{one_line(text)}' ({k}).")
+                       f"'{one_line(short(text))}' ({k}).")
     yes, no = mentioned(rows)
     if no:
         out.append(f"Your LLM-as-a-judge didn't mention the part you marked in {no} of "

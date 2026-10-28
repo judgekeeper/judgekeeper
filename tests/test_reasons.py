@@ -38,10 +38,10 @@ from tests.test_fix import run as run_fix
 from tests.test_front import assert_one_next_at_the_end
 from tests.test_label_server import Client
 
-RULE = ("Every claim is supported by the article. The answer is polite; it never promises a "
+RULE = ("Every claim is supported by the article. The answer is polite. It never promises a "
         "refund.")
 PARTS = ["Every claim is supported by the article", "The answer is polite",
-         "it never promises a refund"]
+         "It never promises a refund"]
 KEPT = ("this answer is not on your result page yet: reasons are only for the disagreements "
         "it lists")
 
@@ -293,28 +293,67 @@ def test_the_result_page_has_no_button_to_change_a_mark(here):
 
 # Buttons from the person's own rule -----------------------------------------------------------
 
+GEVAL = ("1. Read the Input to identify the customer's question or concern and note what a "
+         "helpful answer would need to address.\n"
+         "2. Assess the tone of the Actual Output: confirm it is polite and friendly, and that it "
+         "does not contain rude, dismissive, or condescending language.\n"
+         "3. Determine whether the Actual Output sounds confident and does not refuse to help; if "
+         "it meets the tone and relevance requirements, mark it Pass, and if it is rude, "
+         "dismissive, or refuses to help, mark it Fail.")
+
+
 @pytest.mark.parametrize("rule, parts", [
     (RULE, PARTS),
     ("1. The answer is correct.\n2. It cites the article.\n3) It is short.",
      ["The answer is correct", "It cites the article", "It is short"]),
-    ("- Correct facts only\n- No promises of refunds\n* Polite tone",
-     ["Correct facts only", "No promises of refunds", "Polite tone"]),
-    ("The answer is correct, cites the article and is polite.",
-     ["The answer is correct", "cites the article", "is polite"]),
+    ("- Correct facts only\n- No promises of refunds\n* Polite tone\n• Short and clear",
+     ["Correct facts only", "No promises of refunds", "Polite tone", "Short and clear"]),
+    # a step is one part, its sentences and commas included
+    ("1. Check the fee. Then check the weight.\n2. Fail a rude reply, or a short one.",
+     ["Check the fee. Then check the weight", "Fail a rude reply, or a short one"]),
+    # never at commas, "and" or "or"; never at ";"
+    ("The answer is correct, cites the article and is polite.", []),
+    ("Pass if it is polite or friendly; fail if it is rude.", []),
+    ("Be polite, be correct and be short. Never promise a refund!",
+     ["Be polite, be correct and be short", "Never promise a refund"]),
     ("The answer solves the customer's problem and is polite.", []),  # one part: no buttons
+    ("A line with no sentence end\nAnother line", ["A line with no sentence end",
+                                                    "Another line"]),
     ("", []),
 ])
-def test_the_rule_is_split_into_its_parts_by_plain_text_rules(rule, parts):
+def test_the_rule_is_split_into_whole_steps_and_sentences(rule, parts):
     assert reasons.split_rule(rule) == parts
 
 
-def test_at_most_6_parts_each_cut_to_60_characters_on_a_word():
+def test_a_geval_rule_with_commas_is_one_part_per_step():
+    parts = reasons.split_rule(GEVAL)
+    assert len(parts) == 3
+    assert parts[1].startswith("Assess the tone") and parts[1].endswith("condescending language")
+    assert parts[2].endswith("mark it Fail")
+    from judgekeeper.start_fix_rule import rule_text
+    steps = ('Evaluation Steps:\n[\n    "Read the Input.",\n    "Check the tone, the facts '
+             'and the length.",\n    "If it is rude, mark it Fail."\n]')
+    assert reasons.split_rule(rule_text(f"Grade it. \n \n{steps}", "deepeval")) == [
+        "Read the Input", "Check the tone, the facts and the length", "If it is rude, mark it Fail"]
+
+
+def test_a_part_is_shown_cut_to_90_characters_on_a_word():
+    long = ("Determine whether the Actual Output sounds confident and does not refuse to help, "
+            "and mark it Fail when it is rude")
+    shown = reasons.short(long)
+    assert len(shown) <= reasons.PART_CHARS == 90 and shown.endswith("…")
+    assert long.startswith(shown[:-1])
+    assert long[len(shown) - 1] == " "  # cut on a word
+    assert reasons.short("Polite tone") == "Polite tone"
+
+
+def test_at_most_6_parts_kept_whole():
     rule = " ".join(f"Rule {n} says the answer must mention the {n}th thing very clearly and "
                     "without any doubt at all." for n in range(1, 9))
     parts = reasons.split_rule(rule)
-    assert len(parts) == 6
-    assert all(len(p) <= 60 for p in parts) and parts[0].endswith("…")
-    assert " ".join(parts[0][:-1].split()) == parts[0][:-1]  # cut on a word
+    assert len(parts) == 6 and not any(p.endswith("…") for p in parts)
+    assert parts[0] == ("Rule 1 says the answer must mention the 1th thing very clearly and "
+                        "without any doubt at all")
 
 
 FACTS_FIRST = ("Hours are Monday to Friday. Returns take 30 days. Shipping is free over $50. "
@@ -701,7 +740,7 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once
     assert ("- Make rule part 3 more exact: your LLM-as-a-judge missed it 1 time.\n"
-            "<<<RULE PART\nit never promises a refund\nRULE PART>>>") in once
+            "<<<RULE PART\nIt never promises a refund\nRULE PART>>>") in once
     assert "refund" not in _outside_fences(md)  # the rule's words are data, as the answers
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data
     assert ("- Fail when what you wrote below is true\n<<<YOUR REASON\nthe order number\n"
