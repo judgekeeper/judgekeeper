@@ -253,6 +253,12 @@ def test_the_first_run(here, capsys, monkeypatch):
     assert not (ws.dir / "fix" / "rule.txt").exists()
 
 
+def test_the_deepeval_regrade_line_says_to_add_the_fields_the_metric_reads():
+    line = fix.regrade_line("deepeval")
+    assert ("any field your metric also reads, such as expected_output, added back by its "
+            "question") in line
+
+
 def test_marked_answers_csv_holds_every_marked_answer_and_nothing_else(here, capsys):
     ws = project(here)
     run(capsys)

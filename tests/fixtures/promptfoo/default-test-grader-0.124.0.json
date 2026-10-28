@@ -1,0 +1,1529 @@
+{
+  "evalId": "eval-tea-2026-10-28T12:00:00",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-10-28T12:00:00.000Z",
+    "prompts": [
+      {
+        "raw": "You are the Kettle & Leaf tea shop helper. Answer: {{question}}",
+        "label": "tea-shop",
+        "id": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "provider": "anthropic:messages:claude-haiku-4-5-20251001",
+        "metrics": {
+          "score": 3,
+          "testPassCount": 3,
+          "testFailCount": 3,
+          "testErrorCount": 0,
+          "assertPassCount": 3,
+          "assertFailCount": 3,
+          "totalLatencyMs": 83351,
+          "tokenUsage": {
+            "prompt": 16615,
+            "completion": 5752,
+            "cached": 0,
+            "total": 22367,
+            "numRequests": 60,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 27125,
+              "prompt": 19912,
+              "completion": 7213,
+              "cached": 0,
+              "numRequests": 60,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "namedScores": {
+            "friendly-hours-next-step": 3
+          },
+          "namedScoresCount": {
+            "friendly-hours-next-step": 6
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 6
+          },
+          "cost": 0.045375
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "friendly-hours-next-step": 1
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Friendly, right hours, and a next step.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nWe open at 10 on Sundays and close at 4. Pop in any time, or call 01632 960001 to check stock first.\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000000",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 1
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: When do you open on Sunday?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "We open at 10 on Sundays and close at 4. Pop in any time, or call 01632 960001 to check stock first.",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "t1",
+          "vars": {
+            "question": "When do you open on Sunday?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 0,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "When do you open on Sunday?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "friendly-hours-next-step": 1
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Polite and gives a clear next step.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nYes! The back room seats 12. Email bookings@kettle.example with your date and we'll confirm within a day.\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000001",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 1
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: Can I book the back room for a party?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "Yes! The back room seats 12. Email bookings@kettle.example with your date and we'll confirm within a day.",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "t2",
+          "vars": {
+            "question": "Can I book the back room for a party?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 1,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "Can I book the back room for a party?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "friendly-hours-next-step": 1
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": true,
+              "score": 1,
+              "reason": "Helpful and says what to do.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nWe do: sencha and genmaicha, by the 50 g bag. Ask at the counter and we'll weigh it for you.\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000002",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 1
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: Do you sell loose-leaf green tea?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "We do: sencha and genmaicha, by the 50 g bag. Ask at the counter and we'll weigh it for you.",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "t3",
+          "vars": {
+            "question": "Do you sell loose-leaf green tea?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 2,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "Do you sell loose-leaf green tea?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Curt, and does not say the hours or what to do next.",
+          "namedScores": {
+            "friendly-hours-next-step": 0
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Curt, and does not say the hours or what to do next.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nno\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000003",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 0
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: Are you open on bank holidays?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "no",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "description": "t4",
+          "vars": {
+            "question": "Are you open on bank holidays?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 3,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "Are you open on bank holidays?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Not friendly and gives no next step.",
+          "namedScores": {
+            "friendly-hours-next-step": 0
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Not friendly and gives no next step.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nDunno, probably.\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000004",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 0
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: Is there parking nearby?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "Dunno, probably.",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "description": "t5",
+          "vars": {
+            "question": "Is there parking nearby?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 4,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "Is there parking nearby?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0.000956,
+        "gradingResult": {
+          "pass": false,
+          "score": 0,
+          "reason": "Wrong: the shop takes chipped items back, and there is no next step.",
+          "namedScores": {
+            "friendly-hours-next-step": 0
+          },
+          "namedScoreWeights": {
+            "friendly-hours-next-step": 1
+          },
+          "tokensUsed": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          },
+          "componentResults": [
+            {
+              "assertion": {
+                "type": "llm-rubric",
+                "metric": "friendly-hours-next-step",
+                "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+              },
+              "pass": false,
+              "score": 0,
+              "reason": "Wrong: the shop takes chipped items back, and there is no next step.",
+              "tokensUsed": {
+                "total": 456,
+                "prompt": 350,
+                "completion": 106,
+                "cached": 0,
+                "numRequests": 0,
+                "completionDetails": {
+                  "cacheReadInputTokens": 0,
+                  "cacheCreationInputTokens": 0
+                }
+              },
+              "metadata": {
+                "renderedGradingPrompt": "[{\"role\": \"system\", \"content\": \"You are grading output according to a user-specified rubric.\"}, {\"role\": \"user\", \"content\": \"<Output>\\nReturns are not possible.\\n</Output>\\n<Rubric>\\nThe reply is friendly, gets the opening hours right and tells the customer what to do next.\\n</Rubric>\"}]"
+              }
+            }
+          ]
+        },
+        "id": "00000000-0000-4000-8000-000000000005",
+        "latencyMs": 1812,
+        "namedScores": {
+          "friendly-hours-next-step": 0
+        },
+        "prompt": {
+          "raw": "You are the Kettle & Leaf tea shop helper. Answer: Can I return a teapot with a chip?",
+          "label": "tea-shop",
+          "config": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          }
+        },
+        "promptId": "fd825d2dc3d5d8c635aaa5c8329987888c7a2267c967269481ef39c68c19d9e7",
+        "promptIdx": 0,
+        "provider": {
+          "id": "anthropic:messages:claude-haiku-4-5-20251001",
+          "label": ""
+        },
+        "response": {
+          "output": "Returns are not possible.",
+          "tokenUsage": {
+            "prompt": 386,
+            "completion": 114,
+            "cached": 0,
+            "total": 500,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "finishReason": "stop",
+          "cost": 0.000956
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "description": "t6",
+          "vars": {
+            "question": "Can I return a teapot with a chip?"
+          },
+          "assert": [
+            {
+              "type": "llm-rubric",
+              "metric": "friendly-hours-next-step",
+              "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+            }
+          ],
+          "options": {
+            "provider": {
+              "modelName": "claude-haiku-4-5-20251001",
+              "config": {
+                "max_tokens": 300,
+                "temperature": 0
+              },
+              "env": {},
+              "apiKey": "[REDACTED]",
+              "usingClaudeCodeOAuth": false,
+              "anthropic": {
+                "baseURL": "https://api.anthropic.com",
+                "_baseURLIsExplicit": true,
+                "timeout": 600000,
+                "maxRetries": 2,
+                "apiKey": "[REDACTED]",
+                "authToken": "[REDACTED]",
+                "messages": {
+                  "_client": "[Circular]"
+                }
+              },
+              "label": "",
+              "clientHasCustomHeaders": false,
+              "ephemeralCacheNamespace": "00000000-0000-4000-8000-000000000000",
+              "ephemeralResponseCache": {},
+              "ephemeralCacheClearGeneration": 0,
+              "mcpClient": null,
+              "initializationPromise": null,
+              "samplingParamsDeprecationWarned": false,
+              "manualThinkingConversionWarned": false,
+              "disabledThinkingRemovalWarned": false,
+              "delay": 0
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 5,
+        "tokenUsage": {
+          "prompt": 386,
+          "completion": 114,
+          "cached": 0,
+          "total": 500,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 456,
+            "prompt": 350,
+            "completion": 106,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "question": "Can I return a teapot with a chip?"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      }
+    ],
+    "stats": {
+      "successes": 3,
+      "failures": 3,
+      "errors": 0,
+      "tokenUsage": {
+        "prompt": 16615,
+        "completion": 5752,
+        "cached": 0,
+        "total": 22367,
+        "numRequests": 60,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0
+        },
+        "assertions": {
+          "total": 27125,
+          "prompt": 19912,
+          "completion": 7213,
+          "cached": 0,
+          "numRequests": 60,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          }
+        }
+      },
+      "durationMs": 45997,
+      "evaluationDurationMs": 45997
+    }
+  },
+  "config": {
+    "tags": {},
+    "description": "Kettle & Leaf tea shop helper",
+    "prompts": [
+      {
+        "id": "file://prompt.json",
+        "label": "tea-shop"
+      }
+    ],
+    "providers": [
+      {
+        "id": "anthropic:messages:claude-haiku-4-5-20251001",
+        "config": {
+          "max_tokens": 300,
+          "temperature": 0
+        }
+      }
+    ],
+    "tests": [
+      {
+        "description": "t1",
+        "vars": {
+          "question": "When do you open on Sunday?"
+        }
+      },
+      {
+        "description": "t2",
+        "vars": {
+          "question": "Can I book the back room for a party?"
+        }
+      },
+      {
+        "description": "t3",
+        "vars": {
+          "question": "Do you sell loose-leaf green tea?"
+        }
+      },
+      {
+        "description": "t4",
+        "vars": {
+          "question": "Are you open on bank holidays?"
+        }
+      },
+      {
+        "description": "t5",
+        "vars": {
+          "question": "Is there parking nearby?"
+        }
+      },
+      {
+        "description": "t6",
+        "vars": {
+          "question": "Can I return a teapot with a chip?"
+        }
+      }
+    ],
+    "env": {},
+    "outputPath": [
+      "results.json"
+    ],
+    "extensions": [],
+    "metadata": {},
+    "evaluateOptions": {},
+    "defaultTest": {
+      "options": {
+        "provider": "anthropic:messages:claude-haiku-4-5-20251001"
+      },
+      "assert": [
+        {
+          "type": "llm-rubric",
+          "metric": "friendly-hours-next-step",
+          "value": "The reply is friendly, gets the opening hours right and tells the customer what to do next."
+        }
+      ],
+      "vars": {},
+      "metadata": {}
+    },
+    "basePath": "."
+  },
+  "shareableUrl": null,
+  "metadata": {
+    "promptfooVersion": "0.124.0",
+    "nodeVersion": "v22.22.0",
+    "platform": "linux",
+    "arch": "x64",
+    "exportedAt": "2026-10-28T12:00:30.000Z",
+    "evaluationCreatedAt": "2026-10-28T12:00:00.000Z"
+  },
+  "vars": [
+    "question"
+  ],
+  "runtimeOptions": {
+    "eventSource": "cli",
+    "showProgressBar": true,
+    "repeat": 1,
+    "maxConcurrency": 4,
+    "cache": false
+  }
+}

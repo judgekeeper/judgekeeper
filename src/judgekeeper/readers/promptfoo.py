@@ -292,10 +292,17 @@ def is_set_grader(value) -> bool:
 
 def grader_of(assertion: dict, test_options: dict, default_test: dict):
     """The grader one model-graded assertion used, as the file holds it, or None for
-    promptfoo's default grader."""
-    return (assertion.get("provider") or test_options.get("provider")
-            or _options(default_test).get("provider") or default_test.get("provider")
-            or None)
+    promptfoo's default grader. promptfoo 0.124 saves a grader set in the config into each
+    test as the provider it made (no id, like --grader): the config's id for the same model
+    is taken, with the made provider's settings."""
+    configured = _options(default_test).get("provider") or default_test.get("provider")
+    grader = assertion.get("provider") or test_options.get("provider") or configured or None
+    if is_set_grader(grader):
+        pid = configured.get("id") if isinstance(configured, dict) else configured
+        if isinstance(pid, str) and pid.split(":")[-1] == grader["modelName"]:
+            return {"id": pid, "config": grader.get("config") or (
+                configured.get("config") if isinstance(configured, dict) else None) or {}}
+    return grader
 
 
 def grading_template(rendered: str, output, variables) -> str:

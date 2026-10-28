@@ -43,6 +43,51 @@ def test_a_grader_object_without_an_id_is_a_set_grader_not_the_default(tmp_path)
     assert any("--grader" in w and "only the model's name" in w for w in warnings)
 
 
+CONFIG_GRADER = FIXTURES / "promptfoo" / "default-test-grader-0.124.0.json"
+HAIKU = "anthropic:messages:claude-haiku-4-5-20251001"
+
+
+def test_a_grader_set_in_default_test_is_read_from_the_config(tmp_path):
+    # promptfoo 0.124 saves the grader in each testCase as the provider it made, with no id
+    records = read_promptfoo(CONFIG_GRADER)
+    judged = _judged(records, "friendly-hours-next-step")
+    assert len(judged) == 6
+    assert {(r.evaluator.get("provider"), r.evaluator.get("model"),
+             r.evaluator.get("temperature")) for r in judged} == {("anthropic", HAIKU, 0)}
+    warnings = records.per_metric.get("friendly-hours-next-step", {}).get("warnings", [])
+    assert not any("--grader" in w or "default grader" in w for w in warnings)
+
+
+def test_a_config_grader_of_another_model_leaves_the_set_grader(tmp_path):
+    data = json.loads(CONFIG_GRADER.read_text(encoding="utf-8"))
+    data["config"]["defaultTest"]["options"]["provider"] = "openai:gpt-4.1-mini"
+    records = read_promptfoo(_write(tmp_path, data))
+    judged = _judged(records, "friendly-hours-next-step")
+    assert {r.evaluator.get("model") for r in judged} == {"claude-haiku-4-5-20251001"}
+    assert all("provider" not in r.evaluator for r in judged)
+    assert any("--grader" in w for w in records.per_metric["friendly-hours-next-step"]["warnings"])
+
+
+def test_the_same_config_grader_saved_two_ways_is_no_model_change(tmp_path):
+    from judgekeeper import judge_setup, start
+
+    first, again = tmp_path / "first", tmp_path / "again"
+    data = json.loads(CONFIG_GRADER.read_text(encoding="utf-8"))
+    for root in (first, again):
+        root.mkdir()
+        (root / "promptfooconfig.yaml").write_text("description: Kettle & Leaf tea shop helper\n",
+                                                   encoding="utf-8")
+    _write(first, data)
+    grader = {"id": HAIKU, "config": {"temperature": 0}}  # a regrade.yaml with {id, config}
+    data["config"]["defaultTest"]["options"]["provider"] = grader
+    for row in data["results"]["results"]:
+        row["testCase"]["options"]["provider"] = grader
+    _write(again, data)
+    old, new = (judge_setup.of(start.find_judge(root)) for root in (first, again))
+    assert old["models"] == new["models"] == [HAIKU]
+    assert judge_setup.changes(old, new) == []
+
+
 def test_default_test_provider_is_the_last_grader_fallback(tmp_path):
     data = json.loads(RESULTS.read_text(encoding="utf-8"))
     data["config"]["defaultTest"]["options"].pop("provider", None)

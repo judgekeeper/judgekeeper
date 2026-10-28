@@ -124,9 +124,10 @@ REGRADE = {
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
                "under the same name."),
     "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
-                 "`answer` as actual_output); run your metric with its new rule and the same "
-                 "name through `deepeval test run`, which saves a new test_run_<date>.json in "
-                 "your results folder."),
+                 "`answer` as actual_output, and any field your metric also reads, such as "
+                 "expected_output, added back by its question); run your metric with its new "
+                 "rule and the same name through `deepeval test run`, which saves a new "
+                 "test_run_<date>.json in your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
 TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
@@ -913,13 +914,22 @@ def went_line(fixed: int, broke: int) -> str:
     return f"With the new rule, {went} from wrong to right, and {back} from right to wrong."
 
 
+def _sessions_below(path: str) -> tuple[str, str] | None:
+    """Where the sessions below this folder are, and the Next step (front.go_to_words)."""
+    from judgekeeper import front
+
+    sessions = front.sessions_here(path)
+    return front.go_to_words(sessions, program("fix")) if sessions else None
+
+
 def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
     the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
     home = start_fix_rule.rule_home(ws.root, tool, data)
     task = data.get("task_file") if tool == "inspect" else None
     read = task and start_fix_rule.opened_rule_file(ws.root, task, rule, tool)
-    where = start_fix_rule.found_rule(ws.root, rule, tool)
+    first = read or start_fix_rule.rule_config(ws.root, tool, data)
+    where = start_fix_rule.found_rule(ws.root, rule, tool, first=first)
     said = "Your LLM-as-a-judge's rule is in"
     if where and (not read or where[0] == read):
         return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"
@@ -979,6 +989,11 @@ def run(path: str = ".", new: bool = False) -> int:
         return EXIT_USAGE
     talk.say(STEP if results is None or split is None or split.fresh else STEP_TEST)
     talk.say()
+    if ws is None and results is None and (below := _sessions_below(talk.path)):
+        said, step = below
+        talk.para(said)
+        talk.next(step)
+        return EXIT_NEEDS_YOU
     if ws is None and not _has_results(Path(talk.path)):
         talk.para(f"No eval results found in this folder ({Path(talk.path).resolve().name}).")
         talk.next(f"run your eval once from this folder, then run `{program()}`.")
@@ -1361,7 +1376,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
-                  f"judgekeeper finds them by their exact text.")
+                  f"judgekeeper finds them by their exact text and question.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU

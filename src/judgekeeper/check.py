@@ -5,9 +5,9 @@ newest results (or the results file given as PATH), never from the eval config;
 `.judgekeeper/judge.json` keeps the setup last checked, and `results-seen.json` lets a check
 with nothing new read nothing again.
 
-The new grades are the ones in the results: a marked answer is found by its exact text
-(_free). judgekeeper never asks the LLM-as-a-judge itself; a marked answer the results don't
-hold is counted, said once and left out. Per group (answers the person passed, and failed),
+The new grades are the ones in the results: a marked answer is found by its exact text and
+question (_free). judgekeeper never asks the LLM-as-a-judge itself; a marked answer the results
+don't hold is counted, said once and left out. Per group (answers the person passed, and failed),
 the paired change gives "Worse", "No drop bigger than 20 points" or "Not sure", always with
 the worst drop the marks could hide (targets.paired_verdict). Unless the check ends worse, the
 marks then test the new LLM-as-a-judge (_adopt); a worse check stays open until it changes.
@@ -92,7 +92,7 @@ PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make yo
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be chance."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by its "
-           "exact text.")
+           "exact text and question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
@@ -102,7 +102,7 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
 NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
                "error).")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by its exact text.")
+          "It finds a marked answer by its exact text and question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
@@ -840,6 +840,15 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say(NOT_SET_UP)
         said.say()
         said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
+        return EXIT_NEEDS_YOU
+    from judgekeeper import front
+
+    sessions = front.sessions_here(given)
+    if sessions:
+        where, step = front.go_to_words(sessions, program("check"))
+        said.say(where)
+        said.say()
+        said.say(f"Next: {step}")
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)

@@ -72,6 +72,21 @@ def test_overlapping_marked_parts_are_joined_in_suggestions_md():
     assert md.count("The part you marked:") == 2
 
 
+# The same note on many answers is written once in suggestions.md, with its count ---------
+
+def test_the_same_note_is_written_once_with_its_count_in_suggestions_md():
+    def row(n, why):
+        return {"id": f"a{n}", "judge": "pass", "final": "fail", "output": f"Answer {n}.",
+                "reasons": ["left_out"], "words": {}, "parts": [], "spans": [], "why": why}
+
+    same = "Too short, with no next step."
+    md = reasons.suggestions_md([row(n, same) for n in range(5)] + [row(5, "No price.")])
+    assert md.count(f"<<<YOUR REASON\n{same}\nYOUR REASON>>>") == 1
+    assert f"<<<YOUR REASON\n{same}\nYOUR REASON>>>\n(on 5 answers)" in md
+    assert "<<<YOUR REASON\nNo price.\nYOUR REASON>>>\n(on" not in md
+    assert md.count("<<<YOUR REASON\nNo price.\nYOUR REASON>>>") == 1
+
+
 # With the page closed, Measure names the mark command once ------------------------------
 
 def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, pages,  # noqa: F811

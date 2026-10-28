@@ -176,6 +176,23 @@ def test_the_folder_above_a_projects_session_says_where_it_is(here, capsys, monk
     assert not (here / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize("project_file", [False, True])
+@pytest.mark.parametrize("command", ["fix", "check"])
+def test_fix_and_check_above_a_projects_session_say_where_it_is(here, capsys, monkeypatch,
+                                                                command, project_file):
+    if project_file:
+        (here / ".git").mkdir()
+    _session_in(here / "promptfoo", capsys, monkeypatch, 6)
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, command)
+    assert code == 3, out + err
+    assert ("promptfoo/ already holds your judgekeeper session (6 marks): judgekeeper keeps a "
+            "project's marks in its own folder.") in flat(out), out
+    assert _next(out) == (f"Next: go to that folder (`cd promptfoo`), then run "
+                          f"`judgekeeper {command}` there.")
+    assert not (here / ".judgekeeper").exists()
+
+
 def test_a_project_with_its_own_results_above_a_session_is_read(here, capsys, monkeypatch):
     (here / ".git").mkdir()
     _session_in(here / "promptfoo", capsys, monkeypatch, 6)
