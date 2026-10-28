@@ -101,6 +101,15 @@ def test_undefined_divisions_are_unknown():
     assert r["tpr"] == pytest.approx(1.0) and r["tnr"] is None and r["kappa"] is None
 
 
+@pytest.mark.parametrize("counts", [(10, 0, 5, 4, 0, 0), (0, 10, 0, 0, 5, 4)])
+def test_a_judge_that_gave_every_answer_one_grade_has_no_kappa(counts):
+    """Kappa would be 0 with a range of no width: agreement beyond coincidence needs both
+    grades."""
+    r = weighted.corrected(*counts)
+    assert r["kappa"] is None and r["kappa_interval"] == [None, None]
+    assert {r["tpr"], r["tnr"]} == {1.0, 0.0}
+
+
 @pytest.mark.parametrize("counts", [
     (900, 100, 25, 20, 25, 10), (60, 40, 30, 24, 20, 5), (171, 41, 16, 15, 15, 5),
     (100, 100, 3, 0, 3, 3), (500, 20, 25, 25, 20, 0), (40, 400, 1, 1, 1, 0),

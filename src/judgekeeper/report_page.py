@@ -966,7 +966,7 @@ def _details(r: dict) -> str:
                    f'<td data-label="Between">{_e(between)}</td></tr>'
                    for name, est, between in rows)
     body += (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-             f'{_two(kappa) if kappa is not None else "–"}</td><td data-label="Between">'
+             f'{_two(kappa) if kappa is not None else "n/a"}</td><td data-label="Between">'
              f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
             f'</summary><table class="panel"><caption>{_caption(r)}</caption>'

@@ -612,6 +612,12 @@ def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
     assert "<details open" not in html and 'hidden' not in part  # folded, all there
 
 
+def test_a_judge_that_gave_every_answer_one_grade_shows_kappa_as_n_a():
+    part = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)),
+                 '<details class="details band">', "</details>")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a –" in _text(part)
+
+
 def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
     r = _result(100, 100, 40, 22, 40, 2)
     r["tnr_interval"] = [0.1, 0.9]  # wider than the result can use
