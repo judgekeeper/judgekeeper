@@ -327,8 +327,13 @@
           return { error: 'two-judges', message: 'Test ' + clean(test, 20) + ' has more than one ' + JSON.stringify(clean(name, 80)) +
             ' assertion. Give each one a name with metric: in its assertion, then run your eval again (that makes model calls).' };
         }
-        var grader = or(a.provider, testOpts.provider, options(defaultTest).provider, defaultTest.provider, null);
+        var configured = or(options(defaultTest).provider, defaultTest.provider, null);
+        var grader = or(a.provider, testOpts.provider, configured, null);
         if (!truthy(grader)) grader = null;
+        if (isSetGrader(grader)) {  // promptfoo 0.124 saves a config grader with no id: the config's id
+          var pid = isObj(configured) ? configured.id : configured;
+          if (isStr(pid) && pid.split(':').pop() === grader.modelName) grader = pid;
+        }
         var model = grader === null ? null : modelOf(grader);
         var metadata = isObj(c.metadata) ? c.metadata : {};
         var rubricPrompt = or(a.rubricPrompt, testOpts.rubricPrompt, options(defaultTest).rubricPrompt);
