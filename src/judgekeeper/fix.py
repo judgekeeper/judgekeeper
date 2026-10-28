@@ -856,6 +856,27 @@ def went_line(fixed: int, broke: int) -> str:
     return f"With the new rule, {went} from wrong to right, and {back} from right to wrong."
 
 
+def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
+    """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
+    the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
+    home = start_fix_rule.rule_home(ws.root, tool, data)
+    task = data.get("task_file") if tool == "inspect" else None
+    read = task and start_fix_rule.opened_rule_file(ws.root, task, rule, tool)
+    where = start_fix_rule.found_rule(ws.root, rule, tool)
+    said = "Your LLM-as-a-judge's rule is in"
+    if where and (not read or where[0] == read):
+        return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"
+    if read and read != task:
+        file_link = start_fix_rule.file_link
+        return (f"{said} {file_link(ws.root, read)}, which {file_link(ws.root, task)} reads "
+                f"into {start_fix_rule.field(tool, data.get('rule_field'))}")
+    if start_fix_rule.rule_config(ws.root, tool, data):
+        return f"{said} {home}"
+    if home == start_fix_rule.OWN_CODE:
+        return "Your LLM-as-a-judge's rule, where your code keeps it"
+    return f"{said} {home} in your eval's code"
+
+
 def _rule_quote(rule: str) -> str:
     text = " ".join(rule.split())
     if len(text) > RULE_SHOWN:
@@ -1166,16 +1187,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say()
     tool = data.get("tool")
     if rule:
-        where = start_fix_rule.found_rule(ws.root, rule, tool or "")
-        if where:
-            talk.say(f"Your LLM-as-a-judge's rule is in {link(ws.root / where[0], where[0])}, "
-                     f"line {where[1]}:")
-        elif start_fix_rule.rule_config(ws.root, tool or "", data):
-            talk.para("Your LLM-as-a-judge's rule is in "
-                      f"{start_fix_rule.rule_home(ws.root, tool or '', data)}:")
-        else:
-            talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
-                      f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool or '', data)}:")
+        talk.para(f"{_rule_place(ws, rule, tool or '', data)}:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
