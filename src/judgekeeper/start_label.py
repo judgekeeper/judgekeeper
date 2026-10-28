@@ -100,7 +100,7 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
-TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
+TOO_FEW_TO_TELL = " The ranges are still too wide to tell."  # enough of each: not a count
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
