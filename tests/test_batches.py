@@ -659,8 +659,8 @@ def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
 # A check of a partial eval --------------------------------------------------------------------
 
 REGRADE = ("Next: run `judgekeeper fix` to write the answers you marked to "
-           ".judgekeeper/fix/marked-answers.csv, grade them again with your LLM-as-a-judge as "
-           "it is now, then run `judgekeeper check <new results file>`.")
+           ".judgekeeper/fix/marked-answers.csv, grade every one again with your LLM-as-a-judge "
+           "as it is now, then run `judgekeeper check <new results file>`.")
 
 
 def test_a_check_of_a_partial_eval_says_to_grade_the_marked_answers_again(here, capsys, pages):

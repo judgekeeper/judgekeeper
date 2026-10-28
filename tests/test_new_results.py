@@ -163,6 +163,18 @@ def test_check_with_too_few_marked_answers_found_cant_tell(here, capsys, monkeyp
     assert code == 3, out
     assert "Result: can't tell yet." in said
     assert "a re-check needs 15 of each" in said
+    assert ("Next: run `judgekeeper fix` to write the answers you marked to "
+            ".judgekeeper/fix/marked-answers.csv, grade every one again with your LLM-as-a-judge "
+            "as it is now, then run `judgekeeper check <new results file>`.") in said, said
+
+
+def test_inspect_check_with_too_few_says_to_score_the_whole_log_again(here, capsys):
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.check import _state, regrade_marked
+
+    log, _ = _marked_inspect_log(here, capsys)
+    assert regrade_marked(_state("."), every=True).startswith(
+        "score your whole marked log again with your LLM-as-a-judge as it is now: run "), log
 
 
 # Inspect AI: the log graded again ----------------------------------------------------------------

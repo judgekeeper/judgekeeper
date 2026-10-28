@@ -1463,7 +1463,7 @@ def full(path: str, said: Said) -> int:
         said.say("Next: " + worse_step(old, new, _command(state), state.ws))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
-        said.say("Next: " + regrade_marked(state))
+        said.say("Next: " + regrade_marked(state, every=True))
     elif picked["ask"]:
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
@@ -1607,7 +1607,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say("Next: " + regrade_marked(state))  # new answers can't be compared
+        said.say("Next: " + regrade_marked(state, every=True))  # new answers can't be compared
     return few
 
 
@@ -1624,36 +1624,41 @@ def _asked_again(found, ids, ws: Workspace) -> int:
         for q in _marked_question(row.get("input"))))
 
 
-def regrade_marked(state: State) -> str:
+def regrade_marked(state: State, every: bool = False) -> str:
     """The way to new grades on the answers marked (without "Next: "): grade them again as
     the eval tool does, then `check` the new results. Running the eval again would make new
-    answers, which can't be compared."""
+    answers, which can't be compared. `every`: the new results left some out, so it says to
+    grade every one."""
     from judgekeeper import fix
 
     ws, tool = state.ws, state.data.get("tool")
     check = program("check")
     store = fix.mlflow_store(ws) if tool == "mlflow" else None
     if store:
-        return (f"evaluate the same traces again with your LLM-as-a-judge as it is now "
+        return (f"evaluate {'all ' if every else ''}the same traces again with your "
+                f"LLM-as-a-judge as it is now "
                 f"(`mlflow.genai.evaluate()`), then run `{check} {store}`: it reads the newest "
                 f"run.")
     if tool == "inspect":
         log = quote_arg(fix.new_log(ws))
-        return (f"score your marked log again with your LLM-as-a-judge as it is now: run "
+        return (f"score your {'whole ' if every else ''}marked log again with your "
+                f"LLM-as-a-judge as it is now: run "
                 f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then run `{check} {log}`.")
-    return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now")
+    return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now",
+                            every)
 
 
-def _regrade_answers(ws: Workspace, answers: str, judge: str) -> str:
+def _regrade_answers(ws: Workspace, answers: str, judge: str, every: bool = False) -> str:
     """Grade marked-answers.csv (shown as `answers`) again with `judge`, then `check` the new
-    results; `fix` writes the file first when there is none."""
+    results; `fix` writes the file first when there is none. `every`: each answer in it."""
     from judgekeeper import fix
 
     check = f"`{program('check')} {fix.NEW_RESULTS}`"
     if (fix._folder(ws) / fix.ANSWERS).is_file():
-        return f"grade the answers in {answers} again with {judge}, then run {check}."
-    return (f"run `{program('fix')}` to write the answers you marked to {answers}, grade them "
-            f"again with {judge}, then run {check}.")
+        return (f"grade {'every answer' if every else 'the answers'} in {answers} again with "
+                f"{judge}, then run {check}.")
+    return (f"run `{program('fix')}` to write the answers you marked to {answers}, grade "
+            f"{'every one' if every else 'them'} again with {judge}, then run {check}.")
 
 
 def _are(k: int) -> str:

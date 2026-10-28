@@ -273,7 +273,7 @@ def test_after_better_the_next_lines_re_check_and_never_loop(here, capsys, monke
             "eval wrote new answers, and judgekeeper compares only the answers you marked."
             ) in out, out
     assert "run your eval" not in out, out
-    assert out.endswith("Next: grade the answers in .judgekeeper/fix/marked-answers.csv again "
+    assert out.endswith("Next: grade every answer in .judgekeeper/fix/marked-answers.csv again "
                         "with your LLM-as-a-judge as it is now, then run `judgekeeper check "
                         "<new results file>`."), out
 
