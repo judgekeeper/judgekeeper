@@ -844,7 +844,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
 def _tested_rule(state: State, found) -> str | None:
     """When the new judge's rule is one `judgekeeper fix` tested: the line that says so, with
     the day and the result of that test."""
-    from judgekeeper.fix import VERDICT_NAMES
+    from judgekeeper.fix import RESULT_WORDS
     from judgekeeper.start_fix_rule import rule_text
 
     if not found.rule:
@@ -863,7 +863,7 @@ def _tested_rule(state: State, found) -> str | None:
     if not tests:
         return None
     day = _day(tests[-1].get("time"))
-    result = VERDICT_NAMES.get(tests[-1].get("verdict"), "").lower()
+    result = RESULT_WORDS.get(tests[-1].get("verdict"), "")
     return (f"This is the rule you tested with `{program('fix')}`"
             f"{f' on {day}' if day else ''}{f' ({result})' if result else ''}.")
 

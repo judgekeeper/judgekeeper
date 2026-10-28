@@ -27,7 +27,8 @@ NEXT_LINK = NEXT_OPEN
 NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
 NEXT_RESULT = ("Next: nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
                "`judgekeeper check`.")
-RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks still test it."
+RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, so your marks "
+             "still test it.")
 ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
 PRINTED_LINE = ("{n} of your marks came through a link printed in a terminal, so another "
