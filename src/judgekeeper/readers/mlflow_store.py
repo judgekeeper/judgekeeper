@@ -80,6 +80,21 @@ CAPPED = ("{experiment} has more than {n:,} traces: judgekeeper read the newest 
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
+STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copied at most
+
+# In a folder store, the files MLflow reads whole: each tag, setting and request metadata value,
+# each assessment, and the meta.yaml and trace_info.yaml files. MLflow keeps them in a few KB.
+SMALL_FOLDERS = ("tags", "params", "request_metadata", "assessments")
+SMALL_FILES = ("meta.yaml", "trace_info.yaml")
+SMALL_LIMIT = 2**20  # bytes
+UNSAFE = {  # why MLflow is not let read a file, and the Next: step
+    "link": ("is a link, which can lead to any file on this computer",
+             "replace {file} with a copy of the file it links to (or remove it)"),
+    "special": (("is not a plain file (a pipe or a device), which MLflow would wait on or "
+                 "read without end"), "remove {file}"),
+    "big": ("is over 1 MB, more than MLflow keeps there",
+            "check {file} and remove it if your evaluation didn't save it"),
+}
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
 HINT = "MLFLOW_DISABLE_AGENT_HINT"  # MLflow's hint for coding agents, logged on import
@@ -129,19 +144,19 @@ def store_uri(path: Path, say=None) -> str:
     """
     path = Path(path)
     if path.is_dir():
+        check_folder_store(path)
         return str(path)
-    stat = path.stat()
-    key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    parts = _store_parts(path)
+    found = parts[path]
+    key = (str(path.resolve()), found.st_size, found.st_mtime_ns)
     with _copies_lock:
         if key not in _copies:
-            if stat.st_size >= BIG_STORE and say is not None:
-                say(f"Reading a copy of {path.name} ({stat.st_size / 1e9:.1f} GB)…")
+            if found.st_size >= BIG_STORE and say is not None:
+                say(f"Reading a copy of {path.name} ({found.st_size / 1e9:.1f} GB)…")
             folder = Path(tempfile.mkdtemp(prefix="judgekeeper-mlflow-"))
             try:
-                for suffix in ("", *SQLITE_SIDE_FILES):
-                    part = path.with_name(path.name + suffix)
-                    if part.is_file():
-                        shutil.copy2(part, folder / part.name)
+                for part in parts:
+                    shutil.copy2(part, folder / part.name)
                 _keep_local(folder / path.name, path.parent)
             except BaseException:
                 shutil.rmtree(folder, ignore_errors=True)
@@ -150,6 +165,43 @@ def store_uri(path: Path, say=None) -> str:
             _homes[folder / path.name] = path.parent
         copy = _copies[key]
     return f"sqlite:///{copy.as_posix()}"
+
+
+def _store_parts(path: Path) -> dict[Path, os.stat_result]:
+    """mlflow.db at `path` and its -wal and -shm files when there, each looked at (lstat) before
+    anything is copied: Damaged, naming the file, for a link, a pipe or a device, or a store
+    over STORE_LIMIT with them."""
+    parts = {}
+    for suffix in ("", *SQLITE_SIDE_FILES):
+        part = path.with_name(path.name + suffix)
+        try:
+            found = os.lstat(part)
+        except FileNotFoundError:
+            if suffix:
+                continue
+            raise
+        kind = ("link" if stat.S_ISLNK(found.st_mode) or _junction(part)
+                else None if stat.S_ISREG(found.st_mode) else "special")
+        if kind is not None:
+            why, step = UNSAFE[kind]
+            raise Damaged(f"{part.name} {why}.", step.format(file=part.name.replace(
+                "{", "{{").replace("}", "}}")) + ", then run `{command}`.")
+        parts[part] = found
+    if sum(found.st_size for found in parts.values()) > STORE_LIMIT:
+        limit = f"{STORE_LIMIT // 10**9} GB"
+        raise Damaged(f"{path.name} is over {limit} with its -wal and -shm files: judgekeeper "
+                      f"copies a store of at most {limit} before reading it.",
+                      "log your evaluation again into a new, smaller store, then run "
+                      "`{command}`.")
+    return parts
+
+
+def _junction(path: Path) -> bool:
+    """Whether `path` is a Windows junction (a link lstat doesn't call one)."""
+    try:
+        return bool(getattr(os.path, "isjunction", lambda p: False)(path))
+    except OSError:
+        return False
 
 
 def kept_location(value, home: Path) -> Path | None:
@@ -192,6 +244,55 @@ def _plain_trace_file(location: Path) -> bool:
     except OSError:
         return False
     return stat.S_ISREG(found.st_mode) and found.st_size <= TRACE_LIMIT
+
+
+def unsafe_file(folder: Path) -> tuple[Path, str] | None:
+    """The first file in the folder store at `folder` that MLflow must not open, and why (a
+    key of UNSAFE): a link (a junction on Windows too), a pipe or a device, or one of the files
+    MLflow reads whole over SMALL_LIMIT. Looked at with lstat, never opened or followed; a
+    folder that can't be listed is left to MLflow."""
+    stack = [Path(folder)]
+    while stack:
+        here = stack.pop()
+        try:
+            with os.scandir(here) as found:
+                entries = sorted(found, key=lambda e: e.name, reverse=True)
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            try:
+                info = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if stat.S_ISLNK(info.st_mode) or _junction(path):
+                return path, "link"
+            if stat.S_ISDIR(info.st_mode):
+                stack.append(path)
+            elif not stat.S_ISREG(info.st_mode):
+                return path, "special"
+            elif info.st_size > SMALL_LIMIT and (here.name in SMALL_FOLDERS
+                                                 or entry.name in SMALL_FILES):
+                return path, "big"
+    return None
+
+
+def check_folder_store(folder: Path) -> None:
+    """Damaged, naming the file, when the folder store at `folder` holds a file MLflow must not
+    open (unsafe_file). Run before MLflow opens the store."""
+    found = unsafe_file(folder)
+    if found is None:
+        return
+    path, kind = found
+    name = Path(folder).name
+    try:
+        shown = f"{name}/{path.relative_to(folder).as_posix()}"
+    except ValueError:
+        shown = str(path)
+    why, step = UNSAFE[kind]
+    braces = shown.replace("{", "{{").replace("}", "}}")
+    raise Damaged(f"judgekeeper didn't let MLflow read {name}/: {shown} {why}.",
+                  step.format(file=braces) + ", then run `{command}`.")
 
 
 TRIGGERS = "select name from sqlite_master where type = 'trigger'"
@@ -729,6 +830,8 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
+    if folder_of(uri) is not None:
+        check_folder_store(folder_of(uri))
     with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri), logged_out(uri):
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,

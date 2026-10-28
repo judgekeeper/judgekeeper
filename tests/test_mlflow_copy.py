@@ -17,6 +17,7 @@ import pytest
 
 from judgekeeper import start
 from judgekeeper.readers import mlflow_store
+from judgekeeper.records import Damaged
 
 
 @pytest.fixture(autouse=True)
@@ -117,3 +118,51 @@ def test_a_folder_store_reads_and_stays_as_it_was(tmp_path, monkeypatch):
     found = start.find_judge(tmp_path / "project")
     assert found.tool == "mlflow" and len(found.pool.answers) == 4
     assert _state(folder) == before
+
+
+# Only plain files are copied ---------------------------------------------------------------
+# A link named mlflow.db-wal copied any file on the computer to the temporary folder (a 1.8 GB
+# system file in 3 s), and a pipe waited forever. Each part is looked at (lstat) first.
+
+POSIX = pytest.mark.skipif(os.name == "nt", reason="links and pipes need rights on Windows")
+
+
+def _refused(db):
+    with pytest.raises(Damaged) as e:
+        mlflow_store.store_uri(db)
+    assert mlflow_store._copies == {}  # nothing copied
+    return " ".join(str(e.value).split()), e.value.next_step
+
+
+@POSIX
+@pytest.mark.parametrize("part", ["mlflow.db", "mlflow.db-wal", "mlflow.db-shm"])
+def test_a_linked_part_is_refused_and_named(tmp_path, part):
+    db = _store(tmp_path / "project")
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"not the project's")
+    (db.parent / part).unlink()
+    (db.parent / part).symlink_to(outside)
+    said, step = _refused(db)
+    assert said == f"{part} is a link, which can lead to any file on this computer."
+    assert step == f"replace {part} with a copy of the file it links to (or remove it), then " \
+                   "run `{command}`."
+
+
+@POSIX
+def test_a_pipe_as_a_side_file_is_refused(tmp_path):
+    db = _store(tmp_path / "project")
+    (db.parent / "mlflow.db-shm").unlink()
+    os.mkfifo(db.parent / "mlflow.db-shm")
+    said, _ = _refused(db)
+    assert said.startswith("mlflow.db-shm is not a plain file (a pipe or a device)")
+
+
+def test_a_store_over_the_limit_is_refused_before_it_is_copied(tmp_path, monkeypatch):
+    db = _store(tmp_path / "project")
+    monkeypatch.setattr(mlflow_store, "STORE_LIMIT", 10**9)
+    with open(db.parent / "mlflow.db-wal", "r+b") as wal:
+        wal.truncate(10**9)  # sparse: its size, not its space on disk, is what is copied
+    said, step = _refused(db)
+    assert said == ("mlflow.db is over 1 GB with its -wal and -shm files: judgekeeper copies "
+                    "a store of at most 1 GB before reading it.")
+    assert "{command}" in step

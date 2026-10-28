@@ -540,3 +540,87 @@ def test_a_tracking_uri_that_is_no_store_is_refused_plainly(value, tmp_path, mon
     assert code == 2, said
     assert "didn't expect" not in said and "report it" not in said, said
     assert ("--tracking-uri is empty" if not value.strip() else "is not an MLflow store") in said
+
+
+# Files MLflow must not open ---------------------------------------------------------------
+# MLflow's folder store reads each tag, setting and assessment file whole and follows links:
+# a link to /dev/zero used GBs in a second, a pipe waited forever, and a link out of the
+# project put that file's text in judgekeeper's files. Git keeps links, so a cloned project
+# can carry one. Before MLflow opens a folder store, judgekeeper looks at every file in it.
+
+POSIX = pytest.mark.skipif(os.name == "nt", reason="links and pipes need rights on Windows")
+
+
+def _trace_folder(project):
+    return min((project / "mlruns").glob("*/traces/tr-*"))
+
+
+def _in_store(project, part):
+    """The file `part` of the first trace (tags/NAME, request_metadata/NAME or the first
+    assessment), and its path as judgekeeper names it."""
+    trace = _trace_folder(project)
+    path = min((trace / "assessments").iterdir()) if part == "assessment" else trace / part
+    return path, path.relative_to(project).as_posix()
+
+
+@POSIX
+@pytest.mark.parametrize("part", ["tags/mlflow.traceName", "request_metadata/mlflow.traceInputs",
+                                  "assessment"])
+def test_a_link_in_the_store_is_refused_and_named(folder_only, capsys, tmp_path, part):
+    canary = tmp_path / "outside.txt"
+    canary.write_text("canary-text-from-outside", encoding="utf-8")
+    path, rel = _in_store(folder_only, part)
+    path.unlink()
+    path.symlink_to(canary)
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"judgekeeper didn't let MLflow read mlruns/: {rel} is a link" in flat, out
+    assert "canary-text" not in out
+    assert not any("canary-text" in p.read_text(encoding="utf-8", errors="replace")
+                   for p in folder_only.rglob("*") if p.is_file() and not p.is_symlink())
+    assert f"Next: replace {rel} with a copy of the file it links to" in flat, out
+
+
+@POSIX
+def test_a_link_to_a_device_is_found_without_reading_it(tmp_path):
+    tags = tmp_path / "mlruns" / "1" / "traces" / "tr-1" / "tags"
+    tags.mkdir(parents=True)
+    (tags / "mlflow.traceName").symlink_to("/dev/zero")
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (
+        tags / "mlflow.traceName", "link")
+
+
+@POSIX
+@pytest.mark.parametrize("part", ["tags/mlflow.artifactLocation", "trace_info.yaml",
+                                  "assessment"])
+def test_a_pipe_in_the_store_is_refused_not_waited_on(folder_only, part):
+    path, rel = _in_store(folder_only, part)
+    path.unlink()
+    os.mkfifo(path)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("MLFLOW_")}
+    env["PYTHONPATH"] = str(ROOT / "src")
+    done = subprocess.run([sys.executable, "-m", "judgekeeper", "--no-browser", "--port", "0"],
+                          cwd=folder_only, env=env, capture_output=True, text=True,
+                          timeout=120, stdin=subprocess.DEVNULL, check=False)
+    flat = " ".join((done.stdout + done.stderr).split())
+    assert done.returncode == 2, flat
+    assert f"{rel} is not a plain file (a pipe or a device)" in flat
+
+
+@pytest.mark.parametrize("part", ["tags/mlflow.traceName", "assessment", "trace_info.yaml"])
+def test_a_tag_or_assessment_over_1_mb_is_refused(folder_only, capsys, part):
+    path, rel = _in_store(folder_only, part)
+    path.write_bytes(b"x" * (2**20 + 1))
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"{rel} is over 1 MB, more than MLflow keeps there" in flat, out
+
+
+def test_a_big_artifact_is_not_a_tag(folder_only, capsys):
+    """Run artifacts (a model, a dataset) can be any size: only the files MLflow reads whole
+    are capped."""
+    (folder_only / "mlruns" / "0" / "big-artifact.bin").write_bytes(b"x" * (2**20 + 1))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
