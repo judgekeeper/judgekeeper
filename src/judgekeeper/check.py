@@ -1338,7 +1338,7 @@ def full(path: str, said: Said) -> int:
     back = back_to_marked(state.ws, found) if found is not None else None
     if back:
         said.say(back)
-        marks.append(state.ws.history_jsonl, scrub_value({
+        marks.append(state.ws.history_jsonl, _history_line({
             "time": utc_now(), "kind": "check", "trigger": "back", "before": old, "after": new,
             "changed": ["back to the LLM-as-a-judge the marks were made on"],
             "marks": len(state.marks),
@@ -1461,7 +1461,7 @@ def full(path: str, said: Said) -> int:
     new_rates = _new_rates(state.marks, tested, *_picks(state)) if worse else None
 
     flipped = [i for i in tested if i in old_verdicts and old_verdicts[i] != tested[i]]
-    line = scrub_value({
+    line = _history_line({
         "time": utc_now(), "kind": "check", "trigger": "by hand", "before": old, "after": new,
         "changed": changed or [f"grades changed on {_n(grades, 'marked answer')}"],
         "marks": total, "free": n, "groups": g,
@@ -1789,6 +1789,14 @@ def _restore(ws: Workspace, found, setup: dict) -> None:
     _write_json(ws.start, data)
     judge_setup.save(ws, setup, found.metric)
     _report(ws, adopted=True)
+
+
+def _history_line(line: dict) -> dict:
+    """`line` scrubbed for history.jsonl, its setups as judge.json keeps them
+    (judge_setup.keys_hidden): they are compared with the setups read later."""
+    out = scrub_value(line)
+    out["before"], out["after"] = (judge_setup.keys_hidden(line[k]) for k in ("before", "after"))
+    return out
 
 
 def _same_as_last(state: State, line: dict) -> bool:

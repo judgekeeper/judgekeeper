@@ -88,6 +88,112 @@ def test_root_keys_are_hidden_when_results_below_are_named(tool, named, command,
         assert [n for n, text in saved.items() if value in text] == []
 
 
+# Keys in every .env file from the results' folder up to their project -------------------------
+
+ROOT = "rootMadeUpToken" + "R5" * 8
+SUB = "subMadeUpToken" + "S6" * 8
+SUBPROJECT = (SUB, LOCAL, STAGING)
+
+
+@pytest.mark.parametrize("layout", ["subproject", "named from outside"])
+def test_keys_in_each_env_file_up_to_the_project_are_hidden(layout, tmp_path, monkeypatch,
+                                                            capsys):
+    """A subproject's .env.local and .env.<APP_ENV>, read like its .env; and when the results
+    are named from outside their project, the .env files of that project too."""
+    for name in ("ROOT_TOKEN", "SUB_TOKEN", "LOCAL_SECRET", "APPENV_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("APP_ENV", "staging")
+    top = tmp_path / "top"
+    (top / ".git").mkdir(parents=True)
+    (top / ".env").write_text(f"ROOT_TOKEN={ROOT}\n", encoding="utf-8")
+    if layout == "subproject":  # apps/x is a project of its own inside top
+        env = top / "apps" / "x"
+        env.mkdir(parents=True)
+        (env / "package.json").write_text("{}", encoding="utf-8")
+        (env / ".env").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+        results = env / "evals" / "results.json"
+        monkeypatch.chdir(top)
+        named = "apps/x/evals/results.json"
+    else:  # the folder the command runs in is no project
+        env = top
+        results = top / "evals" / "results.json"
+        results.parent.mkdir()
+        (results.parent / ".env").write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+        (tmp_path / "elsewhere").mkdir()
+        monkeypatch.chdir(tmp_path / "elsewhere")
+        named = str(results)
+    (env / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    (env / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    plain = test_only_reads.answer
+    monkeypatch.setattr(test_only_reads, "answer", lambda i: f"{plain(i)} Use "
+                        f"{' and '.join((ROOT, *SUBPROJECT))}." if i < 3 else plain(i))
+    write_results("promptfoo", results, {i: judge(i) for i in range(N)})
+    code = main([named, "--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert code == 0, out
+    saved = {p: p.read_text(encoding="utf-8", errors="replace") for p in tmp_path.rglob("*")
+             if p.is_file() and ".judgekeeper" in p.parts}
+    pool = [text for p, text in saved.items() if p.name == "pool.jsonl"]
+    assert len(pool) == 1 and redact.REDACTED in pool[0]
+    for value in (ROOT, *SUBPROJECT) if layout == "named from outside" else SUBPROJECT:
+        assert value not in out
+        assert [p.name for p, text in saved.items() if value in text] == []
+
+
+@pytest.mark.parametrize("name", [".env", ".env.local"])
+def test_keys_beside_results_found_in_a_folder_below_are_hidden(name, tmp_path, monkeypatch,
+                                                                capsys):
+    from tests.start_projects import promptfoo_project, split
+
+    monkeypatch.delenv("SUB_TOKEN", raising=False)
+    root = tmp_path / "p"
+    (root / ".git").mkdir(parents=True)
+    promptfoo_project(root, split(20, 12), name="evals/results.json", tag=f" {SUB}")
+    (root / "evals" / name).write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+    code = main(["--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert code == 0, out
+    pool = (root / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    assert redact.REDACTED in pool
+    assert SUB not in out
+    assert [p.name for p in (root / ".judgekeeper").rglob("*")
+            if p.is_file() and SUB in p.read_text(encoding="utf-8", errors="replace")] == []
+
+
+# The page hides them too -----------------------------------------------------------------------
+
+def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
+    """The page runs in a process of its own: a key typed into a reason note is hidden there.
+    It runs in the temporary folder, whose .env (anyone's) is never read."""
+    import io
+    import json
+
+    from judgekeeper import page
+
+    monkeypatch.setenv("APP_ENV", "staging")
+    (here / ".git").mkdir()
+    (here / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
+    (here / "evals").mkdir()
+    (here / "evals" / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    (here / "evals" / "results.json").write_text("{}", encoding="utf-8")
+    (here / ".judgekeeper").mkdir()
+    (here / ".judgekeeper" / "start.json").write_text('{"given": "evals/results.json"}',
+                                                     encoding="utf-8")
+    elsewhere = here.parent / "temp"
+    elsewhere.mkdir()
+    (elsewhere / ".env").write_text("SHARED_TOKEN=the quarterly numbers\n", encoding="utf-8")
+    monkeypatch.chdir(elsewhere)
+    given = {"token": "t" * 40, "root": str(here), "port": 0, "flags": {}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(given) + "\n"))
+    monkeypatch.setattr(page, "_watch", lambda: None)
+    monkeypatch.setattr(page, "server_for", lambda ws, settings, token: None)
+    monkeypatch.setattr(page, "serve", lambda server: None)
+    assert page.main() == 0
+    assert redact.scrub(f"note {LOCAL} {STAGING}") == f"note {redact.REDACTED} {redact.REDACTED}"
+    assert redact.scrub("the quarterly numbers") == "the quarterly numbers"
+
+
 # A .env that is a link, or huge -----------------------------------------------------------------
 
 def _link(link: Path, target: Path) -> None:

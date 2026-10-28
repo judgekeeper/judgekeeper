@@ -246,6 +246,29 @@ def test_without_pyyaml_a_key_in_a_form_the_scan_cant_read_is_still_hidden(tmp_p
     assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
 
 
+# Forms of a value the line scan can't read on its key's line (with x as the key)
+BELOW = {
+    "a complex key with a block": "? env\n: COHERE_API_KEY: x\n",
+    "a folded block": "env:\n  COHERE_API_KEY: >-\n    x\n  OTHER: y\n",
+    "a literal block": "env:\n  COHERE_API_KEY: |\n    x\n",
+    "a value on the next line": "env:\n  COHERE_API_KEY:\n    x\nprompts: [hi]\n",
+    "an escape in double quotes": 'env:\n  COHERE_API_KEY: "\\u00%sx"\n',
+}
+
+
+@pytest.mark.parametrize("text", BELOW.values(), ids=BELOW.keys())
+def test_without_pyyaml_a_key_below_its_name_or_escaped_is_hidden(tmp_path, monkeypatch, text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    if "\\u00" in text:  # the key's first character written as an escape
+        text = text.replace("%s", f"{ord(COHERE[0]):02x}").replace("x", COHERE[1:])
+    else:
+        text = re.sub(r"\bx\b", COHERE, text)
+    config = _config(tmp_path, text)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+    assert "OTHER" not in keys.config_env(config) or keys.config_env(config)["OTHER"] == "y"
+
+
 @pytest.mark.parametrize("text", ["A_TOKEN:" + " " * 1000, "A_TOKEN" + " " * 1000 + "\n",
                                   "a" + " " * 1000, "? "])
 def test_the_scan_for_keys_in_an_unread_block_is_quick_on_1_mb(text):

@@ -29,7 +29,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from judgekeeper import background, marks, start, start_label, textio
+from judgekeeper import background, keys, marks, start, start_label, textio
 from judgekeeper.label import (
     DEFAULT_PORT,
     HOST,
@@ -357,6 +357,13 @@ def main() -> int:
         print("judgekeeper: the page's token is too short, so it did not start.",
               file=sys.stderr)
         return 2
+    try:  # a key typed into a note is hidden here too: the project's and the results' .env keys
+        results = start.results_path(root, Workspace(root).data())
+    except (OSError, ValueError):
+        results = root
+    # Named, never worked out from the folder the page runs in (the temporary folder)
+    for where in dict.fromkeys((root, results if results.is_dir() else results.parent)):
+        keys.hide_keys(where, [where / rel for rel in start._promptfoo_configs(where)])
     try:
         server = server_for(Workspace(root), settings, token)
     except (LabelError, OSError) as e:

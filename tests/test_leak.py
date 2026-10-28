@@ -142,9 +142,11 @@ def test_the_sentinels_are_credentials_to_redact(env):
 
 URL_METRIC = "helpfulness, see https://wiki:S3cretWikiPass@wiki.example.com/rubric"
 KEY_RULE = "Be polite. sk-ant-api03-FAKERULEaaaaaaaaaaaaaaaa"
+KEY_MODEL = "claude-opus-5 sk-ant-api03-FAKEMODELaaaaaaaaaaaaaaa"
 
 
-def _records(root: Path, metric: str, rule: str, n: int = 40) -> None:
+def _records(root: Path, metric: str, rule: str, n: int = 40,
+             model: str = "claude-opus-5") -> None:
     """judgekeeper.record()'s lines: the LLM-as-a-judge passes the first half."""
     from tests.start_projects import answer, question
 
@@ -156,16 +158,17 @@ def _records(root: Path, metric: str, rule: str, n: int = 40) -> None:
                 "schema_version": 2, "target_id": None, "name": metric, "annotator_kind": "LLM",
                 "label": "pass" if i < n // 2 else "fail", "score": None,
                 "explanation": f"reason {i}", "run": None, "input": question(i),
-                "output": answer(i), "evaluator": {"model": "claude-opus-5", "rule": rule},
+                "output": answer(i), "evaluator": {"model": model, "rule": rule},
                 "created_at": "2026-10-05T10:00:00Z"}) + "\n")
 
 
-def _marked_records(root: Path, capsys, metric: str, rule: str) -> str:
+def _marked_records(root: Path, capsys, metric: str, rule: str,
+                    model: str = "claude-opus-5") -> str:
     """Every answer marked (four the other way), then `judgekeeper` again: what it says."""
     from judgekeeper.start_label import StartSession, Workspace
     from tests.test_fix import closed
 
-    _records(root, metric, rule)
+    _records(root, metric, rule, model=model)
     assert main(["--no-browser"]) == 0
     ws = Workspace(root)
     closed(ws)
@@ -198,3 +201,29 @@ def test_a_key_in_the_rule_is_not_a_rule_change(tmp_path, monkeypatch, capsys):
     said = _marked_records(tmp_path, capsys, "helpfulness", KEY_RULE)
     assert "This result is about your LLM-as-a-judge as it was" not in said
     assert "Result:" in said and "FAKERULE" not in said
+
+
+@pytest.mark.parametrize("value", ["promptfoo", "one call", "gpt-4.1-mini"])
+def test_a_credential_equal_to_a_setup_name_hides_only_the_model(tmp_path, monkeypatch, value):
+    """A credential's value that happens to be the tool's name or the kind of judge never
+    changes them: only what comes from the results (the model here) is hidden."""
+    from judgekeeper import judge_setup, start
+    from tests.start_projects import promptfoo_project, split
+
+    monkeypatch.setenv("X_TOKEN", value)
+    promptfoo_project(tmp_path, split(20, 12), model="openai:gpt-4.1-mini")
+    setup = judge_setup.of(start.find_judge(tmp_path))
+    assert setup["tool"] == "promptfoo" and setup["kind"] == judge_setup.ONE_CALL
+    assert setup["rule_hash"].startswith("sha256:") and "REDACTED" not in setup["rule_hash"]
+    model = "openai:[REDACTED]" if value == "gpt-4.1-mini" else "openai:gpt-4.1-mini"
+    assert setup["models"] == [model]
+
+
+def test_a_key_in_the_model_is_not_a_judge_change(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    said = _marked_records(tmp_path, capsys, "helpfulness", "Be polite.", model=KEY_MODEL)
+    assert "This result is about your LLM-as-a-judge as it was" not in said
+    assert "Result:" in said and "FAKEMODEL" not in said
+    code = main(["check"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert code == 0 and "has not changed since you marked" in out and "FAKEMODEL" not in out, out

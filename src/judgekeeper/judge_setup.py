@@ -48,18 +48,30 @@ _PIN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*==\s*([^\s
 
 # Reading the setup ---------------------------------------------------------------------------
 
+# The fields taken from the results as written, where a key could be: it is hidden there. The
+# others (the tool's name, the kind of judge, hashes) are judgekeeper's own, compared and looked
+# up as they are; a credential's value that happens to be one of them never changes them.
+FROM_RESULTS = ("tool_version", "models", "agent", "endpoint")
+
+
+def keys_hidden(setup: dict) -> dict:
+    """`setup` with any key in a field from the results hidden (FROM_RESULTS)."""
+    return {k: scrub_value(v) if k in FROM_RESULTS else v for k, v in setup.items()}
+
+
 def of(found) -> dict:
-    """The setup of the judge `found` (a start.Found) found in the newest results."""
+    """The setup of the judge `found` (a start.Found) found in the newest results, with any
+    key in it hidden, as judge.json keeps it (keys_hidden)."""
     version, source = version_of(found)
     kind, models, vote, agent = _shape(found)
     fp = found.fingerprint or {}
     pm = found.pass_mark
-    return {"tool": found.tool, "tool_version": version, "version_from": source,
+    return keys_hidden({"tool": found.tool, "tool_version": version, "version_from": source,
             "kind": kind, "models": models, "vote": vote, "agent": agent,
             "rule_hash": rule_hash(scrub(found.rule)), "prompt_hash": fp.get("prompt_hash"),
             "temperature": fp.get("temperature"),
             "pass_mark": {"mark": pm["mark"], "op": pm["op"]} if pm else None,
-            "endpoint": fp.get("endpoint")}
+            "endpoint": fp.get("endpoint")})
 
 
 def version_of(found) -> tuple[str | None, str | None]:
@@ -288,15 +300,15 @@ def save(ws, setup: dict, metric: str | None = None) -> bool:
     it was written."""
     from judgekeeper.start_label import make_folder
 
+    setup = keys_hidden(setup)
     new_hash = hash_of(setup)
     old = _saved(ws)
     if old is not None and old["setup_hash"] == new_hash:
         return False
     make_folder(ws)
     data = {"setup": setup, "setup_hash": new_hash, "first_seen": utc_now(),
-            "judgekeeper_version": __version__, **({"metric": metric} if metric else {})}
-    write_replacing(ws.dir / FILE, json.dumps(scrub_value(data), indent=2,
-                                              ensure_ascii=False) + "\n")
+            "judgekeeper_version": __version__, **({"metric": scrub(metric)} if metric else {})}
+    write_replacing(ws.dir / FILE, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return True
 
 
@@ -412,6 +424,6 @@ def judge_change(old: dict, new: dict) -> str | None:
     return "; ".join(parts) or None
 
 
-__all__ = ["AGENT", "FILE", "ONE_CALL", "PANEL", "changes", "from_start", "hash_of",
-           "judge_change", "locked", "of", "read", "save", "tool_only", "tool_words",
-           "version_of"]
+__all__ = ["AGENT", "FILE", "FROM_RESULTS", "ONE_CALL", "PANEL", "changes", "from_start",
+           "hash_of", "judge_change", "keys_hidden", "locked", "of", "read", "save", "tool_only",
+           "tool_words", "version_of"]

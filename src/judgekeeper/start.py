@@ -1832,15 +1832,16 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     return f"{metric}{quoted} (the results file does not say which model)"
 
 
-def _hide_keys(root: Path, talk: Talk | None = None) -> None:
+def _hide_keys(root: Path, talk: Talk | None = None, results=()) -> None:
     """The keys in the project's .env files (and its promptfoo configs' `env:` blocks) hidden
     before anything is read or written, however the results were found (keys.hide_keys): the
     project's own folder, where .judgekeeper/ is, even for results named in a folder below it,
-    and the results' folder."""
+    the results' folder, and the folder of each results file found (`results`)."""
     from judgekeeper import project
 
     folder = root if root.is_dir() else root.parent
-    for where in dict.fromkeys((project.project_of(root), folder)):
+    found = (Path(r.path).parent for r in results)
+    for where in dict.fromkeys((project.project_of(root), folder, *found)):
         keys.hide_keys(where, [where / rel for rel in _promptfoo_configs(where)])
     if talk is not None:
         for note in keys.unsaid():  # a .env not read (a link, or too big) the finder didn't say
@@ -1880,7 +1881,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
         root, kind, results, signs = _locate(talk, Path(path), tool)
-    _hide_keys(root, talk)
+    _hide_keys(root, talk, results)
     if only:
         results = [r for r in results if r.rel in only] or results
     name = None
