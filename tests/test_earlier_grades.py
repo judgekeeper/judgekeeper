@@ -87,6 +87,27 @@ def test_a_new_rule_leaves_out_the_answers_with_an_earlier_grade(adopted, tmp_pa
         answers=".judgekeeper/fix/marked-answers.csv", command="judgekeeper fix"))
 
 
+def test_no_grade_on_an_answer_with_an_earlier_grade_is_left_out_too(adopted, tmp_path):
+    """Never counted as the new rule's mistake against another judge's grade: left out with
+    the others."""
+    _, capsys = adopted
+    _jk(capsys, "fix")
+    _rubric(tmp_path, [person(i) for i in range(N)], "V3 rule.", name="v3.json", only=LATER)
+    data = json.loads((tmp_path / "v3.json").read_text(encoding="utf-8"))
+    for row in data["results"]["results"][:5]:
+        row["gradingResult"]["componentResults"][0].update(
+            {"pass": False, "score": 0, "reason": "API error: 429 rate limited",
+             "metadata": {"graderError": True}})
+        row["success"] = row["gradingResult"]["pass"] = False
+    (tmp_path / "v3.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out = _jk(capsys, "fix", "v3.json")
+    said = flat(out)
+    assert code == 3 and "better" not in said and "mistake" not in said, out
+    assert fix.EARLIER.format(k=20, n=20, have="have", them="them") in said
+    assert said.endswith("Next: " + fix.NEXT_EARLIER.format(
+        answers=".judgekeeper/fix/marked-answers.csv", command="judgekeeper fix"))
+
+
 def test_check_leaves_earlier_grades_out_of_its_table(adopted, tmp_path):
     _, capsys = adopted
     _rubric(tmp_path, [person(i) for i in range(N)], "V3 rule.", name="all.json")

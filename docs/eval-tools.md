@@ -95,6 +95,7 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 - **A dict value** (`{"accuracy": "C", "tone": "I"}`) is one LLM-as-a-judge per key, like `rubric.tone`.
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
+- **Grades the grader skips.** A grader model that leaves out the `GRADE:` line ("Grade not found in model output") gives that answer no decision. In `judgekeeper fix <log>`, each one kept aside counts as the new rule's mistake, and it says how many; with more than half ungraded, grade the log again. `check` leaves them out and says how many.
 - **A new rule with a comma.** `inspect score -S instructions="…"` cuts a rule at its commas: Inspect reads `-S` values as YAML, then splits text at commas. Grade the log again with Inspect's `score()` in Python instead, which keeps the whole rule under your scorer's name:
 
   ```python

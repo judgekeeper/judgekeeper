@@ -85,6 +85,10 @@ NEW_RESULTS = "<new results file>"
 MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grade in your new "
            "results{why}. A rule is tested only on all of them: a rule that leaves the hard ones "
            "ungraded would look better than it is.")
+MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no decision from "
+                "your new rule (such as an error): more than half, too many to test it on.")
+COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+           "counted {them}.")
 REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then run "
                 f"`{{command}} {NEW_RESULTS}`.")
 REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
@@ -1258,11 +1262,13 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     matched, mixed = lookup(found, {i: m.person[i] for i in split.hidden}, ws)
     new = {i: a.verdict for i, a in matched.items()}
     ids = [i for i in split.hidden if i in new]
-    key = test_key(setup, setup_hash, new, ids)
-    missing = len(split.hidden) - len(ids)
+    lack = [i for i in split.hidden if i not in new]
+    blank = no_decision(found, lack, ws) if lack else []  # there, with no decision
+    gone = len(lack) - len(blank)
+    key = test_key(setup, setup_hash, {**new, **dict.fromkeys(blank)}, ids + blank)
     talk.say(f"New results: {_shown_path(path)}")
     talk.say()
-    if not ids:
+    if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
                   f"judgekeeper finds them by their exact text.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
@@ -1278,16 +1284,18 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         old = {**old, **{i: new[i] for i in earlier}}
         talk.para(TOOK.format(k=len(earlier)))
         talk.say()
-    elif earlier:  # never compared with another judge's grade
-        k = len(earlier)
+    left = [i for i in blank if i in m.earlier] + ([] if took else earlier)
+    if left:  # never compared with another judge's grade
+        k = len(left)
         talk.para(EARLIER.format(k=k, n=len(split.hidden), have=_have(k),
                                  them="it" if k == 1 else "them"))
         talk.say()
-        ids = [i for i in ids if i not in m.earlier]
-        if not ids:
+        ids = [i for i in ids if i not in left]
+        blank = [i for i in blank if i not in left]
+        if not ids and not blank:
             talk.next(NEXT_EARLIER.format(answers=_file(ws, ANSWERS), command=talk.command()))
             return EXIT_NEEDS_YOU
-    if all(new[i] == old.get(i) for i in ids):  # nothing changed: nothing to tell apart
+    if ids and all(new[i] == old.get(i) for i in ids):  # nothing changed: nothing to tell apart
         if not took:  # else said: the grades of the judge as it is now
             talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
                       UNCHANGED.format(n=len(ids)))
@@ -1295,18 +1303,27 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         return EXIT_NEEDS_YOU
     before = next((t for t in split.tests if t.get("kind") == "rule"
                    and (t.get("key") or t.get("setup_hash")) == key
-                   and t.get("hidden") == len(split.hidden) and t.get("n") == len(ids)), None)
+                   and t.get("hidden") == len(split.hidden)
+                   and t.get("n") == len(ids) + len(blank)), None)
     if before is not None:
         return tested_before(talk, ws, m, before, path)
-    if missing:  # never a verdict without them: the rule may fail exactly on those
-        errors = no_decision(found, [i for i in split.hidden if i not in new], ws)
-        talk.para(MISSING.format(k=missing, n=len(split.hidden), have=_have(missing),
-                                 why=_missing_why(missing - errors, errors)))
-        _rewrite_lacking(talk, ws, m, [i for i in split.hidden if i not in new])
+    if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those
+        k = len(lack) if gone else len(blank)
+        talk.para(MISSING.format(k=k, n=len(split.hidden), have=_have(k),
+                                 why=_missing_why(gone, len(lack) - gone)) if gone else
+                  MOSTLY_BLANK.format(k=k, n=len(ids) + k, have=_have(k)))
+        _rewrite_lacking(talk, ws, m, lack)
         talk.next(_regrade_same(talk, ws))
         return EXIT_NEEDS_YOU
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
+        talk.say()
+    if blank:  # no grade is never the person's mark: a mistake, wherever it falls
+        new = {**new, **dict.fromkeys(blank)}
+        ids += blank
+        k = len(blank)
+        talk.para(COUNTED.format(k=k, n=len(ids), them="it as its mistake" if k == 1 else
+                                 "them as its mistakes"))
         talk.say()
     fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
     broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
