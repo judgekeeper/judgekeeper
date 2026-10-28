@@ -803,14 +803,18 @@ def _from_the_copy(client, page: list, copy: Path, previews: list | None,
                    budget: TraceBytes | None = None, missing: list | None = None) -> list:
     """A page of traces found without their spans, in judgekeeper's copy of mlflow.db: each
     with its spans from the database or the local folder it names, in the page's order; one
-    kept elsewhere as found, its id added to `previews`. A trace MLflow can't load is left
-    out, as MLflow leaves it out, its id added to `missing` (its files are not where it
-    says). The trace files MLflow will read count toward `budget` first."""
-    wanted = [t.info.trace_id for t in page if not kept_elsewhere(t.info, copy)]
+    kept elsewhere, or whose spans in the database are over TRACE_LIMIT, as found, its id
+    added to `previews`. A trace MLflow can't load is left out, as MLflow leaves it out, its
+    id added to `missing` (its files are not where it says). The trace files and spans MLflow
+    will read count toward `budget` first."""
+    in_db = _spans_sizes(Path(str(client.tracking_uri).removeprefix("sqlite:///")),
+                         [t.info.trace_id for t in page])
+    wanted = [t.info.trace_id for t in page if not kept_elsewhere(t.info, copy)
+              and in_db.get(t.info.trace_id, 0) <= TRACE_LIMIT]
     if budget is not None:
         for t in page:
             if t.info.trace_id in wanted:
-                budget.take(_kept_size(t.info))
+                budget.take(_kept_size(t.info) + in_db.get(t.info.trace_id, 0))
     full = {}
     if wanted:
         batch = getattr(getattr(client, "_tracing_client", None), "batch_get_traces", None)
@@ -826,7 +830,7 @@ def _from_the_copy(client, page: list, copy: Path, previews: list | None,
 
     found = []
     for trace in page:
-        if kept_elsewhere(trace.info, copy):
+        if trace.info.trace_id not in wanted:
             if previews is not None:
                 previews.append(trace.info.trace_id)
             found.append(trace)
@@ -835,6 +839,33 @@ def _from_the_copy(client, page: list, copy: Path, previews: list | None,
         elif missing is not None:
             missing.append(trace.info.trace_id)
     return found
+
+
+SPANS_SIZES = ("select trace_id, sum({}(content)) from spans where trace_id in ({}) "
+               "group by trace_id")
+
+
+def _spans_sizes(db: Path, trace_ids: list[str]) -> dict[str, int]:
+    """The size of the spans the copy of mlflow.db at `db` holds itself for each of
+    `trace_ids` that has any: by octet_length, which SQLite counts without reading them (on a
+    SQLite before 3.43, by length); {} when SQLite can't read them."""
+    import sqlite3
+    from contextlib import closing
+
+    if not trace_ids:
+        return {}
+    marks = ", ".join("?" * len(trace_ids))
+    try:
+        with closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True)) as con:
+            for size in ("octet_length", "length"):
+                try:
+                    rows = con.execute(SPANS_SIZES.format(size, marks), trace_ids).fetchall()
+                except sqlite3.OperationalError:
+                    continue
+                return {trace_id: int(n or 0) for trace_id, n in rows}
+    except sqlite3.Error:  # left to MLflow, which says what is wrong
+        pass
+    return {}
 
 
 def _kept_size(info) -> int:

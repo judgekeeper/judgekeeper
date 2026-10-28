@@ -496,6 +496,42 @@ def test_trace_files_a_copy_names_count_toward_the_limit(made, tmp_path, monkeyp
         str(e.value).split())
 
 
+def test_spans_the_database_holds_count_toward_the_limit(made, tmp_path, monkeypatch):
+    """MLflow 3.17 keeps a trace's spans in mlflow.db: their size counts before MLflow reads
+    them (one span of 600 MB took 2.5 GB)."""
+    root = _project(made, tmp_path)
+    with closing(sqlite3.connect(root / "mlflow.db")) as con:
+        total = con.execute("select sum(length(content)) from spans").fetchone()[0]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", total - 1)
+    with pytest.raises(start.StartError) as e:
+        start.find_judge(root)
+    assert "the trace files of MLflow experiment 'qa' in mlflow.db are over" in " ".join(
+        str(e.value).split())
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", total)
+    assert len(start.find_judge(root).pool.answers) == N
+
+
+def test_a_trace_whose_spans_are_over_the_trace_limit_is_read_from_its_preview(made, tmp_path,
+                                                                               monkeypatch):
+    from mlflow.tracing.client import TracingClient
+
+    root = _project(made, tmp_path)
+    with closing(sqlite3.connect(root / "mlflow.db")) as con:
+        big, span, content = con.execute(
+            "select trace_id, span_id, content from spans limit 1").fetchone()
+    data = json.loads(content)
+    data.setdefault("attributes", {})["padding"] = json.dumps("x" * 5000)
+    edit(root / "mlflow.db", ("update spans set content = ? where trace_id = ? and span_id = ?",
+                              (json.dumps(data), big, span)))
+    monkeypatch.setattr(mlflow_store, "TRACE_LIMIT", 5000)
+    loaded = []
+    batch = TracingClient.batch_get_traces
+    monkeypatch.setattr(TracingClient, "batch_get_traces",
+                        lambda self, ids, *a, **k: loaded.extend(ids) or batch(self, ids, *a, **k))
+    assert len(start.find_judge(root).pool.answers) == N
+    assert loaded and big not in loaded
+
+
 def test_trace_files_missing_from_the_stores_own_folder_are_said(made, tmp_path, capsys):
     """Each trace names a folder next to mlflow.db that is not there: their files are missing,
     said as such, never as a store with no decisions."""
