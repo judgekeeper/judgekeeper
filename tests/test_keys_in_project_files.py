@@ -140,18 +140,50 @@ def test_keys_in_each_env_file_up_to_the_project_are_hidden(layout, tmp_path, mo
         assert [p.name for p, text in saved.items() if value in text] == []
 
 
+@pytest.mark.parametrize("name", [".env", ".env.local"])
+def test_keys_beside_results_found_in_a_folder_below_are_hidden(name, tmp_path, monkeypatch,
+                                                                capsys):
+    from tests.start_projects import promptfoo_project, split
+
+    monkeypatch.delenv("SUB_TOKEN", raising=False)
+    root = tmp_path / "p"
+    (root / ".git").mkdir(parents=True)
+    promptfoo_project(root, split(20, 12), name="evals/results.json", tag=f" {SUB}")
+    (root / "evals" / name).write_text(f"SUB_TOKEN={SUB}\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+    code = main(["--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert code == 0, out
+    pool = (root / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    assert redact.REDACTED in pool
+    assert SUB not in out
+    assert [p.name for p in (root / ".judgekeeper").rglob("*")
+            if p.is_file() and SUB in p.read_text(encoding="utf-8", errors="replace")] == []
+
+
 # The page hides them too -----------------------------------------------------------------------
 
 def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
-    """The page runs in a process of its own: a key typed into a reason note is hidden there."""
+    """The page runs in a process of its own: a key typed into a reason note is hidden there.
+    It runs in the temporary folder, whose .env (anyone's) is never read."""
     import io
     import json
 
     from judgekeeper import page
 
     monkeypatch.setenv("APP_ENV", "staging")
+    (here / ".git").mkdir()
     (here / ".env.local").write_text(f"LOCAL_SECRET={LOCAL}\n", encoding="utf-8")
-    (here / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    (here / "evals").mkdir()
+    (here / "evals" / ".env.staging").write_text(f"APPENV_TOKEN={STAGING}\n", encoding="utf-8")
+    (here / "evals" / "results.json").write_text("{}", encoding="utf-8")
+    (here / ".judgekeeper").mkdir()
+    (here / ".judgekeeper" / "start.json").write_text('{"given": "evals/results.json"}',
+                                                     encoding="utf-8")
+    elsewhere = here.parent / "temp"
+    elsewhere.mkdir()
+    (elsewhere / ".env").write_text("SHARED_TOKEN=the quarterly numbers\n", encoding="utf-8")
+    monkeypatch.chdir(elsewhere)
     given = {"token": "t" * 40, "root": str(here), "port": 0, "flags": {}}
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(given) + "\n"))
     monkeypatch.setattr(page, "_watch", lambda: None)
@@ -159,6 +191,7 @@ def test_the_page_hides_the_keys_in_the_projects_env_files(here, monkeypatch):
     monkeypatch.setattr(page, "serve", lambda server: None)
     assert page.main() == 0
     assert redact.scrub(f"note {LOCAL} {STAGING}") == f"note {redact.REDACTED} {redact.REDACTED}"
+    assert redact.scrub("the quarterly numbers") == "the quarterly numbers"
 
 
 # A .env that is a link, or huge -----------------------------------------------------------------
