@@ -1,11 +1,19 @@
-<p align="center"><img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/logo.png" alt="judgekeeper logo" width="96"></p>
-
-# judgekeeper
-
-[![PyPI version](https://img.shields.io/pypi/v/judgekeeper)](https://pypi.org/project/judgekeeper/) [![Tests](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml) [![MIT license](https://img.shields.io/github/license/judgekeeper/judgekeeper)](https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE)
-
-**Check your LLM-as-a-judge in 5 steps.**\
-Find. Mark. Measure. Fix. Re-check.
+<div align="center">
+  <img src="https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/logo.png" alt="judgekeeper logo" width="80">
+  <h1>judgekeeper</h1>
+  <p><strong>Check your LLM-as-a-judge in 5 steps.</strong><br>Find. Mark. Measure. Fix. Re-check.</p>
+  <p>
+    <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a>
+    <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests"></a>
+    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a>
+  </p>
+  <p>
+    <a href="https://www.judgekeeper.com">Website</a> ·
+    <a href="https://www.judgekeeper.com/start.html">Guide</a> ·
+    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md">Reference</a> ·
+    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md">Changelog</a>
+  </p>
+</div>
 
 An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong.
 

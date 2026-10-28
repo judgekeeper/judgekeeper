@@ -31,10 +31,11 @@ def _flat(text: str) -> str:
 
 def test_the_readme_is_short_and_in_order():
     text = _readme()
-    assert len(text.splitlines()) < 70
-    assert text.startswith('<p align="center"><img ')
+    assert text.startswith('<div align="center">\n  <img ')  # one centered header block
+    body = text.split("\n</div>\n", 1)[1]
+    assert len(body.splitlines()) < 61  # the text under the header stays short
     top = text[:text.index("\n## ")]
-    for needed in ("**Check your LLM-as-a-judge in 5 steps.**",
+    for needed in ("<strong>Check your LLM-as-a-judge in 5 steps.</strong>",
                    "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
         assert needed in top, needed
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
@@ -117,6 +118,6 @@ def test_checking_names_the_llm_as_a_judge_in_full():
 
 
 def test_the_readme_has_three_badges_version_tests_and_licence():
-    badges = re.findall(r"!\[([^\]]+)\]\(([^)]+)\)", README.read_text(encoding="utf-8"))
-    assert [alt for alt, src in badges if "shields.io" in src or "badge.svg" in src] == [
+    badges = re.findall(r'<img src="([^"]+)" alt="([^"]+)">', README.read_text(encoding="utf-8"))
+    assert [alt for src, alt in badges if "shields.io" in src or "badge.svg" in src] == [
         "PyPI version", "Tests", "MIT license"]
