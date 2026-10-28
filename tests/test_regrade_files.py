@@ -17,6 +17,7 @@ import re
 
 import pytest
 
+from judgekeeper import fix, targets
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.test_fix import closed
@@ -37,10 +38,11 @@ def _bad(i: int) -> bool:
     return i % 3 == 0
 
 
-def _row(i: int) -> dict:
-    """Answer i, graded by the LLM-as-a-judge: as the person sees it, but wrong on every fifth."""
+def _row(i: int, wrong: int = 5) -> dict:
+    """Answer i, graded by the LLM-as-a-judge: as the person sees it, but wrong on every fifth
+    (every `wrong`th)."""
     person = "fail" if _bad(i) else "pass"
-    judge = person if i % 5 else {"pass": "fail", "fail": "pass"}[person]
+    judge = person if i % wrong else {"pass": "fail", "fail": "pass"}[person]
     output = (f"Answer {i}: BAD made-up wrong answer." if _bad(i)
               else f"Answer {i}: 30 days with a receipt.")
     return {"input": f"Question {i}: what is the return policy?", "output": output,
@@ -54,10 +56,10 @@ def _write(path, rows, columns=COLUMNS) -> None:
         w.writerows(rows)
 
 
-def project(root, ids: bool = False) -> Workspace:
-    """The 60 answers (with the table's own ids 1..60 when `ids`), every one marked, then
+def project(root, ids: bool = False, n: int = N, wrong: int = 5) -> Workspace:
+    """The 60 answers (`n`; with the table's own ids 1..60 when `ids`), every one marked, then
     `judgekeeper fix`: half of the marks are kept aside."""
-    rows = [({"id": str(i + 1)} if ids else {}) | _row(i) for i in range(N)]
+    rows = [({"id": str(i + 1)} if ids else {}) | _row(i, wrong) for i in range(n)]
     _write(root / "results.csv", rows, (("id",) if ids else ()) + COLUMNS)
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         assert main(["--no-browser"]) == 0
@@ -185,32 +187,93 @@ def test_the_new_rule_breaking_answers_is_seen(here, capsys):
     assert "Result: can't tell yet. That leans toward worse." in out
 
 
-@pytest.mark.parametrize("how, why", [
-    ("error", "have no decision from your LLM-as-a-judge (such as an error)"),
-    ("dropped", "are not in the file")])
-def test_answers_kept_aside_with_no_grade_never_read_better(here, capsys, how, why):
+def kept_aside(ws: Workspace) -> list[str]:
+    """The answers kept aside, in their numbers' order."""
+    split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+    pool = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    return sorted((pool[i]["output"] for i in split["hidden"]), key=_number)
+
+
+def with_errors(ws: Workspace, answers) -> list[dict]:
+    """marked-answers.csv graded again by a perfect new rule that gives `answers` no grade."""
+    return [r | {"verdict": "error"} if r["output"] in answers else r for r in regraded(ws)]
+
+
+def counted(k: int, n: int) -> str:
+    one = k == 1
+    return (f"{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+            f"counted {'it as its mistake' if one else 'them as its mistakes'}.")
+
+
+def test_a_rule_that_skips_the_answers_it_would_break_is_not_better(here, capsys):
     ws = project(here)
     capsys.readouterr()
     k = len(broken_kept_aside(ws))
-    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, how)))
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, "error")))
+    assert code == 0, out
+    assert counted(k, 30) in out
+    assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
+    assert "Result: can't tell yet. That leans toward worse." in out  # as when graded wrong
+
+
+def test_a_clearly_better_rule_with_a_fifth_ungraded_still_wins(here, capsys):
+    """A grader that skips every fifth answer kept aside: they count as the new rule's
+    mistakes, and a rule that fixes every other answer wins all the same."""
+    ws = project(here, n=120, wrong=2)
+    capsys.readouterr()
+    aside = kept_aside(ws)
+    skipped = aside[::5]
+    code, out = run(capsys, "fix", write(here, "new.csv", with_errors(ws, skipped)))
+    assert code == 0, out
+    assert counted(len(skipped), len(aside)) in out
+    assert f"Your LLM-as-a-judge, tested on the {len(aside)} marks kept aside:" in out
+    assert fix.RESULT["better"] in out or fix.RESULT["safe"] in out
+    split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+    assert split["tests"][0]["n"] == len(aside)
+
+
+def test_one_error_kept_aside_counts_as_a_mistake(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    aside = kept_aside(ws)
+    (one,) = sorted(broken_kept_aside(ws), key=_number)[:1]
+    code, out = run(capsys, "fix", write(here, "new.csv", with_errors(ws, {one})))
+    assert code == 0, out
+    assert counted(1, 30) in out
+    fixed = sum(_number(a) % 5 == 0 for a in aside)  # the old rule's mistakes, all fixed
+    assert fix.RESULT[targets.fix_verdict(fixed, 1, 30).kind] in out
+
+
+@pytest.mark.parametrize("k, refused", [(16, True), (15, False)])
+def test_more_than_half_ungraded_gives_no_result(here, capsys, k, refused):
+    ws = project(here)
+    capsys.readouterr()
+    code, out = run(capsys, "fix", write(here, "new.csv", with_errors(ws, kept_aside(ws)[:k])))
+    split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+    if not refused:  # half: counted as mistakes
+        assert code == 0, out
+        assert counted(k, 30) in out
+        return
+    assert code == 3, out
+    assert (f"Result: can't tell. {k} of the 30 answers kept aside have no decision from your "
+            f"new rule (such as an error): more than half, too many to test it on.") in out
+    assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
+    assert "Next: grade every answer in .judgekeeper/fix/marked-answers.csv again" in out
+    assert split["tests"] == []  # no test used up
+
+
+def test_answers_kept_aside_not_in_the_file_give_no_result(here, capsys):
+    ws = project(here)
+    capsys.readouterr()
+    k = len(broken_kept_aside(ws))
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, "dropped")))
     assert code == 3, out
     assert (f"Result: can't tell. {k} of the 30 answers kept aside have no grade in your new "
-            f"results: {k} {why}.") in out
+            f"results: {k} are not in the file.") in out
     assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
     assert "Next: grade every answer in .judgekeeper/fix/marked-answers.csv again" in out
     split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
     assert split["tests"] == []  # no test used up
-
-
-def test_one_error_kept_aside_is_not_safe_to_try(here, capsys):
-    ws = project(here)
-    capsys.readouterr()
-    (one,) = sorted(broken_kept_aside(ws), key=_number)[:1]
-    rows = [r | {"verdict": "error"} if r["output"] == one else r for r in regraded(ws)]
-    code, out = run(capsys, "fix", write(here, "new.csv", rows))
-    assert code == 3, out
-    assert "1 of the 30 answers kept aside has no grade" in out
-    assert "1 has no decision" in out
 
 
 def test_a_grade_word_judgekeeper_does_not_know_is_refused(here, capsys):

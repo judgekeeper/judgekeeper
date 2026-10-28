@@ -1101,12 +1101,12 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     return out, mixed
 
 
-def no_decision(found, ids, ws: Workspace) -> int:
-    """How many of the marked answers `ids` are in the results with no decision from the
-    judge (an error, an empty grade), found as lookup finds an answer by its text."""
+def no_decision(found, ids, ws: Workspace) -> list[str]:
+    """Which of the marked answers `ids` are in the results with no decision from the judge
+    (an error, an empty grade), found as lookup finds an answer by its text."""
     index = _index(r for _, r in found.pool.left.values())
     rows = _rows(ws)
-    return sum(1 for i in ids if _candidates(index, rows.get(i) or {}))
+    return [i for i in ids if _candidates(index, rows.get(i) or {})]
 
 
 UNKNOWN = ("judgekeeper can't tell which of the grades in {file} mean Pass and which mean "
@@ -1562,7 +1562,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     matched, mixed = looked or lookup(found, state.marks, state.ws)
     n, total = len(matched), len(state.marks)
     gone = [i for i in state.marks if i not in matched]
-    e = no_decision(found, gone, state.ws) if gone else 0
+    e = len(no_decision(found, gone, state.ws)) if gone else 0
     kinds = [state.marks[i] for i in matched]
     few = min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH
     if not matched:
