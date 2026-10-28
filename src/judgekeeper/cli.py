@@ -286,15 +286,17 @@ def _parser() -> argparse.ArgumentParser:
     ck = sub.add_parser("check", parents=[common],
                         help="when your LLM-as-a-judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="a new results file, or your project folder (default: this folder, "
-                         "with its newest results)")
+                    help="a new results file or MLflow store (mlflow.db or an mlruns/ "
+                         "folder), or your project folder (default: this folder, with its "
+                         "newest results)")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
                         help=FIX_HELP)
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="the results of grading your marked answers again with a new rule, "
-                         "or your project folder (default: this folder)")
+                    help="the results of grading your marked answers again with a new rule "
+                         "(for MLflow, the store: mlflow.db or an mlruns/ folder, read at its "
+                         "newest run), or your project folder (default: this folder)")
     fx.add_argument("--new", action="store_true",
                     help="start a new set of marks kept aside, made of the next marks you make")
     p.commands["fix"] = fx
