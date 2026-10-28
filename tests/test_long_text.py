@@ -204,6 +204,9 @@ def test_an_open_question_or_rule_takes_focus_and_its_own_scroll_keys():
     assert got["ruleTab"] == "0" and 0 < got["ruleTop"] < got["ruleEnd"] == 600
     assert got["answerTop"] == 0  # the answer did not move
     assert got["sent"] == 1
+    # its focus ring sits outside the text, with no fade over it
+    assert (".question.long.open:focus-visible { -webkit-mask-image: none; mask-image: none;\n"
+            "    outline-offset: 6px; }") in _laptop()
 
 
 def test_home_and_end_move_the_answer_by_default():
