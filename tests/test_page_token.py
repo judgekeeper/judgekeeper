@@ -208,7 +208,7 @@ def test_a_second_run_with_other_browser_flags_keeps_the_open_page(here, capsys,
 
 def test_a_page_started_again_keeps_the_token_and_the_printed_stamp(here, capsys, monkeypatch):
     """The page must start again (it would show another command), and says so: it keeps the
-    token and the port, so the open tab still works. Its link was printed for another program
+    token and the port, so the open tab still works. Its link was printed with no terminal
     before, so its marks are still stamped "printed"."""
     from judgekeeper import page
 

@@ -64,7 +64,9 @@ def test_deepeval_steps_are_searched_by_their_first_step(tmp_path):
 def test_the_field_per_tool():
     field = start_fix_rule.field
     assert field("promptfoo") == "the `value:` of the llm-rubric assert"
-    assert field("deepeval") == "`evaluation_steps=[...]` in `GEval(...)`"
+    assert field("deepeval") == "`criteria=` or `evaluation_steps=[...]` in `GEval(...)`"
+    assert field("deepeval", "criteria") == "`criteria=` in `GEval(...)`"
+    assert field("deepeval", "evaluation_steps") == "`evaluation_steps=[...]` in `GEval(...)`"
     assert field("inspect") == "`instructions=` in `model_graded_qa(...)`"
     assert field("mlflow") == ("`instructions=` in `make_judge(...)`, or the text of "
                                "`Guidelines(...)`")

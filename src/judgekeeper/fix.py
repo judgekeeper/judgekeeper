@@ -632,8 +632,11 @@ def where_wrong(ws: Workspace, most: int = 3) -> tuple[list[str], int]:
     return lines[:most], len(mistakes(rows))
 
 
-VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can't tell yet",
-                 "same": "Can't tell yet", "leans worse": "Looks worse", "worse": "Worse"}
+# A result in a few words, fix's own (RESULT), as `check` names an earlier test
+RESULT_WORDS = {"better": "better", "safe": "safe to try",
+                "leans better": "can't tell yet, leans toward better",
+                "same": "can't tell yet", "leans worse": "can't tell yet, leans toward worse",
+                "worse": "looks worse"}
 
 
 def report_section(ws: Workspace) -> dict | None:
@@ -903,6 +906,27 @@ def went_line(fixed: int, broke: int) -> str:
             else "no answer went")
     back = str(broke) if broke else "none"
     return f"With the new rule, {went} from wrong to right, and {back} from right to wrong."
+
+
+def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
+    """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
+    the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
+    home = start_fix_rule.rule_home(ws.root, tool, data)
+    task = data.get("task_file") if tool == "inspect" else None
+    read = task and start_fix_rule.opened_rule_file(ws.root, task, rule, tool)
+    where = start_fix_rule.found_rule(ws.root, rule, tool)
+    said = "Your LLM-as-a-judge's rule is in"
+    if where and (not read or where[0] == read):
+        return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"
+    if read and read != task:
+        file_link = start_fix_rule.file_link
+        return (f"{said} {file_link(ws.root, read)}, which {file_link(ws.root, task)} reads "
+                f"into {start_fix_rule.field(tool, data.get('rule_field'))}")
+    if start_fix_rule.rule_config(ws.root, tool, data):
+        return f"{said} {home}"
+    if home == start_fix_rule.OWN_CODE:
+        return "Your LLM-as-a-judge's rule, where your code keeps it"
+    return f"{said} {home} in your eval's code"
 
 
 def _rule_quote(rule: str) -> str:
@@ -1216,16 +1240,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say()
     tool = data.get("tool")
     if rule:
-        where = start_fix_rule.found_rule(ws.root, rule, tool or "")
-        if where:
-            talk.say(f"Your LLM-as-a-judge's rule is in {link(ws.root / where[0], where[0])}, "
-                     f"line {where[1]}:")
-        elif start_fix_rule.rule_config(ws.root, tool or "", data):
-            talk.para("Your LLM-as-a-judge's rule is in "
-                      f"{start_fix_rule.rule_home(ws.root, tool or '', data)}:")
-        else:
-            talk.para("judgekeeper can't tell which file holds your LLM-as-a-judge's rule. Your "
-                      f"eval keeps it in {start_fix_rule.rule_home(ws.root, tool or '', data)}:")
+        talk.para(f"{_rule_place(ws, rule, tool or '', data)}:")
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
@@ -1279,8 +1294,10 @@ def _given(talk: Talk, state, m: Marks, path: Path):
     found, problem = read_given(state, path)
     if found is None:
         talk.para(problem)
-        talk.next(f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
-                  f"again with your new rule, from {_tool_name(m.data.get('tool'))}.")
+        tool = m.data.get("tool")
+        talk.next(_regrade_same(talk, state.ws) if tool == "inspect" else  # the log, scored again
+                  f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
+                  f"again with your new rule, from {_tool_name(tool)}.")
     return found
 
 
@@ -1345,26 +1362,27 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         if not ids and not blank:
             talk.next(NEXT_EARLIER.format(answers=_file(ws, ANSWERS), command=talk.command()))
             return EXIT_NEEDS_YOU
-    if ids and all(new[i] == old.get(i) for i in ids):  # nothing changed: nothing to tell apart
+    # nothing changed: nothing to tell apart. An answer with no grade is a change: counted
+    if not blank and ids and all(new[i] == old.get(i) for i in ids):
         if not took:  # else said: the grades of the judge as it is now
             talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
                       UNCHANGED.format(n=len(ids)))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
-    before = next((t for t in split.tests if t.get("kind") == "rule"
-                   and (t.get("key") or t.get("setup_hash")) == key
-                   and t.get("hidden") == len(split.hidden)
-                   and t.get("n") == len(ids) + len(blank)), None)
-    if before is not None:
-        return tested_before(talk, ws, m, before, path)
-    if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those
-        k = len(lack) if gone else len(blank)
+    if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those;
+        k = len(lack) if gone else len(blank)  # before a replay: this file can't test it
         talk.para(MISSING.format(k=k, n=len(split.hidden), have=_have(k),
                                  why=_missing_why(gone, len(lack) - gone)) if gone else
                   MOSTLY_BLANK.format(k=k, n=len(ids) + k, have=_have(k)))
         _rewrite_lacking(talk, ws, m, lack)
         talk.next(_regrade_same(talk, ws))
         return EXIT_NEEDS_YOU
+    before = next((t for t in split.tests if t.get("kind") == "rule"
+                   and (t.get("key") or t.get("setup_hash")) == key
+                   and t.get("hidden") == len(split.hidden)
+                   and t.get("n") == len(ids) + len(blank)), None)
+    if before is not None:
+        return tested_before(talk, ws, m, before, path, len(blank))
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
         talk.say()
@@ -1386,7 +1404,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     talk.para(RESULT[v.kind])
     k = next_test(split)
-    _keep(ws, split, found, setup, setup_hash, key, v)
+    _keep(ws, split, found, setup, setup_hash, key, v, Path(path).as_posix())
     wrong = sum(old[i] != m.person[i] for i in ids)
     if v.kind in ("leans better", "same") and wrong:  # never for a rule that leans worse
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
@@ -1435,9 +1453,11 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
                           f"`{talk.command()}` to write the marked answers to grade again.")
 
 
-def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path) -> int:
+def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
+                  blank: int = 0) -> int:
     """This LLM-as-a-judge was tested on these marks kept aside: its saved result, never a
-    new test, and the next step that result gave."""
+    new test, the file and day it came from, how many this file leaves ungraded (`blank`),
+    and the next step that result gave."""
     from judgekeeper.check import _day
 
     day = _day(test.get("time"))
@@ -1446,6 +1466,11 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path) -
               f"{went_line(int(test.get('fixed') or 0), int(test.get('broke') or 0))}")
     talk.say()
     talk.para(RESULT.get(test.get("verdict"), ""))
+    file = test.get("file") if isinstance(test.get("file"), str) else None
+    source = (f"the result above is from {file or 'an earlier file'}"
+              f"{f' on {day}' if day else ''}.")
+    talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}" if blank
+              else source[0].upper() + source[1:])
     talk.next(_after_step(talk, ws, m, str(test.get("verdict")), path))
     return EXIT_OK
 
@@ -1464,7 +1489,7 @@ def _tool_name(tool: str | None) -> str:
 
 
 def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key: str,
-          v) -> None:
+          v, file: str | None = None) -> None:
     """The tested rule in rules/<hash>.txt (scrubbed) when the results hold one, the test in
     split.json (with the setup the marks tested then, for _adopted) and a history line: the
     setup's and rule's hashes, the counts and the verdict, never answer text or ids."""
@@ -1481,7 +1506,8 @@ def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key:
         write_replacing(path, scrub(found.rule))
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "setup_hash": setup_hash,
             "key": key, "from": was, "n": v.n, "hidden": len(split.hidden), "fixed": v.fixed, "broke": v.broke,
-            "verdict": v.kind, "test": len(split.tests) + 1}
+            "verdict": v.kind, "test": len(split.tests) + 1,
+            **({"file": scrub(file)} if file else {})}  # split.json only: history has no paths
     split.tests.append(test)
     save_split(ws, split)
     marks.append(ws.history_jsonl, {"time": test["time"], "kind": "fix", "rule_hash": h,

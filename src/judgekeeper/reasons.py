@@ -569,6 +569,7 @@ TEMPLATES = {
 }
 PART_LINE = "Make rule part {n} more exact: your LLM-as-a-judge missed it {times}."
 RULE_PART = "RULE PART"  # the fence its words go in: data, as an answer's
+MARKED_PART = "MARKED PART"  # the words of an answer the person marked
 SUGGESTIONS = "suggestions.md"
 SHOWN = 300  # characters of an answer in suggestions.md
 
@@ -620,8 +621,8 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
     for r in rows:
         text = canonical(r.get("output") or "")
         for words in marked(text, merged(r.get("spans"), len(text))):  # as mistakes.md joins
-            once.append((f"The part you marked: “{one_line(' '.join(words.split()))}”", [r],
-                         []))
+            once.append(("The part you marked:", [r],  # answer text: fenced, as the answer
+                         [(MARKED_PART, one_line(" ".join(words.split())))]))
     return suggested, once
 
 

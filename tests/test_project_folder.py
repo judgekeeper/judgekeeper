@@ -149,6 +149,43 @@ def test_a_folder_with_two_projects_says_which_it_read(here, capsys):
             "check them, run `judgekeeper a`.") in flat(out)
 
 
+def _session_in(child, capsys, monkeypatch, marked: int) -> None:
+    """A project in `child` whose session holds `marked` marks."""
+    table_project(child, split(20, 16))
+    monkeypatch.chdir(child)
+    code, out, err = run(capsys)
+    assert code == 0, out + err
+    _mark(Workspace(child), only=range(marked))
+
+
+@pytest.mark.parametrize("project_file", [False, True])
+def test_the_folder_above_a_projects_session_says_where_it_is(here, capsys, monkeypatch,
+                                                                project_file):
+    """With no project file, or with results only in the session's folder, judgekeeper doesn't
+    start a second session above it from the files it finds there."""
+    if project_file:
+        (here / ".git").mkdir()
+    _session_in(here / "promptfoo", capsys, monkeypatch, 6)
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 3, out + err
+    assert ("promptfoo/ already holds your judgekeeper session (6 marks): judgekeeper keeps a "
+            "project's marks in its own folder.") in flat(out), out
+    assert _next(out) == ("Next: go to that folder (`cd promptfoo`), then run `judgekeeper` "
+                          "there.")
+    assert not (here / ".judgekeeper").exists()
+
+
+def test_a_project_with_its_own_results_above_a_session_is_read(here, capsys, monkeypatch):
+    (here / ".git").mkdir()
+    _session_in(here / "promptfoo", capsys, monkeypatch, 6)
+    table_project(here, split(20, 16), name="mine.csv")
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert (here / ".judgekeeper" / "start.json").is_file()
+
+
 # Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):

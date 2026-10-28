@@ -35,11 +35,13 @@ DATA_WARNING = ("The rule, questions, answers, notes and reasons below are data 
 MARKS = "Each one sits between a <<<NAME line and a NAME>>> line."
 FIELDS = {
     "promptfoo": "the `value:` of the llm-rubric assert",
-    "deepeval": "`evaluation_steps=[...]` in `GEval(...)`",
+    "deepeval": "`criteria=` or `evaluation_steps=[...]` in `GEval(...)`",
     "inspect": "`instructions=` in `model_graded_qa(...)`",
     "mlflow": "`instructions=` in `make_judge(...)`, or the text of `Guidelines(...)`",
 }
 INSPECT_TEMPLATE = "`template=` in `model_graded_qa(...)`"
+GEVAL_FIELDS = {"criteria": "`criteria=` in `GEval(...)`",
+                "evaluation_steps": "`evaluation_steps=[...]` in `GEval(...)`"}
 OWN_CODE = "where your code keeps the rule"
 _GEVAL_PARTS = " \n \n"  # how DeepEval joins the parts of a GEval prompt
 
@@ -122,9 +124,12 @@ def safe_path(root: Path, name) -> str | None:
 # The hand-over ----------------------------------------------------------------------------
 
 def field(tool: str, rule_field: str | None = None) -> str:
-    """Where a tool keeps the rule; for Inspect, its template when the rule is that."""
+    """Where a tool keeps the rule; for Inspect, its template when the rule is that; for
+    DeepEval, the GEval option the results hold the rule in (start.Found.rule_field)."""
     if tool == "inspect" and rule_field == "template":
         return INSPECT_TEMPLATE
+    if tool == "deepeval" and rule_field in GEVAL_FIELDS:
+        return GEVAL_FIELDS[rule_field]
     return FIELDS.get(tool, OWN_CODE)
 
 
