@@ -297,6 +297,9 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     shown = [int(x) for x in re.findall(r"<<<QUESTION\nQuestion (\d+)\?", mistakes)]
     assert len(shown) == mistakes.count("## [M") > 0
     assert all(new[i] != _truth(i) for i in shown)  # the new judge's mistakes, never the old's
+    assert ("These are the mistakes of your new LLM-as-a-judge, whose grades are in "
+            "results.csv: `judgekeeper check` found it worse than the one you marked "
+            "against.") in " ".join(mistakes.split())
 
 
 # A table judge: marks kept aside, as for every judge ---------------------------------------------
@@ -315,6 +318,8 @@ def test_fix_for_a_table_judge_keeps_marks_aside(here, capsys):
     kept = len(fix.read_split(Workspace(here)).hidden)
     assert f"{kept} of your marks are kept aside to test your new rule fairly." in flat(out)
     assert _next(out).endswith("then run `judgekeeper fix <new results file>`.")
+    mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert "found it worse" not in mistakes  # no check: the mistakes of the LLM-as-a-judge marked
 
 
 # Ctrl-C during Measure ---------------------------------------------------------------------------
