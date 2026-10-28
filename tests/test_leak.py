@@ -219,6 +219,32 @@ def test_a_credential_equal_to_a_setup_name_hides_only_the_model(tmp_path, monke
     assert setup["models"] == [model]
 
 
+SETUP_KEY = "sk-ant-api03-FAKESETUPaaaaaaaaaaaaaaaa"
+# Every field of the judge setup read from the results, each with a key in it
+KEYED_SETUP = {"tool_version": f"1.0 {SETUP_KEY}", "models": [f"m {SETUP_KEY}"],
+               "vote": f"mode {SETUP_KEY}", "agent": {"runtime": SETUP_KEY, "can_write": False},
+               "temperature": SETUP_KEY, "pass_mark": {"mark": SETUP_KEY, "op": ">="},
+               "endpoint": f"https://x.test/{SETUP_KEY}"}
+
+
+def test_no_field_of_the_judge_setup_is_saved_with_a_key(tmp_path):
+    from judgekeeper import check, judge_setup
+    from judgekeeper.start_label import Workspace
+
+    assert set(KEYED_SETUP) == set(judge_setup.FIELDS) - set(judge_setup.OWN)
+    setup = {"tool": "inspect", "version_from": "results", "kind": judge_setup.PANEL,
+             "rule_hash": "sha256:0", "prompt_hash": None, **KEYED_SETUP}
+    ws = Workspace(tmp_path)
+    assert judge_setup.save(ws, setup, "model_graded_qa")
+    saved = (ws.dir / judge_setup.FILE).read_text(encoding="utf-8")
+    line = json.dumps(check._history_line({"before": setup, "after": setup, "trigger": "x"}))
+    for text in (saved, line):
+        assert "FAKESETUP" not in text and text.count("[REDACTED]") >= len(KEYED_SETUP)
+    kept = judge_setup.read(ws)["setup"]
+    assert kept == judge_setup.keys_hidden(setup) == judge_setup.keys_hidden(kept)
+    assert not judge_setup.changes(kept, judge_setup.keys_hidden(setup))
+
+
 def test_a_key_in_the_model_is_not_a_judge_change(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     said = _marked_records(tmp_path, capsys, "helpfulness", "Be polite.", model=KEY_MODEL)

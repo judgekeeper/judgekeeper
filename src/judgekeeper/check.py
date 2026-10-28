@@ -120,8 +120,7 @@ CHOOSE = f"they need a choice first, such as which results to read: run `{progra
 NEXT_CHOOSE = f"Next: run `{program()}` to make that choice, then run `{{command}}` again."
 NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
-NEXT_WORSE_TABLE = ("go back to your old LLM-as-a-judge, or change its rule; then run your eval "
-                    "and `{command}`.")
+NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -1028,11 +1027,12 @@ def _rows(ws: Workspace) -> dict:
 
 def _same_answer(a, row: dict) -> bool:
     """Whether the answer (or record) `a` is the marked answer pool.jsonl keeps as `row`: the
-    same answer text, and the row's whole question asked when `a` holds one (_marked_question)."""
+    same answer text, and the row's whole question asked (_marked_question). An answer with no
+    question is only a marked answer with none: another question's answer may read the same."""
     text = _text(row.get("output"))
-    asked = _questions(a.input)
+    asked, marked = _questions(a.input), set(_marked_question(row.get("input")))
     return bool(text) and _text(a.output) == text and (
-        not asked or bool(asked & set(_marked_question(row.get("input")))))
+        bool(asked & marked) if marked else not asked)
 
 
 def _index(answers) -> dict[tuple[str, str | None], list]:
@@ -1053,7 +1053,7 @@ def _candidates(index: dict, row: dict) -> list:
     if not text:
         return []
     found = {}
-    for q in (*_marked_question(row.get("input")), None):
+    for q in _marked_question(row.get("input")) or (None,):
         for a in index.get((text, q), []):
             found.setdefault(id(a), a)
     return list(found.values())
@@ -1389,7 +1389,7 @@ def full(path: str, said: Said) -> int:
         said.say(LOCK_NEWER)  # the results were made before the update: nothing compared
         said.say()
         said.say(NEXT_EVAL.format(command=_command(state)))
-        return EXIT_OK
+        return EXIT_NEEDS_YOU  # never a pass for a CI gate: nothing was compared
     matched, mixed = lookup(found, state.marks, state.ws)
     tested = {i: a.verdict for i, a in matched.items()}
     n, total = len(tested), len(state.marks)
@@ -1444,7 +1444,7 @@ def full(path: str, said: Said) -> int:
     if picks_lines(picked):
         said.say()
     if worse:
-        said.say("Next: " + worse_step(old, new, _command(state)))
+        said.say("Next: " + worse_step(old, new, _command(state), state.ws))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
         said.say("Next: " + NEXT_ALL_QUESTIONS.format(command=_command(state)))
@@ -1478,7 +1478,7 @@ def full(path: str, said: Said) -> int:
         _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
-            worse=worse_step(old, new, _command(state)) if worse else None)
+            worse=worse_step(old, new, _command(state), state.ws) if worse else None)
     if not Path(path).is_file():
         _covered(state.ws)
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
@@ -1626,13 +1626,19 @@ def regrade_marked(state: State) -> str:
         log = quote_arg(fix.new_log(ws))
         return (f"score your marked log again with your LLM-as-a-judge as it is now: run "
                 f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then run `{check} {log}`.")
-    answers = fix._folder(ws) / fix.ANSWERS
-    if answers.is_file():
-        return (f"grade the answers in {fix._file(ws, fix.ANSWERS)} again with your "
-                f"LLM-as-a-judge as it is now, then run `{check} {fix.NEW_RESULTS}`.")
-    return (f"run `{program('fix')}` to write the answers you marked to "
-            f"{fix._file(ws, fix.ANSWERS)}, grade them again with your LLM-as-a-judge as it is "
-            f"now, then run `{check} {fix.NEW_RESULTS}`.")
+    return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now")
+
+
+def _regrade_answers(ws: Workspace, answers: str, judge: str) -> str:
+    """Grade marked-answers.csv (shown as `answers`) again with `judge`, then `check` the new
+    results; `fix` writes the file first when there is none."""
+    from judgekeeper import fix
+
+    check = f"`{program('check')} {fix.NEW_RESULTS}`"
+    if (fix._folder(ws) / fix.ANSWERS).is_file():
+        return f"grade the answers in {answers} again with {judge}, then run {check}."
+    return (f"run `{program('fix')}` to write the answers you marked to {answers}, grade them "
+            f"again with {judge}, then run {check}.")
 
 
 def _are(k: int) -> str:
@@ -1648,15 +1654,20 @@ def _new_rates(marked: dict[str, str], tested: dict[str, str], picked: dict[str,
     return {k: out[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval")}
 
 
-def worse_step(old: dict, new: dict, command: str) -> str:
+def worse_step(old: dict, new: dict, command: str, ws: Workspace) -> str:
     """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
-    report.html: go back to the old judge (or tool version), or change the judge."""
+    report.html: go back to the old judge (or tool version), or change the judge. A judge
+    whose results hold no rule then grades the same marked answers again: running the eval
+    again would make new answers, which can't be compared."""
     if judge_setup.tool_only(old, new):
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
                                  command=command)
     if new.get("rule_hash") is None:
-        return NEXT_WORSE_TABLE.format(command=command)
+        from judgekeeper import fix
+
+        answers = f"{fix.shown_folder(ws)}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
+        return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it"))
     return NEXT_WORSE.format(back="your old LLM-as-a-judge", command=command)
 
 

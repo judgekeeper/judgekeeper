@@ -196,7 +196,7 @@ def test_a_lockfile_update_is_not_rechecked_on_older_results(here, capsys):
     before = (ws.dir / "judge.json").read_bytes()
     _lock(here, "0.130.0", later=60)  # promptfoo updated; the eval not run again
     code, out = run(capsys)
-    assert code == 0
+    assert code == 3
     flat = _flat(out)
     assert "Your eval tool changed: promptfoo 0.121.0 -> 0.130.0." in flat
     assert ("Your eval tool was updated after your last eval run, so your newest results come "

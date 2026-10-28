@@ -153,7 +153,13 @@ def register_key_env(name: str) -> None:
 
 def register_secret(name: str, value: str) -> None:
     """Treat `value` as a credential from now on when `name` is a credential's name."""
-    if _is_credential_var(name) and len(value) >= MIN_SECRET_LENGTH:
+    if _is_credential_var(name):
+        register_value(value)
+
+
+def register_value(value: str) -> None:
+    """Treat `value` as a credential from now on: a value that may be one, whatever its name."""
+    if len(value) >= MIN_SECRET_LENGTH:
         _named_values.add(value)
 
 

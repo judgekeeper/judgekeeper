@@ -269,8 +269,31 @@ def test_without_pyyaml_a_key_below_its_name_or_escaped_is_hidden(tmp_path, monk
     assert "OTHER" not in keys.config_env(config) or keys.config_env(config)["OTHER"] == "y"
 
 
+# Forms js-yaml reads that the line scan can't (with x as the key): unread, and still hidden
+UNSURE = {
+    "an alias": "base: &v x\nenv:\n  COHERE_API_KEY: *v\n",
+    "a tag": "env:\n  COHERE_API_KEY: !!str x\n",
+    "an escaped line break in double quotes": 'env:\n  COHERE_API_KEY: "%s\\\n    %s"\n',
+    "a flow mapping with the value on the next line": "env: {COHERE_API_KEY:\n    x}\n",
+    "an escaped name": 'env:\n  "COHERE_\\u0041PI_KEY": x\n',
+}
+
+
+@pytest.mark.parametrize("text", UNSURE.values(), ids=UNSURE.keys())
+def test_without_pyyaml_a_key_in_a_form_only_js_yaml_reads_is_hidden(tmp_path, monkeypatch,
+                                                                     text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    if "%s" in text:  # the key split in two by an escaped line break
+        text = text % (COHERE[:20], COHERE[20:])
+    config = _config(tmp_path, re.sub(r"\bx\b", COHERE, text))
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+
+
 @pytest.mark.parametrize("text", ["A_TOKEN:" + " " * 1000, "A_TOKEN" + " " * 1000 + "\n",
-                                  "a" + " " * 1000, "? "])
+                                  "a" + " " * 1000, "? ", 'A_TOKEN: "x\n', "{A_TOKEN:\n",
+                                  "&a ", '"\\', '"\\a" ', " &" * 500 + "\n"])
 def test_the_scan_for_keys_in_an_unread_block_is_quick_on_1_mb(text):
     import time
 

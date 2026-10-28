@@ -307,12 +307,13 @@ class Split:
     # rule taken on ("adopted"), new marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a new set
     earlier: int = 0  # marks the earlier sets hold, all seen: this set's own are the others
+    # `fresh` and `earlier` come from history.jsonl (_set_history), never from split.json: an
+    # edit there can't skip the about-half check
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
                 "visible": self.seen, "hidden": self.hidden, "tests": self.tests,
-                "pass_mark": self.pass_mark, "fresh": self.fresh,
-                **({"earlier": self.earlier} if self.set > 1 else {})}
+                "pass_mark": self.pass_mark}
 
     def rules(self) -> list[str]:
         """The LLM-as-a-judge setups tested on this set (test_key), once each."""
@@ -343,20 +344,52 @@ def _ints(t: dict, *keys: str) -> bool:
     return all(type(t.get(k)) is int and t[k] >= 0 for k in keys)
 
 
+SET = "set"  # history.jsonl's kind for a set retired (its `fresh`) or begun (its `earlier`)
+
+
+def _note_set(ws: Workspace, split: Split, **what) -> None:
+    """A set retired (fresh=...) or begun (earlier=...), in history.jsonl: counts only, never
+    answer text or ids. The split's seed tells this split from one made after a delete."""
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": SET, "seed": split.seed,
+                                    "set": split.set, **what})
+
+
+def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
+    """(how many marks the earlier sets hold, the set's `fresh` once it is retired) for set
+    `number` of the split with `seed`, from history.jsonl: (0, None) when it says none."""
+    try:
+        text = ws.history_jsonl.read_text(encoding="utf-8")
+    except OSError:
+        return 0, None
+    earlier, fresh = 0, None
+    for raw in jsonl_lines(text):
+        try:
+            line = loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(line, dict) or line.get("kind") != SET or line.get("seed") != seed \
+                or line.get("set") != number:
+            continue
+        if type(line.get("earlier")) is int and line["earlier"] >= 0:
+            earlier = line["earlier"]
+        if isinstance(line.get("fresh"), dict) and type(line["fresh"].get("want")) is int:
+            fresh = line["fresh"]
+    return earlier, fresh
+
+
 def _split_problem(ws: Workspace, d) -> str | None:
     """What is wrong with split.json's data `d`, in a few words; None when it is as
     judgekeeper writes it: two lists of answers judgekeeper has, apart, about half kept aside
-    (of the set's own marks, before it is retired), and tests whose counts fit them."""
+    (of the set's own marks, before it is retired: both from history.jsonl), and tests whose
+    counts fit them."""
     if not isinstance(d, dict) or type(d.get("seed")) is not int or not isinstance(
-            d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1 \
-            or type(d.get("earlier", 0)) is not int or d.get("earlier", 0) < 0:
+            d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1:
         return "it is not as judgekeeper writes it"
     seen, hidden, tests = d.get("visible"), d.get("hidden"), d.get("tests") or []
     if not all(isinstance(x, list) and all(isinstance(i, str) for i in x)
                for x in (seen, hidden)) or not isinstance(tests, list):
         return "it is not as judgekeeper writes it"
-    if d.get("earlier", 0) > (0 if d.get("set", 1) == 1 else len(seen)):  # earlier sets' marks
-        return "it is not as judgekeeper writes it"  # are all seen; set 1 has none before it
+    earlier, fresh = _set_history(ws, d["seed"], d.get("set", 1))
     if set(seen) & set(hidden):
         return "it names some marks as both kept aside and shown"
     if len(set(seen)) != len(seen) or len(set(hidden)) != len(hidden):
@@ -368,8 +401,8 @@ def _split_problem(ws: Workspace, d) -> str | None:
     if known is not None and any(i not in known for i in (*seen, *hidden)):
         return "it names answers judgekeeper doesn't have"
     total = len(seen) + len(hidden)
-    own = total - d.get("earlier", 0)  # a later set's: the marks made since the one before
-    if not d.get("fresh") and own >= 2 * MIN_EACH and \
+    own = total - min(earlier, len(seen))  # a later set's: the marks made since the one before
+    if not fresh and own >= 2 * MIN_EACH and \
             15 * len(hidden) < own * HIDDEN_TENTHS:  # under 2/3 of the share kept aside
         return "it keeps far fewer than half of your marks aside"
     for t in tests:
@@ -397,11 +430,12 @@ def read_split(ws: Workspace) -> Split | None:
     why = _split_problem(ws, d)
     if why:
         raise SplitError(why)
+    earlier, fresh = _set_history(ws, d["seed"], d.get("set", 1))
     return Split(seed=d["seed"], seen=list(d["visible"]), hidden=list(d["hidden"]),
-                 set=d.get("set", 1), earlier=d.get("earlier", 0),
+                 set=d.get("set", 1), earlier=min(earlier, len(d["visible"])),
                  made_at=str(d.get("made_at") or ""), tests=d["tests"]
                  if isinstance(d.get("tests"), list) else [], pass_mark=d.get("pass_mark"),
-                 fresh=d.get("fresh") if isinstance(d.get("fresh"), dict) else None)
+                 fresh=fresh)
 
 
 def shown_split(ws: Workspace) -> tuple[bool, Split | None]:
@@ -428,22 +462,27 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     if split is None and new:  # none to retire: the marks may have been seen all the same
         split = Split(seed=secrets.randbelow(2 ** 31), seen=sorted(m.person), hidden=[],
                       made_at=utc_now(), fresh={"want": FRESH, "asked": True})
+        _note_set(ws, split, fresh=split.fresh)
     elif split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = make_split(m, seed)
         split = Split(seed=seed, seen=seen, hidden=hidden, made_at=utc_now())
     elif not split.fresh and len(split.rules()) >= MAX_RULES:
         retire(split)
+        _note_set(ws, split, fresh=split.fresh)
     elif not split.fresh and _adopted(ws, split):
         retire(split, adopted=True)
+        _note_set(ws, split, fresh=split.fresh)
     elif new and not split.fresh:
         retire(split, asked=True)
+        _note_set(ws, split, fresh=split.fresh)
     known = set(split.seen) | set(split.hidden)
     new_ids = [i for i in m.order if i not in known]
     if split.fresh:  # MAX_RULES rules tested: the next FRESH new marks are a new set
         if len(new_ids) >= split.fresh["want"]:
             split = Split(seed=split.seed, seen=sorted(known), hidden=new_ids,
                           set=split.set + 1, earlier=len(known), made_at=utc_now())
+            _note_set(ws, split, earlier=split.earlier)
         else:
             split.pending = new_ids
     elif new_ids and split.hidden:  # new marks are kept aside at the same share, within each
@@ -689,7 +728,8 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
-    grouped = reasons.groups(wrong) if reasons.has_any(wrong) else [(None, wrong)]
+    own = reasons.own_numbers(wrong)  # named by number, as the clues name them
+    grouped = reasons.groups(wrong, own) if reasons.has_any(wrong) else [(None, wrong)]
     n = 0
     for title, group in grouped:
         if title:
@@ -701,7 +741,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None) -
             answer = reasons.canonical(r["output"])
             parts += [fenced("QUESTION", r["input"]),
                       fenced("ANSWER", reasons.bold(answer, r.get("spans")))]
-            said = reasons.said_line(r)
+            said = reasons.said_line(r, own)
             if said:
                 parts.append(said)
             if r.get("why"):

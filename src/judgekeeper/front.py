@@ -973,8 +973,12 @@ def read_rows(found: start.Found, pass_if: str | None = None,
     labels when the file has them."""
     pm = found.pass_mark
     mark = f": {start.pass_at(pm)}" if pm else ""
-    if found.tool == "promptfoo":
-        return [("question", "each test's vars"), ("answer", "each test's output"),
+    if found.tool == "promptfoo":  # with no vars, the prompt it was asked (in `prompts:`)
+        prompt = {isinstance(a.input, str) for a in found.pool.answers}
+        asked = {frozenset({True}): "each test's prompt",
+                 frozenset({True, False}): "each test's vars, or its prompt"}.get(
+                     frozenset(prompt), "each test's vars")
+        return [("question", asked), ("answer", "each test's output"),
                 ("grade", "your LLM-as-a-judge's Pass or Fail" + mark)]
     if found.tool == "deepeval":
         return [("question", "each test case's input"),
@@ -1310,7 +1314,7 @@ def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str]
         return None
     was = check.open_worse(ws, found)
     head.append(batches.waiting_line(n, changed, worse=was is not None))
-    return (check.worse_step(was["before"], was["after"], _check_command(talk)) if was
+    return (check.worse_step(was["before"], was["after"], _check_command(talk), ws) if was
             else NEXT_CHECK.format(command=_check_command(talk)))
 
 
@@ -1543,7 +1547,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     fix.prepare_split(ws)  # before any mistake is shown or written: some marks are hidden
     session = StartSession(ws)
     was = checking.open_worse(ws, found) if check else None  # checking again says the same
-    worse = was and checking.worse_step(was["before"], was["after"], _check_command(talk))
+    worse = was and checking.worse_step(was["before"], was["after"],
+                                        _check_command(talk), ws)
     r = start_label.store_result(ws, session, _flags_of(talk, saved), worse=worse or None,
                                  redraw=True)
     made = marks.made(marks.read(ws.marks), ids=set(session.by_id))  # reasons added since
