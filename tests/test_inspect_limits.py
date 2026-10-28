@@ -219,6 +219,9 @@ SPECIAL = ("{path} is too big for judgekeeper to read: one text in it is over 8 
            "Inspect AI log only up to 8 MB.")
 LONG_TEXTS = ("{path} is too big for judgekeeper to read: its texts over 8 MB add up to more "
               "than 64 MB, the most judgekeeper reads of long texts in one Inspect AI log.")
+DENSE_TEXTS = ("{path} is too big for judgekeeper to read: its texts over 1 MB full of special "
+               "characters such as \\n or \\\" add up to more than 12 MB, the most judgekeeper "
+               "reads of such texts in one Inspect AI log.")
 
 
 def _texts_log(tmp_path, *texts) -> object:
@@ -254,6 +257,8 @@ def test_the_limits_for_one_long_text():
     assert inspect_logs.MAX_STRING == 32 * MB
     assert inspect_logs.LONG_TEXT == 8 * MB and inspect_logs.LONG_TEXTS_LIMIT == 64 * MB
     assert inspect_logs.ESCAPE_SPACING == 32
+    assert inspect_logs.DENSE_TEXT == 1 * MB and inspect_logs.DENSE_TEXTS_LIMIT == 12 * MB
+    assert inspect_logs.DENSE_TEXT >= inspect_logs.STEP  # such a text spans steps
 
 
 @pytest.mark.parametrize("field", ["metadata", "events", "attachments"])
@@ -308,6 +313,37 @@ def test_long_texts_over_64_mb_together_are_refused(tmp_path, monkeypatch):
     assert took < 5
 
 
+def _texts(mb: float, n: int, chars: str) -> list[str]:
+    """`n` different texts of `mb` MB, each made of `chars` at random."""
+    one = _random(int(mb * MB), chars)
+    return [one[i:] + one[:i] for i in range(n)]
+
+
+def test_texts_of_special_characters_over_12_mb_together_are_refused_fast(tmp_path,
+                                                                          monkeypatch):
+    """Escapes only: inspect_ai reads 8 MB of them in about 9 s, 2 MB in about 0.7 s. Seven of
+    2 MB (14 MB) in one sample are refused; six (12 MB) pass, and so does one of 8 MB."""
+    from judgekeeper.readers import inspect_logs
+
+    path = _texts_log(tmp_path, _texts(2, 7, "\n\t"))
+    said, took = _refused(path, monkeypatch)
+    assert said == DENSE_TEXTS.format(path=path), said
+    assert took < 3
+    inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(2, 6, "\n\t")))
+    path = _texts_log(tmp_path, _texts(2, 4, "\n\t"), _texts(2, 3, "\n\t"))  # across samples
+    assert _refused(path, monkeypatch)[0] == DENSE_TEXTS.format(path=path)
+
+
+def test_many_tool_outputs_with_a_newline_on_every_line_pass(tmp_path):
+    """60 outputs of 1 MB, a newline every 80 characters; 100 of 100 KB that are all escapes:
+    under 1 MB, they are never counted."""
+    from judgekeeper.readers import inspect_logs
+
+    outputs = [_lines(1, 80)[i:] for i in range(60)]
+    inspect_logs._check_unpacked(_texts_log(tmp_path, outputs[:30], outputs[30:]))
+    inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(0.1, 100, "\n\t")))
+
+
 def test_escapes_count_as_the_characters_they_stand_for(tmp_path, monkeypatch):
     """33 MB of plain text with escapes in it (\\n, \\t) is over the limit, as 33 MB of
     characters; 4 MB with \\u00e9 in it (about 14 MB in the file) is under it, and so is 8 MB
@@ -347,6 +383,7 @@ def test_long_texts_are_judged_alike_however_the_bytes_are_split(monkeypatch, st
     from judgekeeper.readers import inspect_logs
 
     monkeypatch.setattr(inspect_logs, "LONG_TEXT", 20)
+    monkeypatch.setattr(inspect_logs, "DENSE_TEXT", 20)  # none counted as dense here
     monkeypatch.setattr(inspect_logs, "ESCAPE_SPACING", 4)
 
     def fed(strings, long_left=math.inf):
@@ -364,6 +401,28 @@ def test_long_texts_are_judged_alike_however_the_bytes_are_split(monkeypatch, st
     assert fed(["y" * 25, "z" * 19, "\n" * 19]) == 25  # short ones are never counted
     with pytest.raises(inspect_logs.TooManyLong):
         fed(["y" * 25, "z" * 25], long_left=45)
+
+
+@pytest.mark.parametrize("step", [1, 2, 3, 7, 9])
+def test_dense_texts_are_counted_alike_however_the_bytes_are_split(monkeypatch, step):
+    """With small limits (a text counted: over 10 characters, more than one escape per 4):
+    each step under DENSE_TEXT, as STEP is not over it."""
+    from judgekeeper.readers import inspect_logs
+
+    monkeypatch.setattr(inspect_logs, "DENSE_TEXT", 10)
+    monkeypatch.setattr(inspect_logs, "ESCAPE_SPACING", 4)
+
+    def fed(strings, dense_left=math.inf):
+        depth = inspect_logs._Depth(dense_left=dense_left)
+        text = json.dumps({"a": "short", "b": strings}).encode()
+        for at in range(0, len(text), step):
+            depth.feed(text[at:at + step])
+        return depth.dense
+
+    assert fed(["x" * 12 + "\n" * 3, "\n" * 10]) == 0  # one per 5; and 10, not over it
+    assert fed(["x" * 8 + "\n" * 4, "\t" * 11]) == 23
+    with pytest.raises(inspect_logs.TooManyDense):
+        fed(["x" * 8 + "\n" * 4, "\t" * 11], dense_left=22)
 
 
 def test_a_long_agent_sample_with_attachments_still_reads(tmp_path):
