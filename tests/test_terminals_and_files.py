@@ -63,8 +63,8 @@ def test_a_spreadsheet_file_not_in_utf8_is_said_with_how_to_fix_it(tmp_path, cap
     path = tmp_path / "results.csv"
     _write(path, path.read_text(encoding="utf-8").replace("Answer", "Answ\u00e9r"), encoding)
     monkeypatch.chdir(tmp_path)
-    if encoding == "utf-16":  # it may be a format of its own: the person is needed (3)
-        assert main(["results.csv", "--no-browser"]) == 3
+    if encoding == "utf-16":  # read as a format of its own: its words, a file it can't read
+        assert main(["results.csv", "--no-browser"]) == 2
         out = " ".join(capsys.readouterr().out.split())
         assert "is not saved as UTF-8 text" in out
         assert 'In Excel, save it again as "CSV UTF-8 (Comma delimited)"' in out

@@ -251,11 +251,14 @@ class FrontTalk(start.Talk):
         for line in wrap(text, indent=indent):
             self.say(line)
 
-    def stop(self, code: int, next_step: str | None = None) -> Stop:
-        """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing."""
+    def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
+        """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing, or
+        `code` itself (`as_given`: a file it can't read is a usage error, 2)."""
         if next_step:
             self.say()
             self.para(f"Next: {next_step}")
+            if as_given:
+                return Stop(code)
             return Stop(EXIT_OK if next_step.startswith("nothing") else EXIT_NEEDS_YOU)
         return Stop(EXIT_NEEDS_YOU if code == EXIT_QUESTION else code)
 
