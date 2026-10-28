@@ -351,6 +351,8 @@ def _split_problem(ws: Workspace, d) -> str | None:
     if not all(isinstance(x, list) and all(isinstance(i, str) for i in x)
                for x in (seen, hidden)) or not isinstance(tests, list):
         return "it is not as judgekeeper writes it"
+    if d.get("earlier", 0) > (0 if d.get("set", 1) == 1 else len(seen)):  # earlier sets' marks
+        return "it is not as judgekeeper writes it"  # are all seen; set 1 has none before it
     if set(seen) & set(hidden):
         return "it names some marks as both kept aside and shown"
     if len(set(seen)) != len(seen) or len(set(hidden)) != len(hidden):
@@ -450,6 +452,7 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
         split.seen += new_ids
     split.seen = [i for i in split.seen if i in m.person]
     split.hidden = [i for i in split.hidden if i in m.person]
+    split.earlier = min(split.earlier, len(split.seen))  # an earlier set's mark may be undone
     save_split(ws, split)
     return split
 
