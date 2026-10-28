@@ -330,8 +330,8 @@ __TOP__
   // whole question are never open together, so the answer always keeps its room.
   function showRule(show, back) {
     if (!$("rule-btn") || !$("rule")) { return; }
+    tabStop($("rule"), show, back);  // first: hidden, the box has already lost focus
     $("rule").hidden = !show;
-    tabStop($("rule"), show, back);
     $("rule-btn").setAttribute("aria-expanded", String(show));
     setText("rule-btn", show ? "Hide the rule" : "Show the rule");
     $("rule").scrollTop = 0;

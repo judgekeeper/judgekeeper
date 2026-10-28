@@ -194,6 +194,28 @@ def test_shutting_a_focused_box_by_its_button_leaves_focus_on_the_button():
     assert got == [True, True]
 
 
+# A browser drops focus from a box as soon as it is hidden: so does this rule.
+LOSES_FOCUS = """
+  var rule = document.getElementById("rule"), shut = true;
+  Object.defineProperty(rule, "hidden", {get: function () { return shut; }, set: function (v) {
+    shut = !!v; if (shut && document.activeElement === rule) { document.activeElement = null; } }});
+"""
+
+
+def test_hiding_the_focused_rule_leaves_focus_on_the_button_that_hid_it():
+    got = _run("""
+      var q = ids["q-text"], rule = ids["rule"], at = [];
+      q.scrollHeight = 900; q.clientHeight = 100;
+      ids["rule-btn"].fire("click"); rule.focus();
+      ids["rule-btn"].fire("click");  // Hide the rule
+      at.push(document.activeElement === ids["rule-btn"], rule.getAttribute("tabindex"));
+      ids["rule-btn"].fire("click"); rule.focus();
+      ids["q-more"].fire("click");  // Show all shuts the rule
+      at.push(document.activeElement === ids["q-more"], rule.hidden);
+      console.log(JSON.stringify(at));""", data=_one("Q " * 100), before=LOSES_FOCUS)
+    assert got == [True, None, True, True]
+
+
 def test_a_flag_keeps_its_tags_and_stray_tags_still_go():
     from judgekeeper import redact
 
@@ -286,3 +308,4 @@ def test_a_chat_transcript_stays_plain_text_on_both_pages(tmp_path, monkeypatch)
     assert shown_question(ws, CHAT) == CHAT
     m = fix.Marks(ws)
     assert fix._question(m, {"id": chat[0]["id"], "output": ""}) == CHAT
+
