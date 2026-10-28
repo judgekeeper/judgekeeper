@@ -106,10 +106,11 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 
   log = read_eval_log("logs/<your log>.eval")
   rule = Path("rule.txt").read_text()  # your new rule
-  write_eval_log(score(log, model_graded_qa(instructions=rule), action="overwrite"), "logs/new.eval")
+  judge = model_graded_qa(instructions=rule, model="<the grader model you used>")
+  write_eval_log(score(log, judge, action="overwrite"), "logs/new.eval")
   ```
 
-  Then run `judgekeeper fix logs/new.eval`.
+  `model=` writes your grader model into the new log, so `check` can name your LLM-as-a-judge. Then run `judgekeeper fix logs/new.eval`.
 - **`--no-log-samples`** logs cannot be read.
 - **Very big parts.** Very large `.eval` logs are refused; the message says which limit ([reference](reference.md#what-it-reads)).
 - **Damaged zips.** A `.eval` log that is not one plain zip (data before its first part, or a second table of contents) is not read.
