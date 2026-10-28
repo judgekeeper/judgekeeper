@@ -755,12 +755,21 @@ __TOP__
     return false;
   }
 
+  // What a screen reader hears after a mark: the line is cleared, then said a moment later,
+  // so the same words twice in a row are heard twice.
+  var hearing;
+  function hear(text) {
+    setText("done", "");
+    clearTimeout(hearing);
+    hearing = setTimeout(function () { setText("done", text); }, 100);
+  }
+
   function mark(value) {
     if (ended || locked()) { return; }
     var it = items[pos];
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
-      setText("done", value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
+      hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
   function skip() {
@@ -768,7 +777,7 @@ __TOP__
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
-      setText("done", "Skipped."); next(); focusCard(); });
+      hear("Skipped."); next(); focusCard(); });
   }
 
   function undo() {
@@ -778,7 +787,7 @@ __TOP__
     walkingSkipped = false; open(back);
     var it = items[pos];
     send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; setText("done", "Undone."); render(); focusCard(); });
+      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); });
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.

@@ -136,11 +136,28 @@ def test_a_screen_reader_hears_each_mark():
     data = _data(3)
     got = _run("""
       var heard = [];
-      async function press(k) { NOW += 5000; key(k); await settle(); heard.push(ids["done"].textContent); }
+      async function press(k) {
+        NOW += 5000; key(k); await settle();
+        await new Promise(function (r) { setTimeout(r, 300); });
+        heard.push(ids["done"].textContent); }
       await press("ArrowRight"); await press("ArrowLeft"); await press("s"); await press("z");
       console.log(JSON.stringify(heard));""", data=data)
     assert got == ["Marked Pass.", "Marked Fail.", "Skipped.", "Undone."]
     assert '<p class="sr" id="done" role="status"></p>' in mark_page.label_page("b", "jk mark")
+
+
+def test_the_same_mark_twice_is_heard_twice():
+    """Some screen readers skip a line that is the same as the last: the line is cleared,
+    then said a moment later."""
+    got = _run("""
+      var done = document.getElementById("done"), log = [], text = "";
+      Object.defineProperty(done, "textContent", {get: function () { return text; },
+        set: function (v) { text = String(v); log.push(text); }});
+      function pause() { return new Promise(function (r) { setTimeout(r, 300); }); }
+      NOW += 5000; key("ArrowRight"); await settle(); await pause();
+      NOW += 5000; key("ArrowRight"); await settle(); await pause();
+      console.log(JSON.stringify(log));""", data=_data(3))
+    assert got == ["", "Marked Pass.", "", "Marked Pass."]
 
 
 def test_nothing_to_undo_is_said_calmly():
