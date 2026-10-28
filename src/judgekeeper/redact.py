@@ -119,11 +119,28 @@ def printable(text) -> str:
     return _CONTROL.sub("", str(text))
 
 
+# An emoji's own variation selector (U+FE0E text, U+FE0F emoji) stays on a page, right after
+# a character that is not ASCII and not hidden, or in a keycap (1, U+FE0F, U+20E3): "✈️" is
+# not "✈". After a letter or a sign it is a hidden mark like the others.
+_STYLE = "\ufe0e\ufe0f"
+
+
+def _style_kept(text: str, at: int) -> bool:
+    before = text[at - 1] if at else ""
+    if before and ord(before) > 0x7f:
+        return not _UNSEEN.match(before)
+    return before in "0123456789#*" and before != "" and text[at + 1:at + 2] == "\u20e3"
+
+
 def visible(text: str) -> str:
     """`text` for a page: control characters (ESC among them), zero-width and bidirectional
     controls dropped; a no-break space, an ideographic space and a Unicode line or paragraph
-    separator each a plain space; tabs, line breaks and the zero-width joiners stay."""
-    return _ODD_SPACES.sub(" ", _UNSEEN.sub("", text))
+    separator each a plain space; tabs, line breaks, the zero-width joiners and an emoji's own
+    variation selector (_style_kept) stay."""
+    def drop(m: re.Match) -> str:
+        return m[0] if m[0] in _STYLE and _style_kept(text, m.start()) else ""
+
+    return _ODD_SPACES.sub(" ", _UNSEEN.sub(drop, text))
 
 
 def visible_value(value):

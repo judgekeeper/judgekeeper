@@ -531,6 +531,24 @@ def test_the_reasons_script_updates_the_line_after_a_save():
     assert "data-said" in s
 
 
+def test_an_emoji_keeps_its_variation_selector_and_other_hidden_marks_still_go():
+    from judgekeeper import redact
+
+    for text in ("Fly \u2708\ufe0f today", "\u2764\ufe0e", "Press 1\ufe0f\u20e3", "\u2708\ufe0f\u200d"):
+        assert redact.visible(text) == text
+    assert redact.visible("\u2708\ufe0f\ufe0f") == "\u2708\ufe0f"  # one only
+    for hidden in ("\u200b", "\u202e", "\u2066", "\u200e", "\ufeff", "\U000e0041"):
+        assert redact.visible(f"\u2708\ufe0f{hidden}x") == "\u2708\ufe0fx"
+        assert redact.visible(f"\u2708{hidden}\ufe0fx") == "\u2708x"  # its own mark only
+    # not after a letter or a sign: a name can't hide one
+    assert redact.visible("openai:\ufe0fgpt\ufe0e") == "openai:gpt"
+    assert redact.printable("Fly \u2708\ufe0f \u200d") == "Fly \u2708 "  # the terminal: as now
+    page = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": [
+        {"id": "a", "judge": "pass", "final": "fail", "question": "\u2708\ufe0f?",
+         "answer": "Yes \u2708\ufe0f\u202e", "reason": "ok", "why": None}]})
+    assert "Yes \u2708\ufe0f<" in page and "\u202e" not in page
+
+
 # More details -------------------------------------------------------------------------------
 
 def test_weighted_estimates_say_why_they_differ_from_the_counts():
