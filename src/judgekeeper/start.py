@@ -881,6 +881,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         ArtifactServer,
         JudgeCallsFailed,
         StoreTooBig,
+        TraceBytes,
         TracesMissing,
         all_experiments,
         experiments_with_traces,
@@ -904,23 +905,24 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     else:
         from mlflow import MlflowClient
 
-        found, missing, too_big, code_only = [], [], [], False
+        found, missing, code_only = [], [], False
+        budget = TraceBytes(uri)  # one for every experiment read here
         try:
             with store_damage(uri):
                 experiments = all_experiments(MlflowClient(tracking_uri=uri))
+            budget.ahead(experiments)  # a folder store's trace files, added up first
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
         except StoreTooBig as e:
             raise usage_error(e) from None
         for exp in experiments:
             try:
-                runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
+                runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric, budget=budget)
             except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
                 missing.append(e)
                 continue
-            except StoreTooBig as e:  # said once the others are read: their judges named
-                too_big.append(e)
-                continue
+            except StoreTooBig as e:
+                raise usage_error(e) from None
             except Damaged:
                 raise
             except RecordsError:  # an experiment with no traces
@@ -929,13 +931,6 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 found.append((exp.name, runs))
             elif any(r.annotator_kind == CODE for _, recs in runs for r in recs):
                 code_only = True
-        if too_big and found:
-            judged = some([shown_name(name, quoted=True) for name, _ in found])
-            raise StartError(str(too_big[0]), "run `{command} --experiment NAME`, with NAME the "
-                             "experiment to read (LLM-as-a-judge assessments are in "
-                             f"{_braces(judged)}).")
-        if too_big:
-            raise usage_error(too_big[0])
         if not found and missing:
             raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)

@@ -88,6 +88,8 @@ STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copie
 SMALL_LIMIT = 2**20  # bytes
 LARGE_LIMIT = 100 * 2**20
 TRACE_FOLDERS = ("tags", "request_metadata", "assessments")
+# MLflow's own folders in a folder store; it takes any other folder for an experiment's
+NOT_EXPERIMENTS = (".trash", "models")
 JUNCTION = 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT: a Windows junction's reparse tag
 UNSAFE = {  # why MLflow is not let read a file, and the Next: step
     "link": ("is a link, which can lead to any file on this computer",
@@ -96,6 +98,9 @@ UNSAFE = {  # why MLflow is not let read a file, and the Next: step
                  "read without end"), "remove {file}"),
     "big": ("is over {limit}, more than MLflow keeps there",
             "check {file} and remove it if your evaluation didn't save it"),
+    "many": (("takes the store's run metric and dataset files over {limit} together, more "
+              "than MLflow keeps there"),
+             "check {file} and remove the files your evaluation didn't save"),
 }
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
@@ -105,7 +110,9 @@ TELEMETRY_OFF = {"MLFLOW_DISABLE_TELEMETRY": "true", "DO_NOT_TRACK": "1"}
 FOLDER_NOTE = ("Reading your mlruns/ folder with MLflow's folder-store setting switched on for "
                "this read only (MLFLOW_ALLOW_FILE_STORE).")
 _noted = False  # FOLDER_NOTE was said in this run
-_walked: set[Path] = set()  # folder stores check_folder_store found safe, this process
+# folder stores check_folder_store found safe, this process: the (traces, bytes) of each
+# experiment's trace files there (unsafe_file)
+_walked: dict[Path, dict[str, tuple[int, int]]] = {}
 
 _copies: dict[tuple, Path] = {}  # (store path, size, modified) -> its copy, this process
 _homes: dict[Path, Path] = {}  # a copy -> the folder that holds the person's mlflow.db
@@ -126,6 +133,7 @@ TRACE_LIMIT = 100 * 2**20
 # full size, not its space on disk); and the experiments it lists. Past either: StoreTooBig.
 TRACES_LIMIT = 10**9
 MAX_EXPERIMENTS = 1000
+LISTED = 10  # experiments named in a line, then how many more
 # The MLflow login and TLS settings, for a tracking server: a local store never needs them
 LOGIN = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD", "MLFLOW_TRACKING_TOKEN",
          "MLFLOW_TRACKING_CLIENT_CERT_PATH", "MLFLOW_TRACKING_SERVER_CERT_PATH",
@@ -266,9 +274,8 @@ def size_limit(parts: tuple[str, ...]) -> int | None:
     """The most MLflow keeps in the folder store's file at `parts` (its path in the store) when
     MLflow reads that file whole: SMALL_LIMIT or LARGE_LIMIT, by where MLflow keeps it
     (mlflow/store/tracking/file_store.py); None for any other file, such as an artifact."""
-    if parts[:1] == (".trash",):  # a deleted experiment: MLflow lists it too
-        parts = parts[1:]
-    if len(parts) < 2 or not parts[0].isdigit():
+    parts = _in_experiment(parts)
+    if parts is None or len(parts) < 2:
         return None
     place = parts[1:]  # in the experiment's folder
     if place == ("meta.yaml",) or len(place) > 1 and place[0] == "tags":
@@ -292,20 +299,61 @@ def _artifacts(parts: tuple[str, ...]) -> bool:
     """Whether the store's folder at `parts` holds a run's, a model's or a trace's artifacts:
     files of any kind that MLflow doesn't open to read traces (judgekeeper reads a trace's
     spans itself, _with_spans)."""
-    if parts[:1] == (".trash",):
-        parts = parts[1:]
+    parts = _in_experiment(parts)
     kept = ("traces", "models")  # the experiment's folders of these; any other holds a run's
-    return (parts[-1:] == ("artifacts",) and parts[0].isdigit()
+    return (parts is not None and parts[-1:] == ("artifacts",)
             and (len(parts) == 3 and parts[1] not in (*kept, "tags", "datasets")
                  or len(parts) == 4 and parts[1] in kept))
 
 
-def unsafe_file(folder: Path) -> tuple[Path, str] | None:
+def _trace_artifacts(parts: tuple[str, ...]) -> bool:
+    """Whether the store's folder at `parts` is a trace's artifacts folder in an experiment
+    MLflow reads (not a deleted one's)."""
+    return (len(parts) == 4 and parts[0] not in NOT_EXPERIMENTS
+            and parts[1:4:2] == ("traces", "artifacts"))
+
+
+def _count_trace(traces: dict, experiment: str, artifacts: Path) -> None:
+    """One more trace of `experiment`, when MLflow knows it (its trace_info.yaml is there), with
+    the size of its trace file when judgekeeper would read it (_plain_trace_file)."""
+    if not os.path.lexists(artifacts.parent / "trace_info.yaml"):
+        return
+    count, size = traces.get(experiment, (0, 0))
+    try:
+        found = os.lstat(artifacts / SPANS_FILE)
+        size += found.st_size if stat.S_ISREG(found.st_mode) and (
+            found.st_size <= TRACE_LIMIT) else 0
+    except OSError:
+        pass
+    traces[experiment] = (count + 1, size)
+
+
+def trace_sizes(folder: Path) -> dict[str, int]:
+    """By experiment id, the bytes of the trace files judgekeeper will read from the folder
+    store at `folder`, told by the walk (check_folder_store), none of them opened. An
+    experiment with more than MAX_TRACES traces is left out: only its newest are read."""
+    check_folder_store(folder)
+    return {experiment: size for experiment, (count, size)
+            in _walked[Path(folder).resolve()].items() if count <= MAX_TRACES}
+
+
+def _in_experiment(parts: tuple[str, ...]) -> tuple[str, ...] | None:
+    """`parts` (a path in the folder store) from its experiment's folder on (a deleted one's in
+    .trash too); None outside an experiment's folder."""
+    if parts[:1] == (".trash",):  # a deleted experiment: MLflow lists it too
+        parts = parts[1:]
+    return parts if parts and parts[0] not in NOT_EXPERIMENTS else None
+
+
+def unsafe_file(folder: Path, traces: dict | None = None) -> tuple[Path, str] | None:
     """The first file in the folder store at `folder` that MLflow must not open, and why (a
-    key of UNSAFE): a link (a junction on Windows too), a pipe or a device, or a file MLflow
-    reads whole over its size_limit. Looked at with lstat, never opened or followed; artifacts
-    are not looked into, and a folder that can't be listed is left to MLflow."""
+    key of UNSAFE): a link (a junction on Windows too), a pipe or a device, a file MLflow
+    reads whole over its size_limit, or the one that takes the run metric and dataset files
+    over LARGE_LIMIT together (judgekeeper never uses them). Looked at with lstat, never opened
+    or followed; artifacts are not looked into, and a folder that can't be listed is left to
+    MLflow. `traces` gets each experiment's (traces, bytes of the trace files it would read)."""
     stack: list[tuple[Path, tuple[str, ...]]] = [(Path(folder), ())]
+    together = 0  # bytes of the files whose size_limit is LARGE_LIMIT
     while stack:
         here, parts = stack.pop()
         try:
@@ -322,12 +370,19 @@ def unsafe_file(folder: Path) -> tuple[Path, str] | None:
             if stat.S_ISLNK(info.st_mode) or _junction(path, info):
                 return path, "link"
             if stat.S_ISDIR(info.st_mode):
+                if traces is not None and _trace_artifacts(place):
+                    _count_trace(traces, place[0], path)
                 if not _artifacts(place):
                     stack.append((path, place))
             elif not stat.S_ISREG(info.st_mode):
                 return path, "special"
-            elif info.st_size > (size_limit(place) or info.st_size):
-                return path, "big"
+            else:
+                limit = size_limit(place)
+                if limit is not None and info.st_size > limit:
+                    return path, "big"
+                together += info.st_size if limit == LARGE_LIMIT else 0
+                if together > LARGE_LIMIT:
+                    return path, "many"
     return None
 
 
@@ -337,16 +392,20 @@ def check_folder_store(folder: Path) -> None:
     key = Path(folder).resolve()
     if key in _walked:
         return
-    found = unsafe_file(folder)
+    traces: dict[str, tuple[int, int]] = {}
+    found = unsafe_file(folder, traces)
     if found is None:
-        _walked.add(key)
+        _walked[key] = traces
         return
     path, kind = found
     name = Path(folder).name
     rel = path.relative_to(folder)
+    if kind == "many":  # said by the folder that holds the file which went past the limit
+        rel = rel.parent
     shown = f"{name}/{rel.as_posix()}"
     why, step = UNSAFE[kind]
-    why = why.format(limit=f"{(size_limit(rel.parts) or 0) // 2**20} MB")
+    limit = LARGE_LIMIT if kind == "many" else size_limit(rel.parts) or 0
+    why = why.format(limit=f"{limit // 2**20} MB")
     braces = shown.replace("{", "{{").replace("}", "}}")
     raise Damaged(f"judgekeeper didn't let MLflow read {name}/: {shown} {why}.",
                   step.format(file=braces) + ", then run `{command}`.")
@@ -660,22 +719,47 @@ def _size(n: int) -> str:
 
 
 class TraceBytes:
-    """The trace files one read of the experiment `experiment` in the store at `uri` may still
-    take (TRACES_LIMIT)."""
+    """The trace files one read of the store at `uri` may still take (TRACES_LIMIT), shared by
+    every experiment it reads; `experiment` is the one read now (read_mlflow)."""
 
-    def __init__(self, uri, experiment: str):
-        self.uri, self.experiment, self.taken = uri, experiment, 0
+    def __init__(self, uri):
+        self.uri, self.taken, self.experiment, self.experiments = uri, 0, None, []
 
     def take(self, n: int) -> None:
+        if n and self.experiment not in self.experiments:
+            self.experiments.append(self.experiment)
         self.taken += n
         if self.taken > TRACES_LIMIT:
-            limit = _size(TRACES_LIMIT)
-            raise StoreTooBig(
-                f"the trace files of MLflow experiment {self.experiment!r} in "
-                f"{store_name(self.uri)} are over {limit} together: judgekeeper reads at most "
-                f"{limit} of trace files from one experiment.",
-                "keep fewer or smaller traces in that experiment (log your evaluation again "
-                "into a new experiment), then run `{command}`.")
+            raise _traces_over(self.uri, self.experiments)
+
+    def ahead(self, experiments: list) -> None:
+        """Before `experiments` (MLflow's) are read from a folder store: StoreTooBig at once
+        when their trace files, by their sizes (trace_sizes), take this read past the limit."""
+        folder = folder_of(self.uri)
+        if folder is None:
+            return
+        sizes = trace_sizes(folder)
+        named = [(e.name, sizes.get(str(e.experiment_id), 0)) for e in experiments]
+        if self.taken + sum(size for _, size in named) > TRACES_LIMIT:
+            raise _traces_over(self.uri, [*self.experiments, *(
+                name for name, size in named if size and name not in self.experiments)])
+
+
+def _traces_over(uri, names: list[str]) -> StoreTooBig:
+    """The read of the experiments `names` in the store at `uri` past TRACES_LIMIT: one is
+    to keep fewer traces, among several one is chosen with --experiment."""
+    limit, store = _size(TRACES_LIMIT), store_name(uri)
+    tail = f"are over {limit} together: judgekeeper reads at most {limit} of trace files in one go."
+    if len(names) <= 1:
+        return StoreTooBig(
+            f"the trace files of MLflow experiment {(names or [None])[0]!r} in {store} {tail}",
+            "keep fewer or smaller traces in that experiment (log your evaluation again into a "
+            "new experiment), then run `{command}`.")
+    shown = [repr(name) for name in names[:LISTED]]
+    listed = (f"{', '.join(shown)} and {len(names) - LISTED:,} more" if len(names) > LISTED
+              else f"{', '.join(shown[:-1])} and {shown[-1]}")
+    return StoreTooBig(f"the trace files of MLflow experiments {listed} in {store} {tail}",
+                       "run `{command} --experiment NAME`, with NAME one of these experiments.")
 
 
 def all_experiments(client) -> list:
@@ -699,12 +783,13 @@ def all_experiments(client) -> list:
 
 def _experiment_folders(folder: Path) -> int:
     """How many experiments the folder store at `folder` holds, up to one past MAX_EXPERIMENTS:
-    its folders named by a number that hold a meta.yaml, none of them opened."""
+    its folders that hold a meta.yaml (MLflow takes any for an experiment's, whatever its
+    name), none of them opened."""
     count = 0
     try:
         with os.scandir(folder) as found:
             for entry in found:
-                if (entry.name.isdigit() and entry.is_dir(follow_symlinks=False)
+                if (entry.name not in NOT_EXPERIMENTS and entry.is_dir(follow_symlinks=False)
                         and os.path.lexists(os.path.join(entry.path, "meta.yaml"))):
                     count += 1
                     if count > MAX_EXPERIMENTS:
@@ -1005,7 +1090,8 @@ def _model(source_id: str | None) -> dict:
 
 def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
                 id_from: str | None = None, temperature: float | None = None,
-                metric: str | None = None) -> list[tuple[str, RecordList]]:
+                metric: str | None = None,
+                budget: TraceBytes | None = None) -> list[tuple[str, RecordList]]:
     """ScoreRecords from the traces of one MLflow experiment.
 
     Returns [(MLflow run id, judge records of that run)] in run start order, then
@@ -1013,16 +1099,19 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     only those runs' judge assessments. `metric` (--metric) may name a judge whose
     assessments are all on spans: then those are read too. A folder store is read with
     MLFLOW_ALLOW_FILE_STORE set for this read only (folder_store_allowed), said in a note.
-    Its trace files take at most TRACES_LIMIT (TraceBytes), else StoreTooBig.
+    Its trace files take at most TRACES_LIMIT (TraceBytes), else StoreTooBig: `budget`, shared
+    by the reads of one store's experiments; else this read's own.
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
+    budget = budget or TraceBytes(uri)
+    budget.experiment = experiment
     if folder_of(uri) is not None:
         check_folder_store(folder_of(uri))
     with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri), logged_out(uri):
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
-                                 metric, folder_of(uri), TraceBytes(uri, experiment))
+                                 metric, folder_of(uri), budget)
         except Exception as e:  # never MLflow's words: they can hold the text
             unusable = folder_problem(e, uri)
             if unusable is not None:
@@ -1213,6 +1302,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                  budget: TraceBytes | None = None) -> list[tuple[str, RecordList]]:
     client = _client(tracking_uri)
     exp = _experiment(client, str(experiment))
+    if budget is not None:
+        budget.ahead([exp])
     runs = {r.info.run_id: r for r in client.search_runs([exp.experiment_id])}
     wanted = list(dict.fromkeys(run_ids or []))
     unknown = [r for r in wanted if r not in runs]
