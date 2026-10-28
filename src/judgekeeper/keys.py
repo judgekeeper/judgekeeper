@@ -376,16 +376,19 @@ def _scanned_env(text: str) -> dict[str, str | None]:
     merges = any(re.match(r"<<\s*:", line) for line in text.splitlines())
     if merges and _ANY_ENV.search(text):
         return {UNREAD: None}  # `<<: *base` may bring in an env: block
-    for line in text.splitlines():
-        if line[:1] in ("", " ", "\t", "#"):
-            continue
-        properties = _PROPERTIES.match(line)  # tags and anchors before the key
-        key = line[properties.end():] if properties else line
-        if key.startswith("*"):
-            return {UNREAD: None}  # an alias as a key may stand for `env`
-        if (_ENV_KEY.match(key) or _ESCAPED_KEY.match(key)) \
-                and (properties or not any(r.match(line) for r in _READABLE)):
-            return {UNREAD: None}  # `&k env:`, `!!str env:`: env, with its block unread
+    lines, at = text.splitlines(), 0
+    while at < len(lines):
+        line = lines[at]
+        if line[:1] not in ("", " ", "\t", "#"):
+            properties = _PROPERTIES.match(line)  # tags and anchors before the key
+            key = line[properties.end():] if properties else line
+            if key.startswith("*"):
+                return {UNREAD: None}  # an alias as a key may stand for `env`
+            if (_ENV_KEY.match(key) or _ESCAPED_KEY.match(key)) \
+                    and (properties or not any(r.match(line) for r in _READABLE)):
+                return {UNREAD: None}  # `&k env:`, `!!str env:`: env, with its block unread
+        opened = _OPEN_QUOTE.search(line)  # a quoted value's lines below are its text
+        at = _quoted_below(opened[2], lines, at + 1)[1] + 1 if opened else at + 1
     if _ANY_ENV.search(text) and not any(r.match(line) for line in text.splitlines()
                                          for r in _READABLE):
         return {UNREAD: None}  # `? &k env`, `--- {env: ...}`, an indented document
