@@ -192,13 +192,38 @@ SCENE_6 = [
     "  When you said Pass    25 of 25             25 of 25             No big drop",
     "  When you said Fail    25 of 25             16 of 25             Worse",
     "",
-    "On answers you pass, agreement drops by no more than 10 in every 100.",
+    "On answers you pass, no drop, though these marks can't rule out",
+    "one of up to 10 in every 100.",
     "On answers you fail, agreement drops by about 36 in every 100",
     "(somewhere between 22 and 52).",
     "",
     check.ONE_RUN,
     "",
 ]
+
+
+def _expect(old_wrong: int, new_wrong: int, n: int = 40) -> list[str]:
+    """What to expect when the old LLM-as-a-judge got `old_wrong` of each group's `n` marks
+    wrong and the new one `new_wrong`."""
+    marked = {f"p{i}": "pass" for i in range(n)} | {f"f{i}": "fail" for i in range(n)}
+    flip = {"pass": "fail", "fail": "pass"}
+
+    def judge(wrong: int) -> dict[str, str]:
+        return {i: flip[m] if int(i[1:]) < wrong else m for i, m in marked.items()}
+    return check.expect_lines(check.groups(marked, judge(old_wrong), judge(new_wrong)))
+
+
+def test_a_clear_rise_in_both_groups_is_said():
+    lines = _expect(20, 0)
+    assert lines[-1] == "Agreement rose in both groups."
+    assert not any("drop" in line and "none of the range" not in line for line in lines), lines
+
+
+def test_a_group_with_no_drop_says_no_drop():
+    lines = _expect(0, 0)
+    assert all(line.split(", ", 1)[1].startswith("no drop, though") for line in lines), lines
+    assert "Agreement rose in both groups." not in lines
+    assert _expect(0, 3)[0].startswith("On answers you pass, agreement drops")  # a real drop
 
 
 def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
@@ -239,7 +264,9 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     assert code == 0
     assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
-    assert "On answers you fail, agreement drops by no more than 10 in every 100." in out
+    assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
+            "in every 100.") in " ".join(out.split())
+    assert "drops by no more than" not in out  # no answer went from right to wrong
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your LLM-as-a-judge.")
