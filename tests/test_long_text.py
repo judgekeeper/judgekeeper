@@ -299,6 +299,18 @@ def test_the_heading_counts_the_rows_and_a_footnote_counts_those_kept_aside():
     assert "note kept" not in none and "more are kept aside" not in none
 
 
+def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
+    r = _result(*NOT_GATE_TNR)
+    for live in (False, True):
+        html = (report_page.page(r, back="/?token=t" if live else None,
+                                 fixing={"mistakes": [], "split_unknown": True}))
+        assert "kept aside to test" not in html and 'class="group' not in html
+        assert ('<p class="add-why">judgekeeper can\'t tell which answers are kept aside: run '
+                '<code>judgekeeper fix</code> to see why.</p>') in html.replace("&#x27;", "'")
+    plain = report_page.page(r, fixing={"mistakes": []})  # a split that was read: none kept
+    assert "can't tell which" not in plain.replace("&#x27;", "'")
+
+
 def test_a_group_with_none_shown_is_left_out_but_still_counted():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)

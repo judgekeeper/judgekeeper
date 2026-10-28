@@ -644,14 +644,15 @@ def report_section(ws: Workspace) -> dict | None:
     judge's reason, each text whole (the page folds each row), a many-field question's
     `fields` as the marking page shows them, and the person's reasons on it (`why`:
     reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
-    buttons. Never a hidden mark. None when there is none."""
+    buttons. Never a hidden mark. None when there is none. A split.json that can't be used
+    can't say which marks are kept aside: no mistake and `split_unknown`."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
         return None
     ok, split = shown_split(ws)
     if not ok:
-        return None
+        return {"mistakes": [], "split_unknown": True}
     ids = [i for i in split.seen if i in m.person] if split else list(m.person)
     wrong = mistakes([m.row(i) for i in ids])
     if not wrong:

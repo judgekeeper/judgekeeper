@@ -772,8 +772,13 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
             f'<tbody>{"".join(body)}</tbody></table></section>')
 
 
+# In place of the lists when split.json can't be used, around the fix command
+SPLIT_UNKNOWN = ("judgekeeper can't tell which answers are kept aside: run ", " to see why.")
+
+
 def _groups(c: dict, fixing: dict | None, live: bool = False,
-            mark: str | None = None, fix: str | None = None) -> str:
+            mark: str | None = None, fix: str | None = None,
+            fix_command: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups (a group with none
     to show is left out), then a footnote: how many more are among the marks kept aside. On
     the live page, a line first: add a reason. In report.html, which can't save one, two lines last: to say why, run `mark`, and
@@ -783,6 +788,9 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     mistakes = (fixing or {}).get("mistakes") or []
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
     out = []
+    if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
+        return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
+                f'{_e(fix_command or "judgekeeper fix")}</code>{_e(SPLIT_UNKNOWN[1])}</p></div>')
     if live and mistakes:
         out.append(f'<div class="band"><p class="add-why">{_code_line(reasons.ADD)}</p></div>')
     kept = 0
@@ -895,7 +903,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
         fix = None if next_step(r) == "mark" else commands(r)["fix"]  # never while too early
-        parts += [_groups(c, fixing, live, mark, fix), _details(r)]
+        parts += [_groups(c, fixing, live, mark, fix, commands(r)["fix"]), _details(r)]
     elif level is not None:  # too early to tell: the estimates and their ranges all the same
         parts.append(_details(r))
     if level == "not_gate" and not worse:
