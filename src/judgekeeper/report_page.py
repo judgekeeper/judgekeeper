@@ -48,6 +48,11 @@ SCRIPT = """
         b.hidden = !open && !cut;
       });
     }
+    // Shut, a row or group whose top is above the screen comes back into view: the reader is
+    // not left far below it.
+    function backInView(box) {
+      if (box && box.getBoundingClientRect().top < 0) { box.scrollIntoView({block: "start"}); }
+    }
     each(document.querySelectorAll(".open-row"), function (b) {
       b.addEventListener("click", function () {
         var row = b.closest("tr"), open = !row.hasAttribute("data-open");
@@ -55,6 +60,7 @@ SCRIPT = """
         b.setAttribute("aria-expanded", String(open));
         b.textContent = open ? "Show less" : "Show all";
         fit();
+        if (!open) { backInView(row); }
       });
     });
     fit();
@@ -68,6 +74,7 @@ SCRIPT = """
         each(table.querySelectorAll("tr.extra"), function (row) { row.hidden = !open; });
         b.textContent = open ? "Show less" : "Show " + b.getAttribute("data-n") + " more";
         fit();
+        if (!open) { backInView(b.closest("section") || table); }
       });
     });
     Array.prototype.forEach.call(document.querySelectorAll(".kappa .i"), function (b) {

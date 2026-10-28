@@ -309,3 +309,67 @@ def test_a_chat_transcript_stays_plain_text_on_both_pages(tmp_path, monkeypatch)
     m = fix.Marks(ws)
     assert fix._question(m, {"id": chat[0]["id"], "output": ""}) == CHAT
 
+
+# Shut, a long row or group comes back into view -------------------------------------------
+
+def _report_script(scenario: str) -> dict:
+    """The result page's script in node, against a small stand-in: one row with its Show all,
+    one group with its Show N more, and each one's top on the screen given by `top`."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    import pytest
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("needs node to run the page's script")
+    stub = r"""
+var scrolled = [];
+function El(name) { this.name = name; this.attrs = {}; this.hidden = false; this.listeners = {};
+  this.textContent = ""; this.className = ""; this.rows = []; this.top = 0; this.up = null;
+  var self = this; this.classList = { toggle: function () {}, contains: function () {
+    return false; } }; }
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.hasAttribute = function (k) { return k in this.attrs; };
+El.prototype.removeAttribute = function (k) { delete this.attrs[k]; };
+El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
+El.prototype.querySelectorAll = function () { return this.rows; };
+El.prototype.closest = function (sel) { return this.up[sel] || null; };
+El.prototype.getBoundingClientRect = function () { return {top: this.top}; };
+El.prototype.scrollIntoView = function (o) { scrolled.push([this.name, o && o.block]); };
+var row = new El("row"), open = new El("open-row"), section = new El("section");
+var table = new El("table"), more = new El("more");
+open.up = {tr: row}; more.up = {section: section};
+more.attrs["aria-controls"] = "t-easy"; more.attrs["data-n"] = "2";
+table.rows = [new El(), new El()];
+var document = {documentElement: new El("html"),
+  getElementById: function (id) { return id === "t-easy" ? table : null; },
+  querySelectorAll: function (s) { return s === ".open-row" ? [open] : s === ".more" ? [more] : []; },
+  addEventListener: function () {}};
+var window = {addEventListener: function () {}};
+"""
+    with tempfile.TemporaryDirectory() as folder:
+        script = Path(folder) / "page.js"
+        script.write_text(stub + report_page.SCRIPT + scenario, encoding="utf-8")
+        out = subprocess.run([node, str(script)], check=True, capture_output=True, text=True,
+                             encoding="utf-8", timeout=60)
+    return json.loads(out.stdout.strip().splitlines()[-1])
+
+
+def test_a_shut_row_or_group_above_the_screen_comes_back_into_view():
+    got = _report_script(r"""
+      var seen = [];
+      open.listeners.click(); row.top = -4000; open.listeners.click();  // opened, read, shut
+      seen.push(scrolled.splice(0));
+      open.listeners.click(); row.top = 120; open.listeners.click();  // still on the screen
+      seen.push(scrolled.splice(0));
+      more.listeners.click(); section.top = -900; more.listeners.click();
+      seen.push(scrolled.splice(0));
+      more.listeners.click(); section.top = 0; more.listeners.click();
+      seen.push(scrolled.splice(0));
+      console.log(JSON.stringify(seen));""")
+    assert got == [[["row", "start"]], [], [["section", "start"]], []]

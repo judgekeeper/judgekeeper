@@ -810,6 +810,8 @@ El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k
 El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
 El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
 El.prototype.querySelectorAll = function () { return this.rows; };
+El.prototype.closest = function () { return null; };
+El.prototype.getBoundingClientRect = function () { return {top: 0}; };
 var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
            "t-easy": new El("t-easy")};
 ids["fix-cmd"].textContent = "judgekeeper fix";
