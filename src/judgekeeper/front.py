@@ -44,7 +44,7 @@ from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
-from judgekeeper.redact import scrub
+from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
@@ -1491,7 +1491,8 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     moved the marks to a new judge): which judge the result is about, as it was then."""
     data = ws.data()
     same_rule = rule_hash(data.get("rule")) == rule_hash(scrub(found.rule))  # as start.json
-    if same_rule and not judge_setup.judge_change(data["fingerprint"], found.fingerprint):
+    now = scrub_fingerprint(found.fingerprint)  # as start.json keeps it
+    if same_rule and not judge_setup.judge_change(data["fingerprint"], now):
         return None
     head = marks.read(ws.marks).header or {}
     checked = data.get("checked_at")  # the judge a check moved the marks to (check._adopt)

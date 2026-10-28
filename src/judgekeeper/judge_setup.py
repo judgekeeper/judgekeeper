@@ -49,17 +49,18 @@ _PIN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*==\s*([^\s
 # Reading the setup ---------------------------------------------------------------------------
 
 def of(found) -> dict:
-    """The setup of the judge `found` (a start.Found) found in the newest results."""
+    """The setup of the judge `found` (a start.Found) found in the newest results, with any
+    key in it hidden, as judge.json and start.json keep it."""
     version, source = version_of(found)
     kind, models, vote, agent = _shape(found)
     fp = found.fingerprint or {}
     pm = found.pass_mark
-    return {"tool": found.tool, "tool_version": version, "version_from": source,
+    return scrub_value({"tool": found.tool, "tool_version": version, "version_from": source,
             "kind": kind, "models": models, "vote": vote, "agent": agent,
             "rule_hash": rule_hash(scrub(found.rule)), "prompt_hash": fp.get("prompt_hash"),
             "temperature": fp.get("temperature"),
             "pass_mark": {"mark": pm["mark"], "op": pm["op"]} if pm else None,
-            "endpoint": fp.get("endpoint")}
+            "endpoint": fp.get("endpoint")})
 
 
 def version_of(found) -> tuple[str | None, str | None]:
