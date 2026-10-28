@@ -39,6 +39,7 @@ judgekeeper never runs your eval tool or your project's code, and the only progr
 
 ## Other things
 
+- A `.judgekeeper/` folder that came with a cloned repository is read as if you made it: its marks, result and history count as yours. If you didn't make it, delete it before you run judgekeeper. `--new` moves its marks and result to `.judgekeeper/previous-<date>/`, but leaves `history.jsonl`, `verdicts/` and `records/` in place.
 - judgekeeper has no runtime dependencies. The two optional extras install Inspect AI and MLflow, nothing else.
 - The browser check on the website (`check.html`) reads your file inside the page. Its script sends nothing, and the page's Content-Security-Policy (`connect-src 'none'`) blocks every connection, so the file never leaves your computer. The only thing it loads is an example file from the same site, when you click one.
 - judgekeeper 1.0 is made for a person to run in their own terminal and mark in their own browser. Running it through a coding agent isn't supported in 1.0: a coding agent can help you write a better rule, but run judgekeeper yourself.
