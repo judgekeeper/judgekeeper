@@ -919,7 +919,8 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     home = start_fix_rule.rule_home(ws.root, tool, data)
     task = data.get("task_file") if tool == "inspect" else None
     read = task and start_fix_rule.opened_rule_file(ws.root, task, rule, tool)
-    where = start_fix_rule.found_rule(ws.root, rule, tool)
+    first = read or start_fix_rule.rule_config(ws.root, tool, data)
+    where = start_fix_rule.found_rule(ws.root, rule, tool, first=first)
     said = "Your LLM-as-a-judge's rule is in"
     if where and (not read or where[0] == read):
         return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"

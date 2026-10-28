@@ -137,6 +137,22 @@ def test_source_files_are_searched_before_others(tmp_path):
                                       "records")[0] == "b/evals.py"
 
 
+def test_the_known_config_is_searched_first(tmp_path):
+    _write(tmp_path / "evals.py", "RULE = 'Be helpful to every customer.'\n")
+    _write(tmp_path / "zz" / "config.yaml", "rule: Be helpful to every customer.\n")
+    assert start_fix_rule.found_rule(tmp_path, "Be helpful to every customer.", "records",
+                                     first="zz/config.yaml")[:2] == ("zz/config.yaml", 1)
+
+
+def test_notes_quoting_the_rule_come_after_code(tmp_path):
+    _write(tmp_path / "NOTES.md", "Be helpful to every customer.\n")
+    _write(tmp_path / "evals.py", "RULE = 'Be helpful to every customer.'\n")
+    rule = "Be helpful to every customer."
+    assert start_fix_rule.locate_rule(tmp_path, rule, "records")[0] == "evals.py"
+    (tmp_path / "evals.py").unlink()
+    assert start_fix_rule.locate_rule(tmp_path, rule, "records")[0] == "NOTES.md"
+
+
 RECORD_RULE = "Pass when the reply is polite and answers the customer's question."
 FIRST_BLOCK = f"""Looking in /home/me/bot ...
 

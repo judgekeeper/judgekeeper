@@ -20,8 +20,9 @@ CUT = 1500  # characters of each text in the prompt
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
 OPENED_BYTES = 1000 * 1000  # of a task file, or of a file it names, read for its rule
 OPENED_NAMES = 20  # file names in a task file tried for its rule
-SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json", ".toml",
-                    ".md"})  # searched first, with files named like a config
+SOURCE = frozenset({".yaml", ".yml", ".py", ".js", ".ts", ".mjs", ".cjs", ".json",
+                    ".toml"})  # searched first, with files named like a config
+NOTES = frozenset({".md"})  # next: notes may quote the rule, but it is not set there
 # Never searched: program output (a saved terminal, a log) and plain text files, not where a
 # rule is set
 OUTPUT = frozenset({".log", ".out", ".err", ".stdout", ".stderr", ".txt"})
@@ -188,14 +189,18 @@ def _source(path: Path) -> bool:
     return path.suffix.lower() in SOURCE or "config" in path.name.lower()
 
 
-def _search_order(root: Path) -> list[Path]:
-    """The project's files (start_fix._files), source-like files first, never a file that
-    is an eval tool's results or program output (OUTPUT): those hold the rule too, but it is
-    not set there."""
+def _tier(path: Path) -> int:
+    return 0 if _source(path) else 1 if path.suffix.lower() in NOTES else 2
+
+
+def _search_order(root: Path, first: str | None = None) -> list[Path]:
+    """The project's files (start_fix._files): `first` (the config judgekeeper knows holds
+    the rule), then source-like files, then notes, never a file that is an eval tool's
+    results or program output (OUTPUT): those hold the rule too, but it is not set there."""
     from judgekeeper.start_fix import _files
 
     files = [p for p in _files(root) if p.suffix.lower() not in OUTPUT]
-    ordered = [p for p in files if _source(p)] + [p for p in files if not _source(p)]
+    ordered = sorted(files, key=lambda p: (p.relative_to(root).as_posix() != first, _tier(p)))
     return [p for p in ordered if not _results_file(p)]
 
 
@@ -219,11 +224,13 @@ def _texts(files: list[Path]):
             yield path, text
 
 
-def locate_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
-    """(file, line number, line) where the rule is probably written, or None. It only reads
-    the project's text files: nothing is imported or run."""
+def locate_rule(root: Path, rule: str, tool: str,
+                first: str | None = None) -> tuple[str, int, str] | None:
+    """(file, line number, line) where the rule is probably written, or None; `first` is
+    searched first (_search_order). It only reads the project's text files: nothing is
+    imported or run."""
     root = Path(root)
-    texts = list(_texts(_search_order(root)))
+    texts = list(_texts(_search_order(root, first)))
     for needle in _needles(rule, tool):
         for path, text in texts:
             for n, line in enumerate(text.splitlines(), 1):
@@ -264,9 +271,10 @@ def opened_rule_file(root: Path, task_file: str, rule: str, tool: str) -> str:
     return task_file
 
 
-def found_rule(root: Path, rule: str, tool: str) -> tuple[str, int, str] | None:
+def found_rule(root: Path, rule: str, tool: str,
+               first: str | None = None) -> tuple[str, int, str] | None:
     """locate_rule, kept only when the file is safely inside the project (safe_path)."""
-    found = locate_rule(root, rule, tool)
+    found = locate_rule(root, rule, tool, first)
     path = found and safe_path(root, found[0])
     return (path, found[1], found[2]) if path else None
 

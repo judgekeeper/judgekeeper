@@ -522,6 +522,18 @@ def test_fix_never_says_the_rule_is_in_a_saved_screen(tmp_path, capsys, monkeypa
     assert "find.txt" not in out and "run.log" not in out and "copy.md" not in out
 
 
+def test_fix_names_the_config_over_notes_that_quote_the_rule(tmp_path, capsys, monkeypatch):
+    from tests.test_fix import RULE, project
+
+    monkeypatch.chdir(tmp_path)
+    project(tmp_path)
+    (tmp_path / "NOTES.md").write_text(f"# Notes\n\nThe judge's rule:\n\n{RULE}\n",
+                                       encoding="utf-8")
+    _, out = _jk(capsys, "fix")
+    assert "Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line" in out, out
+    assert "NOTES.md" not in out
+
+
 def test_fix_names_the_file_that_holds_the_rule_when_it_cant_find_the_line(tmp_path, capsys,
                                                                            monkeypatch):
     from tests.test_fix import RULE, project
