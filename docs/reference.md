@@ -145,7 +145,7 @@ real pass rate  = pi a + (1 - pi) b          (your LLM-as-a-judge's own is pi)
 This is the Begg-Greenes correction; kappa uses the same weighted table. For the ranges, each group's share Correct is drawn 20,000 times from Beta(c + 0.5, n - c + 0.5) with a fixed seed. A group with no marks makes a number that needs it unknown, never an error.
 
 - **Batches:** the groups become (batch, grade) strata, each marked answer weighs N_s / n_s, and the draws are per stratum.
-- **After `check`:** TPR and TNR use the new grades, with the shares passed or failed again drawn from Beta(k, m - k), or Beta(k + 0.5, m - k + 0.5) when none or all agree.
+- **After `check`:** TPR and TNR use the new grades, with the shares passed or failed again drawn from Beta(k, m - k), exactly 0 or 1 when none or all agree. When that leaves a number's range a single point, its draws use Beta(k + 0.5, m - k + 0.5) instead.
 
 **What it says.** One result line, from the ranges:
 
