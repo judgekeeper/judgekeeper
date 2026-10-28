@@ -1061,12 +1061,14 @@ def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, c
 
 
 def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages, no_browser):
-    ws, _, _, _ = _ready(here)
+    ws, passes, fails, hidden = _ready(here)
+    assert hidden  # some disagreements are kept aside: never counted in the line
     code, out = _run(capsys)
     assert code == 0, out
     lines = out.splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("  You failed "))
-    n = re.search(r"disagreed on (\d+) of", out)[1]  # the disagreements counted just above
+    n = len(passes) + len(fails)  # the disagreements the result page lists, each with a box
+    assert n > 1 and f"disagreed on {n} of" not in out
     tell = f"Tell judgekeeper why you disagree on these {n}: run `judgekeeper mark`."
     uses = "`judgekeeper fix` uses your reasons to find where your LLM-as-a-judge goes wrong."
     end = lines.index("", at)  # the count may wrap: a blank line ends it

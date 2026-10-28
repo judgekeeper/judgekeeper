@@ -134,7 +134,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 ### The maths (you can skip this)
 
-**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are Correct, so a = c_p / n_p. In its fail group, b = c_f / n_f. Skipped answers don't count.
+**The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are the answers you marked Pass, so a = c_p / n_p. In its fail group, c_f of the n_f you marked are the answers you marked Pass, so b = c_f / n_f. Skipped answers don't count.
 
 ```
 TPR             = pi a / (pi a + (1 - pi) b)
@@ -274,7 +274,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 ## Your API keys
 
 - judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only program it starts is its own marking page. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
-- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN` or `_SECRET`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project. A `.env` file or config that is a link, or over 1 MB, is not read, nor are the `.env` files past the first 50 in a folder, and judgekeeper says their keys are not hidden.
+- judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project. A `.env` file or config that is a link, or over 1 MB, is not read, nor are the `.env` files past the first 50 in a folder, and judgekeeper says their keys are not hidden.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
 - There is no flag that takes a key, and there never will be.

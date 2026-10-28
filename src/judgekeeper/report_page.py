@@ -917,7 +917,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     if left:
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     if mistakes and not live and mark:
-        tell = say_why_run(c["strict"] + c["easy"], mark)
+        tell = say_why_run(len(mistakes), mark)  # the ones listed: never those kept aside
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 

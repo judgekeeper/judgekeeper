@@ -423,9 +423,9 @@ def _scanned_env(text: str) -> dict[str, str | None]:
 
 def hide_keys(root: Path, configs=()) -> None:
     """Register with `redact` the value of every credential (an API key name, or a name
-    ending in _API_KEY, _TOKEN or _SECRET) that the project's .env files and the promptfoo
-    configs `configs` set, so it is hidden from the moment the project is found. Nothing is
-    passed on, and no other value is kept."""
+    ending in _API_KEY, _TOKEN, _SECRET or _PASSWORD) that the project's .env files and the
+    promptfoo configs `configs` set, so it is hidden from the moment the project is found.
+    Nothing is passed on, and no other value is kept."""
     for path in [p for folder in _env_folders(Path(root)) for p in _env_files(folder)]:
         found = {n for n in names_in(path) if is_credential(n)}
         for name, value in env_values(path, found).items():

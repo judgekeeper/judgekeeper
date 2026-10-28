@@ -21,7 +21,7 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. ju
 
 ## Install
 
-In your project folder, with pip:
+In your project folder, in its virtual environment, with pip:
 ```
 pip install judgekeeper
 ```
@@ -29,7 +29,7 @@ Then run:
 ```
 judgekeeper
 ```
-Or with [uv](https://docs.astral.sh/uv/):
+Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment:
 ```
 uvx judgekeeper
 ```
