@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import dataclasses
 import io
 import json
 import os
@@ -423,6 +424,25 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
     assert test["n"] == len(split["hidden"])
+
+
+@pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])
+def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypatch, kind):
+    ws = score_project(here)
+    verdict = targets.fix_verdict
+    monkeypatch.setattr(targets, "fix_verdict",
+                        lambda *a, **k: dataclasses.replace(verdict(*a, **k), kind=kind))
+    _, out = run(capsys)
+    flat = " ".join(out.split())
+    m = re.search(r"judgekeeper also tried a pass mark of (0\.\d+) instead of 0\.5 on the marks "
+                  r"kept aside \(fixed (\d+), broke (\d+)\): not clearly better, so keep 0\.5\. "
+                  r"That used up one test on these marks\.", flat)
+    assert m, flat
+    assert "A better pass mark" not in flat
+    (test,) = [t for t in _split(ws)["tests"] if t["kind"] == "pass mark"]
+    assert (test["fixed"], test["broke"], test["verdict"]) == (int(m[2]), int(m[3]), kind)
+    _, out = run(capsys)  # said when the test is made, not again
+    assert "also tried a pass mark" not in " ".join(out.split())
 
 
 # The test of a new rule (Screen 5b) ------------------------------------------------------------

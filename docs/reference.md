@@ -68,7 +68,7 @@ judgekeeper fix [PATH] [--new]
 
 | What is there | What `judgekeeper fix` does |
 |---|---|
-| No results file given | Keeps half your marks aside, and writes where your LLM-as-a-judge goes wrong on the others in `fix/mistakes.md`. Writes every marked answer in `fix/marked-answers.csv`, says where your rule lives, and prints how to grade the answers again with your eval tool. With scores, it also tests the best pass mark on the saved scores. |
+| No results file given | Keeps half your marks aside, and writes where your LLM-as-a-judge goes wrong on the others in `fix/mistakes.md`. Writes every marked answer in `fix/marked-answers.csv`, says where your rule lives, and prints how to grade the answers again with your eval tool. With scores, it also tests the best pass mark on the saved scores, once, and says so: that counts as one test on the marks kept aside. |
 | A results file | Reads it as step 1 reads results, finds the answers kept aside in it, and tests the new grades against the old ones. Results already tested show their saved result. |
 
 | Flag | What it does |
