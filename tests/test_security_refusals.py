@@ -782,6 +782,14 @@ def test_a_key_after_a_letter_and_split_in_two_stays_hidden(key):
     assert redact.printable(out) == f"key{redact.REDACTED} d"
 
 
+@pytest.mark.parametrize("c", ["\u200b", "\u0600", "\U000110bd", "\U00013430", "\u00ad"])
+@pytest.mark.parametrize("key", SHAPED_KEYS)
+def test_a_key_after_a_letter_and_split_near_its_start_stays_hidden(key, c):
+    for at in (1, 2, 3, 5):
+        out = redact.scrub(f"token{c}{key[:at]}{c}{key[at:]} d")
+        assert key not in redact.visible(out) and key not in redact.printable(out), at
+
+
 @pytest.mark.parametrize("before", ["\\n", "\\t", "\\r", "\\u0022", "%20", "%3D", "%3d"])
 @pytest.mark.parametrize("key", SHAPED_KEYS)
 def test_a_key_after_an_escaped_character_is_hidden(key, before):

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import bisect
 import functools
+import itertools
 import os
 import re
 from array import array
@@ -68,8 +69,9 @@ _KEY_SHAPES = (
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
     _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", "A-Za-z0-9_-"),
 )
-# How each key above starts: its first letters, before a hidden character could split it
-_KEY_BEGINS = r"(?:sk|AKIA|ASIA|gh|github|AIza|xox|gsk|hf_|xai|eyJ)"
+# How each key above starts
+_KEY_BEGINS = r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|xai-|eyJ)"
+_KEY_START = re.compile(_KEY_BEGINS)
 # An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
 _ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
@@ -100,8 +102,9 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # too), so a key split by one is never joined back when it prints
 _SPLITTERS = _CONTROL
 _SPLIT_RUNS = re.compile(f"{_SPLITTERS.pattern}+")
-# Hidden characters between a letter and the start of a key (`key<ZWSP>sk-…`)
-_GLUED = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?={_KEY_BEGINS})")
+# Hidden characters right after a letter or digit, before the first letter of a key's start:
+# a key may start after them (`key<ZWSP>sk-…`, `key<ZWSP>AK<ZWSP>IA…`)
+_AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxe])")
 _MASKED = re.compile(f"{_MASK}+")
 # A page keeps the two joiners (U+200C, U+200D): joined emoji and scripts such as Persian
 # and Hindi need them to read right. A credential split by one is still found (_SPLITTERS).
@@ -211,17 +214,23 @@ def scrub(text: str | None) -> str | None:
     if not _SPLITTERS.search(text):
         return _redacted(text, as_is)
     # Read as it is; with each hidden character a space (a key right after one, even after a
-    # letter); with them dropped (a key split by one); and, when one is between a letter and a
-    # key's start, with that one a space and the others dropped (a key after one and split by
-    # another). What any reading hides stays hidden.
+    # letter); with them dropped (a key split by one); and with them dropped and a space where
+    # one came after a letter and a key starts once they are dropped (a key after one and
+    # split by others, even in its first letters). What any reading hides stays hidden.
     to_joined = _shift(_SPLIT_RUNS.finditer(text))
     joined = _SPLITTERS.sub("", text)
     found = [*as_is, *_spans(_SPLITTERS.sub(" ", text))]
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
-    glued = [to_joined(m.start()) + n for n, m in enumerate(_GLUED.finditer(text))]
-    if glued:  # each a space put into `joined` at that place
-        for a, b in _spans(_SPLITTERS.sub("", _GLUED.sub(" ", text))):
-            found.append((a - bisect.bisect_left(glued, a), b - bisect.bisect_left(glued, b)))
+    if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
+        found += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", joined))
+    starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
+              if _KEY_START.match(joined, at)]
+    if starts:  # a space put into `joined` at each
+        cuts = [0, *starts, len(joined)]
+        spaced = " ".join(joined[a:b] for a, b in itertools.pairwise(cuts))
+        moved = [at + n for n, at in enumerate(starts)]  # where each space is in `spaced`
+        for a, b in _spans(spaced):
+            found.append((a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b)))
     found = _merged(found)
     if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
         return _redacted(text, as_is)
