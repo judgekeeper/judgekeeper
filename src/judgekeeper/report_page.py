@@ -537,14 +537,16 @@ def counts(r: dict) -> dict:
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, made again from the flags of the run that made the result
     (r["flags"], start.run_flags; never the text of r["command"]), as the terminal prints
-    them: `mark` keeps every flag, `check` and `fix` the path only, `more`
-    (start_label.mark_command) the flags that read results. On Windows a value no quotes keep
-    as text shows as NAME (said by held_note)."""
+    them: `mark` keeps every flag but --port, `check` and `fix` the path only, `more`
+    (start_label.mark_command) the flags that read results. --port is the page's of that run:
+    report.html outlives it, and the page finds a free port by itself. On Windows a value no
+    quotes keep as text shows as NAME (said by held_note)."""
     from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
 
-    flags = r.get("flags")
-    path = {"path": saved_flags(flags).get("path", ".")}
+    flags = saved_flags(r.get("flags"))
+    flags.pop("port", None)
+    path = {"path": flags.get("path", ".")}
     run = command_from(flags, kept=True)
     return {"run": run, "mark": command_from(flags, "mark", kept=True),
             "check": command_from(path, "check", kept=True),
