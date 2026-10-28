@@ -678,20 +678,45 @@ class TraceBytes:
 
 def all_experiments(client) -> list:
     """Every experiment in the store `client` reads, page after page (one call returns at most
-    a page); StoreTooBig past MAX_EXPERIMENTS."""
+    a page); StoreTooBig past MAX_EXPERIMENTS. A folder store's experiments are counted first,
+    by their folders: MLflow reads every experiment's meta.yaml for each page."""
+    uri = getattr(client, "tracking_uri", None)
+    folder = folder_of(uri)
+    if folder is not None and _experiment_folders(folder) > MAX_EXPERIMENTS:
+        raise _too_many_experiments(uri)
     found, token = [], None
     while True:
         page = client.search_experiments(max_results=EXPERIMENT_PAGE, page_token=token)
         found.extend(page)
         if len(found) > MAX_EXPERIMENTS:
-            name = store_name(getattr(client, "tracking_uri", None))
-            raise StoreTooBig(
-                f"{name} has more than {MAX_EXPERIMENTS:,} experiments: judgekeeper reads at "
-                f"most {MAX_EXPERIMENTS:,} experiments from one store.",
-                "run `{command} --experiment NAME`, with NAME the experiment to read.")
+            raise _too_many_experiments(uri)
         token = getattr(page, "token", None)
         if not token:
             return found
+
+
+def _experiment_folders(folder: Path) -> int:
+    """How many experiments the folder store at `folder` holds, up to one past MAX_EXPERIMENTS:
+    its folders named by a number that hold a meta.yaml, none of them opened."""
+    count = 0
+    try:
+        with os.scandir(folder) as found:
+            for entry in found:
+                if (entry.name.isdigit() and entry.is_dir(follow_symlinks=False)
+                        and os.path.lexists(os.path.join(entry.path, "meta.yaml"))):
+                    count += 1
+                    if count > MAX_EXPERIMENTS:
+                        break
+    except OSError:  # left to MLflow
+        return 0
+    return count
+
+
+def _too_many_experiments(uri) -> StoreTooBig:
+    return StoreTooBig(
+        f"{store_name(uri)} has more than {MAX_EXPERIMENTS:,} experiments: judgekeeper reads at "
+        f"most {MAX_EXPERIMENTS:,} experiments from one store.",
+        "run `{command} --experiment NAME`, with NAME the experiment to read.")
 
 
 def experiments_with_traces(uri: str) -> list[str]:

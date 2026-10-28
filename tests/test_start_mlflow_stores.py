@@ -778,6 +778,29 @@ def test_a_store_with_more_experiments_than_the_limit_is_refused(folder_only, ca
     assert "Store:           mlruns, experiment qa-folder" in out, out  # one, named: read
 
 
+@pytest.mark.parametrize("count", [3, 4])
+def test_experiment_folders_over_the_limit_are_counted_before_mlflow_lists_them(tmp_path,
+                                                                                monkeypatch,
+                                                                                count):
+    """A page of a folder store's list reads every experiment's meta.yaml: 20,000 took over
+    15 minutes."""
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 3)
+    for i in range(count):
+        (tmp_path / "mlruns" / str(i)).mkdir(parents=True)
+        (tmp_path / "mlruns" / str(i) / "meta.yaml").write_text(f"name: e{i}\n", "utf-8")
+    (tmp_path / "mlruns" / "models").mkdir()  # MLflow's own folders are not experiments
+    (tmp_path / "mlruns" / "9").mkdir()
+    listed = []
+    client = SimpleNamespace(tracking_uri=str(tmp_path / "mlruns"),
+                             search_experiments=lambda **_: listed.append(1) or [])
+    if count == 3:
+        assert mlflow_store.all_experiments(client) == [] and listed
+        return
+    with pytest.raises(mlflow_store.StoreTooBig) as e:
+        mlflow_store.all_experiments(client)
+    assert "mlruns has more than 3 experiments" in str(e.value) and not listed
+
+
 def test_listing_two_stores_leaves_no_trash_folder(two, capsys):
     """MLflow makes mlruns/.trash when it opens a folder store without one: judgekeeper removes
     it again, as when it reads the store, so nothing is left outside .judgekeeper/."""
