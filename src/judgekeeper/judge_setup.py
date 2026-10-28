@@ -297,9 +297,8 @@ def read(ws) -> dict | None:
 
 def save(ws, setup: dict, metric: str | None = None) -> bool:
     """Write judge.json for `setup` unless it already holds a setup with the same hash, with
-    the judge's name in the results (`metric`, not part of the hash: a check in CI, where only
-    judge.json and history.jsonl are committed, finds the same judge by it). Returns whether
-    it was written."""
+    the judge's name in the results (`metric`, not part of the hash; no code reads it back, it
+    names the judge for a person reading the file). Returns whether it was written."""
     from judgekeeper.start_label import make_folder
 
     setup = keys_hidden(setup)
