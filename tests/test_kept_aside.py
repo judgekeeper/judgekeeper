@@ -99,3 +99,19 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     # "a worse rule often reads can't tell yet, and now and then safe to try"
     worse = s["worse_at_most"]
     assert worse["cant"][0] > 50 and 0 < worse["safe"][1] < 10
+
+
+def test_the_marks_a_new_set_needs_come_from_the_report():
+    """`fix` asks for about CLEAR new marks for a new set kept aside: the marks kept aside where
+    a rule that fixes a quarter of the mistakes first gets a clear answer, rounded to 10. The
+    reference links the report; the line on screen stays plain."""
+    result = _result()
+    quarter = result["summary"]["quarter"]
+    kept = [r["kept_aside"] for r in result["rows"]
+            if (r["rule"], r["marks"]) == (quarter["rule"], quarter["marks"])]
+    assert kept and all(round(k, -1) == fix.CLEAR for k in kept), kept
+    reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
+    report = "(examples/kept-aside/report.md)"
+    assert f"Mark [about {fix.CLEAR} more answers for a clear answer]{report}" in reference
+    assert f"[about {fix.CLEAR} for a clear answer]{report}" in reference
+    assert "](" not in fix.CLEAR_LINE and "kept-aside" not in fix.CLEAR_LINE
