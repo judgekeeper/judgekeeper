@@ -38,7 +38,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
 | `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
 | `--no-browser` | Print the page's link without opening a browser |
-| `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first; nothing is deleted) |
+| `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
 | `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.0.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.0.0" |
@@ -269,7 +269,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |
 | `verdicts/` | Each setup's grades on your marked answers (ids and grades only) |
 | `records/` | What `judgekeeper.record()` saved; `--new` leaves it |
-| `previous-<date>/` | Everything here before you started over |
+| `previous-<date>/` | Everything here before you started over, except `history.jsonl`, `verdicts/`, `records/` and `.gitignore`, which stay |
 
 ## Your API keys
 
