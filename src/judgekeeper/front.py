@@ -1570,8 +1570,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             from judgekeeper.report_page import counts
 
             c = counts(r)
-            talk.para(start_label.SAY_WHY_RUN.format(
-                n=c["strict"] + c["easy"], command=_command_of(talk, saved, "mark")))
+            talk.para(start_label.say_why_run(c["strict"] + c["easy"],
+                                              _command_of(talk, saved, "mark")))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates

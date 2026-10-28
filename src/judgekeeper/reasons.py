@@ -60,7 +60,13 @@ QUESTION = "Why did you mark it {mark}?"
 PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
                  "fail": "Which part did your LLM-as-a-judge get wrong?"}
 PARTS_LEFT_OUT = "\u201cOther\u2026\u201d covers the {n} other parts of your rule."
+PART_LEFT_OUT = "\u201cOther\u2026\u201d covers the other part of your rule."
 ADD = "Add a reason to any answer below. `fix` uses them."
+
+
+def parts_left_out_line(n: int) -> str:
+    """The line under the rule's buttons when `n` of its parts have none."""
+    return PART_LEFT_OUT if n == 1 else PARTS_LEFT_OUT.format(n=n)
 
 
 def offered(judge: str) -> list[str]:
@@ -87,15 +93,33 @@ def short(part: str) -> str:
     cut = part[:PART_CHARS - 1]
     if " " in cut:
         cut = cut[:cut.rindex(" ")]
-    return cut.rstrip(" ,;:") + "…"
+    return cut.rstrip(" ,;:.") + "…"  # never "….": a cut is not a sentence's end
+
+
+HEADING_CHARS = 80  # a line up to this long, over a list, with no sentence end: its heading
+
+
+def _heading(line: str, after: list[str]) -> bool:
+    """Whether `line` is a heading over the list that follows: not a step itself, short, with no
+    sentence end (or ending with ":"), and the next line with words is a numbered or bulleted
+    step."""
+    text = line.strip()
+    if not text or _STEP.match(line) or len(text) > HEADING_CHARS or (text[-1] in ".!?;," and not text.endswith(":")):
+        return False
+    following = next((x for x in after if x.strip()), "")
+    return bool(_STEP.match(following))
 
 
 def _all_parts(rule: str | None) -> list[str]:
     """Every part of a rule, by whole step: a numbered or bulleted line ("1.", "2)", "-", "*",
     "•") is one part, whatever its commas and sentences; any other line, one part per
-    sentence. Never at commas, ";", "and" or "or". No template part ({{ ... }})."""
+    sentence, but a heading over a list is no part (_heading). Never at commas, ";", "and" or
+    "or". No template part ({{ ... }})."""
     parts: list[str] = []
-    for line in (rule or "").splitlines():
+    lines = (rule or "").splitlines()
+    for k, line in enumerate(lines):
+        if _heading(line, lines[k + 1:]):
+            continue
         if _STEP.match(line):
             parts.append(_STEP.sub("", line))
         else:

@@ -638,9 +638,10 @@ VERDICT_NAMES = {"better": "Better", "safe": "Safe to try", "leans better": "Can
 
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason, each text cut at a word to start_fix_rule.CUT characters, and the person's
-    reasons on it (`why`: reasons.of_line, rule parts only of the rule now); the rule's parts
-    and the person's own buttons. Never a hidden mark. None when there is none."""
+    judge's reason, each text whole (the page folds each row), a many-field question's
+    `fields` as the marking page shows them, and the person's reasons on it (`why`:
+    reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
+    buttons. Never a hidden mark. None when there is none."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
@@ -652,7 +653,6 @@ def report_section(ws: Workspace) -> dict | None:
     wrong = mistakes([m.row(i) for i in ids])
     if not wrong:
         return None
-    cut = start_fix_rule.CUT
 
     def why(r: dict) -> dict:
         saved = m.why.get(r["id"]) or reasons.of_line(None)
@@ -660,23 +660,24 @@ def report_section(ws: Workspace) -> dict | None:
                 "rule_parts": [n for n, _ in r["parts"]], "spans": saved["spans"]}
 
     return {"mistakes": [{"id": r["id"], "judge": r["judge"], "final": r["final"],
-                          "question": cut_words(_question(m, r), cut),
-                          "answer": cut_words(reasons.canonical(r["output"]), cut),
-                          "reason": cut_words(r["reason"], cut), "why": why(r)}
+                          "question": _question(m, r), "fields": _fields(m, r),
+                          "answer": reasons.canonical(r["output"]),
+                          "reason": r["reason"], "why": why(r)}
                          for r in wrong],
             "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
             "own": list(m.own.values())}
 
 
-def cut_words(text: str, width: int) -> str:
-    """`text` cut to `width` characters, "…" included, at a word unless that leaves too
-    little."""
-    if len(text) <= width:
-        return text
-    cut = text[:width - 1]
-    if " " in cut[width // 2:]:
-        cut = cut[:cut.rindex(" ")]
-    return cut.rstrip() + "…"
+def _fields(m: Marks, row: dict) -> list[list[str]] | None:
+    """A mistake's question as named values, as the marking page shows them, when two or more
+    are left (none is the answer itself); else None."""
+    from judgekeeper.start_label import question_view
+
+    shown = question_view(m.rows.get(row["id"], {}).get("input"))
+    if not isinstance(shown, list):
+        return None
+    shown = [[k, v] for k, v in shown if v.strip() != str(row["output"]).strip()]
+    return shown if len(shown) > 1 else None
 
 
 def _question(m: Marks, row: dict) -> str:

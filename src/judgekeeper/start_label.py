@@ -104,6 +104,7 @@ TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
+SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
 SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
@@ -413,16 +414,42 @@ def _field_order(pair: list[str]) -> int:
     return 1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2
 
 
+_NAMED = re.compile(r"^([a-z_][a-z0-9_]{0,40}): ", re.MULTILINE)
+
+
+def _named_lines(text: str):
+    """Text written as named values, one `name: value` start per line (display's form of a
+    set of named values, as an eval sometimes keeps it): [[name, value], ...]. Only when it
+    starts with one and holds two or more; names in small letters, so "Note: ..." in a value
+    stays text. Else None."""
+    starts = list(_NAMED.finditer(text))
+    if len(starts) < 2 or starts[0].start() != 0:
+        return None
+    ends = [m.start() for m in starts[1:]] + [len(text)]
+    return [[m[1], text[m.end():end].rstrip("\n")] for m, end in zip(starts, ends, strict=True)]
+
+
+def say_why_run(n: int, command: str) -> str:
+    """The line that asks why, for `n` disagreements: "on this one" for one."""
+    return (SAY_WHY_RUN_ONE if n == 1 else SAY_WHY_RUN).format(n=n, command=command)
+
+
 def question_view(value):
     """A question as the page shows it: text as written; of a set of named values (such as
     promptfoo's vars), one value alone, or several as [[name, value as text], ...], the
-    question-like one first (_field_order; the rest as written)."""
+    question-like one first (_field_order; the rest as written). A value written as named
+    values (_named_lines) shows as those."""
     if isinstance(value, dict) and len(value) > 1:
-        return sorted(([str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
-                       for k, v in value.items()), key=_field_order)
+        pairs = []
+        for k, v in value.items():
+            text = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+            pairs += _named_lines(text) or [[str(k), text]]
+        return sorted(pairs, key=_field_order)
     if isinstance(value, dict) and value:
         value = next(iter(value.values()))
-    return display(value)
+    text = display(value)
+    named = _named_lines(text)
+    return sorted(named, key=_field_order) if named else text
 
 
 def _all_exact(r: dict) -> bool:

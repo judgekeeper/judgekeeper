@@ -283,24 +283,14 @@ def test_each_answer_in_the_list_is_one_line_cut_with_an_ellipsis():
     assert "overflow-wrap: anywhere" not in style.split(".item .q")[1].split("}")[0]
 
 
-# The report's cut ---------------------------------------------------------------------------
+# The report's text --------------------------------------------------------------------------
 
 LOREM = ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor "
          "incididunt ut labore et dolore magna aliqua ")
 
 
-def test_a_long_text_is_cut_at_a_word_and_ends_with_an_ellipsis():
-    long = ("Start " + LOREM * 200)[:20000]
-    cut = fix.cut_words(long, 1500)
-    assert cut.endswith("…") and len(cut) <= 1500
-    body = cut[:-1]
-    assert long.startswith(body) and long[len(body)] == " "
-    assert fix.cut_words("short text", 1500) == "short text"
-    word = "A" * 3000  # one word: cut where it must
-    assert fix.cut_words(word, 1500) == "A" * 1499 + "…"
-
-
-def test_the_report_cuts_a_long_answer_with_an_ellipsis(here, capsys):
+def test_the_report_keeps_a_long_answer_whole(here, capsys):
+    """The result page folds each row and "Show all" opens it: the text is whole."""
     table_project(here, split(20, 16))
     long = ("Start " + LOREM * 200)[:20000]
     rows = (here / "results.csv").read_text(encoding="utf-8").splitlines()
@@ -311,8 +301,7 @@ def test_the_report_cuts_a_long_answer_with_an_ellipsis(here, capsys):
     _mark(ws, person={0: "fail"})
     section = fix.report_section(ws)
     answer = next(m["answer"] for m in section["mistakes"] if m["answer"].startswith("Start"))
-    assert answer.endswith("…") and long.startswith(answer[:-1])
-    assert long[len(answer) - 1] == " "
+    assert answer == long.rstrip()
 
 
 # File permissions ---------------------------------------------------------------------------

@@ -251,8 +251,8 @@ def test_the_marking_page_words():
             'hidden>Show all</button></div>'
             '<div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert ('<div class="row row-a"><div class="label">Answer</div><p class="answer" id="a-text" '
-            'dir="auto">') in page
+    assert ('<div class="row row-a"><div class="label">Answer</div><div class="a-scroll" '
+            'id="a-scroll"><p class="answer" id="a-text" dir="auto">') in page
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
@@ -441,7 +441,8 @@ def test_the_result_top_bar_has_the_judge_and_the_logo_only():
     (TOO_FEW, "plain", "Mark a few more answers to see your result.")])
 def test_each_result_level_shows_its_state(counts, state, headline):
     html = start_label.result_html(_result(*counts))
-    assert f'<h1 id="verdict-h" class="{state}">{headline}</h1>' in html
+    shown = headline.replace("LLM-as-a-judge", '<span class="term">LLM-as-a-judge</span>')
+    assert f'<h1 id="verdict-h" class="{state}">{shown}</h1>' in html
     assert html.count("<h1") == 1
 
 
@@ -535,8 +536,8 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert '<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5)</h2>' in first
     assert f'* {c["easy"] + c["strict"] - 7} more are kept aside' in html
-    assert ('<button type="button" class="more" aria-expanded="false" aria-controls="t-easy">'
-            "Show all</button>") in first
+    assert ('<button type="button" class="more" aria-expanded="false" data-n="5" '
+            'aria-controls="t-easy">Show all 5</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
             '<th scope="col">Why your LLM-as-a-judge passed it</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
@@ -808,7 +809,8 @@ var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
            "t-easy": new El("t-easy")};
 ids["fix-cmd"].textContent = "judgekeeper fix";
 ids.copy.attrs["data-copy"] = "fix-cmd";
-var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.textContent = "Show all";
+var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.attrs["data-n"] = "2";
+more.textContent = "Show all 2";
 ids["t-easy"].rows = [new El(), new El()]; ids["t-easy"].rows.forEach(function (r) { r.hidden = true; });
 var document = {documentElement: new El("html"),
   getElementById: function (id) { return ids[id] || null; },
@@ -840,7 +842,7 @@ function clearTimeout() {}
                          encoding="utf-8", timeout=60)
     got = json.loads(out.stdout.strip().splitlines()[-1])
     assert got["opened"] == ["Show fewer", "true", [False, False]]
-    assert got["closed"] == ["Show all", [True, True]]
+    assert got["closed"] == ["Show all 2", [True, True]]
     assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
     assert got["back"] == ["Copy", ""]
 

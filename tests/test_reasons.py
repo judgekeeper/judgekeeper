@@ -337,6 +337,31 @@ def test_a_geval_rule_with_commas_is_one_part_per_step():
         "Read the Input", "Check the tone, the facts and the length", "If it is rude, mark it Fail"]
 
 
+SKYWREN = ("Grade the support reply against the SkyWren Air policy below. Tone does not "
+           "matter.\n\nSkyWren Air baggage and refund policy (current)\n"
+           "1. Checked bags (international economy): 1 free bag up to 23 kg.\n"
+           "2. Overweight bags: 23.1 to 32 kg costs $75 per bag.\n"
+           "Evaluation steps:\n- Read the reply\n- Compare each fee")
+
+
+def test_a_heading_over_a_list_is_not_a_part():
+    assert reasons.split_rule(SKYWREN) == [
+        "Grade the support reply against the SkyWren Air policy below", "Tone does not matter",
+        "Checked bags (international economy): 1 free bag up to 23 kg",
+        "Overweight bags: 23.1 to 32 kg costs $75 per bag", "Read the reply", "Compare each fee"]
+    # a short line with no ending, but no list under it, is still a part
+    assert reasons.split_rule("Be polite\nNever promise refunds") == [
+        "Be polite", "Never promise refunds"]
+
+
+def test_a_cut_part_never_ends_with_a_full_stop_before_the_ellipsis():
+    part = "Fail it. " + "Then check each fee and weight in the reply against the policy " * 2
+    for n in range(40, 90):
+        shown = reasons.short(part[:n] + " and more words to cut here and there and on")
+        assert not shown.endswith(".…")
+    assert reasons.short("a" * 80 + " end. " + "longword" * 4) == "a" * 80 + " end…"
+
+
 def test_a_part_is_shown_cut_to_90_characters_on_a_word():
     long = ("Determine whether the Actual Output sounds confident and does not refuse to help, "
             "and mark it Fail when it is rude")
@@ -826,7 +851,7 @@ def _box(html: str, item_id: str) -> str:
 def _box_row(html: str, item_id: str) -> str:
     """The table row before an answer's reason box: its question, answer and judge's reason."""
     at = html.index(f'data-id="{item_id}"')
-    return html[html.rindex("<tr", 0, html.rindex("<tr", 0, at)):at]
+    return html[html.rindex("<tr", 0, at):at]
 
 
 def test_the_workspace_has_the_reasons_file_name():

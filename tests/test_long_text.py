@@ -66,9 +66,30 @@ def test_fenced_code_shows_in_a_box_as_text_and_the_rest_stays_text():
         return [c.tagName, c.className, c.textContent, c.getAttribute("dir")]; }),
         html: a.innerHTML}));""", data=_one("Q?", answer))
     assert got["parts"] == [["#TEXT", "", "Here:", None],
-                            ["CODE", "block", "<script>alert(1)</script>\nx = 1", "ltr"],
+                            ["SPAN", "code-wrap", "<script>alert(1)</script>\nx = 1", None],
                             ["#TEXT", "", "Run it.", None]]
     assert got["html"] == ""  # text only: nothing is parsed as HTML
+    inner = _run("""
+      var w = ids["a-text"].children[1], c = w.children[0];
+      console.log(JSON.stringify([c.tagName, c.className, c.getAttribute("dir"), c.innerHTML]));""",
+                 data=_one("Q?", answer))
+    assert inner == ["CODE", "block", "ltr", ""]
+
+
+def test_fenced_code_has_a_thin_scrollbar_always_shown_and_a_fade_to_the_right():
+    style = mark_page.STYLE
+    assert ".answer code.block::-webkit-scrollbar { height: 8px; }" in style
+    assert "@supports not selector(::-webkit-scrollbar)" in style
+    assert "scrollbar-width: thin;" in style
+    assert ".code-wrap.more-right::after" in style
+    got = _run("""
+      var w = ids["a-text"].children[0], c = w.children[0];
+      c.scrollWidth = 900; c.clientWidth = 400; c.scrollLeft = 0; c.fire("scroll");
+      var more = w.className;
+      c.scrollLeft = 500; c.fire("scroll");
+      console.log(JSON.stringify([more, w.className]));""",
+               data=_one("Q?", "```\nx = 1\n```"))
+    assert "more-right" in got[0].split() and "more-right" not in got[1].split()
 
 
 def test_an_unclosed_fence_and_inline_backticks_stay_plain_text():
@@ -122,14 +143,104 @@ def test_scroll_keys_leave_a_focused_button_and_the_welcome_box_alone():
     assert got == {"prevented": False, "top": 0}
 
 
-def test_the_page_is_one_screen_on_a_laptop():
-    style = mark_page.STYLE
-    laptop = style.split("@media (min-width: 761px) {", 1)[1].split("\n}\n", 1)[0]
+def _laptop() -> str:
+    return mark_page.STYLE.split("@media (min-width: 761px) {", 1)[1].split("\n}\n", 1)[0]
+
+
+def test_the_page_is_one_screen_on_a_laptop_and_the_answer_always_has_room():
+    laptop = _laptop()
     assert "html, body { height: 100%; overflow: hidden; }" in laptop
-    assert ".row-a { flex: 1 1 auto; min-height: 0; overflow: auto;" in laptop
-    assert "max-height: calc((100vh - 72px) * .4)" in laptop  # the question, shown all
-    assert "max-height: calc((100vh - 72px) * .35)" in laptop  # the rule
-    assert "@media (max-width: 760px) {" in style  # the phone's CSS, as it was
+    cap = "max-height: min(calc((100vh - 72px) * .3), 28vh)"
+    assert laptop.count(cap) == 2  # the question shown all, and the rule
+    # the answer keeps 35% of the main area, the question and the rule give way
+    assert ".a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px);" in laptop
+    assert ".row-q { flex: 0 1 auto; min-height: 0;" in laptop
+    assert "@media (max-width: 760px) {" in mark_page.STYLE  # the phone's CSS, as it was
+    short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
+    assert ".actions { padding: 12px 40px 8px; }" in short and ".btn { height: 44px; }" in short
+    page = mark_page.label_page("bot", "judgekeeper mark")
+    assert ('<div class="label">Answer</div><div class="a-scroll" id="a-scroll">'
+            '<p class="answer" id="a-text" dir="auto"></p></div>') in page
+
+
+def test_a_short_heading_has_room_for_one_line():
+    assert ".question:not(.long) { max-width: 75ch; }" in _laptop()
+
+
+def test_the_rule_and_the_whole_question_are_never_open_together():
+    got = _run("""
+      ids["q-text"].scrollHeight = 500; ids["q-text"].clientHeight = 100;
+      ids["q-more"].fire("click");
+      var before = ids["q-text"].className;
+      ids["rule-btn"].fire("click");
+      var rule = [ids["q-text"].className, ids["rule"].hidden, ids["q-more"].textContent];
+      ids["q-more"].fire("click");
+      console.log(JSON.stringify({before: before, rule: rule,
+        again: [ids["q-text"].className, ids["rule"].hidden,
+                ids["rule-btn"].textContent]}));""",
+               data=_one("Q " * 100), before='document.getElementById("rule").hidden = true;')
+    assert "open" in got["before"].split()
+    assert "open" not in got["rule"][0].split() and got["rule"][1:] == [False, "Show all"]
+    assert "open" in got["again"][0].split() and got["again"][1:] == [True, "Show the rule"]
+
+
+def test_the_opened_question_fades_while_there_is_more_below():
+    assert ".question.long.open.more-below {" in _laptop()
+    got = _run("""
+      var q = ids["q-text"]; q.scrollHeight = 500; q.clientHeight = 100;
+      ids["q-more"].fire("click");
+      var more = q.className;
+      q.scrollTop = 400; q.fire("scroll");
+      console.log(JSON.stringify([more, q.className]));""", data=_one("Q " * 100))
+    assert "more-below" in got[0].split() and "more-below" not in got[1].split()
+
+
+CONTEXT = ("Context:\n" + "Pets in the cabin cost $125 each way. " * 30
+           + "\n\nA missing bag must be reported within 24 hours.\n\n"
+           + "Question: How long do I have to report a missing bag?")
+HEAD_TAIL = """
+  function parts(e) { return e.children.map(function (c) { return [c.className, c.textContent]; }); }
+  var side = ids["queue"].children[0].children[0].children.filter(function (c) {
+    return c.className === "q"; })[0];
+  var folded = parts(ids["q-text"]);
+  ids["q-more"].fire("click");
+  console.log(JSON.stringify({folded: folded, more: ids["q-more"].hidden,
+    open: ids["q-text"].textContent, openParts: parts(ids["q-text"]), side: side.textContent}));"""
+
+
+def test_a_question_at_the_end_of_a_long_field_shows_its_start_and_its_end():
+    got = _run(HEAD_TAIL, data=_one(CONTEXT))
+    head, gap, tail = got["folded"]
+    assert head[0] == "q-head" and head[1].startswith("Context:\nPets in the cabin")
+    assert gap == ["q-gap", "…"]
+    assert tail == ["q-tail", "Question: How long do I have to report a missing bag?"]
+    # in order, nothing moved, nothing lost; folded, a blank line is not one of the 2 lines
+    assert head[1] + "\n\n" + tail[1] == CONTEXT.replace("\n\nA missing", "\nA missing")
+    assert got["more"] is False
+    assert got["open"] == CONTEXT and got["openParts"] == []  # Show all: everything, in order
+    assert got["side"].startswith("Pets in the cabin")  # "Context:" alone is only a label
+
+
+def test_a_long_field_that_does_not_end_with_a_question_folds_as_before():
+    got = _run(HEAD_TAIL, data=_one("Policy:\n" + "Bags are free. " * 40))
+    assert got["folded"] == []  # plain text, 4 lines, then Show all
+    assert got["side"] == "Bags are free. " * 40
+
+
+def test_field_names_are_small_mono_labels():
+    laptop = _laptop()
+    assert (".question.long .field-name { font-family: var(--mono); font-size: 11px; "
+            "font-weight: 400; letter-spacing: .06em; text-transform: uppercase;") in laptop
+
+
+def test_named_lines_read_back_as_fields():
+    shown = start_label.question_view("question: If my bag is late?\nsystem: You are kind.\n"
+                                      "\n1. Bags: free.\nNote: be short.")
+    assert shown == [["question", "If my bag is late?"],
+                     ["system", "You are kind.\n\n1. Bags: free.\nNote: be short."]]
+    for text in ("Context:\nfoo\n\nQuestion: bar?", "question: one field only",
+                 "Note: x\nTip: y", "Plain text: with a colon\nsystem: x"):
+        assert start_label.question_view(text) == text
 
 
 def test_show_all_on_a_long_question():
@@ -191,17 +302,54 @@ def test_a_group_with_none_shown_is_left_out_but_still_counted():
     assert f"* {c['strict']} more are kept aside to test a new rule fairly." in html
 
 
+OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
+            '</button>')
+
+
 def test_rows_fold_to_four_lines_with_one_show_all_per_row():
     html = _html(_mistakes(2, 1))
-    rows = re.findall(r'<td class="row-more"><button type="button" class="open-row" '
-                      r'aria-expanded="false" hidden>Show all</button></td>', html)
-    assert len(rows) == 3
+    assert html.count(f'<td colspan="3" class="why-cell"><p class="row-foot">{OPEN_ROW}</p>'
+                      "</td></tr>") == 3
     style = report_page.STYLE
     laptop = style.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
-    assert "-webkit-line-clamp: 4;" in laptop and "line-height: 1.55;" in laptop
+    assert "max-height: calc(4 * 1.55em);" in laptop and "line-height: 1.55;" in laptop
+    assert "line-clamp" not in style  # a fade, never "…" after a full stop
     assert "grid-template-columns: 28fr 44fr 28fr;" in laptop
-    assert ".tbl tr[data-open] td[data-label] { display: block; }" in laptop
+    assert (".tbl tr[data-open] td[data-label] { max-height: 60vh; overflow: auto;"
+            in laptop)
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
+    assert ".open-row[hidden] + .dot { display: none; }" in style
+
+
+def test_the_group_link_says_how_many_it_shows():
+    html = _html(_mistakes(7, 1))
+    assert ('aria-controls="t-easy">Show all 7</button>') in html
+    assert '"Show all " + b.getAttribute("data-n")' in report_page.SCRIPT
+
+
+def test_the_verdict_heading_wraps_evenly():
+    assert "text-wrap: balance;" in report_page.STYLE.split(".verdict h1 {", 1)[1].split("}")[0]
+    html = _html([])
+    assert ('<h1 id="verdict-h" class="needs">Your <span class="term">LLM-as-a-judge</span> '
+            "needs work.</h1>") in html  # a line never breaks inside the term
+    assert ".verdict h1 .term { white-space: nowrap; }" in report_page.STYLE
+
+
+def test_a_many_field_question_shows_its_field_names_as_labels():
+    m = {**_mistakes(1, 0)[0], "fields": [["question", "Is it late?"], ["system", "Be kind."]],
+         "question": "question: Is it late?\nsystem: Be kind."}
+    html = _html([m])
+    assert ('<td data-label="Question"><span class="fname">question</span>Is it late?\n'
+            '<span class="fname">system</span>Be kind.</td>') in html
+
+
+def test_one_disagreement_reads_in_the_singular():
+    assert (start_label.say_why_run(1, "judgekeeper mark") ==
+            "Tell judgekeeper why you disagree on this one: run `judgekeeper mark`.")
+    assert (start_label.say_why_run(3, "judgekeeper mark") ==
+            "Tell judgekeeper why you disagree on these 3: run `judgekeeper mark`.")
+    assert reasons.parts_left_out_line(1) == "“Other…” covers the other part of your rule."
+    assert reasons.parts_left_out_line(2) == "“Other…” covers the 2 other parts of your rule."
 
 
 def test_report_html_folds_rows_and_has_no_reason_buttons():
@@ -217,6 +365,7 @@ def _with_reason(why: dict) -> dict:
 def test_live_rows_ask_for_a_reason_behind_a_small_button():
     html = _html([_with_reason({})], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
+    assert line.startswith(f'<p class="why-line">{OPEN_ROW}<span class="dot" aria-hidden="true">')
     assert ('<button type="button" class="add-reason" aria-expanded="false" '
             'aria-controls="wb-easy-0">Add a reason</button>') in line
     assert '<span class="said-now" hidden>' in line
@@ -230,8 +379,8 @@ def test_a_saved_reason_shows_in_one_line_with_change():
     html = _html([_with_reason(why)], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
     text = re.sub(r"<[^>]+>", "", line)
-    assert text == ("Your reason: it has a wrong fact; rule part 2 (“Never promise refunds”); "
-                    "“Wrong year” · Change")
+    assert text == ("Show all · Your reason: it has a wrong fact; rule part 2 (“Never promise "
+                    "refunds”); “Wrong year” · Change")
     assert "Change" in line and "Add a reason" not in line
 
 
