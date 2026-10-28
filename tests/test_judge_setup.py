@@ -83,6 +83,30 @@ def test_a_promptfoo_threshold_is_its_pass_mark(tmp_path):
     assert _with_threshold(tmp_path, True)["pass_mark"] is None  # not a number
 
 
+def _with_short_var(root: Path, rubric: str) -> dict:
+    """Each test's rubric names a short var (`n`: 0, 1 or 2), so no grading template is the
+    same for all of them: the prompt hash is the rubric's, as the config writes it."""
+    data = promptfoo_data(split(20, 16), rubric=rubric)
+    for i, row in enumerate(data["results"]["results"]):
+        row["vars"]["n"] = str(i % 3)
+        row["gradingResult"]["componentResults"][0]["metadata"] = {"renderedGradingPrompt": (
+            f"Grade it. <Rubric>Item {i % 3}: {rubric}</Rubric> "
+            f"<Output>{row['response']['output']}</Output>")}
+    _write(root / "results.json", data)
+    return _setup(root)
+
+
+def test_without_one_grading_template_the_rubric_is_hashed(tmp_path):
+    import hashlib
+
+    old = _with_short_var(tmp_path, "Is polite.")
+    new = _with_short_var(tmp_path, "Is polite and short.")
+    assert old["prompt_hash"] == hashlib.sha256(b"Is polite.").hexdigest()
+    assert any(line.startswith("rule") for line in judge_setup.changes(old, new)), \
+        judge_setup.changes(old, new)
+    assert judge_setup.changes(old, _with_short_var(tmp_path, "Is polite.")) == []
+
+
 def test_promptfoo_reads_not_llm_rubric_as_a_judge(tmp_path):
     data = promptfoo_data(split(20, 16))
     for c in _component(data):
