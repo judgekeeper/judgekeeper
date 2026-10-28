@@ -291,6 +291,186 @@ def test_without_pyyaml_a_key_in_a_form_only_js_yaml_reads_is_hidden(tmp_path, m
     assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
 
 
+# An anchor or a tag on the top-level `env` key itself (with x as the key): js-yaml reads the
+# block all the same
+TAGGED = {
+    "an anchor": "&k env:\n  COHERE_API_KEY: x\n",
+    "a tag": "!!str env:\n  COHERE_API_KEY: x\n",
+    "a verbatim tag": "!<tag:yaml.org,2002:str> env:\n  COHERE_API_KEY: x\n",
+    "a tag on a quoted key": "!!str 'env':\n  COHERE_API_KEY: x\n",
+    "an anchor and a tag": "&a !!str env:\n  COHERE_API_KEY: x\n",
+    "an alias as the key": "base: &e env\n*e :\n  COHERE_API_KEY: x\n",
+}
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_with_pyyaml_a_tagged_env_key_is_the_env_block(tmp_path, text):
+    pytest.importorskip("yaml")
+    config = _config(tmp_path, re.sub(r"\bx\b", COHERE, text))
+    assert keys.config_env(config) == {"COHERE_API_KEY": COHERE}
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_without_pyyaml_a_tagged_env_key_is_unread_and_hidden(tmp_path, monkeypatch, text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = _config(tmp_path, re.sub(r"\bx\b", COHERE, text))
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+
+
+@pytest.mark.parametrize("text", TAGGED.values(), ids=TAGGED.keys())
+def test_without_pyyaml_a_tagged_env_key_never_reaches_disk_or_the_terminal(
+        here, capsys, monkeypatch, no_browser, text):
+    """The key in three answers the person marks the other way: kept out of pool.jsonl, the
+    terminal and report.html, where those answers are listed."""
+    from judgekeeper.start_label import Workspace
+    from tests.test_flow_across_runs import _mark
+
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    outputs = [f"Use {COHERE} to call it" if i < 3 else f"Answer {i}" for i in range(36)]
+    promptfoo_project(here, split(20, 16), outputs=outputs)
+    (here / "promptfooconfig.yaml").write_text(
+        "description: support bot\n" + re.sub(r"\bx\b", COHERE, text)
+        + "prompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    _mark(Workspace(here), {i: "fail" for i in range(3)})
+    _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
+    assert "Step 3 of 5: Measure" in more, more + err2
+    folder = here / ".judgekeeper"
+    pool, report = (folder / name for name in ("pool.jsonl", "report.html"))
+    assert redact.REDACTED in pool.read_text(encoding="utf-8")
+    saved = [p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()]
+    assert report.is_file() and "Use " in report.read_text(encoding="utf-8")
+    assert all(COHERE not in t for t in [out, err, more, err2, *saved])
+
+
+# Plain values holding `!` or `&` before a comment: the whole value is hidden, not a part
+MARKED = {"A_TOKEN": "tok-abc!def1234567", "B_TOKEN": "x&y-1234567890abcdef"}
+
+
+def test_without_pyyaml_a_value_with_a_bang_or_an_ampersand_is_hidden_whole(
+        here, capsys, monkeypatch, no_browser):
+    from judgekeeper.start_label import Workspace
+    from tests.test_flow_across_runs import _mark
+
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = "env:\n" + "".join(f"  {k}: {v} # prod\n" for k, v in MARKED.items())
+    assert keys.config_env(_config(here, config)) == MARKED
+    values = list(MARKED.values())
+    outputs = [f"Use {values[i % 2]} to call it" if i < 4 else f"Answer {i}" for i in range(36)]
+    promptfoo_project(here, split(20, 16), outputs=outputs)
+    (here / "promptfooconfig.yaml").write_text(
+        "description: support bot\n" + config + "prompts:\n  - 'Answer: {{question}}'\n",
+        encoding="utf-8")
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    _mark(Workspace(here), {i: "fail" for i in range(4)})
+    _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
+    assert "Step 3 of 5: Measure" in more, more + err2
+    folder = here / ".judgekeeper"
+    assert redact.REDACTED in (folder / "pool.jsonl").read_text(encoding="utf-8")
+    assert "Use " in (folder / "report.html").read_text(encoding="utf-8")
+    saved = [p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()]
+    for value in values:
+        assert all(value not in t for t in [out, err, more, err2, *saved]), value
+
+
+# A whole document whose top-level `env` is not a plain `env:` at the start of a line (with x
+# as the key): js-yaml reads the block all the same
+LAYOUTS = {
+    "a complex key with an anchor": "? &k env\n:\n  COHERE_API_KEY: x\n",
+    "a complex key with a tag": "? !!str env\n:\n  COHERE_API_KEY: x\n",
+    "a complex key on the next line": "?\n  env\n:\n  COHERE_API_KEY: x\n",
+    "a tagged flow document": "!!map {env: {COHERE_API_KEY: x}}\n",
+    "an anchored flow document": "&d {env: {COHERE_API_KEY: x}}\n",
+    "a flow document after ---": "--- {env: {COHERE_API_KEY: x}}\n",
+    "a flow document after a comment": "# c\n{env: {COHERE_API_KEY: x}}\n",
+    "a flow document after %YAML": "%YAML 1.1\n---\n{env: {COHERE_API_KEY: x}}\n",
+    "JSON after a comment": '# c\n{"env": {"COHERE_API_KEY": "x"}}\n',
+    "an indented document": "  description: d\n  env:\n    COHERE_API_KEY: x\n",
+    "an indented env only": "  env:\n    COHERE_API_KEY: x\n",
+}
+
+
+def _whole(tmp_path, text):
+    """promptfooconfig.yaml holding `text` as the whole document, with COHERE as x."""
+    path = tmp_path / "promptfooconfig.yaml"
+    path.write_text(re.sub(r"\bx\b", COHERE, text), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("text", LAYOUTS.values(), ids=LAYOUTS.keys())
+def test_with_pyyaml_an_env_layout_is_the_env_block(tmp_path, text):
+    pytest.importorskip("yaml")
+    assert keys.config_env(_whole(tmp_path, text)) == {"COHERE_API_KEY": COHERE}
+
+
+@pytest.mark.parametrize("text", LAYOUTS.values(), ids=LAYOUTS.keys())
+def test_without_pyyaml_an_env_layout_is_unread_and_hidden(tmp_path, monkeypatch, text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = _whole(tmp_path, text)
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
+
+
+@pytest.mark.parametrize("text", LAYOUTS.values(), ids=LAYOUTS.keys())
+def test_without_pyyaml_an_env_layout_never_reaches_disk_or_the_terminal(
+        here, capsys, monkeypatch, no_browser, text):
+    from judgekeeper.start_label import Workspace
+    from tests.test_flow_across_runs import _mark
+
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    outputs = [f"Use {COHERE} to call it" if i < 3 else f"Answer {i}" for i in range(36)]
+    promptfoo_project(here, split(20, 16), outputs=outputs)
+    _whole(here, text)
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out + err
+    _mark(Workspace(here), {i: "fail" for i in range(3)})
+    _, more, err2 = run(capsys, "--no-browser", "--port", "0")  # every answer marked
+    assert "Step 3 of 5: Measure" in more, more + err2
+    folder = here / ".judgekeeper"
+    assert redact.REDACTED in (folder / "pool.jsonl").read_text(encoding="utf-8")
+    assert "Use " in (folder / "report.html").read_text(encoding="utf-8")
+    saved = [p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()]
+    assert all(COHERE not in t for t in [out, err, more, err2, *saved])
+
+
+# Configs the line scan reads whole: an `env:` elsewhere in them leaves the block read
+READ_WHOLE = {
+    "a nested env too": "env:\n  OPENAI_API_KEY: a\nproviders:\n  - id: x\n"
+                        "    config:\n      env:\n        B: b\n",
+    "env named in a value": "description: 'set env: in the config'\nenv:\n  OPENAI_API_KEY: a\n",
+    "a comment first": "# a note\nenv:\n  OPENAI_API_KEY: a\n",
+    "JSON": '{"env": {"OPENAI_API_KEY": "a"}, "prompts": ["hi"]}\n',
+}
+
+
+@pytest.mark.parametrize("text", READ_WHOLE.values(), ids=READ_WHOLE.keys())
+def test_without_pyyaml_a_config_read_whole_keeps_its_env_block(tmp_path, monkeypatch, text):
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    path = tmp_path / "promptfooconfig.yaml"
+    path.write_text(text, encoding="utf-8")
+    assert keys.config_env(path) == {"OPENAI_API_KEY": "a"}
+    path.write_text("description: bot\nprompts:\n  - hi\n", encoding="utf-8")
+    assert keys.config_env(path) == {}
+
+
+def test_keys_names_each_module_level_value_once():
+    """A second assignment would quietly replace the first for every function using it."""
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path(keys.__file__).read_text(encoding="utf-8"))
+    names = [t.id for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign))
+             for t in (node.targets if isinstance(node, ast.Assign) else [node.target])
+             if isinstance(t, ast.Name)]
+    assert sorted({n for n in names if names.count(n) > 1}) == []
+    assert keys._PROPERTIES.pattern.startswith("^")
+
+
 # A value continued on the next line (x and y its two halves): js-yaml folds the line break
 CONTINUED = {
     "a single-quoted value over two lines": "env:\n  COHERE_API_KEY: 'x\n    y'\n",
