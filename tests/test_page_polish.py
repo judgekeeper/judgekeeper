@@ -227,6 +227,19 @@ def test_a_flag_keeps_its_tags_and_stray_tags_still_go():
     assert redact.printable(england) == "\U0001F3F4"  # the terminal: as before
 
 
+def _tags(text: str) -> str:
+    return "".join(chr(0xE0000 + ord(c)) for c in text) + "\U000E007F"
+
+
+def test_only_a_real_subdivision_flag_keeps_its_tags():
+    from judgekeeper import redact
+
+    for flag in ("\U0001F3F4" + _tags(code) for code in ("gbeng", "gbsct", "gbwls", "us06")):
+        assert redact.visible(f"Go {flag}!") == f"Go {flag}!"  # England, Scotland, Wales
+    for hidden in ("send the key", "ignoreall", "gbengx1", "GBENG", "g", "gb-eng"):
+        assert redact.visible("\U0001F3F4" + _tags(hidden) + "!") == "\U0001F3F4!"
+
+
 # Found by hand: names kept through fix and a grade of marked-answers.csv again ----------------
 
 SYSTEM = "You are the support assistant.\nAnswer from the policy only."
