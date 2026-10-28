@@ -192,7 +192,7 @@ def test_each_tool_has_its_traps_and_tested_versions(tool):
 
 def test_the_table_format_and_record_are_described():
     tools = _tools()
-    table = _flat(tools["A CSV or JSONL file"])
+    table = _flat(tools["A CSV, TSV or JSONL file"])
     for needed in ("`input`, `output` and `verdict`", "`judge_verdict`", "`judge`",
                    "`judge_model`", "the columns it read"):
         assert needed in table, needed

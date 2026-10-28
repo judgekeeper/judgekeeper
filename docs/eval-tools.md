@@ -4,7 +4,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 ## How it looks
 
-- Inside your project folder, four folders deep (a CSV or JSONL table: two). A results file outside it is read only when you name it.
+- Inside your project folder, four folders deep (a CSV, TSV or JSONL table: two). A results file outside it is read only when you name it.
 - It skips `.git`, `node_modules`, virtual environments (any folder holding `pyvenv.cfg`) and hidden folders, except `.deepeval` and `.judgekeeper/records/`. It does not follow symbolic links. It stops after 5,000 files or 2 seconds, and says so.
 - A results file over 200 MB is listed, not read, unless you name it and say yes.
 - When it finds nothing, it names the results-like files it left out (too deep, links, not UTF-8, Excel workbooks) with the command that reads each.
@@ -135,7 +135,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 - **A copied `mlruns/` folder.** Its traces point at full paths, so judgekeeper reads them from the store's own folder, never from where they point. A trace whose files are not there is left out, and said.
 - **MLflow's own problems, not judgekeeper's.** `mlflow.genai.evaluate` on `mlflow.db` can drop traces and still say it completed; `MLFLOW_GENAI_EVAL_MAX_WORKERS=4` avoids it.
 
-## A CSV or JSONL file
+## A CSV, TSV or JSONL file
 
 A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column; with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
 

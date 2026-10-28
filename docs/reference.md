@@ -23,7 +23,7 @@ Each run does the next step. A result needs at least 15 answers you mark Pass an
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
-New answers from the same LLM-as-a-judge join as a new batch. Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). Run in a folder that is not a project, with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there. judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV or JSONL file ([What it reads](#what-it-reads)).
+New answers from the same LLM-as-a-judge join as a new batch. Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). Run in a folder that is not a project, with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there. judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file ([What it reads](#what-it-reads)).
 
 | Flag | What it does |
 |---|---|
@@ -58,7 +58,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
-Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version` and `--debug`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
+Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
@@ -86,7 +86,7 @@ judgekeeper fix [PATH] [--new]
 | Inspect AI | `inspect score <log> --scorer <name> --action overwrite --output-file logs/new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, your log stays as it was, and the new one is in your log folder, where `check` finds it. Then run `judgekeeper fix logs/new.eval`. |
 | MLflow | `mlflow.genai.evaluate()` on the existing traces with the new scorer. |
 | DeepEval | Build test cases from `marked-answers.csv`, add back by question any field your metric also reads (such as `expected_output`), and run the metric. |
-| A CSV or JSONL file, or `record()` | Grade `marked-answers.csv` with your own code. |
+| A CSV, TSV or JSONL file, or `record()` | Grade `marked-answers.csv` with your own code. |
 
 **The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options. An answer kept aside is found by its exact text and its question; a row in the results with no question is never an answer you marked with one. If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3). One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded. With more than half of the answers kept aside ungraded, it gives no result and asks you to grade them again (exit 3). This holds for a rule tested before too. Otherwise a rule tested before gets its saved result, with the file and day it came from and how many answers this file leaves ungraded. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
 
