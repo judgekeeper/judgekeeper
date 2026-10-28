@@ -269,8 +269,7 @@ def _stamp(page: Page, how: str = PRINTED) -> bool:
 
 
 def terminal() -> bool:
-    """Whether a person reads this output at a terminal: input and output are both one. On
-    Windows the NUL device says it is a terminal, so input alone is not enough; and what
+    """Whether a person reads this output at a terminal: input and output are both one. What
     matters for the link is who reads the output."""
     from judgekeeper.start import _interactive
 
