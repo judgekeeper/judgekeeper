@@ -866,6 +866,15 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
             f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
 
 
+def tried_line(test: dict) -> str:
+    """The pass-mark test that found no better mark, said once, when it is made: it counts as
+    a test on these marks kept aside, as a rule's does."""
+    old = f"{test['old']:g}"
+    return (f"judgekeeper also tried a pass mark of {test['new']:g} instead of {old} on the "
+            f"marks kept aside (fixed {test['fixed']}, broke {test['broke']}): not clearly "
+            f"better, so keep {old}. That used up one test on these marks.")
+
+
 # Saying it ----------------------------------------------------------------------------------
 
 class Talk:
@@ -1216,6 +1225,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             for sentence in p:
                 talk.para(sentence, indent="  ")
         talk.say()
+    fresh = split.pass_mark is None  # no pass mark tested on these marks yet
     tested = test_pass_mark(m, split)
     save_split(ws, split)
     _write_mistakes(ws, rule, seen_rows, mark)
@@ -1225,7 +1235,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.para(f"Suggestions from your reasons are in {_file(ws, SUGGESTIONS)}. Copy the ones "
                   "you agree with into your rule where your eval keeps it.")
         talk.say()
-    line = tested and pass_mark_line(ws, pm, tested)
+    line = tested and (pass_mark_line(ws, pm, tested) or (fresh and tried_line(tested)))
     if line:
         talk.para(line)
         talk.say()

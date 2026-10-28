@@ -291,9 +291,62 @@ def test_without_pyyaml_a_key_in_a_form_only_js_yaml_reads_is_hidden(tmp_path, m
     assert redact.scrub(f"key {COHERE}") == f"key {redact.REDACTED}"
 
 
+# A value continued on the next line (x and y its two halves): js-yaml folds the line break
+CONTINUED = {
+    "a single-quoted value over two lines": "env:\n  COHERE_API_KEY: 'x\n    y'\n",
+    "a plain value over two lines": "env:\n  COHERE_API_KEY: x\n    y\nprompts: [hi]\n",
+    "a double-quoted value ending in a folded space": 'env:\n  COHERE_API_KEY: "xy\n    "\n',
+}
+
+
+@pytest.mark.parametrize("text", CONTINUED.values(), ids=CONTINUED.keys())
+def test_without_pyyaml_a_value_continued_on_the_next_line_is_hidden(tmp_path, monkeypatch,
+                                                                     text):
+    yaml = pytest.importorskip("yaml")
+    text = re.sub(r"\bx", COHERE[:20], re.sub(r"\by\b", COHERE[20:], text))
+    value = yaml.safe_load(text)["env"]["COHERE_API_KEY"].strip()  # as js-yaml reads it
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    config = _config(tmp_path, text)
+    assert keys.UNREAD in keys.config_env(config)
+    keys.hide_keys(tmp_path, [config])
+    assert redact.scrub(f"key {value}.") == f"key {redact.REDACTED}."
+
+
+# Forms whose value ends in a space or a line break, as PyYAML reads them: the key in a results
+# file is the value as sent, with neither
+ENDS_IN_SPACE = {
+    "a double-quoted value ending in a folded space": 'env:\n  COHERE_API_KEY: "x\n    "\n',
+    "a literal block with Windows line ends": "env:\r\n  COHERE_API_KEY: |\r\n    x\r\n",
+}
+
+
+@pytest.mark.parametrize("text", ENDS_IN_SPACE.values(), ids=ENDS_IN_SPACE.keys())
+def test_with_pyyaml_a_value_ending_in_a_space_is_hidden(tmp_path, text):
+    yaml = pytest.importorskip("yaml")
+    text = re.sub(r"\bx\b", COHERE, text)
+    assert yaml.safe_load(text)["env"]["COHERE_API_KEY"] != COHERE  # PyYAML keeps the end
+    keys.hide_keys(tmp_path, [_config(tmp_path, text)])
+    assert redact.scrub(f"key {COHERE}.") == f"key {redact.REDACTED}."
+
+
+def test_a_key_in_the_environment_with_a_line_break_after_it_is_hidden(monkeypatch):
+    monkeypatch.setenv("COHERE_API_KEY", COHERE + "\n")
+    assert redact.scrub(f"key {COHERE}.") == f"key {redact.REDACTED}."
+
+
+def test_a_value_of_only_spaces_is_never_a_key(monkeypatch):
+    blank = " " * 20
+    monkeypatch.setenv("BLANK_TOKEN", blank)
+    redact.register_secret("COHERE_API_KEY", blank)
+    redact.register_secret("COHERE_API_KEY", "\t short \n")  # under 8 characters, stripped
+    assert redact.scrub(f"a{blank}b short c") == f"a{blank}b short c"
+
+
 @pytest.mark.parametrize("text", ["A_TOKEN:" + " " * 1000, "A_TOKEN" + " " * 1000 + "\n",
                                   "a" + " " * 1000, "? ", 'A_TOKEN: "x\n', "{A_TOKEN:\n",
-                                  "&a ", '"\\', '"\\a" ', " &" * 500 + "\n"])
+                                  "&a ", '"\\', '"\\a" ', " &" * 500 + "\n",
+                                  "A_TOKEN: 'x\n", "A_TOKEN: x\n" + "  y\n" * 50,
+                                  "A_TOKEN: x" + " " * 1000 + "\n"])
 def test_the_scan_for_keys_in_an_unread_block_is_quick_on_1_mb(text):
     import time
 

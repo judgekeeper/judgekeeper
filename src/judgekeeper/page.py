@@ -54,6 +54,7 @@ OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 PICKS = 10  # ports tried when one judgekeeper picked is taken before the page binds it
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
+STARTS_AGAIN = "The marking page starts again for this command's flags. Your marks stay."
 ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
 OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
@@ -102,12 +103,14 @@ def marking_session(ws: Workspace, run: str | None = None) -> StartSession:
 
 def page_key(ws: Workspace, flags: dict | None) -> dict:
     """What a page shows besides the marks: the commands its flags make (but the port they
-    ask for: the open page keeps its own), and the check it is for."""
+    ask for, and whether a browser is opened: the open page keeps its own), and the check it
+    is for."""
     try:
         about = hashlib.sha256(ws.start.read_bytes()).hexdigest()
     except OSError:
         about = None
-    flags = {k: v for k, v in start.saved_flags(flags).items() if k != "port"}
+    flags = {k: v for k, v in start.saved_flags(flags).items()
+             if k not in ("port", "no_browser")}
     return {"flags": flags, "start": about}
 
 
@@ -156,7 +159,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
              say=lambda line: None) -> Page | None:
     """The page for this project, with the token of the one open (a new token when none is):
     the open page itself, on its port, when it shows the same (page_key); else it is
-    closed and a page started (on its port when free, else on a free port when the default
+    closed (`say` says so) and a page started (on its port when free, else on a free port when the default
     is taken, choose_port; `say` says why): in the background, or served by this process
     (`here`, for --wait). When a port judgekeeper picked is taken before the page binds it
     (another run), the next free one, up to PICKS tries. None when it could not start."""
@@ -167,6 +170,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                 and old["settings"] == page_key(ws, flags)):
             return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
+            say(STARTS_AGAIN)
             background.stop(ws.dir)
         stamp = old["link"] if old is not None else None
         picked = port == DEFAULT_PORT  # judgekeeper's choice, not the person's
