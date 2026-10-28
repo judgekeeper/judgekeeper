@@ -528,8 +528,10 @@ def test_later_batch_in_two_sittings_same_share_kept_aside(here):
 
 # after "Worse", a waiting batch keeps one way out ----------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run "
-                    "your eval and `judgekeeper check`.")
+NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge or change its rule, run "
+                    "`judgekeeper fix` to write the answers you marked to "
+                    ".judgekeeper/fix/marked-answers.csv, grade them again with it, then run "
+                    "`judgekeeper check <new results file>`.")
 
 
 def _truth(i: int) -> bool:
