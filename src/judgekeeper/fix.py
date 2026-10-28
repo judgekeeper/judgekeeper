@@ -914,6 +914,14 @@ def went_line(fixed: int, broke: int) -> str:
     return f"With the new rule, {went} from wrong to right, and {back} from right to wrong."
 
 
+def _sessions_below(path: str) -> tuple[str, str] | None:
+    """Where the sessions below this folder are, and the Next step (front.go_to_words)."""
+    from judgekeeper import front
+
+    sessions = front.sessions_here(path)
+    return front.go_to_words(sessions, program("fix")) if sessions else None
+
+
 def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
     the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
@@ -981,6 +989,11 @@ def run(path: str = ".", new: bool = False) -> int:
         return EXIT_USAGE
     talk.say(STEP if results is None or split is None or split.fresh else STEP_TEST)
     talk.say()
+    if ws is None and results is None and (below := _sessions_below(talk.path)):
+        said, step = below
+        talk.para(said)
+        talk.next(step)
+        return EXIT_NEEDS_YOU
     if ws is None and not _has_results(Path(talk.path)):
         talk.para(f"No eval results found in this folder ({Path(talk.path).resolve().name}).")
         talk.next(f"run your eval once from this folder, then run `{program()}`.")

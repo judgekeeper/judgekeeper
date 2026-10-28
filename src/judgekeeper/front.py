@@ -712,19 +712,35 @@ def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[
     return out
 
 
-def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
-    """Sessions in folders below this one: where they are, never a second one here."""
+def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str]:
+    """(where the sessions in folders below are, the Next step: go there and run `command`)."""
     if len(sessions) == 1:
         (name, n), = sessions
-        talk.para(f"{name}/ already holds your judgekeeper session ({_n(n, 'mark')}): "
-                  "judgekeeper keeps a project's marks in its own folder.")
+        said = (f"{name}/ already holds your judgekeeper session ({_n(n, 'mark')}): "
+                "judgekeeper keeps a project's marks in its own folder.")
     else:
         named = start._and([f"{name}/ ({_n(n, 'mark')})" for name, n in sessions])
-        talk.para(f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
-                  "project's marks in its own folder.")
+        said = (f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
+                "project's marks in its own folder.")
     folder = "that folder" if len(sessions) == 1 else "one of those folders"
-    return talk.stop(EXIT_QUESTION, f"go to {folder} (`cd {quote_arg(sessions[0][0])}`), then "
-                                    f"run `{program()}` there.")
+    return said, (f"go to {folder} (`cd {quote_arg(sessions[0][0])}`), then run `{command}` "
+                  "there.")
+
+
+def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
+    """Sessions in folders below this one: where they are, never a second one here."""
+    said, step = go_to_words(sessions, program())
+    talk.para(said)
+    return talk.stop(EXIT_QUESTION, step)
+
+
+def sessions_here(path: str | Path) -> list[tuple[str, int]]:
+    """For `fix` and `check` with no marks to use: the sessions in the folders right below
+    `path`, a folder whose project holds no session of its own."""
+    path = Path(path)
+    if not path.is_dir() or Workspace(project.project_of(path)).start.is_file():
+        return []
+    return _sessions_below(path)
 
 
 def _tracking_server(talk: FrontTalk, path: Path, uri: str) -> Stop:

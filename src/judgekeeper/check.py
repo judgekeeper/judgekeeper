@@ -841,6 +841,15 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say()
         said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
         return EXIT_NEEDS_YOU
+    from judgekeeper import front
+
+    sessions = front.sessions_here(given)
+    if sessions:
+        where, step = front.go_to_words(sessions, program("check"))
+        said.say(where)
+        said.say()
+        said.say(f"Next: {step}")
+        return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
     if above is None:
