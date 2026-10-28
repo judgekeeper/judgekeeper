@@ -481,7 +481,7 @@ class StartSession(LabelSession):
         self.pool = data.get("pool", {})
         self.status = status or start_status
         self.sitting = marks.new_sitting()
-        self.link: str | None = None  # marks.PRINTED once the page's link was printed for an agent
+        self.link: str | None = None  # marks.PRINTED once the page's link was printed with no terminal
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         self.changes = 0  # counts every change to the marks in memory
         self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
@@ -787,7 +787,7 @@ def second_thoughts(made: dict | None) -> list[str]:
     return out
 
 
-PRINTED_NOTE = ("a link printed in a terminal, so another program on this computer could "
+PRINTED_NOTE = ("a link printed with no terminal, so another program on this computer could "
                 "have made {them}")
 BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
                     "made {them}")
@@ -795,9 +795,10 @@ LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # m
 
 
 def link_lines(made: dict | None) -> list[str]:
-    """A note for the marks that came through a link printed where another program could read
-    it (no terminal), and one for those made on a page the program named in BROWSER opened:
-    what each means. In the terminal and on the result page, once each."""
+    """A note for the marks that came through a link printed with no terminal (page.show: a
+    person at a terminal reads it there, else another program could), and one for those made
+    on a page the program named in BROWSER opened: what each means. In the terminal and on the
+    result page, once each."""
     out = []
     for key, how in LINK_NOTES:
         n = (made or {}).get(key) or 0

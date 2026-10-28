@@ -30,7 +30,7 @@ NEXT_RESULT = ("Next: nothing to do. When you change your LLM-as-a-judge or upda
 RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks still test it."
 ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
-PRINTED_LINE = ("{n} of your marks came through a link printed in a terminal, so another "
+PRINTED_LINE = ("{n} of your marks came through a link printed with no terminal, so another "
                 "program on this computer could have made them. If you marked them yourself, "
                 "nothing to do.")
 START_OVER = ("Start over with these results? Your old marks move to "
