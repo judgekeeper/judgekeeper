@@ -404,22 +404,25 @@ BACKGROUND = frozenset({"system", "context", "agent", "assistant", "instruction"
                         "instructions", "persona", "policy", "document", "documents", "docs",
                         "guideline", "guidelines", "knowledge", "rules", "reference",
                         "background"})
-# A field the user's question is in: first.
-ASKED = frozenset({"question", "input", "query", "prompt", "user", "message", "ask",
-                   "request"})
+# A field the user's question is in: first, those named question or query before the others.
+# A bare `user` (often an id or a name) is none: user_message and user_input are by their
+# other word.
+ASKED_FIRST = frozenset({"question", "query"})
+ASKED = ASKED_FIRST | {"input", "prompt", "message", "request", "ask"}
 SHORT_FIELD = 140  # characters of a field that reads as one line
 
 
-def _field_order(pair: list[str]) -> tuple[int, int]:
+def _field_order(pair: list[str]) -> tuple[int, int, int]:
     """Where a named value goes: one that looks like the user's question first (its name has
-    an ASKED word and no BACKGROUND word; the shorter of them first), then short ones, then
-    long ones and those that set the scene (BACKGROUND). The rest keep their order."""
+    an ASKED word and no BACKGROUND word; question or query before the others, then the
+    shorter), then short ones, then long ones and those that set the scene (BACKGROUND). The
+    rest keep their order."""
     words = set(re.findall(r"[a-z]+", pair[0].lower()))
     if words & BACKGROUND:
-        return 2, 0
+        return 2, 0, 0
     if words & ASKED:
-        return 0, len(pair[1])
-    return (1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2), 0
+        return 0, 0 if words & ASKED_FIRST else 1, len(pair[1])
+    return (1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2), 0, 0
 
 
 def say_why_run(n: int, command: str) -> str:

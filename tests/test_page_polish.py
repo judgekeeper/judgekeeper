@@ -564,3 +564,24 @@ def test_the_list_title_and_the_result_page_follow_the_same_order():
     assert got == "Where is it?"
     html = _html([{**_mistakes(1, 0)[0], "fields": shown}])
     assert html.index("Where is it?") < html.index("You are the customer support assistant.")
+
+
+def test_a_question_or_query_name_comes_before_other_asked_names():
+    shown = start_label.question_view({"prompt": "Hi?", "question": "Where is my bag now?"})
+    assert [k for k, _ in shown] == ["question", "prompt"]  # by name before by length
+    shown = start_label.question_view({"user_message": "Hi?", "query": "Where is my bag now?"})
+    assert [k for k, _ in shown] == ["query", "user_message"]
+    shown = start_label.question_view({"system": PROMPT, "user_message": "Hi?"})
+    assert [k for k, _ in shown] == ["user_message", "system"]
+    shown = start_label.question_view({"agent_prompt": PROMPT, "user_input": "Hi?"})
+    assert [k for k, _ in shown] == ["user_input", "agent_prompt"]
+
+
+def test_a_bare_user_name_is_not_the_question():
+    shown = start_label.question_view({"user": "Sam", "question": "Where is my bag?"})
+    assert [k for k, _ in shown] == ["question", "user"]
+    got = _run("""
+      var a = ids["queue"].children[0].children[0];
+      var q = a.children.filter(function (c) { return c.className === "q"; })[0];
+      console.log(JSON.stringify(q.textContent));""", data=_one(shown))
+    assert got == "Where is my bag?"
