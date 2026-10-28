@@ -788,7 +788,7 @@ def test_experiment_folders_over_the_limit_are_counted_before_mlflow_lists_them(
     monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 3)
     for i in range(count):
         (tmp_path / "mlruns" / str(i)).mkdir(parents=True)
-        (tmp_path / "mlruns" / str(i) / "meta.yaml").write_text(f"name: e{i}\n", "utf-8")
+        (tmp_path / "mlruns" / str(i) / "meta.yaml").write_text(f"name: e{i}\n", encoding="utf-8")
     (tmp_path / "mlruns" / "models").mkdir()  # MLflow's own folders are not experiments
     (tmp_path / "mlruns" / "9").mkdir()
     listed = []
