@@ -84,12 +84,12 @@ def test_marks_mostly_under_a_second_look_like_a_program():
 
 
 def test_the_docs_never_say_the_marks_are_yours():
-    said = ("The page accepts marks only from itself, so marks from another website are "
-            "refused. A program on your computer could, the same way it could edit your files.")
+    said = ("The page accepts marks only from itself, so other websites can't send marks. A "
+            "program already running on your computer could, just as it can edit your files.")
     in_security = ("Every change must also come from the page itself: `Origin: "
                    "http://127.0.0.1:<port>`, and `Sec-Fetch-Site: same-origin` when the browser "
-                   "sends it. So marks from another website are refused. A program on your "
-                   "computer could, the same way it could edit your files.")
+                   "sends it. So other websites can't send marks. A program already running "
+                   "on your computer could, just as it can edit your files.")
     for name in ("docs/reference.md", "CHANGELOG.md", "SECURITY.md"):
         text = " ".join((ROOT / name).read_text(encoding="utf-8").split())
         assert "so the marks are yours" not in text, name
@@ -445,7 +445,7 @@ def test_one_range_form_everywhere():
     for name in ("README.md", "docs/reference.md", "website/index.html"):
         text = (ROOT / name).read_text(encoding="utf-8")
         assert not re.search(r"could be \d+%", text), name
-    assert '"about 89% (between 84% and 93%)"' in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert '"about 90% (between 84% and 93%)"' in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():

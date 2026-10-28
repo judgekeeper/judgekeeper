@@ -1,6 +1,6 @@
 # Eval tools
 
-How judgekeeper finds and reads the results each eval tool saves. Commands, flags, files and exit codes are in the [reference](reference.md). judgekeeper only reads these files and never changes them. Most of this page, it also says in the terminal when it happens.
+How judgekeeper finds and reads the results each eval tool saves. Commands, flags, files and exit codes are in the [reference](reference.md). judgekeeper only reads these files and never changes them. judgekeeper also says most of this in the terminal.
 
 ## How it looks
 
@@ -110,7 +110,7 @@ Tested with Inspect AI 0.3.273, the version in tests/fixtures. Logs from 0.3.2 a
 
   Then run `judgekeeper fix logs/new.eval`.
 - **`--no-log-samples`** logs cannot be read.
-- **Very big parts.** A `.eval` log is too big for judgekeeper to read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, one sample to more than 200 MB, or all its samples to more than 4 GB together. So is one with a part holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions), more than 200,000,000 values in all its parts, samples holding more than 10 values for each byte they pack to, a sample over 1 MB that unpacks to more than 200 times its packed size, or one text in a sample longer than 8 MB. The message says which limit it passed. A log with a part nested more than 500 levels deep is not read, nor one whose parts share bytes, give a part's size two ways or can be named two ways. judgekeeper counts what each part really unpacks to, how deep it nests, how many values it holds and how long its texts are, before Inspect AI reads the log, and keeps none of it. It then reads only the samples the log holds, each once, a few at a time.
+- **Very big parts.** Very large `.eval` logs are refused; the message says which limit ([reference](reference.md#what-it-reads)).
 - **Damaged zips.** A `.eval` log that is not one plain zip (data before its first part, or a second table of contents) is not read.
 
 ## MLflow

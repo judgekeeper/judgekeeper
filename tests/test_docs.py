@@ -75,8 +75,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
     summary = json.loads(draws.with_name("summary.json").read_text(encoding="utf-8"))
     n, each = summary["draws"], summary["inside_each"]
     jbb = linked["jailbreakbench/report.md"]
-    assert f"In {n} draws with {summary['marks_per_draw']} marks each" in jbb
-    assert (f"TPR in {each['tpr']}, the real TNR in {each['tnr']} and the real kappa in "
+    assert f"In {n} tests with {summary['marks_per_draw']} marks each" in jbb
+    assert (f"TPR in {each['tpr']}, the true TNR in {each['tnr']} and the true kappa in "
             f"{each['kappa']}; all three at once in {summary['all_three_inside']}") in jbb
     rows = [x.split(",") for x in draws.read_text(encoding="utf-8").splitlines()
             if re.match(r"d\d", x)]

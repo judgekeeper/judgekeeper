@@ -1,6 +1,6 @@
 # LLM-as-a-judge probes: what the two RAGTruth LLM-as-a-judge setups do with broken answers
 
-A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"), then asks the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-25 (first run 2026-10-17), with the RAGTruth runs made on commit `bc0d099`. They test the LLM-as-a-judge setups, not judgekeeper's code.
+A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"); then promptfoo asked the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-25 (first run 2026-10-17), with the RAGTruth runs made on commit `bc0d099`. They test the LLM-as-a-judge setups, not judgekeeper's code.
 
 ## The finding: a rule can let an empty answer pass
 
