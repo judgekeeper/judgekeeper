@@ -221,8 +221,9 @@ class Marks:
 
         raw = self.rows.get(i, {})
         why = self.why.get(i) or reasons.of_line(None)
-        taps = list(why["reasons"]) + [c["id"] for c in self.own.values()
-                                       if c.get("from") == i and why["note"]
+        taps = list(why["reasons"]) + [c["id"] for c in self.own.values() if why["note"]
+                                       and (c.get("from") == i
+                                            or reasons.same_words(c["text"], why["note"]))
                                        and c["id"] not in why["reasons"]]
         taps = [k for k in taps if k in reasons.REASONS or k in self.own]
         same = why["rule_hash"] == rule_hash(self.data.get("rule"))

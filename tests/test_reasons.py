@@ -814,6 +814,31 @@ def test_a_note_given_on_several_answers_is_counted_the_same_everywhere():
             "<<<YOUR REASON\npolicy fact is wrong\nYOUR REASON>>>") in fenced
 
 
+@pytest.mark.parametrize("taps", [[[], []], [[], ["wrong_fact"], []]],
+                         ids=["two answers", "three, one with a button too"])
+def test_the_same_words_in_other_on_several_answers_are_one_reason(here, capsys, taps):
+    """The first answer's box makes the person's own button; the same words typed again on
+    another answer are that button, not a second reason."""
+    ws, passes, _, _ = _ready(here)
+    for i, tapped in zip(passes, taps):
+        _say(ws, i, reasons=tapped, note=" fee is  wrong TWICE" if tapped else
+             "Fee is wrong twice")
+    n = len(taps)
+    _, out = run_fix(capsys)
+    flat = " ".join(out.split())
+    counted = "“Fee is wrong twice” (" + str(n) + ")"
+    assert counted in flat and "(1)" not in flat.replace("wrong fact (1)", ""), flat
+    md = (ws.dir / "fix" / "suggestions.md").read_text(encoding="utf-8")
+    suggested, once = md.split("## Seen once (not suggested yet)")
+    assert (f"- Fail when what you wrote below is true ({n} answers)\n<<<YOUR REASON\n"
+            "Fee is wrong twice\nYOUR REASON>>>") in suggested
+    assert "wrong twice" not in once.casefold() and "Your own words" not in md
+    mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert f"Your reason: your own reason 1 ({n})" in mistakes
+    assert "said: your own reason" not in mistakes  # the note is fenced, not said again
+    assert "; your own reason" not in mistakes
+
+
 def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
     rows = [{"id": f"a{n}", "judge": "fail", "final": "pass", "output": "An answer.",
              "reasons": ["own-1"], "words": {"own-1": "No greeting"}, "parts": [],
