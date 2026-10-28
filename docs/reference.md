@@ -247,7 +247,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | File | What it holds |
 |---|---|
 | `.gitignore` | `*`, `!.gitignore`, `!judge.json`, `!history.jsonl`: your answers stay off Git. Never overwritten |
-| `judge.json` | Your LLM-as-a-judge's setup: eval tool and version, models, rule, prompt, temperature, pass mark, endpoint |
+| `judge.json` | Your LLM-as-a-judge's setup: eval tool and version, models, rule and prompt (as hashes), temperature, pass mark, endpoint |
 | `judge-check.json`, `judge-check.csv` | What the first check found, with each answer and its problem |
 | `start.json` | The results files, the LLM-as-a-judge's fingerprint, counts, the seed, the answers' order and batches |
 | `pool.jsonl` | Each answer to mark: id, input, output, batch |
@@ -257,8 +257,8 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `server.json`, `page.json` | The open page: port, process, token, and a secret that only closes it. Removed when it stops |
 | `page.log` | What the page wrote in the background |
 | `opening` | Empty: a run is opening the page |
-| `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date |
-| `history/` | Earlier results |
+| `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
+| `history/` | Earlier results, with the same fields as `result.json` |
 | `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a fixed set with its sha256 |
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them |
