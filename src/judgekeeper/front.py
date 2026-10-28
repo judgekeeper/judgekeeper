@@ -78,9 +78,12 @@ START_OVER = f"Start over with these results? Your old marks move to {FOLDER}/pr
 OLD_MARKS = (f"{FOLDER}/labels.csv holds marks from an older judgekeeper. They have no time "
              "stamps, so this version does not use them.")
 SCORE_READ = "Read the score column with your pass mark; the verdict column is not used."
-RAN_AGAIN = "Your eval ran again. Your LLM-as-a-judge is the same, so your marks still test it."
-RAN_AGAIN_CHECKED = ("Your eval ran again. Your LLM-as-a-judge is the one your last check "
-                     "re-tested, so your marks still test it.")
+# New results with no new answers: the same answers graded again (a regrade, or an eval run
+# that gave the same answers)
+RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, so your marks "
+             "still test it.")
+RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
+                     "check re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
