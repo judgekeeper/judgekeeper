@@ -7,6 +7,8 @@ import copy
 import hashlib
 import json
 
+import pytest
+
 from judgekeeper.readers import read_promptfoo
 from judgekeeper.readers.promptfoo import grading_template
 from judgekeeper.records import LLM
@@ -66,6 +68,53 @@ def test_a_config_grader_of_another_model_leaves_the_set_grader(tmp_path):
     assert {r.evaluator.get("model") for r in judged} == {"claude-haiku-4-5-20251001"}
     assert all("provider" not in r.evaluator for r in judged)
     assert any("--grader" in w for w in records.per_metric["friendly-hours-next-step"]["warnings"])
+
+
+# Providers as promptfoo 0.124 makes them (JSON.stringify of each class), for one model name
+MODEL = "llama-3.3-70b"
+MADE_OPENAI = {"modelName": MODEL, "config": {}, "mcpClient": None,
+               "initializationPromise": {}, "loadedFunctionCallbacks": {}, "label": ""}
+MADE_TOGETHER = {**MADE_OPENAI, "config": {"apiBaseUrl": "https://api.together.xyz/v1",
+                                           "apiKeyEnvar": "TOGETHER_API_KEY", "passthrough": {}}}
+MADE_OLLAMA = {"modelName": MODEL, "config": {}, "label": ""}
+MADE_ANTHROPIC = {"modelName": MODEL, "config": {}, "env": {}, "apiKey": "[REDACTED]",
+                  "anthropic": {}, "label": "", "mcpClient": None}
+MADE_VERTEX = {**MADE_OPENAI, "config": {"vertexai": True}, "isVertexMode": True}
+OWN_KEY = {"apiKeyEnvar": "MY_KEY"}
+OTHER_PROVIDER = [
+    (f"openai:chat:{MODEL}", MADE_ANTHROPIC), (f"togetherai:{MODEL}", MADE_OPENAI),
+    (f"openai:{MODEL}", MADE_TOGETHER), (f"openai:chat:{MODEL}", MADE_OLLAMA),
+    (f"ollama:chat:{MODEL}", MADE_OPENAI), (f"google:{MODEL}", MADE_VERTEX)]
+SAME_PROVIDER = [
+    (f"openai:chat:{MODEL}", MADE_OPENAI), (f"togetherai:{MODEL}", MADE_TOGETHER),
+    (f"ollama:chat:{MODEL}", MADE_OLLAMA), (f"vertex:{MODEL}", MADE_VERTEX),
+    (f"anthropic:messages:{MODEL}", MADE_ANTHROPIC),
+    ({"id": f"openai:chat:{MODEL}", "config": OWN_KEY}, {**MADE_OPENAI, "config": OWN_KEY})]
+
+
+def _graded_by(tmp_path, configured, made):
+    data = json.loads(RESULTS.read_text(encoding="utf-8"))
+    data["config"]["defaultTest"]["options"]["provider"] = configured
+    for row in data["results"]["results"]:
+        row["testCase"].setdefault("options", {})["provider"] = made
+        for c in row["gradingResult"]["componentResults"]:
+            c["assertion"].pop("provider", None)
+    return _judged(read_promptfoo(_write(tmp_path, data)), "helpfulness")
+
+
+@pytest.mark.parametrize("configured, made", OTHER_PROVIDER)
+def test_a_config_grader_of_another_provider_leaves_the_set_grader(tmp_path, configured, made):
+    judged = _graded_by(tmp_path, configured, made)
+    assert {(r.evaluator.get("provider"), r.evaluator.get("model")) for r in judged} == {
+        (None, MODEL)}
+
+
+@pytest.mark.parametrize("configured, made", SAME_PROVIDER)
+def test_a_config_grader_of_the_same_provider_names_the_set_grader(tmp_path, configured, made):
+    pid = configured["id"] if isinstance(configured, dict) else configured
+    judged = _graded_by(tmp_path, configured, made)
+    assert {(r.evaluator.get("provider"), r.evaluator.get("model")) for r in judged} == {
+        (pid.split(":")[0], pid)}
 
 
 def test_the_same_config_grader_saved_two_ways_is_no_model_change(tmp_path):
