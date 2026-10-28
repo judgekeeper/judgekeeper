@@ -189,6 +189,48 @@ def test_a_range_is_not_a_pin(tmp_path):
     assert _setup(tmp_path)["tool_version"] is None
 
 
+def _quick_lock(root, tool="deepeval"):
+    import time
+
+    start_at = time.perf_counter()
+    version = judge_setup.locked(root, tool)
+    assert time.perf_counter() - start_at < 1
+    return version
+
+
+@pytest.mark.skipif(not Path("/dev/zero").exists(), reason="POSIX only")
+@pytest.mark.parametrize("name", ["uv.lock", "poetry.lock", "pyproject.toml", "requirements.txt",
+                                  "package-lock.json"])
+def test_a_lockfile_that_is_a_link_to_a_device_is_not_read(tmp_path, name):
+    (tmp_path / name).symlink_to("/dev/zero")
+    assert _quick_lock(tmp_path, "promptfoo" if name == "package-lock.json" else "deepeval") \
+        is None
+
+
+def test_a_50_mb_requirements_file_is_not_read(tmp_path):
+    with (tmp_path / "requirements.txt").open("w", encoding="utf-8") as f:
+        f.write("x\n" * 25_000_000 + "deepeval==4.2.8\n")
+    assert _quick_lock(tmp_path) is None
+
+
+def test_a_lockfile_linked_from_elsewhere_is_not_read(tmp_path):
+    (tmp_path / "elsewhere.lock").write_text(
+        '[[package]]\nname = "deepeval"\nversion = "4.2.8"\n', encoding="utf-8")
+    try:
+        (tmp_path / "uv.lock").symlink_to(tmp_path / "elsewhere.lock")
+    except OSError:
+        pytest.skip("no symlinks here")
+    assert _quick_lock(tmp_path) is None
+
+
+@pytest.mark.parametrize("name", ["uv.lock", "poetry.lock", "pyproject.toml"])
+def test_a_lockfile_nested_thousands_deep_is_skipped(tmp_path, name):
+    (tmp_path / name).write_text("a = " + "[" * 100_000 + "]" * 100_000 + "\n",
+                                 encoding="utf-8")
+    (tmp_path / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    assert _quick_lock(tmp_path) == "4.2.8"
+
+
 def test_promptfoo_version_from_package_lock_when_the_results_lack_it(tmp_path):
     _promptfoo(tmp_path, version=None)
     _write(tmp_path / "package-lock.json", {"lockfileVersion": 3, "packages": {

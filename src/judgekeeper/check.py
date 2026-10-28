@@ -322,7 +322,8 @@ def _lock_newer(state: State, old: dict, new: dict, newest: Path | None) -> bool
         results = newest.stat().st_mtime
     except OSError:
         return False
-    return any(f.is_file() and f.stat().st_mtime > results for f in locks)
+    return any((st := judge_setup.lock_stat(f)) is not None and st.st_mtime > results
+               for f in locks)
 
 
 def _config_newer(found) -> Path | None:
