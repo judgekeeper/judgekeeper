@@ -859,8 +859,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade the answers you marked again "
              "the same way as in step 4, then:"),
-            ("judgekeeper finds the answers you marked in your new results by their exact text, "
-             "compares the new grades with your marks, and tells you if your LLM-as-a-judge "
+            ("judgekeeper finds the answers you marked in your new results by their exact text "
+             "and question, compares the new grades with your marks, and tells you if your "
+             "LLM-as-a-judge "
              "still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
