@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from judgekeeper import textio
-from judgekeeper.redact import is_credential, printable, register_secret
+from judgekeeper.redact import is_credential, printable, register_secret, register_value
 
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
@@ -149,14 +149,21 @@ def env_values(path: Path, names) -> dict[str, str]:
 
 def _scalar(text: str) -> str | None:
     """A YAML value written on its key's line, as text: quotes taken off (a double-quoted
-    one's escapes read), a comment cut; None when there is none (a nested block)."""
-    text = text.strip()
+    one's escapes read), a comment cut, a tag or an anchor before it left out; None when there
+    is none (a nested block)."""
+    text = _PROPERTIES.sub("", text.strip())
     quoted = re.match(r"([\"'])(.*)\1\s*(#.*)?$", text)
     if quoted:
         return _unescaped(quoted[2]) if quoted[1] == '"' else quoted[2].replace("''", "'")
     text = re.split(r"\s+#", text, maxsplit=1)[0].strip()
     return text or None
 
+
+# A tag (`!!str`) or an anchor (`&v`) before a value
+_PROPERTIES = re.compile(r"^(?:[!&]\S*[ \t]+)+")
+# A value js-yaml reads that the line scan can't: a tag, an alias (`*v`, the value of the
+# anchor `&v` elsewhere) or a double-quoted value not closed on its line
+_UNSURE = re.compile(r"""[!*]|"(?:[^"\\]|\\.)*\\?$""")
 
 # YAML's escapes in a double-quoted value
 _ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)")
@@ -177,6 +184,9 @@ def _unescaped(text: str) -> str:
 
 # The name config_env gives an `env:` block it can't read whole: it holds no value to hide
 UNREAD = "env"
+# The start of the name config_env gives an anchored value (`&v VALUE`) when the block is
+# unread: an alias in it may stand for that value, whatever its name
+ANCHORED = "&"
 # A top-level `env` key in a form the line scan does not read: quoted, a space before the
 # colon, an anchor, a tag or an alias after it, a flow mapping over several lines, a complex
 # key (`? env`); a quoted key with an escape in it may be `env` too
@@ -193,9 +203,12 @@ def config_env(config: Path | None) -> dict[str, str | None]:
     file, or JSON in a `.yaml` one, which YAML reads the same), else with PyYAML when it can
     be imported, else a line scan for YAML, in block or one-line (`env: {A: x, B: y}`) form.
     A block the line scan can't read whole (another YAML form, js-yaml reads them all) gives
-    UNREAD, and so does a value below its name (a block scalar, or on the next line), which
-    is None. Values are only hidden (hide_keys), never shown or passed on. Only a small
-    regular file is read, never through a link (_small_file)."""
+    UNREAD, and so does a value below its name (a block scalar, or on the next line), a tag,
+    an alias or a double-quoted value over several lines, which is None (or the value with
+    its tag left out). Then every credential-named value in the file is given, and every
+    anchored value (named ANCHORED and the anchor). Values are only hidden (hide_keys), never
+    shown or passed on. Only a small regular file is read, never through a link
+    (_small_file)."""
     if config is None:
         return {}
     data = _small_file(Path(config))
@@ -237,6 +250,21 @@ def _yaml_env(text: str) -> dict[str, str | None] | None:
     return {str(k): (v if isinstance(v, str) else None) for k, v in env.items()}
 
 
+# A credential-named value could be under an escaped name (`"A_\u0054OKEN": value`)
+_ESCAPED_NAME = re.compile(r"""(?:^|[\s{,?])"((?:[^"\\\n]|\\.)*\\(?:[^"\\\n]|\\.)*)"[ \t]*:"""
+                           r"""[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""", re.MULTILINE)
+# In a flow mapping, a value on the line below its name (`{A_TOKEN:` then `value}`)
+_FLOW_BELOW = re.compile(r"""[{,][ \t]*["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:[ \t]*\n[ \t]*"""
+                         r"""("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""")
+# An anchored value on its line (`&v VALUE`)
+_ANCHOR = re.compile(r"""(?:^|[\s{,\[])&([^\s,{}\[\]]+)[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""",
+                     re.MULTILINE)
+# A double-quoted value not closed on its line, after a name (it goes on below)
+_OPEN_QUOTE = re.compile(r"""(?:^|[\s{,?])["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:[ \t]+"""
+                         r"""("(?:[^"\\]|\\.)*\\?)$""")
+# The end of a double-quoted value on a line below its name: the closing quote
+_CLOSE_QUOTE = re.compile(r"""^((?:[^"\\]|\\.)*\\?)("?)""")
+
 # `NAME: value` anywhere: in a block, after `{` or `,` in a flow mapping, or as `? NAME` with
 # `: value` on the next line
 _LOOSE = re.compile(r"""(?:^|[\s{,?])["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*(?:\n[ \t]*)?:"""
@@ -255,11 +283,24 @@ def _credentials_in(text: str) -> dict[str, str]:
     """Every credential-named `NAME: value` in a config, wherever it is: only to hide it
     when its `env:` block can't be read whole."""
     found = {}
-    for m in _LOOSE.finditer(_VALUE_OF_KEY.sub(lambda m: " " * len(m[0]), text)):
+    for regex in (_LOOSE, _ESCAPED_NAME, _FLOW_BELOW):
+        for m in regex.finditer(_VALUE_OF_KEY.sub(lambda m: " " * len(m[0]), text)):
+            name = _unescaped(m[1]) if regex is _ESCAPED_NAME else m[1]
+            value = _scalar(m[2])
+            if is_credential(name) and value and not _BLOCK.fullmatch(value) \
+                    and not value.startswith("*"):
+                found[name] = value
+    for m in _ANCHOR.finditer(text):
         value = _scalar(m[2])
-        if is_credential(m[1]) and value and not _BLOCK.fullmatch(value):
-            found[m[1]] = value
+        if value and not _BLOCK.fullmatch(value):
+            found[ANCHORED + m[1]] = value
     lines = text.split("\n")
+    at = 0
+    while at < len(lines):  # a line inside a quoted value is never read as a name
+        m = _OPEN_QUOTE.search(lines[at])
+        if m and is_credential(m[1]):
+            found[m[1]], at = _quoted_below(m[2], lines, at + 1)
+        at += 1
     for at, line in enumerate(lines):
         m = _HEAD.match(line)
         if m is None or not is_credential(m[2]):
@@ -275,6 +316,33 @@ def _credentials_in(text: str) -> dict[str, str]:
         if parts:  # a literal block (`|`) keeps its line breaks; the others fold them
             found[m[2]] = ("\n" if (m[3] or "").startswith("|") else " ").join(parts)
     return found
+
+
+def _quoted_below(first: str, lines: list[str], at: int) -> tuple[str, int]:
+    """The double-quoted value that starts with `first` (its opening quote and the rest of its
+    line) and goes on in `lines` from `at`, read as YAML reads it: a line break folded into a
+    space, or nothing after a backslash; the escapes read. A space at either end is left out:
+    the key is hidden wherever it is. With the index of its last line."""
+    text = first[1:]
+    while at < len(lines):
+        m = _CLOSE_QUOTE.match(lines[at].strip())
+        text = text[:-1] + m[1] if text.endswith("\\") and not text.endswith("\\\\") \
+            else f"{text} {m[1]}"
+        if m[2]:
+            break
+        at += 1
+    return _unescaped(text).strip(), at
+
+
+def _entry(found: dict, name: str, raw: str) -> None:
+    """`NAME: raw` read into `found`: unread (UNREAD) when it is a tag, an alias or a quoted
+    value that goes on below, or a block scalar or nothing (its value is below)."""
+    value = _scalar(raw)
+    found[name] = value
+    if value is None or _BLOCK.fullmatch(value) or _UNSURE.match(raw.strip()):
+        found[UNREAD] = None
+        if value is None or not raw.strip().startswith("!"):
+            found[name] = None
 
 
 def _scanned_env(text: str) -> dict[str, str | None]:
@@ -297,7 +365,7 @@ def _scanned_env(text: str) -> dict[str, str | None]:
                 name, _, value = entry.partition(":")
                 name = name.strip().strip("'\"")
                 if NAME.match(name):
-                    found[name] = _scalar(value)
+                    _entry(found, name, value)
                 elif name:
                     return {UNREAD: None}
             return found
@@ -315,9 +383,7 @@ def _scanned_env(text: str) -> dict[str, str | None]:
         m = _ENTRY.match(line)
         if not m:
             return {UNREAD: None}  # `? NAME`, an escaped name, `<<: *a`, a list
-        found[m[1]] = _scalar(m[2])
-        if found[m[1]] is None or _BLOCK.fullmatch(found[m[1]]):  # its value is below it
-            found[m[1]], found[UNREAD] = None, None
+        _entry(found, m[1], m[2])
     return found
 
 
@@ -332,7 +398,9 @@ def hide_keys(root: Path, configs=()) -> None:
             register_secret(name, value)
     for config in configs:
         for name, value in config_env(config).items():
-            if isinstance(value, str):
+            if isinstance(value, str) and name.startswith(ANCHORED):
+                register_value(value)
+            elif isinstance(value, str):
                 register_secret(name, value)
 
 
