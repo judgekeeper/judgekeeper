@@ -137,7 +137,7 @@ def test_dark_only():
 def test_the_colours():
     dark = _tokens()
     assert (dark["bg"], dark["text"], dark["muted"], dark["faint"], dark["line"]) == (
-        "#0b0c0e", "#e6e8eb", "#8b919a", "#585e68", "#262a30")
+        "#0b0c0e", "#e6e8eb", "#8b919a", "#767c86", "#262a30")
     assert (dark["hover"], dark["current"]) == ("#121418", "#17191e")
     # Green and red: Pass and Fail (their fill, hover and dots) and the "See your result" link
     assert (dark["green-fill"], dark["green"], dark["red-fill"], dark["red"]) == (
@@ -178,7 +178,9 @@ def test_text_contrast():
 def test_focus_rings_and_no_focus_on_load():
     for name, page in _new().items():
         style = page.split("<style>")[1].split("</style>")[0]
-        assert re.findall(r"outline-offset: ([^;]+);", style) == ["-2px"], name
+        # one ring everywhere; the open question and rule: a thin one, clear of their text
+        assert set(re.findall(r"outline-offset: ([^;]+);", style)) <= {"-2px", "4px"}, name
+        assert re.findall(r"outline-offset: 4px", style) in ([], ["outline-offset: 4px"]), name
         assert ":focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }" in style
         assert "autofocus" not in page, name
     for name, page in (("marking", _marking()), ("old link", mark_page.old_link_page())):
@@ -246,11 +248,13 @@ def test_the_marking_page_words():
         assert gone not in text, gone
     page = _marking()
     assert ('<div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div>'
-            '<h1 class="question" id="q-text"></h1></div>'
+            '<h1 class="question" id="q-text" dir="auto"></h1><button type="button" '
+            'class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" '
+            'hidden>Show all</button></div>'
             '<div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert '<div class="row row-a"><div class="label">Answer</div><p class="answer" id="a-text">' \
-        in page
+    assert ('<div class="row row-a"><div class="label">Answer</div><div class="a-scroll" '
+            'id="a-scroll"><p class="answer" id="a-text" dir="auto">') in page
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
@@ -364,7 +368,7 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
 
 def test_marking_page_heading_progressbar_and_row_words():
     page = _marking()
-    assert page.count("<h1") == 1 and '<h1 class="question" id="q-text">' in page
+    assert page.count("<h1") == 1 and '<h1 class="question" id="q-text" dir="auto">' in page
     assert "<h2" not in page.split('id="end"')[0].split("</header>")[1]  # no list heading
     assert '"marked Pass"' in page and '"marked Fail"' in page and '"not marked"' in page
     assert '<nav class="side" aria-label="Answers">' in page
@@ -439,7 +443,8 @@ def test_the_result_top_bar_has_the_judge_and_the_logo_only():
     (TOO_FEW, "plain", "Mark a few more answers to see your result.")])
 def test_each_result_level_shows_its_state(counts, state, headline):
     html = start_label.result_html(_result(*counts))
-    assert f'<h1 id="verdict-h" class="{state}">{headline}</h1>' in html
+    shown = headline.replace("LLM-as-a-judge", '<span class="term">LLM-as-a-judge</span>')
+    assert f'<h1 id="verdict-h" class="{state}">{shown}</h1>' in html
     assert html.count("<h1") == 1
 
 
@@ -531,10 +536,10 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5 shown; {c["easy"] - 5} '
-            'more are kept aside to test a new rule fairly)</h2>') in first
-    assert ('<button type="button" class="more" aria-expanded="false" aria-controls="t-easy">'
-            "Show all</button>") in first
+    assert '<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5)</h2>' in first
+    assert f'* {c["easy"] + c["strict"] - 7} more are kept aside' in html
+    assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
+            'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
             '<th scope="col">Why your LLM-as-a-judge passed it</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
@@ -548,7 +553,7 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     assert html.index('id="g-easy"') < html.index('id="g-strict"')
     only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, c["strict"])})
     easy = _part(only, '<section class="group band" aria-labelledby="g-easy">')
-    assert "0 shown" in easy and "<table" not in easy  # none to show: its title alone
+    assert easy == "" and 'id="g-easy"' not in only  # none to show: the group is left out
 
 
 def test_the_judges_text_in_the_tables_is_escaped():
@@ -563,17 +568,17 @@ def test_each_group_says_in_its_header_how_many_are_kept_aside():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 4,
                                                                     c["strict"] - 1)})
-    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"] - 4} shown; 4 '
-            'more are kept aside to test a new rule fairly)</h2>') in html
-    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail ({c["strict"] - 1} shown; '
-            '1 more is kept aside to test a new rule fairly)</h2>') in html
-    assert "*" not in _text(html) and 'class="note"' not in html
+    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"] - 4})'
+            '</h2>') in html
+    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail ({c["strict"] - 1})'
+            '</h2>') in html
+    assert '<p class="note kept">* 5 more are kept aside to test a new rule fairly.</p>' in html
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "more are kept aside" not in none and "more is kept aside" not in none
     assert f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"]})</h2>' in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
-    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail (0 shown; {c["strict"]} '
-            'more are kept aside to test a new rule fairly)</h2>') in hidden_only
+    assert 'id="g-strict"' not in hidden_only
+    assert f'* {c["strict"]} more are kept aside to test a new rule fairly.' in hidden_only
     early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
     assert "kept aside" not in early and 'class="group' not in early
 
@@ -584,7 +589,7 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     html = start_label.result_html(r)
     part = _part(html, '<section class="details band" aria-labelledby="details-h">')
     assert '<h2 id="details-h">More details</h2>' in part
-    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)</caption>" in part
+    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)" in part
     assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             "</tr></thead>") in part
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
@@ -707,7 +712,8 @@ def test_what_is_gone_from_the_result_page(counts):
 
 def test_the_result_page_style():
     style = report_page.STYLE
-    for rule in (".band { padding-left: var(--gutter); padding-right: var(--gutter); }",
+    for rule in ((".band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));\n"
+                  "  padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }"),
                  ":root { --gutter: 32px; }",
                  ".verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }",
                  (".verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); "
@@ -722,16 +728,18 @@ def test_the_result_page_style():
                   "var(--line); display: grid; grid-template-columns: 1fr 1fr; }"),
                  (".counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; "
                   "line-height: 1.4; font-weight: 500; }"),
-                 ".left-out { margin: 16px 0 0; font-size: 15px; color: var(--muted); }",
+                 (".left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
+                  "max-width: 80ch; }"),
                  ".group { padding-top: 64px; }",
                  (".gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; "
                   "color: var(--amber); }"),
-                 ".more { font-size: 14px; color: var(--text); text-decoration: underline;",
-                 (".tbl col.c1 { width: 26%; } .tbl col.c2 { width: 48%; } "
-                  ".tbl col.c3 { width: 26%; }"),
+                 (".more, .open-row { font-size: 14px; color: var(--muted); text-decoration: "
+                  "underline;\n  text-decoration-color: var(--faint); text-underline-offset: 3px;"),
+                 (".tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } "
+                  ".tbl col.c3 { width: 28%; }"),
                  ".tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0;",
-                 (".note { margin: 16px 0 0; font-size: 13px; color: var(--muted); "
-                  "text-align: left; }"),
+                 (".note { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
+                  "text-align: left;\n  max-width: 80ch; }"),
                  ".details { padding-top: 64px; }",
                  (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
                   ".panel col.d3 { width: 26%; }"),
@@ -802,16 +810,20 @@ El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k
 El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
 El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
 El.prototype.querySelectorAll = function () { return this.rows; };
+El.prototype.closest = function () { return null; };
+El.prototype.getBoundingClientRect = function () { return {top: 0}; };
 var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
            "t-easy": new El("t-easy")};
 ids["fix-cmd"].textContent = "judgekeeper fix";
 ids.copy.attrs["data-copy"] = "fix-cmd";
-var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.textContent = "Show all";
+var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.attrs["data-n"] = "2";
+more.textContent = "Show 2 more";
 ids["t-easy"].rows = [new El(), new El()]; ids["t-easy"].rows.forEach(function (r) { r.hidden = true; });
 var document = {documentElement: new El("html"),
   getElementById: function (id) { return ids[id] || null; },
   querySelectorAll: function (s) { return s === ".more" ? [more] : []; }};
-var window = {localStorage: {getItem: function () { return null; }, setItem: function () {}}};
+var window = {localStorage: {getItem: function () { return null; }, setItem: function () {}},
+  addEventListener: function () {}};
 var navigator = {clipboard: {writeText: function (t) { copied.push(t); return Promise.resolve(); }}};
 function setTimeout(f, ms) { timers.push([f, ms]); return timers.length; }
 function clearTimeout() {}
@@ -836,8 +848,8 @@ function clearTimeout() {}
     out = subprocess.run([node, str(script)], check=True, capture_output=True, text=True,
                          encoding="utf-8", timeout=60)
     got = json.loads(out.stdout.strip().splitlines()[-1])
-    assert got["opened"] == ["Show fewer", "true", [False, False]]
-    assert got["closed"] == ["Show all", [True, True]]
+    assert got["opened"] == ["Show less", "true", [False, False]]
+    assert got["closed"] == ["Show 2 more", [True, True]]
     assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
     assert got["back"] == ["Copy", ""]
 
@@ -866,7 +878,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"\d+ shown; (\d+) more (?:is|are) kept aside to test a new rule fairly",
+    kept = re.findall(r"\* (\d+) more (?:is|are) kept aside to test a new rule fairly",
                       _text(html))
     assert sum(map(int, kept)) == hidden
 

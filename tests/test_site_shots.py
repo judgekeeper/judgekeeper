@@ -51,6 +51,6 @@ def test_the_pages_are_a_persons_and_the_judge_needs_work(shots, tmp_path, monke
         result = start.get("/result").decode("utf-8")
     finally:
         start.stop()
-    assert "Your LLM-as-a-judge needs work." in result
+    assert 'Your <span class="term">LLM-as-a-judge</span> needs work.' in result
     assert "printed with no terminal" not in result
     assert "program" not in result

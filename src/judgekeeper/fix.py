@@ -642,21 +642,22 @@ RESULT_WORDS = {"better": "better", "safe": "safe to try",
 
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason, each text cut at a word to start_fix_rule.CUT characters, and the person's
-    reasons on it (`why`: reasons.of_line, rule parts only of the rule now); the rule's parts
-    and the person's own buttons. Never a hidden mark. None when there is none."""
+    judge's reason, each text whole (the page folds each row), a many-field question's
+    `fields` as the marking page shows them, and the person's reasons on it (`why`:
+    reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
+    buttons. Never a hidden mark. None when there is none. A split.json that can't be used
+    can't say which marks are kept aside: no mistake and `split_unknown`."""
     try:
         m = Marks(ws)
     except (OSError, ValueError, KeyError):
         return None
     ok, split = shown_split(ws)
     if not ok:
-        return None
+        return {"mistakes": [], "split_unknown": True}
     ids = [i for i in split.seen if i in m.person] if split else list(m.person)
     wrong = mistakes([m.row(i) for i in ids])
     if not wrong:
         return None
-    cut = start_fix_rule.CUT
 
     def why(r: dict) -> dict:
         saved = m.why.get(r["id"]) or reasons.of_line(None)
@@ -664,31 +665,34 @@ def report_section(ws: Workspace) -> dict | None:
                 "rule_parts": [n for n, _ in r["parts"]], "spans": saved["spans"]}
 
     return {"mistakes": [{"id": r["id"], "judge": r["judge"], "final": r["final"],
-                          "question": cut_words(_question(m, r), cut),
-                          "answer": cut_words(reasons.canonical(r["output"]), cut),
-                          "reason": cut_words(r["reason"], cut), "why": why(r)}
+                          "question": _question(m, r), "fields": _fields(m, r),
+                          "answer": reasons.canonical(r["output"]),
+                          "reason": r["reason"], "why": why(r)}
                          for r in wrong],
             "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
             "own": list(m.own.values())}
 
 
-def cut_words(text: str, width: int) -> str:
-    """`text` cut to `width` characters, "…" included, at a word unless that leaves too
-    little."""
-    if len(text) <= width:
-        return text
-    cut = text[:width - 1]
-    if " " in cut[width // 2:]:
-        cut = cut[:cut.rindex(" ")]
-    return cut.rstrip() + "…"
+def _fields(m: Marks, row: dict) -> list[list[str]] | None:
+    """A mistake's question as named values, as the marking page shows them, when two or more
+    are left (none is the answer itself); else None."""
+    from judgekeeper.start_label import shown_question
+
+    held = m.rows.get(row["id"], {})
+    shown = shown_question(m.ws, held.get("input"), held.get("output"))
+    if not isinstance(shown, list):
+        return None
+    shown = [[k, v] for k, v in shown if v.strip() != str(row["output"]).strip()]
+    return shown if len(shown) > 1 else None
 
 
 def _question(m: Marks, row: dict) -> str:
     """A mistake's question as the marking page showed it: of named values, those that are not
     the answer itself (it shows next to it); one left as its value alone."""
-    from judgekeeper.start_label import question_view
+    from judgekeeper.start_label import shown_question
 
-    shown = question_view(m.rows.get(row["id"], {}).get("input"))
+    held = m.rows.get(row["id"], {})
+    shown = shown_question(m.ws, held.get("input"), held.get("output"))
     if not isinstance(shown, list):
         return shown
     shown = [(k, v) for k, v in shown if v.strip() != str(row["output"]).strip()]
@@ -1049,8 +1053,9 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     """fix/marked-answers.csv: every marked answer, `question,answer` only, shuffled, each
     once; cells guarded as a spreadsheet would run them (table.guard_cell). No mark, grade or
     id: the answers kept aside can't be told from the others. How many rows it holds."""
-    rows = list(dict.fromkeys((question_text(m.rows.get(i, {}).get("input")),
-                               answer_text(m.rows.get(i, {}).get("output")))
+    rows = list(dict.fromkeys((question_text((r := m.rows.get(i, {})).get("input"),
+                                             r.get("output")),
+                               answer_text(r.get("output")))
                               for i in m.person))
     random.SystemRandom().shuffle(rows)
     buf = io.StringIO()
@@ -1077,7 +1082,8 @@ def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> Non
     except (OSError, UnicodeDecodeError, csv.Error):
         held = set()
     rows = (m.rows.get(i, {}) for i in ids)
-    if all((guard_cell(question_text(r.get("input"))), guard_cell(answer_text(r.get("output"))))
+    if all((guard_cell(question_text(r.get("input"), r.get("output"))),
+            guard_cell(answer_text(r.get("output"))))
            in held for r in rows):
         return
     write_answers(ws, m)
@@ -1085,14 +1091,31 @@ def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> Non
     talk.para(REWROTE.format(answers=_file(ws, ANSWERS)))
 
 
-def question_text(value) -> str:
+def question_text(value, output=None) -> str:
     """A question as marked-answers.csv holds it: text as written; of a set of named values
-    (such as promptfoo's vars), one value alone, or several as `name: value` lines."""
+    (such as promptfoo's vars), one value alone, or several as `name: value` lines. An answer
+    graded again from that file (asked) keeps the question the file held, so each round
+    writes the same text and is matched the same way."""
     from judgekeeper.start_label import display
 
+    value = asked(value, output)
     if isinstance(value, dict) and len(value) == 1:
         value = next(iter(value.values()))
     return scrub(display(value))
+
+
+def asked(value, output):
+    """The question an answer (`output`) was asked: `value`, or, as a grade of
+    marked-answers.csv hands a row back (its two columns as the named values, the answer the
+    one graded, as the `echo` provider gives), the question the file held. marked-answers.csv,
+    the marking page, its list and the result page all take the question from here."""
+    from judgekeeper.check import _text
+
+    if (isinstance(value, dict) and set(value) == set(ANSWER_COLUMNS)
+            and isinstance(value["question"], str) and output is not None
+            and _text(output) != "" and _text(value["answer"]) == _text(output)):
+        return value["question"]
+    return value
 
 
 def answer_text(value) -> str:

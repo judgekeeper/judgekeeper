@@ -314,7 +314,9 @@ def test_promptfoo_project_one_run_then_clicks(here, capsys,
     # The click: the page's /result makes the result as page.page_server's result() does.
     r = start_label.store_result(ws, session, started[-1]["flags"])
     html = ws.report_html.read_text(encoding="utf-8")
-    assert r["verdict"].split(".")[0] in html and 'class="counts"' in html
+    term = '<span class="term">LLM-as-a-judge</span>'
+    assert r["verdict"].split(".")[0].replace("LLM-as-a-judge", term) in html
+    assert 'class="counts"' in html
     code, out, err = run(capsys)
     assert code == 0 and "  When you say Pass, it also says Pass: " in out
 

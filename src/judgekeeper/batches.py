@@ -192,7 +192,7 @@ def new_answers(ws, found) -> list:
                 row = loads(raw)
                 seen.add(_text(row.get("input"), row.get("output")))
                 text = answer_text(row.get("output"))
-                marked |= {(text, q) for q in _marked_question(row.get("input"))}
+                marked |= {(text, q) for q in _marked_question(row.get("input"), row.get("output"))}
             except (ValueError, AttributeError):  # damaged, or not an object
                 raise StartError(POOL_DAMAGED,
                                  next_step=START_OVER.format(program=program())) from None

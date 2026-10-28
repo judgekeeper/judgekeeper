@@ -24,6 +24,7 @@ import os
 import re
 import stat
 import time
+from pathlib import Path
 
 import pytest
 
@@ -623,7 +624,8 @@ def test_check_names_a_rule_tested_with_fix(here, capsys):
 def test_the_result_page_shows_the_input_as_the_marking_page_does(value, output, shown):
     from types import SimpleNamespace
 
-    m = SimpleNamespace(rows={"a": {"input": value}})
+    m = SimpleNamespace(rows={"a": {"input": value}},
+                        ws=SimpleNamespace(pool=Path("no-such-pool.jsonl")))
     assert fix._question(m, {"id": "a", "output": output}) == shown
 
 
@@ -706,7 +708,26 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
                 "your marks are kept aside") in flat
         assert "pool-judge.jsonl" not in flat and "Result" not in flat
         assert path.read_bytes() == before
-    assert fix.report_section(ws) is None  # the result page shows none of the marks
+    # the result page shows none of the marks, and says it can't tell which are kept aside
+    assert fix.report_section(ws) == {"mistakes": [], "split_unknown": True}
+
+
+def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
+    ws = project(here)
+    run(capsys)  # keeps some marks aside
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    _overlap(d)
+    path.write_text(json.dumps(d), encoding="utf-8")
+    assert main([]) == 0  # the result, with report.html
+    capsys.readouterr()
+    html = ws.report_html.read_text(encoding="utf-8")
+    flat = " ".join(re.sub(r"<[^>]+>", "", html).replace("&#x27;", "'").split())
+    assert "kept aside to test a new rule fairly" not in flat
+    assert ("judgekeeper can't tell which answers are kept aside: run judgekeeper fix to see "
+            "why.") in flat
+    assert '<code>judgekeeper fix</code>' in html
+    assert 'class="group' not in html and "Add a reason" not in html
 
 
 def test_a_split_that_is_not_json_is_refused_and_kept(here, capsys):

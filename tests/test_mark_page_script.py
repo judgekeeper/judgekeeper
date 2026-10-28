@@ -427,6 +427,7 @@ SHOWN = """
   var side = ids["queue"].children[0].children[0].children.filter(function (c) {
     return c.className === "q"; })[0];
   console.log(JSON.stringify({heading: ids["q-label"].textContent, hidden: ids["q-row"].hidden,
+    labelHidden: ids["q-label"].hidden,
     text: ids["q-text"].textContent, parts: parts(ids["q-text"]),
     answer: ids["a-text"].textContent, side: side.textContent}));"""
 
@@ -444,9 +445,9 @@ def test_a_part_that_is_the_answer_is_left_out_and_one_part_shows_as_plain_text(
     assert got["side"] == "Q"
 
 
-def test_two_parts_left_show_under_input_with_their_names():
+def test_two_parts_left_show_with_their_names_and_no_label_above_them():
     got = _run(SHOWN, data=_input([["question", "Q"], ["context", "C"]], "X"))
-    assert got["heading"] == "Input" and got["hidden"] is False
+    assert got["labelHidden"] is True and got["hidden"] is False  # no stacked labels
     assert got["parts"] == [["field-name", "question"], ["field", "Q"],
                             ["field-name", "context"], ["field", "C"]]
     assert got["side"] == "Q"
@@ -470,6 +471,6 @@ def test_the_next_answer_sets_the_heading_and_row_again():
     data["items"][1].update(input=[["question", "Q"], ["context", "C"]], output="X")
     got = _run("""
       key("ArrowRight"); await settle();
-      console.log(JSON.stringify({heading: ids["q-label"].textContent,
+      console.log(JSON.stringify({label: ids["q-label"].hidden,
         hidden: ids["q-row"].hidden}));""", data=data)
-    assert got == {"heading": "Input", "hidden": False}
+    assert got == {"label": True, "hidden": False}

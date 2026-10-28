@@ -51,7 +51,7 @@ def font_faces() -> str:
 # The colours: dark only.
 TOKENS = """
 :root { color-scheme: dark;
-  --bg: #0b0c0e; --text: #e6e8eb; --muted: #8b919a; --faint: #585e68;
+  --bg: #0b0c0e; --text: #e6e8eb; --muted: #8b919a; --faint: #767c86;
   --line: #262a30; --hover: #121418; --current: #17191e;
   --green: #10B981; --green-fill: #047857; --red: #e5484d; --red-fill: #c73b40;
   --amber: #e0a43a; --scrim: rgba(0,0,0,.66);

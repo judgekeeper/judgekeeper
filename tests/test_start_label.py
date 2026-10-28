@@ -276,7 +276,7 @@ def test_after_the_last_answer_the_result_is_served_and_the_server_stops(tmp_pat
         assert client.label(id=item_id, label=group)[0] == 200
     resp, payload = client.request("GET", "/result")
     assert resp.status == 200
-    assert "Your LLM-as-a-judge is good enough to use." in payload.decode()
+    assert "Your <span class=\"term\">LLM-as-a-judge</span> is good enough to use." in payload.decode()
     thread.join(timeout=5)
     assert not thread.is_alive()
 
@@ -323,7 +323,7 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your LLM-as-a-judge needs work.", "You passed", "Kappa", "More details", "Fix it",
+    for needed in ("Your <span class=\"term\">LLM-as-a-judge</span> needs work.", "You passed", "Kappa", "More details", "Fix it",
                    "judgekeeper fix", '"Manrope"'):
         assert needed in html, needed
     assert "<a " not in html.split("<body>")[1]  # no link back: commands only

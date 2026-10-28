@@ -104,6 +104,7 @@ TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
+SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
 SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
@@ -397,15 +398,88 @@ def display(value) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
+# A field that sets the scene goes last, even when its name also holds an asked word
+# (system_prompt, agent_prompt, context_input); checked first.
+BACKGROUND = frozenset({"system", "context", "agent", "assistant", "instruction",
+                        "instructions", "persona", "policy", "document", "documents", "docs",
+                        "guideline", "guidelines", "knowledge", "rules", "reference",
+                        "background"})
+# A field the user's question is in: first, those named question or query before the others.
+# A bare `user` (often an id or a name) is none: user_message and user_input are by their
+# other word.
+ASKED_FIRST = frozenset({"question", "query"})
+ASKED = ASKED_FIRST | {"input", "prompt", "message", "request", "ask"}
+SHORT_FIELD = 140  # characters of a field that reads as one line
+
+
+def _field_order(pair: list[str]) -> tuple[int, int, int]:
+    """Where a named value goes: one that looks like the user's question first (its name has
+    an ASKED word and no BACKGROUND word; question or query before the others, then the
+    shorter), then short ones, then long ones and those that set the scene (BACKGROUND). The
+    rest keep their order."""
+    words = set(re.findall(r"[a-z]+", pair[0].lower()))
+    if words & BACKGROUND:
+        return 2, 0, 0
+    if words & ASKED:
+        return 0, 0 if words & ASKED_FIRST else 1, len(pair[1])
+    return (1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2), 0, 0
+
+
+def say_why_run(n: int, command: str) -> str:
+    """The line that asks why, for `n` disagreements: "on this one" for one."""
+    return (SAY_WHY_RUN_ONE if n == 1 else SAY_WHY_RUN).format(n=n, command=command)
+
+
 def question_view(value):
     """A question as the page shows it: text as written; of a set of named values (such as
-    promptfoo's vars), one value alone, or several as [[name, value as text], ...]."""
+    promptfoo's vars), one value alone, or several as [[name, value as text], ...], the
+    question-like one first (_field_order; the rest as written). Only the reader's own named
+    values are fields: text is never split by its "name:" lines."""
     if isinstance(value, dict) and len(value) > 1:
-        return [[str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
-                for k, v in value.items()]
+        return sorted([[str(k), v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)]
+                       for k, v in value.items()], key=_field_order)
     if isinstance(value, dict) and value:
         value = next(iter(value.values()))
     return display(value)
+
+
+def _fields_index(path: Path) -> dict[str, dict]:
+    """{a question's text as matched: its named values} for every answer in pool.jsonl asked by
+    two or more named values (such as promptfoo's vars), by its whole text and as
+    marked-answers.csv holds it (check._marked_question)."""
+    from judgekeeper.check import _marked_question
+
+    out: dict[str, dict] = {}
+    for line in jsonl_lines(path.read_text(encoding="utf-8")):
+        if not line.strip():
+            continue
+        value = loads(line).get("input")
+        if isinstance(value, dict) and len(value) > 1:
+            for text in _marked_question(value):
+                out.setdefault(text, value)
+    return out
+
+
+def shown_question(ws: Workspace, value, output=None):
+    """A question as the pages show it (question_view), the marking page, its list and the
+    result page alike: of the answer `output` graded again from marked-answers.csv, the
+    question alone (fix.asked). A question that is exactly the text of one judgekeeper
+    already holds as named values (a grade of marked-answers.csv again hands those back as
+    one text) shows with those names. Text is never split by its own "name:" lines."""
+    from judgekeeper.check import _questions
+    from judgekeeper.fix import asked
+
+    value = asked(value, output)
+    texts = _questions(value)
+    if any(": " in t for t in texts) and ws.pool.is_file():
+        try:
+            known = read_cached(ws.pool, _fields_index)
+        except (OSError, ValueError, KeyError, AttributeError):
+            known = {}
+        for text in sorted(texts):
+            if text in known and known[text] is not value:
+                return question_view(known[text])
+    return question_view(value)
 
 
 def _all_exact(r: dict) -> bool:
@@ -600,7 +674,9 @@ class StartSession(LabelSession):
         shown = self.items[:touched + 1 + AHEAD]
         start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
-        items = [{"id": i["id"], "input": question_view(self.raw[i["id"]].get("input")),
+        items = [{"id": i["id"], "input": shown_question(self.workspace,
+                                                          self.raw[i["id"]].get("input"),
+                                                          self.raw[i["id"]].get("output")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in shown]
         return {"items": items, "total": len(self.items), "start": start,

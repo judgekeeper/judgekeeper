@@ -29,6 +29,8 @@ SEGMENTS = 16  # the bar's cells
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
+SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
+SHORT_ANSWER, LONG_ANSWER = 300, 1500  # an answer's size: 20 px up to 300, 18 up to 1500, 17
 
 CROSS = ('<svg class="btn-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
          '<path d="M4 4l8 8M12 4l-8 8"/></svg>')
@@ -73,6 +75,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   border-left: 2px solid transparent; text-align: left; color: var(--muted); font-size: 15px;
   line-height: 1.4; text-decoration: none; }
 .item .q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item { position: relative; }  /* its screen-reader words stay inside the list */
 .item:hover { background: var(--hover); color: var(--text); }
 .item[aria-current] { background: var(--current); color: var(--text); border-left-color: var(--text); }
 .item .num { font-family: var(--mono); font-size: 12px; color: var(--faint); }
@@ -98,22 +101,23 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said.fail { color: var(--red); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
-.question .field-name { display: block; font-size: 12px; font-weight: 600; color: var(--faint);
-  letter-spacing: 0; }
+.question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); line-height: 1.5; }
 .question .field { display: block; }
 .question .field + .field-name { margin-top: 10px; }
 .graded { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
-  margin-bottom: 14px; }
+  margin-bottom: 22px; }
 .graded .label { margin: 0; }
 .metric-name { font-family: var(--mono); font-size: 13px; color: var(--text);
   overflow-wrap: anywhere; min-width: 0; }
-.rule-btn { padding: 6px 10px; font-size: 13px; margin-left: auto; }
+.rule-btn { margin-left: auto; }
 .rule { margin: 0 0 18px; padding: 12px 16px; border-left: 2px solid var(--line);
-  background: var(--hover); }
+  background: var(--hover); width: fit-content; max-width: 100%; }
 .rule-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); max-width: 70ch;
   white-space: pre-wrap; overflow-wrap: anywhere; }
 .answer { font-size: 20px; line-height: 1.6; margin: 0; max-width: 60ch; white-space: pre-wrap;
   overflow-wrap: anywhere; }
+.answer:dir(rtl), .question:dir(rtl) { margin-left: auto; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 40px 16px; border-top: 1px solid var(--line); }
 .btn { height: 50px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
   gap: 10px; font-size: 16px; font-weight: 700; color: #fff; transition: filter 100ms ease; }
@@ -121,7 +125,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn:disabled { cursor: default; }
 .btn-ico { width: 15px; height: 15px; }
 .btn-ico path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: square; }
-.btn kbd { font-family: var(--mono); font-size: 12px; font-weight: 400; opacity: .85; margin-left: 8px; }
+.btn kbd { font-family: var(--sans); font-size: 13px; font-weight: 400; margin-left: 8px; }
 .btn.fail { background: var(--red-fill); }
 .btn.pass { background: var(--green-fill); }
 .btn.fail:hover { filter: brightness(1.08); }
@@ -133,6 +137,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .status { margin: 0; padding: 0 40px 10px; text-align: center; font-size: 13px; font-weight: 600;
   color: var(--red); }
 .status:empty { display: none; }
+.status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
   text-align: center; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
@@ -156,6 +161,93 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
+/* the text as written: no font ligature turns -> into an arrow */
+.question, .answer, .item .q, .rule { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+.answer .code-wrap { position: relative; display: block; margin: 12px 0; }
+.answer code.block { display: block; margin: 0; padding: 14px 16px; font-family: var(--mono);
+  font-size: 14px; line-height: 1.55; white-space: pre; overflow-x: auto; overflow-wrap: normal;
+  border: 1px solid var(--line); background: var(--hover); text-align: left;
+  font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+.answer code.block::-webkit-scrollbar { height: 8px; }
+.answer code.block::-webkit-scrollbar-track { background: transparent; }
+.answer code.block::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 4px; }
+@supports not selector(::-webkit-scrollbar) {
+  .answer code.block { scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
+}
+.code-wrap.more-right::after { content: ""; position: absolute; top: 1px; right: 1px;
+  bottom: 9px; width: 1.5em; pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--hover)); }
+.question .q-head, .question .q-gap, .question .q-tail, .question .q-start,
+.question .q-end { display: block; }
+.q-more { margin-top: 8px; }
+/* One link style: "Show all" and "Show the rule" */
+.quiet.q-more, .quiet.rule-btn { padding: 6px 0; font-size: 14px; color: var(--muted);
+  text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.quiet.q-more:hover, .quiet.rule-btn:hover, .quiet.q-more:focus-visible,
+.quiet.rule-btn:focus-visible { color: var(--text); background: none; }
+@media (min-width: 761px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { min-height: 0; }
+  .wrap { height: auto; grid-template-rows: minmax(0, 1fr); }
+  .main { overflow: hidden; }
+  .card { min-height: 0; }
+  .row-q { flex: 0 1 auto; min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr);
+    padding-top: 26px; padding-bottom: 22px; }
+  #q-row { display: flex; flex-direction: column; min-height: 0; }
+  #q-row > .label, .q-more { flex: none; align-self: flex-start; }
+  #q-row > .question { flex: 0 1 auto; min-height: 0; }
+  .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
+    flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
+  .row-a:has(> .rule:not([hidden])) { min-height: calc((100vh - 72px) * .35 + 150px); }
+  .card:has(.rule:not([hidden])) .question.long:not(.open) { max-height: calc(2 * 1.6em); }
+  .card:has(.rule:not([hidden])) .question.ht:not(.open) > :not(.q-tail) { display: none; }
+  .row-a > .graded, .row-a > .label { flex: none; }
+  .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
+    overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
+  .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
+  .row-a:has(> .a-scroll.fits) { min-height: 0; }
+  .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
+  .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
+  .actions, .sub, .status, .foot { flex: none; }
+  /* Wide: the text, the buttons and the foot line keep to 1120px; the hairlines run the
+     full width */
+  .main { container-type: inline-size; }
+  .row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }
+  .sub { padding-right: max(24px, calc(100cqw - 1160px)); }
+  .a-scroll { margin-right: calc(-1 * max(40px, calc(100cqw - 1160px)));
+    padding-right: max(40px, calc(100cqw - 1160px)); }
+  .question:not(.long) { max-width: 75ch; }
+  .question.long { font-size: 17px; font-weight: 400; line-height: 1.6; letter-spacing: 0;
+    max-width: 75ch; max-height: calc(4 * 1.6em); overflow: hidden; }
+  .question.long .field + .field-name { margin-top: 6px; }
+  .question.long.ht:not(.open) { max-height: none; }
+  .question .q-head, .question .q-tail { max-height: calc(2 * 1.6em); overflow: hidden; }
+  .question .q-tail { display: flex; flex-direction: column; justify-content: flex-end; }
+  .question .q-gap { font-size: 13px; letter-spacing: .3em; color: var(--muted); }
+  .question.open .q-end { position: sticky; bottom: 0; background: var(--bg);
+    border-top: 1px solid var(--line); padding-top: 4px; }
+  .question.long.open { max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
+    overscroll-behavior: contain; }
+  .question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;
+    mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }
+  .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
+  .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
+  .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
+    overscroll-behavior: contain; }
+}
+@media (min-width: 761px) and (max-height: 800px) {
+  .row-q { padding-top: 18px; padding-bottom: 14px; }
+  .row-a { padding-top: 18px; }
+  .label { margin-bottom: 8px; }
+  .graded { margin-bottom: 10px; }
+  .rule { margin-bottom: 12px; }
+  .q-more { margin-top: 4px; }
+  .actions { padding-top: 12px; padding-bottom: 8px; }
+  .btn { height: 44px; }
+  .sub { padding-bottom: 2px; }
+  .sub .quiet { padding: 6px 16px; }
+  .foot { padding-top: 8px; padding-bottom: 8px; }
+}
 @media (max-width: 760px) {
   html, body { height: auto; }
   #app, .wrap { flex: none; min-height: 0; }
@@ -186,14 +278,15 @@ __TOP__
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text"></h1></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="answer" id="a-text"></p></div>
+    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
     </div>
     <div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S"><span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>
     <p class="status" id="status" role="status"></p>
+    <p class="sr" id="done" role="status"></p>
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
@@ -214,6 +307,9 @@ __TOP__
 "use strict";
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
+  // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
+  // size by length (up to SHORT_A, up to LONG_A, longer).
+  var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
   var total = data.total || items.length;  // the page holds the next answers, not all of them
@@ -233,15 +329,42 @@ __TOP__
       if (part) { into.appendChild(k % 2 ? el("code", null, part) : document.createTextNode(part)); }
     });
   }
-  // The rule, behind its button: shown when asked for, the same for every answer.
+  // The rule, behind its button: shown when asked for, the same for every answer. It and the
+  // whole question are never open together, so the answer always keeps its room.
+  function showRule(show, back) {
+    if (!$("rule-btn") || !$("rule")) { return; }
+    tabStop($("rule"), show, back);  // first: hidden, the box has already lost focus
+    $("rule").hidden = !show;
+    $("rule-btn").setAttribute("aria-expanded", String(show));
+    setText("rule-btn", show ? "Hide the rule" : "Show the rule");
+    $("rule").scrollTop = 0;
+    fitRule();
+  }
+  // The open rule: a fade at its bottom while there is more below, as the answer has.
+  function fitRule() {
+    var box = $("rule");
+    if (!box) { return; }
+    box.classList.toggle("more-below",
+      !box.hidden && box.scrollTop + box.clientHeight < box.scrollHeight - 2);
+  }
+  if ($("rule")) { $("rule").addEventListener("scroll", fitRule); }
   if ($("rule-btn")) {
     $("rule-btn").addEventListener("mousedown", function (e) { e.preventDefault(); });
     $("rule-btn").addEventListener("click", function () {
       var show = $("rule").hidden;
-      $("rule").hidden = !show;
-      $("rule-btn").setAttribute("aria-expanded", String(show));
-      setText("rule-btn", show ? "Hide the rule" : "Show the rule");
+      if (show) { openQuestion(false, $("rule-btn")); }
+      showRule(show, $("rule-btn"));
+      fitQuestion();
     });
+  }
+  // An open question or rule is a tab stop of its own, so the keys can scroll it; shut, it is
+  // not, and focus on it goes back to the answer.
+  // Shut while it has focus, focus goes to `back` (the button that shut it), else the answer.
+  function tabStop(box, on, back) {
+    if (on) { box.setAttribute("tabindex", "0"); return; }
+    var had = document.activeElement === box;
+    box.removeAttribute("tabindex");
+    if (had) { if (back) { back.focus(); } else { focusCard(); } }
   }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -251,8 +374,9 @@ __TOP__
   }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
   // A line that a mark was not saved is brought into view, also on a phone.
-  function say(text) {
+  function say(text, calm) {
     setText("status", text);
+    $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
   // On a phone the card comes first, then the list: the card is scrolled into view (at once under
@@ -278,20 +402,200 @@ __TOP__
     value = value.filter(function (pair) { return String(pair[1]).trim() !== answer; });
     return value.length > 1 ? value : value.length ? String(value[0][1]) : "";
   }
+  function chars(text) { return Array.from(String(text)).length; }
+  // A long text whose last paragraph (or line) is a question: its start, then that question.
+  // [start, end, the line break between] cut where they meet, or null.
+  function headTail(text) {
+    var at = text.lastIndexOf("\\n\\n"), gap = 2;
+    if (at < 0) { at = text.lastIndexOf("\\n"); gap = 1; }
+    if (at < 0) { return null; }
+    var head = text.slice(0, at), tail = text.slice(at + gap);
+    if (!/\\?\\s*$/.test(tail) || !tail.trim() ||
+        (chars(head) <= 200 && head.split("\\n").length <= 3)) { return null; }
+    return [head, tail, text.slice(at, at + gap)];
+  }
+  var whole = "";  // the question as text, when it folds to its start and its end
+  // Folded: the first 2 lines (a blank line is not one of them), a "…" line, the last 2
+  // lines, in their order. Shown all: the whole text in order, its question kept in view at
+  // the bottom until the person scrolls to it.
+  function drawQuestion(open) {
+    var into = $("q-text"), parts = whole ? headTail(whole) : null;
+    if (!parts) { return; }
+    into.textContent = "";
+    if (open) {
+      into.appendChild(el("span", "q-start", parts[0] + parts[2]));
+      into.appendChild(el("span", "q-end", parts[1]));
+      return;
+    }
+    into.appendChild(el("span", "q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
+    var gap = el("span", "q-gap", "\u2026");
+    gap.setAttribute("aria-hidden", "true");
+    into.appendChild(gap);
+    into.appendChild(el("span", "q-tail", parts[1]));
+  }
+  // A short one-line question is the big heading; a longer one, or several named values, reads
+  // at normal size, about 4 lines of it, then "Show all".
   function showQuestion(it) {
     var value = question(it), into = $("q-text");
+    var long = Array.isArray(value) || chars(value) > SHORT_Q || value.indexOf("\\n") > -1;
     into.textContent = "";
-    setText("q-label", Array.isArray(value) ? "Input" : "Question");
+    // not on a phone, which shows the whole text
+    whole = !Array.isArray(value) && long && !media("(max-width: 760px)") && headTail(value) ?
+      value : "";
+    into.className = long ? "question long" + (whole ? " ht" : "") : "question";
+    tabStop(into, false);  // shut again for the next answer: no tab stop of its own
+    into.scrollTop = 0;
+    setText("q-more", "Show all"); $("q-more").setAttribute("aria-expanded", "false");
+    setText("q-label", "Question");
+    $("q-label").hidden = Array.isArray(value);  // its fields are labelled
     $("q-row").hidden = Array.isArray(it.input) && value === "";
-    if (!Array.isArray(value)) { into.textContent = value; return; }
-    value.forEach(function (pair) {
-      into.appendChild(el("span", "field-name", pair[0]));
-      into.appendChild(el("span", "field", pair[1]));
-    });
+    if (whole) { drawQuestion(false); }
+    else if (!Array.isArray(value)) { into.textContent = value; }
+    else {
+      value.forEach(function (pair) {
+        var name = el("span", "field-name", pair[0]), field = el("span", "field", pair[1]);
+        name.setAttribute("dir", "auto"); field.setAttribute("dir", "auto");
+        into.appendChild(name); into.appendChild(field);
+      });
+    }
+    fitQuestion();
   }
+  // "Show all" only when the question is longer than its 4 lines (always for its start and
+  // its end); shown all, a fade at its bottom while there is more below.
+  function fitQuestion() {
+    var into = $("q-text"), open = into.classList.contains("open");
+    var cut = !whole && into.classList.contains("long") &&
+              into.scrollHeight > into.clientHeight + 1;
+    into.classList.toggle("cut", cut);
+    into.classList.toggle("more-below",
+      open && !whole && into.scrollTop + into.clientHeight < into.scrollHeight - 2);
+    $("q-more").hidden = !(cut || open || whole);
+  }
+  function openQuestion(open, back) {
+    var into = $("q-text");
+    if (into.classList.contains("open") === open) { return; }
+    into.classList.toggle("open", open);
+    tabStop(into, open, back);
+    into.scrollTop = 0;
+    drawQuestion(open);
+    $("q-more").setAttribute("aria-expanded", String(open));
+    setText("q-more", open ? "Show less" : "Show all");
+    fitQuestion();
+  }
+  $("q-text").addEventListener("scroll", fitQuestion);
+  $("q-more").addEventListener("mousedown", function (e) { e.preventDefault(); });
+  $("q-more").addEventListener("click", function () {
+    var open = !$("q-text").classList.contains("open");
+    if (open) { showRule(false, $("q-more")); }
+    openQuestion(open, $("q-more"));
+  });
+
+  // The answer, never cut: its text as text, a ``` fenced block in a box of its own (still
+  // text), in an area that scrolls by itself, a fade at its bottom while there is more.
+  // A fence opens on a line that starts with ```: the rest of that line is its language when
+  // it is one word (not shown), else the box's first line. It closes on a line that is just
+  // ``` (spaces allowed). One never closed stays text. No other character is left out.
+  var LANG = /^[A-Za-z0-9+#._-]+$/, CLOSE = /^\\s*```\\s*$/;
+  function fences(text) {
+    var lines = text.split("\\n"), parts = [], prose = [], i = 0;
+    while (i < lines.length) {
+      var line = lines[i], end = -1, j;
+      if (line.slice(0, 3) === "```") {
+        for (j = i + 1; j < lines.length; j++) { if (CLOSE.test(lines[j])) { end = j; break; } }
+      }
+      if (end < 0) { prose.push(line); i++; continue; }
+      var rest = line.slice(3), body = lines.slice(i + 1, end);
+      if (rest.trim() && !LANG.test(rest.trim())) { body.unshift(rest); }
+      parts.push({text: prose.join("\\n")}, {code: body.join("\\n")});
+      prose = [];
+      i = end + 1;
+    }
+    parts.push({text: prose.join("\\n")});
+    return parts;
+  }
+  function showAnswer(text) {
+    var into = $("a-text");
+    text = text == null ? "" : String(text);
+    codes = [];
+    into.textContent = "";
+    into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
+                                 chars(text) > SHORT_A ? " a-mid" : "");
+    var parts = fences(text);
+    parts.forEach(function (part, k) {  // the line breaks next to a box are the box's edges
+      if (part.code != null) { into.appendChild(codeBox(part.code)); return; }
+      var t = part.text;
+      if (k > 0) { t = t.replace(/^\\n+/, ""); }
+      if (k < parts.length - 1) { t = t.replace(/\\n+$/, ""); }
+      if (t) { into.appendChild(document.createTextNode(t)); }
+    });
+    edges();
+    var area = answerArea();
+    if (area) { area.scrollTop = 0; fitAnswer(); fade(); }
+  }
+  // An answer shorter than the room kept for it takes only its own height, so the question
+  // and the rule can use the rest.
+  function fitAnswer() {
+    var area = answerArea();
+    if (!area || !window.getComputedStyle) { return; }
+    area.classList.remove("fits");
+    var style = getComputedStyle(area), room = parseFloat(style.minHeight) || 0;
+    area.classList.toggle("fits", room > 0 &&
+      $("a-text").offsetHeight + (parseFloat(style.paddingBottom) || 0) <= room);
+  }
+  // A code box, with a fade at its right edge while more of it is to the side.
+  var codes = [];
+  function codeBox(text) {
+    var wrap = el("span", "code-wrap"), code = el("code", "block", text);
+    code.setAttribute("dir", "ltr");
+    code.addEventListener("scroll", function () { edge(code); });
+    wrap.appendChild(code);
+    codes.push(code);
+    return wrap;
+  }
+  function edge(code) {
+    code.parentNode.classList.toggle("more-right",
+      code.scrollLeft + code.clientWidth < code.scrollWidth - 2);
+  }
+  function edges() { codes.forEach(edge); }
+  function answerArea() { return $("a-text").parentNode; }
+  function fade() {  // more text below, not only the area's bottom padding
+    var area = answerArea();
+    if (!area) { return; }
+    var pad = window.getComputedStyle ? parseFloat(getComputedStyle(area).paddingBottom) || 0 : 0;
+    area.classList.toggle("more-below",
+      area.scrollTop + area.clientHeight < area.scrollHeight - pad - 2);
+  }
+  if (answerArea()) { answerArea().addEventListener("scroll", fade); }
+  window.addEventListener && window.addEventListener("resize", function () {
+    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); });
+  // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
+  // back), also held, Home and End to its top and bottom; the open question or rule instead
+  // while it has focus. Not on a phone, where the page itself scrolls.
+  function scrollAnswer(e, k) {
+    var t = e.target, area = (t === $("q-text") || t === $("rule")) &&
+      t.getAttribute("tabindex") === "0" ? t : answerArea();
+    if (!area || media("(max-width: 760px)")) { return false; }
+    var page = Math.max(area.clientHeight - 60, 40), most = area.scrollHeight - area.clientHeight;
+    var by = {" ": e.shiftKey ? -page : page, pagedown: page, pageup: -page,
+              arrowdown: 40, arrowup: -40, home: -Infinity, end: Infinity}[k];
+    if (by === undefined) { return false; }
+    area.scrollTop = Math.max(0, Math.min(area.scrollTop + by, most));
+    if (area === answerArea()) { fade(); }
+    return true;
+  }
+  // The list's title for an answer: the question at the end of a long text, without its
+  // label ("Question: "); else the first line with real words ("Context:" alone is only a
+  // label), of the question-like field when there are several.
   function firstLine(it) {
-    var value = question(it);
-    return String(Array.isArray(value) ? value[0][1] : value).split("\\n")[0];
+    var value = question(it), lines, parts = Array.isArray(value) ? null : headTail(value);
+    if (parts) {
+      lines = parts[1].split("\\n").filter(function (line) { return line.trim(); });
+      return lines[lines.length - 1].replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
+    }
+    lines = String(Array.isArray(value) ? value[0][1] : value).split("\\n");
+    return (lines.filter(function (line) {
+      return line.trim() && !/^[^:]{1,40}:$/.test(line.trim()); })[0] || lines[0])
+      .replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
   }
 
   // The answers list: the person's own marks only.
@@ -305,7 +609,9 @@ __TOP__
       a.href = "#"; a.setAttribute("data-k", String(k));
       if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
       a.appendChild(el("span", "num", k < 99 ? ("0" + (k + 1)).slice(-2) : String(k + 1)));
-      a.appendChild(el("span", "q", firstLine(it)));
+      var title = el("span", "q", firstLine(it));
+      title.setAttribute("dir", "auto");
+      a.appendChild(title);
       var dot = el("span", "dot-wrap");
       dot.setAttribute("aria-hidden", "true");
       dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
@@ -354,7 +660,7 @@ __TOP__
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
     }
     showQuestion(it);
-    setText("a-text", it.output);
+    showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
     $("pass").setAttribute("aria-pressed", String(it.label === "pass"));
     renderQueue(); renderProgress();
@@ -449,28 +755,39 @@ __TOP__
     return false;
   }
 
+  // What a screen reader hears after a mark: the line is cleared, then said a moment later,
+  // so the same words twice in a row are heard twice.
+  var hearing;
+  function hear(text) {
+    setText("done", "");
+    clearTimeout(hearing);
+    hearing = setTimeout(function () { setText("done", text); }, 100);
+  }
+
   function mark(value) {
     if (ended || locked()) { return; }
     var it = items[pos];
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos); next(); focusCard(); });
+      it.label = value; it.skipped = false; history.push(pos);
+      hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
   function skip() {
     if (ended || locked()) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos); next(); focusCard(); });
+      it.label = null; it.skipped = true; history.push(pos);
+      hear("Skipped."); next(); focusCard(); });
   }
 
   function undo() {
-    if (!history.length) { say("Nothing to undo."); return; }
+    if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked()) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
     var it = items[pos];
     send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; render(); focusCard(); });
+      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); });
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
@@ -486,10 +803,13 @@ __TOP__
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
   document.addEventListener("keydown", function (e) {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
     var tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") { return; }
     var k = (e.key || "").toLowerCase();
+    if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
+      e.preventDefault(); return; }
+    if (e.repeat) { return; }
     if (KEYS[k]) { mark(KEYS[k]); }
     else if (k === "s") { skip(); }
     else if (k === "z" || k === "u") { undo(); }
@@ -588,6 +908,8 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST))
             .replace("__SEGMENTS__", str(SEGMENTS))
+            .replace("__SHORT_Q__", str(SHORT_QUESTION))
+            .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)
             .replace("__CROSS__", CROSS).replace("__TICK__", TICK)
             .replace("__DOT_NONE__", DOTS["none"]).replace("__DOT_PASS__", DOTS["pass"])
