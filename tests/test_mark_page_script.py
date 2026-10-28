@@ -297,7 +297,7 @@ def test_after_a_mark_only_the_mark_word_is_coloured():
       go(1);
       console.log(JSON.stringify({open: open, skipped: skipped, passed: passed,
         failed: state()}));""", data=data)
-    assert got["open"] == ["Not marked yet", []]  # muted, no coloured word
+    assert got["open"] == ["", []]  # not marked yet: nothing said
     assert got["skipped"] == ["Skipped", []]
     assert got["passed"] == ["Marked Pass", [["", "Marked "], ["said pass", "Pass"]]]
     assert got["failed"] == ["Marked Fail", [["", "Marked "], ["said fail", "Fail"]]]
@@ -322,7 +322,7 @@ def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
     share = round(2 / mark_page.FIRST * 100)
     assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]  # a skip: no mark
     assert got["ready"] == ["100", False, "2 marked"]
-    assert got["texts"] == ["Question 3?", "Not marked yet"]  # the state: no position, no total
+    assert got["texts"] == ["Question 3?", ""]  # not marked yet: no words
 
 
 def test_the_undo_button_undoes_like_the_key():

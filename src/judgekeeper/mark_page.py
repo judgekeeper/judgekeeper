@@ -86,9 +86,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .dot-pass circle, .dot-fail circle { stroke-dasharray: none; }
 .dot-pass circle, .dot-pass path { stroke: var(--green); }
 .dot-fail circle, .dot-fail path { stroke: var(--red); }
-.legend { display: flex; gap: 18px; padding: 16px 22px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend .dot { width: 12px; height: 12px; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
 .card { flex: 1; display: flex; flex-direction: column; }
 .row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
@@ -130,7 +127,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn.pass { background: var(--green-fill); }
 .btn.fail:hover { filter: brightness(1.08); }
 .btn.pass:hover { filter: brightness(1.08); }
-.sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 6px; }
+.sub { display: flex; align-items: center; justify-content: center; padding: 0 40px 6px; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }
 .quiet kbd { font-family: var(--mono); font-size: 12px; color: var(--text); margin-left: 8px; }
@@ -212,8 +209,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   /* Wide: the text, the buttons and the foot line keep to 1120px; the hairlines run the
      full width */
   .main { container-type: inline-size; }
-  .row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }
-  .sub { padding-right: max(24px, calc(100cqw - 1160px)); }
+  .row, .actions, .status, .foot, .sub { padding-right: max(40px, calc(100cqw - 1160px)); }
   .a-scroll { margin-right: calc(-1 * max(40px, calc(100cqw - 1160px)));
     padding-right: max(40px, calc(100cqw - 1160px)); }
   .question:not(.long) { max-width: 75ch; }
@@ -263,7 +259,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .btn { height: 60px; font-size: 16px; gap: 8px; }
   .sub { flex-wrap: wrap; padding: 8px 16px; gap: 4px 8px; }
   .quiet { padding: 10px 14px; }
-  .foot, .legend { padding-left: 16px; padding-right: 16px; }
+  .foot { padding-left: 16px; padding-right: 16px; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
 }
@@ -274,11 +270,10 @@ __TOP__
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
-  <div class="legend" aria-hidden="true"><span>__DOT_PASS__Pass</span><span>__DOT_FAIL__Fail</span><span>__DOT_NONE__Not marked</span></div>
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
+    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite"></div></div>
     <div class="row row-a">__GRADED__<div class="label">Answer</div><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
@@ -291,7 +286,7 @@ __TOP__
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
     <button type="button" class="go" id="again" hidden>Look at them</button></section>
-  <p class="foot">Come back any time: <code>__COMMAND__</code>__HELD__</p>
+  <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
 </div>
 </div>
@@ -654,7 +649,7 @@ __TOP__
     $("answer-card").hidden = false; $("end").hidden = true;
     // The state, muted; after a mark, the mark word in its colour: "Marked Pass".
     var state = $("ans-status");
-    state.textContent = it.label ? "" : it.skipped ? "Skipped" : "Not marked yet";
+    state.textContent = it.label ? "" : it.skipped ? "Skipped" : "";
     if (it.label) {
       state.appendChild(el("span", "", "Marked "));
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
