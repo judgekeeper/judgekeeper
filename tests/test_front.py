@@ -427,6 +427,14 @@ def test_a_flag_a_next_line_adds_takes_the_place_of_the_one_given(name, flag):
     assert [w.split("=")[0] for w in at].count(flag) == 1, at
 
 
+def test_a_label_map_given_as_one_word_adds_to_the_map_given():
+    talk = front.FrontTalk(yes=False, path=".", options={"label_map": "good=pass,bad=fail",
+                                                         "port": 8765, "no_browser": False})
+    words = shlex.split(talk.command("--label-map=P=pass"))
+    assert [w.split("=")[0] for w in words].count("--label-map") == 1, words
+    assert "good=pass,bad=fail,P=pass" in " ".join(words), words
+
+
 def test_an_own_format_needs_the_persons_yes_before_judgekeeper_toml(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys)
