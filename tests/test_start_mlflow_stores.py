@@ -669,6 +669,25 @@ def test_listing_two_stores_leaves_no_trash_folder(two, capsys):
     assert not (two / "mlruns" / ".trash").exists()
 
 
+def test_a_cloned_folder_store_beside_mlflow_db_is_read_by_name(two, capsys):
+    """A git clone has no mlruns/.trash: MLflow keeps the store it opened for the whole run, so
+    the .trash it made stays until judgekeeper ends."""
+    shutil.rmtree(two / "mlruns" / ".trash")
+    code, out = run(capsys, two, "--no-browser", "--experiment", "qa-folder")
+    assert code in (0, 3) and "Store:           mlruns, experiment qa-folder" in out, out
+    assert not (two / "mlruns" / ".trash").exists()
+
+
+def test_a_cloned_folder_store_beside_mlflow_db_is_read_when_chosen(two, capsys, monkeypatch):
+    shutil.rmtree(two / "mlruns" / ".trash")
+    answers = ["2", ""]  # mlruns; save
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
+    code, out = run(capsys, two)
+    assert code in (0, 3) and "Store:           mlruns, experiment qa-folder" in out, out
+    assert not (two / "mlruns" / ".trash").exists()
+
+
 def test_the_limits_are_said_in_the_reference():
     flat = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
     assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments "

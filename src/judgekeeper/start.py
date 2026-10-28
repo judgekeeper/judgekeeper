@@ -805,20 +805,40 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
                              "`{command}`.") from None
 
 
+_made_trash: list[Path] | None = None  # in trash_removed_at_end: the .trash folders MLflow made
+
+
 @contextmanager
-def _no_trash_left(path: Path) -> Iterator[None]:
-    """MLflow makes `.trash` in a folder store it opens without one: removed again afterwards,
-    also after an error, so nothing is written outside .judgekeeper/."""
-    trash = path / ".trash" if path.is_dir() else None
-    made = trash is not None and not trash.exists()
+def trash_removed_at_end() -> Iterator[None]:
+    """Around a command (and each find_judge): the `.trash` MLflow makes in a folder store it
+    opens without one is removed when the outermost one ends, also after an error, so nothing
+    is written outside .judgekeeper/. Not sooner: MLflow keeps the store it opened for the
+    whole process, and fails once its .trash is gone."""
+    global _made_trash
+    if _made_trash is not None:
+        yield
+        return
+    _made_trash = []
     try:
         yield
     finally:
-        if made:
+        made, _made_trash = _made_trash, None
+        for trash in made:
             try:
                 trash.rmdir()
             except OSError:
                 pass
+
+
+@contextmanager
+def _no_trash_left(path: Path) -> Iterator[None]:
+    """MLflow may open the folder store `path` here: its .trash, if it has none yet, is
+    removed when trash_removed_at_end ends."""
+    with trash_removed_at_end():
+        trash = path / ".trash"
+        if path.is_dir() and not trash.exists() and trash not in _made_trash:
+            _made_trash.append(trash)
+        yield
 
 
 OLD_EVALUATE = ("Your MLflow runs hold LLM-as-a-judge scores from mlflow.evaluate() ({names}). "
@@ -1858,15 +1878,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     _hide_keys(root, talk)
     if only:
         results = [r for r in results if r.rel in only] or results
+    name = None
     if kind == "mlflow":
-        results = _choose_store(talk, root, results, experiment, store)
+        with trash_removed_at_end():
+            results = _choose_store(talk, root, results, experiment, store)
+            name, runs = _mlflow_runs(talk, results[0], experiment, metric)
     elif kind in ("deepeval", "inspect"):
         results = _choose_folder(talk, results, store, kind)
     newest = results[0]
     description = None
-    name = None
     if kind == "mlflow":
-        name, runs = _mlflow_runs(talk, newest, experiment, metric)
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
         if first is None:
