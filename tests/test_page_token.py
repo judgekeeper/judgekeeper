@@ -185,10 +185,31 @@ def test_opening_the_open_page_again_keeps_its_link(here, capsys, no_browser):
     assert label.read_lock(ws.dir)["pid"] == old_pid  # the same page
 
 
+@pytest.mark.parametrize("again", [("mark", "--port", "0"), ("--no-browser", "--port", "0"),
+                                   ("mark", "--no-browser")])
+def test_a_second_run_with_other_browser_flags_keeps_the_open_page(here, capsys, no_browser,
+                                                                    monkeypatch, again):
+    """Opening a browser or not, and the port asked for, change nothing the page shows: the
+    open page is kept, and its link printed again."""
+    from judgekeeper import page
+
+    code, out, _ = _run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out
+    first = out.splitlines()[out.splitlines().index(page.LINK) + 1]
+    ws = start_label.Workspace(here)
+    old_pid = label.read_lock(ws.dir)["pid"]
+    monkeypatch.setattr(page, "terminal", lambda: True)
+    code, out, _ = _run(capsys, *again)
+    assert code == 0, out
+    assert first in [*out.splitlines(), *no_browser]  # printed again, or opened
+    assert label.read_lock(ws.dir)["pid"] == old_pid  # the same page
+    assert page.STARTS_AGAIN not in out
+
+
 def test_a_page_started_again_keeps_the_token_and_the_printed_stamp(here, capsys, monkeypatch):
-    """The page must start again (it would show another command): it keeps the token and the
-    port, so the open tab still works. Its link was printed with no terminal before, so
-    its marks are still stamped "printed"."""
+    """The page must start again (it would show another command), and says so: it keeps the
+    token and the port, so the open tab still works. Its link was printed with no terminal
+    before, so its marks are still stamped "printed"."""
     from judgekeeper import page
 
     code, out, _ = _run(capsys, "--no-browser", "--port", "0")  # no terminal: printed
@@ -201,8 +222,9 @@ def test_a_page_started_again_keeps_the_token_and_the_printed_stamp(here, capsys
     monkeypatch.setattr(page, "terminal", lambda: True)  # now at a terminal: not stamped
     opened = []
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
-    code, out, _ = _run(capsys, "--port", "0")  # without --no-browser: another command
+    code, out, _ = _run(capsys, "--tool", "promptfoo", "--port", "0")  # another command
     assert code == 0, out
+    assert page.STARTS_AGAIN in out
     assert opened == [first]  # the same link
     assert label.read_lock(ws.dir)["pid"] != old_pid  # a new page
     assert _mark(base, token, start_label.StartSession(ws).items[0]["id"]) == 200

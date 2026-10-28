@@ -730,6 +730,26 @@ def test_each_suggested_line_comes_from_a_fixed_template(reason, line):
     assert f"- {line}" in reasons.suggestions_md(rows).split("## Seen once")[0]
 
 
+def test_a_note_given_on_several_answers_is_counted_the_same_everywhere():
+    from judgekeeper import start_fix_rule
+
+    rows = [{"id": f"a{n}", "judge": "pass", "final": "fail", "output": f"Answer {n}.",
+             "reasons": ["wrong_fact"], "words": {}, "parts": [], "spans": [],
+             "why": "policy fact is wrong" if n < 10 else "too long"} for n in range(11)]
+    said = reasons.clue_lines(rows)
+    assert "You wrote the same note on 10 answers: “policy fact is wrong”." in said
+    assert not any("too long" in line for line in said)  # given once: in suggestions.md only
+    md = reasons.suggestions_md(rows)
+    suggested, once = md.split("## Seen once (not suggested yet)")
+    assert md.count("policy fact is wrong") == 1
+    assert ("- Your own words (10 answers)\n"
+            "<<<YOUR REASON\npolicy fact is wrong\nYOUR REASON>>>") in suggested
+    assert "- Your own words\n<<<YOUR REASON\ntoo long\nYOUR REASON>>>" in once
+    fenced = reasons.clue_lines(rows, fence=start_fix_rule.fenced)
+    assert ("You wrote the same note on 10 answers:\n"
+            "<<<YOUR REASON\npolicy fact is wrong\nYOUR REASON>>>") in fenced
+
+
 def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
     rows = [{"id": f"a{n}", "judge": "fail", "final": "pass", "output": "An answer.",
              "reasons": ["own-1"], "words": {"own-1": "No greeting"}, "parts": [],
