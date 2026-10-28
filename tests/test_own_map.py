@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 import subprocess
 import sys
+import time
 import tomllib
 
 import pytest
@@ -267,6 +269,24 @@ def test_without_a_terminal_two_answer_columns_not_a_and_b_stop(tmp_path, capsys
     code, out = check(capsys, path, "--yes")
     assert code == 3, out
     assert not (tmp_path / "judgekeeper.toml").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+                    reason="chmod 000 keeps a file from its owner only on POSIX, not root")
+@pytest.mark.parametrize("name", ["notes.json", "notes.jsonl", "notes.csv"])
+def test_a_file_it_may_not_read_is_skipped(tmp_path, capsys, name):
+    flat_jsonl(tmp_path / "evals" / "graded.jsonl")
+    unreadable = tmp_path / "evals" / name
+    unreadable.write_text('{"question": "q", "answer": "a", "verdict": "pass"}\n',
+                          encoding="utf-8")
+    os.utime(unreadable, (time.time() + 60,) * 2)  # newer: looked at first
+    unreadable.chmod(0)
+    try:
+        code, out = check(capsys, tmp_path, "--yes")
+    finally:
+        unreadable.chmod(0o600)
+    assert code == 0, out
+    assert "evals/graded.jsonl" in out and "permission" not in out
 
 
 def test_yes_answers_it(tmp_path, capsys):
