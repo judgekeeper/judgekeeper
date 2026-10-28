@@ -482,3 +482,15 @@ def test_the_reasons_script_updates_the_line_after_a_save():
     s = report_page.REASONS_SCRIPT
     assert "Your reason: " in s and "Change" in s and "Add a reason" in s
     assert "data-said" in s
+
+
+# More details -------------------------------------------------------------------------------
+
+def test_weighted_estimates_say_why_they_differ_from_the_counts():
+    caption = "<caption>How often your LLM-as-a-judge agrees with you (estimates)"
+    html = start_label.result_html(_result(*NOT_GATE_TNR))  # 80 of 200 marked
+    assert (caption + '<span class="weighted">Worked out for all 200 answers, not only the 80 '
+            "you marked, so they can differ from the counts above.</span></caption>") in html
+    every = start_label.result_html(_result(40, 40, 40, 22, 40, 2))  # every answer marked
+    assert caption + "</caption>" in every and 'class="weighted"' not in every
+    assert ".panel caption .weighted { display: block;" in report_page.STYLE

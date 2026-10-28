@@ -587,7 +587,7 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     html = start_label.result_html(r)
     part = _part(html, '<section class="details band" aria-labelledby="details-h">')
     assert '<h2 id="details-h">More details</h2>' in part
-    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)</caption>" in part
+    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)" in part
     assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             "</tr></thead>") in part
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],

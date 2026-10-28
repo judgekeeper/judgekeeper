@@ -309,6 +309,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .panel { margin-top: 32px; table-layout: fixed; }
 .panel caption { text-align: left; font-size: 13px; color: var(--muted); padding: 0 0 12px; }
+.panel caption .weighted { display: block; margin-top: 4px; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
@@ -827,6 +828,18 @@ def estimate(value, interval) -> tuple[str, str]:
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
 
 
+def _weighted(r: dict) -> str:
+    """Under the caption, when some answers are not marked: the estimates are worked out for
+    them all (each mark weighed by its grade's share), so they can differ from the counts."""
+    g = r.get("groups") or {}
+    every = sum((g.get(k) or {}).get("pool") or 0 for k in ("pass", "fail"))
+    marked = sum((g.get(k) or {}).get("labeled") or 0 for k in ("pass", "fail"))
+    if not marked or marked >= every:
+        return ""
+    return (f'<span class="weighted">Worked out for all {every} answers, not only the {marked} '
+            "you marked, so they can differ from the counts above.</span>")
+
+
 def _details(r: dict) -> str:
     """More details: how often the judge agrees with the person, estimated (weighted, with
     their ranges), and kappa."""
@@ -847,7 +860,8 @@ def _details(r: dict) -> str:
              f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<section class="details band" aria-labelledby="details-h">'
             '<h2 id="details-h">More details</h2><table class="panel">'
-            "<caption>How often your LLM-as-a-judge agrees with you (estimates)</caption>"
+            "<caption>How often your LLM-as-a-judge agrees with you (estimates)"
+            f"{_weighted(r)}</caption>"
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             f"</tr></thead><tbody>{body}</tbody></table></section>")
