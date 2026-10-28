@@ -1160,7 +1160,10 @@ def mlflow_store(ws: Workspace) -> str | None:
     store = data.get("mlflow_store") if data.get("tool") == "mlflow" else None
     if not isinstance(store, str) or not store:
         return None
-    return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
+    try:
+        return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
+    except ValueError:  # another drive on Windows
+        return quote_arg((ws.root / store).resolve().as_posix())
 
 
 def _new_results(ws: Workspace) -> str:
