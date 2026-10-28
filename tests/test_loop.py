@@ -214,12 +214,14 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     def said(key):
         estimate, between = report_page.estimate(r[key], r[f"{key}_interval"])
         return f"{estimate} (between {between})"
-    assert lines[2:16] == [
+    assert lines[2:18] == [
         "Step 3 of 5: Measure", "",
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
         "You and your LLM-as-a-judge agreed on all 36 answers.", "",
-        "  You passed 20 answers. Of those, your LLM-as-a-judge passed 20 and failed 0.",
-        "  You failed 16 answers. Of those, your LLM-as-a-judge passed 0 and failed 16.", "",
+        "  You passed 20 answers. Of those, your LLM-as-a-judge passed 20",
+        "  and failed 0.",
+        "  You failed 16 answers. Of those, your LLM-as-a-judge passed 0",
+        "  and failed 16.", "",
         "How often your LLM-as-a-judge agrees with you (estimates):",
         f"  When you say Pass, it also says Pass: {said('tpr')}",
         f"  When you say Fail, it also says Fail: {said('tnr')}", "",
@@ -260,7 +262,8 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
     code, out, _ = run(capsys)
     assert code == 3  # every answer marked, too early to tell: more answers are needed
     assert "You and your LLM-as-a-judge disagreed on 5 of 36 answers." in out
-    assert "  You failed 21 answers. Of those, your LLM-as-a-judge passed 5 and failed 16." in out
+    assert ("  You failed 21 answers. Of those, your LLM-as-a-judge passed 5\n"
+            "  and failed 16.") in out  # wrapped as the lines around it
     at = out.index("How often your LLM-as-a-judge agrees with you (estimates):")
     assert at > out.index("Result: too early to tell.")  # the numbers, under the same line
     assert "  When you say Pass, it also says Pass: " in out[at:]

@@ -312,7 +312,7 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
     first = " ".join(main[0][1])
     assert "Open this link" in first and "Your LLM-as-a-judge passed 28 answers and failed 22" in first
     result = " ".join(main[1][1])
-    assert "You passed \\d+ answers\\. Of those, your LLM-as-a-judge passed" in result
+    assert r"You\s+passed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+" in result
     assert "Result: your LLM-as-a-judge is good enough to use" in result and main[1][2] == (0,)
     assert "automatic" not in result.lower()
     assert not [path for _, _, path, _ in posted if path in ("/turn-on", "/no-thanks")]
@@ -386,10 +386,30 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     first, result = " ".join(main[0][1]), " ".join(main[1][1])
     # The first look's Next: line names no command (mark, then click "See your result");
     # the result's does, through uvx.
-    assert "uvx" not in first and "Next: [^`]*`uvx judgekeeper@" in result
+    assert "uvx" not in first and ic.uvx_next(check.version) in result
     early = _in(ran, check.other("too early"))[1][1]
     assert re.search(early[-1], "Next: run your eval on more questions, then run\n"
                      "`uvx judgekeeper@1.0.0 mark`: the new answers join the ones you marked.")
+
+
+@pytest.mark.parametrize(("version", "pre"), [("1.0.0", False), ("1.0.0rc1", True),
+                                              ("1.0.0b1", True), ("1.0.0.dev1", True),
+                                              ("1.0.1", False)])
+def test_a_pre_release_is_told_by_judgekeepers_own_rule(ic, version, pre):
+    from judgekeeper import textio
+
+    assert ic.is_prerelease(version) is textio.is_prerelease(version) is pre
+
+
+def test_the_uvx_next_line_names_the_version_only_for_a_pre_release(ic):
+    said = ("Next: nothing to do. When you change your LLM-as-a-judge or\n"
+            "update your eval tool, run `uvx judgekeeper{} check`.")
+    plain, pinned = said.format(""), said.format("@1.0.0")
+    assert re.search(ic.uvx_next("1.0.0"), plain)
+    assert not re.search(ic.uvx_next("1.0.0"), pinned)
+    rc = said.format("@1.0.0rc1")
+    assert re.search(ic.uvx_next("1.0.0rc1"), rc)
+    assert not re.search(ic.uvx_next("1.0.0rc1"), plain)
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):

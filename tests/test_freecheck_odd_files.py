@@ -294,7 +294,8 @@ def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, 
     path = _repeats(tmp_path / "results.json", **shape)
     (judge,) = browser(path)["judges"]
     found = start.find_judge(path)
-    expected = [f"Answers:         {answers} answers", f"{front.INDENT}{note}"]
+    count = f"{answers} to mark" if "different grades" in note else f"{answers} answers"
+    expected = [f"Answers:         {count}", f"{front.INDENT}{note}"]
     for lines in (judge["lines"], front.found_block(found)):
         at = lines.index(expected[0])
         assert lines[at:at + 2] == expected, lines

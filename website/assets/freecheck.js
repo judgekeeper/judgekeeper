@@ -1199,7 +1199,7 @@
     var pad = '                 ';
     L.push({ k: 'Eval tool:       ', text: result.toolName, tone: 'g' });
     L.push({ k: 'File:            ', text: result.file });
-    L.push({ k: 'Answers:         ', text: n(j.answers, 'answer') });
+    L.push({ k: 'Answers:         ', text: j.split.length ? j.answers + ' to mark' : n(j.answers, 'answer') });
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });

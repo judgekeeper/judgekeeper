@@ -70,8 +70,8 @@ SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it f
 QUESTIONS = "judgekeeper needs your answer to {which}:"
 # Questions whose answer changes what is counted: the counts are printed after them
 COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
-READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV "
-         "or JSONL file.")
+READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
+         "TSV or JSONL file.")
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -160,6 +160,13 @@ class FrontTalk(start.Talk):
     def set(self, name: str, value) -> None:
         self.options[name] = value
         self.refresh()
+
+    def command(self, *extra: str) -> str:
+        """start.Talk.command; a --label-map in `extra` adds to the person's own map."""
+        return super().command(*_with_given_map(self.options.get("label_map"), extra))
+
+    def command_at(self, where: str | Path, *extra: str) -> str:
+        return super().command_at(where, *_with_given_map(self.options.get("label_map"), extra))
 
     def looking(self, root: Path) -> None:
         """Said only when nothing is found."""
@@ -549,6 +556,21 @@ def _shown(values) -> str:
                                              if len(texts) > 10 else "")
 
 
+def _with_given_map(given: str | None, extra: tuple[str, ...]) -> tuple[str, ...]:
+    """`extra` with the person's `given` map before the entries of its --label-map, which
+    replaces theirs in the command (start.Talk.command): so no entry of theirs is lost."""
+    if not given or "--label-map" not in extra:
+        return extra
+    at = extra.index("--label-map")
+    entries = extra[at + 1]
+    merged = f"{given},{entries.strip(chr(34))}"
+    value = quote_arg(merged)
+    if entries.startswith('"') and value == merged:  # a placeholder stays in its quotes
+        value = f'"{merged}"'
+    flag = (f"--label-map={value}",) if merged.startswith("-") else ("--label-map", value)
+    return (*extra[:at], *flag, *extra[at + 2:])
+
+
 def _add_label_map(talk: FrontTalk, extra: str) -> None:
     given = talk.options["label_map"]
     talk.set("label_map", f"{given},{extra}" if given else extra)
@@ -563,7 +585,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         n = found.pool.n_unmapped.get(repr("P"), 0)
         for line in found_block(found):  # what was found; the count waits for the answer
             if not line.startswith("Answers:"):
-                talk.say(line)
+                _say_found(talk, line)
         talk.say()
         talk.say(f"Inspect gave partial credit (P) on {_n(n, 'answer')}.")
         if not terminal:
@@ -993,6 +1015,14 @@ def passed_failed(n_pass: int, n_fail: int) -> str:
     return f"Your LLM-as-a-judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
 
+def _say_found(talk: FrontTalk, line: str) -> None:
+    """A line of the Find block; a note under a value is wrapped under it."""
+    if line.startswith(f"{INDENT}("):
+        talk.para(line[len(INDENT):], indent=INDENT)
+    else:
+        talk.say(line)
+
+
 def found_block(found: start.Found, pass_if: str | None = None,
                 mapped: settings.StartSettings | None = None) -> list[str]:
     """Screen 1's "Find" block: the eval tool, the file, the answers, the judge, its rule and
@@ -1010,6 +1040,8 @@ def found_block(found: start.Found, pass_if: str | None = None,
                      f"({unscored} failed before scoring)")
     elif not pool.answers and not pool.unread:
         lines.append(f"Answers:         {_n(answers, 'answer')}, none with a clear grade")
+    elif pool.split:  # repeats graded both ways each count: more to mark than answers
+        lines.append(f"Answers:         {answers} to mark")
     else:
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
@@ -1114,7 +1146,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     listed = _listed(found)
     talk.say()  # a blank line after what Find said first (a file left out), never two
     for line in found_block(found, talk.options["pass_if"], mapped):
-        talk.say(line)
+        _say_found(talk, line)
     if found.tool == "table" and _columns_line(found, talk.options["pass_if"]):
         talk.para(SCORE_READ)
     talk.say()
@@ -1614,8 +1646,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
     talk.para(verdict_line(r))
     for line in agreement_lines(r):
-        if line.startswith("  "):  # an indented count is said whole, never wrapped
-            talk.say(line)
+        if line.startswith("  "):  # an indented count, wrapped under itself
+            talk.para(line[2:], indent="  ")
         else:
             talk.para(line)
     step = report_page.next_step(r)  # the report's next step

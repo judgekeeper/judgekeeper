@@ -356,11 +356,23 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys)
     assert code == 0, out
-    assert "Answers:         38 answers" in out
+    assert "Answers:         38 to mark" in out  # never "38 answers" next to the file's 36
     assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
             "the same grade count once. 1 answer got different grades, so its 3 repeats each "
             "count.)") in flat(out)
     assert "tied grade" not in out and "merged" not in out
+    _note_fits(out)
+
+
+def _note_fits(out: str) -> None:
+    """The repeats note under Answers is wrapped at the block's width, under its value."""
+    from judgekeeper.front import INDENT
+    from judgekeeper.textio import WIDTH
+
+    lines = out.splitlines()
+    at = next(n for n, line in enumerate(lines) if line.startswith(f"{INDENT}(your file has"))
+    note = lines[at:next(n for n in range(at, len(lines)) if lines[n].endswith(".)")) + 1]
+    assert len(note) > 1 and all(len(x) <= WIDTH and x.startswith(INDENT) for x in note), note
 
 
 def test_repeats_with_the_same_grade_are_still_merged(here, capsys):
@@ -827,12 +839,13 @@ def two_epoch_log(root: Path) -> Path:
 def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys):
     two_epoch_log(here)
     code, out = run(capsys)
-    assert code == 3, out  # 20 answers: not enough for a first result
-    assert "Answers:         20 answers" in out
+    assert code == 3, out  # 20 to mark: not enough for a first result
+    assert "Answers:         20 to mark" in out
     assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
             "grade count once. 5 answers got different grades, so their 10 repeats each "
             "count.)") in flat(out)
     assert "its own answer" not in flat(out)  # said once, under Answers
+    _note_fits(out)
 
 
 def test_the_judge_list_counts_answers_as_the_pool_does(here, capsys):
