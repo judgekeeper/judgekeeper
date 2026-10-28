@@ -35,7 +35,7 @@ The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
 ## It only reads files
 
-judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
+judgekeeper never runs your eval tool or your project's code, and the only programs it starts are its own marking page and your browser (the program in `BROWSER`, when you set it). It makes no AI call. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
 
 ## Other things
 
