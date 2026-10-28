@@ -773,9 +773,17 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
         uri = mlflow_store.store_uri(store.path, say=talk.say)
-        with _no_trash_left(store.path), mlflow_store.folder_store_allowed(uri, say=talk.say), \
-                mlflow_store.store_damage(uri):
-            return _mlflow_experiment(talk, store, experiment, metric, uri)
+        try:
+            with _no_trash_left(store.path), \
+                    mlflow_store.folder_store_allowed(uri, say=talk.say), \
+                    mlflow_store.store_damage(uri):
+                return _mlflow_experiment(talk, store, experiment, metric, uri)
+        except mlflow_store.FolderUnusable as e:
+            if any(w.split("=")[0] == "--tracking-uri" for w in talk.flags):
+                raise  # the folder --tracking-uri named: name another one
+            raise StartError(str(e), f"make {_store_name(store)} writable (MLflow adds an empty "
+                             ".trash folder to it, which judgekeeper removes again), then run "
+                             "`{command}`.") from None
 
 
 @contextmanager
@@ -2010,6 +2018,9 @@ NO_TRACKING_URI = ("--tracking-uri is empty: name your MLflow store, an mlflow.d
                    "mlruns/ folder")
 NOT_A_STORE = ("{uri} is not an MLflow store: no experiment folder in it holds a meta.yaml. Name "
                "an mlflow.db file or an mlruns/ folder")
+NOT_A_FILE = "{uri} is not an MLflow store: it is not a plain file (a pipe or a device)."
+GIVE_STORE = ("run `{command} --tracking-uri PATH`, with PATH your MLflow folder (mlruns/) or "
+              "mlflow.db.")  # never the --tracking-uri that was given: it named no store
 TRACKING_SERVER = ("{uri} is a tracking server. judgekeeper reads a local MLflow store instead: "
                    "an mlflow.db file or an mlruns/ folder in your project.")
 
@@ -2021,7 +2032,7 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
 
     text = str(uri)
     if not text.strip():
-        raise StartError(NO_TRACKING_URI)
+        raise StartError(NO_TRACKING_URI, GIVE_STORE, "--tracking-uri")
     if text.startswith(SERVERS):
         raise StartError(TRACKING_SERVER.format(uri=uri))
     if text.startswith("sqlite:///"):
@@ -2029,9 +2040,11 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
     else:
         store = folder_of(text) or Path(text)
     if not store.exists():
-        raise StartError(f"no MLflow store at {uri}")
+        raise StartError(f"no MLflow store at {uri}", GIVE_STORE, "--tracking-uri")
     if store.is_dir() and not find.is_mlflow_folder(store):  # MLflow would read any folder
-        raise StartError(NOT_A_STORE.format(uri=uri))
+        raise StartError(NOT_A_STORE.format(uri=uri), GIVE_STORE, "--tracking-uri")
+    if not store.is_dir() and not store.is_file():  # /dev/null, a pipe: MLflow would wait
+        raise StartError(NOT_A_FILE.format(uri=uri), GIVE_STORE, "--tracking-uri")
     root = path.resolve() if path.is_dir() else path.resolve().parent
     store = store.resolve()
     rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)

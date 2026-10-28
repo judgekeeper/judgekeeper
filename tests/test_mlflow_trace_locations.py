@@ -494,3 +494,18 @@ def test_trace_files_a_copy_names_count_toward_the_limit(made, tmp_path, monkeyp
         start.find_judge(root)
     assert "the trace files judgekeeper would read from mlflow.db are over" in " ".join(
         str(e.value).split())
+
+
+def test_trace_files_missing_from_the_stores_own_folder_are_said(made, tmp_path, capsys):
+    """Each trace names a folder next to mlflow.db that is not there: their files are missing,
+    said as such, never as a store with no decisions."""
+    root = _project(made, tmp_path)
+    edit(root / "mlflow.db", "delete from trace_tags where key = 'mlflow.trace.spansLocation'",
+         "delete from spans")
+    shutil.rmtree(root / "mlartifacts")
+    code = main([str(root), "--no-browser"])
+    flat = " ".join("".join(capsys.readouterr()).split())
+    assert code == 2, flat
+    assert f"the files of its {N} traces are missing" in flat, flat
+    assert "in the folders mlflow.db names" in flat, flat
+    assert "holds no decisions" not in flat

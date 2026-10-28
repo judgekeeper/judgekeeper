@@ -186,6 +186,10 @@ def _store_parts(path: Path) -> dict[Path, os.stat_result]:
             raise
         kind = ("link" if stat.S_ISLNK(found.st_mode) or _junction(part)
                 else None if stat.S_ISREG(found.st_mode) else "special")
+        if kind == "special" and not suffix:  # never "remove" it: it may be /dev/null
+            raise Damaged(f"{part.name} is not an MLflow store: it is not a plain file (a pipe "
+                          "or a device).", "save your MLflow store as a plain mlflow.db file, "
+                          "then run `{command}`.")
         if kind is not None:
             why, step = UNSAFE[kind]
             raise Damaged(f"{part.name} {why}.", step.format(file=part.name.replace(
@@ -693,7 +697,7 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
             server_only = True  # read what the store itself holds (the previews)
             continue
         if copy is not None:
-            page_traces = _from_the_copy(client, list(page), copy, previews, budget)
+            page_traces = _from_the_copy(client, list(page), copy, previews, budget, missing)
         else:
             page_traces = page
         for trace in page_traces:
@@ -723,12 +727,12 @@ def kept_elsewhere(info, copy: Path) -> bool:
 
 
 def _from_the_copy(client, page: list, copy: Path, previews: list | None,
-                   budget: TraceBytes | None = None) -> list:
+                   budget: TraceBytes | None = None, missing: list | None = None) -> list:
     """A page of traces found without their spans, in judgekeeper's copy of mlflow.db: each
     with its spans from the database or the local folder it names, in the page's order; one
     kept elsewhere as found, its id added to `previews`. A trace MLflow can't load is left
-    out, as MLflow leaves it out. The trace files MLflow will read count toward `budget`
-    first."""
+    out, as MLflow leaves it out, its id added to `missing` (its files are not where it
+    says). The trace files MLflow will read count toward `budget` first."""
     wanted = [t.info.trace_id for t in page if not kept_elsewhere(t.info, copy)]
     if budget is not None:
         for t in page:
@@ -755,6 +759,8 @@ def _from_the_copy(client, page: list, copy: Path, previews: list | None,
             found.append(trace)
         elif trace.info.trace_id in full:  # its spans, with the info search_traces gave
             found.append(Trace(trace.info, full[trace.info.trace_id].data))
+        elif missing is not None:
+            missing.append(trace.info.trace_id)
     return found
 
 
@@ -1095,7 +1101,7 @@ def previews_line(n: int) -> str:
 def missing_line(n: int, folder: str) -> str:
     """The note for answers left out because their trace files are missing."""
     what = "1 answer was" if n == 1 else f"{n} answers were"
-    return f"{what} left out: their trace files are missing from {folder}/."
+    return f"{what} left out: their trace files are missing from {folder}."
 
 
 def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
@@ -1209,12 +1215,17 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
             damaged.append(str(getattr(trace.info, "trace_id", n_traces)))
 
     if n_traces == 0 and missing:
-        where = f"{folder.name}/" if folder is not None else "the store"
+        if folder is not None:
+            where = f"{folder.name}/"
+            kept = f"in {where}{exp.experiment_id}/traces/"
+        else:
+            where = store_name(tracking_uri)
+            kept = f"in the folders {where} names"
         raise TracesMissing(
             f"MLflow experiment {exp.name!r} in {where}: the files of its {len(missing)} "
-            f"traces are missing (MLflow keeps each trace's question and answer in "
-            f"{where}{exp.experiment_id}/traces/), so there is nothing to read. Run your "
-            "evaluation again on this computer, or point judgekeeper at a store that has them.")
+            f"traces are missing (MLflow keeps each trace's question and answer {kept}), so "
+            "there is nothing to read. Run your evaluation again on this computer, or point "
+            "judgekeeper at a store that has them.")
     if n_traces == 0:
         raise RecordsError(f"MLflow experiment {exp.name!r} has no traces")
     _add_failed(judged, failed, wanted, exp.name,
@@ -1268,7 +1279,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                             "on the answer) left out. To check an LLM-as-a-judge that is only on "
                             "spans, name it with --metric.")
     if missing:
-        humans.notes.append(missing_line(len(missing), folder.name if folder else "the store"))
+        humans.notes.append(missing_line(len(missing), f"{folder.name}/" if folder else
+                                         f"the folders {store_name(tracking_uri)} names"))
     if previews:
         humans.notes.append(previews_line(len(previews)))
     if capped:

@@ -677,3 +677,49 @@ def test_the_limits_are_said_in_the_reference():
     assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
             "`-shm` files") in flat
     assert mlflow_store.SMALL_LIMIT == 2**20 and "a tag, setting or assessment file over 1 MB" in flat
+
+
+# Messages that say what is true -----------------------------------------------------------
+
+@POSIX
+@pytest.mark.parametrize("uri", ["/dev/null", "sqlite:////dev/null"])
+def test_a_tracking_uri_naming_a_device_is_not_a_store(tmp_path, monkeypatch, capsys, uri):
+    pytest.importorskip("mlflow")
+    monkeypatch.chdir(tmp_path)
+    code, out = run(capsys, "--tracking-uri", uri, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"{uri} is not an MLflow store: it is not a plain file (a pipe or a device)" in flat
+    assert "holds no decisions" not in flat and "remove" not in flat, out
+    nxt = flat[flat.index("Next:"):]
+    assert "/dev/null" not in nxt and "--tracking-uri PATH" in nxt, nxt
+
+
+def test_an_empty_tracking_uri_is_not_repeated_in_the_next_line(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    code, out = run(capsys, "--tracking-uri", "", "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2 and "--tracking-uri is empty" in flat, out
+    nxt = flat[flat.index("Next:"):]
+    assert "--tracking-uri ''" not in nxt and '--tracking-uri ""' not in nxt, nxt
+    assert "--tracking-uri PATH" in nxt, nxt
+
+
+def test_a_read_only_mlruns_found_in_the_project_gets_a_next_line_that_helps(folder_only,
+                                                                              capsys):
+    if os.name == "nt":
+        pytest.skip("folder permissions work differently on Windows")
+    store = folder_only / "mlruns"
+    shutil.rmtree(store / ".trash", ignore_errors=True)
+    store.chmod(0o500)
+    if os.access(store, os.W_OK):
+        store.chmod(0o700)
+        pytest.skip("this user can write anywhere")
+    try:
+        code, out = run(capsys, folder_only, "--no-browser")
+    finally:
+        store.chmod(0o700)
+    flat = " ".join(out.split())
+    assert code == 2, out
+    nxt = flat[flat.index("Next:"):]
+    assert "make mlruns/ writable" in nxt and "--tracking-uri PATH" not in nxt, nxt
