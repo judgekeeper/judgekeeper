@@ -235,7 +235,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         assert int(n.attrs["data-to"]) == int(n.text()), report
         found[report] = (int(n.attrs["data-to"]), big.text().strip())
         if "jailbreakbench" in report:  # the count is of draws with all three inside
-            assert line.text().strip().startswith("times all three true numbers"), report
+            assert line.text().strip().startswith("times TPR, TNR and kappa were all"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
@@ -560,7 +560,7 @@ def test_the_check_page_says_what_it_reads_and_that_the_file_stays():
     text = " ".join(parse(CHECK).text().split())
     for words in ("Try step 1 in your browser.",
                   "Drop your results file here or click to choose one",
-                  "promptfoo · DeepEval · CSV · JSONL",
+                  "promptfoo · DeepEval · CSV · TSV · JSONL",
                   "Waiting for your results file.",
                   "Drop it in the box, or try an example.",
                   "your file stays on your computer"):

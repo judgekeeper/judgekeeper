@@ -17,6 +17,7 @@ In your project folder, with pip:
 ```
 pip install judgekeeper
 ```
+Then run:
 ```
 judgekeeper
 ```
@@ -24,7 +25,7 @@ Or with [uv](https://docs.astral.sh/uv/):
 ```
 uvx judgekeeper
 ```
-Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file. With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
+Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
 
 ## The 5 steps
 
@@ -34,7 +35,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-`fix` keeps half your marks aside and doesn't show them to you, so a new rule is tested on answers it wasn't written from. It saves every marked answer in `.judgekeeper/fix/marked-answers.csv`. Change your rule in your eval tool, grade those answers again, then run `judgekeeper fix <new results file>`. How many marks a clear answer needs depends on how big the change is. For a new rule that fixes about a quarter of the mistakes and breaks few right answers, it needs about 80 marks, and the answer is usually "safe to try", not "better". A large fix of a clearly wrong rule (about 9 in 10 of its mistakes fixed) usually comes out "better" with 80 marks; a small fix that also breaks a few right answers needs more ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
+`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule in your eval tool, grade `.judgekeeper/fix/marked-answers.csv` again, then run `judgekeeper fix <new results file>`. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads "safe to try" ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
 
 judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
@@ -44,18 +45,18 @@ judgekeeper only reads files. It never runs your eval tool, makes no AI call and
 - **TNR:** of the answers you failed, how many it failed too.
 - **Kappa:** how much you agree beyond what agreeing at random would give. It is in the report's details and never decides the result.
 
-Each number comes with a range, for example "about 89% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
+Each number comes with a range, for example "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
 
 ## Checked on public data
 
-- **JailbreakBench.** GPT-4 graded 300 answers, and three experts marked them. In 100 draws with 100 marks each, judgekeeper's ranges held the real TPR in 99, the real TNR in 94 and the real kappa in 100; all three at once in 93. The draws pick from the same 300 answers, so they overlap. The report says why 7 draws missed. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
+- **JailbreakBench.** GPT-4 graded 300 answers that three experts also marked. In 100 tests with 100 marks each, judgekeeper's ranges held the true TPR in 99, the true TNR in 94 and the true kappa in 100; all three at once in 93. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
 - **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
-- **Empty answers.** An empty summary should fail. With one rule, one model failed 0 of 20 empty summaries and another failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
-- **Simulation.** In simulated checks, judgekeeper's ranges held the true value at least 93.6 times in 100 in every cell of the main grid (96.2 on average), and at least 92.6 times at the very first result. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
+- **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
+- **Simulation.** In made-up checks, the ranges held the true value 96.2 times in 100 on average, and never fewer than 92.6. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
 
 ## More
 
-The website, [www.judgekeeper.com](https://www.judgekeeper.com), has a [guide](https://www.judgekeeper.com/start.html) that walks through the 5 steps. `judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
+The website, [www.judgekeeper.com](https://www.judgekeeper.com), has a [guide](https://www.judgekeeper.com/start.html) that walks through the 5 steps. `judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux, Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
 
 ## License
 

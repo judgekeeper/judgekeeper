@@ -127,9 +127,28 @@ class Stop(Exception):
 
 
 def _interactive() -> bool:
+    """Whether a person types the input at a terminal. On Windows the NUL device says it is a
+    terminal too, so there the input must also be a console."""
     try:
-        return bool(sys.stdin) and sys.stdin.isatty()
+        if not (sys.stdin and sys.stdin.isatty()):
+            return False
     except (AttributeError, ValueError):
+        return False
+    return not textio.is_windows() or _console(sys.stdin)
+
+
+def _console(stream) -> bool:
+    """Whether `stream` is a Windows console; when Windows cannot say, it is not one."""
+    try:
+        import ctypes
+        import msvcrt
+    except ImportError:
+        return False
+    try:
+        handle = ctypes.c_void_p(msvcrt.get_osfhandle(stream.fileno()))  # a HANDLE is a pointer
+        mode = ctypes.c_ulong()
+        return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
+    except (AttributeError, OSError, ValueError, TypeError, ctypes.ArgumentError):
         return False
 
 

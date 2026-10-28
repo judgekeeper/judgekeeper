@@ -639,8 +639,8 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "times all three true numbers were in judgekeeper's ranges at once",
-        "times each true number, checked on its own, was in judgekeeper's range"]
+        "times TPR, TNR and kappa were all in judgekeeper's ranges at once",
+        "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
     for tile in tiles:
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")
@@ -675,8 +675,8 @@ def test_the_demo_card_is_a_window_called_marking_page():
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
 GUIDE_STEPS = [("step-find", "Find your eval results"),
                ("step-mark", "Mark your answers Pass or Fail"),
-               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
-               ("step-fix", "Write a better rule and test it"),
+               ("step-measure", "Measure: see how often your LLM-as-a-judge agrees with you"),
+               ("step-fix", "Fix: write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
@@ -728,7 +728,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "judgekeeper only reads files. It makes no AI call, needs no API key, and costs nothing. "
+        "judgekeeper only reads files. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
     # the steps and the windows below are as wide as the top section: "The 5 steps." starts
@@ -853,12 +853,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
-             "better, safe to try, worse, or if it can’t tell yet. How many marks a clear "
-             "answer needs depends on how big the change is. For a new rule that fixes about a "
-             "quarter of the mistakes and breaks few right answers, it needs about 80 marks, and "
-             "the answer is usually safe to try, not better. A large fix of a clearly wrong rule "
-             "(about 9 in 10 of its mistakes fixed) usually comes out better with 80 marks; a "
-             "small fix that also breaks a few right answers needs more (simulation).")],
+             "better, safe to try, worse, or if it can’t tell yet. A rule that fixes about a "
+             "quarter of its mistakes needs about 80 marks for a clear answer, and usually "
+             "reads safe to try (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade the answers you marked again "
              "the same way as in step 4, then:"),
@@ -869,8 +866,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
                     "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
-                                 "safe to try", "worse", "can’t tell yet", "safe to try",
-                                 "better", "better"],
+                                 "safe to try", "worse", "can’t tell yet", "safe to try"],
                     "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
@@ -1023,7 +1019,7 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert [_flat(el) for el in empty.iter() if el.tag in ("b", "span") and el.classes() & {
         "ck2-or", "fc-kinds"} or el.tag == "b"] == [
         "Drop your results file here", "or click to choose one",
-        "promptfoo · DeepEval · CSV · JSONL"]
+        "promptfoo · DeepEval · CSV · TSV · JSONL"]
     assert _flat(_all(loaded, "span", "fc-kinds")[0]) == "Drop another file to check it instead"
     (name,) = _all(loaded, "b")
     assert name.attrs.get("id") == "fc-name"
@@ -1276,3 +1272,207 @@ def test_privacy_says_judgekeeper_only_reads_files():
     assert "judgekeeper makes no AI call and needs no API key." in local
     for gone in ("temporary copies", "say yes", "asks your eval tool"):
         assert gone not in local, gone
+
+
+# Phones and touch screens -------------------------------------------------------------------
+# Each rule for a phone sits in a block for a narrow or a touch screen, so a laptop shows the
+# pages as before (checked with full-page screenshots in Chrome at 1280, 1440 and 1920, Safari
+# at 1440 and an iPad at 1024: the same pixels, but for the demo's last button).
+
+FREECHECK = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
+
+
+def _media(query: str, css: str = CSS) -> str:
+    """Every rule inside the blocks `@media <query>`, one after another."""
+    inside, at = [], 0
+    while (at := css.find(f"@media {query} {{", at)) != -1:
+        depth, open_at = 0, css.index("{", at)
+        for i in range(open_at, len(css)):
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            if not depth:
+                break
+        inside.append(css[open_at + 1:i])
+        at = i
+    return "\n".join(inside)
+
+
+def _last(selector: str, css: str = CSS) -> str:
+    """The declarations of the last rule for `selector`: the one that wins."""
+    start = css.rindex(selector + " {")
+    return css[start + len(selector) + 2:css.index("}", start)]
+
+
+def _join(text: str) -> str:
+    """site.js's joinLines, run in node."""
+    body = JS[JS.index("  function joinLines(text) {"):]
+    body = body[:body.index("\n  }\n") + 4]
+    code = body + f"\nprocess.stdout.write(JSON.stringify(joinLines({json.dumps(text)})));"
+    out = subprocess.run([shutil.which("node"), "-e", code], capture_output=True, text=True,
+                         check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+def test_the_demos_last_button_is_one_label():
+    """At every width: "Check your own LLM-as-a-judge" is one piece of text, never two flex
+    items with no space between them."""
+    (go,) = [el for el in _els(HOME) if "jk-go" in el.classes()]
+    (label,) = [el for el in go.children if isinstance(el, Element)]
+    assert label.tag == "span" and _flat(label) == "Check your own LLM-as-a-judge"
+    assert not [c for c in go.children if isinstance(c, str) and c.strip()]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to run site.js")
+def test_on_a_phone_the_home_terminal_joins_lines_broken_to_fit_64_columns():
+    """A line the screen broke only to fit goes on after the one above it; the command, the
+    lines laid out in columns and a line after a full stop stay as they are."""
+    text = ("$ judgekeeper\njudgekeeper 1.0.0\n\nEval tool:       promptfoo\nFile:            "
+            "results.json\nChecked: your LLM-as-a-judge gave every answer a clear Pass or\nFail."
+            "\n  Your LLM-as-a-judge made 8 mistakes. In 4, it said Pass where\n  you said Fail."
+            "\n  When you said Pass    7 of 15              1 of 15              Worse\n"
+            "  When you said Fail    7 of 15              7 of 15              Not sure\n"
+            "Next: grade\nthe answers again.")
+    assert _join(text).split("\n") == [
+        "$ judgekeeper", "judgekeeper 1.0.0", "", "Eval tool:       promptfoo",
+        "File:            results.json",
+        "Checked: your LLM-as-a-judge gave every answer a clear Pass or Fail.",
+        "  Your LLM-as-a-judge made 8 mistakes. In 4, it said Pass where you said Fail.",
+        "  When you said Pass    7 of 15              1 of 15              Worse",
+        "  When you said Fail    7 of 15              7 of 15              Not sure",
+        "Next: grade the answers again."]
+    typing = JS[JS.index("function type("):]
+    typing = typing[:typing.index("\n    }\n")]
+    assert "narrow() ? joinLines(screens[key])" in typing
+    # the box is as tall as the whole screen before the typing starts, and lets go after it
+    assert 'out.style.minHeight = out.offsetHeight + "px"' in typing
+    assert typing.count('out.style.minHeight = ""') == 2
+    # the screen waiting to be typed is joined too, or the box shrinks when the typing starts
+    assert "if (narrow()) out.innerHTML = shade(joinLines(screens[screenKey()]));" in JS
+    assert "font-size: 14px" in _last(".term-out", _narrow(600))
+
+
+def test_on_a_phone_the_demo_reads_without_cutting_words():
+    """At 480px and below the pill sits above the question, and the end card gives each
+    question its own line with the two grades under it, each with its label; no hint of a key
+    on a touch screen; the numbers on public datasets do not count up on a phone."""
+    small = _narrow(480)
+    assert "order: -1" in _last(".jk-row-q .jk-state", small)
+    assert "display: none" in _last(".jk-end-list li.head", small)
+    assert "white-space: normal" in _last(".jk-end-list .q", small)
+    assert "content: attr(data-label)" in _last(".jk-end-list li > b.g::before", small)
+    assert 'mine.setAttribute("data-label", "You")' in JS
+    assert 'its.setAttribute("data-label", "LLM-as-a-judge")' in JS
+    assert '". you you" ". judge judge"' in _last(".jk-end-list li", _narrow(359))
+    assert "display: none" in _last(".jk-btn .key, .jk-sub .key", _media("(hover: none)"))
+    counts = JS[JS.index("function setUpCounts("):]
+    assert "if (narrow()) return;" in counts[:counts.index("new IntersectionObserver")]
+
+
+def test_on_a_phone_the_text_is_14px_or_more():
+    """The labels, the pill, window titles, the terminal and its status bar, code, the
+    handy commands and the browser check's result are 14px; the footer, "Tap to enlarge" and the
+    lines under the drop box 15px. The five words never go under 14px, and wrap below 360px."""
+    phone = _narrow(600)
+    for selector in (".jk-label, .jk-state, .jk-end-top .jk-again",
+                     ".term-bar, .rt-bar, .term-foot, .steplist .n", ".gx-code, .gm-pre",
+                     ".ck-out", ".rt-src"):
+        assert "font-size: 14px" in _last(selector, phone), selector
+    for selector in (".foot .wrap", ".gx-text .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
+        assert "font-size: 15px" in _last(selector, phone), selector
+    assert "max(14px, min(17px, calc((100vw - 40px) / 19)))" in _last(".five", _narrow(359))
+    assert "white-space: normal" in _last(".b-main, .b-side", _narrow(359))
+    # on a phone only, so a laptop's text keeps its exact look: site.js keeps "LLM-as-a-judge"
+    # in a step's words whole, and lets a path in a sentence break after each "/"
+    breaks = JS[JS.index("function setUpPhoneBreaks("):]
+    breaks = breaks[:breaks.index("\n  }\n")]
+    assert "if (!narrow()) return;" in breaks
+    assert '$all(".steplist .d")' in breaks and 'make("span", "nb", "LLM-as-a-judge")' in breaks
+    assert '$all("code.path")' in breaks and 'createElement("wbr")' in breaks
+
+
+def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
+    """At 480px and below a step's number sits in its window's bar; "$" stays on a command's
+    first line; Copy shows only its tick (its word stays for a screen reader); a path breaks
+    after its "/". At 300px and below the boxes are narrower and a command breaks only at a
+    space or after a "/"."""
+    small = _narrow(480)
+    assert "display: block" in _last(".gl-step", small)
+    assert "position: absolute" in _last(".gl-n", small)
+    assert "padding-left: 52px" in _last(".sw-bar", small)
+    phone = _narrow(600)
+    assert "align-items: flex-start" in _last(".cmd code", phone)
+    copied = _last(".cmd .copy.done .copied", phone)
+    assert "position: absolute" in copied and "clip: rect(0 0 0 0)" in copied
+    assert "overflow-wrap: anywhere" in _last(".gx-text code.path", phone)
+    paths = [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
+    assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
+                                         ".judgekeeper/fix/marked-answers.csv"]
+    assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
+
+
+def test_on_a_phone_a_picture_opens_over_the_page():
+    """At 600px and below a tap on a Guide picture opens it in a dialog 1100px wide that can
+    be swiped around, with a Close button 44px tall; the page behind does not scroll. A laptop
+    opens the file, as the link says."""
+    shots = JS[JS.index("function setUpShots("):]
+    shots = shots[:shots.index("\n  }\n")]
+    for part in ("if (!narrow()) return;", "e.preventDefault()", "view.showModal()",
+                 'make("button", "shot-close", "Close")', "e.target === view",
+                 'classList.add("has-view")', 'classList.remove("has-view")'):
+        assert part in shots, part
+    phone = _narrow(600)
+    assert "width: 1100px" in _last(".shot-pane img", phone)
+    assert "overflow: auto" in _last(".shot-pane", phone)
+    assert "min-height: 44px" in _last(".shot-close", phone)
+    assert "overflow: hidden" in _last("html.has-view, html.has-view body", phone)
+
+
+def test_on_a_touch_screen_links_are_44px_tall():
+    """A tablet held in the hand gets the phone's 44px links and buttons; on a phone Home and
+    Guide are 44px tall too."""
+    coarse = _media("(pointer: coarse)")
+    assert "min-height: 44px" in _last(".foot-r a", coarse)
+    assert "height: 44px" in _last(".gh", coarse)
+    assert "min-height: 44px" in _last(".menu .brand", coarse)
+    assert "min-height: 44px" in _last(".menu-l a", _phone())
+
+
+def test_on_a_phone_the_browser_check_shows_the_whole_result():
+    """Clear sits under the drop box, the result is part of the page (no scroll inside it),
+    "$ judgekeeper" is one line, an example's result comes into view, a phone says "tap",
+    a file's name breaks between words, and "·" never ends a line."""
+    phone = _phone()
+    assert "position: static" in _last(".fc-clear", phone)
+    assert "transform: none" in _last(".fc-loaded", phone)
+    assert "max-height: none" in _last(".ck2-term .ck-out", phone)
+    assert "flex-direction: row" in _last(".fc-term .ln-cmd", phone)
+    assert "command.classList.add('ln-cmd')" in FREECHECK
+    assert "term.scrollIntoView({ block: 'start' })" in FREECHECK
+    assert "media('(hover: none)')) verb.textContent = 'tap'" in FREECHECK
+    assert "overflow-wrap: anywhere" in _last(".fc-loaded .fc-main b")
+    assert "word-break" not in _last(".fc-loaded .fc-main b")
+    (kinds,) = [el for el in _els(CHECK) if "fc-kinds" in el.classes() and "JSONL" in el.text()]
+    assert kinds.text() == "promptfoo\xa0· DeepEval\xa0· CSV\xa0· TSV\xa0· JSONL"
+
+
+def test_on_a_phone_privacy_lists_its_parts_in_rows():
+    nav = _last(".g-nav", _narrow(860))
+    assert "flex-wrap: wrap" in nav and "overflow-x: visible" in nav
+
+
+def test_at_240px_the_header_and_boxes_fit():
+    """A 360px Android with its text made bigger shows the page at 240px: narrower margins,
+    a smaller logo and GitHub button, titles and links that wrap, and no window dots."""
+    tiny = _narrow(300)
+    assert "max(12px" in _last(".wrap", tiny)
+    assert "font-size: 18px" in _last(".menu .brand", tiny)
+    assert "padding: 0 10px" in _last(".gh", tiny)
+    assert "white-space: normal" in _last(".rt-title, .term-title", tiny)
+    assert "white-space: normal" in _last(".tf-link", tiny)
+    assert "display: none" in _last(".rt-bar::before, .term-bar::before", tiny)
+
+
+def test_every_page_colours_the_phones_browser_bar():
+    for page in [*pages(), NOT_FOUND]:
+        metas = [el for el in parse(page).iter() if el.attrs.get("name") == "theme-color"]
+        assert [m.attrs["content"] for m in metas] == ["#0b0c0e"], page.name
+    assert "--bg: #0b0c0e" in CSS

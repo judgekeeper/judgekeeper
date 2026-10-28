@@ -289,9 +289,9 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     first = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
                 for k in ("tpr", "tnr"))
     assert first == lowest_tpr_tnr_coverage(grid)  # the lowest anywhere is at the first result
-    simulated = (f"In simulated checks, judgekeeper's ranges held the true value at least "
-                 f"{pct(cell)} times in 100 in every cell of the main grid ({pct(level['mean'])} "
-                 f"on average), and at least {pct(first)} times at the very first result.")
+    assert cell >= first  # so "never fewer than" the first result's
+    simulated = (f"In made-up checks, the ranges held the true value {pct(level['mean'])} times in "
+                 f"100 on average, and never fewer than {pct(first)}.")
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links
     report_md = _flat(OUT / "report.md")
@@ -301,5 +301,4 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
         assert figure in report_md, figure
     for figure in (pct(c["mean"]), pct(c["lowest"]), pct(c["highest"])):
         assert figure not in reference, figure
-    assert ("The tests run on Linux with Python 3.11 to 3.14, and on Windows and macOS."
-            in _flat(ROOT / "README.md"))
+    assert "The tests run on Linux, Windows and macOS." in _flat(ROOT / "README.md")
