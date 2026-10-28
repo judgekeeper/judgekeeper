@@ -386,10 +386,30 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     first, result = " ".join(main[0][1]), " ".join(main[1][1])
     # The first look's Next: line names no command (mark, then click "See your result");
     # the result's does, through uvx.
-    assert "uvx" not in first and "Next: [^`]*`uvx judgekeeper@" in result
+    assert "uvx" not in first and ic.uvx_next(check.version) in result
     early = _in(ran, check.other("too early"))[1][1]
     assert re.search(early[-1], "Next: run your eval on more questions, then run\n"
                      "`uvx judgekeeper@1.0.0 mark`: the new answers join the ones you marked.")
+
+
+@pytest.mark.parametrize(("version", "pre"), [("1.0.0", False), ("1.0.0rc1", True),
+                                              ("1.0.0b1", True), ("1.0.0.dev1", True),
+                                              ("1.0.1", False)])
+def test_a_pre_release_is_told_by_judgekeepers_own_rule(ic, version, pre):
+    from judgekeeper import textio
+
+    assert ic.is_prerelease(version) is textio.is_prerelease(version) is pre
+
+
+def test_the_uvx_next_line_names_the_version_only_for_a_pre_release(ic):
+    said = ("Next: nothing to do. When you change your LLM-as-a-judge or\n"
+            "update your eval tool, run `uvx judgekeeper{} check`.")
+    plain, pinned = said.format(""), said.format("@1.0.0")
+    assert re.search(ic.uvx_next("1.0.0"), plain)
+    assert not re.search(ic.uvx_next("1.0.0"), pinned)
+    rc = said.format("@1.0.0rc1")
+    assert re.search(ic.uvx_next("1.0.0rc1"), rc)
+    assert not re.search(ic.uvx_next("1.0.0rc1"), plain)
 
 
 def test_without_uvx_the_next_line_is_not_checked_for_uvx(ic, monkeypatch, tmp_path):
