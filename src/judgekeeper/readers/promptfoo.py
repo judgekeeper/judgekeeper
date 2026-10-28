@@ -365,6 +365,15 @@ def _shaped(r) -> bool:
     return True
 
 
+def _question(r: dict):
+    """A row's question: its vars, or with none (the questions written in `prompts:`) the
+    prompt it was asked."""
+    if r.get("vars"):
+        return r["vars"]
+    raw = (r.get("prompt") or {}).get("raw") if isinstance(r.get("prompt"), dict) else None
+    return raw if isinstance(raw, str) and raw.strip() else r.get("vars")
+
+
 def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
     """ScoreRecords from a promptfoo `-o results.json`.
 
@@ -410,7 +419,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
         seen[(item_id, r.get("promptIdx"))] += 1
         run = seen[(item_id, r.get("promptIdx"))]
         test_opts = _options(r.get("testCase"))
-        content = {"input": r.get("vars"), "output": _text((r.get("response") or {}).get("output"))}
+        content = {"input": _question(r), "output": _text((r.get("response") or {}).get("output"))}
         per_row = defaultdict(int)
         components = _components(r.get("gradingResult"))
         failed = id(r) in no_details and _provider_failed(r)
