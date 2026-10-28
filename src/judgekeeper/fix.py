@@ -125,9 +125,9 @@ REGRADE = {
                "under the same name."),
     "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
                  "`answer` as actual_output, and any field your metric also reads, such as "
-                 "expected_output, added back by its question); run your metric with its new rule and the same "
-                 "name through `deepeval test run`, which saves a new test_run_<date>.json in "
-                 "your results folder."),
+                 "expected_output, added back by its question); run your metric with its new "
+                 "rule and the same name through `deepeval test run`, which saves a new "
+                 "test_run_<date>.json in your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
 TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
