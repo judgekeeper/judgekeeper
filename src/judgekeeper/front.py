@@ -684,8 +684,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
-        talk.say(STEP.format(n=1, name="Find"))
-        talk.say()
+        talk.say_step()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
                   f"{'is' if saved == 1 else 'are'} saved in {FOLDER}/; they come back when "
                   "your results file is back.")

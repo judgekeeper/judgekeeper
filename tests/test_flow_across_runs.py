@@ -775,6 +775,7 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
     assert code == 3, out
     assert ("No eval results found in this folder. Your 50 marks are saved in .judgekeeper/; "
             "they come back when your results file is back.") in flat(out)
+    assert out.count("Step 1 of 5: Find") == 1, out
 
 
 # Back to the marked judge ---------------------------------------------------------------------
