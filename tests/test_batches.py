@@ -205,6 +205,36 @@ def test_new_graded_answers_join_as_a_second_batch(here, capsys, pages):
     assert len(ws.data()["queue"]) == 46
 
 
+@pytest.mark.parametrize("stopped", ["judgekeeper.judgments.write_run",
+                                     "judgekeeper.start_label._write_json"])
+def test_a_batch_stopped_half_way_is_added_on_the_next_run(here, capsys, pages, monkeypatch,
+                                                           stopped):
+    """Stopped after pool.jsonl was written (Ctrl+C, a full disk): marking still works and the
+    next run adds the batch whole."""
+    ws = _all_marked(here)
+    from judgekeeper import judge_setup
+
+    found = start.find_judge(here)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    _more_questions(here)
+
+    def stop(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as m:
+        m.setattr(stopped, stop)
+        with pytest.raises(KeyboardInterrupt):
+            batches.add(ws, start.find_judge(here))
+    assert len(StartSession(ws).items) == 36  # the page offers no answer of the stopped batch
+    code, out, _ = run(capsys, "mark", "--no-browser")
+    assert code == 0, out
+    assert ADDED in flat(out)
+    pool = [json.loads(x) for x in ws.pool.read_text(encoding="utf-8").splitlines()]
+    assert len(pool) == len(ws.data()["queue"]) == len(StartSession(ws).items) == 46
+    judged = [json.loads(x) for x in ws.pool_judge.read_text(encoding="utf-8").splitlines()]
+    assert len(judged) == 47 and len({r["id"] for r in judged[1:]}) == 46  # a header, once each
+
+
 def test_no_batch_is_added_when_the_judge_changed(here, capsys, pages):
     ws = _all_marked(here)
     from judgekeeper import judge_setup
