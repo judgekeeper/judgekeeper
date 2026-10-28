@@ -6,6 +6,7 @@ differently, one very long text, and many small samples packed very tightly. Eac
 from __future__ import annotations
 
 import json
+import math
 import struct
 import time
 import zipfile
@@ -211,32 +212,178 @@ def _random(n: int, chars: str) -> str:
         "0123456789abcdef", (chars * 16)[:16]))[:n]
 
 
-@pytest.mark.parametrize("field", ["metadata", "events", "attachments"])
-def test_one_text_over_8_mb_is_refused_fast(tmp_path, monkeypatch, field):
+TOO_LONG = ("{path} is too big for judgekeeper to read: one text in it is longer than 32 MB, "
+            "the most judgekeeper reads in one text of an Inspect AI log.")
+SPECIAL = ("{path} is too big for judgekeeper to read: one text in it is over 8 MB and full of "
+           "special characters such as \\n or \\\", and judgekeeper reads such a text of an "
+           "Inspect AI log only up to 8 MB.")
+LONG_TEXTS = ("{path} is too big for judgekeeper to read: its texts over 8 MB add up to more "
+              "than 64 MB, the most judgekeeper reads of long texts in one Inspect AI log.")
+ESCAPES = ("{path} is too big for judgekeeper to read: its texts over 1 MB hold more than "
+           "11,000,000 special characters such as \\n or \\\" together, the most judgekeeper "
+           "reads of them in one Inspect AI log.")
+
+
+def _texts_log(tmp_path, *texts) -> object:
+    """The old log with `texts` in its samples' metadata: a list of texts per sample."""
+    parts = _old_parts()
+    names = sorted(n for n in parts if n.startswith("samples/"))
+    for name, held in zip(names, texts, strict=False):
+        sample = json.loads(parts[name])
+        sample["metadata"] = {f"pad{i}": text for i, text in enumerate(held)}
+        parts[name] = json.dumps(sample).encode()
+    return _log(tmp_path, parts)
+
+
+def _png(mb: float) -> str:
+    """A screenshot as a data URI of base64, `mb` MB long at most."""
+    import base64
+    import os
+
+    head = "data:image/png;base64,"
+    return head + base64.b64encode(os.urandom((int(mb * MB) - len(head)) // 4 * 3)).decode()
+
+
+def _lines(mb: float, every: int) -> str:
+    """Tool output `mb` MB long, a newline every `every` characters."""
+    text = bytearray(_random(int(mb * MB), "0123456789abcdef").encode())
+    text[every - 1::every] = b"\n" * len(range(every - 1, len(text), every))
+    return text.decode()
+
+
+def test_the_limits_for_one_long_text():
     from judgekeeper.readers import inspect_logs
 
-    assert inspect_logs.MAX_STRING == 8 * MB
+    assert inspect_logs.MAX_STRING == 32 * MB
+    assert inspect_logs.LONG_TEXT == 8 * MB and inspect_logs.LONG_TEXTS_LIMIT == 64 * MB
+    assert inspect_logs.ESCAPE_SPACING == 32
+    assert inspect_logs.COUNTED_TEXT == 1 * MB and inspect_logs.ESCAPES_LIMIT == 11_000_000
+    assert inspect_logs.COUNTED_TEXT >= inspect_logs.STEP  # such a text spans steps
+
+
+@pytest.mark.parametrize("field", ["metadata", "events", "attachments"])
+def test_one_text_over_32_mb_is_refused_fast(tmp_path, monkeypatch, field):
     parts = _old_parts()
-    parts["samples/1_epoch_1.json"] = _text_sample(field, _random(9 * MB, "0123456789abcdef"))
+    parts["samples/1_epoch_1.json"] = _text_sample(field, _random(33 * MB, "0123456789abcdef"))
     path = _log(tmp_path, parts)
     said, took = _refused(path, monkeypatch)
-    assert said == (f"{path} is too big for judgekeeper to read: one text in it is longer than "
-                    "8 MB, the most judgekeeper reads in one text of an Inspect AI log."), said
+    assert said == TOO_LONG.format(path=path), said
     assert took < 5
 
 
+def test_a_screenshot_of_20_mb_is_read(tmp_path):
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.readers import read_inspect
+
+    path = _texts_log(tmp_path, [_png(20)])
+    assert len(read_inspect(path)) == len(read_inspect(OLD_EVAL))
+
+
+@pytest.mark.parametrize("kind", ["two screenshots", "a newline every 32"])
+def test_long_texts_within_the_rules_pass_the_checks(tmp_path, kind):
+    """Two long texts of 62 MB together, under the budget; tool output of 32 MB, a newline
+    every 32 characters (inspect_ai reads it in about 6 s)."""
+    from judgekeeper.readers import inspect_logs
+
+    texts = [[_png(32)], [_png(30)]] if kind == "two screenshots" else [[_lines(32, 32)]]
+    inspect_logs._check_unpacked(_texts_log(tmp_path, *texts))
+
+
+def test_32_mb_with_a_newline_every_8_characters_is_refused(tmp_path, monkeypatch):
+    path = _texts_log(tmp_path, [_lines(32, 8)])
+    said, took = _refused(path, monkeypatch)
+    assert said == SPECIAL.format(path=path), said
+    assert took < 5
+
+
+@pytest.mark.parametrize("mb", [9, 32])
+def test_a_long_text_of_special_characters_is_refused_fast(tmp_path, monkeypatch, mb):
+    """All escapes: inspect_ai takes about 9 s on 8 MB of them and minutes on 32 MB."""
+    path = _texts_log(tmp_path, [_random(mb * MB, "\n\t")])
+    said, took = _refused(path, monkeypatch)
+    assert said == SPECIAL.format(path=path), said
+    assert took < 3
+
+
+def test_long_texts_over_64_mb_together_are_refused(tmp_path, monkeypatch):
+    """Three screenshots of 30 MB in two samples: each passes, together 90 MB."""
+    path = _texts_log(tmp_path, [_png(30), _png(30)], [_png(30)])
+    said, took = _refused(path, monkeypatch)
+    assert said == LONG_TEXTS.format(path=path), said
+    assert took < 5
+
+
+def _texts(mb: float, n: int, chars: str) -> list[str]:
+    """`n` different texts of `mb` MB, each made of `chars` at random."""
+    one = _random(int(mb * MB), chars)
+    return [one[i:] + one[:i] for i in range(n)]
+
+
+def test_long_texts_of_escapes_over_11_million_together_are_refused_fast(tmp_path,
+                                                                         monkeypatch):
+    """Escapes only: inspect_ai reads 8 MB of them in about 9 s, 2 MB in about 0.7 s. Seven of
+    2 MB (14.7 million escapes) in one sample are refused; five (10.5 million) pass, and so does
+    one of 8 MB (8.4 million)."""
+    from judgekeeper.readers import inspect_logs
+
+    path = _texts_log(tmp_path, _texts(2, 7, "\n\t"))
+    said, took = _refused(path, monkeypatch)
+    assert said == ESCAPES.format(path=path), said
+    assert took < 3
+    inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(2, 5, "\n\t")))
+    inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(8, 1, "\n\t")))
+    path = _texts_log(tmp_path, _texts(2, 4, "\n\t"), _texts(2, 3, "\n\t"))  # across samples
+    assert _refused(path, monkeypatch)[0] == ESCAPES.format(path=path)
+
+
+def _json_output(mb: float, seed: int) -> str:
+    """An API response dumped as indented JSON, `mb` MB of it: kept in a log as a string, it
+    holds an escape (\\" or \\n) every 6 or 7 characters."""
+    import os
+    import random
+
+    rnd, items, text = random.Random(seed), [], ""
+    while len(text) < mb * MB:
+        items.extend({"id": rnd.randrange(10**9), "name": os.urandom(5).hex(),
+                      "ok": rnd.random() < 0.5, "tags": [os.urandom(3).hex() for _ in range(3)],
+                      "score": round(rnd.random(), 4), "note": os.urandom(12).hex()}
+                     for _ in range(500))
+        text = json.dumps({"data": items, "next": None}, indent=2)
+    return text[:int(mb * MB)]
+
+
+def test_twenty_json_outputs_of_1_5_mb_pass(tmp_path):
+    """About 4.8 million escapes; inspect_ai reads them in about 1.6 s."""
+    from judgekeeper.readers import inspect_logs
+
+    outputs = [_json_output(1.5, i) for i in range(20)]
+    inspect_logs._check_unpacked(_texts_log(tmp_path, outputs[:10], outputs[10:]))
+
+
+def test_many_tool_outputs_with_a_newline_on_every_line_pass(tmp_path):
+    """60 outputs of 1 MB, a newline every 80 characters; 100 of 100 KB that are all escapes:
+    under 1 MB, they are never counted."""
+    from judgekeeper.readers import inspect_logs
+
+    outputs = [_lines(1, 80)[i:] for i in range(60)]
+    inspect_logs._check_unpacked(_texts_log(tmp_path, outputs[:30], outputs[30:]))
+    inspect_logs._check_unpacked(_texts_log(tmp_path, _texts(0.1, 100, "\n\t")))
+
+
 def test_escapes_count_as_the_characters_they_stand_for(tmp_path, monkeypatch):
-    """9 MB written as escapes (\\n, \\t: 18 MB in the file) is over the limit; 4 MB with
-    \\u00e9 in it (about 14 MB in the file) is under it."""
+    """33 MB of plain text with escapes in it (\\n, \\t) is over the limit, as 33 MB of
+    characters; 4 MB with \\u00e9 in it (about 14 MB in the file) is under it, and so is 8 MB
+    of escapes, as before."""
     from judgekeeper.readers import inspect_logs
 
     parts = _old_parts()
-    parts["samples/1_epoch_1.json"] = _text_sample("metadata", _random(9 * MB, "\n\t"))
+    parts["samples/1_epoch_1.json"] = _text_sample("metadata", _lines(33, 64))
     said, _ = _refused(_log(tmp_path, parts), monkeypatch)
-    assert "one text in it is longer than 8 MB" in said, said
+    assert "one text in it is longer than 32 MB" in said, said
     parts["samples/1_epoch_1.json"] = _text_sample("metadata", _random(4 * MB, "é\t"))
     assert len(parts["samples/1_epoch_1.json"]) > 12 * MB
     inspect_logs._check_unpacked(_log(tmp_path, parts))
+    inspect_logs._check_unpacked(_texts_log(tmp_path, [_random(8 * MB, "\n\t")]))
 
 
 @pytest.mark.parametrize("step", [1, 2, 3, 7, 64])
@@ -253,6 +400,54 @@ def test_the_longest_text_is_found_however_the_bytes_are_split(step):
         too_short = inspect_logs._Depth(longest=longest - 1)
         for at in range(0, len(text), step):
             too_short.feed(text[at:at + step])
+
+
+@pytest.mark.parametrize("step", [1, 2, 3, 7, 19])
+def test_long_texts_are_judged_alike_however_the_bytes_are_split(monkeypatch, step):
+    """With small limits (a long text: over 20 characters, one escape per 4 at most, 45 in
+    all): each step under LONG_TEXT, as STEP is under it."""
+    from judgekeeper.readers import inspect_logs
+
+    monkeypatch.setattr(inspect_logs, "LONG_TEXT", 20)
+    monkeypatch.setattr(inspect_logs, "COUNTED_TEXT", 20)  # no escapes counted here
+    monkeypatch.setattr(inspect_logs, "ESCAPE_SPACING", 4)
+
+    def fed(strings, long_left=math.inf):
+        depth = inspect_logs._Depth(long_left=long_left)
+        text = json.dumps({"a": "short", "b": strings}).encode()
+        for at in range(0, len(text), step):
+            depth.feed(text[at:at + step])
+        return depth.long
+
+    assert fed(["x" * 24 + "\n" * 6]) == 30  # 6 escapes in 30: one per 5
+    with pytest.raises(inspect_logs.TooSpecial):
+        fed(["x" * 20 + "\n" * 10])  # 10 in 30
+    with pytest.raises(inspect_logs.TooSpecial):
+        fed(["\\" * 100])  # all escapes: refused before its end
+    assert fed(["y" * 25, "z" * 19, "\n" * 19]) == 25  # short ones are never counted
+    with pytest.raises(inspect_logs.TooManyLong):
+        fed(["y" * 25, "z" * 25], long_left=45)
+
+
+@pytest.mark.parametrize("step", [1, 2, 3, 7, 9])
+def test_escapes_are_counted_alike_however_the_bytes_are_split(monkeypatch, step):
+    """With a small limit (a text counted: over 10 characters): each step under COUNTED_TEXT,
+    as STEP is not over it."""
+    from judgekeeper.readers import inspect_logs
+
+    monkeypatch.setattr(inspect_logs, "COUNTED_TEXT", 10)
+
+    def fed(strings, escapes_left=math.inf):
+        depth = inspect_logs._Depth(escapes_left=escapes_left)
+        text = json.dumps({"a": "short", "b": strings}).encode()
+        for at in range(0, len(text), step):
+            depth.feed(text[at:at + step])
+        return depth.counted
+
+    assert fed(["x" * 12 + "\n" * 3, "\n" * 10]) == 3  # 10 long is not over it
+    assert fed(["x" * 8 + '"' * 4, "\t" * 11]) == 15
+    with pytest.raises(inspect_logs.TooManyEscapes):
+        fed(["x" * 8 + '"' * 4, "\t" * 11], escapes_left=14)
 
 
 def test_a_long_agent_sample_with_attachments_still_reads(tmp_path):
