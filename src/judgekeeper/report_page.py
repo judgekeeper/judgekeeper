@@ -20,15 +20,20 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, FOLDER, GOOD, MARK_MORE, NEEDS, VERDICTS
+from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
                "means perfect agreement.")
 STATES = {"gate": ("good", GOOD), "not_gate": ("needs", NEEDS), "check": ("plain", EARLY),
           "too_early": ("plain", EARLY), None: ("plain", EARLY)}
-TICK = ('<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
-        '<path d="M3 8.5l3.2 3.2L13 5"/></svg>')
+# The website's Copy button: a copy icon; after a copy, a green tick and "Copied" for 1.5 s.
+COPY_ICONS = ('<svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" '
+              'fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" '
+              'width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" '
+              'viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" '
+              'stroke="currentColor" stroke-width="2" stroke-linecap="square"><path '
+              'd="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span>')
 
 # The page's script: fixed text, so its hash can be in the Content-Security-Policy.
 SCRIPT = """
@@ -87,23 +92,40 @@ SCRIPT = """
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape") { show(false); b.setAttribute("data-shut", ""); } });
     });
-    var copy = document.getElementById("copy"), timer;
-    if (!copy) { return; }
-    copy.addEventListener("click", function () {
-      var text = document.getElementById(copy.getAttribute("data-copy")).textContent;
-      function done(ok) {
-        if (ok) { copy.innerHTML = '__TICK__Copied'; } else { copy.textContent = "Copy failed"; }
-        copy.classList.toggle("done", ok);
+    // Copy, as on the website: the command (never its "$"), a green tick and "Copied" for
+    // 1.5 s; where the clipboard can't be used, the command is selected and copied, then the
+    // selection is cleared.
+    each(document.querySelectorAll("[data-copy]"), function (button) {
+      var code = button.parentNode.querySelector("code"), said = button.querySelector(".copied"),
+          timer;
+      function done() {
+        button.classList.add("done");
+        said.textContent = "Copied";
         clearTimeout(timer);
         timer = setTimeout(function () {
-          copy.textContent = "Copy"; copy.classList.toggle("done", false); }, 1500);
+          button.classList.remove("done");
+          said.textContent = "";
+        }, 1500);
       }
-      try { navigator.clipboard.writeText(text).then(function () { done(true); },
-                                                     function () { done(false); }); }
-      catch (e) { done(false); }
+      function select() {
+        var range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(code);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        try { document.execCommand("copy"); } catch (e) { /* nothing more to try */ }
+        sel.removeAllRanges();
+        done();
+      }
+      button.addEventListener("click", function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code.textContent).then(done, select);
+        } else {
+          select();
+        }
+      });
     });
   })();
-""".replace("__TICK__", TICK)
+"""
 # The live page's second script: the reason boxes. Each change is saved at once (the "Other…"
 # box when typing pauses, on Enter and when it is left); the token is the page's own.
 REASONS_SCRIPT = """
@@ -124,7 +146,7 @@ REASONS_SCRIPT = """
           spans = JSON.parse(box.getAttribute("data-spans") || "[]"),
           sent = input.value, timer = null, pick = null;
       function body() {
-        var taps = Array.prototype.filter.call(box.querySelectorAll(".chip[aria-pressed]"), on);
+        var taps = Array.prototype.filter.call(box.querySelectorAll("[aria-pressed]"), on);
         return {id: box.getAttribute("data-id"),
                 reasons: taps.filter(function (b) { return b.hasAttribute("data-reason"); })
                   .map(function (b) { return b.getAttribute("data-reason"); }),
@@ -132,9 +154,9 @@ REASONS_SCRIPT = """
                   .map(function (b) { return Number(b.getAttribute("data-part")); }),
                 spans: spans, note: input.value};
       }
-      // "Your reason: ... · Change" from what is saved, or "Add a reason".
+      // "Change" and "Your reason: ..." from what is saved, or "Add a reason".
       function line() {
-        var taps = Array.prototype.filter.call(box.querySelectorAll(".chip[aria-pressed]"), on);
+        var taps = Array.prototype.filter.call(box.querySelectorAll("[aria-pressed]"), on);
         var words = taps.filter(function (b) { return b.hasAttribute("data-reason"); })
           .concat(taps.filter(function (b) { return b.hasAttribute("data-part"); }))
           .map(function (b) { return b.getAttribute("data-said"); });
@@ -145,17 +167,20 @@ REASONS_SCRIPT = """
           words.push("\u201c" + input.value.trim() + "\u201d");
           whole.push("\u201c" + input.value.trim() + "\u201d");
         }
-        said.textContent = "Your reason: " + words.join("; ");
+        said.querySelector(".said-words").textContent = words.join("; ");
         // the whole rule parts on hover, when one is cut
         if (whole.join() !== words.join()) { said.title = "Your reason: " + whole.join("; "); }
         else { said.removeAttribute("title"); }
         now.hidden = !words.length;
         add.textContent = words.length ? "Change" : "Add a reason";
       }
+      // Opening the reason box opens its row too: the whole answer shows while you pick.
       add.addEventListener("click", function () {
-        var open = add.getAttribute("aria-expanded") !== "true";
+        var open = add.getAttribute("aria-expanded") !== "true", row = box.querySelector(".open-row");
         add.setAttribute("aria-expanded", String(open));
         document.getElementById(add.getAttribute("aria-controls")).hidden = !open;
+        if (open && row && !row.hidden && row.getAttribute("aria-expanded") !== "true") {
+          row.click(); }
       });
       function send() {
         clearTimeout(timer); sent = input.value; saved.textContent = "";
@@ -181,7 +206,7 @@ REASONS_SCRIPT = """
         cell.appendChild(document.createTextNode(chars.slice(at).join("")));
         clear.hidden = !spans.length;
       }
-      each(box.querySelectorAll(".chip[aria-pressed]"), function (b) {
+      each(box.querySelectorAll("[aria-pressed]"), function (b) {
         b.addEventListener("click", function () {
           b.setAttribute("aria-pressed", String(!on(b))); send(); });
       });
@@ -235,8 +260,15 @@ def script_csp(live: bool = False) -> str:
 
 STYLE = """
 :root { --gutter: 32px; }
+/* the website's focus ring, in the text colour */
+:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; border-radius: 4px; }
 table { border-collapse: collapse; width: 100%; }
 .mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.term { white-space: nowrap; }
+/* a command in a sentence: the website's code chip */
+main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,.06);
+  border-radius: 4px; padding: 2px 6px; -webkit-box-decoration-break: clone;
+  box-decoration-break: clone; }
 /* Wide: the lists, the notes, More details and Fix it keep to 1376px, in the middle; the
    hairlines run the full width */
 .band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));
@@ -244,31 +276,40 @@ table { border-collapse: collapse; width: 100%; }
 .verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }
 .verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); line-height: 1.1;
   letter-spacing: -.02em; font-weight: 800; max-width: 20ch; text-wrap: balance; }
-.verdict h1 .term { white-space: nowrap; }
 .verdict h1.needs { color: var(--amber); }
 .verdict h1.good { color: var(--green); }
 .verdict h1.plain { color: var(--text); }
 .lead { margin: 20px auto 0; font-size: 20px; line-height: 1.4; color: var(--muted); }
 .lead b { font-family: var(--mono); font-weight: 500; font-size: 18px; color: var(--text); }
-.lead a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-.lead code { font-size: 18px; color: var(--text); }
+.lead a { color: var(--text); text-decoration: underline; text-decoration-color: var(--muted);
+  text-underline-offset: 3px; }
+.lead a:hover { text-decoration-color: var(--text); }
 .counts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
 .counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; line-height: 1.4; font-weight: 500; }
 .counts p + p { border-left: 1px solid var(--line); }
+.counts .off { color: var(--amber); }
 .counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));
   padding-right: max(0px, calc((100% - 1376px) / 2 - var(--gutter))); }
 .left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .group { padding-top: 64px; }
 .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
-.gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; color: var(--amber); }
-/* One link style: a group's "Show N more" and a row's "Show all" */
-.more, .open-row { font-size: 14px; color: var(--muted); text-decoration: underline;
+.gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+.kept { margin: 10px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
+.kept-after { padding-top: 24px; }
+.kept-after .kept { margin: 0; }
+/* a row's "Show all": a quiet link */
+.open-row { font-size: 14px; color: var(--muted); text-decoration: underline;
   text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
-.more:hover, .more:focus-visible, .open-row:hover, .open-row:focus-visible { color: var(--text); }
-.tbl { margin-top: 32px; table-layout: fixed; }
+.open-row:hover, .open-row:focus-visible { color: var(--text); }
+/* a group's "Show N more": a full-width row under its table */
+.more { display: block; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--line);
+  text-align: left; font-size: 14px; font-weight: 600; color: var(--muted); }
+.more:hover { color: var(--text); background: var(--hover); }
+.tbl { margin-top: 28px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
-.tbl th, .panel th { font-family: var(--mono); font-weight: 400; font-size: 12px;
-  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left;
+/* the small labels: the marking page's .label */
+.tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
   border-bottom: 1px solid var(--line); }
 .tbl th { padding: 0 32px 14px 0; }
 .tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0; vertical-align: top;
@@ -277,24 +318,24 @@ table { border-collapse: collapse; width: 100%; }
 .tbl td[data-label]:nth-child(3) { color: var(--muted); }
 .note { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: left;
   max-width: 80ch; }
-.add-reason { font-size: 14px; color: var(--text); text-decoration: underline;
-  text-underline-offset: 3px; white-space: nowrap; }
-.open-row, .add-reason { padding: 3px 0; }
-.why-line { display: flex; align-items: baseline; gap: 0; min-width: 0;
-  font-size: 15px; color: var(--muted); }
-.said-now { display: inline-flex; min-width: 0; white-space: pre; }
-.said-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.why-body { margin-top: 16px; padding-left: 16px; border-left: 2px solid var(--line); }
+/* a row's foot: its button first (the website's small bordered button), the reason saved,
+   "Show all" at the right */
+.why-line, .row-foot { display: flex; align-items: center; gap: 14px; min-width: 0;
+  min-height: 32px; font-size: 14px; color: var(--muted); }
+.open-row { margin-left: auto; padding: 3px 0; flex: none; }
+.sbtn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 4px; font-size: 14px; font-weight: 600;
+  color: var(--text); white-space: nowrap; flex: none; }
+.sbtn:hover { background: var(--hover); }
+.sbtn[aria-expanded="true"] { border-color: var(--muted); }
+.said-now { display: flex; min-width: 0; }
+.said-text, .said { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.said-text b, .said b { color: var(--text); font-weight: 600; }
+.why-body { margin-top: 16px; padding: 4px 0 6px 18px; border-left: 2px solid var(--line); }
 .add-why { margin: 24px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
-.add-why code { font-size: 14px; color: var(--text); }
 .tbl td[data-label] { border-bottom: 0; padding-bottom: 10px; }
 .tbl td.why-cell { white-space: normal; padding-top: 0; color: var(--text); }
-.row-foot { font-size: 15px; line-height: 1.5; color: var(--muted); }
-.row-foot, .why-line { margin: 12px 0 0; }
-.dot { padding: 0 2px; }
-.open-row[hidden] + .dot { display: none; }
-.dot { white-space: pre; }
-.said { color: var(--muted); }
+.row-foot, .why-line { margin: 14px 0 0; }
 /* the text as written: no font ligature turns -> into an arrow */
 .tbl td[data-label], .said, .why { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
 .q-peek, .q-gap { display: none; }
@@ -304,17 +345,29 @@ table { border-collapse: collapse; width: 100%; }
 b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   text-decoration-color: var(--amber); text-decoration-thickness: 2px;
   text-underline-offset: 3px; }
-.why .q { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
-.why .sub { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+/* the reason box: its question with "Saved" beside it, the everyday reasons, then the
+   rule's parts as light checkbox rows */
+.box-h { display: flex; align-items: baseline; gap: 16px; margin: 0 0 12px; }
+.why .q { margin: 0; font-size: 15px; font-weight: 700; }
+.why .sub { margin: 18px 0 6px; font-size: 14px; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips + .sub, .chips + .chips { margin-top: 14px; }
-.chips.parts { flex-direction: column; align-items: flex-start; }
-.chip { font-size: 14px; line-height: 1.35; padding: 8px 12px; border: 1px solid var(--line);
-  color: var(--muted); text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.chip { font-size: 14px; line-height: 1.35; padding: 7px 12px; border: 1px solid var(--line);
+  border-radius: 4px; color: var(--muted); text-align: left; max-width: 100%;
+  overflow-wrap: anywhere; }
 .chip:hover { color: var(--text); background: var(--hover); }
 .chip[aria-pressed="true"] { color: var(--bg); background: var(--text);
   border-color: var(--text); }
-.chip[aria-pressed="true"]:focus-visible { outline-color: var(--bg); }
+.parts { display: grid; max-width: 820px; }
+.part { display: grid; grid-template-columns: 16px 18px minmax(0, 1fr); gap: 10px;
+  align-items: center; padding: 6px 8px; margin-left: -8px; border-radius: 4px;
+  font-size: 14px; color: var(--muted); text-align: left; }
+.part:hover { background: var(--hover); color: var(--text); }
+.part .bx { width: 14px; height: 14px; border: 1.5px solid var(--faint); border-radius: 3px; }
+.part[aria-pressed="true"] { color: var(--text); }
+.part[aria-pressed="true"] .bx { background: var(--text); border-color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--bg); }
+.part .num { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.part .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .other[aria-expanded="true"] { color: var(--text); border-color: var(--text); }
 .other-box { margin-top: 12px; display: grid; gap: 6px; max-width: 640px; }
 .other-box label { font-size: 13px; color: var(--muted); }
@@ -325,12 +378,21 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .mark-part, .clear-part { font-size: 14px; text-decoration: underline;
   text-underline-offset: 3px; }
 .saved { font-size: 13px; color: var(--muted); }
-.details { padding-top: 64px; }
+/* More details, folded behind the website's chevron, on a hairline */
+.details { margin-top: 64px; border-top: 1px solid var(--line); }
+.counts + .details { margin-top: 0; border-top: 0; }
+.details summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
+  gap: 14px; padding: 28px 0; }
+.details summary::-webkit-details-marker { display: none; }
+.details summary::before { content: ""; width: 8px; height: 8px; flex: none;
+  border-right: 1.75px solid var(--muted); border-bottom: 1.75px solid var(--muted);
+  transform: rotate(-45deg) translateY(-2px); }
+.details[open] summary::before { transform: rotate(45deg) translateY(-4px); }
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
-.panel { margin-top: 32px; table-layout: fixed; }
-.panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 12px;
+.details summary h2 { font-size: 22px; }
+.panel { margin: 0 0 12px; table-layout: fixed; }
+.panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
-.panel caption .weighted { display: block; margin-top: 4px; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
@@ -348,20 +410,29 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .kappa .i[aria-expanded="true"] + .tip, .kappa .i:focus-visible:not([data-shut]) + .tip {
   display: block; }
 @media (hover: hover) { .kappa:hover .tip { display: block; } }
-.fix { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
+.fix { border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
 .fix-in { display: grid; grid-template-columns: 1fr auto; gap: 24px 48px; align-items: center; }
 .fix-in h2, .fix-in p { grid-column: 1; }
 .fix-in .cmd { grid-column: 2; grid-row: 1 / span 2; }
 .fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }
-.fix p code { font-size: 15px; color: var(--text); }
-.cmd { display: inline-grid; grid-template-columns: auto auto; border: 1px solid var(--line);
-  min-width: 0; }
-.cmd code { font-size: 17px; padding: 16px 24px; align-self: center; }
-.cmd button { font-size: 13px; padding: 0 18px; border-left: 1px solid var(--line); color: var(--muted); min-width: 92px; }
-.cmd button:hover, .cmd button.done { color: var(--text); }
-.cmd button.done svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px;
-  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
-  stroke-linejoin: round; }
+/* the command box with Copy: the website's, exactly; the "$" is drawn, never copied */
+.cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
+  min-width: min(380px, 100%); background: #07080a; }
+.cmd code { display: flex; align-items: center; padding: 12px 18px; font-size: 15px;
+  white-space: nowrap; overflow-x: auto; color: var(--text); font-variant-ligatures: none; }
+.cmd code::before { content: "$"; margin-right: .6em; color: var(--green); }
+.cmd .copy { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 50px; padding: 0 16px; border-left: 1px solid var(--line); color: var(--muted); }
+.cmd .copy:hover { color: var(--text); background: var(--hover); }
+.cmd .copy:focus-visible { outline-offset: -2px; border-radius: 0; }
+.cmd .copy.done { color: var(--green); }
+.cmd .copy svg { width: 16px; height: 16px; flex: none; }
+.cmd .i-tick, .cmd .copy.done .i-copy { display: none; }
+.cmd .copy.done .i-tick { display: block; }
+.cmd .copied { display: none; font-family: var(--mono); font-variant-ligatures: none;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.cmd .copy.done .copied { display: inline; }
 @media (min-width: 721px) {
   .tbl, .tbl thead, .tbl tbody { display: block; }
   .tbl colgroup { display: none; }
@@ -411,23 +482,22 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .panel tbody td { margin-top: 4px; }
   .panel td[data-label]::before { content: attr(data-label) " "; font-family: var(--sans);
     color: var(--muted); font-size: 13px; }
-  .fix { margin-top: 48px; padding-top: 40px; padding-bottom: 56px; }
+  .fix { padding-top: 40px; padding-bottom: 56px; }
   .fix-in { grid-template-columns: 1fr; }
   .fix-in .cmd { grid-column: 1; grid-row: auto; }
-  .cmd { display: grid; grid-template-columns: 1fr auto; width: 100%; }
-  .cmd code { padding: 16px; }
-  .cmd button { font-size: 15px; }
+  .cmd { display: grid; width: 100%; min-width: 0; }
+  .cmd code { padding: 12px 14px; }
   .tbl td::before { font-size: 13px; }
   .panel td[data-label]::before, .panel caption, .note { font-size: 14px; }
   .kappa .tip { font-size: 15px; }
 }
 @media (max-width: 720px), (pointer: coarse) {
-  .more { font-size: 16px; padding: 12px 0; margin: -12px 0; }
+  .more { font-size: 16px; }
   .kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }
 }
 @media (max-width: 300px) {
   .cmd { grid-template-columns: 1fr; }
-  .cmd button { border-left: 0; border-top: 1px solid var(--line); min-height: 48px; }
+  .cmd .copy { border-left: 0; border-top: 1px solid var(--line); min-height: 48px; }
 }
 """
 
@@ -515,7 +585,7 @@ def _all_marked(r: dict) -> str:
 def _code_line(text: str) -> str:
     """A next step as a sentence: its first letter in capitals, each `command` as code."""
     parts = text.split("`")
-    out = "".join(f"<code>{_e(x)}</code>" if i % 2 else _e(x) for i, x in enumerate(parts))
+    out = "".join(f"<code>{_e(x)}</code>" if i % 2 else _term(x) for i, x in enumerate(parts))
     return out[:1].upper() + out[1:]
 
 
@@ -524,9 +594,9 @@ def disagreed(c: dict) -> str:
     (front.agreement_lines), the numbers in bold."""
     d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
     if not d:
-        return (f"You and your LLM-as-a-judge agreed on all <b>{n}</b> "
+        return (f"You and your {TERM} agreed on all <b>{n}</b> "
                 f"{'answer' if n == 1 else 'answers'}.")
-    return f"You and your LLM-as-a-judge disagreed on <b>{d}</b> of <b>{n}</b> answers."
+    return f"You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> answers."
 
 
 def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
@@ -557,17 +627,22 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
             f'class="{cls}">{_term(headline)}</h1><p class="lead">{lead}</p></section>')
 
 
+TERM = '<span class="term">LLM-as-a-judge</span>'
+
+
 def _term(text: str) -> str:
-    """`text` escaped, "LLM-as-a-judge" kept on one line (the heading wraps evenly)."""
-    return _e(text).replace("LLM-as-a-judge", '<span class="term">LLM-as-a-judge</span>')
+    """`text` escaped, "LLM-as-a-judge" kept on one line wherever it is."""
+    return _e(text).replace("LLM-as-a-judge", TERM)
 
 
 def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
-    """"You passed 15 answers. Of those, your judge passed 7 and failed 8.", numbers in mono."""
-    def mono(x: int) -> str:
-        return f'<span class="mono">{x}</span>'
-    return (f"You {did} {mono(n)} {'answer' if n == 1 else 'answers'}. Of those, your "
-            f"LLM-as-a-judge passed {mono(judge_passed)} and failed {mono(judge_failed)}.")
+    """"You passed 15 answers. It passed 7 and failed 8.", numbers in mono; where it went the
+    other way from you (failed what you passed, passed what you failed), amber above 0."""
+    def mono(x: int, off: bool = False) -> str:
+        return f'<span class="mono{" off" if off and x else ""}">{x}</span>'
+    return (f"You {did} {mono(n)} {'answer' if n == 1 else 'answers'}. It passed "
+            f"{mono(judge_passed, did == 'failed')} and failed "
+            f"{mono(judge_failed, did == 'passed')}.")
 
 
 def own_line(did: str, n: int) -> str:
@@ -589,23 +664,22 @@ def _counts(r: dict, c: dict) -> str:
     row = '<div class="counts">' + "".join(f"<p>{x}</p>" for x in lines) + "</div>"
     left = batches.line(r.get("batches"))
     if left:
-        row += f'<p class="left-out band">{_e(left)}</p>'
+        row += f'<p class="left-out band">{_term(left)}</p>'
     block = r.get("judge_check") or {}
     none = sum(int(block.get(k) or 0) for k in NO_DECISION)
     if none:
-        row += ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on '
+        row += (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on '
                 f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
                 'left out.</p>')
     from judgekeeper.start_label import second_thoughts
 
     for line in second_thoughts(r.get("made")):
-        row += f'<p class="left-out band">{_e(line)}</p>'
+        row += f'<p class="left-out band">{_term(line)}</p>'
     return row
 
 
 OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
             '</button>')
-DOT = '<span class="dot" aria-hidden="true"> · </span>'
 
 
 PEEK_CHARS = 300  # of each of the first 2 lines a folded question shows before its "…"
@@ -654,9 +728,9 @@ def _answer(text: str, spans) -> str:
 
 
 def _part_said(n: int, part: str, whole: bool = False) -> str:
-    """A rule part in "Your reason: ...", cut at reasons.SAID_CHARS unless `whole`."""
-    shown = part if whole else reasons.short(part, reasons.SAID_CHARS)
-    return f"rule part {n} (\u201c{shown}\u201d)"
+    """A rule part in "Your reason: ...": its number, or with its text when `whole` (the
+    line's title)."""
+    return f"rule part {n} (\u201c{part}\u201d)" if whole else f"rule part {n}"
 
 
 def _reason_said(k: str, own: dict[str, str]) -> str:
@@ -667,7 +741,7 @@ def _reason_said(k: str, own: dict[str, str]) -> str:
 def _said_words(m: dict, parts: list[str], own: dict[str, str],
                 whole: bool = False) -> list[str]:
     """The person's reasons on one answer, each as it reads in "Your reason: ...": the reasons
-    tapped, the rule parts (each cut, or `whole` for the line's title), the note."""
+    tapped, the rule parts (each by its number, or `whole` for the line's title), the note."""
     why = m.get("why") or {}
     said = [_reason_said(k, own) for k in why.get("reasons") or []
             if k in reasons.REASONS or k in own]
@@ -679,7 +753,7 @@ def _said_words(m: dict, parts: list[str], own: dict[str, str],
 
 
 def _whole_title(m: dict, parts: list[str], own: dict[str, str]) -> str:
-    """A title with the whole "Your reason: ..." when a rule part in it is cut."""
+    """A title with the whole "Your reason: ..." when a rule part is in it."""
     said, whole = _said_words(m, parts, own), _said_words(m, parts, own, whole=True)
     return f' title="{_e("Your reason: " + "; ".join(whole))}"' if whole != said else ""
 
@@ -687,8 +761,8 @@ def _whole_title(m: dict, parts: list[str], own: dict[str, str]) -> str:
 def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
     """"Your reason: ..." for report.html, or nothing when the person gave none."""
     said = _said_words(m, parts, own)
-    return (f'{DOT}<span class="said"{_whole_title(m, parts, own)}>Your reason: '
-            f'{_e("; ".join(said))}</span>' if said else "")
+    return (f'<span class="said"{_whole_title(m, parts, own)}>Your reason: '
+            f'<b>{_e("; ".join(said))}</b></span>' if said else "")
 
 
 def _chip(text: str, pressed: bool, attr: str, said: str = "", whole: str = "") -> str:
@@ -697,9 +771,20 @@ def _chip(text: str, pressed: bool, attr: str, said: str = "", whole: str = "") 
             f'{attr} data-said="{_e(said)}"{whole}>{_e(text)}</button>')
 
 
+def _part(k: int, text: str, pressed: bool) -> str:
+    """A rule part as a light checkbox row: box, number, one line of its text (cut by the
+    page), the whole text in its title."""
+    return (f'<button type="button" class="part" aria-pressed="{str(pressed).lower()}" '
+            f'data-part="{k}" data-said="{_e(_part_said(k, text))}" '
+            f'data-whole="{_e(_part_said(k, text, whole=True))}" title="{_e(text)}">'
+            f'<span class="bx" aria-hidden="true"></span><span class="num">{k}</span>'
+            f'<span class="t">{_e(text)}</span></button>')
+
+
 def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) -> str:
-    """The reason box of one disagreement on the live page (`left_out`: the rule's parts with
-    no button)."""
+    """The row foot and reason box of one disagreement on the live page (`left_out`: the
+    rule's parts with no button): "Add a reason" (or "Change" and the reason saved), "Show
+    all" at the right; in the box, the everyday reasons first, then the rule's parts."""
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
     mark = "Fail" if m["final"] == "fail" else "Pass"
@@ -709,25 +794,15 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
             f'data-len="{len(m["answer"])}" '
             f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
             f'aria-labelledby="q-{n}">'),
-           (f'<p class="why-line">{OPEN_ROW}{DOT}<span class="said-now"'
-            f'{"" if said else " hidden"}>'
-            f'<span class="said-text"{_whole_title(m, parts, words)}>Your reason: '
-            f'{_e("; ".join(said))}</span>'
-            '<span aria-hidden="true"> · </span></span><button type="button" '
-            f'class="add-reason" aria-expanded="false" aria-controls="wb-{n}">'
-            f'{"Change" if said else "Add a reason"}</button></p>'),
+           (f'<p class="why-line"><button type="button" class="add-reason sbtn" '
+            f'aria-expanded="false" aria-controls="wb-{n}">'
+            f'{"Change" if said else "Add a reason"}</button><span class="said-now"'
+            f'{"" if said else " hidden"}><span class="said-text"'
+            f'{_whole_title(m, parts, words)}>Your reason: <b class="said-words">'
+            f'{_e("; ".join(said))}</b></span></span>{OPEN_ROW}</p>'),
            f'<div class="why-body" id="wb-{n}" hidden>',
-           f'<p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}</p>']
-    if parts:
-        out.append(f'<p class="sub" id="p-{n}">{_e(reasons.PART_QUESTION[m["judge"]])}</p>'
-                   f'<div class="chips parts" role="group" aria-labelledby="p-{n}">'
-                   + "".join(_chip(f"{k}. {reasons.short(text)}", k in chosen,
-                                   f'data-part="{k}"' + (f' title="{_e(text)}"'
-                                                        if reasons.short(text) != text else ""),
-                                   _part_said(k, text), _part_said(k, text, whole=True))
-                             for k, text in enumerate(parts, 1)) + "</div>")
-        if left_out:
-            out.append(f'<p class="sub">{_e(reasons.parts_left_out_line(left_out))}</p>')
+           (f'<div class="box-h"><p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}'
+            '</p><span class="saved" aria-live="polite"></span></div>')]
     chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"', _reason_said(k, words))
              for k in reasons.offered(m["judge"])]
     chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"',
@@ -742,10 +817,16 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
                f'<label for="n-{n}">Your reason, in your words</label>'
                f'<input type="text" id="n-{n}" maxlength="{reasons.MAX_NOTE}" '
                f'autocomplete="off" value="{_e(note)}"></div>')
+    if parts:
+        out.append(f'<p class="sub" id="p-{n}">{_e(reasons.PART_QUESTION)}</p>'
+                   f'<div class="parts" role="group" aria-labelledby="p-{n}">'
+                   + "".join(_part(k, text, k in chosen) for k, text in enumerate(parts, 1))
+                   + "</div>")
+        if left_out:
+            out.append(f'<p class="sub">{_e(reasons.parts_left_out_line(left_out))}</p>')
     out.append('<div class="marked"><button type="button" class="mark-part" hidden>Mark this '
                'part</button><button type="button" class="clear-part"'
-               f'{"" if why.get("spans") else " hidden"}>Clear marked words</button>'
-               '<span class="saved" aria-live="polite"></span></div>')
+               f'{"" if why.get("spans") else " hidden"}>Clear marked words</button></div>')
     return "".join(out) + "</div></div>"
 
 
@@ -755,18 +836,18 @@ def _made(r: dict) -> str:
     from judgekeeper.start_label import link_lines
 
     said = link_lines(r.get("made"))
-    return ('<div class="band">' + "".join(f'<p class="note">{_e(x)}</p>' for x in said)
+    return ('<div class="band">' + "".join(f'<p class="note">{_term(x)}</p>' for x in said)
             + "</div>") if said else ""
 
 
-def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False,
+def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
            left_out: int = 0) -> str:
-    """One group of disagreements: its title with how many it shows, "Show all" past
-    ROWS_SHOWN rows, the table. Each row's cells show 4 lines, then the row's own "Show all"
-    (SCRIPT) in the row's foot, with its reason box behind "Add a reason" on the live page
-    (`live`), or the person's reasons, read-only, in report.html."""
-    why = f"Why your LLM-as-a-judge {judge} it"
+    """One group of disagreements: its title, how many more are kept aside (`kept`), the
+    table, then "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
+    then the row's foot: on the live page (`live`) its reason button and box, the reason
+    saved, and the row's own "Show all" (SCRIPT) at the right; in report.html the person's
+    reasons, read-only."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
     body = []
@@ -774,7 +855,7 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
         n = f"{key}-{k}"
         box = live and m.get("id") is not None
         foot = (_box(m, n, parts, own, left_out) if box
-                else f'<p class="row-foot">{OPEN_ROW}{_said(m, parts, words)}</p>')
+                else f'<p class="row-foot">{_said(m, parts, words)}{OPEN_ROW}</p>')
         extra = ' class="extra" hidden' if k >= ROWS_SHOWN else ""
         ht, question = _question(m)
         ht = f' class="{ht.strip()}"' if ht else ""
@@ -782,17 +863,26 @@ def _group(key: str, said: str, judge: str, rows: list[dict], live: bool = False
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    f'<td data-label="{why}">{_e(m.get("reason") or "No reason given")}</td>'
+                    f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
                     f'<td colspan="3" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{said} ({len(rows)})</h2>{more}</div>'
+            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
             f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
             '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
-            f'<th scope="col">Answer</th><th scope="col">{why}</th></tr></thead>'
-            f'<tbody>{"".join(body)}</tbody></table></section>')
+            f'<th scope="col">Answer</th><th scope="col">{REASON}</th></tr></thead>'
+            f'<tbody>{"".join(body)}</tbody></table>{more}</section>')
+
+
+REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
+
+
+def _kept(n: int) -> str:
+    """How many more of a group are kept aside, or nothing."""
+    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test a fix '
+            'fairly.</p>' if n else "")
 
 
 # In place of the lists when split.json can't be used, around the fix command
@@ -800,13 +890,12 @@ SPLIT_UNKNOWN = ("judgekeeper can't tell which answers are kept aside: run ", " 
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
-            mark: str | None = None, fix: str | None = None,
-            fix_command: str | None = None) -> str:
+            mark: str | None = None, fix_command: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups (a group with none
-    to show is left out), then a footnote: how many more are among the marks kept aside. On
-    the live page, a line first: add a reason. In report.html, which can't save one, two lines last: to say why, run `mark`, and
-    `fix` uses the reasons (`mark`, `fix`: the commands)."""
-    from judgekeeper.start_label import SAY_WHY_FIX, say_why_run
+    to show is left out), each with how many more of it are kept aside; those of a group
+    with none to show after the lists. In report.html, which can't save a reason, a line
+    last: to say why, run `mark` (`mark`: the command)."""
+    from judgekeeper.start_label import say_why_run
 
     mistakes = (fixing or {}).get("mistakes") or []
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
@@ -814,23 +903,21 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
         return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
                 f'{_e(fix_command or "judgekeeper fix")}</code>{_e(SPLIT_UNKNOWN[1])}</p></div>')
-    if live and mistakes:
-        out.append(f'<div class="band"><p class="add-why">{_code_line(reasons.ADD)}</p></div>')
-    kept = 0
+    left = 0  # kept aside of a group with none to show
     for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
                              ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
-        kept += max(0, c[key] - len(rows))
+        kept = max(0, c[key] - len(rows))
         if rows:
-            out.append(_group(key, said, "passed" if judge == "pass" else "failed", rows,
-                              live, parts, own, (fixing or {}).get("left_out", 0)))
-    if kept:
-        out.append(f'<div class="band"><p class="note kept">* {kept} more '
-                   f'{"is" if kept == 1 else "are"} kept aside to test a new rule fairly.</p></div>')
+            out.append(_group(key, said, rows, kept, live, parts, own,
+                              (fixing or {}).get("left_out", 0)))
+        else:
+            left += kept
+    if left:
+        out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     if mistakes and not live and mark:
         tell = say_why_run(c["strict"] + c["easy"], mark)
-        uses = f'<p class="add-why">{_code_line(SAY_WHY_FIX.format(fix=fix))}</p>' if fix else ""
-        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p>{uses}</div>')
+        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 
 
@@ -850,21 +937,21 @@ def estimate(value, interval) -> tuple[str, str]:
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
 
 
-def _weighted(r: dict) -> str:
-    """Under the caption, when some answers are not marked: the estimates are worked out for
-    them all (each mark weighed by its grade's share), so they can differ from the counts."""
+def _caption(r: dict) -> str:
+    """More details' one line: when some answers are not marked, the estimates are worked out
+    for them all (each mark weighed by its grade's share)."""
     g = r.get("groups") or {}
     every = sum((g.get(k) or {}).get("pool") or 0 for k in ("pass", "fail"))
     marked = sum((g.get(k) or {}).get("labeled") or 0 for k in ("pass", "fail"))
     if not marked or marked >= every:
-        return ""
-    return (f'<span class="weighted">Worked out for all {every} answers, not only the {marked} '
-            "you marked, so they can differ from the counts above.</span>")
+        return f"How often your {TERM} agrees with you."
+    return (f"How often your {TERM} agrees with you, estimated for all {every} answers "
+            f"(you marked {marked}).")
 
 
 def _details(r: dict) -> str:
-    """More details: how often the judge agrees with the person, estimated (weighted, with
-    their ranges), and kappa."""
+    """More details, folded: how often the judge agrees with the person, estimated (weighted,
+    with their ranges), and kappa."""
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"))
@@ -874,36 +961,28 @@ def _details(r: dict) -> str:
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = "".join(f'<tr><th scope="row">{_e(name)}</th><td data-label="Estimate">{_e(est)}</td>'
+    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'
                    for name, est, between in rows)
     body += (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
              f'{_two(kappa) if kappa is not None else "–"}</td><td data-label="Between">'
              f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
-    return ('<section class="details band" aria-labelledby="details-h">'
-            '<h2 id="details-h">More details</h2><table class="panel">'
-            "<caption>How often your LLM-as-a-judge agrees with you (estimates)"
-            f"{_weighted(r)}</caption>"
+    return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
+            f'</summary><table class="panel"><caption>{_caption(r)}</caption>'
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table></section>")
+            f"</tr></thead><tbody>{body}</tbody></table></details>")
 
 
 def _fix(r: dict) -> str:
-    """Fix it: the command that saves the clues and the marked answers to grade again with a
-    new rule, with Copy; the same steps as `judgekeeper fix`."""
-    from judgekeeper.fix import ANSWERS, NEW_RESULTS
-
+    """Fix it: one line, and the command (`judgekeeper fix` prints what to do next) in the
+    website's command box with Copy."""
     fix = _e(commands(r)["fix"])
-    saved = f"{FOLDER}/fix/"
-    then = (f"It lists the answers your LLM-as-a-judge got wrong and saves them in {saved}, with "
-            f"{ANSWERS}. Change your rule in your eval tool, grade those answers again, then run "
-            f"<code>{fix} {_e(NEW_RESULTS)}</code> to test it on the marks kept aside.")
     return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
             '<h2 id="fix-h">Fix it</h2>'
-            f"<p>In your project folder, run <code>{fix}</code>. {then}</p>"
-            f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
-            'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div></div></section>')
+            "<p>Run it in your project folder to see what to change.</p>"
+            f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
+            f'aria-label="Copy the command">{COPY_ICONS}</button></div></div></section>')
 
 
 def _last_check(last: dict | None, worse: str) -> str:
@@ -911,11 +990,11 @@ def _last_check(last: dict | None, worse: str) -> str:
     terminal gave, and the way back. The rest of the page stays the old judge's result."""
     if not last:
         return ""
-    judge = "Your new LLM-as-a-judge" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
-    said = "".join(f"<p>{_e(x)}</p>" for x in last.get("lines") or [])
+    judge = f"Your new {TERM}" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
+    said = "".join(f"<p>{_term(x)}</p>" for x in last.get("lines") or [])
     return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
             f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still your old "
-            f"LLM-as-a-judge's.</p>{said}<p>{_code_line(worse)}</p></section>")
+            f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -938,8 +1017,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     live = back is not None
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
-        fix = None if next_step(r) == "mark" else commands(r)["fix"]  # never while too early
-        parts += [_groups(c, fixing, live, mark, fix, commands(r)["fix"]), _details(r)]
+        parts += [_groups(c, fixing, live, mark, commands(r)["fix"]), _details(r)]
     elif level is not None:  # too early to tell: the estimates and their ranges all the same
         parts.append(_details(r))
     if level == "not_gate" and not worse:

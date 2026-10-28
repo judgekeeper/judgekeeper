@@ -49,8 +49,7 @@ MAX_SPANS = 3
 MAX_OWN = 8
 MAX_FILE = 64 * 1024  # bytes of reasons.json read: MAX_OWN buttons are far less
 MAX_PARTS = 6
-PART_CHARS = 90  # of a rule part shown on its button (short)
-SAID_CHARS = 60  # of a rule part quoted in "Your reason: ..." on the result page
+PART_CHARS = 90  # of a rule part quoted in a line (short)
 TWICE = 2  # taps that make a clue line or a suggested rule line
 # The one refusal for an answer the result page lists no reason box for: kept aside, graded
 # as the person marked it, or no result shown yet. Which of them it is would tell the judge's
@@ -58,11 +57,9 @@ TWICE = 2  # taps that make a clue line or a suggested rule line
 NOT_LISTED = ("this answer is not on your result page yet: reasons are only for the "
               "disagreements it lists")
 QUESTION = "Why did you mark it {mark}?"
-PART_QUESTION = {"pass": "Which part of your rule does this answer break?",
-                 "fail": "Which part did your LLM-as-a-judge get wrong?"}
+PART_QUESTION = "Which part of your rule?"
 PARTS_LEFT_OUT = "\u201cOther\u2026\u201d covers the {n} other parts of your rule."
 PART_LEFT_OUT = "\u201cOther\u2026\u201d covers the other part of your rule."
-ADD = "Add a reason to any answer below. `fix` uses them."
 
 
 def parts_left_out_line(n: int) -> str:

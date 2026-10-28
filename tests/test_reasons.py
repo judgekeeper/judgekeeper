@@ -265,7 +265,7 @@ def test_a_mark_changed_after_seeing_the_grades_is_stamped_and_counted(here):
     assert made["after_result"] == 1
     said = "You changed 1 mark after seeing your LLM-as-a-judge's grades."
     assert said in start_label.made_lines(made)
-    assert _flat(_live(ws)).count(said) == 1
+    assert _flat(re.sub(r"</?span[^>]*>", "", _live(ws))).count(said) == 1
 
 
 def test_a_mark_changed_before_any_grade_was_shown_is_not_stamped(here):
@@ -400,7 +400,8 @@ def test_a_long_rule_offers_its_first_parts_and_its_last():
 def test_the_page_says_other_covers_the_parts_left_out(here):
     ws, passes, fails, _ = _ready(here, rule=FACTS_FIRST)
     box = _box(_live(ws), (passes or fails)[0])
-    assert "6. Fail any answer that promises a refund" in box
+    assert ('<span class="num">6</span><span class="t">Fail any answer that promises a refund'
+            in box)
     assert "“Other…” covers the 2 other parts of your rule." in box
 
 
@@ -415,13 +416,14 @@ def test_no_rule_buttons_without_one_rule_for_every_answer():
     assert reasons.rule_parts({"rule": RULE, "tool": "promptfoo"}) == PARTS
 
 
-def test_rule_buttons_come_first_with_their_question(here):
+def test_the_everyday_reasons_come_first_then_the_rule_parts(here):
     ws, passes, fails, _ = _ready(here)
     html = _live(ws)
     judge_passed, judge_failed = _box(html, passes[0]), _box(html, fails[0])
-    assert "Which part of your rule does this answer break?" in judge_passed
-    assert "Which part did your LLM-as-a-judge get wrong?" in judge_failed
-    assert judge_passed.index('data-part="1"') < judge_passed.index('data-reason=')
+    for box in (judge_passed, judge_failed):
+        assert "Which part of your rule?" in box
+        assert box.index('data-reason=') < box.index("Which part of your rule?") < box.index(
+            'data-part="1"')
     assert "Every claim is supported by the article" in judge_passed
 
 
@@ -605,10 +607,10 @@ def test_report_html_shows_reasons_read_only_with_no_input(here):
     assert re.findall(r"<script>(.*?)</script>", html, re.DOTALL) == [report_page.SCRIPT]
 
 
-def test_the_live_page_asks_why_and_says_fix_uses_the_reasons(here):
+def test_the_live_page_asks_why_in_each_row(here):
     ws, passes, fails, _ = _ready(here)
     html = _live(ws)
-    assert "Add a reason to any answer below. <code>fix</code> uses them." in html
+    assert "uses them" not in html  # no line above the lists
     assert "Why did you mark it Fail?" in _box(html, passes[0])
     assert "Why did you mark it Pass?" in _box(html, fails[0])
     for words in ("It has a wrong fact", "It doesn't answer the question",
@@ -1073,8 +1075,8 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     assert out.count("Tell judgekeeper why") == 1
     report = _report(ws)
     assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
-    assert uses.replace("`judgekeeper fix`", "<code>judgekeeper fix</code>") in report
-    assert report.index("You said Fail, your LLM-as-a-judge said Pass") < report.index("Tell judgekeeper")
+    assert "uses your reasons" not in report  # report.html: the one line only
+    assert report.index('id="g-easy"') < report.index("Tell judgekeeper")
     assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 

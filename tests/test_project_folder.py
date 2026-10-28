@@ -365,15 +365,12 @@ def test_fix_for_a_table_judge_tests_new_grades_from_a_file(here, capsys, no_cal
     assert f"New rule: agreed with you on {n} of {n} answers." in out
 
 
-def test_the_report_says_how_to_test_a_new_rule(here, capsys):
+def test_the_report_says_where_to_run_fix(here, capsys):
     _table_needs_work(here, capsys)
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "can&#x27;t re-run" not in report
-    assert ("In your project folder, run <code>judgekeeper fix</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with "
-            "marked-answers.csv. Change your rule in your eval tool, grade those answers again, "
-            "then run <code>judgekeeper fix &lt;new results file&gt;</code> to test it on the "
-            "marks kept aside.") in report
+    assert ("<p>Run it in your project folder to see what to change.</p>"
+            '<div class="cmd"><code>judgekeeper fix</code>') in report
 
 
 # The folder and the page ---------------------------------------------------------------------
