@@ -624,3 +624,37 @@ def test_a_big_artifact_is_not_a_tag(folder_only, capsys):
     (folder_only / "mlruns" / "0" / "big-artifact.bin").write_bytes(b"x" * (2**20 + 1))
     _, out = run(capsys, folder_only, "--no-browser")
     assert "Store:           mlruns, experiment qa-folder" in out, out
+
+
+# Limits on what one read takes ------------------------------------------------------------
+# 120 sparse trace files of 99 MB (3 MB on disk) took 3.7 GB; 2,000 empty experiments took
+# half a minute. The trace files' real sizes count, not their space on disk.
+
+def test_trace_files_over_the_limit_together_are_refused(folder_only, capsys, monkeypatch):
+    sizes = [p.stat().st_size for p in _trace_files(folder_only)]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes) - 1)
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert "the trace files judgekeeper would read from mlruns are over" in flat, out
+    assert "judgekeeper reads at most" in flat and "Next:" in flat, out
+
+
+def test_trace_files_under_the_limit_are_read(folder_only, capsys, monkeypatch):
+    sizes = [p.stat().st_size for p in _trace_files(folder_only)]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+
+
+def test_a_store_with_more_experiments_than_the_limit_is_refused(folder_only, capsys,
+                                                                 monkeypatch):
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 1)  # this store holds 2
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert ("mlruns has more than 1 experiments: judgekeeper reads at most 1 experiments from "
+            "one store.") in flat, out
+    assert "--experiment NAME" in flat[flat.index("Next:"):], out
+    code, out = run(capsys, folder_only, "--no-browser", "--experiment", "qa-folder")
+    assert "Store:           mlruns, experiment qa-folder" in out, out  # one, named: read

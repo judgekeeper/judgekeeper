@@ -119,6 +119,10 @@ ELSEWHERE = "stored-elsewhere"
 SPANS_FILE = "traces.json"  # where MLflow keeps a trace's spans in its location
 # A trace's spans are KBs, a long agent's a few MB: a bigger traces.json is not read
 TRACE_LIMIT = 100 * 2**20
+# The trace files one read of a store takes together, by their real size (a sparse file's
+# full size, not its space on disk); and the experiments it lists. Past either: StoreTooBig.
+TRACES_LIMIT = 10**9
+MAX_EXPERIMENTS = 1000
 # The MLflow login and TLS settings, for a tracking server: a local store never needs them
 LOGIN = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD", "MLFLOW_TRACKING_TOKEN",
          "MLFLOW_TRACKING_CLIENT_CERT_PATH", "MLFLOW_TRACKING_SERVER_CERT_PATH",
@@ -588,13 +592,50 @@ def _experiment(client, name_or_id: str):
 EXPERIMENT_PAGE = 1000
 
 
+class StoreTooBig(RecordsError):
+    """A store past one of judgekeeper's limits on one read (MAX_EXPERIMENTS, TRACES_LIMIT),
+    said with the limit."""
+
+    def __init__(self, message: str, next_step: str):
+        super().__init__(message)
+        self.next_step = next_step
+
+
+def _size(n: int) -> str:
+    return f"{n / 10**9:g} GB" if n >= 10**9 else f"{n / 10**6:g} MB" if n >= 10**6 else (
+        f"{n:,} bytes")
+
+
+class TraceBytes:
+    """The trace files one read of the store at `uri` may still take (TRACES_LIMIT)."""
+
+    def __init__(self, uri):
+        self.uri, self.taken = uri, 0
+
+    def take(self, n: int) -> None:
+        self.taken += n
+        if self.taken > TRACES_LIMIT:
+            limit = _size(TRACES_LIMIT)
+            raise StoreTooBig(
+                f"the trace files judgekeeper would read from {store_name(self.uri)} are over "
+                f"{limit} together: judgekeeper reads at most {limit} of trace files in one go.",
+                "keep fewer or smaller traces in the experiment you check (log your evaluation "
+                "again into a new experiment), then run `{command}`.")
+
+
 def all_experiments(client) -> list:
     """Every experiment in the store `client` reads, page after page (one call returns at most
-    a page)."""
+    a page); StoreTooBig past MAX_EXPERIMENTS."""
     found, token = [], None
     while True:
         page = client.search_experiments(max_results=EXPERIMENT_PAGE, page_token=token)
         found.extend(page)
+        if len(found) > MAX_EXPERIMENTS:
+            name = store_name(getattr(client, "tracking_uri", None))
+            raise StoreTooBig(
+                f"{name} has more than {MAX_EXPERIMENTS:,} experiments: judgekeeper reads at "
+                f"most {MAX_EXPERIMENTS:,} experiments from one store.",
+                "run `{command} --experiment NAME`, with NAME the experiment to read.")
         token = getattr(page, "token", None)
         if not token:
             return found
@@ -623,14 +664,17 @@ def _trace_scope(search_traces, experiment_id: str) -> dict:
 
 
 def _traces(client, experiment_id: str, folder: Path | None = None,
-            missing: list | None = None, previews: list | None = None):
+            missing: list | None = None, previews: list | None = None,
+            budget: TraceBytes | None = None):
     """Every trace of an experiment, with its spans. In a folder store (`folder`), each
     trace's files are read from the store's own folder only (_with_spans): MLflow looks for
     them at the full path saved when the trace was made, which points at another computer's
     folders once the store is copied or cloned, or at a server. A trace whose files are not
     there is left out, its id added to `missing`. In judgekeeper's copy of mlflow.db, a trace
     whose data is kept elsewhere (_keep_local) comes with no spans, its id added to
-    `previews`: what the store itself keeps of it is read (_content)."""
+    `previews`: what the store itself keeps of it is read (_content). Each trace file read
+    counts toward `budget`, before it is read."""
+    budget = budget or TraceBytes(getattr(client, "tracking_uri", None))
     _local_again(client, experiment_id)
     scope = _trace_scope(client.search_traces, experiment_id)
     can_skip = "include_spans" in inspect.signature(client.search_traces).parameters
@@ -649,13 +693,13 @@ def _traces(client, experiment_id: str, folder: Path | None = None,
             server_only = True  # read what the store itself holds (the previews)
             continue
         if copy is not None:
-            page_traces = _from_the_copy(client, list(page), copy, previews)
+            page_traces = _from_the_copy(client, list(page), copy, previews, budget)
         else:
             page_traces = page
         for trace in page_traces:
             if local:
                 page_trace_id = trace.info.trace_id
-                trace = _with_spans(trace, folder / str(experiment_id))
+                trace = _with_spans(trace, folder / str(experiment_id), budget)
                 if trace is None:
                     if missing is not None:
                         missing.append(page_trace_id)
@@ -678,12 +722,18 @@ def kept_elsewhere(info, copy: Path) -> bool:
     return tags.get(tag) in (None, "", (copy / ELSEWHERE).as_uri())
 
 
-def _from_the_copy(client, page: list, copy: Path, previews: list | None) -> list:
+def _from_the_copy(client, page: list, copy: Path, previews: list | None,
+                   budget: TraceBytes | None = None) -> list:
     """A page of traces found without their spans, in judgekeeper's copy of mlflow.db: each
     with its spans from the database or the local folder it names, in the page's order; one
     kept elsewhere as found, its id added to `previews`. A trace MLflow can't load is left
-    out, as MLflow leaves it out."""
+    out, as MLflow leaves it out. The trace files MLflow will read count toward `budget`
+    first."""
     wanted = [t.info.trace_id for t in page if not kept_elsewhere(t.info, copy)]
+    if budget is not None:
+        for t in page:
+            if t.info.trace_id in wanted:
+                budget.take(_kept_size(t.info))
     full = {}
     if wanted:
         batch = getattr(getattr(client, "_tracing_client", None), "batch_get_traces", None)
@@ -708,16 +758,36 @@ def _from_the_copy(client, page: list, copy: Path, previews: list | None) -> lis
     return found
 
 
+def _kept_size(info) -> int:
+    """The size of the trace file MLflow reads for a trace (its info) in judgekeeper's copy of
+    mlflow.db: its location's traces.json; 0 when its spans are in the database."""
+    tags = getattr(info, "tags", None) or {}
+    where = tags.get(SPANS_LOCATION)
+    if where == IN_DATABASE:
+        return 0
+    value = tags.get(LOCATION_TAGS[1] if where == ARCHIVED else LOCATION_TAGS[0])
+    if not isinstance(value, str) or not value.lower().startswith("file:"):
+        return 0
+    try:
+        location = Path(url2pathname(urlparse(value).path))
+        found = os.lstat(location)
+        if stat.S_ISDIR(found.st_mode):
+            found = os.lstat(location / SPANS_FILE)
+    except (OSError, ValueError):
+        return 0
+    return found.st_size if stat.S_ISREG(found.st_mode) else 0
+
+
 TRACE_FILE = ("traces", "artifacts", "traces.json")  # inside an experiment's folder
 TRACE_ID = re.compile(r"tr-[0-9a-f]+|[0-9a-f]{32}")  # MLflow 3's trace ids, MLflow 2's
 
 
-def _with_spans(trace, experiment_folder: Path):
+def _with_spans(trace, experiment_folder: Path, budget: TraceBytes | None = None):
     """`trace` (found without its spans) with its spans from the experiment's own folder;
     None when they are not there. Never from where MLflow saved them: a store can name any
     server there (the trace's mlflow.artifactLocation tag), and MLflow sends it the MLflow
     login. The trace id is joined into the path only in MLflow's shape, and the file is read
-    only inside the experiment's folder."""
+    only inside the experiment's folder. Its size counts toward `budget` before it is read."""
     from mlflow.entities import Trace, TraceData
 
     trace_id = trace.info.trace_id
@@ -728,8 +798,12 @@ def _with_spans(trace, experiment_folder: Path):
         if (not path.resolve().is_relative_to(experiment_folder.resolve())
                 or not path.is_file() or not _plain_trace_file(path)):
             return None
+        if budget is not None:
+            budget.take(os.lstat(path).st_size)
         return Trace(trace.info, TraceData.from_dict(json.loads(
             path.read_text(encoding="utf-8"))))
+    except StoreTooBig:
+        raise
     except Exception:  # noqa: BLE001 - files unreadable: left out, and said
         return None
 
@@ -819,7 +893,8 @@ def _model(source_id: str | None) -> dict:
 
 def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
                 id_from: str | None = None, temperature: float | None = None,
-                metric: str | None = None) -> list[tuple[str, RecordList]]:
+                metric: str | None = None,
+                budget: TraceBytes | None = None) -> list[tuple[str, RecordList]]:
     """ScoreRecords from the traces of one MLflow experiment.
 
     Returns [(MLflow run id, judge records of that run)] in run start order, then
@@ -827,6 +902,8 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     only those runs' judge assessments. `metric` (--metric) may name a judge whose
     assessments are all on spans: then those are read too. A folder store is read with
     MLFLOW_ALLOW_FILE_STORE set for this read only (folder_store_allowed), said in a note.
+    `budget` (TraceBytes) is shared by the reads of one store's experiments; else this read's
+    own.
     """
     said: list[str] = []
     uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
@@ -835,7 +912,7 @@ def read_mlflow(experiment: str, run_ids=None, tracking_uri: str | None = None,
     with folder_store_allowed(uri, say=said.append), quiet(), _tracking(uri), logged_out(uri):
         try:
             files = _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature,
-                                 metric, folder_of(uri))
+                                 metric, folder_of(uri), budget or TraceBytes(uri))
         except Exception as e:  # never MLflow's words: they can hold the text
             unusable = folder_problem(e, uri)
             if unusable is not None:
@@ -1022,7 +1099,8 @@ def missing_line(n: int, folder: str) -> str:
 
 
 def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric,
-                 folder: Path | None = None) -> list[tuple[str, RecordList]]:
+                 folder: Path | None = None,
+                 budget: TraceBytes | None = None) -> list[tuple[str, RecordList]]:
     client = _client(tracking_uri)
     exp = _experiment(client, str(experiment))
     runs = {r.info.run_id: r for r in client.search_runs([exp.experiment_id])}
@@ -1043,7 +1121,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     previews: list[str] = []  # the ids of traces whose data is kept elsewhere
     damaged: list[str] = []  # the ids of traces left out for a damaged field
     capped = False
-    for trace in _traces(client, exp.experiment_id, folder, missing, previews):
+    for trace in _traces(client, exp.experiment_id, folder, missing, previews, budget):
         if n_traces >= MAX_TRACES:
             capped = True
             break

@@ -480,3 +480,17 @@ def _traces_files_at(path: Path, kind: str) -> None:
     else:
         with path.open("wb") as f:
             f.truncate(2 * 2**30)
+
+
+def test_trace_files_a_copy_names_count_toward_the_limit(made, tmp_path, monkeypatch):
+    """In an older store the spans are files next to mlflow.db: their real sizes count before
+    MLflow reads them."""
+    root = _project(made, tmp_path)
+    edit(root / "mlflow.db", "delete from trace_tags where key = 'mlflow.trace.spansLocation'",
+         "delete from spans")
+    total = sum(p.stat().st_size for p in (root / "mlartifacts").rglob("traces.json"))
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", total - 1)
+    with pytest.raises(start.StartError) as e:
+        start.find_judge(root)
+    assert "the trace files judgekeeper would read from mlflow.db are over" in " ".join(
+        str(e.value).split())

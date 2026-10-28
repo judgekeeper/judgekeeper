@@ -795,6 +795,8 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     from judgekeeper.readers.mlflow_store import (
         ArtifactServer,
         JudgeCallsFailed,
+        StoreTooBig,
+        TraceBytes,
         TracesMissing,
         all_experiments,
         experiments_with_traces,
@@ -802,15 +804,21 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         store_damage,
     )
 
+    budget = TraceBytes(uri)  # one for every experiment read here
     if experiment is not None:
         try:
-            found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
-        except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
+            found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric,
+                                              budget=budget))]
+        except (TracesMissing, JudgeCallsFailed, ArtifactServer, StoreTooBig) as e:
             raise usage_error(e) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
                 raise
-            raise _no_experiment(experiment, [(store, experiments_with_traces(uri))]) from None
+            try:
+                names = experiments_with_traces(uri)
+            except StoreTooBig as too_many:
+                raise usage_error(too_many) from None
+            raise _no_experiment(experiment, [(store, names)]) from None
     else:
         from mlflow import MlflowClient
 
@@ -820,12 +828,16 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 experiments = all_experiments(MlflowClient(tracking_uri=uri))
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
+        except StoreTooBig as e:
+            raise usage_error(e) from None
         for exp in experiments:
             try:
-                runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
+                runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric, budget=budget)
             except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
                 missing.append(e)
                 continue
+            except StoreTooBig as e:
+                raise usage_error(e) from None
             except Damaged:
                 raise
             except RecordsError:  # an experiment with no traces
@@ -1998,6 +2010,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         if hit is not None:
             return first(hit)
     from judgekeeper.readers.mlflow_store import (
+        StoreTooBig,
         experiments_with_traces,
         folder_store_allowed,
         quiet,
@@ -2013,8 +2026,11 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     names = []
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
-        with quiet(), folder_store_allowed(uri, say=None), store_damage(uri):  # said when read
-            names.append(experiments_with_traces(uri))
+        try:
+            with quiet(), folder_store_allowed(uri, say=None), store_damage(uri):  # said later
+                names.append(experiments_with_traces(uri))
+        except StoreTooBig as e:
+            raise usage_error(e) from None
     if experiment is not None:
         having = [s for s, n in zip(stores, names, strict=True) if experiment in n]
         if not having:
