@@ -98,7 +98,7 @@
   <div class="gm-row" id="own-format">
     <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Your own file or code</span></div><h3 class="sr">Your own file or code</h3>
     <div class="gx-text">
-      <p><b>No eval tool?</b> Save your results as a CSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Then run:</p>
+      <p><b>No eval tool?</b> Save your results as a CSV, TSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Then run:</p>
       <div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
       <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper

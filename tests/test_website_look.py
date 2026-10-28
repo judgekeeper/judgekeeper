@@ -753,8 +753,8 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
     own = _all(_by_id(GUIDE, "own-format"), "div", "gx-text")[0]
     said = [(el.tag, _flat(el)) for el in own.children if isinstance(el, Element)]
     assert said == [
-        ("p", ("No eval tool? Save your results as a CSV or JSONL file with three columns: input "
-              "(the question), output (the answer) and verdict (Pass or Fail from your "
+        ("p", ("No eval tool? Save your results as a CSV, TSV or JSONL file with three columns: "
+              "input (the question), output (the answer) and verdict (Pass or Fail from your "
               "LLM-as-a-judge). Then run:")),
         ("div", "judgekeeper results.csv"),
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),

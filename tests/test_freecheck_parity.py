@@ -139,7 +139,7 @@ def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
     said = browser(path)
     assert said["ok"] is False and said["message"].startswith(
         "judgekeeper can't tell which columns hold the question, the answer and the grade (this "
-        "file has case, text and mark). In the browser it reads a CSV or JSONL file with a "
+        "file has case, text and mark). In the browser it reads a CSV, TSV or JSONL file with a "
         "question column (input or question), an answer column (output or answer) and a grade "
         "column (verdict or grade) holding Pass or Fail."), said
 
