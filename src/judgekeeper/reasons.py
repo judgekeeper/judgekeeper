@@ -678,7 +678,8 @@ def suggestions_md(rows: list[dict]) -> str:
 
     for line, n, notes in suggested:
         parts.append(f"- {line} ({plural(n, 'answer')})")
-        parts += [fence(note) for note in notes]
+        for note, times in Counter(notes).items():  # the same note once, as the terminal says it
+            parts.append(fence(note) + (f"\n(on {times} answers)" if times > 1 else ""))
     if not suggested:
         parts.append("None yet: a line is suggested once a reason is given on 2 answers.")
     parts += ["", "## Seen once (not suggested yet)", ""]
