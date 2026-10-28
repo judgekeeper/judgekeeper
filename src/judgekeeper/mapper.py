@@ -31,8 +31,13 @@ SAMPLE_UNITS = 50  # units looked at for a guess
 MAX_DEPTH = 8
 
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message", "request")
+QUESTION_WORDS = ("input", "question", "query")  # taken before a prompt or a message
+NOT_QUESTION_WORDS = ("system", "error", "template")  # system_prompt, error_message
 OUTPUT_WORDS = ("output", "outputs", "answer", "answers", "response", "responses",
                 "completion", "reply", "generation")
+# A last word that makes an output-named part about the answer, not it (response_time; a
+# model_answer is the answer)
+ABOUT_WORDS = ("time", "id", "model", "language", "length", "ms", "tokens")
 SCORE_WORDS = ("score", "verdict", "passed", "pass", "label", "success", "grade", "rating",
                "judgment", "judgement")
 REASON_WORDS = ("reason", "reasoning", "explanation", "rationale", "comment", "feedback",
@@ -140,6 +145,10 @@ def _words(key: str) -> set[str]:
 
 def _is(key: str, words) -> bool:
     return bool(_words(key) & set(words))
+
+
+def _last_word(key: str) -> str:
+    return (_WORD.findall(str(key)) or [""])[-1].lower()
 
 
 # Loading and walking ----------------------------------------------------------------------
@@ -388,8 +397,18 @@ def _text_like(values) -> bool:
 def _outputs(item: dict) -> list[tuple]:
     return [seg for seg, v in _leaves(item) if isinstance(v, str)
             and any(_is(k, OUTPUT_WORDS) for k in seg) and not _is(seg[-1], REASON_WORDS)
+            and not (_is(seg[-1], OUTPUT_WORDS) and _last_word(seg[-1]) in ABOUT_WORDS)
             and not _is(seg[-1], REFERENCE_WORDS)  # expected_output: the reference answer
             and not any(_is(k, INPUT_WORDS) for k in seg) and not _setting(seg)]
+
+
+def _two_sides(sides: list[str]) -> bool:
+    """Sides named like A and B: names that hold no output word (A, B under responses), or
+    output names that differ only by a short tag (output_a, output_b)."""
+    if not any(_is(side, OUTPUT_WORDS) for side in sides):
+        return not any(_words(side) & (set(ABOUT_WORDS) - {"model"}) for side in sides)
+    tags = [_words(side) - set.intersection(*map(_words, sides)) for side in sides]
+    return all(len(tag) == 1 and len(next(iter(tag))) <= 2 for tag in tags)
 
 
 def _judge_first(judges: list[str]) -> list[str]:
@@ -506,6 +525,8 @@ def guess(units: list, each: str | None = None) -> Guess:
         else:
             sides = list(dict.fromkeys(p[at] for p in outputs))
             outputs = [_fill(outputs[0], at, SIDE)]
+            if not _two_sides(sides):
+                unsure.append("output")
     output_seg = outputs[0]
 
     # the score or verdict, per side and per judge: named so, and verdict-like values
@@ -550,7 +571,8 @@ def guess(units: list, each: str | None = None) -> Guess:
     leaves = [(seg, v) for seg, v in _leaves(first) if SIDE not in seg]
     inputs = [seg for seg, v in leaves if isinstance(v, str) and any(
         _is(k, INPUT_WORDS) for k in seg) and seg not in outputs and not _setting(seg)
-        and not _id_like(seg[-1])]
+        and not _id_like(seg[-1]) and not _is(seg[-1], NOT_QUESTION_WORDS)]
+    inputs.sort(key=lambda seg: not _is(seg[-1], QUESTION_WORDS))
     if not inputs:
         texts = [seg for seg, v in leaves if isinstance(v, str) and len(seg) == 1
                  and seg != output_seg and not _is(seg[-1], REASON_WORDS + SCORE_WORDS)

@@ -248,6 +248,27 @@ def test_without_a_terminal_it_stops_at_the_question_before_saving(tmp_path, cap
     assert snapshot(tmp_path) == before
 
 
+def test_a_response_time_column_is_not_counted_as_answers(tmp_path, capsys):
+    path = tmp_path / "graded.jsonl"
+    path.write_text("".join(json.dumps({
+        "question": f"When does shop {i} open?", "response": f"Shop {i} opens at 9.",
+        "response_time": f"0.{i}s", "verdict": "pass" if i % 3 else "fail"}) + "\n"
+        for i in range(8)), encoding="utf-8")
+    _, out = check(capsys, path, "--yes")  # then too few answers for a first result
+    assert "  answer:          response\n" in out and "Answers:         8 answers" in out
+    assert saved(tmp_path)["map"]["output"] == "response"
+
+
+def test_without_a_terminal_two_answer_columns_not_a_and_b_stop(tmp_path, capsys):
+    path = tmp_path / "graded.jsonl"
+    path.write_text("".join(json.dumps({"question": f"q{i}", "answer": f"An answer {i}.",
+                                        "response": f"A response {i}.", "verdict": "pass"})
+                            + "\n" for i in range(8)), encoding="utf-8")
+    code, out = check(capsys, path, "--yes")
+    assert code == 3, out
+    assert not (tmp_path / "judgekeeper.toml").exists()
+
+
 def test_yes_answers_it(tmp_path, capsys):
     flat_jsonl(tmp_path / "evals" / "graded.jsonl")
     code, _ = check(capsys, tmp_path, "--yes")
