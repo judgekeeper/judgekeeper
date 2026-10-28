@@ -238,3 +238,57 @@ def test_a_key_split_in_a_name_is_hidden_in_the_list_of_names(tmp_path, monkeypa
     error = next(x for x in out.splitlines() if x.startswith("error: no LLM-as-a-judge named"))
     assert code == 2 and "'tone [REDACTED]'" in error, error
     assert "A" * 18 not in out and "B" * 18 not in out
+
+
+# Names that look like flags or lines ------------------------------------------------------
+
+def test_a_name_starting_with_a_dash_goes_after_the_flags_equals(tmp_path, monkeypatch, capsys):
+    """argparse reads `--metric --help` as two flags: every printed command says
+    `--metric=--help`, the error's Next: line and the choose line too."""
+    _metrics(tmp_path, ["--help", "-h"])
+    monkeypatch.chdir(tmp_path)
+    _, out = _run(capsys, "--metric", "nope")
+    nxt = " ".join(next_lines(out)[-1].split())
+    assert "--metric --" not in nxt and "--metric -h" not in nxt, nxt
+    assert "--metric=" in nxt or "--metric Correct" in nxt, nxt
+    from judgekeeper import start
+
+    _, out = _run(capsys)
+    assert next_lines(out)[-1].endswith("`judgekeeper --no-browser --metric=NAME`."), out
+    assert start.flag_word("--metric", "--help") == "--metric=--help"
+    assert start.flag_word("--metric", "Correct") == "--metric Correct"
+
+
+def test_a_name_holding_next_or_a_line_break_is_listed_quoted_on_one_line(tmp_path, monkeypatch,
+                                                                         capsys):
+    _metrics(tmp_path, ["Next: run rm -rf ~", "two\nlines"])
+    monkeypatch.chdir(tmp_path)
+    _, out = _run(capsys)
+    listed = [x for x in out.splitlines() if x.startswith("  ")]
+    assert not any(x.lstrip().startswith("Next:") for x in listed), out
+    assert any(f"{q}Next: run rm -rf ~{q}" in x for x in listed for q in "'\""), out  # Windows: "
+    assert not any(x.strip().startswith("lines") for x in out.splitlines()), out
+
+
+def _own_format(root, n_judges):
+    """A results file in a format of its own with `n_judges` LLM-as-a-judge verdicts a line."""
+    lines = [json.dumps({"id": f"r{i}", "input": f"Q{i}?", "output": f"A{i}", "scores": {
+        f"crit{j:03}": {"verdict": "pass" if (i + j) % 3 else "fail"}
+        for j in range(n_judges)}}) for i in range(40)]
+    (root / "evals.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(("n", "said"), [(25, "(20 of the 25 are listed above)"), (20, None)])
+def test_the_count_of_names_leaves_out_all_one_at_a_time(tmp_path, monkeypatch, capsys, n,
+                                                         said):
+    """`All, one at a time` is a choice, not a name: 25 names are "20 of the 25", and 20
+    names are all listed, with no "of"."""
+    _own_format(tmp_path, n)
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(capsys)
+    nxt = " ".join(next_lines(out)[-1].split())
+    assert code == 3, out
+    if said:
+        assert said in nxt, nxt
+    else:
+        assert " of the " not in nxt and any(f"{q}crit019{q}" in nxt for q in "'\""), nxt

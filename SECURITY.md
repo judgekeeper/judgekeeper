@@ -25,7 +25,8 @@ The details are in the [reference](docs/reference.md#judgekeeper-find-mark-measu
 
 ## What judgekeeper writes
 
-- judgekeeper writes only inside `.judgekeeper/` in your project, plus `judgekeeper.toml` after you say yes.
+- In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after you say yes.
+- Outside your project it writes only a copy of an `mlflow.db` it reads (with its `-wal` and `-shm` files) in your temporary folder (`judgekeeper-mlflow-*`), removed when judgekeeper ends. MLflow makes `mlruns/.trash` when it opens a folder store without one: judgekeeper removes `mlruns/.trash` again.
 - It never edits other tools' settings: no editor or agent hooks, no git hooks.
 - It never writes through links. Results outside your project are read only when you name them.
 - Pages and spreadsheets it writes escape every value.

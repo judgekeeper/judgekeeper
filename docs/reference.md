@@ -168,6 +168,8 @@ It reads the first 100,000 answers of a results file, and the newest 100,000 rec
 
 **Very large `.eval` logs.** A `.eval` log is too big for judgekeeper to read when its `header.json` would unpack to more than 50 MB, its summaries and reductions to more than 500 MB together, one sample to more than 200 MB, or all its samples to more than 4 GB together. So is one with a part holding more than 2,000,000 values (1,000 more per sample for the summaries and reductions), more than 200,000,000 values in all its parts, samples holding more than 10 values for each byte they pack to, a sample over 1 MB that unpacks to more than 200 times its packed size, or one text in a sample longer than 8 MB. The message says which limit it passed. A log with a part nested more than 500 levels deep is not read, nor one whose parts share bytes, give a part's size two ways or can be named two ways. judgekeeper counts what each part really unpacks to, how deep it nests, how many values it holds and how long its texts are, before Inspect AI reads the log, and keeps none of it. It then reads only the samples the log holds, each once, a few at a time.
 
+**Very large MLflow stores.** From an MLflow store it reads at most 1,000 experiments, and from one experiment at most 1 GB of trace files and the newest 30,000 traces. It doesn't let MLflow open an `mlruns/` folder holding a link, a pipe or a device, or a tag, setting or assessment file over 1 MB or a metric file over 100 MB, nor copy an `mlflow.db` that is a link or a pipe, or an `mlflow.db` over 10 GB with its `-wal` and `-shm` files. The message names the file or the limit.
+
 ## How grades are read
 
 Every grade, and every mark, becomes `pass`, `fail` or `error`, plus a reason.
@@ -234,7 +236,7 @@ Without the import, or in another language, copy [jk_record.py](examples/records
 
 ## The .judgekeeper/ folder
 
-judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It never changes other tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no requirements files, no `.gitignore` but its own. The folder holds your answers' text, so commit it only if your data may live in your repository.
+In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. Outside your project it writes only a copy of an `mlflow.db` it reads (with its `-wal` and `-shm` files) in your temporary folder (`judgekeeper-mlflow-*`), removed when judgekeeper ends. MLflow makes `mlruns/.trash` when it opens a folder store without one: judgekeeper removes `mlruns/.trash` again. It never changes other tools' settings: no editor or agent hooks, no git hooks, no `.pre-commit-config.yaml`, no requirements files, no `.gitignore` but its own. The folder holds your answers' text, so commit it only if your data may live in your repository.
 
 - On macOS and Linux, only your user can read its files (0600) and folders (0700). Each file is written whole, replacing the old one.
 - It does not write through links: if `.judgekeeper/` or anything in it is a symlink (a cloned repository can hold one) or a hard link, it stops before writing and says which.

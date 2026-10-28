@@ -17,7 +17,9 @@ import builtins
 import json
 import logging
 import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,7 @@ from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from judgekeeper.readers import mlflow_store
 from judgekeeper.readers.mlflow_store import ALLOW, HINT
+from judgekeeper.records import Damaged
 from judgekeeper.textio import quote_arg
 from tests.test_front import assert_one_next_at_the_end
 from tests.test_mark_background import stop_page
@@ -54,15 +57,16 @@ for i, question in enumerate(["one", "two", "three", "four"]):
     app(question)
     mlflow.flush_trace_async_logging()
     trace_id = mlflow.get_last_active_trace_id()
-    mlflow.log_feedback(trace_id=trace_id, name="faithful", value=i % 2 == 0, source=judge)
+    if sys.argv[3:] != ["unjudged"]:
+        mlflow.log_feedback(trace_id=trace_id, name="faithful", value=i % 2 == 0, source=judge)
 """
 
 
-def _make(folder: Path, uri: str, experiment: str) -> None:
+def _make(folder: Path, uri: str, experiment: str, *how: str) -> None:
     script = folder / "make_store.py"
     script.write_text(STORE, encoding="utf-8")
-    subprocess.run([sys.executable, str(script), uri, experiment], check=True, cwd=folder,
-                   capture_output=True)
+    subprocess.run([sys.executable, str(script), uri, experiment, *how], check=True,
+                   cwd=folder, capture_output=True)
     script.unlink()
 
 
@@ -108,6 +112,7 @@ def fresh(monkeypatch):
     for name in (ALLOW, HINT, "MLFLOW_TRACKING_URI"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(mlflow_store, "_noted", False)
+    monkeypatch.setattr(mlflow_store, "_walked", set())
 
 
 def run(capsys, *argv):
@@ -540,3 +545,343 @@ def test_a_tracking_uri_that_is_no_store_is_refused_plainly(value, tmp_path, mon
     assert code == 2, said
     assert "didn't expect" not in said and "report it" not in said, said
     assert ("--tracking-uri is empty" if not value.strip() else "is not an MLflow store") in said
+
+
+# Files MLflow must not open ---------------------------------------------------------------
+# MLflow's folder store reads each tag, setting and assessment file whole and follows links:
+# a link to /dev/zero used GBs in a second, a pipe waited forever, and a link out of the
+# project put that file's text in judgekeeper's files. Git keeps links, so a cloned project
+# can carry one. Before MLflow opens a folder store, judgekeeper looks at every file in it.
+
+POSIX = pytest.mark.skipif(os.name == "nt", reason="links and pipes need rights on Windows")
+
+
+def _trace_folder(project):
+    return min((project / "mlruns").glob("*/traces/tr-*"))
+
+
+def _in_store(project, part):
+    """The file `part` of the first trace (tags/NAME, request_metadata/NAME or the first
+    assessment), and its path as judgekeeper names it."""
+    trace = _trace_folder(project)
+    path = min((trace / "assessments").iterdir()) if part == "assessment" else trace / part
+    return path, path.relative_to(project).as_posix()
+
+
+@POSIX
+@pytest.mark.parametrize("part", ["tags/mlflow.traceName", "request_metadata/mlflow.traceInputs",
+                                  "assessment"])
+def test_a_link_in_the_store_is_refused_and_named(folder_only, capsys, tmp_path, part):
+    canary = tmp_path / "outside.txt"
+    canary.write_text("canary-text-from-outside", encoding="utf-8")
+    path, rel = _in_store(folder_only, part)
+    path.unlink()
+    path.symlink_to(canary)
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"judgekeeper didn't let MLflow read mlruns/: {rel} is a link" in flat, out
+    assert "canary-text" not in out
+    assert not any("canary-text" in p.read_text(encoding="utf-8", errors="replace")
+                   for p in folder_only.rglob("*") if p.is_file() and not p.is_symlink())
+    assert f"Next: replace {rel} with a copy of the file it links to" in flat, out
+
+
+@POSIX
+def test_a_link_to_a_device_is_found_without_reading_it(tmp_path):
+    tags = tmp_path / "mlruns" / "1" / "traces" / "tr-1" / "tags"
+    tags.mkdir(parents=True)
+    (tags / "mlflow.traceName").symlink_to("/dev/zero")
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (
+        tags / "mlflow.traceName", "link")
+
+
+@POSIX
+@pytest.mark.parametrize("part", ["tags/mlflow.artifactLocation", "trace_info.yaml",
+                                  "assessment"])
+def test_a_pipe_in_the_store_is_refused_not_waited_on(folder_only, part):
+    path, rel = _in_store(folder_only, part)
+    path.unlink()
+    os.mkfifo(path)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("MLFLOW_")}
+    env["PYTHONPATH"] = str(ROOT / "src")
+    done = subprocess.run([sys.executable, "-m", "judgekeeper", "--no-browser", "--port", "0"],
+                          cwd=folder_only, env=env, capture_output=True, text=True,
+                          timeout=120, stdin=subprocess.DEVNULL, check=False)
+    flat = " ".join((done.stdout + done.stderr).split())
+    assert done.returncode == 2, flat
+    assert f"{rel} is not a plain file (a pipe or a device)" in flat
+
+
+@pytest.mark.parametrize("part", ["tags/mlflow.traceName", "assessment", "trace_info.yaml"])
+def test_a_tag_or_assessment_over_1_mb_is_refused(folder_only, capsys, part):
+    path, rel = _in_store(folder_only, part)
+    path.write_bytes(b"x" * (2**20 + 1))
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"{rel} is over 1 MB, more than MLflow keeps there" in flat, out
+
+
+def test_a_big_artifact_is_not_a_tag(folder_only, capsys):
+    """Run artifacts (a model, a dataset) can be any size: only the files MLflow reads whole
+    are capped."""
+    (folder_only / "mlruns" / "0" / "big-artifact.bin").write_bytes(b"x" * (2**20 + 1))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+
+
+# Size rules only where MLflow keeps a file it reads whole: an artifact, a logged dataset or a
+# folder a run's artifacts happen to name "params" can be any size.
+
+def _store_file(root, rel, size):
+    path = root / "mlruns" / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        f.truncate(size)  # sparse: no space on disk
+    return path
+
+
+METRIC_PLACES = ["1/a1b2/metrics/loss", "1/datasets/d-1/meta.yaml", "1/a1b2/inputs/i-1/meta.yaml"]
+
+
+@pytest.mark.parametrize("rel", [
+    "1/meta.yaml", "1/tags/team", "1/tags/mlflow/note", "1/a1b2/meta.yaml", "1/a1b2/tags/k",
+    "1/a1b2/params/p", "1/traces/tr-1/trace_info.yaml", "1/traces/tr-1/tags/k",
+    "1/traces/tr-1/request_metadata/k", "1/traces/tr-1/assessments/a-1", ".trash/2/meta.yaml",
+    "1/tags/artifacts/k", "1/a1b2/tags/artifacts/k"])
+def test_a_file_over_1_mb_where_mlflow_keeps_a_small_value_is_refused(tmp_path, rel):
+    path = _store_file(tmp_path, rel, 2**20 + 1)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (path, "big")
+
+
+@pytest.mark.parametrize("rel", [
+    *METRIC_PLACES, "1/a1b2/artifacts/out/params/w.bin", "1/a1b2/artifacts/meta.yaml",
+    "1/a1b2/artifacts/data/tags/t", "1/traces/tr-1/artifacts/traces.json",
+    "1/models/m-1/artifacts/tags/t", "0/notes/big.txt", "models/m/params/p"])
+def test_any_other_file_over_1_mb_is_left_to_mlflow(tmp_path, rel):
+    _store_file(tmp_path, rel, 2**20 + 1)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None
+
+
+@pytest.mark.parametrize("rel", METRIC_PLACES)
+def test_a_metric_or_logged_dataset_file_over_100_mb_is_refused(tmp_path, rel):
+    _store_file(tmp_path, rel, 100 * 2**20 + 1)
+    with pytest.raises(Damaged) as e:
+        mlflow_store.check_folder_store(tmp_path / "mlruns")
+    assert f"mlruns/{rel} is over 100 MB, more than MLflow keeps there" in str(e.value)
+
+
+@POSIX
+def test_a_runs_artifacts_are_not_looked_into(tmp_path):
+    """MLflow doesn't open them to read traces (judgekeeper reads a trace's spans itself)."""
+    artifacts = tmp_path / "mlruns" / "1" / "a1b2" / "artifacts"
+    artifacts.mkdir(parents=True)
+    os.mkfifo(artifacts / "pipe")
+    (artifacts / "model").symlink_to("/dev/zero")
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None
+
+
+def test_the_store_is_looked_at_once_however_many_experiments(folder_only, capsys, monkeypatch):
+    walks = []
+    walk = mlflow_store.unsafe_file
+    monkeypatch.setattr(mlflow_store, "unsafe_file", lambda folder: walks.append(1) or walk(folder))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+    assert len(walks) == 1
+
+
+def test_a_windows_junction_is_a_link_on_every_python():
+    """os.path.isjunction is Python 3.12's: on 3.11 the junction's reparse tag tells it."""
+    reparse = stat.FILE_ATTRIBUTE_REPARSE_POINT
+    junction = SimpleNamespace(st_file_attributes=reparse,
+                               st_reparse_tag=mlflow_store.JUNCTION)
+    onedrive = SimpleNamespace(st_file_attributes=reparse, st_reparse_tag=0x9000601A)
+    assert mlflow_store._junction(Path("j"), junction)
+    assert not mlflow_store._junction(Path("f"), onedrive)  # a OneDrive file: a plain file
+    assert not mlflow_store._junction(Path(__file__), os.lstat(__file__))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a junction is Windows'")
+def test_a_junction_in_the_store_is_refused(tmp_path):
+    tags = tmp_path / "mlruns" / "1" / "traces" / "tr-1" / "tags"
+    tags.mkdir(parents=True)
+    (tmp_path / "outside").mkdir()
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(tags / "mlflow"), str(tmp_path / "outside")],
+                   check=True, capture_output=True)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") == (tags / "mlflow", "link")
+
+
+# Limits on what one read takes ------------------------------------------------------------
+# 120 sparse trace files of 99 MB (3 MB on disk) took 3.7 GB; 2,000 empty experiments took
+# half a minute. The trace files' real sizes count, not their space on disk.
+
+def test_trace_files_over_the_limit_together_are_refused(folder_only, capsys, monkeypatch):
+    sizes = [p.stat().st_size for p in _trace_files(folder_only)]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes) - 1)
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert "the trace files of MLflow experiment 'qa-folder' in mlruns are over" in flat, out
+    assert "Next: keep fewer or smaller traces in that experiment" in flat, out
+
+
+@pytest.fixture(scope="module")
+def with_prod(tmp_path_factory):
+    """mlruns/ with qa-folder (LLM-as-a-judge assessments) and prod (traces only)."""
+    pytest.importorskip("mlflow")
+    build = tmp_path_factory.mktemp("build-prod")
+    _make(build, "mlruns", "qa-folder")
+    _make(build, "mlruns", "prod", "unjudged")
+    return build / "mlruns"
+
+
+def test_the_trace_limit_is_per_experiment_and_names_the_judged_ones(with_prod, tmp_path,
+                                                                     capsys, monkeypatch):
+    project = tmp_path / "docs-qa"
+    shutil.copytree(with_prod, project / "mlruns")
+    prod = next(p.parent for p in (project / "mlruns").glob("*/meta.yaml")
+                if "name: prod" in p.read_text(encoding="utf-8"))
+    qa = [p for p in _trace_files(project) if prod not in p.parents]
+    for path in _trace_files(project):
+        if prod in path.parents:  # JSON with spaces after it: read the same, bigger
+            path.write_bytes(path.read_bytes() + b" " * 100_000)
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(p.stat().st_size for p in qa))
+    code, out = run(capsys, project, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert ("the trace files of MLflow experiment 'prod' in mlruns are over" in flat
+            and "judgekeeper reads at most" in flat and "of trace files from one experiment"
+            in flat), out
+    assert re.search(r"--no-browser --experiment NAME`, with NAME the experiment to read "
+                     r"\(LLM-as-a-judge assessments are in (['\"])qa-folder\1\)\.$", flat), out
+    code, out = run(capsys, project, "--no-browser", "--experiment", "qa-folder")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+
+
+def test_trace_files_under_the_limit_are_read(folder_only, capsys, monkeypatch):
+    sizes = [p.stat().st_size for p in _trace_files(folder_only)]
+    monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes))
+    _, out = run(capsys, folder_only, "--no-browser")
+    assert "Store:           mlruns, experiment qa-folder" in out, out
+
+
+def test_a_store_with_more_experiments_than_the_limit_is_refused(folder_only, capsys,
+                                                                 monkeypatch):
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 1)  # this store holds 2
+    code, out = run(capsys, folder_only, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert ("mlruns has more than 1 experiments: judgekeeper reads at most 1 experiments from "
+            "one store.") in flat, out
+    assert "--experiment NAME" in flat[flat.index("Next:"):], out
+    code, out = run(capsys, folder_only, "--no-browser", "--experiment", "qa-folder")
+    assert "Store:           mlruns, experiment qa-folder" in out, out  # one, named: read
+
+
+@pytest.mark.parametrize("count", [3, 4])
+def test_experiment_folders_over_the_limit_are_counted_before_mlflow_lists_them(tmp_path,
+                                                                                monkeypatch,
+                                                                                count):
+    """A page of a folder store's list reads every experiment's meta.yaml: 20,000 took over
+    15 minutes."""
+    monkeypatch.setattr(mlflow_store, "MAX_EXPERIMENTS", 3)
+    for i in range(count):
+        (tmp_path / "mlruns" / str(i)).mkdir(parents=True)
+        (tmp_path / "mlruns" / str(i) / "meta.yaml").write_text(f"name: e{i}\n", encoding="utf-8")
+    (tmp_path / "mlruns" / "models").mkdir()  # MLflow's own folders are not experiments
+    (tmp_path / "mlruns" / "9").mkdir()
+    listed = []
+    client = SimpleNamespace(tracking_uri=str(tmp_path / "mlruns"),
+                             search_experiments=lambda **_: listed.append(1) or [])
+    if count == 3:
+        assert mlflow_store.all_experiments(client) == [] and listed
+        return
+    with pytest.raises(mlflow_store.StoreTooBig) as e:
+        mlflow_store.all_experiments(client)
+    assert "mlruns has more than 3 experiments" in str(e.value) and not listed
+
+
+def test_listing_two_stores_leaves_no_trash_folder(two, capsys):
+    """MLflow makes mlruns/.trash when it opens a folder store without one: judgekeeper removes
+    it again, as when it reads the store, so nothing is left outside .judgekeeper/."""
+    shutil.rmtree(two / "mlruns" / ".trash", ignore_errors=True)
+    _, out = run(capsys, two, "--no-browser")
+    assert "Two MLflow stores found" in out, out
+    assert not (two / "mlruns" / ".trash").exists()
+
+
+def test_a_cloned_folder_store_beside_mlflow_db_is_read_by_name(two, capsys):
+    """A git clone has no mlruns/.trash: MLflow keeps the store it opened for the whole run, so
+    the .trash it made stays until judgekeeper ends."""
+    shutil.rmtree(two / "mlruns" / ".trash")
+    code, out = run(capsys, two, "--no-browser", "--experiment", "qa-folder")
+    assert code in (0, 3) and "Store:           mlruns, experiment qa-folder" in out, out
+    assert not (two / "mlruns" / ".trash").exists()
+
+
+def test_a_cloned_folder_store_beside_mlflow_db_is_read_when_chosen(two, capsys, monkeypatch):
+    shutil.rmtree(two / "mlruns" / ".trash")
+    answers = ["2", ""]  # mlruns; save
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": answers.pop(0))
+    code, out = run(capsys, two)
+    assert code in (0, 3) and "Store:           mlruns, experiment qa-folder" in out, out
+    assert not (two / "mlruns" / ".trash").exists()
+
+
+def test_the_limits_are_said_in_the_reference():
+    flat = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    assert (f"From an MLflow store it reads at most {mlflow_store.MAX_EXPERIMENTS:,} experiments, "
+            f"and from one experiment at most {mlflow_store.TRACES_LIMIT // 10**9} GB of trace "
+            f"files and the newest {mlflow_store.MAX_TRACES:,} traces.") in flat
+    assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
+            "`-shm` files") in flat
+    assert (mlflow_store.SMALL_LIMIT, mlflow_store.LARGE_LIMIT) == (2**20, 100 * 2**20)
+    assert "a tag, setting or assessment file over 1 MB or a metric file over 100 MB" in flat
+
+
+# Messages that say what is true -----------------------------------------------------------
+
+@POSIX
+@pytest.mark.parametrize("uri", ["/dev/null", "sqlite:////dev/null"])
+def test_a_tracking_uri_naming_a_device_is_not_a_store(tmp_path, monkeypatch, capsys, uri):
+    pytest.importorskip("mlflow")
+    monkeypatch.chdir(tmp_path)
+    code, out = run(capsys, "--tracking-uri", uri, "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert f"{uri} is not an MLflow store: it is not a plain file (a pipe or a device)" in flat
+    assert "holds no decisions" not in flat and "remove" not in flat, out
+    nxt = flat[flat.index("Next:"):]
+    assert "/dev/null" not in nxt and "--tracking-uri PATH" in nxt, nxt
+
+
+def test_an_empty_tracking_uri_is_not_repeated_in_the_next_line(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    code, out = run(capsys, "--tracking-uri", "", "--no-browser")
+    flat = " ".join(out.split())
+    assert code == 2 and "--tracking-uri is empty" in flat, out
+    nxt = flat[flat.index("Next:"):]
+    assert "--tracking-uri ''" not in nxt and '--tracking-uri ""' not in nxt, nxt
+    assert "--tracking-uri PATH" in nxt, nxt
+
+
+def test_a_read_only_mlruns_found_in_the_project_gets_a_next_line_that_helps(folder_only,
+                                                                              capsys):
+    if os.name == "nt":
+        pytest.skip("folder permissions work differently on Windows")
+    store = folder_only / "mlruns"
+    shutil.rmtree(store / ".trash", ignore_errors=True)
+    store.chmod(0o500)
+    if os.access(store, os.W_OK):
+        store.chmod(0o700)
+        pytest.skip("this user can write anywhere")
+    try:
+        code, out = run(capsys, folder_only, "--no-browser")
+    finally:
+        store.chmod(0o700)
+    flat = " ".join(out.split())
+    assert code == 2, out
+    nxt = flat[flat.index("Next:"):]
+    assert "make mlruns/ writable" in nxt and "--tracking-uri PATH" not in nxt, nxt

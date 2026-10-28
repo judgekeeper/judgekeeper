@@ -24,6 +24,8 @@ import re
 import sqlite3
 import sys
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -64,7 +66,15 @@ from judgekeeper.table import (
     read_table,
     sheet_id,
 )
-from judgekeeper.textio import flush_stdout, held_lines, plural, quote_arg, read_utf8, tick
+from judgekeeper.textio import (
+    flush_stdout,
+    held_lines,
+    plural,
+    quote_arg,
+    quoted_name,
+    read_utf8,
+    tick,
+)
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -179,6 +189,27 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
     if no_browser:
         words.append("--no-browser")
     return tuple(words)
+
+
+def flag_word(flag: str, value: str) -> str:
+    """`flag value` as a printed command says it, quoted (quote_arg): a value that starts with
+    "-" after "=" (`--metric=--yes`), as repeated_flags does."""
+    quoted = quote_arg(str(value))
+    return f"{flag}={quoted}" if str(value).startswith("-") else f"{flag} {quoted}"
+
+
+def _braces(text: str) -> str:
+    """`text` in a Next: line that is formatted with {command}: its braces doubled."""
+    return text.replace("{", "{{").replace("}", "}}")
+
+
+def shown_name(name: str, quoted: bool = False) -> str:
+    """A name read from a file (an LLM-as-a-judge, an experiment) in a line: quoted
+    (quoted_name) when `quoted` or when it holds "Next:", so it never reads as a line
+    judgekeeper says, and on one line (repr) when it holds a line break."""
+    if any(c in name for c in "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"):
+        return repr(name)
+    return quoted_name(name) if quoted or "next:" in name.lower() else name
 
 
 def run_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser: bool = False,
@@ -761,18 +792,53 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
         uri = mlflow_store.store_uri(store.path, say=talk.say)
-        trash = store.path / ".trash" if store.path.is_dir() else None  # MLflow makes it
-        made = trash is not None and not trash.exists()
         try:
-            with mlflow_store.folder_store_allowed(uri, say=talk.say), \
+            with _no_trash_left(store.path), \
+                    mlflow_store.folder_store_allowed(uri, say=talk.say), \
                     mlflow_store.store_damage(uri):
                 return _mlflow_experiment(talk, store, experiment, metric, uri)
-        finally:
-            if made:  # left as it was: nothing is written outside .judgekeeper/
-                try:
-                    trash.rmdir()
-                except OSError:
-                    pass
+        except mlflow_store.FolderUnusable as e:
+            if any(w.split("=")[0] == "--tracking-uri" for w in talk.flags):
+                raise  # the folder --tracking-uri named: name another one
+            raise StartError(str(e), f"make {_store_name(store)} writable (MLflow adds an empty "
+                             ".trash folder to it, which judgekeeper removes again), then run "
+                             "`{command}`.") from None
+
+
+_made_trash: list[Path] | None = None  # in trash_removed_at_end: the .trash folders MLflow made
+
+
+@contextmanager
+def trash_removed_at_end() -> Iterator[None]:
+    """Around a command (and each find_judge): the `.trash` MLflow makes in a folder store it
+    opens without one is removed when the outermost one ends, also after an error, so nothing
+    is written outside .judgekeeper/. Not sooner: MLflow keeps the store it opened for the
+    whole process, and fails once its .trash is gone."""
+    global _made_trash
+    if _made_trash is not None:
+        yield
+        return
+    _made_trash = []
+    try:
+        yield
+    finally:
+        made, _made_trash = _made_trash, None
+        for trash in made:
+            try:
+                trash.rmdir()
+            except OSError:
+                pass
+
+
+@contextmanager
+def _no_trash_left(path: Path) -> Iterator[None]:
+    """MLflow may open the folder store `path` here: its .trash, if it has none yet, is
+    removed when trash_removed_at_end ends."""
+    with trash_removed_at_end():
+        trash = path / ".trash"
+        if path.is_dir() and not trash.exists() and trash not in _made_trash:
+            _made_trash.append(trash)
+        yield
 
 
 OLD_EVALUATE = ("Your MLflow runs hold LLM-as-a-judge scores from mlflow.evaluate() ({names}). "
@@ -814,6 +880,7 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     from judgekeeper.readers.mlflow_store import (
         ArtifactServer,
         JudgeCallsFailed,
+        StoreTooBig,
         TracesMissing,
         all_experiments,
         experiments_with_traces,
@@ -824,26 +891,35 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
     if experiment is not None:
         try:
             found = [(experiment, read_mlflow(experiment, tracking_uri=uri, metric=metric))]
-        except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
+        except (TracesMissing, JudgeCallsFailed, ArtifactServer, StoreTooBig) as e:
             raise usage_error(e) from None
         except RecordsError as e:
             if not str(e).startswith("no MLflow experiment named"):
                 raise
-            raise _no_experiment(experiment, [(store, experiments_with_traces(uri))]) from None
+            try:
+                names = experiments_with_traces(uri)
+            except StoreTooBig as too_many:
+                raise usage_error(too_many) from None
+            raise _no_experiment(experiment, [(store, names)]) from None
     else:
         from mlflow import MlflowClient
 
-        found, missing, code_only = [], [], False
+        found, missing, too_big, code_only = [], [], [], False
         try:
             with store_damage(uri):
                 experiments = all_experiments(MlflowClient(tracking_uri=uri))
         except OSError as e:  # MLflow can't write its .trash there: that folder's problem
             raise folder_problem(e, uri) or e from None
+        except StoreTooBig as e:
+            raise usage_error(e) from None
         for exp in experiments:
             try:
                 runs = read_mlflow(exp.name, tracking_uri=uri, metric=metric)
             except (TracesMissing, JudgeCallsFailed, ArtifactServer) as e:
                 missing.append(e)
+                continue
+            except StoreTooBig as e:  # said once the others are read: their judges named
+                too_big.append(e)
                 continue
             except Damaged:
                 raise
@@ -853,6 +929,13 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 found.append((exp.name, runs))
             elif any(r.annotator_kind == CODE for _, recs in runs for r in recs):
                 code_only = True
+        if too_big and found:
+            judged = some([shown_name(name, quoted=True) for name, _ in found])
+            raise StartError(str(too_big[0]), "run `{command} --experiment NAME`, with NAME the "
+                             "experiment to read (LLM-as-a-judge assessments are in "
+                             f"{_braces(judged)}).")
+        if too_big:
+            raise usage_error(too_big[0])
         if not found and missing:
             raise usage_error(missing[0])
         old = [] if found else _old_evaluate(uri)
@@ -865,9 +948,10 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
         if len(found) > 1:
             names = [name for name, _ in found]
             found = [found[talk.choose(
-                "Several MLflow experiments have LLM-as-a-judge results:", names,
+                "Several MLflow experiments have LLM-as-a-judge results:",
+                [shown_name(n) for n in names],
                 "Several MLflow experiments have LLM-as-a-judge results; choose one with "
-                f"{_or([f'--experiment {quote_arg(n)}' for n in names])}",
+                f"{_or([flag_word('--experiment', n) for n in names])}",
                 flag="--experiment", values=names, what="which MLflow experiment to read")]]
             _next_time(talk, "--experiment", found[0][0])
     name, runs = found[0]
@@ -1330,7 +1414,15 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
     which = "that is" if len(found.skipped) == 1 else "one of these is"
-    first, why = found.skipped[0]
+    readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
+    if not readable:  # never a command that reads a link: it leads anywhere
+        it = "it links" if len(found.skipped) == 1 else "they link"
+        next_step = (f"if {which} your results, copy the file {it} to into your project in its "
+                     f"place, then run `{talk.command()}` again.")
+        if not getattr(talk, "screens", False):
+            talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
+        return talk.stop(EXIT_USAGE, next_step)
+    first, why = readable[0]
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
         which = "that is" if len(found.skipped) == 1 else f"{first} is"
         next_step = (f"if {which} your results, save it as UTF-8, then run "
@@ -1620,15 +1712,16 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
             # that splits one as \u, which scrub can then no longer join
             raise StartError(f"no LLM-as-a-judge named {scrub(metric)!r}; the names are: "
                              f"{some([repr(scrub(n)) for n in names], last=',')}",
-                             f"run `{{command}} --metric {quote_arg(names[0])}`.", "--metric")
+                             f"run `{{command}} {_braces(flag_word('--metric', names[0]))}`.",
+                             "--metric")
         return metric
     if len(names) == 1:
         return names[0]
-    options = [f"{n} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
+    options = [f"{shown_name(n)} ({_plural(counts[n], 'answer', 'answers')})" for n in names]
     name = names[talk.choose(
         "These results hold more than one LLM-as-a-judge:", options,
         "Several LLM-as-a-judge metrics found; choose one with "
-        f"{some([f'--metric {quote_arg(n)}' for n in names])}",
+        f"{some([flag_word('--metric', n) for n in names])}",
         flag="--metric", values=names, what="which LLM-as-a-judge to check")]
     _next_time(talk, "--metric", name)
     return name
@@ -1790,15 +1883,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     _hide_keys(root, talk)
     if only:
         results = [r for r in results if r.rel in only] or results
+    name = None
     if kind == "mlflow":
-        results = _choose_store(talk, root, results, experiment, store)
+        with trash_removed_at_end():
+            results = _choose_store(talk, root, results, experiment, store)
+            name, runs = _mlflow_runs(talk, results[0], experiment, metric)
     elif kind in ("deepeval", "inspect"):
         results = _choose_folder(talk, results, store, kind)
     newest = results[0]
     description = None
-    name = None
     if kind == "mlflow":
-        name, runs = _mlflow_runs(talk, newest, experiment, metric)
         read_older = iter(runs[1:])
         first = runs[0] if runs else None
         if first is None:
@@ -1969,6 +2063,9 @@ NO_TRACKING_URI = ("--tracking-uri is empty: name your MLflow store, an mlflow.d
                    "mlruns/ folder")
 NOT_A_STORE = ("{uri} is not an MLflow store: no experiment folder in it holds a meta.yaml. Name "
                "an mlflow.db file or an mlruns/ folder")
+NOT_A_FILE = "{uri} is not an MLflow store: it is not a plain file (a pipe or a device)."
+GIVE_STORE = ("run `{command} --tracking-uri PATH`, with PATH your MLflow folder (mlruns/) or "
+              "mlflow.db.")  # never the --tracking-uri that was given: it named no store
 TRACKING_SERVER = ("{uri} is a tracking server. judgekeeper reads a local MLflow store instead: "
                    "an mlflow.db file or an mlruns/ folder in your project.")
 
@@ -1980,7 +2077,7 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
 
     text = str(uri)
     if not text.strip():
-        raise StartError(NO_TRACKING_URI)
+        raise StartError(NO_TRACKING_URI, GIVE_STORE, "--tracking-uri")
     if text.startswith(SERVERS):
         raise StartError(TRACKING_SERVER.format(uri=uri))
     if text.startswith("sqlite:///"):
@@ -1988,9 +2085,11 @@ def _given_store(talk: Talk, path: Path, uri: str) -> tuple[Path, str, list, dic
     else:
         store = folder_of(text) or Path(text)
     if not store.exists():
-        raise StartError(f"no MLflow store at {uri}")
+        raise StartError(f"no MLflow store at {uri}", GIVE_STORE, "--tracking-uri")
     if store.is_dir() and not find.is_mlflow_folder(store):  # MLflow would read any folder
-        raise StartError(NOT_A_STORE.format(uri=uri))
+        raise StartError(NOT_A_STORE.format(uri=uri), GIVE_STORE, "--tracking-uri")
+    if not store.is_dir() and not store.is_file():  # /dev/null, a pipe: MLflow would wait
+        raise StartError(NOT_A_FILE.format(uri=uri), GIVE_STORE, "--tracking-uri")
     root = path.resolve() if path.is_dir() else path.resolve().parent
     store = store.resolve()
     rel = store.relative_to(root).as_posix() if store.is_relative_to(root) else str(store)
@@ -2017,6 +2116,7 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
         if hit is not None:
             return first(hit)
     from judgekeeper.readers.mlflow_store import (
+        StoreTooBig,
         experiments_with_traces,
         folder_store_allowed,
         quiet,
@@ -2032,8 +2132,12 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     names = []
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
-        with quiet(), folder_store_allowed(uri, say=None), store_damage(uri):  # said when read
-            names.append(experiments_with_traces(uri))
+        try:
+            with _no_trash_left(s.path), quiet(), folder_store_allowed(uri, say=None), \
+                    store_damage(uri):  # the folder setting is said when the store is read
+                names.append(experiments_with_traces(uri))
+        except StoreTooBig as e:
+            raise usage_error(e) from None
     if experiment is not None:
         having = [s for s, n in zip(stores, names, strict=True) if experiment in n]
         if not having:

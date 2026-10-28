@@ -34,7 +34,7 @@ from judgekeeper.marks import MarksError
 from judgekeeper.normalise import NormaliseError
 from judgekeeper.redact import one_line, printable, scrub
 from judgekeeper.settings import SettingsError
-from judgekeeper.start import StartError
+from judgekeeper.start import StartError, trash_removed_at_end
 from judgekeeper.table import TableError
 from judgekeeper.textio import (
     describe_os_error,
@@ -460,7 +460,8 @@ def _main(argv: list[str] | None) -> int:
     try:
         refuse_linked_folder(args.path)
         hide_project_keys(args.path)
-        return COMMANDS[args.command](args)
+        with trash_removed_at_end():  # MLflow's .trash, once the whole command is done
+            return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
         return _stopped(args_list)
     except BrokenPipeError:

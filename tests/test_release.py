@@ -690,9 +690,16 @@ def test_actions_are_pinned_to_commit_hashes():
 
 def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_supported():
     flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
-    for needed in ("writes only inside `.judgekeeper/`", "never edits other tools' settings",
+    for needed in ("In your project, judgekeeper writes only inside `.judgekeeper/`",
+                   "never edits other tools' settings",
                    "isn't supported in 1.0", "must also come from the page itself"):
         assert needed in flat, needed
+    reference = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    for text in (flat, reference):  # what it writes outside .judgekeeper/, said in both
+        assert ("Outside your project it writes only a copy of an `mlflow.db` it reads (with its "
+                "`-wal` and `-shm` files) in your temporary folder (`judgekeeper-mlflow-*`), "
+                "removed when judgekeeper ends.") in text
+        assert "judgekeeper removes `mlruns/.trash` again" in text
     for gone in ("Turn on", "checks.json", "--off", "page.log", "settings.local.json"):
         assert gone not in flat, gone
 
