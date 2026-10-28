@@ -338,7 +338,7 @@ def hide_keys(root: Path, configs=()) -> None:
 def _env_folders(folder: Path) -> list[Path]:
     """`folder` and each folder above it up to the project's own folder (find.is_project),
     never above it and never the home folder: where a tool run in `folder` may read .env
-    files."""
+    files. With no project above, `folder` and the nearest folder up with a .env."""
     from judgekeeper import find  # find imports this module
 
     try:
@@ -351,5 +351,6 @@ def _env_folders(folder: Path) -> list[Path]:
             break
         folders.append(parent)
         if find.is_project(parent):
-            break
-    return folders or [folder]
+            return folders
+    nearest = next((f for f in folders if (f / ".env").is_file()), folder)
+    return list(dict.fromkeys((folder, nearest)))
