@@ -537,6 +537,13 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 MADE_IDS = "The id column has blank or repeated ids, so judgekeeper made its own."
 
 
+def _models_named(rows: list[dict], column: str) -> bool:
+    """Every value in `column` (empty ones aside) names a model, and none is a grade."""
+    values = [row.get(column) for row in rows if not _blank(row.get(column))]
+    return bool(values) and all(mapper._model_like(v) and not mapper._verdict_value(v)
+                                for v in values)
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
@@ -557,7 +564,8 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but a
+                and not (c == "judge" and _models_named(rows, c))]  # judge column of gpt-4o
     if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS

@@ -533,6 +533,11 @@
     var t = v.trim().toLowerCase();
     return /[0-9\/:]/.test(t) || namedFor(t, MODEL_WORDS);
   }
+  // start._models_named: every value in the column (empty ones aside) names a model, none a grade
+  function modelsNamed(rows, col) {
+    var seen = rows.filter(function (row) { return !blank(row[col]); });
+    return seen.length > 0 && seen.every(function (row) { return modelLike(row[col]) && !verdictValue(row[col]); });
+  }
   // mapper._verdict_value, for a cell's text: a verdict word, or a number from 0 to 100
   function verdictValue(v) {
     if (/^\s*[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?\s*$/.test(v)) { var x = parseFloat(v); return x >= 0 && x <= 100; }
@@ -666,7 +671,9 @@
     var columns = [];
     rows.forEach(function (r) { Object.keys(r).forEach(function (k) { if (columns.indexOf(k) < 0) columns.push(k); }); });
     if (columns.indexOf('output_a') >= 0 && columns.indexOf('output_b') >= 0) return { error: 'pairwise', message: PAIRWISE };
-    var verdicts = VERDICT_COLUMNS.filter(function (c) { return columns.indexOf(c) >= 0; });  // each one is a judge
+    var verdicts = VERDICT_COLUMNS.filter(function (c) {  // each one is a judge, but a judge column of gpt-4o
+      return columns.indexOf(c) >= 0 && !(c === 'judge' && modelsNamed(rows, c));
+    });
     if (verdicts.length) {  // and a 0/1 column named for a judge (llm_judge), the judge-named first
       verdicts = judgeFirst(verdicts.concat(columns.filter(function (c) {
         return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
