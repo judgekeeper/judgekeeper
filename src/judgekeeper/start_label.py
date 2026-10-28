@@ -449,13 +449,16 @@ def _fields_index(path: Path) -> dict[str, dict]:
     return out
 
 
-def shown_question(ws: Workspace, value):
+def shown_question(ws: Workspace, value, output=None):
     """A question as the pages show it (question_view), the marking page, its list and the
-    result page alike. A question that is exactly the text of one judgekeeper already holds
-    as named values (a grade of marked-answers.csv again hands those back as one text) shows
-    with those names. Text is never split by its own "name:" lines."""
+    result page alike: of the answer `output` graded again from marked-answers.csv, the
+    question alone (fix.asked). A question that is exactly the text of one judgekeeper
+    already holds as named values (a grade of marked-answers.csv again hands those back as
+    one text) shows with those names. Text is never split by its own "name:" lines."""
     from judgekeeper.check import _questions
+    from judgekeeper.fix import asked
 
+    value = asked(value, output)
     texts = _questions(value)
     if any(": " in t for t in texts) and ws.pool.is_file():
         try:
@@ -661,7 +664,8 @@ class StartSession(LabelSession):
         start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
         items = [{"id": i["id"], "input": shown_question(self.workspace,
-                                                          self.raw[i["id"]].get("input")),
+                                                          self.raw[i["id"]].get("input"),
+                                                          self.raw[i["id"]].get("output")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
                   "skipped": i["deferred"]} for i in shown]
         return {"items": items, "total": len(self.items), "start": start,

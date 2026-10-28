@@ -263,8 +263,9 @@ SYSTEM = "You are the support assistant.\nAnswer from the policy only."
 CHAT = "user: Where is my bag?\nassistant: Let me look.\nuser: Is it lost?"
 
 
-def _named_project(root):
-    """A promptfoo project whose questions are two named values, every answer marked."""
+def _named_project(root, vars_of=None):
+    """A promptfoo project whose questions are two named values (or `vars_of(i)`), every
+    answer marked."""
     import contextlib
     import io
     import json
@@ -277,7 +278,7 @@ def _named_project(root):
     n = 60
     data = promptfoo_data([i % 2 == 0 for i in range(n)])
     for i, row in enumerate(data["results"]["results"]):
-        row["vars"] = row["testCase"]["vars"] = (
+        row["vars"] = row["testCase"]["vars"] = vars_of(i) if vars_of else (
             {"question": question(i), "system": SYSTEM} if i else {"question": CHAT})
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -485,3 +486,41 @@ def test_two_grades_of_marked_answers_in_a_row_hold_the_same_questions(tmp_path,
     marked = sorted(m.person)
     assert len(check.lookup(found, marked, ws)[0]) == len(marked)  # every one, the new too
     assert batches.add(ws, found) == 0  # nothing new
+
+
+def test_a_regraded_plain_question_shows_as_the_question_alone(tmp_path, monkeypatch):
+    """One-value questions graded again from marked-answers.csv come back as {question,
+    answer}: the marking page and its list show the question alone, as the result page and
+    mistakes.md do."""
+    from judgekeeper import batches, fix, start
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import question
+
+    root = tmp_path / "bot"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    ws, data = _named_project(root, lambda i: {"question": question(i)})
+    first = _held(ws)
+    _graded_again(root, data, first, "2026-10-04T10:00:00.000Z", "again.json", changed="New.")
+    assert batches.add(ws, start.find_judge(root)) == 1
+    new = next(r for r in StartSession(ws).state()["items"] if r["output"] == "New.")
+    assert new["input"] == first[0]["question"]  # text, so its list title is the question too
+    m = fix.Marks(ws)
+    assert fix._question(m, {"id": new["id"], "output": "New."}) == new["input"]
+    assert fix._fields(m, {"id": new["id"], "output": "New."}) is None
+
+
+def test_own_question_and_reference_answer_values_still_show_both(tmp_path, monkeypatch):
+    from judgekeeper import fix
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import question
+
+    root = tmp_path / "bot"
+    root.mkdir()
+    monkeypatch.chdir(root)
+    ws, _ = _named_project(root, lambda i: {"question": question(i), "answer": f"Ref {i}."})
+    items = StartSession(ws).state()["items"]
+    assert all(isinstance(i["input"], list) and [k for k, _ in i["input"]] == [
+        "question", "answer"] for i in items)
+    m = fix.Marks(ws)
+    assert fix._fields(m, {"id": items[0]["id"], "output": items[0]["output"]})
