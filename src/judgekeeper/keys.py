@@ -155,15 +155,16 @@ def _scalar(text: str) -> str | None:
     quoted = re.match(r"([\"'])(.*)\1\s*(#.*)?$", text)
     if quoted:
         return _unescaped(quoted[2]) if quoted[1] == '"' else quoted[2].replace("''", "'")
-    text = re.split(r"\s+#", text, maxsplit=1)[0].strip()
+    comment = re.search(r"\s#", text)  # one space is enough: no run of them read again
+    text = (text[:comment.start()] if comment else text).strip()
     return text or None
 
 
 # A tag (`!!str`) or an anchor (`&v`) before a value
 _PROPERTIES = re.compile(r"^(?:[!&]\S*[ \t]+)+")
 # A value js-yaml reads that the line scan can't: a tag, an alias (`*v`, the value of the
-# anchor `&v` elsewhere) or a double-quoted value not closed on its line
-_UNSURE = re.compile(r"""[!*]|"(?:[^"\\]|\\.)*\\?$""")
+# anchor `&v` elsewhere) or a quoted value not closed on its line
+_UNSURE = re.compile(r"""[!*]|"(?:[^"\\]|\\.)*\\?$|'(?:[^']|'')*$""")
 
 # YAML's escapes in a double-quoted value
 _ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)")
@@ -259,11 +260,15 @@ _FLOW_BELOW = re.compile(r"""[{,][ \t]*["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:
 # An anchored value on its line (`&v VALUE`)
 _ANCHOR = re.compile(r"""(?:^|[\s{,\[])&([^\s,{}\[\]]+)[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""",
                      re.MULTILINE)
-# A double-quoted value not closed on its line, after a name (it goes on below)
+# A quoted value not closed on its line, after a name (it goes on below)
 _OPEN_QUOTE = re.compile(r"""(?:^|[\s{,?])["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:[ \t]+"""
-                         r"""("(?:[^"\\]|\\.)*\\?)$""")
-# The end of a double-quoted value on a line below its name: the closing quote
-_CLOSE_QUOTE = re.compile(r"""^((?:[^"\\]|\\.)*\\?)("?)""")
+                         r"""("(?:[^"\\]|\\.)*\\?|'(?:[^']|'')*)$""")
+# The end of a quoted value on a line below its name: the closing quote
+_CLOSE_QUOTE = {'"': re.compile(r"""^((?:[^"\\]|\\.)*\\?)("?)"""),
+                "'": re.compile(r"""^((?:[^']|'')*)('?)""")}
+# A plain value on its name's line (it may go on below, on lines indented more)
+_PLAIN = re.compile(r"""([ \t]*)(?:\?[ \t]*|:[ \t]+|-[ \t]+)?["']?([A-Za-z_][A-Za-z0-9_]*)["']?"""
+                    r"""[ \t]*:[ \t]+([^\s"'|>#&*!{\[].*)$""")
 
 # `NAME: value` anywhere: in a block, after `{` or `,` in a flow mapping, or as `? NAME` with
 # `: value` on the next line
@@ -296,10 +301,14 @@ def _credentials_in(text: str) -> dict[str, str]:
             found[ANCHORED + m[1]] = value
     lines = text.split("\n")
     at = 0
-    while at < len(lines):  # a line inside a quoted value is never read as a name
+    while at < len(lines):  # a line inside a value is never read as a name
         m = _OPEN_QUOTE.search(lines[at])
+        plain = None if m else _PLAIN.match(lines[at])
         if m and is_credential(m[1]):
             found[m[1]], at = _quoted_below(m[2], lines, at + 1)
+        elif plain and is_credential(plain[2]):
+            value, at = _plain_below(plain, lines, at + 1)
+            found[plain[2]] = value or found.get(plain[2])
         at += 1
     for at, line in enumerate(lines):
         m = _HEAD.match(line)
@@ -319,19 +328,33 @@ def _credentials_in(text: str) -> dict[str, str]:
 
 
 def _quoted_below(first: str, lines: list[str], at: int) -> tuple[str, int]:
-    """The double-quoted value that starts with `first` (its opening quote and the rest of its
-    line) and goes on in `lines` from `at`, read as YAML reads it: a line break folded into a
-    space, or nothing after a backslash; the escapes read. A space at either end is left out:
-    the key is hidden wherever it is. With the index of its last line."""
-    text = first[1:]
+    """The quoted value that starts with `first` (its opening quote and the rest of its line)
+    and goes on in `lines` from `at`, read as YAML reads it: a line break folded into a space,
+    or into nothing after a backslash in double quotes; the escapes read (`''` in single
+    quotes). A space at either end is left out: the key is hidden wherever it is. With the
+    index of its last line."""
+    quote, text = first[0], first[1:]
     while at < len(lines):
-        m = _CLOSE_QUOTE.match(lines[at].strip())
-        text = text[:-1] + m[1] if text.endswith("\\") and not text.endswith("\\\\") \
-            else f"{text} {m[1]}"
+        m = _CLOSE_QUOTE[quote].match(lines[at].strip())
+        text = text[:-1] + m[1] if quote == '"' and text.endswith("\\") \
+            and not text.endswith("\\\\") else f"{text} {m[1]}"
         if m[2]:
             break
         at += 1
-    return _unescaped(text).strip(), at
+    text = _unescaped(text) if quote == '"' else text.replace("''", "'")
+    return text.strip(), at
+
+
+def _plain_below(m: re.Match, lines: list[str], at: int) -> tuple[str | None, int]:
+    """The plain value on a name's line (`m`, _PLAIN) with the lines below it indented more
+    than the name, each line break folded into a space; None when it ends on its line. With
+    the index of its last line."""
+    parts = [_scalar(m[3]) or ""]
+    while at < len(lines) and lines[at].strip() and not lines[at].lstrip().startswith("#") \
+            and len(lines[at]) - len(lines[at].lstrip()) > len(m[1]):
+        parts.append(_scalar(lines[at]) or "")
+        at += 1
+    return (" ".join(parts) if len(parts) > 1 else None), at - 1
 
 
 def _entry(found: dict, name: str, raw: str) -> None:
@@ -347,7 +370,7 @@ def _entry(found: dict, name: str, raw: str) -> None:
 
 def _scanned_env(text: str) -> dict[str, str | None]:
     """config_env's line scan."""
-    found, inside, indent = {}, False, None
+    found, inside, indent, last = {}, False, None, None
     if text.lstrip().startswith("{") and _FLOW_ENV.search(text):
         return {UNREAD: None}  # a flow mapping as the whole document
     merges = any(re.match(r"<<\s*:", line) for line in text.splitlines())
@@ -378,12 +401,15 @@ def _scanned_env(text: str) -> dict[str, str | None]:
             break  # the next top-level key
         width = len(line) - len(line.lstrip())
         indent = width if indent is None else indent
+        if width > indent and last is not None:  # the value above goes on here
+            found[last], found[UNREAD] = None, None
         if width != indent:
-            continue  # a value over several lines
+            continue
         m = _ENTRY.match(line)
         if not m:
             return {UNREAD: None}  # `? NAME`, an escaped name, `<<: *a`, a list
         _entry(found, m[1], m[2])
+        last = m[1]
     return found
 
 
