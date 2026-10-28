@@ -291,7 +291,10 @@ def make_fingerprint(known: dict | None, created_at: str | None = None) -> Judge
         known["prompt_hash"] = hashlib.sha256(str(prompt).encode("utf-8")).hexdigest()
     known.setdefault("endpoint", ENDPOINT_UNKNOWN)
     if known.get("temperature") is not None:
-        known["temperature"] = float(known["temperature"])
+        try:
+            known["temperature"] = float(known["temperature"])
+        except (TypeError, ValueError):  # "hot", [0.1]: kept as the results say it
+            known["temperature"] = str(known["temperature"])
     return JudgeFingerprint(**known, created_at=created_at or utc_now())
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -77,8 +78,13 @@ def _row(n: int, **extra) -> dict:
             **extra}
 
 
+FENCED = re.compile(r"<<<([A-Z][A-Z' 0-9-]*)\n.*?\n\1>>>", re.DOTALL)
+
+
 def _no_forged_lines(md: str) -> None:
-    for line in md.splitlines():
+    """No line of judgekeeper's own reads as an instruction: the person's and the app's words
+    sit in fences, as data."""
+    for line in FENCED.sub("", md).splitlines():
         assert not line.startswith(("Next:", "# H", "# IMPORTANT", "Ignore earlier")), line
     assert md.count("\n<<<RULE\n") <= 1  # the judge's own rule, in mistakes.md
     for c in (*ESC_BEL_BIDI, "\U000e004e", "\u2060", "\r"):

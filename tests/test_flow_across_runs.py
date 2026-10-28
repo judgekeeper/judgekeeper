@@ -258,8 +258,10 @@ def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, cap
 
 # After "Worse" for a table judge, no loop ------------------------------------------------------
 
-NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge, or change its rule; then run "
-                    "your eval and `judgekeeper check`.")
+NEXT_WORSE_TABLE = ("Next: go back to your old LLM-as-a-judge or change its rule, run "
+                    "`judgekeeper fix` to write the answers you marked to "
+                    ".judgekeeper/fix/marked-answers.csv, grade them again with it, then run "
+                    "`judgekeeper check <new results file>`.")
 
 
 def _truth(i: int) -> bool:
@@ -284,8 +286,10 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert "re-check your changed LLM-as-a-judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
     report = _report(here)
-    assert ("Go back to your old LLM-as-a-judge, or change its rule; then run your eval and "
-            "<code>judgekeeper check</code>.") in report
+    assert ("Go back to your old LLM-as-a-judge or change its rule, run <code>judgekeeper fix"
+            "</code> to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "
+            "grade them again with it, then run <code>judgekeeper check &lt;new results file&gt;"
+            "</code>.") in report
     assert "judgekeeper mark</code>" not in report and 'id="fix-h"' not in report
     _jk(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")

@@ -48,10 +48,12 @@ _PIN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*==\s*([^\s
 
 # Reading the setup ---------------------------------------------------------------------------
 
-# The fields taken from the results as written, where a key could be: it is hidden there. The
-# others (the tool's name, the kind of judge, hashes) are judgekeeper's own, compared and looked
-# up as they are; a credential's value that happens to be one of them never changes them.
-FROM_RESULTS = ("tool_version", "models", "agent", "endpoint")
+# judgekeeper's own fields (the tool's name, where its version was read, the kind of judge,
+# hashes), compared and looked up as they are: a credential's value that happens to be one of
+# them never changes them. Every other field is taken from the results, where a key could be:
+# it is hidden there.
+OWN = ("tool", "version_from", "kind", "rule_hash", "prompt_hash")
+FROM_RESULTS = tuple(f for f in FIELDS if f not in OWN)
 
 
 def keys_hidden(setup: dict) -> dict:
@@ -424,6 +426,6 @@ def judge_change(old: dict, new: dict) -> str | None:
     return "; ".join(parts) or None
 
 
-__all__ = ["AGENT", "FILE", "FROM_RESULTS", "ONE_CALL", "PANEL", "changes", "from_start",
+__all__ = ["AGENT", "FILE", "FROM_RESULTS", "ONE_CALL", "OWN", "PANEL", "changes", "from_start",
            "hash_of", "judge_change", "keys_hidden", "locked", "of", "read", "save", "tool_only",
            "tool_words", "version_of"]

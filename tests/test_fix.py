@@ -189,7 +189,7 @@ def test_the_split_stays_until_new(here, capsys):
     assert run(capsys)[0] == 0
     split = _split(ws)
     assert sorted(split["hidden"]) == sorted(new) and split["set"] == 2  # never a seen mark
-    assert split["earlier"] == len(first["visible"]) + len(first["hidden"])
+    assert fix.read_split(ws).earlier == len(first["visible"]) + len(first["hidden"])
     more = _mark_more(ws, 10)  # the new set takes in later marks, about half kept aside
     assert run(capsys)[0] == 0
     split = _split(ws)
@@ -207,7 +207,7 @@ def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
     assert code == 3 and "You have tested 3 rules" in " ".join(out.split())
     after = _split(ws)
     assert after["tests"] == before["tests"] and after["set"] == 1  # the same marks: no new set
-    assert after["fresh"] == {"want": 10} and after["hidden"] == []
+    assert fix.read_split(ws).fresh == {"want": 10} and after["hidden"] == []
 
 
 # Screen 5a -----------------------------------------------------------------------------------
@@ -652,6 +652,16 @@ def _shrunk_later_set(d):  # a later set's own marks are those its earlier sets 
     d["set"] = 2
 
 
+def _shrunk_said_earlier(d):  # "earlier" and "fresh" come from history.jsonl: never these
+    _shrunk_later_set(d)
+    d["earlier"] = len(d["visible"])
+
+
+def _shrunk_said_fresh(d):
+    _shrunk(d)
+    d["fresh"] = {"want": 10}
+
+
 def _unknown(d):
     d["hidden"].append("not-an-answer")
 
@@ -670,10 +680,8 @@ def _wrong_verdict(d):
     (_overlap, "it names some marks as both kept aside and shown"),
     (_shrunk, "it keeps far fewer than half of your marks aside"),
     (_shrunk_later_set, "it keeps far fewer than half of your marks aside"),
-    (lambda d: d.update(set=2, earlier=-1), "it is not as judgekeeper writes it"),
-    (lambda d: d.update(earlier=len(d["visible"])), "it is not as judgekeeper writes it"),
-    (lambda d: d.update(set=2, earlier=len(d["visible"]) + 1),
-     "it is not as judgekeeper writes it"),
+    (_shrunk_said_earlier, "it keeps far fewer than half of your marks aside"),
+    (_shrunk_said_fresh, "it keeps far fewer than half of your marks aside"),
     (_unknown, "it names answers judgekeeper doesn't have"),
     (_forged_test, "a test in it has counts that don't fit its marks"),
     (_wrong_verdict, "a test in it has a result its counts don't give"),
@@ -715,4 +723,4 @@ def test_new_with_no_split_keeps_none_of_the_marks_aside(here, capsys):
     (ws.dir / "fix" / "split.json").unlink()
     code, _ = run(capsys, "--new")
     split = _split(ws)
-    assert code == 3 and split["hidden"] == [] and split["fresh"]["want"] == 10
+    assert code == 3 and split["hidden"] == [] and fix.read_split(ws).fresh["want"] == 10
