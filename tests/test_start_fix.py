@@ -81,8 +81,12 @@ def test_the_hand_over_per_source():
     # Double quotes, which work in Windows cmd as well.
     assert start_fix.where_lines({"source": "pass_if", "op": ">=", "rule": "score>=0.5"},
                                  0.65)[0] == 'Use --pass-if "score>=0.65".'
+    # promptfoo's: the assertion's threshold, never searched for (YAML has no `=`)
+    assert start_fix.where_lines({"source": "promptfoo", "op": ">="}, 0.65) == [
+        "Set threshold: 0.65 on the assertion in your promptfoo config."]
+    assert start_fix.searched({"source": "promptfoo"}) is None
     # A pass mark kept with each verdict, read by another reader: record() or the toml.
-    for source in ("table", "jsonl", "promptfoo"):
+    for source in ("table", "jsonl"):
         assert start_fix.where_lines({"source": source, "op": ">="}, 0.65) == [
             ("Set pass_mark=0.65 in your judgekeeper.record() line, or pass_mark = 0.65 in "
              "judgekeeper.toml [start].")]

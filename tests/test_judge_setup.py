@@ -66,6 +66,23 @@ def test_a_promptfoo_setup(tmp_path):
     assert "prompt_hash" in setup
 
 
+def _with_threshold(root: Path, threshold) -> dict:
+    data = promptfoo_data(split(20, 16))
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    for c in _component(data):
+        c["assertion"]["threshold"] = threshold
+    _write(root / "results.json", data)
+    return _setup(root)
+
+
+def test_a_promptfoo_threshold_is_its_pass_mark(tmp_path):
+    old, new = _with_threshold(tmp_path, 0.5), _with_threshold(tmp_path, 0.8)
+    assert old["pass_mark"] == {"mark": 0.5, "op": ">="}
+    assert judge_setup.hash_of(old) != judge_setup.hash_of(new)
+    assert judge_setup.changes(old, new) == ["pass mark 0.5 -> 0.8"]
+    assert _with_threshold(tmp_path, True)["pass_mark"] is None  # not a number
+
+
 def test_promptfoo_reads_not_llm_rubric_as_a_judge(tmp_path):
     data = promptfoo_data(split(20, 16))
     for c in _component(data):

@@ -107,6 +107,8 @@ def where_lines(pm: dict, mark: float) -> list[str]:
         return [f"Set threshold={m} in your metric, e.g. GEval(..., threshold={m})."]
     if source == "records":
         return [f"Set pass_mark={m} in your judgekeeper.record() line."]
+    if source == "promptfoo":
+        return [f"Set threshold: {m} on the assertion in your promptfoo config."]
     if source == "mapped" and pm.get("key"):
         return [(f"Your eval writes its pass mark in {pm['key']}: set it to {m} where your "
                  "eval sets it.")]
@@ -123,8 +125,8 @@ def where_lines(pm: dict, mark: float) -> list[str]:
 def searched(pm: dict) -> str | None:
     """The name the pass mark is set with in the project's files, or None when it is not
     set in them (--pass-if, or a key a mapped file states it in)."""
-    if pm["source"] == "pass_if" or (pm["source"] == "mapped" and pm.get("key")):
-        return None
+    if pm["source"] in ("pass_if", "promptfoo") or (pm["source"] == "mapped" and pm.get("key")):
+        return None  # promptfoo's YAML says threshold: 0.5, not threshold = 0.5
     return "threshold" if pm["source"] == "deepeval" else "pass_mark"
 
 

@@ -346,7 +346,8 @@
           score: score, scoreKind: numberKind(c, 'score'),
           reason: isStr(c.reason) ? c.reason : '',
           model: model, prompt: prompt, problem: problem,
-          countedAs: failed ? 'fail' : problem ? label : null
+          countedAs: failed ? 'fail' : problem ? label : null,
+          thresholded: typeof a.threshold === 'number'  // a score under it fails: a pass mark
         });
       }
     };
@@ -1159,7 +1160,7 @@
   function judgeReport(r, metric, nMetrics) {
     var records = r.judged.filter(function (x) { return x.name === metric; });
     var pool = buildPool(records, metric, r.perMetric[metric]);
-    var block = judgeCheck(pool, r.tool, r.scoreJudge);
+    var block = judgeCheck(pool, r.tool, r.scoreJudge || records.some(function (x) { return x.thresholded; }));
     var models = Array.from(new Set(records.map(function (x) { return x.model; }).filter(truthy).map(String))).sort(pyOrder);
     var promptRec = records.find(function (x) { return truthy(x.prompt); });
     var rule = ruleText(promptRec ? promptRec.prompt : null);

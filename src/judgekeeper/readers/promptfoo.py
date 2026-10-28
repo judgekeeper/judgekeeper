@@ -473,11 +473,14 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             problem = MODEL_FAILED if failed else grader_problem(c, metadata)
             counted = "fail" if failed else label
             mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
+            kept = {"reference": True} if kind in REFERENCE_TYPES else {}
+            threshold = a.get("threshold")  # a score under it fails: part of the judge
+            if isinstance(threshold, int | float) and not isinstance(threshold, bool):
+                kept |= {"pass_mark": threshold, "pass_op": ">="}
             record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,
-                evaluator=evaluator, created_at=created_at,
-                mark=mark, metadata={"reference": True} if kind in REFERENCE_TYPES else {})
+                evaluator=evaluator, created_at=created_at, mark=mark, metadata=kept)
             records.append(record)
             rendered = metadata.get("renderedGradingPrompt")
             templates[name].append((record, grading_template(
