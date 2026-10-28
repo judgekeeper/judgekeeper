@@ -29,7 +29,7 @@ SEARCH_SKIP = {".venv", "venv", "node_modules", ".git", ".judgekeeper", "__pycac
 SEARCH_DEPTH = 4
 SEARCH_MAX_BYTES = 1_000_000
 SEARCH_MAX_FILES = 5000
-_NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)"
+_NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)"
 
 
 def _mark(x: float) -> str:
@@ -113,7 +113,7 @@ def where_lines(pm: dict, mark: float) -> list[str]:
     if source == "mapped":
         return [f"Set pass_mark = {m} in judgekeeper.toml [start]."]
     if source == "pass_if":  # double quotes work in Windows cmd too
-        rule = re.sub(rf"{_NUMBER}\s*$", m, pm.get("rule") or f"score{pm['op']}0")
+        rule = re.sub(rf"(?<![\d.]){_NUMBER}\s*$", m, pm.get("rule") or f"score{pm['op']}0")
         return [f'Use --pass-if "{rule}".']
     # a pass mark kept with each verdict, read from another tool's files
     return [(f"Set pass_mark={m} in your judgekeeper.record() line, or pass_mark = {m} in "

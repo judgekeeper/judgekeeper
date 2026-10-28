@@ -41,7 +41,7 @@ VERDICT_KEYS = ("verdict", "pass", "passed", "label", "score")
 REASON_KEYS = ("reason", "rationale", "explanation", "comment")
 
 _LEADING = re.compile(r"\A\s*(pass|fail)\b", re.IGNORECASE)
-_RULE = re.compile(r"\A\s*([A-Za-z_]\w*)?\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?|-?\.\d+)\s*\Z")
+_RULE = re.compile(r"\A([A-Za-z_]\w*)?\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?|-?\.\d+)\Z")  # stripped
 _OPS = {">=": operator.ge, "<=": operator.le, ">": operator.gt, "<": operator.lt,
         "==": operator.eq}
 # Double quotes: they work in every shell, cmd.exe included.
@@ -90,7 +90,7 @@ class PassIf:
 
 
 def parse_pass_if(text: str) -> PassIf:
-    m = _RULE.match(text or "")
+    m = _RULE.match((text or "").strip())
     if not m:
         try:
             rule = f"score>={float(text):g}"  # a pass mark alone: the rule it means

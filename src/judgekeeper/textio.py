@@ -775,7 +775,7 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
 
     text, links_back = stand_ins(keep_links(
         text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
-    text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
+    text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
     keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))

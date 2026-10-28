@@ -44,7 +44,7 @@ POSITIONAL_WARNING = ("DeepEval's default test case names (test_case_0, test_cas
 # The suffix DeepEval's model classes add to the name (deepeval/models/llms/*.py).
 SUFFIXES = {"anthropic": "anthropic", "azure": "azure", "gemini": "google",
             "ollama": "ollama", "grok": "xai", "deepseek": "deepseek", "kimi": "moonshot"}
-SUFFIX = re.compile(r"\s*\(([^()]+)\)\s*\Z")
+SUFFIX = re.compile(r"\(([^()]+)\)\s*\Z")
 
 
 def provider_of(model: str | None) -> str | None:
