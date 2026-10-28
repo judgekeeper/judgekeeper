@@ -708,7 +708,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     pairs = [[_flat(c) for c in _all(p, "code")] for p in _all(card, "div", "gx-pair")]
     assert pairs == [["pip install judgekeeper", "judgekeeper"], ["uvx judgekeeper"]]
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
-    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == ["With pip", "With uv"]
+    # pip into the project's virtual environment: a system Python refuses it (PEP 668)
+    assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
+        "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14."]
     assert not _all(_main(GUIDE), "nav")  # no side list
