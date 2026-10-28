@@ -379,6 +379,54 @@ def test_inspect_partial_credit(here, capsys):
     assert code == 0
 
 
+def _commands(line: str) -> list[list[str]]:
+    """The commands a Next: line names, each as the shell splits it."""
+    return [shlex.split(c) for c in re.findall(r"`(judgekeeper [^`]*)`", line)]
+
+
+def test_the_label_map_question_keeps_the_map_given(here, capsys):
+    """argparse keeps only the last --label-map: the one printed holds the person's own
+    entries too, so filling in the rest gets past the question."""
+    table_project(here, ["good"] * 16 + ["bad"] * 16 + ["meh"] * 4)
+    code, out, _ = run(capsys, "--label-map", "good=pass,bad=fail")
+    assert code == 3
+    [words] = _commands(assert_one_next_at_the_end(out))
+    assert words.count("--label-map") == 1, words
+    given = words[words.index("--label-map") + 1]
+    assert given == "good=pass,bad=fail,VALUE=pass,VALUE=fail,VALUE=error"
+    words[words.index(given)] = "good=pass,bad=fail,meh=error"
+    code, out, _ = run(capsys, *words[1:])
+    assert code == 0, out
+    assert "can't tell which" not in out
+
+
+def test_the_partial_credit_question_keeps_the_map_given(here, capsys):
+    inspect_project(here, [*split(16, 16), "P", "P"])
+    code, out, _ = run(capsys, "--label-map", "C=pass,I=fail")
+    assert code == 3
+    commands = _commands(assert_one_next_at_the_end(out))
+    assert [c[c.index("--label-map") + 1] for c in commands] == ["C=pass,I=fail,P=pass",
+                                                                 "C=pass,I=fail,P=fail"]
+    assert all(c.count("--label-map") == 1 for c in commands), commands
+    code, out, _ = run(capsys, *commands[1][1:])
+    assert code == 0, out
+
+
+@pytest.mark.parametrize(("name", "flag"), start.REPEATED)
+def test_a_flag_a_next_line_adds_takes_the_place_of_the_one_given(name, flag):
+    options = {n: "-x" if n == name else None for n, _ in start.REPEATED}
+    options |= {"metric": options["metric"] or "m", "port": 0, "no_browser": True}
+    talk = front.FrontTalk(yes=False, path="evals/results.csv", options=options)
+    for extra in ((flag, "NAME"), (f"{flag}=NAME",)):
+        words = shlex.split(talk.command(*extra))
+        assert [w.split("=")[0] for w in words].count(flag) == 1, words
+        assert words[1] == "evals/results.csv" and "--no-browser" in words, words
+        if flag != "--metric":
+            assert "--metric" in words, words  # the other flags stay
+    at = shlex.split(talk.command_at("other.csv", flag, "NAME"))
+    assert [w.split("=")[0] for w in at].count(flag) == 1, at
+
+
 def test_an_own_format_needs_the_persons_yes_before_judgekeeper_toml(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys)

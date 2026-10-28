@@ -279,15 +279,29 @@ class Talk:
     def command(self, *extra: str) -> str:
         """`judgekeeper` with the person's flags, then `extra`: run as printed, it gets
         past the question it answers."""
-        return " ".join((self.program, *self.flags, *extra))
+        return " ".join((self.program, *self._flags_for(extra), *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
         """`command`, with `where` (a path inside the folder the person gave) as the path,
         written with forward slashes on every system, as the lines that name it write it."""
-        given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
-        flags = self.flags[1:] if given else self.flags
+        flags = self._flags_for(extra)
+        given = flags[:1] == (quote_arg(self.path),) and self.path != "."
+        flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
+
+    def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
+        """The person's flags without those `extra` gives again (`--flag value` or
+        `--flag=value`): argparse keeps only the last, so theirs would be lost anyway."""
+        again = {w.split("=", 1)[0] for w in extra} & {flag for _, flag in REPEATED}
+        path = 1 if self.flags[:1] == (quote_arg(self.path),) and self.path != "." else 0
+        kept, words = list(self.flags[:path]), iter(self.flags[path:])
+        for word in words:
+            if word in again:
+                next(words, None)  # its value
+            elif word.split("=", 1)[0] not in again:
+                kept.append(word)
+        return tuple(kept)
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):

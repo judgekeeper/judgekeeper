@@ -161,6 +161,13 @@ class FrontTalk(start.Talk):
         self.options[name] = value
         self.refresh()
 
+    def command(self, *extra: str) -> str:
+        """start.Talk.command; a --label-map in `extra` adds to the person's own map."""
+        return super().command(*_with_given_map(self.options.get("label_map"), extra))
+
+    def command_at(self, where: str | Path, *extra: str) -> str:
+        return super().command_at(where, *_with_given_map(self.options.get("label_map"), extra))
+
     def looking(self, root: Path) -> None:
         """Said only when nothing is found."""
 
@@ -547,6 +554,21 @@ def _shown(values) -> str:
     texts = [t[:VALUE_WIDTH - 1] + "…" if len(t) > VALUE_WIDTH else t for t in texts]
     return ", ".join(sorted(texts)[:10]) + (f" and {len(texts) - 10} more"
                                              if len(texts) > 10 else "")
+
+
+def _with_given_map(given: str | None, extra: tuple[str, ...]) -> tuple[str, ...]:
+    """`extra` with the person's `given` map before the entries of its --label-map, which
+    replaces theirs in the command (start.Talk.command): so no entry of theirs is lost."""
+    if not given or "--label-map" not in extra:
+        return extra
+    at = extra.index("--label-map")
+    entries = extra[at + 1]
+    merged = f"{given},{entries.strip(chr(34))}"
+    value = quote_arg(merged)
+    if entries.startswith('"') and value == merged:  # a placeholder stays in its quotes
+        value = f'"{merged}"'
+    flag = (f"--label-map={value}",) if merged.startswith("-") else ("--label-map", value)
+    return (*extra[:at], *flag, *extra[at + 2:])
 
 
 def _add_label_map(talk: FrontTalk, extra: str) -> None:
