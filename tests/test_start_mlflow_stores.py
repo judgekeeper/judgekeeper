@@ -658,3 +658,12 @@ def test_a_store_with_more_experiments_than_the_limit_is_refused(folder_only, ca
     assert "--experiment NAME" in flat[flat.index("Next:"):], out
     code, out = run(capsys, folder_only, "--no-browser", "--experiment", "qa-folder")
     assert "Store:           mlruns, experiment qa-folder" in out, out  # one, named: read
+
+
+def test_listing_two_stores_leaves_no_trash_folder(two, capsys):
+    """MLflow makes mlruns/.trash when it opens a folder store without one: judgekeeper removes
+    it again, as when it reads the store, so nothing is left outside .judgekeeper/."""
+    shutil.rmtree(two / "mlruns" / ".trash", ignore_errors=True)
+    _, out = run(capsys, two, "--no-browser")
+    assert "Two MLflow stores found" in out, out
+    assert not (two / "mlruns" / ".trash").exists()

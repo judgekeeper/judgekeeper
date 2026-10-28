@@ -24,6 +24,8 @@ import re
 import sqlite3
 import sys
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -742,18 +744,25 @@ def _mlflow_runs(talk: Talk, store: find.Result, experiment: str | None,
         if not _has("mlflow"):
             raise _needs_extra(talk, "mlflow", _store_name(store))
         uri = mlflow_store.store_uri(store.path, say=talk.say)
-        trash = store.path / ".trash" if store.path.is_dir() else None  # MLflow makes it
-        made = trash is not None and not trash.exists()
-        try:
-            with mlflow_store.folder_store_allowed(uri, say=talk.say), \
-                    mlflow_store.store_damage(uri):
-                return _mlflow_experiment(talk, store, experiment, metric, uri)
-        finally:
-            if made:  # left as it was: nothing is written outside .judgekeeper/
-                try:
-                    trash.rmdir()
-                except OSError:
-                    pass
+        with _no_trash_left(store.path), mlflow_store.folder_store_allowed(uri, say=talk.say), \
+                mlflow_store.store_damage(uri):
+            return _mlflow_experiment(talk, store, experiment, metric, uri)
+
+
+@contextmanager
+def _no_trash_left(path: Path) -> Iterator[None]:
+    """MLflow makes `.trash` in a folder store it opens without one: removed again afterwards,
+    also after an error, so nothing is written outside .judgekeeper/."""
+    trash = path / ".trash" if path.is_dir() else None
+    made = trash is not None and not trash.exists()
+    try:
+        yield
+    finally:
+        if made:
+            try:
+                trash.rmdir()
+            except OSError:
+                pass
 
 
 OLD_EVALUATE = ("Your MLflow runs hold LLM-as-a-judge scores from mlflow.evaluate() ({names}). "
@@ -2027,7 +2036,8 @@ def _choose_store(talk: Talk, root: Path, stores: list, experiment: str | None,
     for s in stores:
         uri = store_uri(s.path, say=talk.say)
         try:
-            with quiet(), folder_store_allowed(uri, say=None), store_damage(uri):  # said later
+            with _no_trash_left(s.path), quiet(), folder_store_allowed(uri, say=None), \
+                    store_damage(uri):  # the folder setting is said when the store is read
                 names.append(experiments_with_traces(uri))
         except StoreTooBig as e:
             raise usage_error(e) from None
