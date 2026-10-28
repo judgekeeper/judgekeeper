@@ -21,7 +21,7 @@ import os
 import secrets
 import statistics
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from judgekeeper import __version__
@@ -229,7 +229,7 @@ def read(path: str | Path) -> Marks:
 
 def _timed(out: Marks, x: dict, last_at: dict) -> None:
     try:
-        at = datetime.strptime(x["at"], "%Y-%m-%dT%H:%M:%SZ")
+        at = datetime.strptime(x["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return
     if x["sitting"] in last_at and at >= last_at[x["sitting"]]:
