@@ -1201,7 +1201,9 @@ def read_rows(found: start.Found, pass_if: str | None = None,
                   else mapper.filled(m["output"]))
         rows = [("question", mapper.filled(m["input"])), ("answer", answer),
                 ("grade", mapper.filled(m["score"], side, judge) + mark)]
-        if m.get("model_key"):
+        if found.fingerprint.get("model_source") == start.GIVEN_BY_YOU and m.get("model_key"):
+            rows.append(("model", f"{found.fingerprint['model']} (given with --judge-model)"))
+        elif m.get("model_key"):
             rows.append(("model", mapper.filled(m["model_key"], side, judge)))
         return rows
     return []

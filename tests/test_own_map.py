@@ -500,6 +500,9 @@ def test_the_judge_model_flag_beats_the_file(tmp_path, capsys, terminal):
     code, out = check(capsys, tmp_path, "--judge-model", "gpt-5-mini")
     assert code == 0, out
     assert "  model:           gpt-5-mini (given with --judge-model)\n" in out
+    read = out.split("judgekeeper has read from your file:\n", 1)[1].split("\n\n", 1)[0]
+    assert "judge.grader" not in read, read  # the field is not what this run used
+    assert "gpt-5-mini (given with --judge-model)" in read, read
     start_json = tmp_path / ".judgekeeper" / "start.json"
     assert json.loads(start_json.read_text(encoding="utf-8"))["fingerprint"]["model"] == \
         "gpt-5-mini"
