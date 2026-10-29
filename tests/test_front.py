@@ -369,6 +369,19 @@ def test_words_need_a_label_map(here, capsys):
     assert code == 0, out
 
 
+def test_a_plain_run_keeps_the_label_map_and_model_given_before(here, capsys):
+    """--label-map and --judge-model on the run that started marking, no judgekeeper.toml:
+    the plain command the page says to run reads the same way, without asking again."""
+    table_project(here, ["good"] * 16 + ["bad"] * 16)
+    code, out, _ = run(capsys, "--label-map", "good=pass,bad=fail", "--judge-model", "gpt-x")
+    assert code == 0, out
+    run(capsys, "--stop")
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert "can't tell which" not in out
+    start_json = json.loads((here / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
+    assert start_json["fingerprint"]["model"] == "gpt-x"
+
 def test_inspect_partial_credit(here, capsys):
     inspect_project(here, [*split(16, 16), "P", "P"])
     code, out, _ = run(capsys)
