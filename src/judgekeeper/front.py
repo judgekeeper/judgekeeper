@@ -301,7 +301,8 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
 
 
 def _started(path: Path) -> bool:
-    """Whether marking started in the project at `path` (or 0.2's marks are there)."""
+    """Whether marking started in the project at `path` (or an unreleased 0.2 build's marks
+    are there)."""
     if not path.exists():
         return False
     ws = Workspace(project.project_of(path))

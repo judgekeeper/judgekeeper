@@ -3,10 +3,11 @@
 `judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
 it, opens the marking page, and prints the result once there are enough marks. `mark`
 (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on the marks
-from its new results (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps
-hidden, from the results of grading them again. judgekeeper only reads files: it never runs an
-eval tool or calls an AI. Exit codes: 0 success, 2 usage error, 3 the person is needed (a link
-where judgekeeper writes, too), 130 Ctrl-C.
+from its new results (exit 1 only when the drop's middle estimate is over 20 points, whichever
+word it says); `fix` (fix.py) tests a new rule on marks it keeps hidden, from the results of
+grading them again. judgekeeper only reads files: it never runs an eval tool or calls an AI.
+Exit codes: 0 success, 2 usage error, 3 the person is needed (a link where judgekeeper writes,
+too), 130 Ctrl-C.
 
 Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
 with no better message never prints its own text, which can hold an answer's text: one line
