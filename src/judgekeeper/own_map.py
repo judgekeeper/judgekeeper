@@ -252,9 +252,10 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         g = mapper.guess(units)
     except mapper.MapError as e:
         raise cannot(talk, rel, str(e)) from None
-    lines = f"{len(units)} {'line' if len(units) == 1 else 'lines'}"
-    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own ({lines})."
-             if found else f"{rel} ({lines}):")
+    lines = "" if path.suffix.lower() == ".json" else \
+        f" ({len(units)} {'line' if len(units) == 1 else 'lines'})"  # one JSON document: none
+    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
+             if found else f"{rel}{lines}:")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
     talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
     for p in listed[:MAX_PATHS]:
@@ -296,7 +297,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     left = mapper.left_out(units, mapper.Guess(**{**g.__dict__, "sides": sides}), chosen) \
         if chosen or not g.judges else 0
     if left and talk.confirm(
-            f"{plural(left, 'answer has', 'answers have')} an error or a score made by a rule "
+            f"{plural(left, 'answer has', 'answers have')} a score made by a rule "
             "(a reason starting "
             '"Rule"), not by your LLM-as-a-judge. Leave them out?', default=True, with_yes=True,
             hint=""):

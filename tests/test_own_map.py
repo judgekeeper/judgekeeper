@@ -452,6 +452,16 @@ def _one_document(root, errors: int = 0, rule: int = 0, n: int = 30) -> Path:
     return path
 
 
+def test_a_json_document_is_not_counted_in_lines(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert ("results.json looks like your LLM-as-a-judge's results in a format of its own.\n"
+            "What it holds:") in out
+
+
 def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, terminal):
     answers, _ = terminal
     _one_document(tmp_path)
@@ -463,3 +473,28 @@ def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, termi
     assert ("Nothing was saved: judgekeeper reads results.json only once judgekeeper.toml says "
             "how.") in flat and flat.count("Nothing was saved") == 1
     assert next_lines(out) == ["Next: run `judgekeeper` again and answer yes."]
+
+
+def test_answers_with_no_grade_are_not_asked_about(tmp_path, capsys, terminal):
+    """An error is no decision whatever the answer: never asked whether to leave it out."""
+    answers, asked = terminal
+    _one_document(tmp_path, errors=3, n=40)
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert not any("Leave them out?" in q for q in asked)
+    assert "made no real decision on 3 of 40 answers: 3 empty decisions. They are left out " \
+        "here." in " ".join(out.split())
+
+
+def test_a_no_to_leaving_rule_scores_out_counts_them(tmp_path, capsys, terminal):
+    answers, asked = terminal
+    _one_document(tmp_path, rule=3)
+    answers += ["", "n", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert ('3 answers have a score made by a rule (a reason starting "Rule"), not by your '
+            "LLM-as-a-judge. Leave them out?") in asked[1]
+    assert "left out here" not in out
+    assert "passed 20 answers and failed 10." in " ".join(out.split())
+
