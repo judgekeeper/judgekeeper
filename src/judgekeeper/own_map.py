@@ -98,10 +98,10 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         lines.append(f"  reason:          {mapper.filled(g.reason, side, judge)}")
     if g.id:
         lines.append(f"  id:              {g.id}")
-    if g.model_key:
-        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
-    elif judge_model:
+    if judge_model:  # the flag wins over the file
         lines.append(f"  model:           {judge_model} (given with --judge-model)")
+    elif g.model_key:
+        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
     else:
         lines.append("  model:           not in the file (add --judge-model NAME)")
     if g.kind == "score":
@@ -293,6 +293,9 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     judge = _choose_judge(talk, units, g, metric)
     mark = _pass_mark(talk, g, pass_if) if g.kind == "score" else None
     m = {**g.to_map(), "sides": sides}
+    # a model the file names is read from it on every run; --judge-model wins for its own run
+    # only, so it is kept in judgekeeper.toml only when the file names none
+    kept = None if g.model_key else judge_model
     chosen = g.judges if judge == "*" else [judge] if judge else []
     left = mapper.left_out(units, mapper.Guess(**{**g.__dict__, "sides": sides}), chosen) \
         if chosen or not g.judges else 0
@@ -304,10 +307,10 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         m["leave_out"] = True
     op = g.pass_op if mark is not None and g.pass_op != ">=" else None
     saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark,
-                                   pass_op=op, model=judge_model, map=m)
+                                   pass_op=op, model=kept, map=m)
     try:
         records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark": mark,
-                                                        "pass_op": op, "model": judge_model})
+                                                        "pass_op": op, "model": kept})
                    for r in recs if r.annotator_kind == LLM]
     except RecordsError:
         records = []

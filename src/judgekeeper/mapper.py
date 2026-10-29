@@ -754,10 +754,10 @@ def _pass_mark_in_file(guess: Guess, units: list) -> None:
 
 def _model_rank(seg: tuple) -> int | None:
     """How surely a path names the judge's model (lower is surer), or None: a key that says
-    judge in its own name, or a model key inside a judge object (judge.model), then a key of
-    its own in MODEL_KEYS order (model, judge, ...)."""
+    judge in its own name, or a model key inside a judge object (judge.model, judge.grader),
+    then a key of its own in MODEL_KEYS order (model, judge, ...)."""
     last = seg[-1].lower()
-    if last in JUDGE_MODEL_KEYS or (len(seg) > 1 and last == "model" and any(
+    if last in JUDGE_MODEL_KEYS or (len(seg) > 1 and last in MODEL_KEYS and any(
             k.lower() in JUDGE_PARENTS for k in seg[:-1])):
         return 0
     if len(seg) == 1 and last in MODEL_KEYS and last != "model":  # "model" alone: the app's
@@ -774,8 +774,8 @@ def _model(guess: Guess, units: list) -> None:
     for n, obj in enumerate(_objects(guess, units)):
         found = [(_model_rank(seg), seg, v) for seg, v in _leaves(obj)
                  if seg[0] not in used and isinstance(v, str) and v.strip()]
-        # in the items, every value must read as a model's name ("string_match" is a rule)
-        found = [x for x in found if x[0] is not None and (n > 0 or all(
+        # every value must read as a model's name ("string_match" or "strict" is a rule)
+        found = [x for x in found if x[0] is not None and (_model_like(x[2]) if n > 0 else all(
             _model_like(v) for v in _at(sample, x[1]) if not blank(v)))]
         if found:
             _, seg, value = min(found, key=lambda x: x[0])

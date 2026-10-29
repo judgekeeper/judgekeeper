@@ -199,7 +199,7 @@ def _newest(state: State):
         if start._saved(root) is None:
             options["tool"] = data.get("tool")
             where = start.results_path(root, data)  # a file given by path: read there
-        given = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+        given = start.given_model(fp, root)
         try:
             found = start.find_judge(where, judge_model=given, **options)
         except start.StartError:
@@ -227,8 +227,8 @@ def read_given(state: State, path: Path):
     tool, metric = data.get("tool"), data.get("metric")
     options = {"metric": metric, "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
-               "judge_model": fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU
-               else None, "experiment": data.get("experiment")}
+               "judge_model": start.given_model(fp, state.ws.root),
+               "experiment": data.get("experiment")}
     name = _results(tool)
     shown = Path(path).name
     try:
@@ -399,7 +399,7 @@ def _key(state: State, read: list[str]) -> str | None:
     data = state.data
     how = {k: data.get(k) for k in ("tool", "metric", "label_map", "pass_mark", "mlflow_store")}
     fp = data.get("fingerprint") or {}
-    how["given"] = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+    how["given"] = start.given_model(fp, state.ws.root)
     how["env"] = {v: os.environ.get(v) for v in (*find.RESULTS_VARS.values(),
                                                  "MLFLOW_TRACKING_URI")}
     text = json.dumps([__version__, how, signature], sort_keys=True, default=str)

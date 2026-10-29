@@ -716,6 +716,20 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
     return loaded
 
 
+def given_model(fp: dict, root) -> str | None:
+    """The model given with --judge-model when marking started (kept in the fingerprint), to
+    use again on later reads; None once judgekeeper.toml reads the model from the file."""
+    if fp.get("model_source") != GIVEN_BY_YOU:
+        return None
+    try:
+        saved = _saved(Path(root))
+    except StartError:
+        saved = None
+    if saved is not None and (saved.map or {}).get("model_key"):
+        return None
+    return fp.get("model")
+
+
 def _saved(path: Path):
     """The [start] table of the project's judgekeeper.toml, when `path` is a folder."""
     if not path.is_dir():
@@ -742,11 +756,13 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
     return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
 
 
-def _read_mapped(result: find.Result, saved) -> list[Loaded]:
+def _read_mapped(result: find.Result, saved, judge_model: str | None = None) -> list[Loaded]:
     from judgekeeper.readers.mapped import read_mapped
 
     m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark,
          "pass_op": saved.pass_op, "model": saved.model}
+    if judge_model is not None:  # --judge-model wins over a model the file or the toml names
+        m = {**m, "model_key": None, "model": None}
     try:
         read = read_mapped(result.path, m, label=result.rel)
     except UNREADABLE:
@@ -1938,7 +1954,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             results, newest = json_logs, json_logs[0]
         if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
             loaded = (_read_records(talk, results) if kind == "records"
-                      else _read_mapped(results[0], saved))
+                      else _read_mapped(results[0], saved, judge_model))
             if not loaded:
                 raise StartError("none of the records files could be read")
             every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))

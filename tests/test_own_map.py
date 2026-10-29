@@ -439,16 +439,19 @@ def test_on_windows_input_that_is_not_a_console_is_not_a_terminal(monkeypatch):
 
 # One JSON document ----------------------------------------------------------------------------
 
-def _one_document(root, errors: int = 0, rule: int = 0, n: int = 30) -> Path:
+def _one_document(root, errors: int = 0, rule: int = 0, n: int = 30, grader: str | None = None,
+                  passed=None) -> Path:
     """results.json: one JSON document over many lines, an item per answer; the first
-    `errors` items have no grade, the next `rule` were graded by a rule."""
+    `errors` items have no grade, the next `rule` were graded by a rule. `grader` names the
+    judge's model in judge.grader; `passed` gives the grades (else every third fails)."""
     items = [{"prompt": question(i), "reply": answer(i),
-              "passed": None if i < errors else i % 3 != 0,
+              "passed": None if i < errors else passed[i] if passed else i % 3 != 0,
               "why": "Rule: too short" if errors <= i < errors + rule else f"because {i}"}
              for i in range(n)]
+    judge = {"name": "helpful", **({"grader": grader} if grader else {})}
     path = root / "results.json"
-    path.write_text(json.dumps({"run_name": "run-1", "judge": {"name": "helpful"},
-                                "items": items}, indent=2), encoding="utf-8")
+    path.write_text(json.dumps({"run_name": "run-1", "judge": judge, "items": items},
+                               indent=2), encoding="utf-8")
     return path
 
 
@@ -468,6 +471,102 @@ def test_a_model_not_in_the_file_says_how_to_give_it(tmp_path, capsys, terminal)
     answers += ["", ""]
     _, out = check(capsys, tmp_path)
     assert "  model:           not in the file (add --judge-model NAME)\n" in out
+
+
+def test_a_model_the_file_names_is_offered_saved_and_in_the_fingerprint(tmp_path, capsys,
+                                                                          terminal):
+    answers, asked = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]  # right; save
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert "  model:           judge.grader (claude-haiku-5-5)\n" in out
+    assert "judgekeeper.toml" in asked[1]
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    jk = tmp_path / ".judgekeeper"
+    fp = json.loads((jk / "start.json").read_text(encoding="utf-8"))["fingerprint"]
+    assert fp["model"] == "claude-haiku-5-5"
+    pool = (jk / "pool-judge.jsonl").read_text(encoding="utf-8")
+    lines = [json.loads(x) for x in pool.splitlines()]
+    judgments = [x for x in lines if "verdict" in x]
+    assert judgments and all(x["fingerprint"]["model"] == "claude-haiku-5-5"
+                             for x in judgments)
+
+
+def test_the_judge_model_flag_beats_the_file(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path, "--judge-model", "gpt-5-mini")
+    assert code == 0, out
+    assert "  model:           gpt-5-mini (given with --judge-model)\n" in out
+    start_json = tmp_path / ".judgekeeper" / "start.json"
+    assert json.loads(start_json.read_text(encoding="utf-8"))["fingerprint"]["model"] == \
+        "gpt-5-mini"
+    # the file's model is still read on later runs: the flag wins for its own run only
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    assert "model" not in saved(tmp_path)
+
+
+def test_the_judge_model_flag_beats_a_saved_model_key(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]
+    assert check(capsys, tmp_path)[0] == 0
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    assert start.find_judge(tmp_path).fingerprint["model"] == "claude-haiku-5-5"
+    found = start.find_judge(tmp_path, judge_model="gpt-5-mini")
+    assert (found.fingerprint["model"], found.fingerprint["model_source"]) == (
+        "gpt-5-mini", start.GIVEN_BY_YOU)
+
+
+MARKED = [True] * 25 + [False] * 25
+LENIENT = MARKED[:25] + [True] * 9 + [False] * 16  # passes 9 of the answers the person failed
+
+
+def _mark_every_answer(root, found) -> None:
+    """The person marks every queued answer as the LLM-as-a-judge graded it."""
+    from judgekeeper import judge_setup, start_label
+
+    ws = start_label.Workspace(root)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    session = start_label.StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+
+
+def test_check_names_a_model_change_in_the_file(tmp_path, capsys, terminal):
+    """Marked with judge.grader claude-haiku-5-5; regraded by claude-haiku-4-5: check names
+    the model change."""
+    answers, _ = terminal
+    _one_document(tmp_path, n=50, grader="claude-haiku-5-5", passed=MARKED)
+    answers += ["", ""]
+    assert check(capsys, tmp_path)[0] == 0
+    _mark_every_answer(tmp_path, start.find_judge(tmp_path))
+    assert check(capsys, "check")[0] == 0
+    _one_document(tmp_path, n=50, grader="claude-haiku-4-5", passed=LENIENT)
+    _, out = check(capsys, "check")
+    assert ("Your LLM-as-a-judge's model changed: claude-haiku-5-5 -> claude-haiku-4-5"
+            in " ".join(out.split())), out
+
+
+def test_after_the_judge_model_flag_the_file_names_the_model_again(tmp_path, capsys,
+                                                                   terminal):
+    """First run with --judge-model; a later run without it reads judge.grader, and a check
+    after the file's model changes names the change."""
+    answers, _ = terminal
+    _one_document(tmp_path, n=50, grader="claude-haiku-5-5", passed=MARKED)
+    answers += ["", ""]
+    assert check(capsys, tmp_path, "--judge-model", "gpt-5-mini")[0] == 0
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    _mark_every_answer(tmp_path, start.find_judge(tmp_path, judge_model="gpt-5-mini"))
+    found = start.find_judge(tmp_path)
+    assert (found.fingerprint["model"], found.fingerprint.get("model_source")) == (
+        "claude-haiku-5-5", None)
+    _one_document(tmp_path, n=50, grader="claude-haiku-4-5", passed=LENIENT)
+    _, out = check(capsys, "check")
+    assert "Your LLM-as-a-judge's model changed: gpt-5-mini -> claude-haiku-4-5" in \
+        " ".join(out.split()), out
 
 
 def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, terminal):

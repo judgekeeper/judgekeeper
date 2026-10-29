@@ -100,6 +100,20 @@ def test_pass_mark_names(key):
     assert mapper.guess(units).pass_mark == 0.8
 
 
+@pytest.mark.parametrize("key", ["model", "grader", "judge_model", "evaluator"])
+def test_a_model_key_in_the_judge_object_is_the_judge_model(key):
+    units = [{"judge": {"name": "helpfulness", key: "claude-haiku-5-5"},
+              "items": [{"question": "q", "answer": "a", "passed": True}]}]
+    g = mapper.guess(units)
+    assert (g.model_key, g.model) == (f"judge.{key}", "claude-haiku-5-5")
+
+
+def test_a_grader_that_names_no_model_is_not_the_judge_model():
+    units = [{"judge": {"name": "helpfulness", "grader": "strict"},
+              "items": [{"question": "q", "answer": "a", "passed": True}]}]
+    assert mapper.guess(units).model_key is None
+
+
 def test_an_app_model_alone_is_not_the_judge_model():
     units = [{"app": {"model": "x"}, "cases": [{"question": "q", "answer": "a",
                                                 "score": 0.9}]}]

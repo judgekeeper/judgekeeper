@@ -514,7 +514,9 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
         options = {k: talk.options[k] for k in FIND}
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
         if saved is not None:  # a map made now holds the judge's model and its pass mark
-            options.update(judge_model=None, pass_if=None)
+            # (unless the file names the model: then --judge-model wins for this run)
+            options.update(pass_if=None, judge_model=options["judge_model"]
+                           if saved.map.get("model_key") else None)
             if str(options["metric"]).lower() in ("*", "all"):  # every judge: the map says so
                 options["metric"] = None
         try:
@@ -543,7 +545,7 @@ def _given_model(path: Path) -> str | None:
         fp = (ws.data().get("fingerprint") or {}) if ws.start.is_file() else {}
     except (OSError, ValueError, AttributeError):
         return None
-    model = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+    model = start.given_model(fp, ws.root)
     return model if isinstance(model, str) else None
 
 
