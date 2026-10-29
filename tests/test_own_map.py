@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -22,9 +23,11 @@ from judgekeeper import background, start
 from judgekeeper.cli import main
 from judgekeeper.textio import quote_arg
 from tests.start_projects import (
+    answer,
     flat_jsonl,
     nested_runs_project,
     promptfoo_project,
+    question,
     split,
 )
 from tests.test_front import next_lines
@@ -144,8 +147,8 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
     code, out = check(capsys, tmp_path)
     assert code == 0
     assert snapshot(tmp_path) == before
-    assert "Nothing was saved." in out
-    assert next_lines(out)[-1].startswith("Next: nothing.")
+    assert "Nothing was saved: judgekeeper reads" in out
+    assert next_lines(out)[-1] == "Next: run `judgekeeper` again and answer yes."
 
 
 def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
@@ -432,3 +435,31 @@ def test_on_windows_input_that_is_not_a_console_is_not_a_terminal(monkeypatch):
     assert start._interactive() is False
     monkeypatch.setattr(sys, "platform", "linux")
     assert start._interactive() is True
+
+
+# One JSON document ----------------------------------------------------------------------------
+
+def _one_document(root, errors: int = 0, rule: int = 0, n: int = 30) -> Path:
+    """results.json: one JSON document over many lines, an item per answer; the first
+    `errors` items have no grade, the next `rule` were graded by a rule."""
+    items = [{"prompt": question(i), "reply": answer(i),
+              "passed": None if i < errors else i % 3 != 0,
+              "why": "Rule: too short" if errors <= i < errors + rule else f"because {i}"}
+             for i in range(n)]
+    path = root / "results.json"
+    path.write_text(json.dumps({"run_name": "run-1", "judge": {"name": "helpful"},
+                                "items": items}, indent=2), encoding="utf-8")
+    return path
+
+
+def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", "n"]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert not (tmp_path / "judgekeeper.toml").exists()
+    flat = " ".join(out.split())
+    assert ("Nothing was saved: judgekeeper reads results.json only once judgekeeper.toml says "
+            "how.") in flat and flat.count("Nothing was saved") == 1
+    assert next_lines(out) == ["Next: run `judgekeeper` again and answer yes."]

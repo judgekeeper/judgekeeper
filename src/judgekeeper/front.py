@@ -1264,10 +1264,9 @@ def _to_save(talk: FrontTalk, found: start.Found,
         if mapped is None:
             return None
         _write(found)
-        talk.say("Nothing was saved.")
-        raise talk.stop(EXIT_OK, f"nothing. judgekeeper reads {mapped.file} only once "
-                                 f"judgekeeper.toml says how; run `{program()}` again to save "
-                                 "it.")
+        talk.para(f"Nothing was saved: judgekeeper reads {mapped.file} only once "
+                  "judgekeeper.toml says how.")
+        raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
     return new
 
 
