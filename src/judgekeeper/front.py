@@ -118,6 +118,8 @@ SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its comm
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
+IN_BROWSER = "The marking page is already open in your browser."  # no new tab for it
+CLOSED_IT = "Closed it? Run `{command}` to print its link."  # no terminal: no link
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
@@ -1437,6 +1439,17 @@ def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool)
                                         start_label.mark_command(_command_of(talk, saved)))
 
 
+def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | None:
+    """Said for a page that was open already, which gets no new tab: that it is open, and with
+    no terminal (no link printed) how to print its link. None for any other page."""
+    if not opened.kept or talk.options["no_browser"]:
+        return None
+    talk.para(f"{IN_BROWSER} {after}")
+    if shown == page.KEPT:
+        talk.para(CLOSED_IT.format(command=talk.command("--no-browser")))
+    return True
+
+
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
@@ -1496,7 +1509,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         # disagreements the person can see: the result page, with its reason boxes
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
-            talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            if _kept(talk, opened, shown, SAY_WHY) is None:
+                talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
             if opened.server is not None:
                 talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
             talk.say()
@@ -1535,8 +1549,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     else:
         opened, shown = _open(talk, ws, wait, saved)
         again = " again" if n and not marking else ""
-        talk.para(f"The marking page is open in your browser{again}. {after}"
-                  if shown == page.BROWSER else after)
+        if _kept(talk, opened, shown, after) is None:
+            talk.para(f"The marking page is open in your browser{again}. {after}"
+                      if shown == page.BROWSER else after)
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
