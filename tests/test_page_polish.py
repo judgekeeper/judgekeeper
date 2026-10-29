@@ -641,3 +641,28 @@ def test_an_empty_answer_says_it_is_empty(output):
         return c.className; })]));""", data=data)
     assert got == ["(empty answer)", ["empty"]]
     assert ".answer .empty { color: var(--muted); }" in mark_page.STYLE
+
+
+def _rows(n: int, prompt: str) -> list[dict]:
+    return [{"judge": "pass" if k % 2 else "fail", "id": f"a{k}", "question": f"Q {k}?",
+             "fields": [["question", f"Q {k}?"], ["agent_prompt", prompt]],
+             "answer": f"A {k}.", "reason": "r"} for k in range(n)]
+
+
+def test_a_field_the_same_in_every_row_is_shown_once_folded():
+    prompt = "You help riders at Spoke & Chain bikes.\nBe brief. " * 20
+    html = report_page._groups({"easy": 2, "strict": 2}, {"mistakes": _rows(4, prompt)},
+                               mark="judgekeeper mark")
+    assert html.count(report_page._e(prompt)) == 1
+    assert ('<details class="same"><summary><span class="fname">agent_prompt</span>The same '
+            'in every answer below</summary>') in html
+    assert html.index('class="same"') < html.index("<table")
+    for k in range(4):
+        assert f"Q {k}?" in html
+    # one row, or a field that differs: in its row, as before
+    one = report_page._groups({"easy": 1, "strict": 0}, {"mistakes": _rows(2, prompt)[1:]})
+    assert 'class="same"' not in one and report_page._e(prompt) in one
+    rows = _rows(2, prompt)
+    rows[1]["fields"][1][1] = "Another prompt."
+    two = report_page._groups({"easy": 1, "strict": 1}, {"mistakes": rows})
+    assert 'class="same"' not in two and two.count(report_page._e(prompt)) == 1
