@@ -161,12 +161,15 @@ def test_the_printed_fix_and_check_commands_read_the_mlruns_store(mlruns, tmp_pa
     from tests.start_projects import save_result
 
     monkeypatch.setattr(mlflow_store, "_walked", {})
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)  # the same queue and split
     shutil.copytree(mlruns, tmp_path / "mlruns")
     monkeypatch.chdir(tmp_path)
     ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
     session = StartSession(ws)
-    for i, q in enumerate(ws.data()["queue"]):  # 1 in 5 marked the other way: mistakes to fix
-        session.update({"id": q["id"], "label": q["group"] if i % 5 else
+    seen = {"pass": 0, "fail": 0}
+    for q in ws.data()["queue"]:  # 1 in 5 of each marked the other way: mistakes to fix,
+        seen[q["group"]] += 1     # with enough marked Pass and Fail
+        session.update({"id": q["id"], "label": q["group"] if seen[q["group"]] % 5 else
                         {"pass": "fail", "fail": "pass"}[q["group"]]})
     save_result(ws, session, say=lambda line="": None)
 
