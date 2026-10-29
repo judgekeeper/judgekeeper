@@ -586,3 +586,44 @@ def test_a_bare_user_name_is_not_the_question():
       var q = a.children.filter(function (c) { return c.className === "q"; })[0];
       console.log(JSON.stringify(q.textContent));""", data=_one(shown))
     assert got == "Where is my bag?"
+
+
+def _chat(*parts) -> list[dict]:
+    """An Inspect AI sample's input: one user message whose content is a list of parts."""
+    return [{"id": "m1", "role": "user", "source": "input", "content": list(parts)}]
+
+
+TEXT = {"type": "text", "text": "Which planet is in this photo?"}
+IMAGE = {"type": "image", "image": "attachment://3f2a9c", "detail": "auto"}
+
+
+def test_a_question_with_an_image_shows_its_text_and_says_the_image_is_not_shown(
+        tmp_path, monkeypatch, capsys):
+    from judgekeeper.cli import main
+    from tests.start_projects import _write_json, inspect_data, split
+
+    shown = start_label.question_view(_chat(TEXT, IMAGE))
+    assert shown == "Which planet is in this photo?\n\n(1 image, not shown)"
+    assert start_label.question_view(_chat(IMAGE, IMAGE)) == "(2 images, not shown)"
+    assert start_label.question_view([{"role": "user", "content": "Plain text?"}]) == \
+        "Plain text?"
+    assert start_label.question_view([{"role": "system", "content": "Be brief."},
+                                      *_chat(TEXT, IMAGE)]) == \
+        "system: Be brief.\n\nuser: Which planet is in this photo?\n\n(1 image, not shown)"
+    # the list's title is the text, never a bracket
+    got = _run("""
+      var a = ids["queue"].children[0].children[0];
+      var q = a.children.filter(function (c) { return c.className === "q"; })[0];
+      console.log(JSON.stringify(q.textContent));""", data=_one(shown))
+    assert got == "Which planet is in this photo?"
+    # read from a log: the marking page's question
+    monkeypatch.chdir(tmp_path)
+    data = inspect_data(split(20, 16))
+    for n, s in enumerate(data["samples"]):
+        s["input"] = _chat({"type": "text", "text": f"Planet {n}?"}, IMAGE)
+    _write_json(tmp_path / "logs" / "planets.json", data)
+    assert main(["--no-browser"]) == 0
+    capsys.readouterr()
+    items = start_label.StartSession(start_label.Workspace(tmp_path)).state()["items"]
+    assert items and all(re.fullmatch(r"Planet \d+\?\n\n\(1 image, not shown\)", i["input"])
+                         for i in items), items[0]["input"]
