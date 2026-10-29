@@ -314,7 +314,8 @@ __TOP__
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
-  var lockUntil = 0;         // input is ignored until then, after each mark
+  var lockUntil = 0;         // clicks are ignored until then, after each mark
+  var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
@@ -740,12 +741,13 @@ __TOP__
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
-      if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
+      if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
+      while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
-      clearTimeout(waited);
+      clearTimeout(waited); queued = [];
       render();
       say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
@@ -753,11 +755,12 @@ __TOP__
     return true;
   }
 
-  // Each action waits LOCK_MS after the one before: a double click or a key held down never
-  // marks an answer not yet on screen.
-  function locked() {
+  // Each click waits LOCK_MS after the action before: a double click never marks an answer not
+  // yet on screen. A key is never ignored (`key`): one pressed while a mark is saved waits for
+  // it (act); a key held down does nothing.
+  function locked(key) {
     var t = Date.now();
-    if (t < lockUntil) { return true; }
+    if (t < lockUntil && !key) { return true; }
     lockUntil = t + LOCK_MS;
     return false;
   }
@@ -771,25 +774,27 @@ __TOP__
     hearing = setTimeout(function () { setText("done", text); }, 100);
   }
 
-  function mark(value) {
-    if (ended || locked()) { return; }
+  function act(f) { if (busy) { queued.push(f); } else { f(); } }
+
+  function mark(value, key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
       hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
-  function skip() {
-    if (ended || locked()) { return; }
+  function skip(key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
       hear("Skipped."); next(); focusCard(); });
   }
 
-  function undo() {
+  function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
-    if (locked()) { return; }
+    if (locked(key)) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
     var it = items[pos];
@@ -817,9 +822,9 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { mark(KEYS[k]); }
-    else if (k === "s") { skip(); }
-    else if (k === "z" || k === "u") { undo(); }
+    if (KEYS[k]) { act(function () { mark(KEYS[k], true); }); }
+    else if (k === "s") { act(function () { skip(true); }); }
+    else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
   });
