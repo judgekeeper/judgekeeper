@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from judgekeeper import look, mark_page, report_page, start_label
 from tests.test_long_text import _html, _laptop, _one, _with_reason
 from tests.test_mark_page_script import _data, _run
@@ -586,3 +588,81 @@ def test_a_bare_user_name_is_not_the_question():
       var q = a.children.filter(function (c) { return c.className === "q"; })[0];
       console.log(JSON.stringify(q.textContent));""", data=_one(shown))
     assert got == "Where is my bag?"
+
+
+def _chat(*parts) -> list[dict]:
+    """An Inspect AI sample's input: one user message whose content is a list of parts."""
+    return [{"id": "m1", "role": "user", "source": "input", "content": list(parts)}]
+
+
+TEXT = {"type": "text", "text": "Which planet is in this photo?"}
+IMAGE = {"type": "image", "image": "attachment://3f2a9c", "detail": "auto"}
+
+
+def test_a_question_with_an_image_shows_its_text_and_says_the_image_is_not_shown(
+        tmp_path, monkeypatch, capsys):
+    from judgekeeper.cli import main
+    from tests.start_projects import _write_json, inspect_data, split
+
+    shown = start_label.question_view(_chat(TEXT, IMAGE))
+    assert shown == "Which planet is in this photo?\n\n(1 image, not shown)"
+    assert start_label.question_view(_chat(IMAGE, IMAGE)) == "(2 images, not shown)"
+    assert start_label.question_view([{"role": "user", "content": "Plain text?"}]) == \
+        "Plain text?"
+    assert start_label.question_view([{"role": "system", "content": "Be brief."},
+                                      *_chat(TEXT, IMAGE)]) == \
+        "system: Be brief.\n\nuser: Which planet is in this photo?\n\n(1 image, not shown)"
+    # the list's title is the text, never a bracket
+    got = _run("""
+      var a = ids["queue"].children[0].children[0];
+      var q = a.children.filter(function (c) { return c.className === "q"; })[0];
+      console.log(JSON.stringify(q.textContent));""", data=_one(shown))
+    assert got == "Which planet is in this photo?"
+    # read from a log: the marking page's question
+    monkeypatch.chdir(tmp_path)
+    data = inspect_data(split(20, 16))
+    for n, s in enumerate(data["samples"]):
+        s["input"] = _chat({"type": "text", "text": f"Planet {n}?"}, IMAGE)
+    _write_json(tmp_path / "logs" / "planets.json", data)
+    assert main(["--no-browser"]) == 0
+    capsys.readouterr()
+    items = start_label.StartSession(start_label.Workspace(tmp_path)).state()["items"]
+    assert items and all(re.fullmatch(r"Planet \d+\?\n\n\(1 image, not shown\)", i["input"])
+                         for i in items), items[0]["input"]
+
+
+@pytest.mark.parametrize("output", ["", "  \n ", None])
+def test_an_empty_answer_says_it_is_empty(output):
+    data = _data(2)
+    data["items"][0]["output"] = output
+    got = _run("""
+      var a = ids["a-text"];
+      console.log(JSON.stringify([a.textContent, a.children.map(function (c) {
+        return c.className; })]));""", data=data)
+    assert got == ["(empty answer)", ["empty"]]
+    assert ".answer .empty { color: var(--muted); }" in mark_page.STYLE
+
+
+def _rows(n: int, prompt: str) -> list[dict]:
+    return [{"judge": "pass" if k % 2 else "fail", "id": f"a{k}", "question": f"Q {k}?",
+             "fields": [["question", f"Q {k}?"], ["agent_prompt", prompt]],
+             "answer": f"A {k}.", "reason": "r"} for k in range(n)]
+
+
+def test_a_field_the_same_in_every_row_is_shown_once_folded():
+    prompt = "You help riders at Spoke & Chain bikes.\nBe brief. " * 20
+    html = report_page._groups({"easy": 2, "strict": 2}, {"mistakes": _rows(4, prompt)},
+                               mark="judgekeeper mark")
+    assert html.count(report_page._e(prompt)) == 1
+    assert ('<details class="same"><summary><span class="fname">agent_prompt</span>The same '
+            'in every answer below</summary>') in html
+    assert html.index('class="same"') < html.index("<table")
+    for k in range(4):
+        assert f"Q {k}?" in html
+    # one row, or a field that differs: in its row, as before
+    one = report_page._groups({"easy": 1, "strict": 0}, {"mistakes": _rows(2, prompt)[1:]})
+    assert 'class="same"' not in one and report_page._e(prompt) in one
+    rows = _rows(2, prompt)
+    rows[1]["fields"][1][1] = "Another prompt."
+    two = report_page._groups({"easy": 1, "strict": 1}, {"mistakes": rows})
+    assert 'class="same"' not in two and two.count(report_page._e(prompt)) == 1

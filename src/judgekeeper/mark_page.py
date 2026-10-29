@@ -197,13 +197,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   #q-row > .question { flex: 0 1 auto; min-height: 0; }
   .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
     flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
-  .row-a:has(> .rule:not([hidden])) { min-height: calc((100vh - 72px) * .35 + 150px); }
-  .card:has(.rule:not([hidden])) .question.long:not(.open) { max-height: calc(2 * 1.6em); }
-  .card:has(.rule:not([hidden])) .question.ht:not(.open) > :not(.q-tail) { display: none; }
+  .card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }  /* the rule gives way, not the question */
   .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
+  .card:has(.rule:not([hidden])) .a-scroll:not(.fits) { min-height: calc((100vh - 72px) * .25 - 30px); }
   .row-a:has(> .a-scroll.fits) { min-height: 0; }
   .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
   .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
@@ -228,6 +227,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
     overscroll-behavior: contain; }
   .question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;
     mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }
+  .answer .empty { color: var(--muted); }
   .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
   .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
   .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
@@ -314,7 +314,8 @@ __TOP__
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
-  var lockUntil = 0;         // input is ignored until then, after each mark
+  var lockUntil = 0;         // clicks are ignored until then, after each mark
+  var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
@@ -517,6 +518,7 @@ __TOP__
     into.textContent = "";
     into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
                                  chars(text) > SHORT_A ? " a-mid" : "");
+    if (!text.trim()) { into.appendChild(el("span", "empty", "(empty answer)")); text = ""; }
     var parts = fences(text);
     parts.forEach(function (part, k) {  // the line breaks next to a box are the box's edges
       if (part.code != null) { into.appendChild(codeBox(part.code)); return; }
@@ -739,12 +741,13 @@ __TOP__
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
-      if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
+      if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
+      while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
-      clearTimeout(waited);
+      clearTimeout(waited); queued = [];
       render();
       say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
@@ -752,11 +755,12 @@ __TOP__
     return true;
   }
 
-  // Each action waits LOCK_MS after the one before: a double click or a key held down never
-  // marks an answer not yet on screen.
-  function locked() {
+  // Each click waits LOCK_MS after the action before: a double click never marks an answer not
+  // yet on screen. A key is never ignored (`key`): one pressed while a mark is saved waits for
+  // it (act); a key held down does nothing.
+  function locked(key) {
     var t = Date.now();
-    if (t < lockUntil) { return true; }
+    if (t < lockUntil && !key) { return true; }
     lockUntil = t + LOCK_MS;
     return false;
   }
@@ -770,25 +774,27 @@ __TOP__
     hearing = setTimeout(function () { setText("done", text); }, 100);
   }
 
-  function mark(value) {
-    if (ended || locked()) { return; }
+  function act(f) { if (busy) { queued.push(f); } else { f(); } }
+
+  function mark(value, key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
       hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
-  function skip() {
-    if (ended || locked()) { return; }
+  function skip(key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
       hear("Skipped."); next(); focusCard(); });
   }
 
-  function undo() {
+  function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
-    if (locked()) { return; }
+    if (locked(key)) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
     var it = items[pos];
@@ -816,9 +822,9 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { mark(KEYS[k]); }
-    else if (k === "s") { skip(); }
-    else if (k === "z" || k === "u") { undo(); }
+    if (KEYS[k]) { act(function () { mark(KEYS[k], true); }); }
+    else if (k === "s") { act(function () { skip(true); }); }
+    else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
   });

@@ -400,7 +400,8 @@ def begin_marks(ws: Workspace) -> None:
 
 def display(value) -> str:
     """An input or output as text for the page: a string as written; a dict of fields (such
-    as promptfoo's vars) as one `name: value` line each."""
+    as promptfoo's vars) as one `name: value` line each; chat messages (an Inspect AI input)
+    as their text (_chat_text)."""
     if isinstance(value, str):
         return value
     if value is None:
@@ -408,7 +409,38 @@ def display(value) -> str:
     if isinstance(value, dict):
         return "\n".join(f"{k}: {v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)}"
                          for k, v in value.items())
-    return json.dumps(value, ensure_ascii=False, indent=2)
+    chat = _chat_text(value)
+    return chat if chat is not None else json.dumps(value, ensure_ascii=False, indent=2)
+
+
+# A chat message's part that is not text, as the page names it (one, several)
+NOT_TEXT = {"image": ("image", "images"), "audio": ("audio clip", "audio clips"),
+            "video": ("video", "videos"), "document": ("document", "documents")}
+
+
+def _chat_text(value) -> str | None:
+    """Chat messages (each a dict with a role and a content) as text: each text part in
+    order (after its role, "user: ", when there are several messages), then the other parts
+    counted, as "(1 image, not shown)". None when `value` is not such messages, or holds no
+    part judgekeeper can name."""
+    if not (isinstance(value, list) and value and all(
+            isinstance(m, dict) and "role" in m and "content" in m for m in value)):
+        return None
+    texts, other = [], {}
+    for m in value:
+        parts = [{"type": "text", "text": m["content"]}] if isinstance(m["content"], str) \
+            else m["content"] if isinstance(m["content"], list) else []
+        for part in parts:
+            kind = part.get("type") if isinstance(part, dict) else None
+            if kind == "text" and isinstance(part.get("text"), str) and part["text"].strip():
+                texts.append(f"{m['role']}: {part['text']}" if len(value) > 1 else part["text"])
+            elif isinstance(kind, str):
+                name = NOT_TEXT.get(kind, ("other part", "other parts"))
+                other[name] = other.get(name, 0) + 1
+    if other:
+        texts.append("(" + ", ".join(f"{n} {name[n != 1]}" for name, n in other.items())
+                     + ", not shown)")
+    return "\n\n".join(texts) if texts else None
 
 
 # A field that sets the scene goes last, even when its name also holds an asked word

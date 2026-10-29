@@ -118,6 +118,8 @@ SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its comm
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
+IN_BROWSER = "The marking page is already open in your browser."  # no new tab for it
+CLOSED_IT = "Closed it? Run `{command}` to print its link."  # no terminal: no link
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
@@ -335,6 +337,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             sessions := _sessions_below(path)):  # never a second session above one
         raise _go_to(talk, sessions)
+    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
+            folders := _projects_below(path)):  # nor one session for several projects
+        raise _go_to_one(talk, folders)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -751,9 +756,12 @@ def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str
         named = start._and([f"{name}/ ({_n(n, 'mark')})" for name, n in sessions])
         said = (f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
                 "project's marks in its own folder.")
-    folder = "that folder" if len(sessions) == 1 else "one of those folders"
-    return said, (f"go to {folder} (`cd {quote_arg(sessions[0][0])}`), then run `{command}` "
-                  "there.")
+    return said, _go_step([name for name, _ in sessions], command)
+
+
+def _go_step(names: list[str], command: str) -> str:
+    folder = "that folder" if len(names) == 1 else "one of those folders"
+    return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
 
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
@@ -761,6 +769,37 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
     said, step = go_to_words(sessions, program())
     talk.para(said)
     return talk.stop(EXIT_QUESTION, step)
+
+
+# A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
+# MLflow's and judgekeeper.record()'s
+TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
+ASKED = ("deepeval", "inspect")  # results in several folders: asked which (start._choose_folder)
+
+
+def _projects_below(folder: Path) -> list[str]:
+    """The folders right below `folder` that hold results, when there are 2 or more and
+    nothing says `folder` is one project: no results or tool's config in it, and none in a
+    tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as
+    before (ASKED). Each is a project of its own, never run."""
+    found = find.search(folder)
+    if any("/" not in sign for signs in found.signs.values() for sign in signs):
+        return []
+    tops = set()
+    for result in (r for rs in found.results.values() for r in rs):
+        parts = Path(result.rel).parts
+        if (len(parts) < 2 or result.tool in ASKED
+                or any(part in TOOL_FOLDERS for part in parts[:-1])):
+            return []
+        tops.add(parts[0])
+    return sorted(tops) if len(tops) > 1 else []
+
+
+def _go_to_one(talk: FrontTalk, folders: list[str]) -> Stop:
+    """Results in projects below, never run: which, and to go to one."""
+    talk.para(f"{start._and([f'{name}/' for name in folders])} hold eval results: judgekeeper "
+              "keeps a project's marks in its own folder, so it checks one at a time.")
+    return talk.stop(EXIT_QUESTION, _go_step(folders, program()))
 
 
 def sessions_here(path: str | Path) -> list[tuple[str, int]]:
@@ -1437,6 +1476,17 @@ def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool)
                                         start_label.mark_command(_command_of(talk, saved)))
 
 
+def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | None:
+    """Said for a page that was open already, which gets no new tab: that it is open, and with
+    no terminal (no link printed) how to print its link. None for any other page."""
+    if not opened.kept or talk.options["no_browser"]:
+        return None
+    talk.para(f"{IN_BROWSER} {after}")
+    if shown == page.KEPT:
+        talk.para(CLOSED_IT.format(command=talk.command("--no-browser")))
+    return True
+
+
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
@@ -1496,7 +1546,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         # disagreements the person can see: the result page, with its reason boxes
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
-            talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            if _kept(talk, opened, shown, SAY_WHY) is None:
+                talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
             if opened.server is not None:
                 talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
             talk.say()
@@ -1535,8 +1586,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     else:
         opened, shown = _open(talk, ws, wait, saved)
         again = " again" if n and not marking else ""
-        talk.para(f"The marking page is open in your browser{again}. {after}"
-                  if shown == page.BROWSER else after)
+        if _kept(talk, opened, shown, after) is None:
+            talk.para(f"The marking page is open in your browser{again}. {after}"
+                      if shown == page.BROWSER else after)
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()

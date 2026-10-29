@@ -194,6 +194,18 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .details[open] summary::before { transform: rotate(45deg) translateY(-4px); }
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .details summary h2 { font-size: 22px; }
+/* a field the same in every row (an agent's prompt), once above the lists, folded */
+.same { margin: 48px 0 0; }
+.same summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
+  gap: 14px; color: var(--muted); font-size: 15px; }
+.same summary::-webkit-details-marker { display: none; }
+.same summary::before { content: ""; width: 7px; height: 7px; flex: none;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg) translateY(-2px); }
+.same[open] summary::before { transform: rotate(45deg) translateY(-4px); }
+.same summary .fname { margin: 0; }
+.same p { margin: 14px 0 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap;
+  overflow-wrap: anywhere; }
 .panel { margin: 0 0 12px; table-layout: fixed; }
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
