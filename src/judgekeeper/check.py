@@ -694,6 +694,12 @@ def expect_lines(g: dict) -> list[str]:
                        "every 100.")
     if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
         out.append("Agreement rose in both groups.")
+    dropped = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] == "worse"]
+    rose = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] != "worse"
+            and g[key]["new_right"] > g[key]["old_right"]]
+    if dropped and rose:  # "worse" next to a group that improved: say what decides
+        out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
+                   f"{dropped[0]}, and one big drop in either group makes the result worse.")
     return out
 
 
