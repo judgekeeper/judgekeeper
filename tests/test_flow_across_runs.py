@@ -164,10 +164,15 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     promptfoo_project(here, split(20, 20))
     assert _jk(capsys)[0] == 0
     _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
-    _, out = _jk(capsys)
+    code, out = _jk(capsys)
     assert "Result: too early to tell." in out
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
+    assert code == 3  # its Next: line asks for more questions: as the reference's table says
+    reference = (Path(__file__).parents[1] / "docs" / "reference.md").read_text(encoding="utf-8")
+    row = next(line for line in reference.splitlines()
+               if line.startswith("| Every answer marked, enough of each kind, too early"))
+    assert "(exit 3)" in row and "Run your eval on more questions" in row
 
 
 def test_the_page_line_never_says_mark_more_once_every_answer_is_marked(here, capsys):

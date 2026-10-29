@@ -20,6 +20,7 @@ Each run does the next step. A result needs at least 15 answers you mark Pass an
 | Not enough marks yet | Opens the marking page again. |
 | Every answer marked, too few of one kind | Says so (a result needs 15 of each). Run your eval on more questions, then `judgekeeper mark`. |
 | Enough marks of each kind | Measure: how often your LLM-as-a-judge agrees with you, saved as `.judgekeeper/report.html`. |
+| Every answer marked, enough of each kind, too early to tell | Measure, then says the ranges are still too wide (exit 3). Run your eval on more questions, then `judgekeeper mark`. |
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
@@ -293,5 +294,5 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | 0 | success: the step is done | all |
 | 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
-| 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
+| 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, too early to tell with every answer marked, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
 | 130 | stopped with Ctrl-C: it prints "Stopped." and what was saved stays saved | all |
