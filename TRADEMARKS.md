@@ -1,6 +1,6 @@
 # The judgekeeper name and logo
 
-The code is under the MIT license (see LICENSE). That license covers the code only. The name "judgekeeper" and the shield logo are trademarks of Sathvik Thota, and the MIT license does not cover them.
+The code is under the Apache-2.0 license (see LICENSE). That license covers the code only. The name "judgekeeper" and the shield logo are trademarks of Sathvik Thota, and the Apache-2.0 license does not cover them.
 
 You can, without asking:
 - say that your project uses, works with or is based on judgekeeper;

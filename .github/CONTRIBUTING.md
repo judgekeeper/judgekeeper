@@ -8,6 +8,6 @@ judgekeeper is made by one person and accepts issues, not pull requests. [Open a
 
 A security problem? Please [report it privately](https://github.com/judgekeeper/judgekeeper/security/advisories/new), not in a public issue.
 
-Each form asks you to agree that anything you share may be used in judgekeeper under the MIT license. Then a good idea can go straight in.
+Each form asks you to agree that anything you share may be used in judgekeeper under the Apache-2.0 license. Then a good idea can go straight in.
 
 Never paste API keys, or answers and data you are not allowed to share. Use made-up text instead.

@@ -375,7 +375,15 @@ def test_wheel_ships_the_package_and_no_demo(tmp_path):
     dist_info = f"judgekeeper-{VERSION}.dist-info"
     entry_points = zipfile.ZipFile(wheel).read(f"{dist_info}/entry_points.txt").decode()
     assert "[pytest11]" not in entry_points and "judgekeeper.__main__:main" in entry_points
-    assert f"{dist_info}/licenses/LICENSE" in names
+    assert {f"{dist_info}/licenses/LICENSE", f"{dist_info}/licenses/NOTICE"} <= names
+    metadata = zipfile.ZipFile(wheel).read(f"{dist_info}/METADATA").decode()
+    assert "License-Expression: Apache-2.0" in metadata and "MIT" not in metadata
+
+
+def test_the_licence_is_apache_2_with_a_notice():
+    words = (ROOT / "LICENSE").read_text(encoding="utf-8").split()
+    assert words[:4] == ["Apache", "License", "Version", "2.0,"] and words[-1] == "License."
+    assert (ROOT / "NOTICE").read_text(encoding="utf-8") == "judgekeeper\nCopyright 2026 Sathvik Thota\n"
 
 
 def _build_sdist(src: Path, out: Path) -> list[str]:
@@ -397,7 +405,7 @@ NOT_IN_SDIST = ("docs/", "tests/", "website/", "scripts/", "deploy/", ".github/"
 
 def test_sdist_holds_only_the_package_and_its_readme_licence_and_changelog(tmp_path):
     names = _build_sdist(ROOT, tmp_path)
-    top = {"README.md", "LICENSE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml"}
+    top = {"README.md", "LICENSE", "NOTICE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml"}
     for name in names:
         assert name in top | SDIST_ALWAYS or name.startswith("src/judgekeeper/"), name
         assert not name.startswith(NOT_IN_SDIST), name
@@ -433,7 +441,7 @@ def test_the_wheel_and_sdist_hold_only_tracked_files(tmp_path):
                    if ".dist-info/" not in name)
     assert names == [path.removeprefix("src/") for path in tracked]
     sdist = _build_sdist(ROOT, tmp_path / "sdist")
-    top = ["README.md", "LICENSE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml",
+    top = ["README.md", "LICENSE", "NOTICE", "TRADEMARKS.md", "CHANGELOG.md", "pyproject.toml",
            ".gitignore"]
     assert sdist == sorted(_tracked("src/judgekeeper", *top) + ["PKG-INFO"])
 
