@@ -821,4 +821,23 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     assert agreed and agreed[0] in out
     code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
     assert code == 0 and "back to the one you marked with" in flat(out), out
-    assert "has not changed since your last check" in _check(capsys)[1]
+    assert _check(capsys) == (code, out)  # the same results: the same answer
+
+
+def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(here, capsys):
+    """After `fix` and a check that took on the new rule, `check` on the results the marks were
+    made from says "back" every time (it said "Worse" from the second check on)."""
+    ws = _all_marked_promptfoo(here, capsys)
+    _jk(capsys, "fix")
+    _rubric(here, AS_MARKED, RULE_B, name="new.json")
+    assert _jk(capsys, "fix", "new.json")[0] == 0
+    assert _check(capsys, "new.json")[0] == 0  # the new rule taken on
+    said = [_check(capsys, "results.json") for _ in range(3)]
+    assert said[0][0] == 0 and "back to the one you marked with" in flat(said[0][1]), said[0]
+    assert said[1] == said[2] == said[0]
+    trigger = [json.loads(line).get("trigger") for line in
+               ws.history_jsonl.read_text(encoding="utf-8").splitlines()]
+    assert trigger.count("back") == 1
+    code, out = _check(capsys, "new.json")  # a change again: compared with the rule marked on
+    assert code == 0 and "Your LLM-as-a-judge changed: rule changed." in flat(out), out
+    assert "Result: worse" not in out
