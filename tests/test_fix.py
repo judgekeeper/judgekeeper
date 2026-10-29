@@ -749,11 +749,14 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
     assert fix.report_section(ws) == {"mistakes": [], "split_unknown": True}
 
 
-@pytest.mark.parametrize("number", [1, 2])
+@pytest.mark.parametrize("number, last", [(1, True), (1, False), (2, False)])
 def test_a_hand_added_set_line_in_history_does_not_skip_the_about_half_check(here, capsys,
-                                                                             number):
-    """A `set` line saying the earlier sets hold every shown mark: which marks the earlier
-    sets hold comes from marks.jsonl too (those marked before any kept aside)."""
+                                                                             number, last):
+    """A `set` line saying the earlier sets hold every shown mark, with 5 marks kept aside: the
+    5 marked last or first. Set 1 has no earlier sets, whatever history.jsonl says. A later
+    set's earlier sets hold at most the marks made before any kept aside (marks.jsonl): a set
+    begins by keeping aside its first marks, so kept aside marks made last are how a set that
+    began late looks (set 2 with `last` is not refused)."""
     from judgekeeper import marks
     from judgekeeper.fingerprint import utc_now
 
@@ -761,7 +764,11 @@ def test_a_hand_added_set_line_in_history_does_not_skip_the_about_half_check(her
     run(capsys)
     path = ws.dir / "fix" / "split.json"
     d = json.loads(path.read_text(encoding="utf-8"))
-    _shrunk(d)
+    order = list(marks.read(ws.marks).last)
+    hidden = sorted(d["hidden"], key=order.index)
+    kept = hidden[-5:] if last else hidden[:5]
+    d["visible"] += [i for i in hidden if i not in kept]
+    d["hidden"] = kept
     d["set"] = number
     path.write_text(json.dumps(d), encoding="utf-8")
     marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "set", "seed": d["seed"],

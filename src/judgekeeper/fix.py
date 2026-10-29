@@ -313,8 +313,8 @@ class Split:
     pending: list[str] = field(default_factory=list)  # new marks waiting for a new set
     earlier: int = 0  # marks the earlier sets hold, all seen: this set's own are the others
     # `fresh` and `earlier` come from history.jsonl (_set_history), never from split.json, and
-    # `earlier` is at most what marks.jsonl gives (_earlier_in_marks): an edit there, or a
-    # line added to history.jsonl, can't skip the about-half check
+    # `earlier` is 0 for set 1 and at most what marks.jsonl gives (_earlier_in_marks): an edit
+    # there, or a line added to history.jsonl, can't skip the about-half check
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
@@ -362,7 +362,8 @@ def _note_set(ws: Workspace, split: Split, **what) -> None:
 
 def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
     """(how many marks the earlier sets hold, the set's `fresh` once it is retired) for set
-    `number` of the split with `seed`, from history.jsonl: (0, None) when it says none."""
+    `number` of the split with `seed`, from history.jsonl: (0, None) when it says none. Set 1
+    has no earlier sets: a line saying it has is not read."""
     try:
         text = ws.history_jsonl.read_text(encoding="utf-8")
     except OSError:
@@ -376,7 +377,7 @@ def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
         if not isinstance(line, dict) or line.get("kind") != SET or line.get("seed") != seed \
                 or line.get("set") != number:
             continue
-        if type(line.get("earlier")) is int and line["earlier"] >= 0:
+        if type(line.get("earlier")) is int and line["earlier"] >= 0 and number > 1:
             earlier = line["earlier"]
         if isinstance(line.get("fresh"), dict) and type(line["fresh"].get("want")) is int:
             fresh = line["fresh"]
