@@ -251,6 +251,19 @@ def test_a_marked_empty_answer_is_found_by_its_question(here, capsys):
     assert "had no grade" not in out, out
 
 
+def test_a_rule_taken_on_with_a_marked_empty_answer_has_not_changed_after(here, capsys):
+    """Its empty answer got no grade from the rule taken on, so every check after said "rule
+    changed" against the old rule again."""
+    outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
+    _marked(here, outputs=outputs)
+    _results(here, MARKED, rubric="Is polite, correct and short.", outputs=outputs)
+    code, out = run(capsys)
+    assert code == 0 and "rule changed" in out, out  # taken on
+    for _ in range(2):
+        code, out = run(capsys)
+        assert code == 0 and "has not changed since your last check" in out, out
+
+
 def test_a_model_change_rechecked_free(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)
