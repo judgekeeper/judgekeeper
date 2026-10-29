@@ -173,8 +173,11 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
                     candidates.append((changed, path))
     first = None  # the newest file that looks judged, when none can be mapped
     for _, path in sorted(candidates, reverse=True):
-        if find.classify_file(path) is not None:
-            continue  # a results file judgekeeper reads already
+        try:
+            if find.classify_file(path) is not None:
+                continue  # a results file judgekeeper reads already
+        except (OSError, ValueError, csv.Error, RecursionError):
+            continue  # one it may not read is skipped, as find.search skips it
         if find.is_promptfoo_table(path):
             if tables is not None:
                 tables.append(path.relative_to(root).as_posix())

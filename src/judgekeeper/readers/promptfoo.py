@@ -51,6 +51,7 @@ MODEL_GRADED = frozenset({
 REFERENCE_TYPES = frozenset({"factuality", "model-graded-factuality"})
 # Judges that are not one model call: a grader with tools, a grader of the app's trace
 AGENT_GRADED = frozenset({"agent-rubric", "trajectory:goal-success"})
+SHORT_VAR = 8  # characters: a var shorter than this is not put back in the grading template
 DEFAULT_GRADER = ("{n} of your LLM-as-a-judge's grades came from promptfoo's default grader: no "
                   "grader is set on those tests or in defaultTest, so promptfoo picked one, and "
                   "its results don't say which model. Write the grader in your config "
@@ -332,10 +333,14 @@ def grader_of(assertion: dict, test_options: dict, default_test: dict):
 def grading_template(rendered: str, output, variables) -> str:
     """A rendered grading prompt with the answer and the test's vars put back as placeholders.
     The prompt is usually JSON (chat messages), so each value is also looked for as it reads
-    inside a JSON string. Longest values first, so a value inside another stays."""
-    values = [("output", output)] + list((variables or {}).items())
-    values = [(k, v if isinstance(v, str) else canonical_json(v)) for k, v in values
-              if v is not None]
+    inside a JSON string. Longest values first, so a value inside another stays. A var shorter
+    than SHORT_VAR is left (`n: "0"` would turn every 0 of the grader's own text into {{n}})."""
+    def text(v) -> str:
+        return v if isinstance(v, str) else canonical_json(v)
+
+    values = [("output", text(output))] if output is not None else []
+    values += [(k, text(v)) for k, v in (variables or {}).items()
+               if v is not None and len(text(v)) >= SHORT_VAR]
     for name, value in sorted(values, key=lambda kv: len(kv[1]), reverse=True):
         if not value:
             continue
@@ -497,11 +502,14 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
             problem = MODEL_FAILED if failed else grader_problem(c, metadata)
             counted = "fail" if failed else label
             mark = Mark(problem=problem, tool_counted_as=counted if problem else None)
+            kept = {"reference": True} if kind in REFERENCE_TYPES else {}
+            threshold = a.get("threshold")  # a score under it fails: part of the judge
+            if isinstance(threshold, int | float) and not isinstance(threshold, bool):
+                kept |= {"pass_mark": threshold, "pass_op": ">="}
             record = ScoreRecord(
                 target_id=item_id, name=name, annotator_kind=LLM, label=label,
                 score=c.get("score"), explanation=c.get("reason") or None, run=run, **content,
-                evaluator=evaluator, created_at=created_at,
-                mark=mark, metadata={"reference": True} if kind in REFERENCE_TYPES else {})
+                evaluator=evaluator, created_at=created_at, mark=mark, metadata=kept)
             records.append(record)
             rendered = metadata.get("renderedGradingPrompt")
             templates[name].append((record, grading_template(

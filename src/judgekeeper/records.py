@@ -60,7 +60,7 @@ EVALUATOR_KEYS = ("provider", "model", "prompt", "temperature", "version", "prom
 JSON_CELLS = ("metadata", "trajectory", "outcome")  # JSON text in a CSV cell
 DEFAULT_NAME = "judge"
 BIG = 1_000_000  # bytes: a record larger than this is kept, with a warning
-_NUMBER = re.compile(r"\A\s*([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\s*\Z")
+_NUMBER = re.compile(r"\A([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\Z")  # after strip()
 
 
 class RecordsError(TableError):
@@ -142,7 +142,7 @@ def _is_number(v, text: bool = True) -> bool:
         return False
     if isinstance(v, int | float):
         return True
-    return text and isinstance(v, str) and bool(_NUMBER.match(v))
+    return text and isinstance(v, str) and bool(_NUMBER.match(v.strip()))
 
 
 def _kind(v) -> str | None:

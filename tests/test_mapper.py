@@ -115,6 +115,47 @@ def test_names_it_does_not_know_make_an_unsure_guess(tmp_path):
     assert "output" in g.unsure and "input" in g.unsure
 
 
+def _rows(**columns) -> list[dict]:
+    return [{k: (v(i) if callable(v) else v) for k, v in columns.items()} for i in range(8)]
+
+
+@pytest.mark.parametrize("about", ["response_time", "response_id", "responseModel",
+                                   "response_language", "response_length", "response_ms",
+                                   "response_tokens"])
+def test_a_column_about_the_answer_is_not_a_second_answer(about):
+    g = mapper.guess(_rows(question=lambda i: f"When does shop {i} open?",
+                           response=lambda i: f"Shop {i} opens at 9 in the morning.",
+                           **{about: lambda i: f"{i} s, en-GB, claude"},
+                           verdict=lambda i: "pass" if i % 3 else "fail"))
+    assert (g.input, g.output, g.sides, g.unsure) == ("question", "response", [], [])
+
+
+def test_two_answer_columns_that_are_not_a_and_b_are_an_unsure_guess():
+    g = mapper.guess(_rows(question="q", answer=lambda i: f"An answer {i}.",
+                           response=lambda i: f"A response {i}.", verdict="pass"))
+    assert "output" in g.unsure
+
+
+@pytest.mark.parametrize("sides", [("output_a", "output_b"), ("response_1", "response_2")])
+def test_answer_columns_named_a_and_b_are_two_sides(sides):
+    g = mapper.guess(_rows(question="q", **{s: lambda i: f"An answer {i}." for s in sides},
+                           verdict="pass"))
+    assert g.sides == list(sides) and g.unsure == []
+
+
+@pytest.mark.parametrize(("columns", "question"), [
+    (("system_prompt", "question"), "question"),
+    (("prompt", "question"), "question"),
+    (("message", "input"), "input"),
+    (("error_message", "prompt_template", "query"), "query"),
+    (("system", "user_message"), "user_message"),
+])
+def test_the_question_is_the_column_most_like_one(columns, question):
+    g = mapper.guess(_rows(**{c: lambda i, c=c: f"{c} {i}" for c in columns},
+                           answer=lambda i: f"An answer {i}.", verdict="pass"))
+    assert g.input == question
+
+
 def test_a_file_with_no_answers_cannot_be_mapped(tmp_path):
     path = tmp_path / "scores.jsonl"
     path.write_text("".join(json.dumps({"question": f"q{i}", "score": 0.5}) + "\n"

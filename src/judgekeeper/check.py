@@ -323,7 +323,8 @@ def _lock_newer(state: State, old: dict, new: dict, newest: Path | None) -> bool
         results = newest.stat().st_mtime
     except OSError:
         return False
-    return any(f.is_file() and f.stat().st_mtime > results for f in locks)
+    return any((st := judge_setup.lock_stat(f)) is not None and st.st_mtime > results
+               for f in locks)
 
 
 def _config_newer(found) -> Path | None:
@@ -807,6 +808,12 @@ class Said:
         self.lines.append(line)
 
 
+def given_results(path: str) -> bool:
+    """Whether the PATH given to `check` or `fix` holds the new results: a results file, or
+    an MLflow folder store (`mlruns/`), read like a file (its newest run)."""
+    return Path(path).is_file() or find.is_mlflow_folder(Path(path))
+
+
 def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
@@ -814,7 +821,7 @@ def path_problem(path: str) -> str | None:
     from judgekeeper.project import project_of as _project
     from judgekeeper.textio import file_kind
 
-    if path == ".":
+    if path == "." or find.is_mlflow_folder(Path(path)):
         return None
     given = Path(path)
     name = given.name or path
@@ -1313,7 +1320,7 @@ def full(path: str, said: Said) -> int:
     if state is None or not state.enough:
         return _not_set_up(path, state, said)
     old = state.saved["setup"]
-    if Path(path).is_file():
+    if given_results(path):
         found, problem = read_given(state, Path(path))
         if found is None:
             said.say(problem)
@@ -1358,7 +1365,7 @@ def full(path: str, said: Said) -> int:
     if read:
         said.say(read)
         said.say()
-    newer = None if Path(path).is_file() or now is None else _newer_elsewhere(state, now.newest)
+    newer = None if given_results(path) or now is None else _newer_elsewhere(state, now.newest)
     if newer is not None:  # a note: the check reads what judgekeeper.toml says, as always
         tool = state.data.get("tool")
         said.say(NEWER.format(tool=find.NAMES.get(tool, tool), file=quote_arg(newer),
@@ -1393,7 +1400,7 @@ def full(path: str, said: Said) -> int:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
         held = len(lookup(found, state.marks, state.ws)[0]) if found is not None else None
-        if held == len(state.marks) and not Path(path).is_file():
+        if held == len(state.marks) and not given_results(path):
             _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
@@ -1518,7 +1525,7 @@ def full(path: str, said: Said) -> int:
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state), state.ws) if worse else None)
-    if not Path(path).is_file():
+    if not given_results(path):
         _covered(state.ws)
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
 
@@ -1526,7 +1533,7 @@ def full(path: str, said: Said) -> int:
 def _read_line(state: State, path: str, now: Now | None) -> str | None:
     """The line that names the results the check reads: the file given, else the newest
     file read (for MLflow, the newest run in its store)."""
-    if Path(path).is_file():
+    if given_results(path):
         return f"New results: {Path(path).as_posix()}"
     if now is None or now.newest is None:
         return None

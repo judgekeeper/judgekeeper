@@ -58,7 +58,7 @@ _WORDS = {"pass": "pass", "passed": "pass", "correct": "pass", "c": "pass",
 _FIRST = re.compile(r"\A[\s*\"'`#\[(]*(pass(?:ed)?|fail(?:ed)?)(?!\w)", re.IGNORECASE)
 # A marker such as "Verdict: pass" or "Final answer = incorrect".
 _MARKER = re.compile(r"\b(?:final verdict|final answer|grade|verdict|result|decision)\s*[:=]"
-                     r"\s*[*\"'`]*\s*(pass(?:ed)?|fail(?:ed)?|correct|incorrect)(?!\w)",
+                     r"[\s*\"'`]*(pass(?:ed)?|fail(?:ed)?|correct|incorrect)(?!\w)",
                      re.IGNORECASE)
 # Inspect's model-graded scorers: "GRADE: C" or "GRADE: I", alone at the end of a line.
 _GRADE = re.compile(r"GRADE\s*:\s*([CI])[ \t.*]*$", re.MULTILINE)
