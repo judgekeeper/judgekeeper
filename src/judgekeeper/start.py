@@ -318,7 +318,7 @@ class Talk:
     def choose(self, title: str, options: list[str], flag_hint: str,
                ask: str = "Which one?", flag: str | None = None, values=(),
                what: str | None = None, keep: int = 0) -> int:
-        """The index of the option the person picks. Without a terminal: the hint, exit 8.
+        """The index of the option the person picks. Without a terminal: the hint, exit 3.
         `flag` (with `values`, one per option) answers it, and `what` says what is chosen;
         `judgekeeper` (front.py) words its Next: line from them. A choice of names (a name
         flag) shows the first LIST_LIMIT, and the last `keep` options, which are not names."""
@@ -341,7 +341,7 @@ class Talk:
                 return shown[int(answer) - 1]
 
     def confirm(self, question: str, default: bool, hint: str, with_yes: bool) -> bool:
-        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 8."""
+        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 3."""
         if not _interactive():
             if self.yes:
                 return with_yes
@@ -376,9 +376,10 @@ class Talk:
         """After the person picks at "Which one?": the flag that picks it without asking."""
         self.say(line or f"(Next time: {flag} {quote_arg(chosen)})")
 
-    def stop(self, code: int, next_step: str | None = None) -> Stop:
+    def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
         """The Stop to raise once the lines that say why were said. `next_step` is what
-        `judgekeeper` (front.py) puts in its Next: line; `start` says its own."""
+        `judgekeeper` (front.py) puts in its Next: line; `start` says its own. The code is
+        always `code` here (`as_given` is for front.FrontTalk)."""
         return Stop(code)
 
     def _input(self, prompt: str) -> str:

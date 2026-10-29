@@ -380,6 +380,29 @@ def test_a_failed_save_says_so_and_keeps_the_answer():
     assert got == {"status": "Not saved: no space left", "at": "Question 0?"}
 
 
+def test_a_save_with_no_answer_in_10_seconds_says_so_and_can_be_tried_again():
+    got = _run("""
+      var hung = fetch;
+      fetch = function (url, opts) { return new Promise(function (ok, no) {
+        opts.signal.addEventListener("abort", function () { no(new Error("aborted")); }); }); };
+      key("ArrowRight"); await settle();
+      var waiting = document.getElementById("status").textContent;
+      timers.forEach(function (t) { t.f(); }); await settle(); await settle();
+      var said = ids["status"].textContent, at = ids["q-text"].textContent;
+      fetch = hung; later(500); key("ArrowRight"); await settle(); await settle();
+      console.log(JSON.stringify({waiting: waiting, said: said, at: at,
+        ms: timers.map(function (t) { return t.ms; }), then: sent.length}));""",
+               before="""
+      var timers = [], soon = setTimeout;
+      setTimeout = function (f, ms) {
+        if (ms >= 5000) { timers.push({f: f, ms: ms}); return 0; } return soon(f, ms); };
+      """)
+    assert got["waiting"] == ""
+    assert got["said"].startswith("Not saved: this page lost its link to judgekeeper.")
+    assert got["at"] == "Question 0?" and got["then"] == 1  # tried again: saved
+    assert got["ms"] == [10000, 10000]  # one wait per save
+
+
 def _phone(width: int, still: bool = False) -> str:
     """A window `width` px wide (reduced motion when `still`); the card's scrolls are kept."""
     return f"""

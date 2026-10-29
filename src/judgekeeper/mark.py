@@ -8,7 +8,7 @@ the page and prints the count so far (exit 0), unless every answer is marked wit
 one kind (exit 3, no page).
 
 `--wait` serves the page in this terminal, `--stop` closes it, `--new` starts over (asked
-first). Marks from judgekeeper 0.2 (labels.csv) are never used: they have no stamps. The
+first). Marks from an unreleased 0.2 build (labels.csv) are never used: they have no stamps. The
 output holds counts, names and paths, never an answer's or an input's text, and ends with
 exactly one `Next:` line.
 """

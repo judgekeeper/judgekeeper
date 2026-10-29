@@ -235,10 +235,11 @@ def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
     assert code == 0 and "Worse" in out, out
     said = " ".join((Path(__file__).parents[1] / "docs" / "reference.md").read_text(
         encoding="utf-8").split())
-    rule = "Worse or Not sure, when the drop's middle estimate is over 20 points"
+    rule = ("the drop's middle estimate is over 20 points, whichever word it says (Worse or "
+            "Not sure)")
     assert f"| 1 | {rule}:" in said
-    assert ('It exits 1 on "Worse" or "Not sure" when the drop\'s middle estimate is over 20 '
-            "points.") in said
+    assert ("It exits 1 only when the drop's middle estimate is over 20 points, whichever word "
+            "it says.") in said
 
 
 def test_a_model_change_rechecked_free(here, capsys):

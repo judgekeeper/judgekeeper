@@ -184,16 +184,19 @@ def new_answers(ws, found) -> list:
     from judgekeeper.textio import jsonl_lines, program
 
     newest = set(found.used) if found.tool in ("records", "mapped") else {found.used[0]}
+    queued = {q["id"] for q in ws.data().get("queue") or []}
     seen = set()
     marked = set()  # (answer text, question text) of each pool row, as check.lookup finds it
     for raw in jsonl_lines(ws.pool.read_text(encoding="utf-8")):
         if raw.strip():
             try:
                 row = loads(raw)
+                if row["id"] not in queued:  # of a batch whose adding stopped: new again
+                    continue
                 seen.add(_text(row.get("input"), row.get("output")))
                 text = answer_text(row.get("output"))
                 marked |= {(text, q) for q in _marked_question(row.get("input"), row.get("output"))}
-            except (ValueError, AttributeError):  # damaged, or not an object
+            except (ValueError, AttributeError, KeyError, TypeError):  # damaged, or not an object
                 raise StartError(POOL_DAMAGED,
                                  next_step=START_OVER.format(program=program())) from None
     out = []
@@ -226,8 +229,10 @@ def add(ws, found) -> int:
     if not new:
         return 0
     batch = max(of(data).values(), default=1) + 1
-    old_rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
-                if x.strip()]
+    # the pool rows and grades of a batch whose adding stopped half way go: it is added again
+    queued = {q["id"] for q in data.get("queue") or []}
+    old_rows = [r for x in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
+                if x.strip() and (r := loads(x))["id"] in queued]
     taken = {r["id"] for r in old_rows}
     named = []
     for a in new:  # an id an older answer with other text has (a table's own ids) is renamed
@@ -246,7 +251,8 @@ def add(ws, found) -> int:
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))
     pool_sha = canonical_hash(pool)
     head, records = read_run(ws.pool_judge)
-    lines = [judge_record(by_id[q["id"]], found) for q in queue] + list(records.values())
+    lines = ([judge_record(by_id[q["id"]], found) for q in queue]
+             + [r for i, r in records.items() if i in queued])
     write_run(ws.pool_judge, head.get("run", 1), pool_sha,
               JudgeFingerprint.from_dict(found.fingerprint), lines, source=head.get("source"),
               normaliser=head.get("normaliser"))

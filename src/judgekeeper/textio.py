@@ -494,8 +494,10 @@ PRIVATE_FILE, PRIVATE_FOLDER = 0o600, 0o700
 
 def open_private(path: str | Path, mode: str = "a", **kwargs):
     """`path` opened to add to ("a", or "ab"); a new file is its owner's only (0600). A file
-    with another name too (a hard link) is refused: what is added would land there as well."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+    with another name too (a hard link) is refused: what is added would land there as well. So
+    is a symlink, even one made after the folder was looked at (O_NOFOLLOW; not on Windows)."""
+    flags = (os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+             | getattr(os, "O_NOFOLLOW", 0))
     fd = os.open(path, flags, PRIVATE_FILE)
     if os.fstat(fd).st_nlink > 1:
         os.close(fd)

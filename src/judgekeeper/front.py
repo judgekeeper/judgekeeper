@@ -251,11 +251,14 @@ class FrontTalk(start.Talk):
         for line in wrap(text, indent=indent):
             self.say(line)
 
-    def stop(self, code: int, next_step: str | None = None) -> Stop:
-        """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing."""
+    def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
+        """Say the Next: line; exit 3 when it asks for something, 0 when it is nothing, or
+        `code` itself (`as_given`: a file it can't read is a usage error, 2)."""
         if next_step:
             self.say()
             self.para(f"Next: {next_step}")
+            if as_given:
+                return Stop(code)
             return Stop(EXIT_OK if next_step.startswith("nothing") else EXIT_NEEDS_YOU)
         return Stop(EXIT_NEEDS_YOU if code == EXIT_QUESTION else code)
 
@@ -301,7 +304,8 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
 
 
 def _started(path: Path) -> bool:
-    """Whether marking started in the project at `path` (or 0.2's marks are there)."""
+    """Whether marking started in the project at `path` (or an unreleased 0.2 build's marks
+    are there)."""
     if not path.exists():
         return False
     ws = Workspace(project.project_of(path))
@@ -681,8 +685,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
-        talk.say(STEP.format(n=1, name="Find"))
-        talk.say()
+        talk.say_step()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
                   f"{'is' if saved == 1 else 'are'} saved in {FOLDER}/; they come back when "
                   "your results file is back.")
@@ -1363,10 +1366,13 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = [start_label.WORKED_OUT_AGAIN] if start_label.recompute_old(ws) else []
-    back = None if first else check.back_to_marked(ws, found)  # the judge the marks were made on
+    back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
-    added = 0 if first or changed or back or grades else batches.add(ws, found)
+    added = 0
+    if not (first or changed or back or grades):
+        with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
+            added = batches.add(ws, found)
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)

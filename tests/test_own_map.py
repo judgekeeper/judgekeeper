@@ -208,6 +208,22 @@ def test_a_file_it_cannot_map_asks_for_a_converter(tmp_path, capsys):
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 
+def test_a_quote_that_never_closes_is_a_file_it_cant_read(tmp_path, capsys):
+    path = tmp_path / "scores.csv"
+    path.write_text('q_text,model_reply,judge_score\n"q0,a0,0.5\nq1,a1,0.5\n', encoding="utf-8")
+    code, out = check(capsys, path)
+    assert code == 2, out  # reference.md: a file it can't read
+    assert next_lines(out)[-1].startswith("Next: close the quote on line 2 of scores.csv")
+
+
+def test_a_file_not_saved_as_utf8_is_a_file_it_cant_read(tmp_path, capsys):
+    path = tmp_path / "scores.jsonl"
+    path.write_bytes(b'{"question": "caf\xe9", "reply": "a", "score": 0.5}\n')
+    code, out = check(capsys, path)
+    assert code == 2, out
+    assert next_lines(out)[-1].startswith("Next: save scores.jsonl as UTF-8")
+
+
 def test_scores_outside_0_to_1_ask_for_the_pass_mark(tmp_path, capsys, terminal):
     answers, asked = terminal
     path = tmp_path / "graded.jsonl"

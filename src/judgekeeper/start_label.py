@@ -56,7 +56,7 @@ BLOCK = 10
 ROUGH = targets.ROUGH
 GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
-# The exact text 0.2 wrote, by its SHA-256 (its first line has older words)
+# The exact text an unreleased 0.2 build wrote, by its SHA-256 (its first line has older words)
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
@@ -128,7 +128,7 @@ class Workspace:
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
         self.marks = self.dir / marks.FILE
-        self.labels = self.dir / "labels.csv"  # judgekeeper 0.2's marks: never read
+        self.labels = self.dir / "labels.csv"  # an unreleased 0.2 build's marks: never read
         self.anchors = self.dir / "anchors.jsonl"
         self.result_json = self.dir / "result.json"
         self.report_html = self.dir / "report.html"
@@ -300,8 +300,9 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
         if ws.marks.is_file() and marks.read(ws.marks).counted():
-            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results. Move "
-                             f"{FOLDER}/ somewhere else to start fresh; nothing was changed.")
+            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results; nothing "
+                             f"was changed. To start over, run {program()} --new (your marks "
+                             f"move to {FOLDER}/previous-<date>/).")
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
     first = old is None
@@ -591,6 +592,9 @@ class StartSession(LabelSession):
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
+        # a batch whose adding stopped half way is in the pool, not the queue: added again later
+        self.items = [x for x in self.items if x["id"] in self.groups]
+        self.by_id = {x["id"]: x for x in self.items}
 
     def _resume(self) -> None:
         """The marks on disk: the last stamped line of each answer."""

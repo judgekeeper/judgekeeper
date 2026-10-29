@@ -181,3 +181,17 @@ def test_the_printed_fix_and_check_commands_read_the_mlruns_store(mlruns, tmp_pa
     assert "New results: mlruns" in said and "has not changed" in said, said
     assert printed == ["check", "mlruns"]
     mlflow_store.remove_copies()
+
+
+def test_a_store_on_another_drive_is_named_by_its_whole_path(here, monkeypatch):  # noqa: F811
+    """On Windows a path on another drive has no relative form (os.path.relpath raises)."""
+    import os
+
+    ws = project(here)
+    _as_mlflow(ws, "mlflow.db")
+
+    def other_drive(*args, **kwargs):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(os.path, "relpath", other_drive)
+    assert fix.mlflow_store(ws) == fix.quote_arg((here / "mlflow.db").resolve().as_posix())

@@ -43,11 +43,12 @@ def cannot(talk: Talk, rel: str, why: str):
     if quote:  # the file is read once the quote is closed
         _para(talk, f"{why[:1].upper()}{why[1:]}.")
         return talk.stop(EXIT_USAGE, f"close the quote on line {quote[1]} of "
-                                     f"{Path(rel).name}, then run `{talk.command()}`.")
+                                     f"{Path(rel).name}, then run `{talk.command()}`.",
+                         as_given=True)
     if NOT_UTF8 in why:  # the file is read once it is saved as UTF-8
         _para(talk, f"{why}.")
         return talk.stop(EXIT_USAGE, f"save {Path(rel).name} as UTF-8, then run "
-                                     f"`{talk.command()}`.")
+                                     f"`{talk.command()}`.", as_given=True)
     _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
     _para(talk, f"Turn it into a CSV, as the Next: line says. {RECORD_DOOR}")
     return talk.stop(EXIT_USAGE, (

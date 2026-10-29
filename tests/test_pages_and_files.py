@@ -324,6 +324,22 @@ def test_the_shared_helpers_make_private_files_and_folders(tmp_path):
         assert os.stat(tmp_path / ".judgekeeper" / f).st_mode & 0o777 == 0o600, f
 
 
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="no O_NOFOLLOW (Windows)")
+def test_a_file_added_to_is_never_opened_through_a_link(tmp_path):
+    """A link made after the folder was looked at (a race) is still refused."""
+    from judgekeeper import textio
+
+    outside = tmp_path / "outside.log"
+    outside.write_bytes(b"")
+    try:
+        os.symlink(outside, tmp_path / "page.log")
+    except (OSError, NotImplementedError):
+        pytest.skip("this system cannot make links")
+    with pytest.raises(OSError):
+        textio.open_private(tmp_path / "page.log", "ab")
+    assert outside.read_bytes() == b""
+
+
 @private
 @pytest.mark.real_page
 def test_the_page_log_is_private(tmp_path, monkeypatch):
