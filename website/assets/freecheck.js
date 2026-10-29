@@ -69,6 +69,11 @@
   var EVERY_ANSWER = 'your LLM-as-a-judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
+  // front._unread_values: grades that are all numbers are scores, and the tool asks for a pass mark
+  function SCORES(shown) {
+    return "Your LLM-as-a-judge's decisions are scores (" + shown + '), and the results do not say which score passes. ' +
+      'judgekeeper in your project asks which score counts as a pass.';
+  }
   var NO_CLEAR = 'No answer has a clear Pass or Fail from your LLM-as-a-judge, so there is nothing to mark.';
   // judge_check.MODEL_FAILED_LINE, ALL_MODEL_FAILED and MODEL_FAILED_NEXT: the same words
   var MODEL_FAILED_LINE = ' no answer: the call to the model you test failed, so your LLM-as-a-judge never ran.';
@@ -837,20 +842,30 @@
   }
 
   function pyNumber(v) { return typeof v === 'number' && !isNaN(v) ? v : null; }
+  // normalise._numeric: text Python's float() reads
+  function isNumber(t) { return /^[+-]?((\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?|inf(inity)?|nan)$/i.test(String(t).trim()); }
+  // front._shown: the values sorted, each cut to 40 characters, the first 10
+  function shownValues(values) {
+    var texts = values.map(function (v) { var t = String(v).split(/\s+/).filter(Boolean).join(' '); return t.indexOf(',') >= 0 ? '"' + t + '"' : t; })
+      .map(function (t) { return t.length > 40 ? t.slice(0, 39) + '…' : t; }).sort();
+    return texts.slice(0, 10).join(', ') + (texts.length > 10 ? ' and ' + (texts.length - 10) + ' more' : '');
+  }
 
   /* ---------- start.build_pool: one answer per input and output ---------- */
 
   function buildPool(records, metric, extra) {
     extra = extra || {};
     var threshold = extra.strict ? null : extra.threshold;
-    var groups = new Map(), unmapped = 0, unread = [];
+    var groups = new Map(), unmapped = 0, unread = [], unreadKeys = new Set();
     records.forEach(function (r) {
       if (r.name !== metric) return;
       var kind = r.problem, v = null;
+      var key = canonical({ input: r.input === null ? '' : r.input, output: r.output === null ? '' : r.output });
       if (kind === null) {
         v = verdictOf(r);
         if (v.unmapped !== undefined) {
           unmapped += 1;
+          unreadKeys.add(key);
           if (unread.indexOf(String(v.unmapped)) < 0) unread.push(String(v.unmapped));
           return;
         }
@@ -859,11 +874,12 @@
           kind = word === 'error' ? 'error_grade' : 'empty';
         }
       }
-      var key = canonical({ input: r.input === null ? '' : r.input, output: r.output === null ? '' : r.output });
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ r: r, v: v, kind: kind });
     });
     var pool = { answers: [], left: [], merged: 0, repeatSizes: [], split: [], unmapped: unmapped, unread: unread };
+    // answers with only grades it can't read: the tool counts them among the answers too
+    pool.unreadOnly = Array.from(unreadKeys).filter(function (k) { return !groups.has(k); }).length;
     groups.forEach(function (seen) {
       var judged = seen.filter(function (s) { return s.kind === null; });
       if (!judged.length) { pool.left.push({ kind: seen[0].kind, r: seen[0].r }); return; }
@@ -979,7 +995,7 @@
       if (said.size === 2 && said.has('pass') && said.has('fail')) countedAs = 'pass and fail';
       else if (said.size === 1) countedAs = said.values().next().value;
     }
-    return Object.assign({ answers: pool.answers.length + pool.left.length, same_decision: same, tool_counted_as: countedAs, tool: tool }, counts);
+    return Object.assign({ answers: pool.answers.length + pool.left.length + pool.unreadOnly, same_decision: same, tool_counted_as: countedAs, tool: tool }, counts);
   }
 
   // judge_check.lines: one entry per finding, [] when nothing was found
@@ -1197,6 +1213,7 @@
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
+      scores: pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null,
       counts: block,
       allFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'error'; }),
       allModelFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'model_failed'; }),
@@ -1258,21 +1275,23 @@
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {
       if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your LLM-as-a-judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');
     });
-    if (j.unmapped) {
+    if (j.scores) {
+      notes.push(SCORES(j.scores));
+    } else if (j.unmapped) {
       notes.push(n(j.unmapped, 'grade') + ' could not be read as Pass or Fail (' + j.unread.map(function (v) { return '"' + v + '"'; }).join(', ') +
         (j.moreUnread ? ' and more' : '') + '). ' + (j.unmapped === 1 ? 'It is' : 'They are') +
         ' left out here; judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
     }
     notes.forEach(function (t) { L.push({ text: t }); });
     if (!j.findings.length) {
-      L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
+      if (!j.scores) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
     } else {
       j.findings.forEach(function (f, i) {
         L.push({ text: i === 0 ? FREE_CHECK + f.charAt(0).toLowerCase() + f.slice(1) : f, tone: 'y' });
       });
     }
     if (j.modelNotWritten) L.push({ text: MODEL_NOT_WRITTEN, tone: 'y' });
-    if (!total) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
+    if (!total && !j.scores) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
     return L;
   }
 
