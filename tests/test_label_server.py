@@ -170,7 +170,8 @@ def test_host_header_must_be_the_bound_address(tmp_path, serve, host):
     {}, {"Origin": "http://evil.example"}, {"Origin": "null"},
     {"Origin": "http://127.0.0.1:{other}"}, {"Origin": "https://127.0.0.1:{port}"},
     {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "cross-site"},
-    {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "same-site"}])
+    {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "same-site"},
+    {"Origin": "http://localhost:{port}", "Sec-Fetch-Site": "same-origin"}])
 def test_a_post_needs_the_pages_own_origin(tmp_path, serve, headers):
     """Only the page's own script can mark: a POST from anything else (another site, a script
     with the link) is refused, even with the token."""
@@ -187,7 +188,7 @@ def test_a_post_needs_the_pages_own_origin(tmp_path, serve, headers):
 
 
 @pytest.mark.parametrize("headers", [
-    {"Origin": "http://127.0.0.1:{port}"}, {"Origin": "http://localhost:{port}"},
+    {"Origin": "http://127.0.0.1:{port}"},
     {"Origin": "http://127.0.0.1:{port}", "Sec-Fetch-Site": "same-origin"}])
 def test_the_pages_own_origin_may_post(tmp_path, serve, headers):
     out = tmp_path / "labels.csv"

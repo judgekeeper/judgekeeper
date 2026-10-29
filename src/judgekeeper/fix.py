@@ -311,8 +311,9 @@ class Split:
     # rule taken on ("adopted"), new marks make a new set
     pending: list[str] = field(default_factory=list)  # new marks waiting for a new set
     earlier: int = 0  # marks the earlier sets hold, all seen: this set's own are the others
-    # `fresh` and `earlier` come from history.jsonl (_set_history), never from split.json: an
-    # edit there can't skip the about-half check
+    # `fresh` and `earlier` come from history.jsonl (_set_history), never from split.json, and
+    # `earlier` is at most what marks.jsonl gives (_earlier_in_marks): an edit there, or a
+    # line added to history.jsonl, can't skip the about-half check
 
     def to_json(self) -> dict:
         return {"set": self.set, "seed": self.seed, "made_at": self.made_at,
@@ -381,10 +382,22 @@ def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
     return earlier, fresh
 
 
+def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
+    """How many of the `seen` marks were first made before any `hidden` one, by marks.jsonl:
+    the most a later set's earlier sets can hold, since every mark made once a set begins is
+    its own. None kept aside, or one never marked: 0."""
+    order = {i: n for n, i in enumerate(read_cached(ws.marks, marks.read).last)}
+    if not hidden or any(i not in order for i in hidden):
+        return 0
+    first = min(order[i] for i in hidden)
+    return sum(order.get(i, first) < first for i in seen)
+
+
 def _split_problem(ws: Workspace, d) -> str | None:
     """What is wrong with split.json's data `d`, in a few words; None when it is as
     judgekeeper writes it: two lists of answers judgekeeper has, apart, about half kept aside
-    (of the set's own marks, before it is retired: both from history.jsonl), and tests whose
+    (of the set's own marks, before it is retired: both from history.jsonl, the earlier
+    sets' marks no more than marks.jsonl says), and tests whose
     counts fit them."""
     if not isinstance(d, dict) or type(d.get("seed")) is not int or not isinstance(
             d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1:
@@ -394,6 +407,7 @@ def _split_problem(ws: Workspace, d) -> str | None:
                for x in (seen, hidden)) or not isinstance(tests, list):
         return "it is not as judgekeeper writes it"
     earlier, fresh = _set_history(ws, d["seed"], d.get("set", 1))
+    earlier = min(earlier, _earlier_in_marks(ws, seen, hidden))
     if set(seen) & set(hidden):
         return "it names some marks as both kept aside and shown"
     if len(set(seen)) != len(seen) or len(set(hidden)) != len(hidden):
@@ -435,6 +449,7 @@ def read_split(ws: Workspace) -> Split | None:
     if why:
         raise SplitError(why)
     earlier, fresh = _set_history(ws, d["seed"], d.get("set", 1))
+    earlier = min(earlier, _earlier_in_marks(ws, d["visible"], d["hidden"]))
     return Split(seed=d["seed"], seen=list(d["visible"]), hidden=list(d["hidden"]),
                  set=d.get("set", 1), earlier=min(earlier, len(d["visible"])),
                  made_at=str(d.get("made_at") or ""), tests=d["tests"]

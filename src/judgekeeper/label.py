@@ -642,9 +642,9 @@ def _handler(server: LabelServer):
 
         def _same_origin(self) -> bool:
             """Whether a POST comes from the page's own script (see the module's docstring)."""
-            origins = (f"http://{HOST}:{server.port}", f"http://localhost:{server.port}")
             site = self.headers.get("Sec-Fetch-Site")
-            if self.headers.get("Origin") in origins and site in (None, "same-origin"):
+            if self.headers.get("Origin") == f"http://{HOST}:{server.port}" and \
+                    site in (None, "same-origin"):
                 return True
             self._json(403, {"error": ONLY_PAGE})
             return False

@@ -533,3 +533,23 @@ def test_the_scan_for_keys_in_an_unread_block_is_quick_on_1_mb(text):
     start = time.monotonic()
     keys._credentials_in(text * (keys.FILE_LIMIT // len(text)))
     assert time.monotonic() - start < 3
+
+
+# A quoted value whose next lines start in column 0: they are its text, never keys
+STARRED = {
+    "a nested value": 'tests:\n  - vars:\n      rubric: "Rate it:\n* is it short\n* is it right"\n',
+    "a top-level value": 'notes: "Rate it:\n* is it short"\n',
+    "a single-quoted value": "notes: 'Rate it:\n* is it short'\n",
+}
+
+
+@pytest.mark.parametrize("text", STARRED.values(), ids=STARRED.keys())
+def test_without_pyyaml_a_star_line_inside_a_quoted_value_is_not_an_alias(tmp_path,
+                                                                         monkeypatch, text):
+    yaml = pytest.importorskip("yaml")
+    text += "env:\n  OPENAI_API_KEY: abc\n"
+    assert yaml.safe_load(text)["env"] == {"OPENAI_API_KEY": "abc"}  # as js-yaml reads it too
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    assert keys.config_env(_config(tmp_path, text)) == {"OPENAI_API_KEY": "abc"}
+    after = text.replace("env:", "*k: x\nenv:")  # an alias as a key, once the value is closed
+    assert keys.UNREAD in keys.config_env(_config(tmp_path, after))
