@@ -584,17 +584,19 @@ __TOP__
   }
   // The list's title for an answer: the question at the end of a long text, without its
   // label ("Question: "); else the first line with real words ("Context:" alone is only a
-  // label), of the question-like field when there are several.
+  // label), of the question-like field when there are several. A label is 1 to 3 words: a
+  // sentence with a colon in it ("Please reply ...: no words") keeps its start.
+  var LABEL = /^[^\\s:]+(?: [^\\s:]+){0,2}:\\s+(?=\\S)/;
   function firstLine(it) {
     var value = question(it), lines, parts = Array.isArray(value) ? null : headTail(value);
     if (parts) {
       lines = parts[1].split("\\n").filter(function (line) { return line.trim(); });
-      return lines[lines.length - 1].replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
+      return lines[lines.length - 1].replace(LABEL, "");
     }
     lines = String(Array.isArray(value) ? value[0][1] : value).split("\\n");
     return (lines.filter(function (line) {
       return line.trim() && !/^[^:]{1,40}:$/.test(line.trim()); })[0] || lines[0])
-      .replace(/^[^:\\n]{1,40}:\\s+(?=\\S)/, "");
+      .replace(LABEL, "");
   }
 
   // The answers list: the person's own marks only.
