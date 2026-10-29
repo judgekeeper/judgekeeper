@@ -337,6 +337,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             sessions := _sessions_below(path)):  # never a second session above one
         raise _go_to(talk, sessions)
+    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
+            folders := _projects_below(path)):  # nor one session for several projects
+        raise _go_to_one(talk, folders)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -753,9 +756,12 @@ def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str
         named = start._and([f"{name}/ ({_n(n, 'mark')})" for name, n in sessions])
         said = (f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
                 "project's marks in its own folder.")
-    folder = "that folder" if len(sessions) == 1 else "one of those folders"
-    return said, (f"go to {folder} (`cd {quote_arg(sessions[0][0])}`), then run `{command}` "
-                  "there.")
+    return said, _go_step([name for name, _ in sessions], command)
+
+
+def _go_step(names: list[str], command: str) -> str:
+    folder = "that folder" if len(names) == 1 else "one of those folders"
+    return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
 
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
@@ -763,6 +769,34 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
     said, step = go_to_words(sessions, program())
     talk.para(said)
     return talk.stop(EXIT_QUESTION, step)
+
+
+# A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
+# MLflow's and judgekeeper.record()'s
+TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
+
+
+def _projects_below(folder: Path) -> list[str]:
+    """The folders right below `folder` that hold results, when there are 2 or more and
+    nothing says `folder` is one project: no results or tool's config in it, and none in a
+    tool's own folder (TOOL_FOLDERS). Each is a project of its own, never run."""
+    found = find.search(folder)
+    if any("/" not in sign for signs in found.signs.values() for sign in signs):
+        return []
+    tops = set()
+    for result in (r for rs in found.results.values() for r in rs):
+        parts = Path(result.rel).parts
+        if len(parts) < 2 or parts[0] in TOOL_FOLDERS:
+            return []
+        tops.add(parts[0])
+    return sorted(tops) if len(tops) > 1 else []
+
+
+def _go_to_one(talk: FrontTalk, folders: list[str]) -> Stop:
+    """Results in projects below, never run: which, and to go to one."""
+    talk.para(f"{start._and([f'{name}/' for name in folders])} hold eval results: judgekeeper "
+              "keeps a project's marks in its own folder, so it checks one at a time.")
+    return talk.stop(EXIT_QUESTION, _go_step(folders, program()))
 
 
 def sessions_here(path: str | Path) -> list[tuple[str, int]]:
