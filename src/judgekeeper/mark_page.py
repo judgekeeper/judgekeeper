@@ -197,13 +197,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   #q-row > .question { flex: 0 1 auto; min-height: 0; }
   .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
     flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
-  .row-a:has(> .rule:not([hidden])) { min-height: calc((100vh - 72px) * .35 + 150px); }
-  .card:has(.rule:not([hidden])) .question.long:not(.open) { max-height: calc(2 * 1.6em); }
-  .card:has(.rule:not([hidden])) .question.ht:not(.open) > :not(.q-tail) { display: none; }
+  .card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }  /* the rule gives way, not the question */
   .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
+  .card:has(.rule:not([hidden])) .a-scroll:not(.fits) { min-height: calc((100vh - 72px) * .25 - 30px); }
   .row-a:has(> .a-scroll.fits) { min-height: 0; }
   .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
   .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
