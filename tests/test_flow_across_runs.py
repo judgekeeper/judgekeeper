@@ -764,6 +764,39 @@ def test_the_inner_project_says_once_that_the_outer_one_holds_its_marks(tmp_path
     _jk(capsys, "--stop")
 
 
+# A model given after Find -----------------------------------------------------------------------
+
+def test_a_model_given_after_find_is_written_down(here, capsys):
+    """Find's own hint, `--judge-model NAME`, on a later run: the judge is the same, now with
+    its model in every file that names the judge (it said "changed" and wrote it nowhere)."""
+    from judgekeeper import judge_setup
+    from judgekeeper.judgments import read_run
+    from tests.start_projects import table_project
+
+    table_project(here, split(20, 20))
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    assert code == 0 and "add --judge-model NAME" in out, out
+    _jk(capsys, "--stop")
+    ws = Workspace(here)
+    _mark(ws, {i: "fail" for i in range(3)} | {i: "pass" for i in (20, 21)})
+    measured = _jk(capsys)[0]  # the result: result.json
+    assert ws.result_json.is_file()
+    code, out = _jk(capsys, "--judge-model", "gpt-4.1-mini")
+    assert code == measured, out
+    assert "changed since your marks" not in out
+    assert "Your LLM-as-a-judge's model is written down now: gpt-4.1-mini." in flat(out), out
+    result = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    head, records = read_run(ws.pool_judge)
+    for fp in (ws.data()["fingerprint"], head["fingerprint"], result["fingerprint"],
+               *(r["fingerprint"] for r in records.values())):
+        assert fp["model"] == "gpt-4.1-mini", fp
+    assert judge_setup.read(ws)["setup"]["models"] == ["gpt-4.1-mini"]
+    assert "gpt-4.1-mini" in ws.data()["judge"] and "gpt-4.1-mini" in result["judge"]["name"]
+    code, out = _jk(capsys)  # kept without the flag
+    assert code == measured and "changed since your marks" not in out, out
+    assert "written down now" not in out  # said once
+
+
 # Saved marks while the results file is missing --------------------------------------------------
 
 def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
