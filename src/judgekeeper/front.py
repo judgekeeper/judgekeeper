@@ -646,7 +646,7 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     newest = found.results[0].path
     if found.tool == "table":
         columns = find.table_columns(newest)
-        column = next((c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
+        column = next(iter(find.grade_columns(columns)), "verdict")
         line = open_quote(newest, loose=True)
         hint = (f" (line {line} of {newest.name} may have a quote that never closes)"
                 if line else "")
@@ -1303,10 +1303,9 @@ def _to_save(talk: FrontTalk, found: start.Found,
         if mapped is None:
             return None
         _write(found)
-        talk.say("Nothing was saved.")
-        raise talk.stop(EXIT_OK, f"nothing. judgekeeper reads {mapped.file} only once "
-                                 f"judgekeeper.toml says how; run `{program()}` again to save "
-                                 "it.")
+        talk.para(f"Nothing was saved: judgekeeper reads {mapped.file} only once "
+                  "judgekeeper.toml says how.")
+        raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
     return new
 
 
