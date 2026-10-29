@@ -1393,14 +1393,18 @@ def _better_needs(n: int, k: int) -> int:
 def _given(talk: Talk, state, m: Marks, path: Path):
     """The new results in `path`, read as step 1 reads results (check.read_given); None, said
     with what to give instead, when they can't be read or are from another tool."""
-    from judgekeeper.check import OtherName, read_given
+    from judgekeeper.check import NAMED_AGAIN, OtherName, read_given
 
     found, problem = read_given(state, path)
     if found is None:
         talk.para(problem)
         tool = m.data.get("tool")
+        store = mlflow_store(state.ws)
         if tool == "inspect":  # the log, scored again
             talk.next(_regrade_same(talk, state.ws))
+        elif isinstance(problem, OtherName) and store:  # a new run in the store, as check says
+            talk.next(NAMED_AGAIN.format(name=repr(scrub(m.data.get("metric") or "")),
+                                         command=talk.command(), store=store))
         elif isinstance(problem, OtherName):
             talk.next(f"grade {_file(state.ws, ANSWERS)} again with your new rule under the "
                       f"name {scrub(m.data.get('metric') or '')!r}, the one your marks test, "
