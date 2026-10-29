@@ -74,9 +74,29 @@ def test_a_grade_written_1_0_is_never_a_pass(tmp_path):
     assert start.find_judge(path).pool.unmapped == [0.0, 1.0]  # numbers needing a pass mark
     (judge,) = browser(path)["judges"]
     assert (judge["pass"], judge["fail"], judge["unmapped"]) == (0, 0, 6)
-    assert '("0.0", "1.0")' in " ".join(judge["lines"])
-    assert ("No answer has a clear Pass or Fail from your LLM-as-a-judge, so there is nothing to mark."
+    assert ("Your LLM-as-a-judge's decisions are scores (0.0, 1.0), and the results do not say "
+            "which score passes. judgekeeper in your project asks which score counts as a pass."
             in judge["lines"])
+
+
+SCORES = ("Your LLM-as-a-judge's decisions are scores (0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.85, "
+          "0.9, 0.95), and the results do not say which score passes. judgekeeper in your "
+          "project asks which score counts as a pass.")
+
+
+@needs_node
+@pytest.mark.parametrize("name", ["scores-only.csv", "verdict-scores.csv"])
+def test_grades_that_are_scores_say_the_tool_asks_for_a_pass_mark(name, tmp_path):
+    """Scores are no Pass or Fail: one line says so, never 'every answer a clear Pass or
+    Fail' next to 'nothing to mark'."""
+    path = tmp_path / name
+    shutil.copy2(FREECHECK / name, path)
+    (judge,) = browser(path)["judges"]
+    assert (judge["pass"], judge["fail"], judge["unmapped"]) == (0, 0, 10)
+    assert SCORES in judge["lines"]
+    said = "\n".join(judge["lines"])
+    for wrong in ("clear Pass or Fail", "nothing to mark", "could not be read"):
+        assert wrong not in said, wrong
 
 
 NOT_CHECKED = {

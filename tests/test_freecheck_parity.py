@@ -95,7 +95,7 @@ def test_every_kind_of_file_is_compared():
     for name in ("errors-counted-as-passes.json", "empty-answers.json", "one-grade.json",
                  "two-judges.json", "score-and-pass-mark.json", "table.csv", "table.tsv",
                  "table.jsonl", "ab.csv", "not-results.json", "broken.json", "not-utf8.csv",
-                 "rules-in-code.json", "empty.jsonl"):
+                 "rules-in-code.json", "empty.jsonl", "scores-only.csv", "verdict-scores.csv"):
         assert name in names, name
 
 
@@ -132,6 +132,19 @@ def test_a_table_with_other_common_names_reads_as_the_tool_reads_it(columns, tmp
     assert judge["readRows"] == [["question", f"the {columns[0]} column"],
                                  ["answer", f"the {columns[1]} column"],
                                  ["grade", f"the {columns[2]} column"]]
+
+
+@pytest.mark.parametrize("name", ["scores-only.csv", "verdict-scores.csv"])
+def test_grades_that_are_scores_say_what_the_tool_says(name, tmp_path):
+    """The tool stops and asks for a pass mark; the page says the same scores and that it asks."""
+    path = tmp_path / name
+    shutil.copy2(FREECHECK / name, path)
+    said = _tool_run(path)
+    (judge,) = browser(path)["judges"]
+    (line,) = [x for x in judge["lines"] if "are scores" in x]
+    first = line.split(". judgekeeper in your project")[0] + "."
+    assert first in said, said
+    assert "which score counts as a pass" in said and "which score counts as a pass" in line
 
 
 def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
