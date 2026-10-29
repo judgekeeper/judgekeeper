@@ -332,4 +332,4 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
         assert refs and set(refs) == {"11"}, (page.name, refs)
     # the browser check's script is new too: check.html loads it again
-    assert "assets/freecheck.js?v=12" in (site / "check.html").read_text(encoding="utf-8")
+    assert "assets/freecheck.js?v=13" in (site / "check.html").read_text(encoding="utf-8")

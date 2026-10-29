@@ -99,6 +99,46 @@ def test_multi_line_answers_with_commas_are_not_a_broken_quote(here, capsys):
     assert code == 0 and answers(out) == 40 and LINK in out, out
 
 
+def _long_answer() -> str:
+    """About 9,000 characters over 120 lines; each line has the table's 4 commas, so it splits
+    into 5 values as a row would."""
+    return "\n".join(f"Point {k}, the fee, the term, the rules, and what members ask about "
+                     f"line {k} of the guide in plain words" for k in range(120))
+
+
+def _long_rows(grade: str) -> list[tuple]:
+    rows = [(f"q-{i}", f"Question {i}?", f"Answer {i}, short.", f"0.{i % 9 + 1}" if grade ==
+             "score" else ("pass" if i % 3 else "fail"), f"Reason {i}.") for i in range(60)]
+    rows[55] = (*rows[55][:2], _long_answer(), *rows[55][3:])
+    return rows
+
+
+@pytest.mark.parametrize("pass_if", [(), ("--pass-if", "score>=0.5", "--yes")])
+@pytest.mark.parametrize("grade", ["score", "verdict"])
+def test_a_long_answer_over_many_lines_is_not_a_broken_quote(here, capsys, grade, pass_if):
+    """Lines of an answer that split into as many values as a row are not rows when the
+    grade column holds no grade on them: the score column counts as the verdict column does."""
+    assert len(_long_answer()) > 9000
+    write_csv(here / "results.csv", ["id", "input", "output", grade, "reason"], _long_rows(grade))
+    code, out = find(capsys, *(pass_if if grade == "score" else ("--yes",)))
+    assert "never closes" not in out, out
+    if grade == "score" and not pass_if:
+        assert code == 3 and "decisions are scores" in flat(out), out
+    else:
+        assert code == 0 and answers(out) == 60 and LINK in out, out
+
+
+def test_a_score_table_with_a_quote_that_never_closes_is_still_named(here, capsys):
+    rows = _long_rows("score")
+    rows[20] = ("q-20", "Question 20?", '"Answer 20 never closes', "0.4", "Reason 20.")
+    path = write_csv(here / "results.csv", ["id", "input", "output", "score", "reason"], rows,
+                     quoting=csv.QUOTE_NONE, escapechar="\\")
+    text = path.read_text(encoding="utf-8").replace('\\"Answer 20', '"Answer 20')
+    path.write_text(text, encoding="utf-8")
+    code, out = find(capsys, "--pass-if", "score>=0.5")
+    assert code == 2 and "line 22 of results.csv has a quote that never closes" in flat(out), out
+
+
 # A blank or NaN score -----------------------------------------------------------------------
 
 @pytest.mark.parametrize("blank", ["", "NaN"])

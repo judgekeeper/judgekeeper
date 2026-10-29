@@ -72,6 +72,19 @@ def test_a_quote_that_never_closes_names_its_line(tmp_path):
                                  "rows after it can't be read.")
 
 
+def test_a_long_answer_in_a_score_table_is_not_a_broken_quote(tmp_path):
+    """Lines of the answer split into as many values as a row, with no score on them."""
+    long = "\n".join(f"Point {k}, the fee, the term, the rules, and what members ask about "
+                     f"line {k}" for k in range(120))
+    rows = [f'q-{i},Question {i}?,"{long if i == 55 else f"Answer {i}."}",0.{i % 9 + 1},Reason {i}.'
+            for i in range(60)]
+    path = _csv(tmp_path / "results.csv", "id,input,output,score,reason", rows)
+    start.read_results_table(path)  # the tool reads it
+    result = browser(path)
+    assert result["ok"] is True, result
+    assert _page(result) == tool(path)
+
+
 def test_an_answer_over_several_lines_is_read(tmp_path):
     path = tmp_path / "judged.csv"
     path.write_text('input,output,verdict\nq 1,"one line,\nand a second",pass\nq 2,a 2,fail\n',
