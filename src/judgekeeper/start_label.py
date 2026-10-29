@@ -194,8 +194,8 @@ def check_writable(ws: Workspace) -> None:
 
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
-    the project's own folder and it has none. One holding exactly the text 0.2 wrote is
-    replaced; any other is left alone."""
+    the project's own folder and it has none. One holding exactly the text an unreleased 0.2
+    build wrote is replaced; any other is left alone."""
     refuse_links(ws)
     make_private(ws.dir)
     gitignore = ws.dir / ".gitignore"
@@ -204,7 +204,7 @@ def make_folder(ws: Workspace) -> None:
     if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
-        try:  # 0.2 wrote it with the system's line endings
+        try:  # an unreleased 0.2 build wrote it with the system's line endings
             text = gitignore.read_text(encoding="utf-8")
             old = hashlib.sha256(text.encode("utf-8")).hexdigest() == OLD_GITIGNORE_SHA256
         except (OSError, ValueError):
