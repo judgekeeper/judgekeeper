@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from judgekeeper import look, mark_page, report_page, start_label
 from tests.test_long_text import _html, _laptop, _one, _with_reason
 from tests.test_mark_page_script import _data, _run
@@ -627,3 +629,15 @@ def test_a_question_with_an_image_shows_its_text_and_says_the_image_is_not_shown
     items = start_label.StartSession(start_label.Workspace(tmp_path)).state()["items"]
     assert items and all(re.fullmatch(r"Planet \d+\?\n\n\(1 image, not shown\)", i["input"])
                          for i in items), items[0]["input"]
+
+
+@pytest.mark.parametrize("output", ["", "  \n ", None])
+def test_an_empty_answer_says_it_is_empty(output):
+    data = _data(2)
+    data["items"][0]["output"] = output
+    got = _run("""
+      var a = ids["a-text"];
+      console.log(JSON.stringify([a.textContent, a.children.map(function (c) {
+        return c.className; })]));""", data=data)
+    assert got == ["(empty answer)", ["empty"]]
+    assert ".answer .empty { color: var(--muted); }" in mark_page.STYLE

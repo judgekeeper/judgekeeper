@@ -228,6 +228,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
     overscroll-behavior: contain; }
   .question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;
     mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }
+  .answer .empty { color: var(--muted); }
   .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
   .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
   .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
@@ -517,6 +518,7 @@ __TOP__
     into.textContent = "";
     into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
                                  chars(text) > SHORT_A ? " a-mid" : "");
+    if (!text.trim()) { into.appendChild(el("span", "empty", "(empty answer)")); text = ""; }
     var parts = fences(text);
     parts.forEach(function (part, k) {  // the line breaks next to a box are the box's edges
       if (part.code != null) { into.appendChild(codeBox(part.code)); return; }
