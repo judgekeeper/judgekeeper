@@ -232,11 +232,19 @@ def locate_rule(root: Path, rule: str, tool: str,
     root = Path(root)
     texts = list(_texts(_search_order(root, first)))
     for needle in _needles(rule, tool):
+        written = _escaped(needle)
         for path, text in texts:
             for n, line in enumerate(text.splitlines(), 1):
-                if needle in line:
+                if any(w in line for w in written):
                     return path.relative_to(root).as_posix(), n, _shown(line)
     return None
+
+
+def _escaped(needle: str) -> list[str]:
+    """`needle`, and as a config writes it in quotes: YAML's '' and JSON's or code's \" and \'.
+    Else the config Find named misses a rule with a quote, and a notes file gets it."""
+    return list(dict.fromkeys([needle, needle.replace("'", "''"), needle.replace('"', '\\"'),
+                               needle.replace("'", "\\'")]))
 
 
 _NAMED = re.compile(r"""["']([\w./-]+\.\w+)["']""")  # a file name in quotes, as open("rule.txt")
