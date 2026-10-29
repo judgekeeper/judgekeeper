@@ -790,6 +790,13 @@ def test_a_model_given_after_find_is_written_down(here, capsys):
     for fp in (ws.data()["fingerprint"], head["fingerprint"], result["fingerprint"],
                *(r["fingerprint"] for r in records.values())):
         assert fp["model"] == "gpt-4.1-mini", fp
+    # marks.jsonl's header and the history's result line name the judge the same way
+    head_line = json.loads(ws.marks.read_text(encoding="utf-8").splitlines()[0])
+    results = [json.loads(x) for x in ws.history_jsonl.read_text(encoding="utf-8").splitlines()
+               if json.loads(x).get("kind") == "result"]
+    assert results
+    for judge in (head_line["judge"], *(x["judge"] for x in results)):
+        assert judge["model"] == judge["fingerprint"]["model"] == "gpt-4.1-mini", judge
     assert judge_setup.read(ws)["setup"]["models"] == ["gpt-4.1-mini"]
     assert "gpt-4.1-mini" in ws.data()["judge"] and "gpt-4.1-mini" in result["judge"]["name"]
     code, out = _jk(capsys)  # kept without the flag
