@@ -1816,14 +1816,32 @@ def _geval_rule(text: str) -> str | None:
 
 def rule_of(records) -> str | None:
     """The judge's whole rule: a record's `evaluator.rule` when it has one, else read from
-    the first saved prompt (rule_text)."""
+    the first saved prompt (rule_text), without a GEval's steps its model wrote."""
     for r in records:
         rule = r.evaluator.get("rule")
         if isinstance(rule, str) and rule.strip():
             return rule.strip()
-    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
-                  None)
-    return rule_text(prompt)
+    prompts = [p for p in (r.evaluator.get("prompt") for r in records) if p]
+    return rule_text(_written(prompts[0], prompts) if prompts else None)
+
+
+def _written(prompt, prompts):
+    """`prompt` without its GEval evaluation steps when DeepEval wrote them: a GEval given
+    only criteria= writes them with its model for each answer and on every run, so they
+    differ from answer to answer; steps the person gave are the same in every answer."""
+    if not (isinstance(prompt, str) and prompt.strip().startswith("Criteria:")):
+        return prompt
+    parts = prompt.strip().split(GEVAL_PARTS)
+    if parts[0][len("Criteria:"):].strip() in ("", "None"):  # the steps alone: the person's
+        return prompt
+
+    def steps(text):
+        return next((p for p in str(text).strip().split(GEVAL_PARTS)
+                     if p.startswith("Evaluation Steps:")), None)
+
+    if len({steps(p) for p in prompts}) <= 1:
+        return prompt
+    return GEVAL_PARTS.join(p for p in parts if not p.startswith("Evaluation Steps:"))
 
 
 def rubric_line(prompt) -> str | None:

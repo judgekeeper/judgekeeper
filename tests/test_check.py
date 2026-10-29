@@ -333,6 +333,45 @@ def test_a_pass_mark_change(here, capsys):
     assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in out
 
 
+def _geval(criteria: str, steps) -> dict:
+    """A DeepEval run whose GEval prompt for answer i has `criteria` and `steps(i)`."""
+    data = deepeval_data(split(25, 25), tag=TAG)
+    for i, case in enumerate(data["testCases"]):
+        case["metricsData"][0]["verboseLogs"] = (
+            f"Criteria:\n{criteria} \n \nEvaluation Steps:\n{json.dumps(steps(i), indent=4)}"
+            " \n \nRubric:\nNone \n \nScore: 0.9")
+    return data
+
+
+RIGHT = "Is the answer right?"
+
+
+@pytest.mark.parametrize("before, after, changed", [
+    # GEval given only criteria= writes its steps with its model for each answer, every run
+    ((RIGHT, lambda i: [f"Check fact {i}."]), (RIGHT, lambda i: [f"Look at fact {i}."]), False),
+    ((RIGHT, lambda i: [f"Check fact {i}."]), ("Is it right and short?",
+                                               lambda i: [f"Look at fact {i}."]), True),
+    # steps the person gave are the same for every answer, and are the person's rule too
+    ((RIGHT, lambda i: ["Check each fact."]), (RIGHT, lambda i: ["Check each fact."]), False),
+    ((RIGHT, lambda i: ["Check each fact."]), (RIGHT, lambda i: ["Check each fact.",
+                                                                 "Then the length."]), True),
+], ids=["steps-written-again", "criteria-changed", "steps-given", "given-steps-changed"])
+def test_a_geval_rule_is_what_the_person_wrote(here, capsys, before, after, changed):
+    _write(here / ".deepeval" / ".latest_run_full.json", _geval(*before))
+    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    _write(here / ".deepeval" / ".latest_run_full.json", _geval(*after))
+    code, out = run(capsys)
+    assert code == 0, out
+    assert ("Your LLM-as-a-judge changed: rule changed." in out) is changed, out
+    assert ("Your LLM-as-a-judge changed" in out) is changed, out
+
+
 def test_a_promptfoo_version_bump_only(here, capsys):
     _marked(here)
     _results(here, MARKED, version="0.125.0")
