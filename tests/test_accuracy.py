@@ -431,8 +431,8 @@ def test_the_readme_names_kappas_range():
     from pathlib import Path
 
     readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
-    means = readme[readme.index("## What the numbers mean"):readme.index("## Checked on")]
-    assert "**Kappa:**" in means and "Each number comes with a range" in means
+    means = readme[readme.index("## The numbers"):readme.index("## Checked on")]
+    assert "**Kappa:**" in means and "Each comes with a range" in means
 
 
 def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):

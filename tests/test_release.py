@@ -608,11 +608,11 @@ def test_older_changelog_entries_stay_as_they_were_written():
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "\nuvx judgekeeper\n" in readme
+    assert "`uvx judgekeeper`" in readme
     assert "\npip install judgekeeper\n" in readme
     for gone in ("judgekeeper start", "judgekeeper demo", "before the first PyPI release"):
         assert gone not in readme, gone
-    for needed in ("TPR", "TNR", "kappa"):
+    for needed in ("TPR", "TNR", "Kappa"):
         assert needed in readme, needed
 
 

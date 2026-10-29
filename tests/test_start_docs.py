@@ -26,16 +26,18 @@ def _sections(path) -> dict[str, str]:
 def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     sections = _sections(README)
     install = sections["Install"]
-    # one command per box, so nobody pastes the two pip lines as one
-    pip = install.index("```\npip install judgekeeper\n```")
-    run = install.index("```\njudgekeeper\n```")
-    assert pip < run < install.index("```\nuvx judgekeeper\n```")
+    # pip first, in its virtual environment; uvx after it, said as the way with no virtual
+    # environment
+    assert "in its virtual environment" in install
+    pip = install.index("```\npip install judgekeeper\njudgekeeper\n```")
+    assert pip < install.index("`uvx judgekeeper`")
     for tool in ("promptfoo", "DeepEval", "Inspect AI", "MLflow"):
         assert tool in install, tool
-    steps = sections["The 5 steps"]
-    assert "marked-answers.csv" in steps and "judgekeeper fix <new results file>" in steps
-    assert "from about 80" in steps and "more than 120" in steps
-    assert "docs/examples/kept-aside/report.md" in steps
+    # the README leaves the regrade and the marks `fix` needs to the reference
+    fix = " ".join(REFERENCE.read_text(encoding="utf-8").split())
+    assert "marked-answers.csv" in fix and "judgekeeper fix <new results file>" in fix
+    assert "from about 80" in fix and "more than 120" in fix
+    assert "examples/kept-aside/report.md" in fix
 
 
 # The version -----------------------------------------------------------------------------
