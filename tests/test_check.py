@@ -192,13 +192,38 @@ SCENE_6 = [
     "  When you said Pass    25 of 25             25 of 25             No big drop",
     "  When you said Fail    25 of 25             16 of 25             Worse",
     "",
-    "On answers you pass, agreement drops by no more than 10 in every 100.",
+    "On answers you pass, no drop, though these marks can't rule out",
+    "one of up to 10 in every 100.",
     "On answers you fail, agreement drops by about 36 in every 100",
     "(somewhere between 22 and 52).",
     "",
     check.ONE_RUN,
     "",
 ]
+
+
+def _expect(old_wrong: int, new_wrong: int, n: int = 40) -> list[str]:
+    """What to expect when the old LLM-as-a-judge got `old_wrong` of each group's `n` marks
+    wrong and the new one `new_wrong`."""
+    marked = {f"p{i}": "pass" for i in range(n)} | {f"f{i}": "fail" for i in range(n)}
+    flip = {"pass": "fail", "fail": "pass"}
+
+    def judge(wrong: int) -> dict[str, str]:
+        return {i: flip[m] if int(i[1:]) < wrong else m for i, m in marked.items()}
+    return check.expect_lines(check.groups(marked, judge(old_wrong), judge(new_wrong)))
+
+
+def test_a_clear_rise_in_both_groups_is_said():
+    lines = _expect(20, 0)
+    assert lines[-1] == "Agreement rose in both groups."
+    assert not any("drop" in line and "none of the range" not in line for line in lines), lines
+
+
+def test_a_group_with_no_drop_says_no_drop():
+    lines = _expect(0, 0)
+    assert all(line.split(", ", 1)[1].startswith("no drop, though") for line in lines), lines
+    assert "Agreement rose in both groups." not in lines
+    assert _expect(0, 3)[0].startswith("On answers you pass, agreement drops")  # a real drop
 
 
 def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
@@ -210,10 +235,33 @@ def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
     assert code == 0 and "Worse" in out, out
     said = " ".join((Path(__file__).parents[1] / "docs" / "reference.md").read_text(
         encoding="utf-8").split())
-    rule = "Worse or Not sure, when the drop's middle estimate is over 20 points"
+    rule = ("the drop's middle estimate is over 20 points, whichever word it says (Worse or "
+            "Not sure)")
     assert f"| 1 | {rule}:" in said
-    assert ('It exits 1 on "Worse" or "Not sure" when the drop\'s middle estimate is over 20 '
-            "points.") in said
+    assert ("It exits 1 only when the drop's middle estimate is over 20 points, whichever word "
+            "it says.") in said
+
+
+def test_a_marked_empty_answer_is_found_by_its_question(here, capsys):
+    outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
+    _marked(here, outputs=outputs)
+    _results(here, MARKED, model=HAIKU, outputs=outputs)
+    code, out = run(capsys)
+    assert code == 0 and "Re-checked on" not in out, out  # on all 50
+    assert "had no grade" not in out, out
+
+
+def test_a_rule_taken_on_with_a_marked_empty_answer_has_not_changed_after(here, capsys):
+    """Its empty answer got no grade from the rule taken on, so every check after said "rule
+    changed" against the old rule again."""
+    outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
+    _marked(here, outputs=outputs)
+    _results(here, MARKED, rubric="Is polite, correct and short.", outputs=outputs)
+    code, out = run(capsys)
+    assert code == 0 and "rule changed" in out, out  # taken on
+    for _ in range(2):
+        code, out = run(capsys)
+        assert code == 0 and "has not changed since your last check" in out, out
 
 
 def test_a_model_change_rechecked_free(here, capsys):
@@ -239,7 +287,9 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     assert code == 0
     assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
-    assert "On answers you fail, agreement drops by no more than 10 in every 100." in out
+    assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
+            "in every 100.") in " ".join(out.split())
+    assert "drops by no more than" not in out  # no answer went from right to wrong
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
                           "change your LLM-as-a-judge.")
@@ -281,6 +331,45 @@ def test_a_pass_mark_change(here, capsys):
     code, out = run(capsys)
     assert code == 0
     assert "Your LLM-as-a-judge changed: pass mark 0.5 -> 0.7." in out
+
+
+def _geval(criteria: str, steps) -> dict:
+    """A DeepEval run whose GEval prompt for answer i has `criteria` and `steps(i)`."""
+    data = deepeval_data(split(25, 25), tag=TAG)
+    for i, case in enumerate(data["testCases"]):
+        case["metricsData"][0]["verboseLogs"] = (
+            f"Criteria:\n{criteria} \n \nEvaluation Steps:\n{json.dumps(steps(i), indent=4)}"
+            " \n \nRubric:\nNone \n \nScore: 0.9")
+    return data
+
+
+RIGHT = "Is the answer right?"
+
+
+@pytest.mark.parametrize("before, after, changed", [
+    # GEval given only criteria= writes its steps with its model for each answer, every run
+    ((RIGHT, lambda i: [f"Check fact {i}."]), (RIGHT, lambda i: [f"Look at fact {i}."]), False),
+    ((RIGHT, lambda i: [f"Check fact {i}."]), ("Is it right and short?",
+                                               lambda i: [f"Look at fact {i}."]), True),
+    # steps the person gave are the same for every answer, and are the person's rule too
+    ((RIGHT, lambda i: ["Check each fact."]), (RIGHT, lambda i: ["Check each fact."]), False),
+    ((RIGHT, lambda i: ["Check each fact."]), (RIGHT, lambda i: ["Check each fact.",
+                                                                 "Then the length."]), True),
+], ids=["steps-written-again", "criteria-changed", "steps-given", "given-steps-changed"])
+def test_a_geval_rule_is_what_the_person_wrote(here, capsys, before, after, changed):
+    _write(here / ".deepeval" / ".latest_run_full.json", _geval(*before))
+    (here / "requirements.txt").write_text("deepeval==4.2.8\n", encoding="utf-8")
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found))
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"]})
+    _write(here / ".deepeval" / ".latest_run_full.json", _geval(*after))
+    code, out = run(capsys)
+    assert code == 0, out
+    assert ("Your LLM-as-a-judge changed: rule changed." in out) is changed, out
+    assert ("Your LLM-as-a-judge changed" in out) is changed, out
 
 
 def test_a_promptfoo_version_bump_only(here, capsys):

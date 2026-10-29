@@ -48,6 +48,7 @@ def _served() -> dict[str, str]:
 
 
 _new = _served
+TERM = '<span class="term">LLM-as-a-judge</span>'
 
 
 def _flat(html: str) -> str:
@@ -178,10 +179,13 @@ def test_text_contrast():
 def test_focus_rings_and_no_focus_on_load():
     for name, page in _new().items():
         style = page.split("<style>")[1].split("</style>")[0]
-        # one ring everywhere; the open question and rule: a thin one, clear of their text
-        assert set(re.findall(r"outline-offset: ([^;]+);", style)) <= {"-2px", "4px"}, name
+        # one ring everywhere; the open question and rule: a thin one, clear of their text;
+        # the result page: the website's ring, in the text colour
+        assert set(re.findall(r"outline-offset: ([^;]+);", style)) <= {"-2px", "3px", "4px"}, name
         assert re.findall(r"outline-offset: 4px", style) in ([], ["outline-offset: 4px"]), name
         assert ":focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }" in style
+        assert (":focus-visible { outline: 2px solid var(--text); outline-offset: 3px; "
+                "border-radius: 4px; }" in style) == (name in ("result", "report.html")), name
         assert "autofocus" not in page, name
     for name, page in (("marking", _marking()), ("old link", mark_page.old_link_page())):
         style = page.split("<style>")[1].split("</style>")[0]  # hairlines only: no shadows,
@@ -237,32 +241,34 @@ def test_the_marking_page_shows_nothing_the_judge_decided():
 def test_the_marking_page_words():
     text = _text(_marking())
     for line in ("LLM-as-a-judge: openai:gpt-4.1-mini", "Eval tool: promptfoo", "0 marked",
-                 "See your result", "Pass Fail Not marked", "Question", "Answer",
-                 "Not marked yet", "Fail ←", "Pass →", "Skip this one S", "Undo Z",
-                 "Come back any time: judgekeeper mark", mark_page.TITLE, "Start marking"):
+                 "See your result", "Question", "Answer", "Fail ←", "Pass →",
+                 "Skip this one S", "Undo Z", "To come back: judgekeeper mark", mark_page.TITLE,
+                 "Start marking"):
         assert line in text, line
     assert "support bot" not in text  # one source, the same on every answer: no tag
     for gone in ("Judge's grade hidden", "Toward your first result", "Shortcuts",
                  "Saved locally", "Judge's rule", "Answers", "To come back later",
-                 "Mark a few more answers", "The question", "customer", "of 40", "..."):
+                 "Mark a few more answers", "The question", "customer", "of 40", "...",
+                 "Not marked", "Come back any time"):
         assert gone not in text, gone
     page = _marking()
     assert ('<div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div>'
             '<h1 class="question" id="q-text" dir="auto"></h1><button type="button" '
             'class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" '
             'hidden>Show all</button></div>'
-            '<div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>'
+            '<div class="state" id="ans-status" aria-live="polite"></div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert ('<div class="row row-a"><div class="label">Answer</div><div class="a-scroll" '
-            'id="a-scroll"><p class="answer" id="a-text" dir="auto">') in page
+    assert ('<div class="row row-a"><div class="label">Answer</div><p class="run" id="a-run" '
+            'hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" '
+            'dir="auto">') in page  # the run line: only for a repeat graded differently
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
             'id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>') in page
-    assert '<p class="foot">Come back any time: <code>judgekeeper mark</code></p>' in page
+    assert '<p class="foot">To come back: <code>judgekeeper mark</code></p>' in page
     # Skip and Undo side by side: each has its own padding, no gap between them
     assert (".sub { display: flex; align-items: center; justify-content: center; "
-            "padding: 0 24px 6px; }") in mark_page.STYLE
+            "padding: 0 40px 6px; }") in mark_page.STYLE
 
 
 def test_marking_page_layout():
@@ -288,8 +294,7 @@ def test_marking_page_layout():
     assert ".item[aria-current] { background: var(--current); color: var(--text); " \
         "border-left-color: var(--text); }" in style
     assert ".item:hover { background: var(--hover);" in style
-    assert ".legend { display: flex; gap: 18px; padding: 16px 22px; border-top: 1px solid " \
-        "var(--line); font-size: 13px; color: var(--muted); }" in style
+    assert ".legend" not in style  # the list's tick and cross are the buttons' own
     assert ".actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; " \
         "padding: 20px 40px 16px; border-top: 1px solid var(--line); }" in style
     assert ".foot { margin: 0; padding: 12px 40px; border-top: 1px solid var(--line); " \
@@ -451,7 +456,7 @@ def test_each_result_level_shows_its_state(counts, state, headline):
 def test_good_and_needs_work_lead_with_the_disagreements():
     for counts, d, n in ((GATE, 2, 40), (NOT_GATE_TNR, 20, 80)):
         html = start_label.result_html(_result(*counts))
-        assert (f'<p class="lead">You and your LLM-as-a-judge disagreed on <b>{d}</b> of <b>{n}</b> '
+        assert (f'<p class="lead">You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> '
                 "answers.</p>") in html
 
 
@@ -460,6 +465,7 @@ def test_good_and_needs_work_lead_with_the_disagreements():
     (TOO_EARLY, "You and your LLM-as-a-judge disagreed on <b>2</b> of <b>50</b> answers. "),
     (TOO_FEW, "")])  # no result yet: no count
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
+    said = said.replace("LLM-as-a-judge", TERM)
     served = start_label.result_html(_result(*counts), back="/?token=t")
     assert (f'<p class="lead">{said}<a href="/?token=t">Mark more answers to get a result.</a>'
             "</p>") in served
@@ -478,7 +484,7 @@ def test_every_result_level_says_how_many_answers_you_disagreed_on(counts, level
     assert r["verdict_level"] == level
     c = report_page.counts(r)
     html = start_label.result_html(r)
-    assert (f"You and your LLM-as-a-judge disagreed on <b>{c['strict'] + c['easy']}</b> of "
+    assert (f"You and your {TERM} disagreed on <b>{c['strict'] + c['easy']}</b> of "
             f"<b>{c['passed'] + c['failed']}</b> answers.") in html
 
 
@@ -489,7 +495,7 @@ def test_the_numbers_in_the_counts_and_the_lead_are_mono_at_500():
     data = (PACKAGE_FONTS / "jetbrains-mono-latin-500-normal.woff2").read_bytes()
     assert data[:4] == b"wOF2"
     html = start_label.result_html(_result(*NOT_GATE_TNR))
-    assert html.count('<span class="mono">') == 6  # three numbers in each count sentence
+    assert html.count('<span class="mono') == 6  # three numbers in each count sentence
 
 
 def test_the_counts_row_in_every_state():
@@ -497,24 +503,24 @@ def test_the_counts_row_in_every_state():
         r = _result(*counts)
         c = report_page.counts(r)
         text = _text(start_label.result_html(r))
-        assert (f"You passed {c['passed']} answers. Of those, your LLM-as-a-judge passed "
+        assert (f"You passed {c['passed']} answers. It passed "
                 f"{c['passed'] - c['strict']} and failed {c['strict']}.") in text, counts
-        assert (f"You failed {c['failed']} answers. Of those, your LLM-as-a-judge passed {c['easy']} "
+        assert (f"You failed {c['failed']} answers. It passed {c['easy']} "
                 f"and failed {c['failed'] - c['easy']}.") in text, counts
     r = _result(*TOO_FEW)  # before a result: the person's own counts only
     c = report_page.counts(r)
     text = _text(start_label.result_html(r))
     assert f"You passed {c['passed']} answers. You failed {c['failed']} answers." in text
-    assert "Of those" not in text
+    assert "It passed" not in text
     html = start_label.result_html(_result(*NOT_GATE_TNR))
-    assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. Of those, '
-            'your LLM-as-a-judge passed <span class="mono">22</span> and failed <span class="mono">2'
+    assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. It passed '
+            '<span class="mono">22</span> and failed <span class="mono off">2'
             "</span>.</p><p>") in html
 
 
 def test_one_answer_is_said_in_the_singular():
     assert report_page.count_line("passed", 1, 1, 0) == (
-        'You passed <span class="mono">1</span> answer. Of those, your LLM-as-a-judge passed '
+        'You passed <span class="mono">1</span> answer. It passed '
         '<span class="mono">1</span> and failed <span class="mono">0</span>.')
 
 
@@ -522,7 +528,7 @@ def test_ungraded_answers_are_said_under_the_counts():
     check = {"answers": 57, "error": 2, "unreadable": 1, "nothing_checked": 4,
              "tool": "promptfoo", "tool_counted_as": "fail"}
     html = start_label.result_html(_result(*CHECK, judge_check=check))
-    assert ('<p class="left-out band">Your LLM-as-a-judge gave no Pass or Fail on 3 answers. They are '
+    assert (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on 3 answers. They are '
             "left out.</p>") in html
     one = start_label.result_html(_result(*CHECK, judge_check={"answers": 9, "empty": 1}))
     assert "Your LLM-as-a-judge gave no Pass or Fail on 1 answer. It is left out." in _text(one)
@@ -536,19 +542,19 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert '<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass (5)</h2>' in first
-    assert f'* {c["easy"] + c["strict"] - 7} more are kept aside' in html
+    assert f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2>' in first
+    assert f'{c["easy"] - 5} more are kept aside' in first
     assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
             'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
-            '<th scope="col">Why your LLM-as-a-judge passed it</th></tr></thead>') in first
+            '<th scope="col">Its reason</th></tr></thead>') in first
     rows = re.findall(r"<tr( class=\"extra\" hidden)?><td data-label", first)
     assert [bool(x) for x in rows] == [False] * 3 + [True] * 2
     assert ('<td data-label="Question">easy 0</td><td data-label="Answer" id="a-easy-0">a</td>'
-            '<td data-label="Why your LLM-as-a-judge passed it">r</td>') in first
+            '<td data-label="Its reason">r</td>') in first
     second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert '<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail (2' in second
-    assert '<th scope="col">Why your LLM-as-a-judge failed it</th>' in second and "why strict 1" in second
+    assert f'<h2 id="g-strict">You said Pass, your {TERM} said Fail</h2>' in second
+    assert '<th scope="col">Its reason</th>' in second and "why strict 1" in second
     assert 'class="more"' not in second  # 3 rows or fewer: no link
     assert html.index('id="g-easy"') < html.index('id="g-strict"')
     only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, c["strict"])})
@@ -560,36 +566,36 @@ def test_the_judges_text_in_the_tables_is_escaped():
     html = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": [
         {**MISTAKE, "question": "<b>q</b>", "answer": "a & b", "reason": None}]})
     assert "&lt;b&gt;q&lt;/b&gt;" in html and "a &amp; b" in html and "<b>q</b>" not in html
-    assert '<td data-label="Why your LLM-as-a-judge passed it">No reason given</td>' in html
+    assert '<td data-label="Its reason">No reason given</td>' in html
 
 
-def test_each_group_says_in_its_header_how_many_are_kept_aside():
+def test_each_group_says_under_its_heading_how_many_are_kept_aside():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 4,
                                                                     c["strict"] - 1)})
-    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"] - 4})'
-            '</h2>') in html
-    assert (f'<h2 id="g-strict">You said Pass, your LLM-as-a-judge said Fail ({c["strict"] - 1})'
-            '</h2>') in html
-    assert '<p class="note kept">* 5 more are kept aside to test a new rule fairly.</p>' in html
+    easy = _part(html, '<section class="group band" aria-labelledby="g-easy">')
+    assert (f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2></div>'
+            '<p class="kept">4 more are kept aside to test a fix fairly.</p>') in easy
+    strict = _part(html, '<section class="group band" aria-labelledby="g-strict">')
+    assert '<p class="kept">1 more is kept aside to test a fix fairly.</p>' in strict
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "more are kept aside" not in none and "more is kept aside" not in none
-    assert f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"]})</h2>' in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
     assert 'id="g-strict"' not in hidden_only
-    assert f'* {c["strict"]} more are kept aside to test a new rule fairly.' in hidden_only
+    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more are kept aside to '
+            'test a fix fairly.</p></div>') in hidden_only
     early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
     assert "kept aside" not in early and 'class="group' not in early
 
 
 @pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR])
-def test_more_details_is_open_with_the_estimates_and_kappa(counts):
+def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
     r = _result(*counts)
     html = start_label.result_html(r)
-    part = _part(html, '<section class="details band" aria-labelledby="details-h">')
-    assert '<h2 id="details-h">More details</h2>' in part
-    assert "<caption>How often your LLM-as-a-judge agrees with you (estimates)" in part
+    part = _part(html, '<details class="details band">', "</details>")
+    assert '<summary><h2 id="details-h">More details</h2></summary>' in part
+    assert f"<caption>How often your {TERM} agrees with you" in part
     assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             "</tr></thead>") in part
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
@@ -604,13 +610,19 @@ def test_more_details_is_open_with_the_estimates_and_kappa(counts):
     assert ('<button type="button" class="i" aria-describedby="kappa-tip" '
             'aria-expanded="false" aria-controls="kappa-tip" '
             'aria-label="What kappa means">ⓘ</button>') in part
-    assert "<details" not in html and 'hidden' not in part  # not folded
+    assert "<details open" not in html and 'hidden' not in part  # folded, all there
+
+
+def test_a_judge_that_gave_every_answer_one_grade_shows_kappa_as_n_a():
+    part = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)),
+                 '<details class="details band">', "</details>")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a –" in _text(part)
 
 
 def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
     r = _result(100, 100, 40, 22, 40, 2)
     r["tnr_interval"] = [0.1, 0.9]  # wider than the result can use
-    part = _part(start_label.result_html(r), 'aria-labelledby="details-h">')
+    part = _part(start_label.result_html(r), '<details class="details band">', "</details>")
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
             "10% and 90%") in _text(part)
 
@@ -619,7 +631,7 @@ def test_too_early_to_tell_shows_the_counts_and_the_estimates():
     r = _result(*TOO_EARLY)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(3, 3)})
     assert 'class="counts"' in html
-    part = _part(html, '<section class="details band" aria-labelledby="details-h">')
+    part = _part(html, '<details class="details band">', "</details>")
     (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
     text = _text(part)
     assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
@@ -654,26 +666,17 @@ def test_fix_it_is_only_for_a_judge_that_needs_work():
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
     fix = program("fix")
     assert '<h2 id="fix-h">Fix it</h2>' in part
-    assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. "
-            "Change your rule in your eval tool, grade those answers again, then run "
-            f"<code>{fix} &lt;new results file&gt;</code> to test it on the marks kept aside."
-            "</p>") in part
-    assert (f'<div class="cmd"><code id="fix-cmd">{fix}</code><button type="button" '
-            'class="copy" id="copy" data-copy="fix-cmd">Copy</button></div>') in part
+    assert "<p>Run it in your project folder to see what to change.</p>" in part
+    assert (f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
+            'aria-label="Copy the command">') in part
 
 
-def test_fix_it_says_the_same_steps_for_a_table_of_grades():
-    """A table of grades has no rule judgekeeper can read: Fix it still says to grade the
-    marked answers again and give fix the new results, as for every eval tool."""
+def test_fix_it_says_the_same_line_for_a_table_of_grades():
+    """A table of grades has no rule judgekeeper can read: Fix it is the same one line, as for
+    every eval tool (`fix` says what to do next)."""
     html = start_label.result_html(_result(*NOT_GATE_TNR, judge={"tool": "table", "rule": None}))
     part = _part(html, '<section class="fix band" aria-labelledby="fix-h">')
-    fix = program("fix")
-    assert (f"<p>In your project folder, run <code>{fix}</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. "
-            "Change your rule in your eval tool, grade those answers again, then run "
-            f"<code>{fix} <new results file></code> to test it on the marks kept aside."
-            "</p>") in unescape(part), part
+    assert "<p>Run it in your project folder to see what to change.</p>" in part
     assert "re-run" not in part
     for counts in (GATE, CHECK, TOO_EARLY, TOO_FEW):
         assert 'class="fix' not in start_label.result_html(_result(*counts)), counts
@@ -681,7 +684,7 @@ def test_fix_it_says_the_same_steps_for_a_table_of_grades():
 
 def test_fix_it_keeps_the_path_the_result_was_made_for():
     html = start_label.result_html(_result(*NOT_GATE_TNR, flags={"path": "evals/app"}))
-    assert f'<code id="fix-cmd">{program("fix")} evals/app</code>' in html
+    assert f'<div class="cmd"><code>{program("fix")} evals/app</code>' in html
 
 
 GONE = ("History", "Your marks:", "Where it goes wrong", "Its rule may be", "results.json",
@@ -732,15 +735,15 @@ def test_the_result_page_style():
                   "max-width: 80ch; }"),
                  ".group { padding-top: 64px; }",
                  (".gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; "
-                  "color: var(--amber); }"),
-                 (".more, .open-row { font-size: 14px; color: var(--muted); text-decoration: "
+                  "}"),
+                 (".open-row { font-size: 14px; color: var(--muted); text-decoration: "
                   "underline;\n  text-decoration-color: var(--faint); text-underline-offset: 3px;"),
                  (".tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } "
                   ".tbl col.c3 { width: 28%; }"),
                  ".tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0;",
                  (".note { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
                   "text-align: left;\n  max-width: 80ch; }"),
-                 ".details { padding-top: 64px; }",
+                 ".details { margin-top: 64px; border-top: 1px solid var(--line); }",
                  (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
                   ".panel col.d3 { width: 26%; }"),
                  ".panel td { font-size: 17px; padding: 20px 32px 20px 0;",
@@ -748,23 +751,25 @@ def test_the_result_page_style():
                  (".kappa .i[aria-expanded=\"true\"] + .tip, "
                   ".kappa .i:focus-visible:not([data-shut]) + .tip {\n  display: block; }"),
                  "@media (hover: hover) { .kappa:hover .tip { display: block; } }",
-                 # Safari sized the command box from its 360px floor and let it stick out
-                 "  min-width: 0; }",
-                 (".fix { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 48px; "
+                 (".fix { border-top: 1px solid var(--line); padding-top: 48px; "
                   "padding-bottom: 72px; }"),
                  (".fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); "
                   "max-width: 64ch; }"),
-                 (".cmd button { font-size: 13px; padding: 0 18px; border-left: 1px solid "
-                  "var(--line); color: var(--muted); min-width: 92px; }"),
+                 # the website's command box: 8px corners, its own dark ground
+                 ("  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; "
+                  "max-width: 100%;\n  min-width: min(380px, 100%); background: #07080a; }"),
                  "@media (max-width: 720px) {"):
         assert rule in style, rule
-    assert "box-shadow" not in style and "border-radius" not in style
+    assert "box-shadow" not in style.replace(".part[aria-pressed=\"true\"] .bx { background: "
+                                             "var(--text); border-color: var(--text);\n  "
+                                             "box-shadow: inset 0 0 0 2px var(--bg); }", "")
+    assert set(re.findall(r"border-radius: ([^;]+);", style)) <= {"0", "3px", "4px", "8px"}
     narrow = style.split("@media (max-width: 720px) {")[1]
     assert ":root { --gutter: 16px; }" in narrow
     assert ".tbl, .tbl tbody, .tbl tr, .tbl td { display: block; }" in narrow
     assert ".tbl td::before { content: attr(data-label);" in narrow
     # on a phone: "judgekeeper fix" on one line, and no text under 13px
-    for rule in (".cmd code { padding: 16px; }", ".cmd button { font-size: 15px; }",
+    for rule in (".cmd code { padding: 12px 14px; }", ".cmd { display: grid; width: 100%; min-width: 0; }",
                  ".tbl td::before { font-size: 13px; }",
                  ".panel td[data-label]::before, .panel caption, .note { font-size: 14px; }",
                  ".kappa .tip { font-size: 15px; }"):
@@ -772,13 +777,14 @@ def test_the_result_page_style():
     # on a phone or a touch screen, "Show all" and kappa's ⓘ are big enough to tap (48 and
     # 44px), with the layout as it was
     touch = style.split("@media (max-width: 720px), (pointer: coarse) {")[1].split("\n}\n")[0]
-    assert ".more { font-size: 16px; padding: 12px 0; margin: -12px 0; }" in touch
+    assert ".more { font-size: 16px; }" in touch
     assert (".kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }"
             in touch)
     # from 300px down (a phone with bigger text), Copy goes under the command
     tiny = style.split("@media (max-width: 300px) {")[1].split("\n}\n")[0]
     assert ".cmd { grid-template-columns: 1fr; }" in tiny
-    assert "min-width: min(" not in style
+    # Safari sized the command box from its 380px floor and let it stick out: not on a phone
+    assert "min-width: min(380px, 100%)" in style
 
 
 def test_the_page_runs_only_its_own_script():
@@ -812,19 +818,30 @@ El.prototype.addEventListener = function (t, f) { this.listeners[t] = f; };
 El.prototype.querySelectorAll = function () { return this.rows; };
 El.prototype.closest = function () { return null; };
 El.prototype.getBoundingClientRect = function () { return {top: 0}; };
-var ids = {copy: new El("copy"), "fix-cmd": new El("fix-cmd"),
-           "t-easy": new El("t-easy")};
-ids["fix-cmd"].textContent = "judgekeeper fix";
-ids.copy.attrs["data-copy"] = "fix-cmd";
+var copy = new El("copy"), code = new El("code"), said = new El("copied"), sel = [];
+code.textContent = "judgekeeper fix";
+copy.parentNode = {querySelector: function () { return code; }};
+copy.querySelector = function () { return said; };
+copy.classList = {add: function (c) { copy.className = c; },
+  remove: function () { copy.className = ""; }};
+var ids = {"t-easy": new El("t-easy")};
 var more = new El("more"); more.attrs["aria-controls"] = "t-easy"; more.attrs["data-n"] = "2";
 more.textContent = "Show 2 more";
 ids["t-easy"].rows = [new El(), new El()]; ids["t-easy"].rows.forEach(function (r) { r.hidden = true; });
 var document = {documentElement: new El("html"),
   getElementById: function (id) { return ids[id] || null; },
-  querySelectorAll: function (s) { return s === ".more" ? [more] : []; }};
+  querySelectorAll: function (s) { return s === ".more" ? [more] : s === "[data-copy]" ? [copy] : []; },
+  createRange: function () { return {selectNodeContents: function () {}}; },
+  execCommand: function (c) { sel.push("copy " + c);
+    if (execThrows) { throw new Error("no"); } return execWorks; }};
+var execWorks = true, execThrows = false;
 var window = {localStorage: {getItem: function () { return null; }, setItem: function () {}},
-  addEventListener: function () {}};
-var navigator = {clipboard: {writeText: function (t) { copied.push(t); return Promise.resolve(); }}};
+  addEventListener: function () {},
+  getSelection: function () { return {removeAllRanges: function () { sel.push("clear"); },
+    addRange: function () { sel.push("select"); }}; }};
+var works = true;
+var navigator = {clipboard: {writeText: function (t) { copied.push(t);
+  return works ? Promise.resolve() : Promise.reject(new Error("no")); }}};
 function setTimeout(f, ms) { timers.push([f, ms]); return timers.length; }
 function clearTimeout() {}
 """
@@ -835,12 +852,23 @@ function clearTimeout() {}
                 ids["t-easy"].rows.map(function (r) { return r.hidden; })];
   more.listeners.click();
   var closed = [more.textContent, ids["t-easy"].rows.map(function (r) { return r.hidden; })];
-  ids.copy.listeners.click(); await Promise.resolve(); await Promise.resolve();
-  var done = [copied, ids.copy.innerHTML.indexOf("<svg") === 0,
-              ids.copy.innerHTML.slice(-6), ids.copy.className, timers[0][1]];
+  copy.listeners.click(); await Promise.resolve(); await Promise.resolve();
+  var done = [copied.slice(), said.textContent, copy.className, timers[0][1]];
   timers[0][0]();
-  console.log(JSON.stringify({opened: opened, closed: closed, done: done,
-    back: [ids.copy.textContent, ids.copy.className]}));
+  var back = [said.textContent, copy.className];
+  works = false; copy.listeners.click();  // no clipboard: select, copy, then clear
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  var fallback = [sel.slice(), said.textContent];
+  execWorks = false; sel.length = 0; copy.listeners.click();  // the copy itself failed
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  var failed = [sel.slice(), said.textContent, copy.className];
+  timers[timers.length - 1][0]();
+  var after = [said.textContent, copy.className];
+  execThrows = true; copy.listeners.click();
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  console.log(JSON.stringify({opened: opened, closed: closed, done: done, back: back,
+    fallback: fallback, failed: failed, after: after,
+    thrown: [said.textContent, copy.className]}));
 })();
 """
     script = tmp_path / "page.js"
@@ -850,8 +878,13 @@ function clearTimeout() {}
     got = json.loads(out.stdout.strip().splitlines()[-1])
     assert got["opened"] == ["Show less", "true", [False, False]]
     assert got["closed"] == ["Show 2 more", [True, True]]
-    assert got["done"] == [["judgekeeper fix"], True, "Copied", "done", 1500]
-    assert got["back"] == ["Copy", ""]
+    assert got["done"] == [["judgekeeper fix"], "Copied", "done", 1500]
+    assert got["back"] == ["", ""]
+    assert got["fallback"] == [["clear", "select", "copy copy", "clear"], "Copied"]
+    # "Copied" only when the copy worked: execCommand gave false, or threw
+    assert got["failed"] == [["clear", "select", "copy copy", "clear"], "Copy failed", "failed"]
+    assert got["after"] == ["", ""]
+    assert got["thrown"] == ["Copy failed", "failed"]
 
 
 def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
@@ -878,8 +911,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"\* (\d+) more (?:is|are) kept aside to test a new rule fairly",
-                      _text(html))
+    kept = re.findall(r"(\d+) more (?:is|are) kept aside to test a fix fairly", _text(html))
     assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------

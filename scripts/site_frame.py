@@ -19,7 +19,7 @@ LEGAL = [(f"{GITHUB}/blob/main/docs/reference.md", "Full reference"), ("privacy.
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 THEME = "#0b0c0e"  # style.css --bg: a phone's browser bar takes the page's colour
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
-ASSETS = 9  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
+ASSETS = 11  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
@@ -67,7 +67,7 @@ def footer() -> str:
         f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
         f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
         f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
-        "MIT license</a></span></div>\n"
+        "Apache-2.0 license</a></span></div>\n"
         "</div></footer>")
 
 

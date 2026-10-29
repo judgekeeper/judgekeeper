@@ -137,6 +137,34 @@ def test_source_files_are_searched_before_others(tmp_path):
                                       "records")[0] == "b/evals.py"
 
 
+def test_the_known_config_is_searched_first(tmp_path):
+    _write(tmp_path / "evals.py", "RULE = 'Be helpful to every customer.'\n")
+    _write(tmp_path / "zz" / "config.yaml", "rule: Be helpful to every customer.\n")
+    assert start_fix_rule.found_rule(tmp_path, "Be helpful to every customer.", "records",
+                                     first="zz/config.yaml")[:2] == ("zz/config.yaml", 1)
+
+
+@pytest.mark.parametrize("line, rule", [
+    ("    value: 'Grade the shop''s replies.'", "Grade the shop's replies."),
+    ('    "value": "Grade the \\"shop\\" replies."', 'Grade the "shop" replies.')])
+def test_the_known_config_wins_with_its_quotes_escaped(tmp_path, line, rule):
+    """A quote written escaped in the config (YAML's '', JSON's \\"): the rule is found there,
+    not in a notes file that holds the same text."""
+    _write(tmp_path / "rules.md", f"{rule}\n")
+    _write(tmp_path / "promptfooconfig.yaml", f"tests:\n  - assert:\n{line}\n")
+    assert start_fix_rule.found_rule(tmp_path, rule, "promptfoo", first="promptfooconfig.yaml"
+                                     )[:2] == ("promptfooconfig.yaml", 3)
+
+
+def test_notes_quoting_the_rule_come_after_code(tmp_path):
+    _write(tmp_path / "NOTES.md", "Be helpful to every customer.\n")
+    _write(tmp_path / "evals.py", "RULE = 'Be helpful to every customer.'\n")
+    rule = "Be helpful to every customer."
+    assert start_fix_rule.locate_rule(tmp_path, rule, "records")[0] == "evals.py"
+    (tmp_path / "evals.py").unlink()
+    assert start_fix_rule.locate_rule(tmp_path, rule, "records")[0] == "NOTES.md"
+
+
 RECORD_RULE = "Pass when the reply is polite and answers the customer's question."
 FIRST_BLOCK = f"""Looking in /home/me/bot ...
 

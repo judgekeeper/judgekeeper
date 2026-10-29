@@ -5,9 +5,9 @@ newest results (or the results file given as PATH), never from the eval config;
 `.judgekeeper/judge.json` keeps the setup last checked, and `results-seen.json` lets a check
 with nothing new read nothing again.
 
-The new grades are the ones in the results: a marked answer is found by its exact text
-(_free). judgekeeper never asks the LLM-as-a-judge itself; a marked answer the results don't
-hold is counted, said once and left out. Per group (answers the person passed, and failed),
+The new grades are the ones in the results: a marked answer is found by its exact text and
+question (_free). judgekeeper never asks the LLM-as-a-judge itself; a marked answer the results
+don't hold is counted, said once and left out. Per group (answers the person passed, and failed),
 the paired change gives "Worse", "No drop bigger than 20 points" or "Not sure", always with
 the worst drop the marks could hide (targets.paired_verdict). Unless the check ends worse, the
 marks then test the new LLM-as-a-judge (_adopt); a worse check stays open until it changes.
@@ -33,6 +33,7 @@ from judgekeeper import (
     find,
     judge_setup,
     marks,
+    page,
     start,
     targets,
     weighted,
@@ -92,7 +93,7 @@ PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make yo
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be chance."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by its "
-           "exact text.")
+           "exact text and question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
@@ -102,7 +103,7 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
 NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
                "error).")
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by its exact text.")
+          "It finds a marked answer by its exact text and question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
@@ -111,8 +112,8 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
            "judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
-NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
-                   "again; or start over on your new answers with `{new}`.")
+# Running the eval again makes new answers, which can't be compared: grade the marked ones
+NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -198,7 +199,7 @@ def _newest(state: State):
         if start._saved(root) is None:
             options["tool"] = data.get("tool")
             where = start.results_path(root, data)  # a file given by path: read there
-        given = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+        given = start.given_model(fp, root)
         try:
             found = start.find_judge(where, judge_model=given, **options)
         except start.StartError:
@@ -216,6 +217,11 @@ def _newest(state: State):
                       f"newest results: {why}")
 
 
+class OtherName(str):
+    """read_given's why when the results name their LLM-as-a-judge otherwise: Fix's Next line
+    then says the name to grade under."""
+
+
 def read_given(state: State, path: Path):
     """The judge of the marks in the results file `path`, read as step 1 reads results (the
     same eval tool, the same LLM-as-a-judge): (found, None), or (None, why in one line) when
@@ -226,8 +232,8 @@ def read_given(state: State, path: Path):
     tool, metric = data.get("tool"), data.get("metric")
     options = {"metric": metric, "label_map": data.get("label_map"),
                "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
-               "judge_model": fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU
-               else None, "experiment": data.get("experiment")}
+               "judge_model": start.given_model(fp, state.ws.root),
+               "experiment": data.get("experiment")}
     name = _results(tool)
     shown = Path(path).name
     try:
@@ -249,7 +255,8 @@ def read_given(state: State, path: Path):
     try:
         found = start.find_judge(state.ws.root if saved is not None else path, **options)
     except start.StartError as e:
-        return None, f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
+        why = f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
+        return None, OtherName(why) if e.drop == "--metric" else why
     except (start.Stop, RecordsError, OSError, ValueError):
         return None, (f"judgekeeper can't read {shown} as {name} with your "
                       f"LLM-as-a-judge {metric}.")
@@ -258,8 +265,8 @@ def read_given(state: State, path: Path):
     if found.tool != tool:
         return None, _other_tool(shown, found.tool, tool)
     if scrub(found.metric) != scrub(metric):  # start.json keeps it with keys hidden
-        return None, (f"{shown} has no LLM-as-a-judge named {metric}, the one your marks "
-                      "test.")
+        return None, OtherName(f"{shown} has no LLM-as-a-judge named {metric}, the one your "
+                               "marks test.")
     return found, None
 
 
@@ -322,7 +329,8 @@ def _lock_newer(state: State, old: dict, new: dict, newest: Path | None) -> bool
         results = newest.stat().st_mtime
     except OSError:
         return False
-    return any(f.is_file() and f.stat().st_mtime > results for f in locks)
+    return any((st := judge_setup.lock_stat(f)) is not None and st.st_mtime > results
+               for f in locks)
 
 
 def _config_newer(found) -> Path | None:
@@ -397,7 +405,7 @@ def _key(state: State, read: list[str]) -> str | None:
     data = state.data
     how = {k: data.get(k) for k in ("tool", "metric", "label_map", "pass_mark", "mlflow_store")}
     fp = data.get("fingerprint") or {}
-    how["given"] = fp.get("model") if fp.get("model_source") == start.GIVEN_BY_YOU else None
+    how["given"] = start.given_model(fp, state.ws.root)
     how["env"] = {v: os.environ.get(v) for v in (*find.RESULTS_VARS.values(),
                                                  "MLFLOW_TRACKING_URI")}
     text = json.dumps([__version__, how, signature], sort_keys=True, default=str)
@@ -665,7 +673,8 @@ def table_lines(g: dict) -> list[str]:
 def expect_lines(g: dict) -> list[str]:
     """What to expect, one line per group whose outcome says something: for Worse, by about
     how much agreement drops in every 100 answers and the range; for no big drop, the most
-    it could drop. A Not sure group gets no line: its word says it."""
+    it could drop, or "no drop" when it didn't drop. A Not sure group gets no line: its word
+    says it. A clear rise in both groups is said last."""
     out = []
     for key, _, said in SIDES:
         x = g[key]
@@ -677,9 +686,14 @@ def expect_lines(g: dict) -> list[str]:
                        f"(somewhere between {_points(x['high'])} and {_points(x['low'])}).")
         elif x["low"] >= 0:
             out.append(f"{lead} none of the range is a drop.")
+        elif x["change"] >= 0:  # no drop seen; the range can't rule one out
+            out.append(f"{lead} no drop, though these marks can't rule out one of up to "
+                       f"{_points(x['low'])} in every 100.")
         else:
             out.append(f"{lead} agreement drops by no more than {_points(x['low'])} in "
                        "every 100.")
+    if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
+        out.append("Agreement rose in both groups.")
     return out
 
 
@@ -800,6 +814,12 @@ class Said:
         self.lines.append(line)
 
 
+def given_results(path: str) -> bool:
+    """Whether the PATH given to `check` or `fix` holds the new results: a results file, or
+    an MLflow folder store (`mlruns/`), read like a file (its newest run)."""
+    return Path(path).is_file() or find.is_mlflow_folder(Path(path))
+
+
 def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
@@ -807,7 +827,7 @@ def path_problem(path: str) -> str | None:
     from judgekeeper.project import project_of as _project
     from judgekeeper.textio import file_kind
 
-    if path == ".":
+    if path == "." or find.is_mlflow_folder(Path(path)):
         return None
     given = Path(path)
     name = given.name or path
@@ -840,6 +860,15 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say(NOT_SET_UP)
         said.say()
         said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
+        return EXIT_NEEDS_YOU
+    from judgekeeper import front
+
+    sessions = front.sessions_here(given)
+    if sessions:
+        where, step = front.go_to_words(sessions, program("check"))
+        said.say(where)
+        said.say()
+        said.say(f"Next: {step}")
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
@@ -1045,10 +1074,11 @@ def _rows(ws: Workspace) -> dict:
 def _same_answer(a, row: dict) -> bool:
     """Whether the answer (or record) `a` is the marked answer pool.jsonl keeps as `row`: the
     same answer text, and the row's whole question asked (_marked_question). An answer with no
-    question is only a marked answer with none: another question's answer may read the same."""
+    question is only a marked answer with none: another question's answer may read the same.
+    An empty answer is found by its question alone; with none, any empty answer reads the same."""
     text = _text(row.get("output"))
     asked, marked = _questions(a.input), set(_marked_question(row.get("input"), row.get("output")))
-    return bool(text) and _text(a.output) == text and (
+    return bool(text or marked) and _text(a.output) == text and (
         bool(asked & marked) if marked else not asked)
 
 
@@ -1065,12 +1095,13 @@ def _index(answers) -> dict[tuple[str, str | None], list]:
 
 def _candidates(index: dict, row: dict) -> list:
     """The answers in `index` (_index) that are the marked answer `row` (_same_answer), each
-    once, in the results' order."""
+    once, in the results' order. An empty answer only with its question (_same_answer)."""
     text = _text(row.get("output"))
-    if not text:
+    questions = _marked_question(row.get("input"), row.get("output"))
+    if not text and not questions:
         return []
     found = {}
-    for q in _marked_question(row.get("input"), row.get("output")) or (None,):
+    for q in questions or (None,):
         for a in index.get((text, q), []):
             found.setdefault(id(a), a)
     return list(found.values())
@@ -1295,7 +1326,7 @@ def full(path: str, said: Said) -> int:
     if state is None or not state.enough:
         return _not_set_up(path, state, said)
     old = state.saved["setup"]
-    if Path(path).is_file():
+    if given_results(path):
         found, problem = read_given(state, Path(path))
         if found is None:
             said.say(problem)
@@ -1340,7 +1371,7 @@ def full(path: str, said: Said) -> int:
     if read:
         said.say(read)
         said.say()
-    newer = None if Path(path).is_file() or now is None else _newer_elsewhere(state, now.newest)
+    newer = None if given_results(path) or now is None else _newer_elsewhere(state, now.newest)
     if newer is not None:  # a note: the check reads what judgekeeper.toml says, as always
         tool = state.data.get("tool")
         said.say(NEWER.format(tool=find.NAMES.get(tool, tool), file=quote_arg(newer),
@@ -1352,14 +1383,17 @@ def full(path: str, said: Said) -> int:
         said.say()
         said.say("Next: " + NEXT_UNKNOWN.format(command=_command(state)))
         return EXIT_NEEDS_YOU
-    back = back_to_marked(state.ws, found) if found is not None else None
+    back = (back_to_marked(state.ws, found, said.say, again=len(state.marks))
+            if found is not None else None)
     if back:
         said.say(back)
-        marks.append(state.ws.history_jsonl, _history_line({
-            "time": utc_now(), "kind": "check", "trigger": "back", "before": old, "after": new,
-            "changed": ["back to the LLM-as-a-judge the marks were made on"],
-            "marks": len(state.marks),
-            "free": 0, "groups": {}}))
+        if not (checks and checks[-1].get("trigger") == "back" and judge_setup.hash_of(
+                checks[-1].get("after") or {}) == judge_setup.hash_of(new)):  # once in history
+            marks.append(state.ws.history_jsonl, _history_line({
+                "time": utc_now(), "kind": "check", "trigger": "back", "before": old,
+                "after": new, "changed": ["back to the LLM-as-a-judge the marks were made on"],
+                "marks": len(state.marks),
+                "free": 0, "groups": {}}))
         _report(state.ws)  # no "Worse" from the other judge on it
         said.say()
         said.say(NEXT_SAME.format(command=_command(state)))
@@ -1372,7 +1406,7 @@ def full(path: str, said: Said) -> int:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
         held = len(lookup(found, state.marks, state.ws)[0]) if found is not None else None
-        if held == len(state.marks) and not Path(path).is_file():
+        if held == len(state.marks) and not given_results(path):
             _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
             said.say(CONFIG_NEWER)
@@ -1466,8 +1500,9 @@ def full(path: str, said: Said) -> int:
         # more marks can't be made, and new answers would not help
         said.say("Next: " + regrade_marked(state, every=True))
     elif picked["ask"]:
+        need = PICK_MARKS - picked["new_marks"]
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
+            mark=program("mark"), n=need, command=_command(state)), need=need))
     elif unsure:
         said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=program("mark"), command=_command(state))))
@@ -1492,11 +1527,12 @@ def full(path: str, said: Said) -> int:
         # new grades) keeps the old grades: the next check says worse again
     if not held:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
-        _adopt(state.ws, found, tested)
+        with page.one_at_a_time(state.ws.dir, said.say):  # two runs at once: one writes
+            _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state), state.ws) if worse else None)
-    if not Path(path).is_file():
+    if not given_results(path):
         _covered(state.ws)
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
 
@@ -1504,7 +1540,7 @@ def full(path: str, said: Said) -> int:
 def _read_line(state: State, path: str, now: Now | None) -> str | None:
     """The line that names the results the check reads: the file given, else the newest
     file read (for MLflow, the newest run in its store)."""
-    if Path(path).is_file():
+    if given_results(path):
         return f"New results: {Path(path).as_posix()}"
     if now is None or now.newest is None:
         return None
@@ -1586,7 +1622,11 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
-        said.say(NEXT_NOT_MARKED.format(command=_command(state), new=program("--new")))
+        from judgekeeper import fix
+
+        answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
+        regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
+        said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
         return True
     if not few and looked is None:
         return False  # the check goes on, and says them there
@@ -1758,20 +1798,24 @@ def _marked_setup(ws: Workspace) -> dict | None:
                 None)
 
 
-def back_to_marked(ws: Workspace, found) -> str | None:
+def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
     last check was of another judge: the line that says so, else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
     they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
     "Worse" no longer applies (open_worse). Only for a judge whose results hold its rule, and
     that gives the marked answers the grades they were made on: a table's model name alone
-    is not that judge."""
+    is not that judge. With `again` (how many marks count now), the line also when the last
+    check was that "back", with as many marks: the same results get the same answer."""
     marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
     if marked is None or saved is None or not checks:
         return None
     now = judge_setup.of(found)
+    last = checks[-1]
+    to_now = judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(now)
     if (not now.get("rule_hash") or judge_setup.hash_of(now) != judge_setup.hash_of(marked)
-            or judge_setup.hash_of(checks[-1].get("after") or {}) == judge_setup.hash_of(now)):
+            or to_now and not (again is not None and last.get("trigger") == "back"
+                               and last.get("marks") == again)):
         return None
     data = ws.data()
     made_on = (data.get("picked") or {}).get("groups") or {
@@ -1779,8 +1823,11 @@ def back_to_marked(ws: Workspace, found) -> str | None:
     graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
     if any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None
-    if saved["setup_hash"] != judge_setup.hash_of(now):
-        _restore(ws, found, now)
+    with page.one_at_a_time(ws.dir, say):  # two runs at once: one writes
+        if saved["setup_hash"] != judge_setup.hash_of(now):
+            _restore(ws, found, now)
+        # the marks' grades from this judge: the next change is compared with them
+        _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     return BACK.format(model=", ".join(names) or "model not named")
 

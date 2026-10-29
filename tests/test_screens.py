@@ -177,8 +177,10 @@ def test_screen_4_mark_more(here, capsys):
         "",
         "You marked 30 answers so far: 15 Pass, 15 Fail.",
         "",
-        "The marking page is open in your browser. Each new mark makes",
-        "your numbers more precise.",
+        "The marking page is already open in your browser. Each new mark",
+        "makes your numbers more precise.",
+        "Closed it? Run `judgekeeper mark --no-browser` to print its",
+        "link.",
         "",
         "Next: mark more answers, then run `judgekeeper` to see your",
         "updated result.",
@@ -255,13 +257,22 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "No eval results found in this folder (my-app). judgekeeper",
         "looked 4 folders down (tables: 2 folders deep).",
         "judgekeeper can read results from promptfoo, DeepEval,",
-        "Inspect AI, MLflow, or a CSV or JSONL file.",
+        "Inspect AI, MLflow, or a CSV, TSV or JSONL file.",
         "",
         "Next: run your eval once from this folder, then run",
         "`judgekeeper` again. If your results are somewhere else, run",
         "`judgekeeper PATH` with their file or folder.",
     ]
     assert str(tmp_path) not in "\n".join(lines)
+
+
+def test_finding_no_results_names_the_files_judgekeeper_reads(tmp_path, capsys):
+    from judgekeeper import start
+
+    with pytest.raises(start.Stop):
+        start.find_judge(tmp_path, talk=start.Talk())
+    assert ("or a CSV, TSV or JSONL file with input, output and verdict columns."
+            in " ".join(capsys.readouterr().out.split()))
 
 
 def test_screen_8_help(capsys):
@@ -285,7 +296,7 @@ def test_screen_8_help(capsys):
         "                                    with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
-        "MLflow, or a CSV or JSONL file with these columns:",
+        "MLflow, or a CSV, TSV or JSONL file with these columns:",
         "  input, output, verdict",
         "",
         "usage: judgekeeper [PATH] [options]",

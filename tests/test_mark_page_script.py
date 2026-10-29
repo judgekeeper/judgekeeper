@@ -1,5 +1,5 @@
 """The marking page's script, run in node against a small stand-in for the browser: marking by
-keyboard alone, the lock after each mark, held keys and Cmd/Ctrl/Alt keys, skipping and undo,
+keyboard alone, quick keys and the lock on clicks, held keys and Cmd/Ctrl/Alt keys, skipping and undo,
 the welcome box, and no target number.
 
 The stand-in has only what the page uses: elements by id, text, attributes, classes and
@@ -167,14 +167,36 @@ def test_the_arrow_keys_mark_pass_and_fail_and_the_next_answer_comes():
     assert got["url"] == "/label?token=t0k" and got["focus"]
 
 
-def test_a_second_key_within_400_ms_does_nothing():
+def test_a_second_key_soon_after_a_saved_mark_marks_the_next_answer():
     got = _run("""
       key("ArrowRight"); await settle();
-      later(399); key("ArrowRight"); await settle();
-      var early = sent.length;
-      later(1); key("ArrowRight"); await settle();
-      console.log(JSON.stringify({early: early, late: sent.length}));""")
-    assert got == {"early": 1, "late": 2}
+      later(100); key("ArrowLeft"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
+        at: ids["q-text"].textContent}));""")
+    assert got == {"sent": [["a0", "pass"], ["a1", "fail"]], "at": "Question 2?"}
+
+
+def test_keys_pressed_while_a_mark_is_saved_act_once_it_is_saved():
+    got = _run("""
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("ArrowLeft"); key("s"); await settle();
+      var waiting = [sent.length, ids["q-text"].textContent];
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || "skip"]; })}));""")
+    assert got["waiting"] == [1, "Question 0?"]  # one save at a time
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "skip"]]  # each once, in order
+    assert got["at"] == "Question 3?"
+
+
+def test_a_double_click_marks_one_answer():
+    got = _run("""
+      ids["pass"].fire("click"); await settle();
+      later(100); ids["pass"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.length, at: ids["q-text"].textContent}));""")
+    assert got == {"sent": 1, "at": "Question 1?"}
 
 
 def test_a_held_key_or_one_with_cmd_ctrl_or_alt_does_nothing():
@@ -297,7 +319,7 @@ def test_after_a_mark_only_the_mark_word_is_coloured():
       go(1);
       console.log(JSON.stringify({open: open, skipped: skipped, passed: passed,
         failed: state()}));""", data=data)
-    assert got["open"] == ["Not marked yet", []]  # muted, no coloured word
+    assert got["open"] == ["", []]  # not marked yet: nothing said
     assert got["skipped"] == ["Skipped", []]
     assert got["passed"] == ["Marked Pass", [["", "Marked "], ["said pass", "Pass"]]]
     assert got["failed"] == ["Marked Fail", [["", "Marked "], ["said fail", "Fail"]]]
@@ -322,7 +344,7 @@ def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
     share = round(2 / mark_page.FIRST * 100)
     assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]  # a skip: no mark
     assert got["ready"] == ["100", False, "2 marked"]
-    assert got["texts"] == ["Question 3?", "Not marked yet"]  # the state: no position, no total
+    assert got["texts"] == ["Question 3?", ""]  # not marked yet: no words
 
 
 def test_the_undo_button_undoes_like_the_key():
@@ -378,6 +400,29 @@ def test_a_failed_save_says_so_and_keeps_the_answer():
       console.log(JSON.stringify({status: ids["status"].textContent,
         at: ids["q-text"].textContent}));""")
     assert got == {"status": "Not saved: no space left", "at": "Question 0?"}
+
+
+def test_a_save_with_no_answer_in_10_seconds_says_so_and_can_be_tried_again():
+    got = _run("""
+      var hung = fetch;
+      fetch = function (url, opts) { return new Promise(function (ok, no) {
+        opts.signal.addEventListener("abort", function () { no(new Error("aborted")); }); }); };
+      key("ArrowRight"); await settle();
+      var waiting = document.getElementById("status").textContent;
+      timers.forEach(function (t) { t.f(); }); await settle(); await settle();
+      var said = ids["status"].textContent, at = ids["q-text"].textContent;
+      fetch = hung; later(500); key("ArrowRight"); await settle(); await settle();
+      console.log(JSON.stringify({waiting: waiting, said: said, at: at,
+        ms: timers.map(function (t) { return t.ms; }), then: sent.length}));""",
+               before="""
+      var timers = [], soon = setTimeout;
+      setTimeout = function (f, ms) {
+        if (ms >= 5000) { timers.push({f: f, ms: ms}); return 0; } return soon(f, ms); };
+      """)
+    assert got["waiting"] == ""
+    assert got["said"].startswith("Not saved: this page lost its link to judgekeeper.")
+    assert got["at"] == "Question 0?" and got["then"] == 1  # tried again: saved
+    assert got["ms"] == [10000, 10000]  # one wait per save
 
 
 def _phone(width: int, still: bool = False) -> str:
@@ -474,3 +519,21 @@ def test_the_next_answer_sets_the_heading_and_row_again():
       console.log(JSON.stringify({label: ids["q-label"].hidden,
         hidden: ids["q-row"].hidden}));""", data=data)
     assert got == {"label": True, "hidden": False}
+
+
+def test_a_repeat_graded_differently_says_its_run_and_nothing_else():
+    """An answer the LLM-as-a-judge graded more than once, with different grades: its card
+    says which run it is in one short line, never the grade; other cards say nothing."""
+    data = _data(2)
+    data["items"][0]["run"] = [2, 3]
+    got = _run("""
+      var first = [ids["a-run"].textContent, ids["a-run"].hidden];
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({first: first,
+        second: [ids["a-run"].textContent, ids["a-run"].hidden]}));""", data=data)
+    assert got == {"first": ["Run 2 of 3: graded differently", False], "second": ["", True]}
+
+
+def test_the_run_line_is_on_the_page_hidden_until_an_answer_has_one():
+    page = mark_page.label_page("support bot", "judgekeeper mark")
+    assert '<p class="run" id="a-run" hidden></p>' in page

@@ -88,6 +88,42 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         assert gone not in _readme(), gone
 
 
+def _table(md: str, heading: str) -> list[dict[str, str]]:
+    """The first table under `heading` in a Markdown report, one dict per row."""
+    lines = md.split(f"\n{heading}\n", 1)[1].splitlines()
+    rows = lines[next(i for i, x in enumerate(lines) if x.startswith("|")):]
+    rows = rows[:next((i for i, x in enumerate(rows) if not x.startswith("|")), len(rows))]
+    cells = [[c.strip() for c in x.strip("|").split("|")] for x in rows]
+    return [dict(zip(cells[0], row, strict=True)) for row in cells[2:]]
+
+
+def test_the_readme_says_where_its_coverage_figures_are():
+    """The Simulation line's average is the chosen level's "Average" in the report's first
+    table, and its lowest is the lowest TPR or TNR at 15 + 15 in "The real stopping rule":
+    both read from the report and from coverage.json, so they can't drift apart."""
+    import json
+
+    folder = ROOT / "docs" / "examples" / "coverage"
+    md = (folder / "coverage.md").read_text(encoding="utf-8")
+    grid = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))
+    level = grid["corrected"]["chosen_level"]
+    chosen = f"{level * 100:.0f}%"
+    first = _table(md, "## `judgekeeper`: the level")
+    average = next(r["Average"] for r in first if r["Level"] == chosen)
+    assert average == f"{grid['corrected']['levels'][str(level)]['mean'] * 100:.1f}"
+    stopping = _table(md, "### The real stopping rule")
+    lowest = min((r[k] for r in stopping if r["stop"] == "15 + 15" for k in ("TPR", "TNR")),
+                 key=float)
+    from_json = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
+                    for k in ("tpr", "tnr"))
+    assert lowest == f"{from_json * 100:.1f}"
+    line = next(x for x in _readme().splitlines() if x.startswith("- **Simulation.**"))
+    assert (f"held the true value {average} times in 100 on average (the chosen level's "
+            f"Average, in the report's first table). The lowest was {lowest} times in 100, when "
+            "marking stops at 15 Pass and 15 Fail (the table \"The real stopping rule\").") in line
+    assert "never fewer" not in line
+
+
 def test_the_readme_keeps_to_the_agreed_words():
     text = _readme()
     assert "(https://www.judgekeeper.com)" in text
@@ -120,4 +156,4 @@ def test_checking_names_the_llm_as_a_judge_in_full():
 def test_the_readme_has_three_badges_version_tests_and_licence():
     badges = re.findall(r'<img src="([^"]+)" alt="([^"]+)">', README.read_text(encoding="utf-8"))
     assert [alt for src, alt in badges if "shields.io" in src or "badge.svg" in src] == [
-        "PyPI version", "Tests", "MIT license"]
+        "PyPI version", "Tests", "Apache-2.0 license"]

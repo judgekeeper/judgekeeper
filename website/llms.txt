@@ -5,7 +5,7 @@
 ## Pages
 
 - [Home](https://www.judgekeeper.com/): what judgekeeper is, a demo of the marking page, and what each of the 5 steps prints in the terminal.
-- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 5 steps, why no API key is needed, your own CSV or JSONL file or `judgekeeper.record()`, and handy commands.
+- [Guide](https://www.judgekeeper.com/start.html): install (`pip install judgekeeper`, or `uvx judgekeeper` with uv), the 5 steps, why no API key is needed, your own CSV, TSV or JSONL file or `judgekeeper.record()`, and handy commands.
 - [Try step 1 in your browser](https://www.judgekeeper.com/check.html): drop a results file from promptfoo or DeepEval, or your own CSV, TSV or JSONL file, and see judgekeeper's first step on it. The file is read in the page and never sent anywhere.
 - [Privacy](https://www.judgekeeper.com/privacy.html): what this website and judgekeeper do with your data.
 

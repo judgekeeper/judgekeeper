@@ -49,6 +49,12 @@ def test_with_fresh_verdicts_equal_to_the_groups_it_is_the_corrected_form(counts
         assert general[key] == pytest.approx(corrected[key])
 
 
+@pytest.mark.parametrize("fresh", ["pass", "fail"])
+def test_fresh_verdicts_all_one_grade_have_no_kappa(fresh):
+    r = weighted.general([(group, label, fresh) for group, label, _ in ITEMS], 20, 16)
+    assert r["kappa"] is None and r["kappa_interval"] == [None, None]
+
+
 def test_the_ranges_are_repeatable_with_their_seed():
     one = weighted.general(ITEMS, 20, 16)
     two = weighted.general(ITEMS, 20, 16)

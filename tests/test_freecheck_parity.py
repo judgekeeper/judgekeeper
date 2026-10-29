@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import judge_check, start
+from tests import test_reader_grader_details as grader_details
 from tests.conftest import FIXTURES
 from tests.start_projects import table_project
 
@@ -94,7 +95,7 @@ def test_every_kind_of_file_is_compared():
     for name in ("errors-counted-as-passes.json", "empty-answers.json", "one-grade.json",
                  "two-judges.json", "score-and-pass-mark.json", "table.csv", "table.tsv",
                  "table.jsonl", "ab.csv", "not-results.json", "broken.json", "not-utf8.csv",
-                 "rules-in-code.json", "empty.jsonl"):
+                 "rules-in-code.json", "empty.jsonl", "scores-only.csv", "verdict-scores.csv"):
         assert name in names, name
 
 
@@ -133,15 +134,48 @@ def test_a_table_with_other_common_names_reads_as_the_tool_reads_it(columns, tmp
                                  ["grade", f"the {columns[2]} column"]]
 
 
+@pytest.mark.parametrize("name", ["scores-only.csv", "verdict-scores.csv"])
+def test_grades_that_are_scores_say_what_the_tool_says(name, tmp_path):
+    """The tool stops and asks for a pass mark; the page says the same scores and that it asks."""
+    path = tmp_path / name
+    shutil.copy2(FREECHECK / name, path)
+    said = _tool_run(path)
+    (judge,) = browser(path)["judges"]
+    (line,) = [x for x in judge["lines"] if "are scores" in x]
+    first = line.split(". judgekeeper in your project")[0] + "."
+    assert first in said, said
+    assert "which score counts as a pass" in said and "which score counts as a pass" in line
+
+
 def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
     path = tmp_path / "scores.csv"
     path.write_text("case,text,mark\n1,hello,7\n", encoding="utf-8")
     said = browser(path)
     assert said["ok"] is False and said["message"].startswith(
         "judgekeeper can't tell which columns hold the question, the answer and the grade (this "
-        "file has case, text and mark). In the browser it reads a CSV or JSONL file with a "
+        "file has case, text and mark). In the browser it reads a CSV, TSV or JSONL file with a "
         "question column (input or question), an answer column (output or answer) and a grade "
         "column (verdict or grade) holding Pass or Fail."), said
+
+
+@pytest.mark.parametrize("suffix, sep", [(".csv", ","), (".tsv", "\t")])
+def test_a_score_column_with_no_verdict_column_is_read_as_a_verdict_column_of_scores(
+        tmp_path, suffix, sep):
+    """The tool reads it with --pass-if; the page can't ask for one, so it reads the scores
+    as it reads them in a verdict column."""
+    rows = [[f"Question {i}?", f"Answer {i}.", "0.9" if i % 3 else "0.2", f"Reason {i}."]
+            for i in range(12)]
+    said = {}
+    for grade in ("score", "verdict"):
+        path = tmp_path / grade / f"results{suffix}"
+        path.parent.mkdir()
+        path.write_text("\n".join(sep.join(r) for r in [["input", "output", grade, "reason"],
+                                                       *rows]) + "\n", encoding="utf-8")
+        page = browser(path)
+        (judge,) = page["judges"]
+        assert judge["key"] == grade and ["grade", f"the {grade} column"] in judge["readRows"]
+        said[grade] = _page(page)["judges"][grade]
+    assert said["score"] == said["verdict"]
 
 
 def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):
@@ -152,3 +186,15 @@ def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):
     assert said["judges"]["verdict"]["findings"][0].startswith(
         "Your LLM-as-a-judge made no real decision on 2 of 22 answers: 1 error, 1 empty "
         "decision."), said
+
+
+@pytest.mark.parametrize("configured, made", [
+    *grader_details.OTHER_PROVIDER, *grader_details.SAME_PROVIDER])
+def test_a_made_grader_takes_the_config_id_as_the_tool_does(tmp_path, configured, made):
+    data = json.loads(grader_details.RESULTS.read_text(encoding="utf-8"))
+    data["config"]["defaultTest"]["options"]["provider"] = configured
+    for row in data["results"]["results"]:
+        row["testCase"].setdefault("options", {})["provider"] = made
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert _page(browser(path)) == tool(path)

@@ -10,7 +10,7 @@ judgekeeper needs no API key and makes no AI call. When you grade answers again,
 
 It hides:
 
-- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN` or `_SECRET`) in your shell, in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) and in promptfoo's config `env:` block (not in one that is a link or over 1 MB, nor past the first 50 `.env` files in a folder: judgekeeper doesn't read that file, and says so);
+- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`) in your shell, in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) and in promptfoo's config `env:` block (not in one that is a link or over 1 MB, nor past the first 50 `.env` files in a folder: judgekeeper doesn't read that file, and says so);
 - keys by their shape: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, AWS secrets next to their name or key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…` and a JWT;
 - `Bearer …` and `Basic …` headers, and the login part of a URL: `https://user:password@`, `https://:password@`, or a long token alone;
 - a key split by a hidden character such as a zero-width joiner.
@@ -35,10 +35,11 @@ The details are in the [reference](docs/reference.md#the-judgekeeper-folder).
 
 ## It only reads files
 
-judgekeeper never runs your eval tool or your project's code, and the only program it starts is its own marking page. It makes no AI call. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
+judgekeeper never runs your eval tool or your project's code, and the only programs it starts are its own marking page and your browser (the program in `BROWSER`, when you set it). It makes no AI call. To test a new rule (`judgekeeper fix`) or re-check your LLM-as-a-judge (`judgekeeper check`), you grade the answers again with your own eval tool, and judgekeeper reads the results.
 
 ## Other things
 
+- A `.judgekeeper/` folder that came with a cloned repository is read as if you made it: its marks, result and history count as yours. If you didn't make it, delete it before you run judgekeeper. `--new` moves its marks and result to `.judgekeeper/previous-<date>/`, but leaves `history.jsonl`, `verdicts/` and `records/` in place.
 - judgekeeper has no runtime dependencies. The two optional extras install Inspect AI and MLflow, nothing else.
 - The browser check on the website (`check.html`) reads your file inside the page. Its script sends nothing, and the page's Content-Security-Policy (`connect-src 'none'`) blocks every connection, so the file never leaves your computer. The only thing it loads is an example file from the same site, when you click one.
 - judgekeeper 1.0 is made for a person to run in their own terminal and mark in their own browser. Running it through a coding agent isn't supported in 1.0: a coding agent can help you write a better rule, but run judgekeeper yourself.

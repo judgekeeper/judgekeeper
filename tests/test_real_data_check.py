@@ -289,9 +289,11 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     first = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
                 for k in ("tpr", "tnr"))
     assert first == lowest_tpr_tnr_coverage(grid)  # the lowest anywhere is at the first result
-    assert cell >= first  # so "never fewer than" the first result's
+    assert cell >= first  # so "the lowest" is the first result's
     simulated = (f"In made-up checks, the ranges held the true value {pct(level['mean'])} times in "
-                 f"100 on average, and never fewer than {pct(first)}.")
+                 f"100 on average (the chosen level's Average, in the report's first table). "
+                 f"The lowest was "
+                 f"{pct(first)} times in 100, when marking stops at 15 Pass and 15 Fail")
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links
     report_md = _flat(OUT / "report.md")

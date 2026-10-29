@@ -29,17 +29,20 @@
     return el;
   }
 
-  /* A copy button copies the command next to it and shows a tick for a moment. */
+  /* A copy button copies the command next to it and shows a tick for a moment; when the copy
+     did not work, it says "Copy failed" instead. */
   function setUpCopy() {
     $all("[data-copy]").forEach(function (button) {
       var code = button.parentNode.querySelector("code");
       var said = button.querySelector(".copied");
-      function done() {
-        button.classList.add("done");
-        said.textContent = "Copied";
+      function done(ok) {
+        button.classList.remove(ok ? "failed" : "done");
+        button.classList.add(ok ? "done" : "failed");
+        said.textContent = ok ? "Copied" : "Copy failed";
         clearTimeout(button.jkTimer);
         button.jkTimer = setTimeout(function () {
           button.classList.remove("done");
+          button.classList.remove("failed");
           said.textContent = "";
         }, 1500);
       }
@@ -49,12 +52,14 @@
         var sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        try { document.execCommand("copy"); } catch (e) { /* the text stays selected */ }
-        done();
+        var ok = false;
+        try { ok = document.execCommand("copy") === true; } catch (e) { /* nothing more to try */ }
+        sel.removeAllRanges();
+        done(ok);
       }
       button.addEventListener("click", function () {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(code.textContent).then(done, select);
+          navigator.clipboard.writeText(code.textContent).then(function () { done(true); }, select);
         } else {
           select();
         }

@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import builtins
 import json
+import os
 import subprocess
 import sys
+import time
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -20,9 +23,11 @@ from judgekeeper import background, start
 from judgekeeper.cli import main
 from judgekeeper.textio import quote_arg
 from tests.start_projects import (
+    answer,
     flat_jsonl,
     nested_runs_project,
     promptfoo_project,
+    question,
     split,
 )
 from tests.test_front import next_lines
@@ -142,8 +147,8 @@ def test_nothing_is_written_before_the_yes(tmp_path, capsys, terminal):
     code, out = check(capsys, tmp_path)
     assert code == 0
     assert snapshot(tmp_path) == before
-    assert "Nothing was saved." in out
-    assert next_lines(out)[-1].startswith("Next: nothing.")
+    assert "Nothing was saved: judgekeeper reads" in out
+    assert next_lines(out)[-1] == "Next: run `judgekeeper` again and answer yes."
 
 
 def test_one_side_when_each_is_not_its_own_answer(tmp_path, capsys, terminal):
@@ -206,6 +211,22 @@ def test_a_file_it_cannot_map_asks_for_a_converter(tmp_path, capsys):
     assert not (tmp_path / "judgekeeper.toml").exists()
 
 
+def test_a_quote_that_never_closes_is_a_file_it_cant_read(tmp_path, capsys):
+    path = tmp_path / "scores.csv"
+    path.write_text('q_text,model_reply,judge_score\n"q0,a0,0.5\nq1,a1,0.5\n', encoding="utf-8")
+    code, out = check(capsys, path)
+    assert code == 2, out  # reference.md: a file it can't read
+    assert next_lines(out)[-1].startswith("Next: close the quote on line 2 of scores.csv")
+
+
+def test_a_file_not_saved_as_utf8_is_a_file_it_cant_read(tmp_path, capsys):
+    path = tmp_path / "scores.jsonl"
+    path.write_bytes(b'{"question": "caf\xe9", "reply": "a", "score": 0.5}\n')
+    code, out = check(capsys, path)
+    assert code == 2, out
+    assert next_lines(out)[-1].startswith("Next: save scores.jsonl as UTF-8")
+
+
 def test_scores_outside_0_to_1_ask_for_the_pass_mark(tmp_path, capsys, terminal):
     answers, asked = terminal
     path = tmp_path / "graded.jsonl"
@@ -246,6 +267,45 @@ def test_without_a_terminal_it_stops_at_the_question_before_saving(tmp_path, cap
     assert "Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
     assert f"or `judgekeeper {quote_arg(tmp_path)} --yes` to say yes." in next_lines(out)[-1]
     assert snapshot(tmp_path) == before
+
+
+def test_a_response_time_column_is_not_counted_as_answers(tmp_path, capsys):
+    path = tmp_path / "graded.jsonl"
+    path.write_text("".join(json.dumps({
+        "question": f"When does shop {i} open?", "response": f"Shop {i} opens at 9.",
+        "response_time": f"0.{i}s", "verdict": "pass" if i % 3 else "fail"}) + "\n"
+        for i in range(8)), encoding="utf-8")
+    _, out = check(capsys, path, "--yes")  # then too few answers for a first result
+    assert "  answer:          response\n" in out and "Answers:         8 answers" in out
+    assert saved(tmp_path)["map"]["output"] == "response"
+
+
+def test_without_a_terminal_two_answer_columns_not_a_and_b_stop(tmp_path, capsys):
+    path = tmp_path / "graded.jsonl"
+    path.write_text("".join(json.dumps({"question": f"q{i}", "answer": f"An answer {i}.",
+                                        "response": f"A response {i}.", "verdict": "pass"})
+                            + "\n" for i in range(8)), encoding="utf-8")
+    code, out = check(capsys, path, "--yes")
+    assert code == 3, out
+    assert not (tmp_path / "judgekeeper.toml").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+                    reason="chmod 000 keeps a file from its owner only on POSIX, not root")
+@pytest.mark.parametrize("name", ["notes.json", "notes.jsonl", "notes.csv"])
+def test_a_file_it_may_not_read_is_skipped(tmp_path, capsys, name):
+    flat_jsonl(tmp_path / "evals" / "graded.jsonl")
+    unreadable = tmp_path / "evals" / name
+    unreadable.write_text('{"question": "q", "answer": "a", "verdict": "pass"}\n',
+                          encoding="utf-8")
+    os.utime(unreadable, (time.time() + 60,) * 2)  # newer: looked at first
+    unreadable.chmod(0)
+    try:
+        code, out = check(capsys, tmp_path, "--yes")
+    finally:
+        unreadable.chmod(0o600)
+    assert code == 0, out
+    assert "evals/graded.jsonl" in out and "permission" not in out
 
 
 def test_yes_answers_it(tmp_path, capsys):
@@ -375,3 +435,173 @@ def test_on_windows_input_that_is_not_a_console_is_not_a_terminal(monkeypatch):
     assert start._interactive() is False
     monkeypatch.setattr(sys, "platform", "linux")
     assert start._interactive() is True
+
+
+# One JSON document ----------------------------------------------------------------------------
+
+def _one_document(root, errors: int = 0, rule: int = 0, n: int = 30, grader: str | None = None,
+                  passed=None) -> Path:
+    """results.json: one JSON document over many lines, an item per answer; the first
+    `errors` items have no grade, the next `rule` were graded by a rule. `grader` names the
+    judge's model in judge.grader; `passed` gives the grades (else every third fails)."""
+    items = [{"prompt": question(i), "reply": answer(i),
+              "passed": None if i < errors else passed[i] if passed else i % 3 != 0,
+              "why": "Rule: too short" if errors <= i < errors + rule else f"because {i}"}
+             for i in range(n)]
+    judge = {"name": "helpful", **({"grader": grader} if grader else {})}
+    path = root / "results.json"
+    path.write_text(json.dumps({"run_name": "run-1", "judge": judge, "items": items},
+                               indent=2), encoding="utf-8")
+    return path
+
+
+def test_a_json_document_is_not_counted_in_lines(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert ("results.json looks like your LLM-as-a-judge's results in a format of its own.\n"
+            "What it holds:") in out
+
+
+def test_a_model_not_in_the_file_says_how_to_give_it(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", ""]
+    _, out = check(capsys, tmp_path)
+    assert "  model:           not in the file (add --judge-model NAME)\n" in out
+
+
+def test_a_model_the_file_names_is_offered_saved_and_in_the_fingerprint(tmp_path, capsys,
+                                                                          terminal):
+    answers, asked = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]  # right; save
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert "  model:           judge.grader (claude-haiku-5-5)\n" in out
+    assert "judgekeeper.toml" in asked[1]
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    jk = tmp_path / ".judgekeeper"
+    fp = json.loads((jk / "start.json").read_text(encoding="utf-8"))["fingerprint"]
+    assert fp["model"] == "claude-haiku-5-5"
+    pool = (jk / "pool-judge.jsonl").read_text(encoding="utf-8")
+    lines = [json.loads(x) for x in pool.splitlines()]
+    judgments = [x for x in lines if "verdict" in x]
+    assert judgments and all(x["fingerprint"]["model"] == "claude-haiku-5-5"
+                             for x in judgments)
+
+
+def test_the_judge_model_flag_beats_the_file(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path, "--judge-model", "gpt-5-mini")
+    assert code == 0, out
+    assert "  model:           gpt-5-mini (given with --judge-model)\n" in out
+    start_json = tmp_path / ".judgekeeper" / "start.json"
+    assert json.loads(start_json.read_text(encoding="utf-8"))["fingerprint"]["model"] == \
+        "gpt-5-mini"
+    # the file's model is still read on later runs: the flag wins for its own run only
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    assert "model" not in saved(tmp_path)
+
+
+def test_the_judge_model_flag_beats_a_saved_model_key(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path, grader="claude-haiku-5-5")
+    answers += ["", ""]
+    assert check(capsys, tmp_path)[0] == 0
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    assert start.find_judge(tmp_path).fingerprint["model"] == "claude-haiku-5-5"
+    found = start.find_judge(tmp_path, judge_model="gpt-5-mini")
+    assert (found.fingerprint["model"], found.fingerprint["model_source"]) == (
+        "gpt-5-mini", start.GIVEN_BY_YOU)
+
+
+MARKED = [True] * 25 + [False] * 25
+LENIENT = MARKED[:25] + [True] * 9 + [False] * 16  # passes 9 of the answers the person failed
+
+
+def _mark_every_answer(root, found) -> None:
+    """The person marks every queued answer as the LLM-as-a-judge graded it."""
+    from judgekeeper import judge_setup, start_label
+
+    ws = start_label.Workspace(root)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    session = start_label.StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+
+
+def test_check_names_a_model_change_in_the_file(tmp_path, capsys, terminal):
+    """Marked with judge.grader claude-haiku-5-5; regraded by claude-haiku-4-5: check names
+    the model change."""
+    answers, _ = terminal
+    _one_document(tmp_path, n=50, grader="claude-haiku-5-5", passed=MARKED)
+    answers += ["", ""]
+    assert check(capsys, tmp_path)[0] == 0
+    _mark_every_answer(tmp_path, start.find_judge(tmp_path))
+    assert check(capsys, "check")[0] == 0
+    _one_document(tmp_path, n=50, grader="claude-haiku-4-5", passed=LENIENT)
+    _, out = check(capsys, "check")
+    assert ("Your LLM-as-a-judge's model changed: claude-haiku-5-5 -> claude-haiku-4-5"
+            in " ".join(out.split())), out
+
+
+def test_after_the_judge_model_flag_the_file_names_the_model_again(tmp_path, capsys,
+                                                                   terminal):
+    """First run with --judge-model; a later run without it reads judge.grader, and a check
+    after the file's model changes names the change."""
+    answers, _ = terminal
+    _one_document(tmp_path, n=50, grader="claude-haiku-5-5", passed=MARKED)
+    answers += ["", ""]
+    assert check(capsys, tmp_path, "--judge-model", "gpt-5-mini")[0] == 0
+    assert saved(tmp_path)["map"]["model_key"] == "judge.grader"
+    _mark_every_answer(tmp_path, start.find_judge(tmp_path, judge_model="gpt-5-mini"))
+    found = start.find_judge(tmp_path)
+    assert (found.fingerprint["model"], found.fingerprint.get("model_source")) == (
+        "claude-haiku-5-5", None)
+    _one_document(tmp_path, n=50, grader="claude-haiku-4-5", passed=LENIENT)
+    _, out = check(capsys, "check")
+    assert "Your LLM-as-a-judge's model changed: gpt-5-mini -> claude-haiku-4-5" in \
+        " ".join(out.split()), out
+
+
+def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", "n"]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert not (tmp_path / "judgekeeper.toml").exists()
+    flat = " ".join(out.split())
+    assert ("Nothing was saved: judgekeeper reads results.json only once judgekeeper.toml says "
+            "how.") in flat and flat.count("Nothing was saved") == 1
+    assert next_lines(out) == ["Next: run `judgekeeper` again and answer yes."]
+
+
+def test_answers_with_no_grade_are_not_asked_about(tmp_path, capsys, terminal):
+    """An error is no decision whatever the answer: never asked whether to leave it out."""
+    answers, asked = terminal
+    _one_document(tmp_path, errors=3, n=40)
+    answers += ["", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert not any("Leave them out?" in q for q in asked)
+    assert "made no real decision on 3 of 40 answers: 3 empty decisions. They are left out " \
+        "here." in " ".join(out.split())
+
+
+def test_a_no_to_leaving_rule_scores_out_counts_them(tmp_path, capsys, terminal):
+    answers, asked = terminal
+    _one_document(tmp_path, rule=3)
+    answers += ["", "n", ""]
+    code, out = check(capsys, tmp_path)
+    assert code == 0, out
+    assert ('3 answers have a score made by a rule (a reason starting "Rule"), not by your '
+            "LLM-as-a-judge. Leave them out?") in asked[1]
+    assert "left out here" not in out
+    assert "passed 20 answers and failed 10." in " ".join(out.split())
+

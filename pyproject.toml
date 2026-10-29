@@ -3,7 +3,7 @@ name = "judgekeeper"
 version = "1.0.0"
 description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "Sathvik Thota" }]
 keywords = ["llm", "llm-as-a-judge", "llm-as-judge", "llm-judge", "evaluation", "evals", "llm-evaluation", "human-labels", "rubric", "cohens-kappa", "promptfoo", "deepeval", "inspect-ai", "mlflow"]
@@ -16,7 +16,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
-  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: Apache Software License",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Software Development :: Testing",
 ]
@@ -24,7 +24,7 @@ dependencies = []
 
 [project.optional-dependencies]
 # build, hatchling and pyyaml: tests/test_release.py builds the wheels and reads the workflows.
-dev = ["pytest>=8", "ruff>=0.6", "build>=1", "hatchling>=1.26", "pyyaml>=6",
+dev = ["pytest>=8", "ruff==0.17.3", "build>=1", "hatchling>=1.26", "pyyaml>=6",
        "jsonschema>=4.18"]
 inspect = ["inspect-ai>=0.3"]
 mlflow = ["mlflow>=3.1"]
@@ -49,7 +49,7 @@ packages = ["src/judgekeeper"]
 
 [tool.hatch.build.targets.sdist]
 # Only what a user of the package needs: no docs, website, tests or fixtures.
-include = ["/src/judgekeeper", "/README.md", "/LICENSE", "/TRADEMARKS.md", "/CHANGELOG.md",
+include = ["/src/judgekeeper", "/README.md", "/LICENSE", "/NOTICE", "/TRADEMARKS.md", "/CHANGELOG.md",
            "/pyproject.toml"]
 
 [tool.pytest.ini_options]

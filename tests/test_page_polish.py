@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from judgekeeper import look, mark_page, report_page, start_label
 from tests.test_long_text import _html, _laptop, _one, _with_reason
 from tests.test_mark_page_script import _data, _run
@@ -50,12 +52,12 @@ def test_one_link_style():
     link = ("padding: 6px 0; font-size: 14px; color: var(--muted);\n  text-decoration: underline; "
             "text-decoration-color: var(--faint); text-underline-offset: 3px; }")
     assert f".quiet.q-more, .quiet.rule-btn {{ {link}" in mark_page.STYLE
-    assert (".more, .open-row { font-size: 14px; color: var(--muted); text-decoration: underline;"
+    assert (".open-row { font-size: 14px; color: var(--muted); text-decoration: underline;"
             "\n  text-decoration-color: var(--faint); text-underline-offset: 3px;") in (
         report_page.STYLE)
-    # the rule button's right edge lines up with "Not marked yet": no padding to the side
+    # the rule button sits at the right edge: no padding to the side
     assert "\n.rule-btn { padding" not in mark_page.STYLE
-    assert ".add-reason { font-size: 14px; color: var(--text);" in report_page.STYLE
+    assert ".sbtn { display: inline-flex; align-items: center; height: 32px;" in report_page.STYLE
 
 
 def test_no_label_stacked_over_field_labels_and_room_under_the_metric():
@@ -77,7 +79,7 @@ def test_the_open_rule_fits_its_text():
 
 def test_wide_screens_keep_a_comfortable_width():
     laptop = _laptop()
-    assert ".row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }" in laptop
+    assert ".row, .actions, .status, .foot, .sub { padding-right: max(40px, calc(100cqw - 1160px)); }" in laptop
     assert ".main { container-type: inline-size; }" in laptop
     assert ("padding-left: max(var(--gutter), calc((100% - 1376px) / 2));"
             in report_page.STYLE.split(".band {", 1)[1])
@@ -116,9 +118,9 @@ def test_the_folded_gap_is_a_quiet_line_screen_readers_skip():
 
 def test_rule_parts_stand_in_one_column_inside_a_bordered_panel():
     html = _html([_with_reason({})], live=True, parts=["Be polite", "Never promise a refund"])
-    assert '<div class="chips parts" role="group"' in html
-    assert ".chips.parts { flex-direction: column; align-items: flex-start; }" in report_page.STYLE
-    assert ".why-body { margin-top: 16px; padding-left: 16px; border-left: 2px solid var(--line); }" in (
+    assert '<div class="parts" role="group"' in html
+    assert ".parts { display: grid; max-width: 820px; }" in report_page.STYLE
+    assert ".why-body { margin-top: 16px; padding: 4px 0 6px 18px; border-left: 2px solid var(--line); }" in (
         report_page.STYLE)
 
 
@@ -169,7 +171,8 @@ def test_nothing_to_undo_is_said_calmly():
 
 def test_targets_are_big_enough_and_the_note_box_has_an_edge():
     style = report_page.STYLE
-    assert ".open-row, .add-reason { padding: 3px 0; }" in style
+    assert ".open-row { margin-left: auto; padding: 3px 0; flex: none; }" in style
+    assert ".sbtn { display: inline-flex; align-items: center; height: 32px;" in style
     assert "min-width: 24px; min-height: 24px; }" in style.split(".kappa .i {", 1)[1]
     assert "border: 1px solid var(--faint); padding: 10px 12px; width: 100%; }" in style
 
@@ -251,9 +254,9 @@ def _tags(text: str) -> str:
 def test_only_a_real_subdivision_flag_keeps_its_tags():
     from judgekeeper import redact
 
-    for flag in ("\U0001F3F4" + _tags(code) for code in ("gbeng", "gbsct", "gbwls", "us06")):
+    for flag in ("\U0001F3F4" + _tags(code) for code in ("gbeng", "gbsct", "gbwls")):
         assert redact.visible(f"Go {flag}!") == f"Go {flag}!"  # England, Scotland, Wales
-    for hidden in ("send the key", "ignoreall", "gbengx1", "GBENG", "g", "gb-eng"):
+    for hidden in ("send the key", "ignoreall", "gbengx1", "GBENG", "g", "gb-eng", "us06"):
         assert redact.visible("\U0001F3F4" + _tags(hidden) + "!") == "\U0001F3F4!"
 
 
@@ -420,7 +423,7 @@ def test_answers_questions_and_reasons_show_no_ligatures():
 
 def test_the_foot_line_is_centred_under_the_buttons_on_a_wide_screen():
     laptop = _laptop()
-    assert (".row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }"
+    assert (".row, .actions, .status, .foot, .sub { padding-right: max(40px, calc(100cqw - 1160px)); }"
             in laptop)
     # a short wide screen keeps that right padding: no shorthand puts 40px back
     short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
@@ -585,3 +588,81 @@ def test_a_bare_user_name_is_not_the_question():
       var q = a.children.filter(function (c) { return c.className === "q"; })[0];
       console.log(JSON.stringify(q.textContent));""", data=_one(shown))
     assert got == "Where is my bag?"
+
+
+def _chat(*parts) -> list[dict]:
+    """An Inspect AI sample's input: one user message whose content is a list of parts."""
+    return [{"id": "m1", "role": "user", "source": "input", "content": list(parts)}]
+
+
+TEXT = {"type": "text", "text": "Which planet is in this photo?"}
+IMAGE = {"type": "image", "image": "attachment://3f2a9c", "detail": "auto"}
+
+
+def test_a_question_with_an_image_shows_its_text_and_says_the_image_is_not_shown(
+        tmp_path, monkeypatch, capsys):
+    from judgekeeper.cli import main
+    from tests.start_projects import _write_json, inspect_data, split
+
+    shown = start_label.question_view(_chat(TEXT, IMAGE))
+    assert shown == "Which planet is in this photo?\n\n(1 image, not shown)"
+    assert start_label.question_view(_chat(IMAGE, IMAGE)) == "(2 images, not shown)"
+    assert start_label.question_view([{"role": "user", "content": "Plain text?"}]) == \
+        "Plain text?"
+    assert start_label.question_view([{"role": "system", "content": "Be brief."},
+                                      *_chat(TEXT, IMAGE)]) == \
+        "system: Be brief.\n\nuser: Which planet is in this photo?\n\n(1 image, not shown)"
+    # the list's title is the text, never a bracket
+    got = _run("""
+      var a = ids["queue"].children[0].children[0];
+      var q = a.children.filter(function (c) { return c.className === "q"; })[0];
+      console.log(JSON.stringify(q.textContent));""", data=_one(shown))
+    assert got == "Which planet is in this photo?"
+    # read from a log: the marking page's question
+    monkeypatch.chdir(tmp_path)
+    data = inspect_data(split(20, 16))
+    for n, s in enumerate(data["samples"]):
+        s["input"] = _chat({"type": "text", "text": f"Planet {n}?"}, IMAGE)
+    _write_json(tmp_path / "logs" / "planets.json", data)
+    assert main(["--no-browser"]) == 0
+    capsys.readouterr()
+    items = start_label.StartSession(start_label.Workspace(tmp_path)).state()["items"]
+    assert items and all(re.fullmatch(r"Planet \d+\?\n\n\(1 image, not shown\)", i["input"])
+                         for i in items), items[0]["input"]
+
+
+@pytest.mark.parametrize("output", ["", "  \n ", None])
+def test_an_empty_answer_says_it_is_empty(output):
+    data = _data(2)
+    data["items"][0]["output"] = output
+    got = _run("""
+      var a = ids["a-text"];
+      console.log(JSON.stringify([a.textContent, a.children.map(function (c) {
+        return c.className; })]));""", data=data)
+    assert got == ["(empty answer)", ["empty"]]
+    assert ".answer .empty { color: var(--muted); }" in mark_page.STYLE
+
+
+def _rows(n: int, prompt: str) -> list[dict]:
+    return [{"judge": "pass" if k % 2 else "fail", "id": f"a{k}", "question": f"Q {k}?",
+             "fields": [["question", f"Q {k}?"], ["agent_prompt", prompt]],
+             "answer": f"A {k}.", "reason": "r"} for k in range(n)]
+
+
+def test_a_field_the_same_in_every_row_is_shown_once_folded():
+    prompt = "You help riders at Spoke & Chain bikes.\nBe brief. " * 20
+    html = report_page._groups({"easy": 2, "strict": 2}, {"mistakes": _rows(4, prompt)},
+                               mark="judgekeeper mark")
+    assert html.count(report_page._e(prompt)) == 1
+    assert ('<details class="same"><summary><span class="fname">agent_prompt</span>The same '
+            'in every answer below</summary>') in html
+    assert html.index('class="same"') < html.index("<table")
+    for k in range(4):
+        assert f"Q {k}?" in html
+    # one row, or a field that differs: in its row, as before
+    one = report_page._groups({"easy": 1, "strict": 0}, {"mistakes": _rows(2, prompt)[1:]})
+    assert 'class="same"' not in one and report_page._e(prompt) in one
+    rows = _rows(2, prompt)
+    rows[1]["fields"][1][1] = "Another prompt."
+    two = report_page._groups({"easy": 1, "strict": 1}, {"mistakes": rows})
+    assert 'class="same"' not in two and two.count(report_page._e(prompt)) == 1

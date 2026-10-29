@@ -5,7 +5,7 @@
   <p>
     <a href="https://pypi.org/project/judgekeeper/"><img src="https://img.shields.io/pypi/v/judgekeeper" alt="PyPI version"></a>
     <a href="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml"><img src="https://github.com/judgekeeper/judgekeeper/actions/workflows/ci.yml/badge.svg?branch=main" alt="Tests"></a>
-    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="MIT license"></a>
+    <a href="https://github.com/judgekeeper/judgekeeper/blob/main/LICENSE"><img src="https://img.shields.io/github/license/judgekeeper/judgekeeper" alt="Apache-2.0 license"></a>
   </p>
   <p>
     <a href="https://www.judgekeeper.com">Website</a> ·
@@ -21,7 +21,7 @@ An LLM-as-a-judge is an AI model that grades the answers of another AI model. ju
 
 ## Install
 
-In your project folder, with pip:
+In your project folder, in its virtual environment, with pip:
 ```
 pip install judgekeeper
 ```
@@ -29,11 +29,11 @@ Then run:
 ```
 judgekeeper
 ```
-Or with [uv](https://docs.astral.sh/uv/):
+Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment:
 ```
 uvx judgekeeper
 ```
-Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
+Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
 
 ## The 5 steps
 
@@ -43,7 +43,7 @@ Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow
 4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
 5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
 
-`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule in your eval tool, grade `.judgekeeper/fix/marked-answers.csv` again, then run `judgekeeper fix <new results file>`. A rule that fixes about a quarter of its mistakes needs about 80 marks for a clear answer, and usually reads "safe to try" ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
+`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule and grade `.judgekeeper/fix/marked-answers.csv` again with your own eval tool, then run `judgekeeper fix <new results file>`. How many marks you need depends on how big the change is. A rule that fixes 9 in 10 of its mistakes is clear from about 50 marks, one that fixes a quarter from about 80, and one that fixes 1 in 10 and breaks 5 in 100 right answers needs more than 120 ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
 
 judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
@@ -51,7 +51,7 @@ judgekeeper only reads files. It never runs your eval tool, makes no AI call and
 
 - **TPR:** of the answers you passed, how many your LLM-as-a-judge passed too.
 - **TNR:** of the answers you failed, how many it failed too.
-- **Kappa:** how much you agree beyond what agreeing at random would give. It is in the report's details and never decides the result.
+- **Kappa:** how much you agree beyond what agreeing at random would give. It moves with your mix of Pass and Fail, so it is only in the report's details and never decides the result.
 
 Each number comes with a range, for example "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
 
@@ -60,7 +60,7 @@ Each number comes with a range, for example "about 90% (between 84% and 93%)". T
 - **JailbreakBench.** GPT-4 graded 300 answers that three experts also marked. In 100 tests with 100 marks each, judgekeeper's ranges held the true TPR in 99, the true TNR in 94 and the true kappa in 100; all three at once in 93. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
 - **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
 - **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
-- **Simulation.** In made-up checks, the ranges held the true value 96.2 times in 100 on average, and never fewer than 92.6. [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
+- **Simulation.** In made-up checks, the ranges held the true value 96.2 times in 100 on average (the chosen level's Average, in the report's first table). The lowest was 92.6 times in 100, when marking stops at 15 Pass and 15 Fail (the table "The real stopping rule"). [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
 
 ## More
 
@@ -68,4 +68,4 @@ The website, [www.judgekeeper.com](https://www.judgekeeper.com), has a [guide](h
 
 ## License
 
-MIT, for the code. The name judgekeeper and the logo are not covered: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).
+Apache-2.0, for the code. The name judgekeeper and the logo are not covered: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).

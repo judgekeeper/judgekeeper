@@ -2,7 +2,8 @@
 
 One self-contained page (look.py: nothing loaded from anywhere else). It shows one answer at a
 time with the person's own marks and never anything the LLM-as-a-judge decided: no grade, no
-reason, no agreement. What it grades is shown: the metric's name above the answer, and its
+reason, no agreement (an answer it graded more than once with different grades says only which
+run it is: "Run 2 of 3: graded differently"). What it grades is shown: the metric's name above the answer, and its
 rule behind a "Show the rule" button when the results hold one. Text reaches it through
 textContent. The server fills in __DATA__ (start_label.StartSession.state), __TOKEN__ and
 __NONCE__.
@@ -86,9 +87,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .dot-pass circle, .dot-fail circle { stroke-dasharray: none; }
 .dot-pass circle, .dot-pass path { stroke: var(--green); }
 .dot-fail circle, .dot-fail path { stroke: var(--red); }
-.legend { display: flex; gap: 18px; padding: 16px 22px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend .dot { width: 12px; height: 12px; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; }
 .card { flex: 1; display: flex; flex-direction: column; }
 .row { padding: 32px 40px; border-bottom: 1px solid var(--line); }
@@ -99,6 +97,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said { font-weight: 600; }
 .state .said.pass { color: var(--green); }
 .state .said.fail { color: var(--red); }
+.run { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 .question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
@@ -130,7 +129,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .btn.pass { background: var(--green-fill); }
 .btn.fail:hover { filter: brightness(1.08); }
 .btn.pass:hover { filter: brightness(1.08); }
-.sub { display: flex; align-items: center; justify-content: center; padding: 0 24px 6px; }
+.sub { display: flex; align-items: center; justify-content: center; padding: 0 40px 6px; }
 .quiet { padding: 8px 20px; font-size: 14px; color: var(--muted); }
 .quiet:hover { color: var(--text); background: var(--hover); }
 .quiet kbd { font-family: var(--mono); font-size: 12px; color: var(--text); margin-left: 8px; }
@@ -198,13 +197,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   #q-row > .question { flex: 0 1 auto; min-height: 0; }
   .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
     flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
-  .row-a:has(> .rule:not([hidden])) { min-height: calc((100vh - 72px) * .35 + 150px); }
-  .card:has(.rule:not([hidden])) .question.long:not(.open) { max-height: calc(2 * 1.6em); }
-  .card:has(.rule:not([hidden])) .question.ht:not(.open) > :not(.q-tail) { display: none; }
-  .row-a > .graded, .row-a > .label { flex: none; }
+  .card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }  /* the rule gives way, not the question */
+  .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
+  .card:has(.rule:not([hidden])) .a-scroll:not(.fits) { min-height: calc((100vh - 72px) * .25 - 30px); }
   .row-a:has(> .a-scroll.fits) { min-height: 0; }
   .a-scroll.more-below, .question.long.cut:not(.open), .question.long.open.more-below,
   .rule.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
@@ -212,8 +210,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   /* Wide: the text, the buttons and the foot line keep to 1120px; the hairlines run the
      full width */
   .main { container-type: inline-size; }
-  .row, .actions, .status, .foot { padding-right: max(40px, calc(100cqw - 1160px)); }
-  .sub { padding-right: max(24px, calc(100cqw - 1160px)); }
+  .row, .actions, .status, .foot, .sub { padding-right: max(40px, calc(100cqw - 1160px)); }
   .a-scroll { margin-right: calc(-1 * max(40px, calc(100cqw - 1160px)));
     padding-right: max(40px, calc(100cqw - 1160px)); }
   .question:not(.long) { max-width: 75ch; }
@@ -230,6 +227,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
     overscroll-behavior: contain; }
   .question.long.open:focus-visible, .rule:focus-visible { -webkit-mask-image: none;
     mask-image: none; outline: 1px solid var(--muted); outline-offset: 4px; }
+  .answer .empty { color: var(--muted); }
   .answer.a-mid { font-size: 18px; line-height: 1.6; max-width: 68ch; }
   .answer.a-long { font-size: 17px; line-height: 1.65; max-width: 75ch; }
   .rule { flex: 0 1 auto; min-height: 0; max-height: min(calc((100vh - 72px) * .3), 28vh); overflow: auto;
@@ -263,7 +261,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .btn { height: 60px; font-size: 16px; gap: 8px; }
   .sub { flex-wrap: wrap; padding: 8px 16px; gap: 4px 8px; }
   .quiet { padding: 10px 14px; }
-  .foot, .legend { padding-left: 16px; padding-right: 16px; }
+  .foot { padding-left: 16px; padding-right: 16px; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
 }
@@ -274,12 +272,11 @@ __TOP__
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
-  <div class="legend" aria-hidden="true"><span>__DOT_PASS__Pass</span><span>__DOT_FAIL__Fail</span><span>__DOT_NONE__Not marked</span></div>
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
-    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite">Not marked yet</div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
+    <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite"></div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
@@ -291,7 +288,7 @@ __TOP__
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
     <button type="button" class="go" id="again" hidden>Look at them</button></section>
-  <p class="foot">Come back any time: <code>__COMMAND__</code>__HELD__</p>
+  <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
 </div>
 </div>
@@ -306,7 +303,7 @@ __TOP__
 <script nonce="__NONCE__">
 "use strict";
 (function () {
-  var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400;
+  var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -317,7 +314,8 @@ __TOP__
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
-  var lockUntil = 0;         // input is ignored until then, after each mark
+  var lockUntil = 0;         // clicks are ignored until then, after each mark
+  var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
@@ -520,6 +518,7 @@ __TOP__
     into.textContent = "";
     into.className = "answer" + (chars(text) > LONG_A ? " a-long" :
                                  chars(text) > SHORT_A ? " a-mid" : "");
+    if (!text.trim()) { into.appendChild(el("span", "empty", "(empty answer)")); text = ""; }
     var parts = fences(text);
     parts.forEach(function (part, k) {  // the line breaks next to a box are the box's edges
       if (part.code != null) { into.appendChild(codeBox(part.code)); return; }
@@ -654,11 +653,16 @@ __TOP__
     $("answer-card").hidden = false; $("end").hidden = true;
     // The state, muted; after a mark, the mark word in its colour: "Marked Pass".
     var state = $("ans-status");
-    state.textContent = it.label ? "" : it.skipped ? "Skipped" : "Not marked yet";
+    state.textContent = it.label ? "" : it.skipped ? "Skipped" : "";
     if (it.label) {
       state.appendChild(el("span", "", "Marked "));
       state.appendChild(el("span", "said " + it.label, it.label === "pass" ? "Pass" : "Fail"));
     }
+    // An answer the LLM-as-a-judge graded more than once, with different grades: which run
+    // this card is, never its grade.
+    setText("a-run", it.run ? "Run " + it.run[0] + " of " + it.run[1] +
+      ": graded differently" : "");
+    $("a-run").hidden = !it.run;
     showQuestion(it);
     showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
@@ -728,17 +732,22 @@ __TOP__
     busy = true; $("pass").disabled = true; $("fail").disabled = true;
     change.id = items[pos].id;
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
+    // No answer in SAVE_MS (judgekeeper stopped, or the computer slept): not saved, as below.
+    var stop = new AbortController(), waited = setTimeout(function () { stop.abort(); }, SAVE_MS);
     fetch(url("/label"), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      referrerPolicy: "same-origin", body: JSON.stringify(change)
+      referrerPolicy: "same-origin", body: JSON.stringify(change), signal: stop.signal
     }).then(function (r) {
       return r.json().then(function (body) { return {ok: r.ok, body: body}; });
     }).then(function (res) {
-      if (!res.ok) { render(); say("Not saved: " + res.body.error); return; }
+      clearTimeout(waited);
+      if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
+      while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
+      clearTimeout(waited); queued = [];
       render();
       say("Not saved: this page lost its link to judgekeeper. Is it still " +
         "running in your terminal? Your earlier marks are saved.");
@@ -746,11 +755,12 @@ __TOP__
     return true;
   }
 
-  // Each action waits LOCK_MS after the one before: a double click or a key held down never
-  // marks an answer not yet on screen.
-  function locked() {
+  // Each click waits LOCK_MS after the action before: a double click never marks an answer not
+  // yet on screen. A key is never ignored (`key`): one pressed while a mark is saved waits for
+  // it (act); a key held down does nothing.
+  function locked(key) {
     var t = Date.now();
-    if (t < lockUntil) { return true; }
+    if (t < lockUntil && !key) { return true; }
     lockUntil = t + LOCK_MS;
     return false;
   }
@@ -764,25 +774,27 @@ __TOP__
     hearing = setTimeout(function () { setText("done", text); }, 100);
   }
 
-  function mark(value) {
-    if (ended || locked()) { return; }
+  function act(f) { if (busy) { queued.push(f); } else { f(); } }
+
+  function mark(value, key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
       hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
   }
 
-  function skip() {
-    if (ended || locked()) { return; }
+  function skip(key) {
+    if (ended || locked(key)) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
       hear("Skipped."); next(); focusCard(); });
   }
 
-  function undo() {
+  function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
-    if (locked()) { return; }
+    if (locked(key)) { return; }
     var back = history.pop();
     walkingSkipped = false; open(back);
     var it = items[pos];
@@ -810,9 +822,9 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { mark(KEYS[k]); }
-    else if (k === "s") { skip(); }
-    else if (k === "z" || k === "u") { undo(); }
+    if (KEYS[k]) { act(function () { mark(KEYS[k], true); }); }
+    else if (k === "s") { act(function () { skip(true); }); }
+    else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
   });

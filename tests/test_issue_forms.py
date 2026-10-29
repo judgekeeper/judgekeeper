@@ -1,4 +1,4 @@
-"""The issue forms and CONTRIBUTING: three forms, each with the required MIT checkbox, and
+"""The issue forms and CONTRIBUTING: three forms, each with the required license checkbox, and
 blank issues off. The repo takes issues, not pull requests.
 """
 
@@ -9,7 +9,7 @@ import yaml
 from tests.website_pages import ROOT
 
 FORMS = ROOT / ".github" / "ISSUE_TEMPLATE"
-MIT = "Any code, design or text I share here may be used in judgekeeper under the MIT license."
+AGREE = "Any code, design or text I share here may be used in judgekeeper under the Apache-2.0 license."
 REMOVED_ANSWERS = "I removed any answer text I can't share."
 
 
@@ -38,9 +38,9 @@ def test_there_are_three_forms_and_no_blank_issues():
     assert any("security/advisories/new" in link["url"] for link in config["contact_links"])
 
 
-def test_every_form_asks_for_the_mit_checkbox():
+def test_every_form_asks_for_the_licence_checkbox():
     for name in ("bug.yml", "results-not-found.yml", "idea.yml"):
-        assert _checkboxes(_form(name)).get(MIT) is True, name
+        assert _checkboxes(_form(name)).get(AGREE) is True, name
 
 
 def test_the_bug_form_asks_for_the_version_the_eval_tool_and_the_output():
@@ -76,5 +76,5 @@ def test_contributing_sends_designers_and_developers_to_the_forms():
     assert "accepts issues, not pull requests" in flat
     for name in ("bug.yml", "results-not-found.yml", "idea.yml"):
         assert f'**{_form(name)["name"]}:**' in flat, name
-    for needed in ("Figma", "your own changed version", "MIT license"):
+    for needed in ("Figma", "your own changed version", "Apache-2.0 license"):
         assert needed in flat, needed

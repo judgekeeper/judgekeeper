@@ -137,13 +137,21 @@ def test_stop_and_check_from_a_folder_inside_the_project(here, capsys, monkeypat
     assert "You have not marked enough answers yet" not in out
 
 
-def test_a_folder_with_two_projects_says_which_it_read(here, capsys):
+@pytest.mark.parametrize("config", [False, True])
+def test_a_folder_with_two_projects_says_which_it_read(here, capsys, config):
+    """A tool's config here: this folder is a project that reads the newest results below;
+    with none, the two are projects of their own, and judgekeeper says to go to one."""
+    if config:
+        (here / "promptfooconfig.yaml").write_text("prompts: []\n", encoding="utf-8")
     for name in ("a", "b"):
         (here / name / ".git").mkdir(parents=True)
         table_project(here / name, split(20, 16))
     later = time.time() + 60
     os.utime(here / "b" / "results.csv", (later, later))
     code, out, err = run(capsys)
+    if not config:
+        assert code == 3 and "a/ and b/ hold eval results" in flat(out), out + err
+        return
     assert code == 0, out + err
     assert ("These results are from the project in b/. The project in a/ has results too: to "
             "check them, run `judgekeeper a`.") in flat(out)
@@ -176,6 +184,23 @@ def test_the_folder_above_a_projects_session_says_where_it_is(here, capsys, monk
     assert not (here / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize("project_file", [False, True])
+@pytest.mark.parametrize("command", ["fix", "check"])
+def test_fix_and_check_above_a_projects_session_say_where_it_is(here, capsys, monkeypatch,
+                                                                command, project_file):
+    if project_file:
+        (here / ".git").mkdir()
+    _session_in(here / "promptfoo", capsys, monkeypatch, 6)
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, command)
+    assert code == 3, out + err
+    assert ("promptfoo/ already holds your judgekeeper session (6 marks): judgekeeper keeps a "
+            "project's marks in its own folder.") in flat(out), out
+    assert _next(out) == (f"Next: go to that folder (`cd promptfoo`), then run "
+                          f"`judgekeeper {command}` there.")
+    assert not (here / ".judgekeeper").exists()
+
+
 def test_a_project_with_its_own_results_above_a_session_is_read(here, capsys, monkeypatch):
     (here / ".git").mkdir()
     _session_in(here / "promptfoo", capsys, monkeypatch, 6)
@@ -184,6 +209,34 @@ def test_a_project_with_its_own_results_above_a_session_is_read(here, capsys, mo
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     assert (here / ".judgekeeper" / "start.json").is_file()
+
+
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_folder_above_two_projects_never_run_says_to_go_to_one(here, capsys, command):
+    """Results in two folders below, none here: two projects, never one session above them."""
+    table_project(here / "gym", split(20, 16))
+    promptfoo_project(here / "dental", split(20, 16))
+    code, out, err = run(capsys, *command, "--no-browser")
+    assert code == 3, out + err
+    assert ("dental/ and gym/ hold eval results: judgekeeper keeps a project's marks in its "
+            "own folder, so it checks one at a time.") in flat(out), out
+    assert _next(out) == ("Next: go to one of those folders (`cd dental`), then run "
+                          "`judgekeeper` there.")
+    assert not (here / ".judgekeeper").exists()
+    assert not list((here / "gym").glob(".judgekeeper*"))
+
+
+@pytest.mark.parametrize("case", ["one folder", "a project", "results here too"])
+def test_results_in_one_folder_below_or_a_project_are_read_as_before(here, capsys, case):
+    table_project(here / "gym", split(20, 16))
+    if case == "a project":
+        (here / ".git").mkdir()
+        table_project(here / "dental", split(20, 16))
+    if case == "results here too":
+        table_project(here / "dental", split(20, 16))
+        table_project(here, split(20, 16), name="mine.csv")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
 
 
 # Every answer marked, too few of one kind ---------------------------------------------------
@@ -199,6 +252,21 @@ def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
     assert _next(out) == NEXT_ALL_MARKED
     assert "keep marking" not in out and "is open" not in out
     assert len(pages[0]) == started  # no page: nothing is left to mark on it
+
+
+def test_a_step_for_more_marks_than_are_left_says_run_your_eval(here, capsys):
+    """After `check`, "mark 10 new answers" with one answer left, skipped: never more marks than
+    the answers there are to mark."""
+    promptfoo_project(here, split(20, 20))
+    assert run(capsys)[0] == 0
+    ws = Workspace(here)
+    _mark(ws, only=range(1, 40))
+    session = StartSession(ws)
+    session.update({"id": next(i["id"] for i in session.items if not i["label"]),
+                    "deferred": True})  # Skip
+    step = "run `judgekeeper mark` to mark 10 new answers, then run `judgekeeper check` again."
+    assert start_label.next_marks(ws, step, need=10) == NEXT_ALL_MARKED.removeprefix("Next: ")
+    assert start_label.next_marks(ws, step, need=1) == step  # the skipped one is left to mark
 
 
 def test_the_mark_command_never_repeats_the_pages_flags(here, capsys):
@@ -242,8 +310,9 @@ def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
     assert "Result: too early to tell." in out
     assert "still open" not in out and "To mark more answers" not in out
     assert "How often your LLM-as-a-judge agrees with you (estimates):" in out  # the numbers too
-    assert "You've marked every answer: 20 Pass, 20 Fail. That's still too few to tell." in \
-        flat(out)
+    assert ("You've marked every answer: 20 Pass, 20 Fail. The ranges are still too wide to "
+            "tell.") in flat(out)
+    assert "too few" not in flat(out)  # 20 of each is enough for a result: the ranges are wide
     assert _next(out) == NEXT_ALL_MARKED
     assert code == 3
 
@@ -365,15 +434,12 @@ def test_fix_for_a_table_judge_tests_new_grades_from_a_file(here, capsys, no_cal
     assert f"New rule: agreed with you on {n} of {n} answers." in out
 
 
-def test_the_report_says_how_to_test_a_new_rule(here, capsys):
+def test_the_report_says_where_to_run_fix(here, capsys):
     _table_needs_work(here, capsys)
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "can&#x27;t re-run" not in report
-    assert ("In your project folder, run <code>judgekeeper fix</code>. It lists the answers your "
-            "LLM-as-a-judge got wrong and saves them in .judgekeeper/fix/, with "
-            "marked-answers.csv. Change your rule in your eval tool, grade those answers again, "
-            "then run <code>judgekeeper fix &lt;new results file&gt;</code> to test it on the "
-            "marks kept aside.") in report
+    assert ("<p>Run it in your project folder to see what to change.</p>"
+            '<div class="cmd"><code>judgekeeper fix</code>') in report
 
 
 # The folder and the page ---------------------------------------------------------------------

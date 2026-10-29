@@ -43,11 +43,12 @@ def cannot(talk: Talk, rel: str, why: str):
     if quote:  # the file is read once the quote is closed
         _para(talk, f"{why[:1].upper()}{why[1:]}.")
         return talk.stop(EXIT_USAGE, f"close the quote on line {quote[1]} of "
-                                     f"{Path(rel).name}, then run `{talk.command()}`.")
+                                     f"{Path(rel).name}, then run `{talk.command()}`.",
+                         as_given=True)
     if NOT_UTF8 in why:  # the file is read once it is saved as UTF-8
         _para(talk, f"{why}.")
         return talk.stop(EXIT_USAGE, f"save {Path(rel).name} as UTF-8, then run "
-                                     f"`{talk.command()}`.")
+                                     f"`{talk.command()}`.", as_given=True)
     _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
     _para(talk, f"Turn it into a CSV, as the Next: line says. {RECORD_DOOR}")
     return talk.stop(EXIT_USAGE, (
@@ -97,12 +98,12 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         lines.append(f"  reason:          {mapper.filled(g.reason, side, judge)}")
     if g.id:
         lines.append(f"  id:              {g.id}")
-    if g.model_key:
-        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
-    elif judge_model:
+    if judge_model:  # the flag wins over the file
         lines.append(f"  model:           {judge_model} (given with --judge-model)")
+    elif g.model_key:
+        lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
     else:
-        lines.append("  model:           not in the file")
+        lines.append("  model:           not in the file (add --judge-model NAME)")
     if g.kind == "score":
         if g.pass_mark_given:
             where = " (given by you)"
@@ -111,6 +112,8 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         else:
             where = " (the scores are between 0 and 1)" if g.pass_mark_sure else ""
         mark = g.pass_mark if g.pass_op == ">=" else f"{g.pass_op} {g.pass_mark}"
+        if not where:  # only a guess: the person is asked for it next
+            mark = "not known"
         lines.append(f"  pass mark:       {mark}{where}")
     return lines
 
@@ -249,9 +252,10 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         g = mapper.guess(units)
     except mapper.MapError as e:
         raise cannot(talk, rel, str(e)) from None
-    lines = f"{len(units)} {'line' if len(units) == 1 else 'lines'}"
-    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own ({lines})."
-             if found else f"{rel} ({lines}):")
+    lines = "" if path.suffix.lower() == ".json" else \
+        f" ({len(units)} {'line' if len(units) == 1 else 'lines'})"  # one JSON document: none
+    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
+             if found else f"{rel}{lines}:")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
     talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
     for p in listed[:MAX_PATHS]:
@@ -289,21 +293,24 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     judge = _choose_judge(talk, units, g, metric)
     mark = _pass_mark(talk, g, pass_if) if g.kind == "score" else None
     m = {**g.to_map(), "sides": sides}
+    # a model the file names is read from it on every run; --judge-model wins for its own run
+    # only, so it is kept in judgekeeper.toml only when the file names none
+    kept = None if g.model_key else judge_model
     chosen = g.judges if judge == "*" else [judge] if judge else []
     left = mapper.left_out(units, mapper.Guess(**{**g.__dict__, "sides": sides}), chosen) \
         if chosen or not g.judges else 0
     if left and talk.confirm(
-            f"{plural(left, 'answer has', 'answers have')} an error or a score made by a rule "
+            f"{plural(left, 'answer has', 'answers have')} a score made by a rule "
             "(a reason starting "
             '"Rule"), not by your LLM-as-a-judge. Leave them out?', default=True, with_yes=True,
             hint=""):
         m["leave_out"] = True
     op = g.pass_op if mark is not None and g.pass_op != ">=" else None
     saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark,
-                                   pass_op=op, model=judge_model, map=m)
+                                   pass_op=op, model=kept, map=m)
     try:
         records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark": mark,
-                                                        "pass_op": op, "model": judge_model})
+                                                        "pass_op": op, "model": kept})
                    for r in recs if r.annotator_kind == LLM]
     except RecordsError:
         records = []

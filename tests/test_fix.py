@@ -157,6 +157,25 @@ def test_the_split_hides_half_of_each_group(here, capsys):
     assert sum(marks.person[i] == "fail" for i in hidden) >= 5
 
 
+def test_an_empty_answer_kept_aside_is_found_in_the_regraded_file(here, capsys, monkeypatch):
+    """An empty answer is found by its question: kept aside, it no longer stops every test."""
+    monkeypatch.setattr(f"{__name__}._outputs",
+                        lambda n=N: ["" if i == 40 else answer(i, TAG) for i in range(n)])
+    ws = project(here)
+    run(capsys)
+    rows = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
+    empty = next(r["id"] for r in rows if r.get("output") == "")
+    split, m = fix.read_split(ws), fix.Marks(ws)
+    if empty in split.seen:  # kept aside, in place of one of the same kind
+        other = next(i for i in split.hidden
+                     if (m.person[i], m.judge[i]) == (m.person[empty], m.judge[empty]))
+        split.seen[split.seen.index(empty)], split.hidden[split.hidden.index(other)] = \
+            other, empty
+        fix.save_split(ws, split)
+    code, out = run(capsys, regraded(here).name)
+    assert code == 0 and "Result:" in out, out
+
+
 def _mark_more(ws, k: int, n: int = 80) -> list[str]:
     """Mark the next `k` answers not marked yet, as the person sees them."""
     session = StartSession(ws)
@@ -251,6 +270,12 @@ def test_the_first_run(here, capsys, monkeypatch):
                  "it passed", "it failed", "hand this file", "rule.txt", "AI call", "--yes"):
         assert gone not in out, gone
     assert not (ws.dir / "fix" / "rule.txt").exists()
+
+
+def test_the_deepeval_regrade_line_says_to_add_the_fields_the_metric_reads():
+    line = fix.regrade_line("deepeval")
+    assert ("any field your metric also reads, such as expected_output, added back by its "
+            "question") in line
 
 
 def test_marked_answers_csv_holds_every_marked_answer_and_nothing_else(here, capsys):
@@ -379,6 +404,68 @@ def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, 
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
+def _marked_own(here, argv=()) -> Workspace:
+    """Step 1 run on `here` and every answer marked, 6 it passed marked Fail: the same
+    counts of Pass and Fail marks whatever order the queue is in."""
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser", *argv]) == 0
+        main(["--stop"])
+    session = StartSession(Workspace(here))
+    flipped = 0
+    for item in session.items:
+        label = session.groups[item["id"]]
+        if label == "pass" and flipped < 6:
+            label, flipped = "fail", flipped + 1
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return Workspace(here)
+
+
+RECORD_AGAIN = ("Grade marked-answers.csv with your own code, call `judgekeeper.record()` "
+                "again on the new grades, then run `judgekeeper fix "
+                ".judgekeeper/records/<new file>`.")
+
+
+def test_a_record_judge_is_told_to_call_record_again(here, capsys):
+    from tests.start_projects import records_project
+
+    records_project(here, [True] * 25 + [False] * 25)
+    _marked_own(here)
+    code, out = run(capsys)
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert RECORD_AGAIN in flat and "in your eval tool" not in flat
+    assert flat.endswith("then run `judgekeeper fix .judgekeeper/records/<new file>`.")
+
+
+def test_a_plain_table_on_record_marks_says_to_call_record_again(here, capsys):
+    from tests.start_projects import records_project, table_project
+
+    records_project(here, [True] * 25 + [False] * 25)
+    _marked_own(here)
+    run(capsys)
+    table_project(here, [True] * 50, name="regraded.csv")
+    code, out = run(capsys, "regraded.csv")
+    assert code == 2, out
+    flat = " ".join(out.split())
+    assert "regraded.csv is a plain table of results, but your marks are on " \
+           "judgekeeper.record() results." in flat
+    assert flat.endswith(f"Next: {RECORD_AGAIN[0].lower()}{RECORD_AGAIN[1:]}")
+
+
+def test_an_own_format_judge_is_told_to_keep_the_shape_of_its_file(here, capsys):
+    from tests.start_projects import flat_jsonl
+
+    flat_jsonl(here / "evals" / "graded.jsonl", n=50)
+    _marked_own(here, ["--yes"])
+    code, out = run(capsys)
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert ("Grade marked-answers.csv with your own code, and save the new grades in the "
+            "same shape as evals/graded.jsonl.") in flat
+    assert "in your eval tool" not in flat
+    assert flat.endswith("then run `judgekeeper fix <new results file>`.")
+
+
 def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
     project(here)
     _, out = run(capsys)
@@ -481,6 +568,23 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     assert fix.RESULT[kind] in flat
     assert flat.endswith(f"Next: keep your new rule, then run `judgekeeper check {new.name}` "
                          "to re-check it on all your marks.")
+
+
+def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(
+        here, capsys):
+    project(here)
+    run(capsys)
+    data = promptfoo_data([True] * N, rubric=NEW_RULE, tag=TAG, outputs=_outputs(),
+                          metric="correctness2")
+    (here / "regraded.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, "regraded.json")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert "no LLM-as-a-judge named 'llm-rubric'; the names are: 'correctness2'" in flat
+    assert "--metric" not in out
+    assert flat.endswith("Next: grade .judgekeeper/fix/marked-answers.csv again with your new "
+                         "rule under the name 'llm-rubric', the one your marks test, then run "
+                         "`judgekeeper fix regraded.json`."), flat
 
 
 def test_a_test_is_kept_without_answer_text(here, capsys):
@@ -680,7 +784,18 @@ def _wrong_verdict(d):
                    "test": 1, "hidden": 25}]
 
 
+def _swapped(d):  # one shown and one kept aside trade places
+    d["visible"][0], d["hidden"][0] = d["hidden"][0], d["visible"][0]
+
+
+BY_HAND = "it was changed by hand"
+
+
 @pytest.mark.parametrize("change, why", [
+    (_swapped, BY_HAND),
+    (lambda d: d.update(seed=d["seed"] + 1), BY_HAND),
+    (lambda d: d["visible"].pop(), BY_HAND),  # read as a new mark, and written again
+    (lambda d: d["hidden"].pop(), BY_HAND),  # one kept aside, then shown
     (_overlap, "it names some marks as both kept aside and shown"),
     (_shrunk, "it keeps far fewer than half of your marks aside"),
     (_shrunk_later_set, "it keeps far fewer than half of your marks aside"),
@@ -706,10 +821,41 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
         assert code == 2, out
         assert (f"judgekeeper can't use .judgekeeper/fix/split.json: {why}. It says which of "
                 "your marks are kept aside") in flat
+        assert "delete it and run `judgekeeper fix --new`" in flat
         assert "pool-judge.jsonl" not in flat and "Result" not in flat
         assert path.read_bytes() == before
     # the result page shows none of the marks, and says it can't tell which are kept aside
     assert fix.report_section(ws) == {"mistakes": [], "split_unknown": True}
+
+
+@pytest.mark.parametrize("number, last", [(1, True), (1, False), (2, False)])
+def test_a_hand_added_set_line_in_history_does_not_skip_the_about_half_check(here, capsys,
+                                                                             number, last):
+    """A `set` line saying the earlier sets hold every shown mark, with 5 marks kept aside: the
+    5 marked last or first. Set 1 has no earlier sets, whatever history.jsonl says. A later
+    set's earlier sets hold at most the marks made before any kept aside (marks.jsonl): a set
+    begins by keeping aside its first marks, so kept aside marks made last are how a set that
+    began late looks (set 2 with `last` is not refused)."""
+    from judgekeeper import marks
+    from judgekeeper.fingerprint import utc_now
+
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    order = list(marks.read(ws.marks).last)
+    hidden = sorted(d["hidden"], key=order.index)
+    kept = hidden[-5:] if last else hidden[:5]
+    d["visible"] += [i for i in hidden if i not in kept]
+    d["hidden"] = kept
+    d["set"] = number
+    path.write_text(json.dumps(d), encoding="utf-8")
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "set", "seed": d["seed"],
+                                    "set": number, "earlier": len(d["visible"])})
+    code, out = run(capsys, regraded(here).name)
+    assert code == 2, out
+    assert ("judgekeeper can't use .judgekeeper/fix/split.json: it keeps far fewer than half "
+            "of your marks aside.") in " ".join(out.split())
 
 
 def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
@@ -728,6 +874,17 @@ def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
             "why.") in flat
     assert '<code>judgekeeper fix</code>' in html
     assert 'class="group' not in html and "Add a reason" not in html
+
+
+def test_a_split_written_before_its_sha256_is_read_and_gets_one(here, capsys):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({k: v for k, v in d.items() if k != "sha256"}), encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 0, out
+    assert _split(ws) == d  # the same split, with its sha256 again
 
 
 def test_a_split_that_is_not_json_is_refused_and_kept(here, capsys):

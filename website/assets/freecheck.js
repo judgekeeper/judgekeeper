@@ -69,6 +69,11 @@
   var EVERY_ANSWER = 'your LLM-as-a-judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
+  // front._unread_values: grades that are all numbers are scores, and the tool asks for a pass mark
+  function SCORES(shown) {
+    return "Your LLM-as-a-judge's decisions are scores (" + shown + '), and the results do not say which score passes. ' +
+      'judgekeeper in your project asks which score counts as a pass.';
+  }
   var NO_CLEAR = 'No answer has a clear Pass or Fail from your LLM-as-a-judge, so there is nothing to mark.';
   // judge_check.MODEL_FAILED_LINE, ALL_MODEL_FAILED and MODEL_FAILED_NEXT: the same words
   var MODEL_FAILED_LINE = ' no answer: the call to the model you test failed, so your LLM-as-a-judge never ran.';
@@ -242,6 +247,20 @@
 
   function isSetGrader(v) { return isObj(v) && !('id' in v) && isStr(v.modelName) && v.modelName.length > 0; }
 
+  // Providers whose made object always shows them (madeBy): with none shown, it is not one
+  var SHOWN = ['anthropic', 'azure', 'vertex', 'google', 'openai'];
+
+  // The start of the id of the provider promptfoo 0.124 made a grader from, as far as it shows
+  function madeBy(made, own) {
+    var config = isObj(made.config) ? made.config : {};
+    var env = config.apiKeyEnvar;
+    if ('anthropic' in made) return 'anthropic';
+    if ('deploymentName' in made) return 'azure';
+    if (typeof config.vertexai === 'boolean') return config.vertexai ? 'vertex' : 'google';
+    if (isStr(env) && env.slice(-8) === '_API_KEY' && env !== own.apiKeyEnvar) return env.slice(0, -8).toLowerCase();
+    return 'mcpClient' in made ? 'openai' : null;
+  }
+
   // The model a grader names: its id, or a --grader's modelName; null when the file has none
   function modelOf(value) {
     if (isObj(value) && !('id' in value) && (isObj(value.text) || isStr(value.text))) value = value.text;
@@ -327,8 +346,15 @@
           return { error: 'two-judges', message: 'Test ' + clean(test, 20) + ' has more than one ' + JSON.stringify(clean(name, 80)) +
             ' assertion. Give each one a name with metric: in its assertion, then run your eval again (that makes model calls).' };
         }
-        var grader = or(a.provider, testOpts.provider, options(defaultTest).provider, defaultTest.provider, null);
+        var configured = or(options(defaultTest).provider, defaultTest.provider, null);
+        var grader = or(a.provider, testOpts.provider, configured, null);
         if (!truthy(grader)) grader = null;
+        if (isSetGrader(grader)) {  // promptfoo 0.124 saves a config grader with no id: the config's id
+          var pid = isObj(configured) ? configured.id : configured;
+          var maker = madeBy(grader, isObj(configured) && isObj(configured.config) ? configured.config : {});
+          if (isStr(pid) && pid.split(':').pop() === grader.modelName &&
+              (maker ? pid.indexOf(maker) === 0 : SHOWN.indexOf(pid.split(':')[0]) < 0)) grader = pid;
+        }
         var model = grader === null ? null : modelOf(grader);
         var metadata = isObj(c.metadata) ? c.metadata : {};
         var rubricPrompt = or(a.rubricPrompt, testOpts.rubricPrompt, options(defaultTest).rubricPrompt);
@@ -341,7 +367,8 @@
           score: score, scoreKind: numberKind(c, 'score'),
           reason: isStr(c.reason) ? c.reason : '',
           model: model, prompt: prompt, problem: problem,
-          countedAs: failed ? 'fail' : problem ? label : null
+          countedAs: failed ? 'fail' : problem ? label : null,
+          thresholded: typeof a.threshold === 'number'  // a score under it fails: a pass mark
         });
       }
     };
@@ -495,9 +522,14 @@
     });
     return out;
   }
+  // find.grade_columns: the verdict columns; with none, the score column
+  function gradeColumns(columns) {
+    var verdicts = VERDICT_COLUMNS.filter(function (c) { return columns.indexOf(c) >= 0; });
+    return verdicts.length ? verdicts : (columns.indexOf('score') >= 0 ? ['score'] : []);
+  }
   function isTable(columns) {
     var has = function (c) { return columns.indexOf(c) >= 0; };
-    return has('input') && (has('output') || (has('output_a') && has('output_b'))) && VERDICT_COLUMNS.some(has);
+    return has('input') && (has('output') || (has('output_a') && has('output_b'))) && gradeColumns(columns).length > 0;
   }
   function isRecordsFile(columns) { return columns.indexOf('annotator_kind') >= 0 || columns.indexOf('schema_version') >= 0; }
   function blank(v) { return v === null || v === undefined || (isStr(v) && !v.trim()); }
@@ -527,6 +559,11 @@
     if (!isStr(v) || !v.trim()) return false;
     var t = v.trim().toLowerCase();
     return /[0-9\/:]/.test(t) || namedFor(t, MODEL_WORDS);
+  }
+  // start._models_named: every value in the column (empty ones aside) names a model, none a grade
+  function modelsNamed(rows, col) {
+    var seen = rows.filter(function (row) { return !blank(row[col]); });
+    return seen.length > 0 && seen.every(function (row) { return modelLike(row[col]) && !verdictValue(row[col]); });
   }
   // mapper._verdict_value, for a cell's text: a verdict word, or a number from 0 to 100
   function verdictValue(v) {
@@ -661,14 +698,17 @@
     var columns = [];
     rows.forEach(function (r) { Object.keys(r).forEach(function (k) { if (columns.indexOf(k) < 0) columns.push(k); }); });
     if (columns.indexOf('output_a') >= 0 && columns.indexOf('output_b') >= 0) return { error: 'pairwise', message: PAIRWISE };
-    var verdicts = VERDICT_COLUMNS.filter(function (c) { return columns.indexOf(c) >= 0; });  // each one is a judge
+    var verdicts = VERDICT_COLUMNS.filter(function (c) {  // each one is a judge, but a judge column of gpt-4o
+      return columns.indexOf(c) >= 0 && !(c === 'judge' && modelsNamed(rows, c));
+    });
     if (verdicts.length) {  // and a 0/1 column named for a judge (llm_judge), the judge-named first
       verdicts = judgeFirst(verdicts.concat(columns.filter(function (c) {
         return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
       })));
     }
+    if (!verdicts.length) verdicts = gradeColumns(columns);
     if (!verdicts.length || columns.indexOf('input') < 0 || columns.indexOf('output') < 0) {
-      return { error: 'columns', message: 'This file needs input, output and verdict columns.' };
+      return { error: 'columns', message: 'This file needs input, output and a verdict or score column.' };
     }
     var human = HUMAN_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
     var judged = [], nHuman = 0;
@@ -708,7 +748,7 @@
   var OUTPUT_WORDS = ['output', 'outputs', 'answer', 'answers', 'response', 'responses', 'completion', 'reply', 'generation'];
   var SCORE_WORDS = ['score', 'verdict', 'passed', 'pass', 'label', 'success', 'grade', 'rating', 'judgment', 'judgement'];
   var REASON_WORDS = ['reason', 'reasoning', 'explanation', 'rationale', 'comment', 'feedback', 'justification', 'why'];
-  var READ_NAMES = 'In the browser it reads a CSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
+  var READ_NAMES = 'In the browser it reads a CSV, TSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
   function commonNames(rows, header) {
     var one = function (list) {
       var found = header.filter(function (h) { return isStr(h) && list.indexOf(h.trim().toLowerCase()) >= 0; });
@@ -802,20 +842,30 @@
   }
 
   function pyNumber(v) { return typeof v === 'number' && !isNaN(v) ? v : null; }
+  // normalise._numeric: text Python's float() reads
+  function isNumber(t) { return /^[+-]?((\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?|inf(inity)?|nan)$/i.test(String(t).trim()); }
+  // front._shown: the values sorted, each cut to 40 characters, the first 10
+  function shownValues(values) {
+    var texts = values.map(function (v) { var t = String(v).split(/\s+/).filter(Boolean).join(' '); return t.indexOf(',') >= 0 ? '"' + t + '"' : t; })
+      .map(function (t) { return t.length > 40 ? t.slice(0, 39) + '…' : t; }).sort();
+    return texts.slice(0, 10).join(', ') + (texts.length > 10 ? ' and ' + (texts.length - 10) + ' more' : '');
+  }
 
   /* ---------- start.build_pool: one answer per input and output ---------- */
 
   function buildPool(records, metric, extra) {
     extra = extra || {};
     var threshold = extra.strict ? null : extra.threshold;
-    var groups = new Map(), unmapped = 0, unread = [];
+    var groups = new Map(), unmapped = 0, unread = [], unreadKeys = new Set();
     records.forEach(function (r) {
       if (r.name !== metric) return;
       var kind = r.problem, v = null;
+      var key = canonical({ input: r.input === null ? '' : r.input, output: r.output === null ? '' : r.output });
       if (kind === null) {
         v = verdictOf(r);
         if (v.unmapped !== undefined) {
           unmapped += 1;
+          unreadKeys.add(key);
           if (unread.indexOf(String(v.unmapped)) < 0) unread.push(String(v.unmapped));
           return;
         }
@@ -824,11 +874,12 @@
           kind = word === 'error' ? 'error_grade' : 'empty';
         }
       }
-      var key = canonical({ input: r.input === null ? '' : r.input, output: r.output === null ? '' : r.output });
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({ r: r, v: v, kind: kind });
     });
     var pool = { answers: [], left: [], merged: 0, repeatSizes: [], split: [], unmapped: unmapped, unread: unread };
+    // answers with only grades it can't read: the tool counts them among the answers too
+    pool.unreadOnly = Array.from(unreadKeys).filter(function (k) { return !groups.has(k); }).length;
     groups.forEach(function (seen) {
       var judged = seen.filter(function (s) { return s.kind === null; });
       if (!judged.length) { pool.left.push({ kind: seen[0].kind, r: seen[0].r }); return; }
@@ -944,7 +995,7 @@
       if (said.size === 2 && said.has('pass') && said.has('fail')) countedAs = 'pass and fail';
       else if (said.size === 1) countedAs = said.values().next().value;
     }
-    return Object.assign({ answers: pool.answers.length + pool.left.length, same_decision: same, tool_counted_as: countedAs, tool: tool }, counts);
+    return Object.assign({ answers: pool.answers.length + pool.left.length + pool.unreadOnly, same_decision: same, tool_counted_as: countedAs, tool: tool }, counts);
   }
 
   // judge_check.lines: one entry per finding, [] when nothing was found
@@ -1147,7 +1198,7 @@
   function judgeReport(r, metric, nMetrics) {
     var records = r.judged.filter(function (x) { return x.name === metric; });
     var pool = buildPool(records, metric, r.perMetric[metric]);
-    var block = judgeCheck(pool, r.tool, r.scoreJudge);
+    var block = judgeCheck(pool, r.tool, r.scoreJudge || records.some(function (x) { return x.thresholded; }));
     var models = Array.from(new Set(records.map(function (x) { return x.model; }).filter(truthy).map(String))).sort(pyOrder);
     var promptRec = records.find(function (x) { return truthy(x.prompt); });
     var rule = ruleText(promptRec ? promptRec.prompt : null);
@@ -1162,6 +1213,7 @@
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
+      scores: pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null,
       counts: block,
       allFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'error'; }),
       allModelFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'model_failed'; }),
@@ -1194,7 +1246,7 @@
     var pad = '                 ';
     L.push({ k: 'Eval tool:       ', text: result.toolName, tone: 'g' });
     L.push({ k: 'File:            ', text: result.file });
-    L.push({ k: 'Answers:         ', text: n(j.answers, 'answer') });
+    L.push({ k: 'Answers:         ', text: j.split.length ? j.answers + ' to mark' : n(j.answers, 'answer') });
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });
@@ -1223,21 +1275,23 @@
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {
       if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your LLM-as-a-judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');
     });
-    if (j.unmapped) {
+    if (j.scores) {
+      notes.push(SCORES(j.scores));
+    } else if (j.unmapped) {
       notes.push(n(j.unmapped, 'grade') + ' could not be read as Pass or Fail (' + j.unread.map(function (v) { return '"' + v + '"'; }).join(', ') +
         (j.moreUnread ? ' and more' : '') + '). ' + (j.unmapped === 1 ? 'It is' : 'They are') +
         ' left out here; judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
     }
     notes.forEach(function (t) { L.push({ text: t }); });
     if (!j.findings.length) {
-      L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
+      if (!j.scores) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
     } else {
       j.findings.forEach(function (f, i) {
         L.push({ text: i === 0 ? FREE_CHECK + f.charAt(0).toLowerCase() + f.slice(1) : f, tone: 'y' });
       });
     }
     if (j.modelNotWritten) L.push({ text: MODEL_NOT_WRITTEN, tone: 'y' });
-    if (!total) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
+    if (!total && !j.scores) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
     return L;
   }
 

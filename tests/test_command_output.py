@@ -98,17 +98,21 @@ def test_the_docs_never_say_the_marks_are_yours():
         assert "so the marks are yours" not in page.read_text(encoding="utf-8"), page.name
 
 
-def test_a_kept_page_is_stamped_too(here, capsys, no_browser, monkeypatch):
-    """The page still open from the run before, opened again through BROWSER."""
+def test_a_kept_page_is_never_handed_to_the_browser_program(here, capsys, no_browser,
+                                                           monkeypatch):
+    """The page still open from the run before: no new tab, so BROWSER never gets its link
+    and its marks stay as they were."""
     promptfoo_project(here, split(20, 16))
     run(capsys)
+    opened = len(no_browser)
     ws = start_label.Workspace(here)
     _click(ws, n=2)
     monkeypatch.setenv("BROWSER", "save-the-link")
     run(capsys, "mark")
+    assert len(no_browser) == opened
     _post_marks(no_browser[-1], ws, 4)
-    assert [x.get("link") for x in _lines(ws)][-2:] == ["browser-env", "browser-env"]
-    assert marks.made(marks.read(ws.marks))["browser_env"] >= 2
+    assert [x.get("link") for x in _lines(ws)][-2:] == [None, None]
+    assert marks.made(marks.read(ws.marks))["browser_env"] == 0
 
 
 # --debug prints where it went wrong, never the error's text ----------------------------------
@@ -873,10 +877,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
 
 # The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 
-S11_FIX = ("In your project folder, run `judgekeeper fix`. It lists the answers your LLM-as-a-judge got "
-           "wrong and saves them in .judgekeeper/fix/, with marked-answers.csv. Change your rule "
-           "in your eval tool, grade those answers again, then run "
-           "`judgekeeper fix <new results file>` to test it on the marks kept aside.")
+S11_FIX = "Fix it Run it in your project folder to see what to change. `judgekeeper fix`"
 
 
 def _page_text(html: str) -> str:

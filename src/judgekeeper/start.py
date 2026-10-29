@@ -279,29 +279,46 @@ class Talk:
     def command(self, *extra: str) -> str:
         """`judgekeeper` with the person's flags, then `extra`: run as printed, it gets
         past the question it answers."""
-        return " ".join((self.program, *self.flags, *extra))
+        return " ".join((self.program, *self._flags_for(extra), *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
         """`command`, with `where` (a path inside the folder the person gave) as the path,
         written with forward slashes on every system, as the lines that name it write it."""
-        given = self.flags[:1] == (quote_arg(self.path),) and self.path != "."
-        flags = self.flags[1:] if given else self.flags
+        flags = self._flags_for(extra)
+        given = flags[:1] == (quote_arg(self.path),) and self.path != "."
+        flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
+
+    def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
+        """The person's flags without those `extra` gives again (`--flag value` or
+        `--flag=value`): argparse keeps only the last, so theirs would be lost anyway."""
+        again = {w.split("=", 1)[0] for w in extra} & {flag for _, flag in REPEATED}
+        path = 1 if self.flags[:1] == (quote_arg(self.path),) and self.path != "." else 0
+        kept, words = list(self.flags[:path]), iter(self.flags[path:])
+        for word in words:
+            if word in again:
+                next(words, None)  # its value
+            elif word.split("=", 1)[0] not in again:
+                kept.append(word)
+        return tuple(kept)
 
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(said(text))
-        for line in held_lines(text):  # a name left out of the command above, as data
-            print(said(line))
+        try:  # stdout closed by the program reading it: the exit code stays the command's
+            print(said(text))
+            for line in held_lines(text):  # a name left out of the command above, as data
+                print(said(line))
+        except OSError:
+            pass
         flush_stdout()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
     def choose(self, title: str, options: list[str], flag_hint: str,
                ask: str = "Which one?", flag: str | None = None, values=(),
                what: str | None = None, keep: int = 0) -> int:
-        """The index of the option the person picks. Without a terminal: the hint, exit 8.
+        """The index of the option the person picks. Without a terminal: the hint, exit 3.
         `flag` (with `values`, one per option) answers it, and `what` says what is chosen;
         `judgekeeper` (front.py) words its Next: line from them. A choice of names (a name
         flag) shows the first LIST_LIMIT, and the last `keep` options, which are not names."""
@@ -324,7 +341,7 @@ class Talk:
                 return shown[int(answer) - 1]
 
     def confirm(self, question: str, default: bool, hint: str, with_yes: bool) -> bool:
-        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 8."""
+        """Yes or no. Without a terminal, `--yes` answers `with_yes`; else the hint, exit 3."""
         if not _interactive():
             if self.yes:
                 return with_yes
@@ -359,9 +376,10 @@ class Talk:
         """After the person picks at "Which one?": the flag that picks it without asking."""
         self.say(line or f"(Next time: {flag} {quote_arg(chosen)})")
 
-    def stop(self, code: int, next_step: str | None = None) -> Stop:
+    def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
         """The Stop to raise once the lines that say why were said. `next_step` is what
-        `judgekeeper` (front.py) puts in its Next: line; `start` says its own."""
+        `judgekeeper` (front.py) puts in its Next: line; `start` says its own. The code is
+        always `code` here (`as_given` is for front.FrontTalk)."""
         return Stop(code)
 
     def _input(self, prompt: str) -> str:
@@ -523,11 +541,19 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
 MADE_IDS = "The id column has blank or repeated ids, so judgekeeper made its own."
 
 
+def _models_named(rows: list[dict], column: str) -> bool:
+    """Every value in `column` (empty ones aside) names a model, and none is a grade."""
+    values = [row.get(column) for row in rows if not _blank(row.get(column))]
+    return bool(values) and all(mapper._model_like(v) and not mapper._verdict_value(v)
+                                for v in values)
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
-    `score` column the score --pass-if reads in place of the verdict. A quote that never
+    `score` column the score --pass-if reads in place of the verdict (with no verdict
+    column, the score column is the grade). A quote that never
     closes stops it: the rows after it would be read as one cell."""
     line = open_quote(path)
     if line is not None:
@@ -543,15 +569,16 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns]  # each one is a judge
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but a
+                and not (c == "judge" and _models_named(rows, c))]  # judge column of gpt-4o
     if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
-    verdict = verdicts[0] if verdicts else None
-    if verdict is None or "input" not in columns or "output" not in columns:
-        raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
-                         f"{', '.join(columns)}")
+    verdicts = verdicts or find.grade_columns(columns)
+    if not verdicts or "input" not in columns or "output" not in columns:
+        raise StartError(f"{path.name} needs input, output and a verdict or score column; "
+                         f"columns are: {', '.join(columns)}")
     header = path.suffix.lower() in (".csv", ".tsv")  # a CSV's first line names the columns
     for n, row in enumerate(rows, 1):  # a JSON object or list: no grade (CSV values are text)
         if any(isinstance(row.get(v), dict | list) for v in verdicts):
@@ -689,6 +716,20 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
     return loaded
 
 
+def given_model(fp: dict, root) -> str | None:
+    """The model given with --judge-model when marking started (kept in the fingerprint), to
+    use again on later reads; None once judgekeeper.toml reads the model from the file."""
+    if fp.get("model_source") != GIVEN_BY_YOU:
+        return None
+    try:
+        saved = _saved(Path(root))
+    except StartError:
+        saved = None
+    if saved is not None and (saved.map or {}).get("model_key"):
+        return None
+    return fp.get("model")
+
+
 def _saved(path: Path):
     """The [start] table of the project's judgekeeper.toml, when `path` is a folder."""
     if not path.is_dir():
@@ -715,11 +756,13 @@ def _mapped_source(talk: Talk, root: Path, saved) -> tuple[Path, str, list, dict
     return root, "mapped", [find.Result("mapped", path, saved.file, path.stat().st_size)], {}
 
 
-def _read_mapped(result: find.Result, saved) -> list[Loaded]:
+def _read_mapped(result: find.Result, saved, judge_model: str | None = None) -> list[Loaded]:
     from judgekeeper.readers.mapped import read_mapped
 
     m = {**saved.map, "judge": saved.judge, "pass_mark": saved.pass_mark,
          "pass_op": saved.pass_op, "model": saved.model}
+    if judge_model is not None:  # --judge-model wins over a model the file or the toml names
+        m = {**m, "model_key": None, "model": None}
     try:
         read = read_mapped(result.path, m, label=result.rel)
     except UNREADABLE:
@@ -1038,6 +1081,11 @@ def passes(score: float, op: str, mark: float) -> str:
     return "pass" if PASS_OPS[op](score, mark) else "fail"
 
 
+# --pass-if names a field, and the scores are plain numbers: the name is not used
+PASS_IF_UNNAMED = ("--pass-if {rule}: your scores are plain numbers, so the name {name} is not "
+                   "used; it reads as {plain}.")
+
+
 def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) -> dict | None:
     """{"mark", "op", "source", "follows"} when every answer has a number score and the same
     pass mark; `follows` says whether every verdict is the score held against it. The
@@ -1154,7 +1202,8 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
                  f"judgekeeper.record() line where it runs: {own_format.RECORD_URL} shows the "
                  "line.")
     talk.say("judgekeeper reads the results that promptfoo, DeepEval, Inspect AI and "
-             "MLflow save, or a CSV or JSONL file with input, output and verdict columns.")
+             "MLflow save, or a CSV, TSV or JSONL file with input, output and verdict "
+             "columns.")
     talk.say(POINT_ME.format(program=talk.program))
 
 
@@ -1240,7 +1289,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
-                             "with input, output and verdict columns)")
+                             "with input, output and a verdict or score column)")
         path = path.resolve()
         return path.parent, kind, [find.Result(kind, path, path.name, path.stat().st_size)], {}
     root = path.resolve()
@@ -1783,14 +1832,32 @@ def _geval_rule(text: str) -> str | None:
 
 def rule_of(records) -> str | None:
     """The judge's whole rule: a record's `evaluator.rule` when it has one, else read from
-    the first saved prompt (rule_text)."""
+    the first saved prompt (rule_text), without a GEval's steps its model wrote."""
     for r in records:
         rule = r.evaluator.get("rule")
         if isinstance(rule, str) and rule.strip():
             return rule.strip()
-    prompt = next((r.evaluator.get("prompt") for r in records if r.evaluator.get("prompt")),
-                  None)
-    return rule_text(prompt)
+    prompts = [p for p in (r.evaluator.get("prompt") for r in records) if p]
+    return rule_text(_written(prompts[0], prompts) if prompts else None)
+
+
+def _written(prompt, prompts):
+    """`prompt` without its GEval evaluation steps when DeepEval wrote them: a GEval given
+    only criteria= writes them with its model for each answer and on every run, so they
+    differ from answer to answer; steps the person gave are the same in every answer."""
+    if not (isinstance(prompt, str) and prompt.strip().startswith("Criteria:")):
+        return prompt
+    parts = prompt.strip().split(GEVAL_PARTS)
+    if parts[0][len("Criteria:"):].strip() in ("", "None"):  # the steps alone: the person's
+        return prompt
+
+    def steps(text):
+        return next((p for p in str(text).strip().split(GEVAL_PARTS)
+                     if p.startswith("Evaluation Steps:")), None)
+
+    if len({steps(p) for p in prompts}) <= 1:
+        return prompt
+    return GEVAL_PARTS.join(p for p in parts if not p.startswith("Evaluation Steps:"))
 
 
 def rubric_line(prompt) -> str | None:
@@ -1905,7 +1972,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             results, newest = json_logs, json_logs[0]
         if kind in ("records", "mapped"):  # every file (or run) the newest judge wrote
             loaded = (_read_records(talk, results) if kind == "records"
-                      else _read_mapped(results[0], saved))
+                      else _read_mapped(results[0], saved, judge_model))
             if not loaded:
                 raise StartError("none of the records files could be read")
             every = Loaded(_folder_of(newest), RecordList(r for x in loaded for r in x.records))
@@ -2003,6 +2070,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                    or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
                    or any((r.metadata or {}).get("pass_mark") is not None for r in records))
     key = (saved.map.get("pass_mark_key") if kind == "mapped" else None)
+    rule_used = norm.pass_if
+    unnamed = ([PASS_IF_UNNAMED.format(rule=rule_used.text, name=rule_used.name,
+                                       plain=f"score{rule_used.op}{rule_used.threshold:g}")]
+               if rule_used and rule_used.name not in (None, "score") and not norm.named
+               and pool.answers else [])
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
@@ -2020,7 +2092,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,
                  warnings=[w for w in first.records.warnings if not is_stripped_warning(w)]
-                 + list(first.records.per_metric.get(metric, {}).get("warnings") or []))
+                 + list(first.records.per_metric.get(metric, {}).get("warnings") or [])
+                 + unnamed)
 
 
 def _rule_key(r, kind: str) -> str | None:

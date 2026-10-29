@@ -185,6 +185,33 @@ def test_opening_the_open_page_again_keeps_its_link(here, capsys, no_browser):
     assert label.read_lock(ws.dir)["pid"] == old_pid  # the same page
 
 
+@pytest.mark.parametrize("at_terminal", [False, True])
+def test_a_second_run_while_the_page_is_open_opens_no_new_tab(here, capsys, no_browser,
+                                                              monkeypatch, at_terminal):
+    """The open page keeps its tab: a run that finds it open starts no browser. At a terminal
+    it prints the link; without one the token stays out of the output, and the run says how to
+    print the link."""
+    from judgekeeper import front, page
+
+    assert _run(capsys, "--port", "0")[0] == 0
+    assert len(no_browser) == 1
+    base, token = _split(no_browser[0])
+    monkeypatch.setattr(page, "terminal", lambda: at_terminal)
+    for again in (("--port", "0"), ("mark", "--port", "0")):
+        code, out, err = _run(capsys, *again)
+        assert code == 0, out
+        assert len(no_browser) == 1  # no new tab
+        flat = " ".join(out.split())
+        assert front.IN_BROWSER in flat, out
+        if at_terminal:
+            assert f"{base}/?token={token}" in out.splitlines()
+            assert "Closed it?" not in flat
+        else:
+            assert token not in out + err and "http://" not in out
+            assert "Closed it? Run `judgekeeper " in flat and \
+                "--no-browser` to print its link." in flat, out
+
+
 @pytest.mark.parametrize("again", [("mark", "--port", "0"), ("--no-browser", "--port", "0"),
                                    ("mark", "--no-browser")])
 def test_a_second_run_with_other_browser_flags_keeps_the_open_page(here, capsys, no_browser,

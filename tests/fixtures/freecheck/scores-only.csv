@@ -1,0 +1,11 @@
+input,output,score
+What time does the library open on Saturday?,It opens at 9 am on Saturdays.,0.8
+How many books can I borrow at once?,You can borrow up to 12 books.,0.3
+Can I renew a loan online?,"Yes, from your account page, twice per loan.",0.9
+Is there a fee for late returns?,There is no fee for late returns.,0.2
+Do you lend e-readers?,We lend e-readers for three weeks.,0.7
+Where can I print documents?,The printers are on the first floor.,0.85
+Can children get a library card?,Any child can get a card with a parent's signature.,0.4
+How do I reserve a study room?,Book it at the front desk up to a week ahead.,0.95
+Are pets allowed inside?,Only assistance dogs are allowed inside.,0.6
+Is the wifi free?,"Yes, the wifi is free for everyone.",0.1

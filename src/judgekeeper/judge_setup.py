@@ -18,14 +18,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 import tomllib
 from pathlib import Path
 
 from judgekeeper import __version__, find
 from judgekeeper.fingerprint import rule_hash, utc_now
 from judgekeeper.redact import scrub, scrub_value
-from judgekeeper.textio import loads, write_replacing
+from judgekeeper.textio import loads, read_regular, write_replacing
 
 FILE = "judge.json"
 ONE_CALL, PANEL, AGENT = "one call", "panel", "agent"
@@ -102,6 +104,31 @@ def version_of(found) -> tuple[str | None, str | None]:
     return None, None
 
 
+# A lockfile, pyproject.toml or requirements file bigger than this is not read for the version
+LOCK_BYTES = 10 * 1000 * 1000
+
+
+def lock_stat(path: Path) -> os.stat_result | None:
+    """`path`'s stat when it is a regular file (never a link: it may lead to a device or out
+    of the project) of at most LOCK_BYTES; else None."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return st if stat.S_ISREG(st.st_mode) and st.st_size <= LOCK_BYTES else None
+
+
+def _lock_text(path: Path) -> str | None:
+    """The text of a lockfile, pyproject.toml or requirements file (lock_stat), or None."""
+    if lock_stat(path) is None:
+        return None
+    try:
+        data = read_regular(path, LOCK_BYTES + 1)
+        return data.decode("utf-8") if len(data) <= LOCK_BYTES else None
+    except (OSError, ValueError):
+        return None
+
+
 def _norm(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -113,8 +140,8 @@ def locked(root: Path, tool: str) -> str | None:
     package = PACKAGES[tool]
     if tool == "promptfoo":
         try:
-            lock = json.loads((root / "package-lock.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError, RecursionError):
+            lock = json.loads(_lock_text(root / "package-lock.json") or "null")
+        except (ValueError, RecursionError):
             return None
         if not isinstance(lock, dict):
             return None
@@ -124,8 +151,8 @@ def locked(root: Path, tool: str) -> str | None:
         return version if isinstance(version, str) else None
     for name in ("uv.lock", "poetry.lock"):
         try:
-            data = tomllib.loads((root / name).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            data = tomllib.loads(_lock_text(root / name) or "")
+        except (ValueError, RecursionError):  # RecursionError: lists thousands deep
             continue
         for p in data.get("package") or []:
             if isinstance(p, dict) and _norm(str(p.get("name", ""))) == package:
@@ -137,11 +164,7 @@ def locked(root: Path, tool: str) -> str | None:
         if m and _norm(m[1]) == package:
             return m[2]
     for path in sorted(root.glob("requirements*.txt")):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            continue
-        for line in text.splitlines():
+        for line in (_lock_text(path) or "").splitlines():
             m = _PIN.match(line)
             if m and _norm(m[1]) == package:
                 return m[2]
@@ -152,8 +175,8 @@ def _pyproject_requirements(root: Path) -> list[str]:
     """The requirement lines of the project's pyproject.toml: [project] dependencies and
     optional-dependencies, and [dependency-groups]."""
     try:
-        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = tomllib.loads(_lock_text(root / "pyproject.toml") or "")
+    except (ValueError, RecursionError):
         return []
     project = data.get("project") if isinstance(data.get("project"), dict) else {}
     lists = [project.get("dependencies"), *(project.get("optional-dependencies") or {}).values()]
@@ -297,9 +320,8 @@ def read(ws) -> dict | None:
 
 def save(ws, setup: dict, metric: str | None = None) -> bool:
     """Write judge.json for `setup` unless it already holds a setup with the same hash, with
-    the judge's name in the results (`metric`, not part of the hash: a check in CI, where only
-    judge.json and history.jsonl are committed, finds the same judge by it). Returns whether
-    it was written."""
+    the judge's name in the results (`metric`, not part of the hash; no code reads it back, it
+    names the judge for a person reading the file). Returns whether it was written."""
     from judgekeeper.start_label import make_folder
 
     setup = keys_hidden(setup)

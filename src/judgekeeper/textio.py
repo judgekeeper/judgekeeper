@@ -494,8 +494,10 @@ PRIVATE_FILE, PRIVATE_FOLDER = 0o600, 0o700
 
 def open_private(path: str | Path, mode: str = "a", **kwargs):
     """`path` opened to add to ("a", or "ab"); a new file is its owner's only (0600). A file
-    with another name too (a hard link) is refused: what is added would land there as well."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+    with another name too (a hard link) is refused: what is added would land there as well. So
+    is a symlink, even one made after the folder was looked at (O_NOFOLLOW; not on Windows)."""
+    flags = (os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+             | getattr(os, "O_NOFOLLOW", 0))
     fd = os.open(path, flags, PRIVATE_FILE)
     if os.fstat(fd).st_nlink > 1:
         os.close(fd)
@@ -775,7 +777,7 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
 
     text, links_back = stand_ins(keep_links(
         text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
-    text = text[:1] + re.sub(r"\s+(?=Next:)", "\0", text[1:])
+    text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
     keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))

@@ -122,6 +122,8 @@ def stratified(strata: list[tuple[int, str, int, int, int]], level: float = LEVE
         fb = 0.0 if n_pool_fail == 0 else b  # the same numbers
         point.update(tpr=_tpr(pi, fa, fb), tnr=_tnr(pi, fa, fb), kappa=_kappa(pi, fa, fb),
                      real_pass_rate=_pass_rate(pi, fa, fb))
+        if not n_pool_pass or not n_pool_fail:  # one grade for every answer: no kappa
+            point["kappa"] = None
     out = {"pi": pi, "judge_pass_rate": pi, **point}
     for key in ("a", "b", "tpr", "tnr", "real_pass_rate", "kappa"):
         out[f"{key}_interval"] = middle(samples.get(key), level, point[key])
@@ -221,6 +223,8 @@ def _table_kappa(tp: float, fn: float, fp: float, tn: float) -> float | None:
     if total <= 0:
         return None
     judge, people = (tp + fp) / total, (tp + fn) / total
+    if judge in (0.0, 1.0):  # one grade for every answer: agreement beyond coincidence needs both
+        return None
     chance = judge * people + (1 - judge) * (1 - people)
     return _div((tp + tn) / total - chance, 1 - chance)
 

@@ -36,6 +36,22 @@ def _answers(n_pass, n_fail):
     return start.build_pool([("r", recs)], "j", Normaliser()).answers
 
 
+def test_marks_for_other_results_point_at_new(tmp_path, monkeypatch):
+    """Marks made on other results stop prepare, and the words say how to start over."""
+    monkeypatch.chdir(tmp_path)
+    ws = start_label.prepare(_found(tmp_path), say=lambda line: None)
+    session = start_label.StartSession(ws)
+    session.update({"id": session.items[0]["id"], "label": "pass", "seconds": 3})
+    with pytest.raises(start.StartError) as err:
+        start_label.prepare(_found(tmp_path, n_pass=12, n_fail=20), say=lambda line: None)
+    said = str(err.value)
+    assert "holds marks for other results; nothing was changed." in said
+    from judgekeeper.textio import program
+
+    assert f"run {program()} --new (your marks move to .judgekeeper/previous-<date>/)" in said
+    assert "somewhere else" not in said
+
+
 # The queue -------------------------------------------------------------------------------
 
 def test_the_same_seed_gives_the_same_queue():

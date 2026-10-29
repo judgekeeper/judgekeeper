@@ -87,6 +87,9 @@ STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copie
 # a metric's history and a logged dataset's meta.yaml, which can be MBs
 SMALL_LIMIT = 2**20  # bytes
 LARGE_LIMIT = 100 * 2**20
+# The SMALL_LIMIT files together: many runs with 1,500 tags of 1 MB each (sparse, so a few KB
+# on disk) took 44 s and 4 GB for 60 runs
+SMALL_TOTAL = 200 * 2**20
 TRACE_FOLDERS = ("tags", "request_metadata", "assessments")
 # MLflow's own folders in a folder store; it takes any other folder for an experiment's
 NOT_EXPERIMENTS = (".trash", "models")
@@ -101,6 +104,9 @@ UNSAFE = {  # why MLflow is not let read a file, and the Next: step
     "many": (("takes the store's run metric and dataset files over {limit} together, more "
               "than MLflow keeps there"),
              "check {file} and remove the files your evaluation didn't save"),
+    "small": (("takes the store's tag, setting, metadata and assessment files over {limit} "
+               "together, more than MLflow keeps there"),
+              "check {file} and remove the files your evaluation didn't save"),
 }
 
 ALLOW = "MLFLOW_ALLOW_FILE_STORE"
@@ -349,11 +355,12 @@ def unsafe_file(folder: Path, traces: dict | None = None) -> tuple[Path, str] | 
     """The first file in the folder store at `folder` that MLflow must not open, and why (a
     key of UNSAFE): a link (a junction on Windows too), a pipe or a device, a file MLflow
     reads whole over its size_limit, or the one that takes the run metric and dataset files
-    over LARGE_LIMIT together (judgekeeper never uses them). Looked at with lstat, never opened
+    over LARGE_LIMIT together (judgekeeper never uses them), or the SMALL_LIMIT files over
+    SMALL_TOTAL ("small"). Looked at with lstat, never opened
     or followed; artifacts are not looked into, and a folder that can't be listed is left to
     MLflow. `traces` gets each experiment's (traces, bytes of the trace files it would read)."""
     stack: list[tuple[Path, tuple[str, ...]]] = [(Path(folder), ())]
-    together = 0  # bytes of the files whose size_limit is LARGE_LIMIT
+    together = small = 0  # bytes of the files whose size_limit is LARGE_LIMIT, SMALL_LIMIT
     while stack:
         here, parts = stack.pop()
         try:
@@ -383,6 +390,9 @@ def unsafe_file(folder: Path, traces: dict | None = None) -> tuple[Path, str] | 
                 together += info.st_size if limit == LARGE_LIMIT else 0
                 if together > LARGE_LIMIT:
                     return path, "many"
+                small += info.st_size if limit == SMALL_LIMIT else 0
+                if small > SMALL_TOTAL:
+                    return path, "small"
     return None
 
 
@@ -400,11 +410,11 @@ def check_folder_store(folder: Path) -> None:
     path, kind = found
     name = Path(folder).name
     rel = path.relative_to(folder)
-    if kind == "many":  # said by the folder that holds the file which went past the limit
+    if kind in ("many", "small"):  # said by the folder that holds the file which went past
         rel = rel.parent
     shown = f"{name}/{rel.as_posix()}"
     why, step = UNSAFE[kind]
-    limit = LARGE_LIMIT if kind == "many" else size_limit(rel.parts) or 0
+    limit = {"many": LARGE_LIMIT, "small": SMALL_TOTAL}.get(kind) or size_limit(rel.parts) or 0
     why = why.format(limit=f"{limit // 2**20} MB")
     braces = shown.replace("{", "{{").replace("}", "}}")
     raise Damaged(f"judgekeeper didn't let MLflow read {name}/: {shown} {why}.",

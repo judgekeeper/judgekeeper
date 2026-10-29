@@ -56,7 +56,7 @@ BLOCK = 10
 ROUGH = targets.ROUGH
 GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
-# The exact text 0.2 wrote, by its SHA-256 (its first line has older words)
+# The exact text an unreleased 0.2 build wrote, by its SHA-256 (its first line has older words)
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
@@ -100,7 +100,7 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
-TOO_FEW_TO_TELL = " That's still too few to tell."  # enough of each, the ranges still too wide
+TOO_FEW_TO_TELL = " The ranges are still too wide to tell."  # enough of each: not a count
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
@@ -128,7 +128,7 @@ class Workspace:
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
         self.marks = self.dir / marks.FILE
-        self.labels = self.dir / "labels.csv"  # judgekeeper 0.2's marks: never read
+        self.labels = self.dir / "labels.csv"  # an unreleased 0.2 build's marks: never read
         self.anchors = self.dir / "anchors.jsonl"
         self.result_json = self.dir / "result.json"
         self.report_html = self.dir / "report.html"
@@ -194,8 +194,8 @@ def check_writable(ws: Workspace) -> None:
 
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
-    the project's own folder and it has none. One holding exactly the text 0.2 wrote is
-    replaced; any other is left alone."""
+    the project's own folder and it has none. One holding exactly the text an unreleased 0.2
+    build wrote is replaced; any other is left alone."""
     refuse_links(ws)
     make_private(ws.dir)
     gitignore = ws.dir / ".gitignore"
@@ -204,7 +204,7 @@ def make_folder(ws: Workspace) -> None:
     if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
-        try:  # 0.2 wrote it with the system's line endings
+        try:  # an unreleased 0.2 build wrote it with the system's line endings
             text = gitignore.read_text(encoding="utf-8")
             old = hashlib.sha256(text.encode("utf-8")).hexdigest() == OLD_GITIGNORE_SHA256
         except (OSError, ValueError):
@@ -300,8 +300,9 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
         if ws.marks.is_file() and marks.read(ws.marks).counted():
-            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results. Move "
-                             f"{FOLDER}/ somewhere else to start fresh; nothing was changed.")
+            raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results; nothing "
+                             f"was changed. To start over, run {program()} --new (your marks "
+                             f"move to {FOLDER}/previous-<date>/).")
         seed = secrets.randbelow(2**31)
         queue, started = build_queue(found.pool.answers, seed), None
     first = old is None
@@ -349,6 +350,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         **({"judge_check": found.check.block()} if found.check is not None else {}),
         "seed": seed,
         "queue": queue,
+        **({"runs": runs} if (runs := repeat_runs(p)) else {}),
         "started_at": started or utc_now(),
         "updated_at": utc_now(),
     })
@@ -357,6 +359,17 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     if first:
         say(SAVED_NOTE.format(folder=shown_folder(ws)))
     return ws
+
+
+def repeat_runs(pool) -> dict:
+    """{answer id: [its run, how many runs]} for each answer the LLM-as-a-judge graded more
+    than once with different grades (start.build_pool's split: the first run keeps the id,
+    run k is "<id>#k"). The marking page says "Run 2 of 3: graded differently" on its card;
+    never the grade."""
+    ids = {a.id for a in pool.answers}
+    runs = {(key if k == 1 else f"{key}#{k}"): [k, n] for key, (n, _, _) in pool.split.items()
+            for k in range(1, n + 1)}
+    return {i: run for i, run in runs.items() if i in ids}
 
 
 def judge_record(a, found) -> dict:
@@ -376,6 +389,33 @@ def judge_of(data: dict) -> dict:
             "fingerprint": fp}
 
 
+def write_model(ws: Workspace, found) -> None:
+    """The model given with --judge-model (found.fingerprint) for a judge whose results name
+    none, after marking started: start.json, pool-judge.jsonl, result.json and report.html
+    name it now (judge.json: judge_setup.save). The same judge and grades, so nothing else."""
+    from judgekeeper.judgments import read_run
+
+    model = found.fingerprint["model"]
+    data = ws.data()
+    data.update(judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint))
+    _write_json(ws.start, data)
+    head, records = read_run(ws.pool_judge)
+    lines = [{**rec, "fingerprint": {**rec["fingerprint"], "model": model}}
+             for rec in records.values()]
+    fp = JudgeFingerprint.from_dict({**head["fingerprint"], "model": model,
+                                     "model_source": found.fingerprint.get("model_source")})
+    write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp, lines,
+              source=head.get("source"), normaliser=head.get("normaliser"))
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if isinstance(r, dict) and isinstance(r.get("judge"), dict):
+        r.update(fingerprint=data["fingerprint"], judge={**r["judge"], "name": data["judge"]})
+        _write_json(ws.result_json, r)
+        write_report(ws)
+
+
 def begin_marks(ws: Workspace) -> None:
     """A new marks.jsonl, its header from start.json: marking starts."""
     data = ws.data()
@@ -387,7 +427,8 @@ def begin_marks(ws: Workspace) -> None:
 
 def display(value) -> str:
     """An input or output as text for the page: a string as written; a dict of fields (such
-    as promptfoo's vars) as one `name: value` line each."""
+    as promptfoo's vars) as one `name: value` line each; chat messages (an Inspect AI input)
+    as their text (_chat_text)."""
     if isinstance(value, str):
         return value
     if value is None:
@@ -395,7 +436,38 @@ def display(value) -> str:
     if isinstance(value, dict):
         return "\n".join(f"{k}: {v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)}"
                          for k, v in value.items())
-    return json.dumps(value, ensure_ascii=False, indent=2)
+    chat = _chat_text(value)
+    return chat if chat is not None else json.dumps(value, ensure_ascii=False, indent=2)
+
+
+# A chat message's part that is not text, as the page names it (one, several)
+NOT_TEXT = {"image": ("image", "images"), "audio": ("audio clip", "audio clips"),
+            "video": ("video", "videos"), "document": ("document", "documents")}
+
+
+def _chat_text(value) -> str | None:
+    """Chat messages (each a dict with a role and a content) as text: each text part in
+    order (after its role, "user: ", when there are several messages), then the other parts
+    counted, as "(1 image, not shown)". None when `value` is not such messages, or holds no
+    part judgekeeper can name."""
+    if not (isinstance(value, list) and value and all(
+            isinstance(m, dict) and "role" in m and "content" in m for m in value)):
+        return None
+    texts, other = [], {}
+    for m in value:
+        parts = [{"type": "text", "text": m["content"]}] if isinstance(m["content"], str) \
+            else m["content"] if isinstance(m["content"], list) else []
+        for part in parts:
+            kind = part.get("type") if isinstance(part, dict) else None
+            if kind == "text" and isinstance(part.get("text"), str) and part["text"].strip():
+                texts.append(f"{m['role']}: {part['text']}" if len(value) > 1 else part["text"])
+            elif isinstance(kind, str):
+                name = NOT_TEXT.get(kind, ("other part", "other parts"))
+                other[name] = other.get(name, 0) + 1
+    if other:
+        texts.append("(" + ", ".join(f"{n} {name[n != 1]}" for name, n in other.items())
+                     + ", not shown)")
+    return "\n\n".join(texts) if texts else None
 
 
 # A field that sets the scene goes last, even when its name also holds an asked word
@@ -541,17 +613,32 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     return status
 
 
+def _runs(runs) -> dict:
+    """start.json's "runs" (repeat_runs) as read back: only [run, count] pairs of whole
+    numbers, 1 <= run <= count; anything else is left out."""
+    if not isinstance(runs, dict):
+        return {}
+
+    def whole(x) -> bool:
+        return isinstance(x, int) and not isinstance(x, bool)
+
+    return {i: [k, n] for i, v in runs.items() if isinstance(v, list) and len(v) == 2
+            for k, n in [v] if whole(k) and whole(n) and 1 <= k <= n}
+
+
 class StartSession(LabelSession):
     """The pool in queue order and the person's marks. Skip is the label session's defer. Each
     change is one stamped line in marks.jsonl (marks.py), with this session's `sitting` and
     the `seconds` the page sends; a session made again reads the marks back. The page gets
-    ids, text, the person's labels and the line under the meters (`status`, by default
-    start_status) only."""
+    ids, text, the person's labels, the line under the meters (`status`, by default
+    start_status) and, for a repeat graded differently, its run and the count (repeat_runs)
+    only."""
 
     def __init__(self, ws: Workspace, status=None):
         self.workspace = ws
         data = ws.data()
         self.groups = {q["id"]: q["group"] for q in data.get("queue", [])}
+        self.runs = _runs(data.get("runs"))
         self.pool = data.get("pool", {})
         self.status = status or start_status
         self.sitting = marks.new_sitting()
@@ -564,6 +651,9 @@ class StartSession(LabelSession):
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
+        # a batch whose adding stopped half way is in the pool, not the queue: added again later
+        self.items = [x for x in self.items if x["id"] in self.groups]
+        self.by_id = {x["id"]: x for x in self.items}
 
     def _resume(self) -> None:
         """The marks on disk: the last stamped line of each answer."""
@@ -678,7 +768,9 @@ class StartSession(LabelSession):
                                                           self.raw[i["id"]].get("input"),
                                                           self.raw[i["id"]].get("output")),
                   "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
-                  "skipped": i["deferred"]} for i in shown]
+                  "skipped": i["deferred"],
+                  **({"run": self.runs[i["id"]]} if i["id"] in self.runs else {})}
+                 for i in shown]
         return {"items": items, "total": len(self.items), "start": start,
                 "counts": self.counts(), "status": self.current_status()}
 
@@ -799,6 +891,17 @@ def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
+def _left_to_mark(ws: Workspace) -> int:
+    """How many answers in the pool have no Pass or Fail mark; one past any need when that
+    can't be read (every_marked)."""
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return math.inf
+    return sum(q["id"] not in counted for q in queue) if queue else math.inf
+
+
 def every_marked(ws: Workspace) -> bool:
     """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
     try:
@@ -809,14 +912,15 @@ def every_marked(ws: Workspace) -> bool:
     return bool(queue) and all(q["id"] in counted for q in queue)
 
 
-def next_marks(ws: Workspace, step: str) -> str:
+def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
-    "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
-    there is nothing left to mark until the eval runs on more questions. The one place this is
-    decided. Its command is made again from the flags result.json keeps, never its text."""
+    "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
+    left): then all_marked_lines' next step, as there are not enough left to mark until the
+    eval runs on more questions. The one place this is decided. Its command is made again from
+    the flags result.json keeps, never its text."""
     from judgekeeper.start import command_from
 
-    if not every_marked(ws):
+    if _left_to_mark(ws) >= need:
         return step
     try:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")

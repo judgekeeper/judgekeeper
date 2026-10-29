@@ -11,7 +11,7 @@ import pytest
 
 from judgekeeper import mark_page, reasons, report_page, start_label
 from tests.test_mark_page_script import _data, _run
-from tests.test_product_pages import NOT_GATE_TNR, _mistakes, _result
+from tests.test_product_pages import NOT_GATE_TNR, _mistakes, _result, _text
 
 # The marking page --------------------------------------------------------------------------
 
@@ -234,8 +234,10 @@ def test_the_page_is_one_screen_on_a_laptop_and_the_answer_always_has_room():
     short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
     assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short and ".btn { height: 44px; }" in short
     page = mark_page.label_page("bot", "judgekeeper mark")
-    assert ('<div class="label">Answer</div><div class="a-scroll" id="a-scroll">'
-            '<p class="answer" id="a-text" dir="auto"></p></div>') in page
+    assert ('<div class="label">Answer</div><p class="run" id="a-run" hidden></p>'
+            '<div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p>'
+            "</div>") in page
+    assert ".row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }" in laptop
 
 
 def test_a_short_heading_has_room_for_one_line():
@@ -364,19 +366,16 @@ def _html(mistakes: list[dict], live: bool = False, parts=None, own=None) -> str
     return start_label.result_html(r, fixing=fixing)
 
 
-def test_the_heading_counts_the_rows_and_a_footnote_counts_those_kept_aside():
+def test_each_heading_has_its_own_kept_aside_line_under_it():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"] - 4, c["strict"] - 1))
-    assert (f'<h2 id="g-easy">You said Fail, your LLM-as-a-judge said Pass ({c["easy"] - 4})'
-            "</h2>") in html
-    assert "shown;" not in html
-    assert '<p class="note kept">* 5 more are kept aside to test a new rule fairly.</p>' in html
-    assert html.index('id="g-strict"') < html.index("* 5 more")  # under the lists
-    one = _html(_mistakes(c["easy"] - 1, c["strict"]))
-    assert "* 1 more is kept aside to test a new rule fairly." in one
+    assert ('<h2 id="g-easy">You said Fail, your <span class="term">LLM-as-a-judge</span> said '
+            'Pass</h2></div><p class="kept">4 more are kept aside to test a fix fairly.</p>') in html
+    assert "shown;" not in html and "* " not in _text(html)
+    assert '<p class="kept">1 more is kept aside to test a fix fairly.</p>' in html
     none = _html(_mistakes(c["easy"], c["strict"]))
-    assert "note kept" not in none and "more are kept aside" not in none
+    assert 'class="kept"' not in none and "more are kept aside" not in none
 
 
 def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
@@ -396,7 +395,7 @@ def test_a_group_with_none_shown_is_left_out_but_still_counted():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"], 0))
     assert 'id="g-strict"' not in html and "said Fail (0" not in html
-    assert f"* {c['strict']} more are kept aside to test a new rule fairly." in html
+    assert f"{c['strict']} more are kept aside to test a fix fairly." in html
 
 
 OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
@@ -414,7 +413,7 @@ def test_rows_fold_to_four_lines_with_one_show_all_per_row():
     assert "grid-template-columns: 28fr 44fr 28fr;" in laptop
     assert ".tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }" in laptop
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
-    assert ".open-row[hidden] + .dot { display: none; }" in style
+    assert ".open-row { margin-left: auto;" in style and ".dot" not in style
 
 
 def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in_rows():
@@ -433,30 +432,28 @@ def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in
     assert 'class="ht"' not in plain  # no question at the end: 4 lines, as before
 
 
-def test_the_foot_line_sits_12px_under_the_text_on_both_pages():
+def test_the_foot_line_sits_14px_under_the_text_on_both_pages():
     style = report_page.STYLE
-    assert ".row-foot, .why-line { margin: 12px 0 0; }" in style
+    assert ".row-foot, .why-line { margin: 14px 0 0; }" in style
     assert "td.why-cell { padding-top: 8px; }" not in style  # no second margin
     assert ".row-foot > .open-row" not in style and ".why-line > .open-row" not in style
 
 
-def test_a_rule_part_in_the_reason_line_is_cut_at_60_characters():
+def test_a_rule_part_in_the_reason_line_is_its_number_the_whole_in_the_title():
     long = ("Determine whether the Actual Output sounds confident and does not refuse to help, "
             "and mark it Fail when it is rude")
     why = {"reasons": [], "rule_parts": [2], "note": ""}
     html = _html([_with_reason(why)], live=True, parts=["Be polite", long])
-    cut = reasons.short(long, reasons.SAID_CHARS)
-    assert reasons.SAID_CHARS == 60 and len(cut) <= 60 and cut.endswith("…")
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
     assert (f'<span class="said-text" title="Your reason: rule part 2 (\u201c{long}\u201d)">'
-            f"Your reason: rule part 2 (\u201c{cut}\u201d)</span>") in line
-    chip = re.search(r'<button[^>]*data-part="2"[^>]*>', html)[0]
-    assert f'data-said="rule part 2 (\u201c{cut}\u201d)"' in chip
-    assert f'data-whole="rule part 2 (\u201c{long}\u201d)"' in chip
+            'Your reason: <b class="said-words">rule part 2</b></span>') in line
+    part = re.search(r'<button[^>]*data-part="2"[^>]*>', html)[0]
+    assert 'data-said="rule part 2"' in part
+    assert f'data-whole="rule part 2 (\u201c{long}\u201d)"' in part
     assert "data-whole" in report_page.REASONS_SCRIPT and "said.title" in report_page.REASONS_SCRIPT
     report = _html([_with_reason(why)], parts=["Be polite", long])
     assert (f'<span class="said" title="Your reason: rule part 2 (\u201c{long}\u201d)">'
-            f"Your reason: rule part 2 (\u201c{cut}\u201d)</span>") in report
+            "Your reason: <b>rule part 2</b></span>") in report
 
 
 def test_the_group_link_says_how_many_it_shows():
@@ -470,7 +467,7 @@ def test_the_verdict_heading_wraps_evenly():
     html = _html([])
     assert ('<h1 id="verdict-h" class="needs">Your <span class="term">LLM-as-a-judge</span> '
             "needs work.</h1>") in html  # a line never breaks inside the term
-    assert ".verdict h1 .term { white-space: nowrap; }" in report_page.STYLE
+    assert ".term { white-space: nowrap; }" in report_page.STYLE
 
 
 def test_a_many_field_question_shows_its_field_names_as_labels():
@@ -503,9 +500,9 @@ def _with_reason(why: dict) -> dict:
 def test_live_rows_ask_for_a_reason_behind_a_small_button():
     html = _html([_with_reason({})], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
-    assert line.startswith(f'<p class="why-line">{OPEN_ROW}<span class="dot" aria-hidden="true">')
-    assert ('<button type="button" class="add-reason" aria-expanded="false" '
-            'aria-controls="wb-easy-0">Add a reason</button>') in line
+    assert line.startswith('<p class="why-line"><button type="button" class="add-reason sbtn" '
+                           'aria-expanded="false" aria-controls="wb-easy-0">Add a reason</button>')
+    assert line.endswith(f"{OPEN_ROW}</p>")
     assert '<span class="said-now" hidden>' in line
     assert '<div class="why-body" id="wb-easy-0" hidden>' in html
     body = html.split('id="wb-easy-0" hidden>', 1)[1]
@@ -517,20 +514,20 @@ def test_a_saved_reason_shows_in_one_line_with_change():
     html = _html([_with_reason(why)], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
     text = re.sub(r"<[^>]+>", "", line)
-    assert text == ("Show all · Your reason: it has a wrong fact; rule part 2 (“Never promise "
-                    "refunds”); “Wrong year” · Change")
-    assert "Change" in line and "Add a reason" not in line
+    assert text == "ChangeYour reason: it has a wrong fact; rule part 2; “Wrong year”Show all"
+    assert "Add a reason" not in line
 
 
-def test_rule_part_buttons_show_90_characters_and_the_whole_part_on_hover():
+def test_rule_parts_are_one_line_rows_with_the_whole_part_on_hover():
     long = ("Determine whether the Actual Output sounds confident and does not refuse to help, "
             "and mark it Fail when it is rude")
     html = _html([_with_reason({})], live=True, parts=["Be polite", long])
-    chip = re.search(r'<button[^>]*data-part="2"[^>]*>(.*?)</button>', html)
-    assert chip[1] == "2. " + reasons.short(long) and chip[1].endswith("…")
-    assert f'title="{long}"' in chip[0]
-    first = re.search(r'<button[^>]*data-part="1"[^>]*>', html)[0]
-    assert "title=" not in first  # whole already
+    part = re.search(r'<button[^>]*data-part="2"[^>]*>(.*?)</button>', html)
+    assert part[1] == ('<span class="bx" aria-hidden="true"></span><span class="num">2</span>'
+                       f'<span class="t">{long}</span>')  # one line, cut by the page with "…"
+    assert f'title="{long}"' in part[0]
+    assert ".part .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in (
+        report_page.STYLE)
 
 
 def test_the_reasons_script_updates_the_line_after_a_save():
@@ -634,11 +631,22 @@ def test_an_emoji_keeps_its_variation_selector_and_other_hidden_marks_still_go()
 
 # More details -------------------------------------------------------------------------------
 
-def test_weighted_estimates_say_why_they_differ_from_the_counts():
-    caption = "<caption>How often your LLM-as-a-judge agrees with you (estimates)"
+def test_weighted_estimates_say_for_how_many_answers_in_one_line():
+    term = '<span class="term">LLM-as-a-judge</span>'
     html = start_label.result_html(_result(*NOT_GATE_TNR))  # 80 of 200 marked
-    assert (caption + '<span class="weighted">Worked out for all 200 answers, not only the 80 '
-            "you marked, so they can differ from the counts above.</span></caption>") in html
+    assert (f"<caption>How often your {term} agrees with you, estimated for all 200 answers "
+            "(you marked 80).</caption>") in html
     every = start_label.result_html(_result(40, 40, 40, 22, 40, 2))  # every answer marked
-    assert caption + "</caption>" in every and 'class="weighted"' not in every
-    assert ".panel caption .weighted { display: block;" in report_page.STYLE
+    assert f"<caption>How often your {term} agrees with you.</caption>" in every
+    assert "weighted" not in every and "weighted" not in report_page.STYLE
+
+
+def test_showing_the_rule_leaves_the_question_its_height():
+    laptop = _laptop()
+    # no rule cuts a long question, or hides its start, while the rule is open
+    assert ".card:has(.rule:not([hidden])) .question" not in laptop
+    # the rule and the answer give way: the question's row keeps its size
+    assert ".card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }" in laptop
+    assert ".row-a:has(> .rule:not([hidden]))" not in laptop
+    assert (".card:has(.rule:not([hidden])) .a-scroll:not(.fits) { min-height: "
+            "calc((100vh - 72px) * .25 - 30px); }") in laptop

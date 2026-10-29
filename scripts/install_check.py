@@ -124,6 +124,18 @@ def page_link(text: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
+def is_prerelease(version: str) -> bool:
+    """Whether `version` is a beta, alpha, rc or dev release, by judgekeeper's own rule
+    (textio.is_prerelease): only then does it name `uvx judgekeeper@<version>`."""
+    return re.search(r"\d(a|b|rc|\.dev)\d*$", version) is not None
+
+
+def uvx_next(version: str) -> str:
+    """A Next: line that names a command, started by uvx: `uvx judgekeeper`, with
+    `@<version>` only for a pre-release (the line may wrap before it)."""
+    return rf"Next: [^`]*`uvx judgekeeper{'@' if is_prerelease(version) else '[ `]'}"
+
+
 def source_version(source: str) -> str:
     """The version `--source` must install: this checkout's for build, else the one named."""
     if source == "build":
@@ -669,9 +681,9 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         n = "2" if result == "good enough" else f"2 ({result})"
         decisions = (rf"Your LLM-as-a-judge passed {len(JUDGE_PASSES)} answers and failed "
                      rf"{N - len(JUDGE_PASSES)}\.")
-        # Started by uvx, a Next: line that names a command names `uvx judgekeeper@<version>`
-        # (it may wrap). The first look's names none: mark, then click "See your result".
-        uvx = [r"Next: [^`]*`uvx judgekeeper@"] if self.via == "uvx" else []
+        # Started by uvx, a Next: line that names a command names uvx (uvx_next). The first
+        # look's names none: mark, then click "See your result".
+        uvx = [uvx_next(self.version)] if self.via == "uvx" else []
         expect = [r"Step 1 of 5: Find", rf"LLM-as-a-judge: .*{re.escape(JUDGE_NAME[self.tool])}",
                   decisions, r"Step 2 of 5: Mark",
                   r"Open this link in your browser to mark answers:\s+http://127\.0\.0\.1:"]
@@ -705,8 +717,10 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         else:
             self.mark_step(f"{n}. judgekeeper prints the result: {result}", self.front(),
                            [RESULT[result],
-                            r"You passed \d+ answers\. Of those, your LLM-as-a-judge passed",
-                            r"You failed \d+ answers\. Of those, your LLM-as-a-judge passed",
+                            (r"You\s+passed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+"
+                             r"LLM-as-a-judge\s+passed"),  # the count may wrap
+                            (r"You\s+failed\s+\d+\s+answers\.\s+Of\s+those,\s+your\s+"
+                             r"LLM-as-a-judge\s+passed"),
                             r"Step 3 of 5: Measure", *uvx], cwd=cwd)
         self.mark_step(f"{n}. judgekeeper --stop closes the page", [*self.jk, "--stop"],
                        [r"Closed the marking page"], cwd=cwd)

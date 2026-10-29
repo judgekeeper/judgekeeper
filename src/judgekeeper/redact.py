@@ -2,11 +2,12 @@
 
 Two layers. First, the current value of every credential environment variable this process
 can see (the known names, every provider key name `keys.py` knows or found, and any name
-ending in _API_KEY, _TOKEN or _SECRET); values shorter than 8 characters are ignored, since
-they would match ordinary text. Second, as a backstop for keys not in the environment, strings
-shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the login part of a URL
-(`user:password@`, `:password@`, or a long token alone). A key split by a hidden character is
-looked for with the character dropped, and a key right after one even after a letter.
+ending in _API_KEY, _TOKEN, _SECRET or _PASSWORD); values shorter than 8 characters are
+ignored, since they would match ordinary text. Second, as a backstop for keys not in the
+environment, strings shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the
+login part of a URL (`user:password@`, `:password@`, or a long token alone). A key split by
+a hidden character is looked for with the character dropped, and a key right after one even
+after a letter.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -29,7 +30,7 @@ _MASK = "\ue000"  # where a credential was, while scrub() works out what to hide
 CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LANGFUSE_PUBLIC_KEY",
                    "LANGFUSE_SECRET_KEY", "MLFLOW_TRACKING_PASSWORD", "AWS_ACCESS_KEY_ID",
                    "AWS_SECRET_ACCESS_KEY")
-CREDENTIAL_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET")
+CREDENTIAL_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET", "_PASSWORD")
 MIN_SECRET_LENGTH = 8
 
 # Variables registered during this process (the key names keys.py found).
@@ -132,11 +133,12 @@ def _style_kept(text: str, at: int) -> bool:
     return before in "0123456789#*" and before != "" and text[at + 1:at + 2] == "\u20e3"
 
 
-# A flag such as England's is a black flag (U+1F3F4), then 2 to 6 tag letters a-z or digits
-# (U+E0061 to U+E007A, U+E0030 to U+E0039), then U+E007F: those tags stay, every other tag
-# character goes, so no hidden text rides on a flag.
-_FLAG_TAGS = re.compile("(?<=\U0001F3F4)[\U000E0030-\U000E0039\U000E0061-\U000E007A]{2,6}"
-                        "\U000E007F")
+# The three standard subdivision flags (England, Scotland, Wales) are a black flag (U+1F3F4),
+# their tag letters, then U+E007F: those tags stay, every other tag character goes, so no
+# hidden text rides on a flag.
+_FLAG_CODES = ("gbeng", "gbsct", "gbwls")
+_FLAG_TAGS = re.compile("(?<=\U0001F3F4)(?:" + "|".join(
+    "".join(chr(0xE0000 + ord(c)) for c in code) for code in _FLAG_CODES) + ")\U000E007F")
 
 
 def visible(text: str) -> str:

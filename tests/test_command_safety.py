@@ -82,6 +82,16 @@ def test_a_held_back_value_is_one_line(windows, brk):
     assert line.splitlines() == [line]
 
 
+def test_a_held_back_label_map_added_to_is_said_once_on_windows(windows):
+    """The person's map is in the printed --label-map with the new entries: only that value
+    is said beside the command, never the map it replaced."""
+    talk = front.FrontTalk(yes=False, path=".", options={"label_map": "50%=pass", "port": 8765,
+                                                         "no_browser": False})
+    command = talk.command("--label-map", front.LABEL_MAP)
+    assert command == "judgekeeper --label-map NAME"
+    assert textio.held_lines(command) == ["  NAME: 50%=pass,VALUE=pass,VALUE=fail,VALUE=error"]
+
+
 @pytest.mark.parametrize("brk", ["\n", "\u2028"], ids=repr)  # the printer drops \r and U+0085
 def test_a_metric_can_not_print_a_next_line_on_windows(windows, brk, tmp_path, monkeypatch,
                                                        capsys):

@@ -3,10 +3,11 @@
 `judgekeeper` with no command (front.py) does the next step: finds the LLM-as-a-judge, checks
 it, opens the marking page, and prints the result once there are enough marks. `mark`
 (mark.py) opens the page to mark more; `check` (check.py) re-tests a changed judge on the marks
-from its new results (exit 1: it got worse); `fix` (fix.py) tests a new rule on marks it keeps
-hidden, from the results of grading them again. judgekeeper only reads files: it never runs an
-eval tool or calls an AI. Exit codes: 0 success, 2 usage error, 3 the person is needed (a link
-where judgekeeper writes, too), 130 Ctrl-C.
+from its new results (exit 1 only when the drop's middle estimate is over 20 points, whichever
+word it says); `fix` (fix.py) tests a new rule on marks it keeps hidden, from the results of
+grading them again. judgekeeper only reads files: it never runs an eval tool or calls an AI.
+Exit codes: 0 success, 2 usage error, 3 the person is needed (a link where judgekeeper writes,
+too), 130 Ctrl-C.
 
 Every error is scrubbed (redact.scrub) and ends with one `Next:` line, printed here. A failure
 with no better message never prints its own text, which can hold an answer's text: one line
@@ -84,7 +85,7 @@ STEPS = """\
                                     with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
-MLflow, or a CSV or JSONL file with these columns:
+MLflow, or a CSV, TSV or JSONL file with these columns:
   input, output, verdict"""
 FIX_HELP = ("see where your LLM-as-a-judge goes wrong; with the results of grading your marked "
             "answers again, test a better rule on the marks kept aside")
@@ -162,7 +163,8 @@ def version_lines(stream=None) -> list[str]:
 
 class _Version(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        print("\n".join(version_lines()))
+        for line in version_lines():  # a full disk: no traceback, as every line said
+            _say(line)
         parser.exit()
 
 
@@ -286,15 +288,17 @@ def _parser() -> argparse.ArgumentParser:
     ck = sub.add_parser("check", parents=[common],
                         help="when your LLM-as-a-judge changed, re-check it on your marks")
     ck.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="a new results file, or your project folder (default: this folder, "
-                         "with its newest results)")
+                    help="a new results file or MLflow store (mlflow.db or an mlruns/ "
+                         "folder), or your project folder (default: this folder, with its "
+                         "newest results)")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
                         help=FIX_HELP)
     fx.add_argument("path", nargs="?", default=".", metavar="PATH",
-                    help="the results of grading your marked answers again with a new rule, "
-                         "or your project folder (default: this folder)")
+                    help="the results of grading your marked answers again with a new rule "
+                         "(for MLflow, the store: mlflow.db or an mlruns/ folder, read at its "
+                         "newest run), or your project folder (default: this folder)")
     fx.add_argument("--new", action="store_true",
                     help="start a new set of marks kept aside, made of the next marks you make")
     p.commands["fix"] = fx
@@ -455,7 +459,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _stopped(args_list: list[str]) -> int:
-    print("\nStopped.")
+    _say("")
+    _say("Stopped.")  # stdout can't take it: still stopped (130)
     _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
     return EXIT_STOPPED
 
@@ -497,7 +502,10 @@ def _main(argv: list[str] | None) -> int:
         return EXIT_USAGE
     except Exception as e:  # noqa: BLE001 - the last line of defence for what users see
         if args.debug:
-            print(printable(scrub(_frames(e))), file=sys.stderr, end="")
+            try:
+                print(printable(scrub(_frames(e))), file=sys.stderr, end="")
+            except OSError:  # stderr can't take it: still an error (2)
+                flush_stdout(err=True)
         workspace = textio.workspace_problem(e) if isinstance(e, OSError) else None
         if workspace:
             _error(workspace[0])

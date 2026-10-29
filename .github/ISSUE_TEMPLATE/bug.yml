@@ -33,8 +33,8 @@ body:
     id: version
     attributes:
       label: judgekeeper version
-      description: What `judgekeeper --version` prints.
-      placeholder: judgekeeper 1.0.0
+      description: What `judgekeeper --version` prints. At a terminal its first line is "✓ judgekeeper 1.0.0 is ready".
+      placeholder: ✓ judgekeeper 1.0.0 is ready
     validations:
       required: true
   - type: dropdown
@@ -46,7 +46,7 @@ body:
         - DeepEval
         - Inspect AI
         - MLflow
-        - A CSV or JSONL file
+        - A CSV, TSV or JSONL file
         - judgekeeper.record() in my own code
         - Another results file
         - None of these
@@ -73,5 +73,5 @@ body:
       options:
         - label: I removed any answer text I can't share.
           required: true
-        - label: Any code, design or text I share here may be used in judgekeeper under the MIT license.
+        - label: Any code, design or text I share here may be used in judgekeeper under the Apache-2.0 license.
           required: true

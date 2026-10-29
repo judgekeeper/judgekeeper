@@ -5,12 +5,41 @@ marked-answers.csv or a new results file."""
 from __future__ import annotations
 
 import json
+import re
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from judgekeeper import fix
+from judgekeeper.cli import main
 from tests.test_fix import here, project, run  # noqa: F401
+from tests.test_front import next_lines
+
+STORE = r"""
+import os
+os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
+os.environ["MLFLOW_DISABLE_AGENT_HINT"] = "1"
+os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+import mlflow
+from mlflow.entities import AssessmentSource
+
+mlflow.set_tracking_uri("mlruns")
+mlflow.set_experiment("folder-store")
+judge = AssessmentSource(source_type="LLM_JUDGE", source_id="openai:/gpt-4.1")
+
+@mlflow.trace(name="app")
+def app(question):
+    return f"answer to {question}"
+
+for i in range(40):
+    app(f"question {i}")
+    mlflow.flush_trace_async_logging()
+    mlflow.log_feedback(trace_id=mlflow.get_last_active_trace_id(), name="helpful",
+                        value=i % 2 == 0, source=judge)
+"""
 
 
 class _Talk:
@@ -101,3 +130,71 @@ def test_check_and_fix_read_the_experiment_marking_started_on(here, capsys, monk
         main(["fix", *given])
     capsys.readouterr()
     assert asked and all(o.get("experiment") == "app-a" for o in asked), asked
+
+
+@pytest.fixture(scope="module")
+def mlruns(tmp_path_factory):
+    """A real MLflow folder store of 40 graded traces, made by the installed MLflow."""
+    pytest.importorskip("mlflow")
+    build = tmp_path_factory.mktemp("mlruns-build")
+    (build / "make_store.py").write_text(STORE, encoding="utf-8")
+    subprocess.run([sys.executable, "make_store.py"], cwd=build, check=True,
+                   capture_output=True)
+    return build / "mlruns"
+
+
+def _printed(capsys, argv: list[str], sub: str) -> tuple[str, list[str]]:
+    """What `argv` says, and the `judgekeeper {sub} ...` command its last Next: line names."""
+    main(argv)
+    out = capsys.readouterr().out
+    commands = [shlex.split(c) for c in re.findall(r"`(judgekeeper [^`]*)`", next_lines(out)[-1])]
+    return out, next(c[1:] for c in commands if c[1] == sub)
+
+
+def test_the_printed_fix_and_check_commands_read_the_mlruns_store(mlruns, tmp_path,
+                                                                  monkeypatch, capsys):
+    import shutil
+
+    from judgekeeper import start, start_label
+    from judgekeeper.readers import mlflow_store
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import save_result
+
+    monkeypatch.setattr(mlflow_store, "_walked", {})
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)  # the same queue and split
+    shutil.copytree(mlruns, tmp_path / "mlruns")
+    monkeypatch.chdir(tmp_path)
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line="": None)
+    session = StartSession(ws)
+    seen = {"pass": 0, "fail": 0}
+    for q in ws.data()["queue"]:  # 1 in 5 of each marked the other way: mistakes to fix,
+        seen[q["group"]] += 1     # with enough marked Pass and Fail
+        session.update({"id": q["id"], "label": q["group"] if seen[q["group"]] % 5 else
+                        {"pass": "fail", "fail": "pass"}[q["group"]]})
+    save_result(ws, session, say=lambda line="": None)
+
+    _, printed = _printed(capsys, ["fix"], "fix")
+    assert printed == ["fix", "mlruns"]
+    out, again = _printed(capsys, printed, "fix")
+    said = " ".join(out.split())
+    assert "New results: mlruns" in said and "same grades as when you marked" in said, said
+    assert again == printed
+    out, printed = _printed(capsys, ["check", "mlruns"], "check")
+    said = " ".join(out.split())
+    assert "New results: mlruns" in said and "has not changed" in said, said
+    assert printed == ["check", "mlruns"]
+    mlflow_store.remove_copies()
+
+
+def test_a_store_on_another_drive_is_named_by_its_whole_path(here, monkeypatch):  # noqa: F811
+    """On Windows a path on another drive has no relative form (os.path.relpath raises)."""
+    import os
+
+    ws = project(here)
+    _as_mlflow(ws, "mlflow.db")
+
+    def other_drive(*args, **kwargs):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(os.path, "relpath", other_drive)
+    assert fix.mlflow_store(ws) == fix.quote_arg((here / "mlflow.db").resolve().as_posix())

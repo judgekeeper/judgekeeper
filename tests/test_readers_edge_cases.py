@@ -115,6 +115,17 @@ def test_a_judge_named_0_1_column_beside_a_verdict_column_asks_which(here, capsy
     assert "Your LLM-as-a-judge passed 30 answers and failed 30." in flat(out)
 
 
+@pytest.mark.parametrize("models", [["gpt-4o"], ["gpt-4o", "claude-haiku-5-5", ""]])
+def test_a_judge_column_of_model_names_is_not_a_grade(here, capsys, models):
+    rows = [[question(i), f"A full answer number {i}.", "Fail" if i % 3 == 0 else "Pass",
+             models[i % len(models)]] for i in range(60)]
+    write_csv(here / "results.csv", ["input", "output", "verdict", "judge"], rows)
+    code, out = run(capsys)
+    assert code == 0, out
+    assert "more than one LLM-as-a-judge" not in out
+    assert "Your LLM-as-a-judge passed 40 answers and failed 20." in flat(out)
+
+
 # A judge that gives every answer the same grade ----------------------------------------------
 
 def plain_jeffreys(k: int, n: int, level: float) -> tuple[float, float]:
@@ -186,8 +197,10 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys):
     for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
         assert re.search(rf"When you say {side}, it also says {side}: about \d+% "
                          rf"\(between \d+% and \d+%\)", said), said
-    assert "Go back to your old LLM-as-a-judge" in top
-    assert html.count("Go back to your old LLM-as-a-judge") == 1
+    said_top = re.sub('<span class="term">(.*?)</span>', r"\1", top)
+    assert "Go back to your old LLM-as-a-judge" in said_top
+    assert re.sub('<span class="term">(.*?)</span>', r"\1", html).count(
+        "Go back to your old LLM-as-a-judge") == 1
     assert "Answers you passed" in html or "agreed on all" in html  # the old judge stays
 
 
