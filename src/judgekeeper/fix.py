@@ -130,6 +130,11 @@ REGRADE = {
                  "test_run_<date>.json in your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
+NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
+RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
+                f"new grades, then run `{{command}} {NEW_RECORDS}`.")
+SAME_SHAPE = (f"Grade {ANSWERS} with your own code, and save the new grades in the same shape "
+              "as {file}.")
 TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
          "`answer` as its output, and the grade.")
 
@@ -1206,9 +1211,24 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
 
 
-def regrade_line(tool: str | None) -> str:
-    """How to grade the marked answers again with the person's own eval tool."""
+def regrade_line(tool: str | None, command: str = "judgekeeper fix",
+                 file: str | None = None) -> str:
+    """How to grade the marked answers again with the person's own eval tool; for a format
+    of its own, `file` is the results file read at the start."""
+    if tool == "records":
+        return RECORD_AGAIN.format(command=command)
+    if tool == "mapped" and file:
+        return SAME_SHAPE.format(file=file)
     return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
+
+
+def _first_file(ws: Workspace) -> str | None:
+    """The results file step 1 read, as start.json keeps it, or None."""
+    try:
+        files = ws.data().get("results_files") or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    return files[0] if files and isinstance(files[0], str) else None
 
 
 NEW_LOG = "new.eval"
@@ -1238,7 +1258,7 @@ def new_log(ws: Workspace) -> str:
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
-    talk.para(regrade_line(tool))
+    talk.para(regrade_line(tool, talk.command(), _first_file(ws)))
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
@@ -1248,6 +1268,12 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if store:  # a new run in the same store
         talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
                   f"same traces, then run `{talk.command()} {store}`: it reads the newest run.")
+        return
+    if tool in ("records", "mapped"):  # graded with their own code, as said above
+        new = NEW_RECORDS if tool == "records" else NEW_RESULTS
+        talk.next(f"change your LLM-as-a-judge's rule, grade the answers in "
+                  f"{_file(ws, ANSWERS)} again as said above, then run "
+                  f"`{talk.command()} {new}`.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "
@@ -1362,7 +1388,9 @@ def _given(talk: Talk, state, m: Marks, path: Path):
     if found is None:
         talk.para(problem)
         tool = m.data.get("tool")
+        again = RECORD_AGAIN.format(command=talk.command())
         talk.next(_regrade_same(talk, state.ws) if tool == "inspect" else  # the log, scored again
+                  again[0].lower() + again[1:] if tool == "records" else
                   f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
                   f"again with your new rule, from {_tool_name(tool)}.")
     return found

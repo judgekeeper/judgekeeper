@@ -385,6 +385,66 @@ def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, 
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
+def _marked_own(here, argv=()) -> Workspace:
+    """Step 1 run on `here` and every answer marked, 6 against the LLM-as-a-judge."""
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser", *argv]) == 0
+        main(["--stop"])
+    session = StartSession(Workspace(here))
+    for n, item in enumerate(session.items):
+        label = session.groups[item["id"]]
+        if n < 6:
+            label = "fail" if label == "pass" else "pass"
+        session.update({"id": item["id"], "label": label, "seconds": 5})
+    return Workspace(here)
+
+
+RECORD_AGAIN = ("Grade marked-answers.csv with your own code, call `judgekeeper.record()` "
+                "again on the new grades, then run `judgekeeper fix "
+                ".judgekeeper/records/<new file>`.")
+
+
+def test_a_record_judge_is_told_to_call_record_again(here, capsys):
+    from tests.start_projects import records_project
+
+    records_project(here, [True] * 25 + [False] * 25)
+    _marked_own(here)
+    code, out = run(capsys)
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert RECORD_AGAIN in flat and "in your eval tool" not in flat
+    assert flat.endswith("then run `judgekeeper fix .judgekeeper/records/<new file>`.")
+
+
+def test_a_plain_table_on_record_marks_says_to_call_record_again(here, capsys):
+    from tests.start_projects import records_project, table_project
+
+    records_project(here, [True] * 25 + [False] * 25)
+    _marked_own(here)
+    run(capsys)
+    table_project(here, [True] * 50, name="regraded.csv")
+    code, out = run(capsys, "regraded.csv")
+    assert code == 2, out
+    flat = " ".join(out.split())
+    assert "regraded.csv is a plain table of results, but your marks are on " \
+           "judgekeeper.record() results." in flat
+    assert flat.endswith(f"Next: {RECORD_AGAIN[0].lower()}{RECORD_AGAIN[1:]}")
+
+
+def test_an_own_format_judge_is_told_to_keep_the_shape_of_its_file(here, capsys):
+    from tests.start_projects import flat_jsonl
+
+    flat_jsonl(here / "evals" / "graded.jsonl", n=50)
+    _marked_own(here, ["--yes"])
+    code, out = run(capsys)
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert ("Grade marked-answers.csv with your own code, and save the new grades in the "
+            "same shape as evals/graded.jsonl.") in flat
+    assert "in your eval tool" not in flat
+    assert flat.endswith("then run `judgekeeper fix <new results file>`.")
+
+
 def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
     project(here)
     _, out = run(capsys)
