@@ -517,9 +517,14 @@
     });
     return out;
   }
+  // find.grade_columns: the verdict columns; with none, the score column
+  function gradeColumns(columns) {
+    var verdicts = VERDICT_COLUMNS.filter(function (c) { return columns.indexOf(c) >= 0; });
+    return verdicts.length ? verdicts : (columns.indexOf('score') >= 0 ? ['score'] : []);
+  }
   function isTable(columns) {
     var has = function (c) { return columns.indexOf(c) >= 0; };
-    return has('input') && (has('output') || (has('output_a') && has('output_b'))) && VERDICT_COLUMNS.some(has);
+    return has('input') && (has('output') || (has('output_a') && has('output_b'))) && gradeColumns(columns).length > 0;
   }
   function isRecordsFile(columns) { return columns.indexOf('annotator_kind') >= 0 || columns.indexOf('schema_version') >= 0; }
   function blank(v) { return v === null || v === undefined || (isStr(v) && !v.trim()); }
@@ -696,8 +701,9 @@
         return verdicts.indexOf(c) < 0 && KNOWN_COLUMNS.indexOf(c) < 0 && judgeColumn(c, rows);
       })));
     }
+    if (!verdicts.length) verdicts = gradeColumns(columns);
     if (!verdicts.length || columns.indexOf('input') < 0 || columns.indexOf('output') < 0) {
-      return { error: 'columns', message: 'This file needs input, output and verdict columns.' };
+      return { error: 'columns', message: 'This file needs input, output and a verdict or score column.' };
     }
     var human = HUMAN_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
     var judged = [], nHuman = 0;

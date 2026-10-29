@@ -50,6 +50,7 @@ LINK = "Open this link in your browser to mark answers:"
 RESULT_LINK = "Open this link in your browser to see your result:"
 DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
+KEPT = "kept"  # the page was open already, with no terminal: no new tab, no link printed
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
 PICKS = 10  # ports tried when one judgekeeper picked is taken before the page binds it
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
@@ -289,19 +290,24 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     When the BROWSER variable names the program that opens it, stamp the page's marks first.
     At a terminal, print the link when no browser opened (or it took more than SLOW_BROWSER
     seconds), with --no-browser or with --wait (TERMINAL). Without one, stamp the page's marks first, then print the link (PRINTED).
+    A page that was open already (kept) gets no new tab: at a terminal its link is printed;
+    without one nothing is (KEPT), so its token stays out of the output.
     None when the marks could not be stamped: then the page is not opened, or the link not
     printed. `result`: the page is opened at its result page (every answer is marked: the
     reason boxes are what is left)."""
     at_terminal = terminal()
     url = page.result_url if result else page.url
-    if not no_browser and os.environ.get("BROWSER") and not _stamp(page, marks.BROWSER_ENV):
+    opens = not no_browser and not page.kept  # a tab only for a page this run started
+    if opens and os.environ.get("BROWSER") and not _stamp(page, marks.BROWSER_ENV):
         return None
     began = _clock()
-    in_browser = not no_browser and webbrowser.open(url)
+    in_browser = opens and webbrowser.open(url)
     if in_browser and _clock() - began > SLOW_BROWSER:  # it hung: the link is printed too
         in_browser = False
     if in_browser and not (at_terminal and wait):
         return BROWSER
+    if page.kept and not no_browser and not at_terminal:
+        return KEPT
     if not at_terminal and not _stamp(page):
         return None
     say(RESULT_LINK if result else LINK)

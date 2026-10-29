@@ -552,7 +552,8 @@ def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
-    `score` column the score --pass-if reads in place of the verdict. A quote that never
+    `score` column the score --pass-if reads in place of the verdict (with no verdict
+    column, the score column is the grade). A quote that never
     closes stops it: the rows after it would be read as one cell."""
     line = open_quote(path)
     if line is not None:
@@ -574,10 +575,10 @@ def read_results_table(path: Path) -> RecordList:
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
-    verdict = verdicts[0] if verdicts else None
-    if verdict is None or "input" not in columns or "output" not in columns:
-        raise StartError(f"{path.name} needs input, output and verdict columns; columns are: "
-                         f"{', '.join(columns)}")
+    verdicts = verdicts or find.grade_columns(columns)
+    if not verdicts or "input" not in columns or "output" not in columns:
+        raise StartError(f"{path.name} needs input, output and a verdict or score column; "
+                         f"columns are: {', '.join(columns)}")
     header = path.suffix.lower() in (".csv", ".tsv")  # a CSV's first line names the columns
     for n, row in enumerate(rows, 1):  # a JSON object or list: no grade (CSV values are text)
         if any(isinstance(row.get(v), dict | list) for v in verdicts):
@@ -1272,7 +1273,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
-                             "with input, output and verdict columns)")
+                             "with input, output and a verdict or score column)")
         path = path.resolve()
         return path.parent, kind, [find.Result(kind, path, path.name, path.stat().st_size)], {}
     root = path.resolve()

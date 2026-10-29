@@ -80,7 +80,7 @@ def test_results_judgekeeper_reads_already_are_not_named(tmp_path):
 
 
 def test_the_most_recently_changed_file_is_named(tmp_path):
-    line = json.dumps({"input": "q", "output": "a", "score": 1}) + "\n"
+    line = json.dumps({"input": "q", "output": "a", "rating": 1}) + "\n"
     _write(tmp_path / "older.jsonl", line)
     _write(tmp_path / "newer.jsonl", line)
     now = time.time()

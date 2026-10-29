@@ -1,5 +1,5 @@
 """The marking page's script, run in node against a small stand-in for the browser: marking by
-keyboard alone, the lock after each mark, held keys and Cmd/Ctrl/Alt keys, skipping and undo,
+keyboard alone, quick keys and the lock on clicks, held keys and Cmd/Ctrl/Alt keys, skipping and undo,
 the welcome box, and no target number.
 
 The stand-in has only what the page uses: elements by id, text, attributes, classes and
@@ -167,14 +167,36 @@ def test_the_arrow_keys_mark_pass_and_fail_and_the_next_answer_comes():
     assert got["url"] == "/label?token=t0k" and got["focus"]
 
 
-def test_a_second_key_within_400_ms_does_nothing():
+def test_a_second_key_soon_after_a_saved_mark_marks_the_next_answer():
     got = _run("""
       key("ArrowRight"); await settle();
-      later(399); key("ArrowRight"); await settle();
-      var early = sent.length;
-      later(1); key("ArrowRight"); await settle();
-      console.log(JSON.stringify({early: early, late: sent.length}));""")
-    assert got == {"early": 1, "late": 2}
+      later(100); key("ArrowLeft"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
+        at: ids["q-text"].textContent}));""")
+    assert got == {"sent": [["a0", "pass"], ["a1", "fail"]], "at": "Question 2?"}
+
+
+def test_keys_pressed_while_a_mark_is_saved_act_once_it_is_saved():
+    got = _run("""
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("ArrowLeft"); key("s"); await settle();
+      var waiting = [sent.length, ids["q-text"].textContent];
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || "skip"]; })}));""")
+    assert got["waiting"] == [1, "Question 0?"]  # one save at a time
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "skip"]]  # each once, in order
+    assert got["at"] == "Question 3?"
+
+
+def test_a_double_click_marks_one_answer():
+    got = _run("""
+      ids["pass"].fire("click"); await settle();
+      later(100); ids["pass"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.length, at: ids["q-text"].textContent}));""")
+    assert got == {"sent": 1, "at": "Question 1?"}
 
 
 def test_a_held_key_or_one_with_cmd_ctrl_or_alt_does_nothing():

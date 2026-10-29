@@ -389,6 +389,33 @@ def judge_of(data: dict) -> dict:
             "fingerprint": fp}
 
 
+def write_model(ws: Workspace, found) -> None:
+    """The model given with --judge-model (found.fingerprint) for a judge whose results name
+    none, after marking started: start.json, pool-judge.jsonl, result.json and report.html
+    name it now (judge.json: judge_setup.save). The same judge and grades, so nothing else."""
+    from judgekeeper.judgments import read_run
+
+    model = found.fingerprint["model"]
+    data = ws.data()
+    data.update(judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint))
+    _write_json(ws.start, data)
+    head, records = read_run(ws.pool_judge)
+    lines = [{**rec, "fingerprint": {**rec["fingerprint"], "model": model}}
+             for rec in records.values()]
+    fp = JudgeFingerprint.from_dict({**head["fingerprint"], "model": model,
+                                     "model_source": found.fingerprint.get("model_source")})
+    write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp, lines,
+              source=head.get("source"), normaliser=head.get("normaliser"))
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if isinstance(r, dict) and isinstance(r.get("judge"), dict):
+        r.update(fingerprint=data["fingerprint"], judge={**r["judge"], "name": data["judge"]})
+        _write_json(ws.result_json, r)
+        write_report(ws)
+
+
 def begin_marks(ws: Workspace) -> None:
     """A new marks.jsonl, its header from start.json: marking starts."""
     data = ws.data()
@@ -400,7 +427,8 @@ def begin_marks(ws: Workspace) -> None:
 
 def display(value) -> str:
     """An input or output as text for the page: a string as written; a dict of fields (such
-    as promptfoo's vars) as one `name: value` line each."""
+    as promptfoo's vars) as one `name: value` line each; chat messages (an Inspect AI input)
+    as their text (_chat_text)."""
     if isinstance(value, str):
         return value
     if value is None:
@@ -408,7 +436,38 @@ def display(value) -> str:
     if isinstance(value, dict):
         return "\n".join(f"{k}: {v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)}"
                          for k, v in value.items())
-    return json.dumps(value, ensure_ascii=False, indent=2)
+    chat = _chat_text(value)
+    return chat if chat is not None else json.dumps(value, ensure_ascii=False, indent=2)
+
+
+# A chat message's part that is not text, as the page names it (one, several)
+NOT_TEXT = {"image": ("image", "images"), "audio": ("audio clip", "audio clips"),
+            "video": ("video", "videos"), "document": ("document", "documents")}
+
+
+def _chat_text(value) -> str | None:
+    """Chat messages (each a dict with a role and a content) as text: each text part in
+    order (after its role, "user: ", when there are several messages), then the other parts
+    counted, as "(1 image, not shown)". None when `value` is not such messages, or holds no
+    part judgekeeper can name."""
+    if not (isinstance(value, list) and value and all(
+            isinstance(m, dict) and "role" in m and "content" in m for m in value)):
+        return None
+    texts, other = [], {}
+    for m in value:
+        parts = [{"type": "text", "text": m["content"]}] if isinstance(m["content"], str) \
+            else m["content"] if isinstance(m["content"], list) else []
+        for part in parts:
+            kind = part.get("type") if isinstance(part, dict) else None
+            if kind == "text" and isinstance(part.get("text"), str) and part["text"].strip():
+                texts.append(f"{m['role']}: {part['text']}" if len(value) > 1 else part["text"])
+            elif isinstance(kind, str):
+                name = NOT_TEXT.get(kind, ("other part", "other parts"))
+                other[name] = other.get(name, 0) + 1
+    if other:
+        texts.append("(" + ", ".join(f"{n} {name[n != 1]}" for name, n in other.items())
+                     + ", not shown)")
+    return "\n\n".join(texts) if texts else None
 
 
 # A field that sets the scene goes last, even when its name also holds an asked word
@@ -832,6 +891,17 @@ def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
+def _left_to_mark(ws: Workspace) -> int:
+    """How many answers in the pool have no Pass or Fail mark; one past any need when that
+    can't be read (every_marked)."""
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return math.inf
+    return sum(q["id"] not in counted for q in queue) if queue else math.inf
+
+
 def every_marked(ws: Workspace) -> bool:
     """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
     try:
@@ -842,14 +912,15 @@ def every_marked(ws: Workspace) -> bool:
     return bool(queue) and all(q["id"] in counted for q in queue)
 
 
-def next_marks(ws: Workspace, step: str) -> str:
+def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
-    "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
-    there is nothing left to mark until the eval runs on more questions. The one place this is
-    decided. Its command is made again from the flags result.json keeps, never its text."""
+    "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
+    left): then all_marked_lines' next step, as there are not enough left to mark until the
+    eval runs on more questions. The one place this is decided. Its command is made again from
+    the flags result.json keeps, never its text."""
     from judgekeeper.start import command_from
 
-    if not every_marked(ws):
+    if _left_to_mark(ws) >= need:
         return step
     try:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")

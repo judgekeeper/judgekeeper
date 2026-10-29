@@ -392,6 +392,18 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .details[open] summary::before { transform: rotate(45deg) translateY(-4px); }
 .details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .details summary h2 { font-size: 22px; }
+/* a field the same in every row (an agent's prompt), once above the lists, folded */
+.same { margin: 48px 0 0; }
+.same summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
+  gap: 14px; color: var(--muted); font-size: 15px; }
+.same summary::-webkit-details-marker { display: none; }
+.same summary::before { content: ""; width: 7px; height: 7px; flex: none;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg) translateY(-2px); }
+.same[open] summary::before { transform: rotate(45deg) translateY(-4px); }
+.same summary .fname { margin: 0; }
+.same p { margin: 14px 0 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap;
+  overflow-wrap: anywhere; }
 .panel { margin: 0 0 12px; table-layout: fixed; }
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
@@ -706,13 +718,15 @@ def head_tail(text: str) -> tuple[str, str, str] | None:
     return head, text[at:at + gap], tail
 
 
-def _question(m: dict) -> tuple[str, str]:
+def _question(m: dict, same: tuple = ()) -> tuple[str, str]:
     """A row's question cell (its class, its HTML): each field under its name when it has
-    several (fix.py's "fields"); a long text ending in a question folded to its first 2 lines,
-    "…" and that question, the whole text in order when the row is open (SCRIPT, STYLE)."""
+    several (fix.py's "fields"), but those in `same`, shown once above the lists; a long text
+    ending in a question folded to its first 2 lines, "…" and that question, the whole text
+    in order when the row is open (SCRIPT, STYLE)."""
     fields = m.get("fields")
     if fields:
-        return "", "\n".join(f'<span class="fname">{_e(k)}</span>{_e(v)}' for k, v in fields)
+        return "", "\n".join(f'<span class="fname">{_e(k)}</span>{_e(v)}' for k, v in fields
+                             if k not in same)
     parts = head_tail(m["question"])
     if not parts:
         return "", _e(m["question"])
@@ -848,7 +862,7 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           left_out: int = 0) -> str:
+           left_out: int = 0, same: tuple = ()) -> str:
     """One group of disagreements: its title, how many more are kept aside (`kept`), the
     table, then "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
@@ -863,7 +877,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
         foot = (_box(m, n, parts, own, left_out) if box
                 else f'<p class="row-foot">{_said(m, parts, words)}{OPEN_ROW}</p>')
         extra = ' class="extra" hidden' if k >= ROWS_SHOWN else ""
-        ht, question = _question(m)
+        ht, question = _question(m, same)
         ht = f' class="{ht.strip()}"' if ht else ""
         body.append(f'<tr{extra}>'
                     f'<td data-label="Question"{ht}>{question}</td>'
@@ -895,6 +909,22 @@ def _kept(n: int) -> str:
 SPLIT_UNKNOWN = ("judgekeeper can't tell which answers are kept aside: run ", " to see why.")
 
 
+def _same(rows: list[dict]) -> list[tuple[str, str]]:
+    """The fields with the same text in every listed row, when there are 2 or more and each
+    row keeps a field of its own: shown once, not in each row."""
+    if len(rows) < 2 or not all(m.get("fields") for m in rows):
+        return []
+    same = [(k, v) for k, v in rows[0]["fields"]
+            if all([k, v] in [list(f) for f in m["fields"]] for m in rows[1:])]
+    names = {k for k, _ in same}
+    if any(all(k in names for k, _ in m["fields"]) for m in rows):
+        return []
+    return same
+
+
+SAME = "The same in every answer below"
+
+
 def _groups(c: dict, fixing: dict | None, live: bool = False,
             mark: str | None = None, fix_command: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups (a group with none
@@ -909,6 +939,10 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
         return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
                 f'{_e(fix_command or "judgekeeper fix")}</code>{_e(SPLIT_UNKNOWN[1])}</p></div>')
+    same = _same(mistakes)
+    out += [f'<div class="band"><details class="same"><summary><span class="fname">{_e(k)}'
+            f'</span>{SAME}</summary><p>{_e(v)}</p></details></div>' for k, v in same]
+    names = tuple(k for k, _ in same)
     left = 0  # kept aside of a group with none to show
     for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
                              ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
@@ -916,7 +950,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         kept = max(0, c[key] - len(rows))
         if rows:
             out.append(_group(key, said, rows, kept, live, parts, own,
-                              (fixing or {}).get("left_out", 0)))
+                              (fixing or {}).get("left_out", 0), names))
         else:
             left += kept
     if left:

@@ -11,6 +11,7 @@ results folder is what a project keeps.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -69,6 +70,30 @@ def test_steps_its_model_wrote_are_left_out_of_the_rule(tmp_path):
     found = start.find_judge(tmp_path)
     assert "Check fact" not in found.rule
     assert rule_text(found.rule, "deepeval") == "Is the answer right?"
+
+
+def test_steps_written_for_each_answer_leave_the_prompt_hash_of_the_run_unknown(tmp_path):
+    """GEval given only criteria writes its evaluation steps with its model for each answer:
+    the prompt differs per answer, so each judgment keeps its own hash and the run has none.
+    The rule leaves those steps out, so it is the criteria alone."""
+    data = deepeval_data(split(25, 25))
+    for i, case in enumerate(data["testCases"]):
+        case["metricsData"][0]["verboseLogs"] = (
+            f'Criteria:\nThe answer is right. \n \nEvaluation Steps:\n[\n    "Step {i}."\n]'
+            " \n \nRubric:\nNone \n \nScore: 0.9")
+    _write(tmp_path / "results" / "test_run_20261006_154129.json", data)
+    found = start.find_judge(tmp_path)
+    assert found.one_rule and found.rule.startswith("The answer is right.")
+    assert found.fingerprint["prompt_hash"] is None
+    hashes = {a.fingerprint.prompt_hash for a in found.pool.answers}
+    assert None not in hashes and len(hashes) == 50
+    docs = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    deepeval = docs.split("## DeepEval")[1].split("\n## ")[0]
+    assert ("- **The prompt hash is kept per answer.** A GEval given only `criteria=` writes its "
+            "evaluation steps with its model for each answer, so the prompt differs per answer: "
+            "each judgment keeps its own prompt hash, and the run and `judge.json` keep none. "
+            "Give `evaluation_steps=[...]` for one prompt."
+            in deepeval)
 
 
 def test_criteria_still_come_first_when_there_are_some(tmp_path):

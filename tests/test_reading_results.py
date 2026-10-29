@@ -114,6 +114,49 @@ def test_a_blank_score_is_no_decision_and_the_pass_mark_is_used(here, capsys, bl
     assert "no real decision on 1 of 40" in flat(out)
 
 
+# A score column and no verdict column --------------------------------------------------------
+
+SCORE_ONLY = ["id", "input", "output", "score", "reason", "judge_model"]
+
+
+def _score_only(here, suffix: str) -> tuple[Path, list[float]]:
+    rows = [(f"q-{i}", q, a, s, "why", "claude-haiku-5-5")
+            for i, (q, a, s) in enumerate(scored(40, 7))]
+    path = write_csv(here / f"results{suffix}", SCORE_ONLY, rows,
+                     **({"delimiter": "\t"} if suffix == ".tsv" else {}))
+    return path, [float(r[3]) for r in rows]
+
+
+@pytest.mark.parametrize("given", [False, True], ids=["found", "named"])
+@pytest.mark.parametrize("suffix", [".csv", ".tsv"])
+def test_a_score_column_with_no_verdict_column_is_read_with_pass_if(here, capsys, suffix,
+                                                                     given):
+    path, scores = _score_only(here, suffix)
+    code, out = find(capsys, *([path.name] if given else []), "--pass-if", "score>=0.5")
+    assert code == 0 and LINK in out, out
+    assert grades(out) == (sum(s >= 0.5 for s in scores), sum(s < 0.5 for s in scores))
+    assert "the score column" in flat(out)
+    assert not (here / "judgekeeper.toml").exists()  # a plain table, not a format of its own
+
+
+@pytest.mark.parametrize("yes", [[], ["--yes"]], ids=["asked", "yes"])
+@pytest.mark.parametrize("suffix", [".csv", ".tsv"])
+def test_a_score_column_with_no_pass_mark_stops_and_asks_for_it(here, capsys, suffix, yes):
+    path, _ = _score_only(here, suffix)
+    code, out = find(capsys, path.name, *yes)
+    assert code == 3, out
+    assert next_lines(out)[-1].startswith("Next: decide which score counts as a pass, then run")
+    assert '--pass-if "score>=N"' in next_lines(out)[-1]
+
+
+def test_a_table_with_no_grade_column_names_verdict_or_score(here, capsys):
+    write_csv(here / "results.tsv", ["input", "output", "reason"], [("q", "a", "r")],
+              delimiter="\t")
+    code, out = find(capsys, "results.tsv")
+    assert code == 2
+    assert "a table with input, output and a verdict or score column" in flat(out)
+
+
 # A verdict and a score column with --pass-if -------------------------------------------------
 
 def test_pass_if_reads_the_score_column_and_says_so(here, capsys):

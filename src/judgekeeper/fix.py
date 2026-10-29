@@ -115,7 +115,8 @@ REGRADE = {
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
                 "give the options you set before again with `-S`. `-S instructions=` takes a "
-                "rule with no comma (Inspect cuts `-S` values at commas); else grade it with "
+                "rule with no comma and no colon followed by a space (Inspect reads `-S` "
+                "values as YAML and cuts them at commas); else grade it with "
                 "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
@@ -130,6 +131,11 @@ REGRADE = {
                  "test_run_<date>.json in your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
+NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
+RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
+                f"new grades, then run `{{command}} {NEW_RECORDS}`.")
+SAME_SHAPE = (f"Grade {ANSWERS} with your own code, and save the new grades in the same shape "
+              "as {file}.")
 TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
          "`answer` as its output, and the grade.")
 
@@ -394,12 +400,19 @@ def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     return sum(order.get(i, first) < first for i in seen)
 
 
+def _sum(d: dict) -> str:
+    """The sha256 of split.json's data `d` without its own: any edit by hand changes it."""
+    body = json.dumps({k: v for k, v in d.items() if k != "sha256"}, sort_keys=True,
+                      ensure_ascii=False)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
 def _split_problem(ws: Workspace, d) -> str | None:
     """What is wrong with split.json's data `d`, in a few words; None when it is as
     judgekeeper writes it: two lists of answers judgekeeper has, apart, about half kept aside
     (of the set's own marks, before it is retired: both from history.jsonl, the earlier
-    sets' marks no more than marks.jsonl says), and tests whose
-    counts fit them."""
+    sets' marks no more than marks.jsonl says), tests whose counts fit them, and its sha256
+    (one written before there was one is read as it is)."""
     if not isinstance(d, dict) or type(d.get("seed")) is not int or not isinstance(
             d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1:
         return "it is not as judgekeeper writes it"
@@ -433,6 +446,8 @@ def _split_problem(ws: Workspace, d) -> str | None:
                                     targets.fix_verdict(t["fixed"], t["broke"], t["n"],
                                                         test=t["test"]).kind):
             return "a test in it has a result its counts don't give"
+    if "sha256" in d and d["sha256"] != _sum(d):  # a swap, a new seed, a mark taken out
+        return "it was changed by hand"
     return None
 
 
@@ -471,7 +486,8 @@ def save_split(ws: Workspace, split: Split) -> None:
     path = _folder(ws) / SPLIT
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, json.dumps(split.to_json(), indent=2) + "\n")
+    d = split.to_json()
+    write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
 def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
@@ -1206,9 +1222,24 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
 
 
-def regrade_line(tool: str | None) -> str:
-    """How to grade the marked answers again with the person's own eval tool."""
+def regrade_line(tool: str | None, command: str = "judgekeeper fix",
+                 file: str | None = None) -> str:
+    """How to grade the marked answers again with the person's own eval tool; for a format
+    of its own, `file` is the results file read at the start."""
+    if tool == "records":
+        return RECORD_AGAIN.format(command=command)
+    if tool == "mapped" and file:
+        return SAME_SHAPE.format(file=file)
     return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
+
+
+def _first_file(ws: Workspace) -> str | None:
+    """The results file step 1 read, as start.json keeps it, or None."""
+    try:
+        files = ws.data().get("results_files") or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    return files[0] if files and isinstance(files[0], str) else None
 
 
 NEW_LOG = "new.eval"
@@ -1238,7 +1269,7 @@ def new_log(ws: Workspace) -> str:
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
-    talk.para(regrade_line(tool))
+    talk.para(regrade_line(tool, talk.command(), _first_file(ws)))
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
@@ -1248,6 +1279,12 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if store:  # a new run in the same store
         talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
                   f"same traces, then run `{talk.command()} {store}`: it reads the newest run.")
+        return
+    if tool in ("records", "mapped"):  # graded with their own code, as said above
+        new = NEW_RECORDS if tool == "records" else NEW_RESULTS
+        talk.next(f"change your LLM-as-a-judge's rule, grade the answers in "
+                  f"{_file(ws, ANSWERS)} again as said above, then run "
+                  f"`{talk.command()} {new}`.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
               f"{_file(ws, ANSWERS)} again, save the results, then run "
@@ -1356,15 +1393,25 @@ def _better_needs(n: int, k: int) -> int:
 def _given(talk: Talk, state, m: Marks, path: Path):
     """The new results in `path`, read as step 1 reads results (check.read_given); None, said
     with what to give instead, when they can't be read or are from another tool."""
-    from judgekeeper.check import read_given
+    from judgekeeper.check import OtherName, read_given
 
     found, problem = read_given(state, path)
     if found is None:
         talk.para(problem)
         tool = m.data.get("tool")
-        talk.next(_regrade_same(talk, state.ws) if tool == "inspect" else  # the log, scored again
-                  f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
-                  f"again with your new rule, from {_tool_name(tool)}.")
+        if tool == "inspect":  # the log, scored again
+            talk.next(_regrade_same(talk, state.ws))
+        elif isinstance(problem, OtherName):
+            talk.next(f"grade {_file(state.ws, ANSWERS)} again with your new rule under the "
+                      f"name {scrub(m.data.get('metric') or '')!r}, the one your marks test, "
+                      f"then run `{talk.command()} {quote_arg(str(path))}`.")
+        elif tool == "records":
+            again = RECORD_AGAIN.format(command=talk.command())
+            talk.next(again[0].lower() + again[1:])
+        else:
+            talk.next(f"give `{talk.command()}` the results of grading "
+                      f"{_file(state.ws, ANSWERS)} again with your new rule, from "
+                      f"{_tool_name(tool)}.")
     return found
 
 
