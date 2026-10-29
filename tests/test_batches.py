@@ -235,6 +235,32 @@ def test_a_batch_stopped_half_way_is_added_on_the_next_run(here, capsys, pages, 
     assert len(judged) == 47 and len({r["id"] for r in judged[1:]}) == 46  # a header, once each
 
 
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_page_open_in_another_terminal_never_holds_up_a_new_batch(here, capsys, pages,
+                                                                   command):
+    """The page holds .judgekeeper/opening only while it opens: with it open, new results
+    are added at once, and `check` writes its grades at once too."""
+    from judgekeeper import judge_setup, page
+    from judgekeeper.label import is_open
+
+    promptfoo_project(here, split(20, 16))
+    ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
+    _mark(ws, only=set(range(10)) | set(range(20, 30)))  # answers left: the page stays open
+    found = start.find_judge(here)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    assert run(capsys, "mark", "--no-browser")[0] == 0 and is_open(ws.dir)
+    _more_questions(here)
+    code, out, _ = run(capsys, *command, "--no-browser")
+    assert code == 0, out
+    assert ADDED in flat(out) and page.OPENING_NOW not in out
+    assert len(ws.data()["queue"]) == 46
+    assert run(capsys, "mark", "--no-browser")[0] == 0 and is_open(ws.dir)
+    said = []
+    with page.one_at_a_time(ws.dir, said.append):  # as check's _adopt and _restore take it
+        assert (ws.dir / page.OPENING).is_file()
+    assert said == [] and not (ws.dir / page.OPENING).exists()
+
+
 def test_no_batch_is_added_when_the_judge_changed(here, capsys, pages):
     ws = _all_marked(here)
     from judgekeeper import judge_setup
