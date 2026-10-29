@@ -160,15 +160,15 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
         (links,) = [el for el in footer.iter() if "foot-r" in el.classes()]
         assert links.attrs.get("role") == "navigation", page.name  # a nav would get menu styles
         found = [(a.attrs["href"].lstrip("/"), _flat(a)) for a in _all(links, "a")]
-        assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "MIT license")], page.name
+        assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "Apache-2.0 license")], page.name
         (copy,) = _all(links, "span", "copy")
-        assert _flat(copy) == "© 2026 Sathvik Thota · MIT license", page.name
+        assert _flat(copy) == "© 2026 Sathvik Thota · Apache-2.0 license", page.name
         assert not _all(footer, "h2") and "More" not in _flat(footer), page.name
 
 
 def test_the_footer_names_match_the_licence():
-    assert "Copyright (c) 2026 Sathvik Thota" in (ROOT / "LICENSE").read_text(encoding="utf-8")
-    for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE"):
+    assert "Copyright 2026 Sathvik Thota" in (ROOT / "NOTICE").read_text(encoding="utf-8")
+    for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE", "NOTICE"):
         assert (ROOT / path).is_file(), path
 
 

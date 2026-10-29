@@ -67,7 +67,7 @@ def footer() -> str:
         f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
         f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
         f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
-        "MIT license</a></span></div>\n"
+        "Apache-2.0 license</a></span></div>\n"
         "</div></footer>")
 
 

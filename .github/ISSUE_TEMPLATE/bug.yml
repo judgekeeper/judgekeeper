@@ -73,5 +73,5 @@ body:
       options:
         - label: I removed any answer text I can't share.
           required: true
-        - label: Any code, design or text I share here may be used in judgekeeper under the MIT license.
+        - label: Any code, design or text I share here may be used in judgekeeper under the Apache-2.0 license.
           required: true

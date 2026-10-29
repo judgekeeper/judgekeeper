@@ -253,7 +253,7 @@ def test_constants_match_the_code():
 
 
 NUMBER = re.compile(r"\d+\.\d+|\d+(?:\.\d+)?\s?%")
-NAMES = ("Python 3.11 to 3.14", "Python 3.11", "judgekeeper 1.0", "in 1.0")  # names, not measurements
+NAMES = ("Python 3.11 to 3.14", "Python 3.11", "judgekeeper 1.0", "in 1.0", "Apache-2.0")  # names, not measurements
 EXEMPT_TAGS = {"pre", "code", "script", "style", "svg", "template"}
 EXAMPLE_ATTRS = ("data-example", "data-ratio")
 

@@ -15,6 +15,7 @@ The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, in its 
 - It hides keys in what it prints and writes: the key variables in your shell, your project's `.env` and `.env.*` files and promptfoo's `env:` block, and anything shaped like a key.
 - Very large Inspect AI logs and MLflow stores are refused with the limit named; the reference lists the limits.
 - Removed since 0.1.3: every 0.1 command, the built-in runners that called an AI, the pytest plugin, the GitHub Action and the agent skill.
+- The license is now Apache-2.0 (was MIT).
 
 ## 1.0.0b1 (2026-10-12)
 
