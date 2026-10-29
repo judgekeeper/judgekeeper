@@ -103,9 +103,10 @@ def test_report_html_never_keeps_the_port_of_the_run_that_made_it(project, capsy
     ws = Workspace(project)
     assert main(["evals/results.csv", *flags, "--yes"]) == 0
     session = StartSession(ws)
-    queue = ws.data()["queue"]
-    for n, q in enumerate(queue):  # a result that is too early to tell: report.html says mark
-        session.update({"id": q["id"], "label": q["group"] if n % 2 else
+    seen = {"pass": 0, "fail": 0}  # every other answer of each kind flipped, whatever the order
+    for q in ws.data()["queue"]:  # a result that is too early to tell: report.html says mark
+        seen[q["group"]] += 1
+        session.update({"id": q["id"], "label": q["group"] if seen[q["group"]] % 2 else
                         {"pass": "fail", "fail": "pass"}[q["group"]], "seconds": 7})
     capsys.readouterr()
     assert main(["evals/results.csv", *flags, "--yes"]) == 0
