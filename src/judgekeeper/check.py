@@ -1489,8 +1489,9 @@ def full(path: str, said: Said) -> int:
         # more marks can't be made, and new answers would not help
         said.say("Next: " + regrade_marked(state, every=True))
     elif picked["ask"]:
+        need = PICK_MARKS - picked["new_marks"]
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=program("mark"), n=PICK_MARKS - picked["new_marks"], command=_command(state))))
+            mark=program("mark"), n=need, command=_command(state)), need=need))
     elif unsure:
         said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=program("mark"), command=_command(state))))

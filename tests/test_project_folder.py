@@ -218,6 +218,21 @@ def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
     assert len(pages[0]) == started  # no page: nothing is left to mark on it
 
 
+def test_a_step_for_more_marks_than_are_left_says_run_your_eval(here, capsys):
+    """After `check`, "mark 10 new answers" with one answer left, skipped: never more marks than
+    the answers there are to mark."""
+    promptfoo_project(here, split(20, 20))
+    assert run(capsys)[0] == 0
+    ws = Workspace(here)
+    _mark(ws, only=range(1, 40))
+    session = StartSession(ws)
+    session.update({"id": next(i["id"] for i in session.items if not i["label"]),
+                    "deferred": True})  # Skip
+    step = "run `judgekeeper mark` to mark 10 new answers, then run `judgekeeper check` again."
+    assert start_label.next_marks(ws, step, need=10) == NEXT_ALL_MARKED.removeprefix("Next: ")
+    assert start_label.next_marks(ws, step, need=1) == step  # the skipped one is left to mark
+
+
 def test_the_mark_command_never_repeats_the_pages_flags(here, capsys):
     promptfoo_project(here, split(28, 12))
     assert run(capsys, "--no-browser", "--port", "0")[0] == 0
