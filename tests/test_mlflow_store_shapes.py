@@ -12,7 +12,7 @@ import sqlite3
 import subprocess
 import sys
 from contextlib import closing
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -113,7 +113,7 @@ def edit(db: Path, *statements: str) -> None:
 def test_the_store_date_is_its_newest_run_time_not_the_files(here, capsys, store):
     deepeval_project(here, split(20, 16))
     shutil.copy2(store, here / "mlflow.db")
-    old = datetime(2020, 1, 2, 3, 4).timestamp()
+    old = datetime(2020, 1, 2, 3, 4, tzinfo=UTC).timestamp()
     os.utime(here / "mlflow.db", (old, old))  # when the project was cloned, not run
     with closing(sqlite3.connect(store)) as con:
         (newest,) = con.execute("select max(start_time) from runs").fetchone()

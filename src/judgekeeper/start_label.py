@@ -592,6 +592,9 @@ class StartSession(LabelSession):
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
         self.raw = {r["id"]: r for r in raw}
+        # a batch whose adding stopped half way is in the pool, not the queue: added again later
+        self.items = [x for x in self.items if x["id"] in self.groups]
+        self.by_id = {x["id"]: x for x in self.items}
 
     def _resume(self) -> None:
         """The marks on disk: the last stamped line of each answer."""

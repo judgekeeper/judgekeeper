@@ -33,6 +33,7 @@ from judgekeeper import (
     find,
     judge_setup,
     marks,
+    page,
     start,
     targets,
     weighted,
@@ -1367,7 +1368,7 @@ def full(path: str, said: Said) -> int:
         said.say()
         said.say("Next: " + NEXT_UNKNOWN.format(command=_command(state)))
         return EXIT_NEEDS_YOU
-    back = back_to_marked(state.ws, found) if found is not None else None
+    back = back_to_marked(state.ws, found, said.say) if found is not None else None
     if back:
         said.say(back)
         marks.append(state.ws.history_jsonl, _history_line({
@@ -1507,7 +1508,8 @@ def full(path: str, said: Said) -> int:
         # new grades) keeps the old grades: the next check says worse again
     if not held:  # after "Worse" the old judge stays the reference until it comes back
         judge_setup.save(state.ws, new, found.metric)
-        _adopt(state.ws, found, tested)
+        with page.one_at_a_time(state.ws.dir, said.say):  # two runs at once: one writes
+            _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held,
             worse=worse_step(old, new, _command(state), state.ws) if worse else None)
@@ -1777,7 +1779,7 @@ def _marked_setup(ws: Workspace) -> dict | None:
                 None)
 
 
-def back_to_marked(ws: Workspace, found) -> str | None:
+def back_to_marked(ws: Workspace, found, say) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
     last check was of another judge: the line that says so, else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
@@ -1799,7 +1801,8 @@ def back_to_marked(ws: Workspace, found) -> str | None:
     if any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None
     if saved["setup_hash"] != judge_setup.hash_of(now):
-        _restore(ws, found, now)
+        with page.one_at_a_time(ws.dir, say):  # two runs at once: one writes
+            _restore(ws, found, now)
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     return BACK.format(model=", ".join(names) or "model not named")
 

@@ -101,3 +101,17 @@ def test_check_and_fix_read_the_experiment_marking_started_on(here, capsys, monk
         main(["fix", *given])
     capsys.readouterr()
     assert asked and all(o.get("experiment") == "app-a" for o in asked), asked
+
+
+def test_a_store_on_another_drive_is_named_by_its_whole_path(here, monkeypatch):  # noqa: F811
+    """On Windows a path on another drive has no relative form (os.path.relpath raises)."""
+    import os
+
+    ws = project(here)
+    _as_mlflow(ws, "mlflow.db")
+
+    def other_drive(*args, **kwargs):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(os.path, "relpath", other_drive)
+    assert fix.mlflow_store(ws) == fix.quote_arg((here / "mlflow.db").resolve().as_posix())

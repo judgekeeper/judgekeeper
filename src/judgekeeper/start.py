@@ -376,9 +376,10 @@ class Talk:
         """After the person picks at "Which one?": the flag that picks it without asking."""
         self.say(line or f"(Next time: {flag} {quote_arg(chosen)})")
 
-    def stop(self, code: int, next_step: str | None = None) -> Stop:
+    def stop(self, code: int, next_step: str | None = None, as_given: bool = False) -> Stop:
         """The Stop to raise once the lines that say why were said. `next_step` is what
-        `judgekeeper` (front.py) puts in its Next: line; `start` says its own."""
+        `judgekeeper` (front.py) puts in its Next: line; `start` says its own. The code is
+        always `code` here (`as_given` is for front.FrontTalk)."""
         return Stop(code)
 
     def _input(self, prompt: str) -> str:

@@ -190,6 +190,48 @@ def test_stdout_on_dev_full_exits_0_not_120(tmp_path):
     assert "Traceback" not in done.stderr
 
 
+class _Refuses:
+    """An unbuffered stream that refuses every write (`error`): each print meets it at once."""
+
+    def __init__(self, error: OSError):
+        self.error = error
+
+    def write(self, text):
+        raise self.error
+
+    def flush(self):
+        pass
+
+
+def test_ctrl_c_in_a_command_with_stdout_broken_still_exits_130(monkeypatch):
+    from judgekeeper import cli
+
+    def stopped(args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(cli.COMMANDS, None, stopped)
+    monkeypatch.setattr(sys, "stdout", _Refuses(BrokenPipeError()))
+    assert main([]) == 130
+
+
+def test_an_error_with_stderr_broken_still_exits_2(monkeypatch):
+    from judgekeeper import cli
+
+    def failed(args):
+        raise RuntimeError("went wrong")
+
+    monkeypatch.setitem(cli.COMMANDS, None, failed)
+    monkeypatch.setattr(sys, "stderr", _Refuses(BrokenPipeError()))
+    assert main(["--debug"]) == 2
+
+
+def test_version_on_a_full_unbuffered_stdout_gives_no_traceback(monkeypatch):
+    import errno
+
+    monkeypatch.setattr(sys, "stdout", _Refuses(OSError(errno.ENOSPC, "No space left")))
+    assert main(["--version"]) == 0
+
+
 # --- the help screens ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("columns", ["80", "60", "100"])
