@@ -57,6 +57,20 @@ def test_evaluation_steps_and_no_criteria_show_the_first_step_never_none(tmp_pat
         "4. Penalise words a 12-year-old would not know."]
 
 
+def test_steps_its_model_wrote_are_left_out_of_the_rule(tmp_path):
+    from judgekeeper.start_fix_rule import rule_text
+
+    data = deepeval_data(split(20, 20))
+    for i, case in enumerate(data["testCases"]):
+        case["metricsData"][0]["verboseLogs"] = (
+            f'Criteria:\nIs the answer right? \n \nEvaluation Steps:\n[\n    "Check fact {i}."\n]'
+            " \n \nRubric:\nNone \n \nScore: 0.9")
+    _write(tmp_path / "results" / "test_run_20261006_154129.json", data)
+    found = start.find_judge(tmp_path)
+    assert "Check fact" not in found.rule
+    assert rule_text(found.rule, "deepeval") == "Is the answer right?"
+
+
 def test_criteria_still_come_first_when_there_are_some(tmp_path):
     deepeval_project(tmp_path, split(20, 12))
     found = start.find_judge(tmp_path)
