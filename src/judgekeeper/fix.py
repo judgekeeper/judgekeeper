@@ -1393,17 +1393,25 @@ def _better_needs(n: int, k: int) -> int:
 def _given(talk: Talk, state, m: Marks, path: Path):
     """The new results in `path`, read as step 1 reads results (check.read_given); None, said
     with what to give instead, when they can't be read or are from another tool."""
-    from judgekeeper.check import read_given
+    from judgekeeper.check import OtherName, read_given
 
     found, problem = read_given(state, path)
     if found is None:
         talk.para(problem)
         tool = m.data.get("tool")
-        again = RECORD_AGAIN.format(command=talk.command())
-        talk.next(_regrade_same(talk, state.ws) if tool == "inspect" else  # the log, scored again
-                  again[0].lower() + again[1:] if tool == "records" else
-                  f"give `{talk.command()}` the results of grading {_file(state.ws, ANSWERS)} "
-                  f"again with your new rule, from {_tool_name(tool)}.")
+        if tool == "inspect":  # the log, scored again
+            talk.next(_regrade_same(talk, state.ws))
+        elif isinstance(problem, OtherName):
+            talk.next(f"grade {_file(state.ws, ANSWERS)} again with your new rule under the "
+                      f"name {scrub(m.data.get('metric') or '')!r}, the one your marks test, "
+                      f"then run `{talk.command()} {quote_arg(str(path))}`.")
+        elif tool == "records":
+            again = RECORD_AGAIN.format(command=talk.command())
+            talk.next(again[0].lower() + again[1:])
+        else:
+            talk.next(f"give `{talk.command()}` the results of grading "
+                      f"{_file(state.ws, ANSWERS)} again with your new rule, from "
+                      f"{_tool_name(tool)}.")
     return found
 
 

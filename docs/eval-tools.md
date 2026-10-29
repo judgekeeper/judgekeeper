@@ -77,6 +77,7 @@ Tested with DeepEval 4.2, the version in tests/fixtures. It reads the newest `te
 
 - **Default test case names are positional.** Without `LLMTestCase(name=...)`, ids are made from the input and answer, with a warning.
 - **The temperature is not written.** The provider comes from the model name's suffix (`(Anthropic)`); a bare name is OpenAI.
+- **The prompt hash is kept per answer.** A GEval given only `criteria=` writes its evaluation steps with its model for each answer, so the prompt differs per answer: each judgment keeps its own prompt hash, and the run and `judge.json` keep none. Give `evaluation_steps=[...]` for one prompt.
 - **An empty answer** is saved as an error: no real decision.
 - **`DEEPEVAL_LOCAL_STORE=sqlite`** writes no JSON. Leave it unset.
 

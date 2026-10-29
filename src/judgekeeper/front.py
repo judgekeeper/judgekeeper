@@ -511,6 +511,7 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
     """find_judge, again after each answer about decisions it cannot read as Pass or Fail.
     `only`: the results files the marks were made on (_marked_files)."""
     given = _given_model(path) if talk.options["judge_model"] is None and saved is None else None
+    kept = _kept_experiment(path) if talk.options["experiment"] is None else None
     while True:
         options = {k: talk.options[k] for k in FIND}
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
@@ -518,15 +519,20 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             options.update(judge_model=None, pass_if=None)
             if str(options["metric"]).lower() in ("*", "all"):  # every judge: the map says so
                 options["metric"] = None
+        if options["experiment"] is None:
+            options["experiment"] = kept
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
                                          only=only, **{**options, "judge_model": given or
                                                        options["judge_model"]})
             except StartError:
-                if given is None:
+                if given is None and kept is None:
                     raise
-                given = None  # the results name the model now
+                if given is not None:
+                    given = None  # the results name the model now
+                else:
+                    kept = None  # the experiment is gone: asked again
                 continue
         except RecordsError as e:
             raise start.usage_error(e) from None
@@ -534,6 +540,19 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             _ignored(talk, found)
             return found
         _unread_values(talk, found)
+
+
+def _kept_experiment(path: Path) -> str | None:
+    """The MLflow experiment the marks were made on, kept in start.json: read again with no
+    --experiment, as the store is (it was asked for again on every run)."""
+    ws = Workspace(project.project_of(path))
+    try:
+        data = ws.data() if ws.start.is_file() else {}
+    except (OSError, ValueError):
+        return None
+    name = data.get("experiment") if isinstance(data, dict) and data.get("tool") == "mlflow" \
+        else None
+    return name if isinstance(name, str) else None
 
 
 def _given_model(path: Path) -> str | None:
@@ -1777,7 +1796,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     elif not mark_next and not why:  # else the Next: line or "To say why" names it
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
-    if start_label.all_labeled(r) or is_open(ws.dir) or wait or not (mark_next or why):
+    # wait before is_open: --wait's own page answers only once it is served (page.serve)
+    if start_label.all_labeled(r) or wait or is_open(ws.dir) or not (mark_next or why):
         talk.say()
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)

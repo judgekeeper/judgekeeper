@@ -891,6 +891,17 @@ def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
+def _left_to_mark(ws: Workspace) -> int:
+    """How many answers in the pool have no Pass or Fail mark; one past any need when that
+    can't be read (every_marked)."""
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return math.inf
+    return sum(q["id"] not in counted for q in queue) if queue else math.inf
+
+
 def every_marked(ws: Workspace) -> bool:
     """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
     try:
@@ -901,14 +912,15 @@ def every_marked(ws: Workspace) -> bool:
     return bool(queue) and all(q["id"] in counted for q in queue)
 
 
-def next_marks(ws: Workspace, step: str) -> str:
+def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
-    "Next: "), unless every answer in the pool is marked: then all_marked_lines' next step, as
-    there is nothing left to mark until the eval runs on more questions. The one place this is
-    decided. Its command is made again from the flags result.json keeps, never its text."""
+    "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
+    left): then all_marked_lines' next step, as there are not enough left to mark until the
+    eval runs on more questions. The one place this is decided. Its command is made again from
+    the flags result.json keeps, never its text."""
     from judgekeeper.start import command_from
 
-    if not every_marked(ws):
+    if _left_to_mark(ws) >= need:
         return step
     try:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
