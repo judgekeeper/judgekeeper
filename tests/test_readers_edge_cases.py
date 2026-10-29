@@ -115,6 +115,17 @@ def test_a_judge_named_0_1_column_beside_a_verdict_column_asks_which(here, capsy
     assert "Your LLM-as-a-judge passed 30 answers and failed 30." in flat(out)
 
 
+@pytest.mark.parametrize("models", [["gpt-4o"], ["gpt-4o", "claude-haiku-5-5", ""]])
+def test_a_judge_column_of_model_names_is_not_a_grade(here, capsys, models):
+    rows = [[question(i), f"A full answer number {i}.", "Fail" if i % 3 == 0 else "Pass",
+             models[i % len(models)]] for i in range(60)]
+    write_csv(here / "results.csv", ["input", "output", "verdict", "judge"], rows)
+    code, out = run(capsys)
+    assert code == 0, out
+    assert "more than one LLM-as-a-judge" not in out
+    assert "Your LLM-as-a-judge passed 40 answers and failed 20." in flat(out)
+
+
 # A judge that gives every answer the same grade ----------------------------------------------
 
 def plain_jeffreys(k: int, n: int, level: float) -> tuple[float, float]:

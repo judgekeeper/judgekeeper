@@ -48,7 +48,7 @@ def key_names() -> set[str]:
 # alike: `NAME=value` or `NAME: value`, after `export ` or not; a value quoted with ', " or `
 # (over several lines too), else up to a `#`.
 _DOTENV_LINE = re.compile(
-    r"^\s*(?:export\s+)?([A-Za-z0-9_.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|"
+    r"^[^\S\n]*(?:export\s+)?([A-Za-z0-9_.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|"
     r"\s*\"(?:\\\"|[^\"])*\"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?$", re.MULTILINE)
 
 
@@ -252,7 +252,7 @@ def _yaml_env(text: str) -> dict[str, str | None] | None:
 
 
 # A credential-named value could be under an escaped name (`"A_\u0054OKEN": value`)
-_ESCAPED_NAME = re.compile(r"""(?:^|[\s{,?])"((?:[^"\\\n]|\\.)*\\(?:[^"\\\n]|\\.)*)"[ \t]*:"""
+_ESCAPED_NAME = re.compile(r"""(?:^|[\s{,?])"([^"\\\n]*\\.(?:[^"\\\n]|\\.)*)"[ \t]*:"""
                            r"""[ \t]+("[^"\n]*"|'[^'\n]*'|[^,{}\[\]#\n]+)""", re.MULTILINE)
 # In a flow mapping, a value on the line below its name (`{A_TOKEN:` then `value}`)
 _FLOW_BELOW = re.compile(r"""[{,][ \t]*["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:[ \t]*\n[ \t]*"""
@@ -281,7 +281,7 @@ _VALUE_OF_KEY = re.compile(r"""^([ \t]*):[ \t]+(?=["']?[A-Za-z_][A-Za-z0-9_]*["'
 _BLOCK = re.compile(r"[|>][-+0-9]*")  # a block scalar's first line: its value is below
 # `NAME:` with its value on the lines below (nothing after it, or a block scalar's `|` or `>`)
 _HEAD = re.compile(r"""([ \t]*)(?:\?[ \t]*|:[ \t]+)?["']?([A-Za-z_][A-Za-z0-9_]*)["']?[ \t]*:"""
-                   r"""[ \t]*([|>][-+0-9]*)?[ \t]*(?:#.*)?$""")
+                   r"""(?:[ \t]*([|>][-+0-9]*))?[ \t]*(?:#.*)?$""")
 
 
 def _credentials_in(text: str) -> dict[str, str]:

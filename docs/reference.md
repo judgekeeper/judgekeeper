@@ -73,7 +73,7 @@ judgekeeper fix [PATH] [--new]
 
 | Flag | What it does |
 |---|---|
-| `PATH` | The results of grading your marked answers again with a new rule, or your project folder (default: this folder) |
+| `PATH` | The results of grading your marked answers again with a new rule (for MLflow, the store: `mlflow.db` or an `mlruns/` folder, read at its newest run), or your project folder (default: this folder) |
 | `--new` | Start a new set of marks kept aside, made of the next marks you make: every mark you have made counts as seen, and the marks you make next (at least 10; [about 40 for a clear answer](examples/kept-aside/report.md), as many as `fix` keeps aside from about 80 marks) become the new set. A mark you have seen is never kept aside again |
 
 **Marks kept aside:** half of each group, rounded up, at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. After `check` found a new LLM-as-a-judge worse, the mistakes are that one's, and the file names the results its grades are in. Write a better rule from it, or hand it to a coding agent.
@@ -110,7 +110,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 | Flag | What it does |
 |---|---|
-| `PATH` | A new results file, or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
+| `PATH` | A new results file or MLflow store (`mlflow.db` or an `mlruns/` folder), or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
 
 **Which results it reads.** It names the file first ("New results: ..."). With a saved choice in `judgekeeper.toml`, check reads only there; name a file to check another. When newer results of the same eval are somewhere else, it says where and the command that checks them.
 
