@@ -145,6 +145,26 @@ def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
         "column (verdict or grade) holding Pass or Fail."), said
 
 
+@pytest.mark.parametrize("suffix, sep", [(".csv", ","), (".tsv", "\t")])
+def test_a_score_column_with_no_verdict_column_is_read_as_a_verdict_column_of_scores(
+        tmp_path, suffix, sep):
+    """The tool reads it with --pass-if; the page can't ask for one, so it reads the scores
+    as it reads them in a verdict column."""
+    rows = [[f"Question {i}?", f"Answer {i}.", "0.9" if i % 3 else "0.2", f"Reason {i}."]
+            for i in range(12)]
+    said = {}
+    for grade in ("score", "verdict"):
+        path = tmp_path / grade / f"results{suffix}"
+        path.parent.mkdir()
+        path.write_text("\n".join(sep.join(r) for r in [["input", "output", grade, "reason"],
+                                                       *rows]) + "\n", encoding="utf-8")
+        page = browser(path)
+        (judge,) = page["judges"]
+        assert judge["key"] == grade and ["grade", f"the {grade} column"] in judge["readRows"]
+        said[grade] = _page(page)["judges"][grade]
+    assert said["score"] == said["verdict"]
+
+
 def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):
     """A table whose grade is the word "error": no decision, said as such, not a blank one."""
     path = table_project(tmp_path, [True] * 10 + [False] * 10 + ["error", None])

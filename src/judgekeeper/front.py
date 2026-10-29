@@ -641,7 +641,7 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     newest = found.results[0].path
     if found.tool == "table":
         columns = find.table_columns(newest)
-        column = next((c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
+        column = next(iter(find.grade_columns(columns)), "verdict")
         line = open_quote(newest, loose=True)
         hint = (f" (line {line} of {newest.name} may have a quote that never closes)"
                 if line else "")

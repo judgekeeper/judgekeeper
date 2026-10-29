@@ -215,10 +215,16 @@ def table_problem(path: Path, size: int, columns) -> str | None:
     return None if size > CHECK_BYTES else table.problem(path)
 
 
+def grade_columns(columns) -> list[str]:
+    """A table's verdict columns; with none, its score column (read with --pass-if)."""
+    verdicts = [c for c in VERDICT_COLUMNS if c in columns]
+    return verdicts or (["score"] if "score" in columns else [])
+
+
 def is_table(columns) -> bool:
     columns = set(columns)
     outputs = "output" in columns or {"output_a", "output_b"} <= columns
-    return "input" in columns and outputs and any(c in columns for c in VERDICT_COLUMNS)
+    return "input" in columns and outputs and bool(grade_columns(columns))
 
 
 _VERDICT_WORDS = frozenset({"verdict"})
