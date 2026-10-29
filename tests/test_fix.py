@@ -386,15 +386,17 @@ def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, 
 
 
 def _marked_own(here, argv=()) -> Workspace:
-    """Step 1 run on `here` and every answer marked, 6 against the LLM-as-a-judge."""
+    """Step 1 run on `here` and every answer marked, 6 it passed marked Fail: the same
+    counts of Pass and Fail marks whatever order the queue is in."""
     with contextlib.redirect_stdout(io.StringIO()):
         assert main(["--no-browser", *argv]) == 0
         main(["--stop"])
     session = StartSession(Workspace(here))
-    for n, item in enumerate(session.items):
+    flipped = 0
+    for item in session.items:
         label = session.groups[item["id"]]
-        if n < 6:
-            label = "fail" if label == "pass" else "pass"
+        if label == "pass" and flipped < 6:
+            label, flipped = "fail", flipped + 1
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return Workspace(here)
 
