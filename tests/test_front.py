@@ -532,7 +532,7 @@ def test_the_questions_are_listed_together_after_the_checks(here, capsys):
     listed = flat(out[out.index(heading):])
     assert out.index("How judgekeeper reads it:") < out.index(heading)
     assert "1. Each item has 2 answers (A and B). Count each as its own answer?" in listed
-    assert "2. 6 answers have an error or a score made by a rule" in listed
+    assert "2. 6 answers have a score made by a rule" in listed
     assert "3. Save how to read history/evals.jsonl in judgekeeper.toml?" in listed
     command = f"judgekeeper --metric {quote_arg('Safe wording')}"
     assert assert_one_next_at_the_end(out) == (

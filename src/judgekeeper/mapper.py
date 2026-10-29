@@ -835,14 +835,15 @@ def by_a_rule(reason) -> bool:
 
 
 def left_out(units: list, guess: Guess, judges: list[str]) -> int:
-    """How many answers of `judges` have an error or a score made by a rule."""
+    """How many answers of `judges` have a score made by a rule (an error is no decision
+    either way)."""
     m = {**guess.to_map(), "judge": "*" if len(judges) != 1 else judges[0]}
     if len(judges) > 1:
         m["judges"] = judges
     n = 0
     for unit in units:
         try:
-            n += sum(made_by_a_rule(v, r) for _, _, _, v, r in judged_values(unit, m))
+            n += sum(by_a_rule(r) and not blank(v) for _, _, _, v, r in judged_values(unit, m))
         except Missing:
             continue
     return n

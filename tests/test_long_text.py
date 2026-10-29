@@ -639,3 +639,14 @@ def test_weighted_estimates_say_for_how_many_answers_in_one_line():
     every = start_label.result_html(_result(40, 40, 40, 22, 40, 2))  # every answer marked
     assert f"<caption>How often your {term} agrees with you.</caption>" in every
     assert "weighted" not in every and "weighted" not in report_page.STYLE
+
+
+def test_showing_the_rule_leaves_the_question_its_height():
+    laptop = _laptop()
+    # no rule cuts a long question, or hides its start, while the rule is open
+    assert ".card:has(.rule:not([hidden])) .question" not in laptop
+    # the rule and the answer give way: the question's row keeps its size
+    assert ".card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }" in laptop
+    assert ".row-a:has(> .rule:not([hidden]))" not in laptop
+    assert (".card:has(.rule:not([hidden])) .a-scroll:not(.fits) { min-height: "
+            "calc((100vh - 72px) * .25 - 30px); }") in laptop

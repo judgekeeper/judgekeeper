@@ -98,17 +98,21 @@ def test_the_docs_never_say_the_marks_are_yours():
         assert "so the marks are yours" not in page.read_text(encoding="utf-8"), page.name
 
 
-def test_a_kept_page_is_stamped_too(here, capsys, no_browser, monkeypatch):
-    """The page still open from the run before, opened again through BROWSER."""
+def test_a_kept_page_is_never_handed_to_the_browser_program(here, capsys, no_browser,
+                                                           monkeypatch):
+    """The page still open from the run before: no new tab, so BROWSER never gets its link
+    and its marks stay as they were."""
     promptfoo_project(here, split(20, 16))
     run(capsys)
+    opened = len(no_browser)
     ws = start_label.Workspace(here)
     _click(ws, n=2)
     monkeypatch.setenv("BROWSER", "save-the-link")
     run(capsys, "mark")
+    assert len(no_browser) == opened
     _post_marks(no_browser[-1], ws, 4)
-    assert [x.get("link") for x in _lines(ws)][-2:] == ["browser-env", "browser-env"]
-    assert marks.made(marks.read(ws.marks))["browser_env"] >= 2
+    assert [x.get("link") for x in _lines(ws)][-2:] == [None, None]
+    assert marks.made(marks.read(ws.marks))["browser_env"] == 0
 
 
 # --debug prints where it went wrong, never the error's text ----------------------------------

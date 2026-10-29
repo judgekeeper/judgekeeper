@@ -215,8 +215,11 @@ def _marked_inspect_log(here, capsys) -> tuple:
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
     assert (f"run `{fix.INSPECT_SCORE}` with `--output-file {new}`, then run "
             f"`judgekeeper fix {new}`") in said
-    assert "Inspect cuts `-S` values at commas); else grade it with Inspect's score() in " \
-           "Python" in said, said
+    assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space "
+            "(Inspect reads `-S` values as YAML and cuts them at commas); else grade it with "
+            "Inspect's score() in Python") in said, said
+    tools = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    assert "- **A new rule with a comma, or a colon followed by a space.**" in tools
     return log, ws
 
 

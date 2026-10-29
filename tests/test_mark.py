@@ -143,7 +143,8 @@ def test_marking_started_shows_the_open_page_with_the_count(here, capsys, pages)
     assert len(started) == 1  # the open page is kept: its tab and link still work
     assert "You marked 10 answers so far: 5 Pass, 5 Fail." in out
     assert "That's not enough for a result yet." in out
-    assert "The marking page is open in your browser. The bar at the top" in out
+    assert "The marking page is already open in your browser. The bar at the top" in " ".join(
+        out.split())
     assert _check(out, err) == NEXT_KEEP
 
 

@@ -137,13 +137,21 @@ def test_stop_and_check_from_a_folder_inside_the_project(here, capsys, monkeypat
     assert "You have not marked enough answers yet" not in out
 
 
-def test_a_folder_with_two_projects_says_which_it_read(here, capsys):
+@pytest.mark.parametrize("config", [False, True])
+def test_a_folder_with_two_projects_says_which_it_read(here, capsys, config):
+    """A tool's config here: this folder is a project that reads the newest results below;
+    with none, the two are projects of their own, and judgekeeper says to go to one."""
+    if config:
+        (here / "promptfooconfig.yaml").write_text("prompts: []\n", encoding="utf-8")
     for name in ("a", "b"):
         (here / name / ".git").mkdir(parents=True)
         table_project(here / name, split(20, 16))
     later = time.time() + 60
     os.utime(here / "b" / "results.csv", (later, later))
     code, out, err = run(capsys)
+    if not config:
+        assert code == 3 and "a/ and b/ hold eval results" in flat(out), out + err
+        return
     assert code == 0, out + err
     assert ("These results are from the project in b/. The project in a/ has results too: to "
             "check them, run `judgekeeper a`.") in flat(out)
@@ -201,6 +209,34 @@ def test_a_project_with_its_own_results_above_a_session_is_read(here, capsys, mo
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     assert (here / ".judgekeeper" / "start.json").is_file()
+
+
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_folder_above_two_projects_never_run_says_to_go_to_one(here, capsys, command):
+    """Results in two folders below, none here: two projects, never one session above them."""
+    table_project(here / "gym", split(20, 16))
+    promptfoo_project(here / "dental", split(20, 16))
+    code, out, err = run(capsys, *command, "--no-browser")
+    assert code == 3, out + err
+    assert ("dental/ and gym/ hold eval results: judgekeeper keeps a project's marks in its "
+            "own folder, so it checks one at a time.") in flat(out), out
+    assert _next(out) == ("Next: go to one of those folders (`cd dental`), then run "
+                          "`judgekeeper` there.")
+    assert not (here / ".judgekeeper").exists()
+    assert not list((here / "gym").glob(".judgekeeper*"))
+
+
+@pytest.mark.parametrize("case", ["one folder", "a project", "results here too"])
+def test_results_in_one_folder_below_or_a_project_are_read_as_before(here, capsys, case):
+    table_project(here / "gym", split(20, 16))
+    if case == "a project":
+        (here / ".git").mkdir()
+        table_project(here / "dental", split(20, 16))
+    if case == "results here too":
+        table_project(here / "dental", split(20, 16))
+        table_project(here, split(20, 16), name="mine.csv")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
 
 
 # Every answer marked, too few of one kind ---------------------------------------------------
