@@ -29,7 +29,7 @@ def test_every_percent_in_the_readme_comes_with_its_range():
     """The one bare percentage is the bar for "good enough to use", from the code."""
     from judgekeeper import targets
 
-    gate = (f"the low end of both the TPR and TNR range is at least "
+    gate = (f"the low end of both TPR and TNR is at least "
             f"{targets.RATE_GATE:.0%}.")
     text = README.read_text(encoding="utf-8")
     assert gate in text

@@ -290,10 +290,7 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
                 for k in ("tpr", "tnr"))
     assert first == lowest_tpr_tnr_coverage(grid)  # the lowest anywhere is at the first result
     assert cell >= first  # so "the lowest" is the first result's
-    simulated = (f"In made-up checks, the ranges held the true value {pct(level['mean'])} times in "
-                 f"100 on average (the chosen level's Average, in the report's first table). "
-                 f"The lowest was "
-                 f"{pct(first)} times in 100, when marking stops at 15 Pass and 15 Fail")
+    simulated = f"the ranges held the true value {pct(level['mean'])} times in 100 on average"
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links
     report_md = _flat(OUT / "report.md")
@@ -303,4 +300,4 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
         assert figure in report_md, figure
     for figure in (pct(c["mean"]), pct(c["lowest"]), pct(c["highest"])):
         assert figure not in reference, figure
-    assert "The tests run on Linux, Windows and macOS." in _flat(ROOT / "README.md")
+    assert "The tests run on Linux, Windows and macOS." in reference

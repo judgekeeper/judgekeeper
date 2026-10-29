@@ -15,57 +15,49 @@
   </p>
 </div>
 
-An LLM-as-a-judge is an AI model that grades the answers of another AI model. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong.
+An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often yours agrees with you, and where it goes wrong.
 
 ![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
 ## Install
 
-In your project folder, in its virtual environment, with pip:
+In your project folder, in its virtual environment:
 ```
 pip install judgekeeper
-```
-Then run:
-```
 judgekeeper
 ```
-Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment:
-```
-uvx judgekeeper
-```
-Works with Python 3.11 to 3.14, and with promptfoo, DeepEval, Inspect AI, MLflow or your own file (such as a CSV, TSV or JSONL file). Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever this page says `judgekeeper`.
+Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
+Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"`.
 
 ## The 5 steps
 
-1. **Find** (`judgekeeper`). Find your eval results and the LLM-as-a-judge that graded them.
-2. **Mark** (the page opens by itself). Mark your answers Pass or Fail in your browser.
-3. **Measure** (`judgekeeper` again). See how often your LLM-as-a-judge agrees with you. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
-4. **Fix** (`judgekeeper fix`). Write a better rule and test it on marks kept aside.
-5. **Re-check** (`judgekeeper check`). Change your LLM-as-a-judge and see if it still agrees with you.
+1. **Find:** `judgekeeper` finds your eval results.
+2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden.
+3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks.
+4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
+5. **Re-check:** `judgekeeper check` shows if it still agrees after you change the model or the rule.
 
-`fix` keeps half your marks aside, so a new rule is tested on answers it wasn't written from. Change your rule and grade `.judgekeeper/fix/marked-answers.csv` again with your own eval tool, then run `judgekeeper fix <new results file>`. How many marks you need depends on how big the change is. A rule that fixes 9 in 10 of its mistakes is clear from about 50 marks, one that fixes a quarter from about 80, and one that fixes 1 in 10 and breaks 5 in 100 right answers needs more than 120 ([simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/kept-aside/report.md)).
+judgekeeper only reads files. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
-judgekeeper only reads files. It never runs your eval tool, makes no AI call and needs no API key. When you grade answers again, your eval tool does it with your own key. Details are in [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
+## The numbers
 
-## What the numbers mean
-
-- **TPR:** of the answers you passed, how many your LLM-as-a-judge passed too.
+- **TPR:** of the answers you passed, how many it passed too.
 - **TNR:** of the answers you failed, how many it failed too.
-- **Kappa:** how much you agree beyond what agreeing at random would give. It moves with your mix of Pass and Fail, so it is only in the report's details and never decides the result.
+- **Kappa:** how much you agree beyond what matching at random would give.
 
-Each number comes with a range, for example "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both the TPR and TNR range is at least 80%. The numbers come from the answers you marked. They are not a promise about the next ones.
+Each comes with a range, such as "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both TPR and TNR is at least 80%. The numbers describe the answers you marked, not a promise about the next ones.
 
 ## Checked on public data
 
-- **JailbreakBench.** GPT-4 graded 300 answers that three experts also marked. In 100 tests with 100 marks each, judgekeeper's ranges held the true TPR in 99, the true TNR in 94 and the true kappa in 100; all three at once in 93. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md)
-- **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md)
-- **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md)
-- **Simulation.** In made-up checks, the ranges held the true value 96.2 times in 100 on average (the chosen level's Average, in the report's first table). The lowest was 92.6 times in 100, when marking stops at 15 Pass and 15 Fail (the table "The real stopping rule"). [Coverage check](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md)
+- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true value in 93 of 100 tests (all three numbers at once).
+- [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): two models failed about 1 in 3 summaries people passed; judgekeeper said "needs work" in all 6 runs.
+- [Empty answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/probes/report.md): one model failed 0 of 20 empty summaries that should fail.
+- [Simulation](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/coverage/coverage.md): the ranges held the true value 96.2 times in 100 on average.
 
 ## More
 
-The website, [www.judgekeeper.com](https://www.judgekeeper.com), has a [guide](https://www.judgekeeper.com/start.html) that walks through the 5 steps. `judgekeeper --help` lists every command. The [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one, and the [changelog](https://github.com/judgekeeper/judgekeeper/blob/main/CHANGELOG.md) says what changed. The tests run on Linux, Windows and macOS. judgekeeper is made by one person and takes [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose), not pull requests.
+A [guide](https://www.judgekeeper.com/start.html) on the [website](https://www.judgekeeper.com) walks through the 5 steps. `judgekeeper --help` lists every command, and the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md) explains each one. Made by one person; [issues](https://github.com/judgekeeper/judgekeeper/issues/new/choose) welcome, pull requests are not taken.
 
 ## License
 
-Apache-2.0, for the code. The name judgekeeper and the logo are not covered: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).
+Apache-2.0 for the code. The name and logo are not covered: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).

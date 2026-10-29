@@ -73,17 +73,17 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     # out better with N marks"
     assert large["marks"] == n and large["rule"] == "fixes 90%, breaks 2%"
     assert large["agree"] < 0.8 and large["better"] > 50
-    readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))
+    readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))  # only the guarded words
     site = _flat((ROOT / "website" / "start.html").read_text(encoding="utf-8")).replace("’", "'")
-    for page in ("README.md", "website/start.html"):
-        assert LINK in (ROOT / page).read_text(encoding="utf-8"), page
+    assert LINK in (ROOT / "website/start.html").read_text(encoding="utf-8")
     need = result["needed"]
-    # the README and the site: how many marks depends on how big the change is
+    # the site: how many marks depends on how big the change is (the README leaves it to the
+    # reference, checked below)
     claim = (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
              f"10 of its mistakes is clear from about {need['fixes 90%, breaks 2%']['marks']} "
              f"marks, one that fixes a quarter from about {n}, and one that fixes 1 in 10 and "
              f"breaks 5 in 100 right answers needs more than {_module().MARKS[-1]} ")
-    assert claim in readme and claim in site
+    assert claim in site
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"gets a clear answer most of the time from about {n} marks, mostly \"Safe to "
