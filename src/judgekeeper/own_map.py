@@ -103,7 +103,7 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
     elif judge_model:
         lines.append(f"  model:           {judge_model} (given with --judge-model)")
     else:
-        lines.append("  model:           not in the file")
+        lines.append("  model:           not in the file (add --judge-model NAME)")
     if g.kind == "score":
         if g.pass_mark_given:
             where = " (given by you)"

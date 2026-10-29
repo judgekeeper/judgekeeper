@@ -462,6 +462,14 @@ def test_a_json_document_is_not_counted_in_lines(tmp_path, capsys, terminal):
             "What it holds:") in out
 
 
+def test_a_model_not_in_the_file_says_how_to_give_it(tmp_path, capsys, terminal):
+    answers, _ = terminal
+    _one_document(tmp_path)
+    answers += ["", ""]
+    _, out = check(capsys, tmp_path)
+    assert "  model:           not in the file (add --judge-model NAME)\n" in out
+
+
 def test_a_no_to_saving_says_once_that_nothing_was_saved(tmp_path, capsys, terminal):
     answers, _ = terminal
     _one_document(tmp_path)
