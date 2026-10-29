@@ -1033,14 +1033,15 @@ def test_mark_all_marked_prints_the_result_link_without_browser(
 
 def test_mark_opens_the_result_page_again_while_the_page_is_open(here, capsys, pages,
                                                                  no_browser):
-    """The page open for this project is kept: its tab still works, and the result page is
-    opened on it."""
+    """The page open for this project is kept: its tab still works, and no new tab opens
+    for it."""
     _ready(here)
     started = len(pages[0])  # setting the project up opened (and closed) the page once
     assert _run(capsys, "mark")[0] == 0
-    assert _run(capsys, "mark")[0] == 0
-    assert len(pages[0]) == started + 1 and len(no_browser) == 2
-    assert no_browser[0] == no_browser[1]
+    code, out = _run(capsys, "mark")
+    assert code == 0
+    assert len(pages[0]) == started + 1 and len(no_browser) == 1
+    assert "The marking page is already open in your browser." in " ".join(out.split()), out
 
 
 def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, capsys, pages,
