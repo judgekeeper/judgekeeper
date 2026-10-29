@@ -217,6 +217,11 @@ def _newest(state: State):
                       f"newest results: {why}")
 
 
+class OtherName(str):
+    """read_given's why when the results name their LLM-as-a-judge otherwise: Fix's Next line
+    then says the name to grade under."""
+
+
 def read_given(state: State, path: Path):
     """The judge of the marks in the results file `path`, read as step 1 reads results (the
     same eval tool, the same LLM-as-a-judge): (found, None), or (None, why in one line) when
@@ -250,7 +255,8 @@ def read_given(state: State, path: Path):
     try:
         found = start.find_judge(state.ws.root if saved is not None else path, **options)
     except start.StartError as e:
-        return None, f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
+        why = f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
+        return None, OtherName(why) if e.drop == "--metric" else why
     except (start.Stop, RecordsError, OSError, ValueError):
         return None, (f"judgekeeper can't read {shown} as {name} with your "
                       f"LLM-as-a-judge {metric}.")
@@ -259,8 +265,8 @@ def read_given(state: State, path: Path):
     if found.tool != tool:
         return None, _other_tool(shown, found.tool, tool)
     if scrub(found.metric) != scrub(metric):  # start.json keeps it with keys hidden
-        return None, (f"{shown} has no LLM-as-a-judge named {metric}, the one your marks "
-                      "test.")
+        return None, OtherName(f"{shown} has no LLM-as-a-judge named {metric}, the one your "
+                               "marks test.")
     return found, None
 
 

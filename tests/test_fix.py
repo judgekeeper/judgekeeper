@@ -489,6 +489,23 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
                          "to re-check it on all your marks.")
 
 
+def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(
+        here, capsys):
+    project(here)
+    run(capsys)
+    data = promptfoo_data([True] * N, rubric=NEW_RULE, tag=TAG, outputs=_outputs(),
+                          metric="correctness2")
+    (here / "regraded.json").write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, "regraded.json")
+    flat = " ".join(out.split())
+    assert code == 2, out
+    assert "no LLM-as-a-judge named 'llm-rubric'; the names are: 'correctness2'" in flat
+    assert "--metric" not in out
+    assert flat.endswith("Next: grade .judgekeeper/fix/marked-answers.csv again with your new "
+                         "rule under the name 'llm-rubric', the one your marks test, then run "
+                         "`judgekeeper fix regraded.json`."), flat
+
+
 def test_a_test_is_kept_without_answer_text(here, capsys):
     from judgekeeper.fingerprint import rule_hash
 
