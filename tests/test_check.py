@@ -219,6 +219,21 @@ def test_a_clear_rise_in_both_groups_is_said():
     assert not any("drop" in line and "none of the range" not in line for line in lines), lines
 
 
+def test_worse_while_the_other_group_rose_says_which_group_decides():
+    """Pass: 20 of 40 right before, 40 now; Fail: 40 of 40 right before, 20 now. The result is
+    worse: one sentence says the Fail group dropped and one big drop decides."""
+    marked = {f"p{i}": "pass" for i in range(40)} | {f"f{i}": "fail" for i in range(40)}
+    old = {i: ("fail" if i[0] == "p" and int(i[1:]) < 20 else m) for i, m in marked.items()}
+    new = {i: ("pass" if i[0] == "f" and int(i[1:]) < 20 else m) for i, m in marked.items()}
+    g = check.groups(marked, old, new)
+    assert check.outcome(g) == "worse"
+    assert check.expect_lines(g)[-1] == (
+        "Agreement rose on answers you pass but dropped on answers you fail, and one big drop "
+        "in either group makes the result worse.")
+    assert check.expect_lines(g).count(check.expect_lines(g)[-1]) == 1
+    assert not any(x.startswith("Agreement rose on") for x in _expect(0, 20))  # both dropped
+
+
 def test_a_group_with_no_drop_says_no_drop():
     lines = _expect(0, 0)
     assert all(line.split(", ", 1)[1].startswith("no drop, though") for line in lines), lines

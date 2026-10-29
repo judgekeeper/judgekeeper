@@ -406,6 +406,9 @@ def write_model(ws: Workspace, found) -> None:
                                      "model_source": found.fingerprint.get("model_source")})
     write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp, lines,
               source=head.get("source"), normaliser=head.get("normaliser"))
+    judge = judge_of(data)
+    _name_judge(ws.marks, judge, lambda x: "marks" in x)  # the header
+    _name_judge(ws.history_jsonl, judge, lambda x: x.get("kind") == "result")
     try:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -414,6 +417,29 @@ def write_model(ws: Workspace, found) -> None:
         r.update(fingerprint=data["fingerprint"], judge={**r["judge"], "name": data["judge"]})
         _write_json(ws.result_json, r)
         write_report(ws)
+
+
+def _name_judge(path: Path, judge: dict, which) -> None:
+    """In marks.jsonl or history.jsonl, the judge of each line `which` picks that names no
+    model yet becomes `judge` (write_model: the same judge and grades, its model now known).
+    Every other line stays as written."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    except OSError:
+        return
+    out, changed = [], False
+    for line in lines:
+        try:
+            x = loads(line)
+        except ValueError:
+            x = None
+        if (isinstance(x, dict) and which(x) and isinstance(x.get("judge"), dict)
+                and x["judge"].get("model") is None):
+            line, changed = marks._line({**x, "judge": judge}), True
+        out.append(line)
+    if changed:
+        marks._refuse_links(path)
+        write_replacing(path, "".join(out))
 
 
 def begin_marks(ws: Workspace) -> None:

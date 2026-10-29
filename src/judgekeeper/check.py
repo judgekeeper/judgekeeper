@@ -98,6 +98,10 @@ NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your mark
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
 NEXT_STORE = "Next: run `{command} {store}`: it reads the newest run."
+# The new MLflow run's scorer has another name: the same step from fix and check
+NAMED_AGAIN = ("evaluate the same traces again with your LLM-as-a-judge under the name {name}, "
+               "the one your marks test (`mlflow.genai.evaluate()`), then run "
+               "`{command} {store}`: it reads the newest run.")
 NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
                "decision from your LLM-as-a-judge (such as an error).")
 NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
@@ -694,6 +698,12 @@ def expect_lines(g: dict) -> list[str]:
                        "every 100.")
     if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
         out.append("Agreement rose in both groups.")
+    dropped = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] == "worse"]
+    rose = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] != "worse"
+            and g[key]["new_right"] > g[key]["old_right"]]
+    if dropped and rose:  # "worse" next to a group that improved: say what decides
+        out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
+                   f"{dropped[0]}, and one big drop in either group makes the result worse.")
     return out
 
 
@@ -1334,6 +1344,11 @@ def full(path: str, said: Said) -> int:
             from judgekeeper.fix import mlflow_store
 
             store = mlflow_store(state.ws)
+            if store and isinstance(problem, OtherName):
+                said.say("Next: " + NAMED_AGAIN.format(
+                    name=repr(scrub(state.data.get("metric") or "")), command=program("check"),
+                    store=store))
+                return EXIT_USAGE
             said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
                      NEXT_GIVEN.format(results=_new_results(state.data.get("tool")),
                                        command=program("check")))

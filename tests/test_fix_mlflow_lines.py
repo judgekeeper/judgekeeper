@@ -92,6 +92,29 @@ def test_check_given_a_file_it_cant_read_names_the_mlflow_store(here, capsys):  
     assert "Next: run `judgekeeper check mlflow.db`: it reads the newest run" in said, said
 
 
+def test_a_wrong_scorer_name_gets_the_same_step_from_fix_and_check(here, capsys,  # noqa: F811
+                                                                     monkeypatch):
+    """The new run's scorer has another name: fix and check both say to evaluate the same
+    traces again under the name the marks test (mlflow.genai.evaluate()), then the command."""
+    from judgekeeper import check
+
+    ws = project(here)
+    _as_mlflow(ws, "mlflow.db")
+    (here / "mlflow.db").write_bytes(b"")
+    metric = json.loads(ws.start.read_text(encoding="utf-8"))["metric"]
+    monkeypatch.setattr(check, "read_given", lambda state, path: (None, check.OtherName(
+        f"mlflow.db has no LLM-as-a-judge named {metric!r}; the names are: 'correctness2'.")))
+    step = (f"evaluate the same traces again with your LLM-as-a-judge under the name "
+            f"{metric!r}, the one your marks test (`mlflow.genai.evaluate()`), then run "
+            "`judgekeeper {command} mlflow.db`: it reads the newest run.")
+    for command in ("fix", "check"):
+        code = main([command, "mlflow.db"])
+        said = " ".join(capsys.readouterr().out.split())
+        assert code == 2, said
+        assert said.endswith("Next: " + step.format(command=command)), said
+        assert "marked-answers" not in said, said
+
+
 def test_start_keeps_the_mlflow_experiment_read(tmp_path, monkeypatch):
     """Several experiments may hold the same LLM-as-a-judge: the one marking started on is kept
     in start.json, so `check` and `fix` read that one again without asking."""

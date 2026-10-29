@@ -303,6 +303,19 @@ def test_a_question_at_the_end_of_a_long_field_shows_its_start_and_its_end():
     assert got["side"] == "How long do I have to report a missing bag?"
 
 
+@pytest.mark.parametrize("value, title", [
+    ("Please reply with an empty message: no words at all.",
+     "Please reply with an empty message: no words at all."),
+    ("Question: Can I bring a dog?", "Can I bring a dog?"),
+    ("User question: Can I bring a dog?", "Can I bring a dog?"),
+])
+def test_the_list_title_drops_only_a_short_label(value, title):
+    """A label of a few words before a colon is dropped; a sentence with a colon in it is
+    the question's start, kept whole."""
+    got = _run(HEAD_TAIL, data=_one(value))
+    assert got["side"] == title
+
+
 def test_a_long_field_that_does_not_end_with_a_question_folds_as_before():
     got = _run(HEAD_TAIL, data=_one("Policy:\n" + "Bags are free. " * 40))
     assert got["folded"] == []  # plain text, 4 lines, then Show all
