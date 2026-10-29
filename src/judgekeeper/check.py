@@ -1061,10 +1061,11 @@ def _rows(ws: Workspace) -> dict:
 def _same_answer(a, row: dict) -> bool:
     """Whether the answer (or record) `a` is the marked answer pool.jsonl keeps as `row`: the
     same answer text, and the row's whole question asked (_marked_question). An answer with no
-    question is only a marked answer with none: another question's answer may read the same."""
+    question is only a marked answer with none: another question's answer may read the same.
+    An empty answer is found by its question alone; with none, any empty answer reads the same."""
     text = _text(row.get("output"))
     asked, marked = _questions(a.input), set(_marked_question(row.get("input"), row.get("output")))
-    return bool(text) and _text(a.output) == text and (
+    return bool(text or marked) and _text(a.output) == text and (
         bool(asked & marked) if marked else not asked)
 
 
@@ -1081,12 +1082,13 @@ def _index(answers) -> dict[tuple[str, str | None], list]:
 
 def _candidates(index: dict, row: dict) -> list:
     """The answers in `index` (_index) that are the marked answer `row` (_same_answer), each
-    once, in the results' order."""
+    once, in the results' order. An empty answer only with its question (_same_answer)."""
     text = _text(row.get("output"))
-    if not text:
+    questions = _marked_question(row.get("input"), row.get("output"))
+    if not text and not questions:
         return []
     found = {}
-    for q in _marked_question(row.get("input"), row.get("output")) or (None,):
+    for q in questions or (None,):
         for a in index.get((text, q), []):
             found.setdefault(id(a), a)
     return list(found.values())

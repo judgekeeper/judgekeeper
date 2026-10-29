@@ -242,6 +242,15 @@ def test_worse_with_a_small_drop_exits_0_as_the_reference_says(here, capsys):
             "it says.") in said
 
 
+def test_a_marked_empty_answer_is_found_by_its_question(here, capsys):
+    outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
+    _marked(here, outputs=outputs)
+    _results(here, MARKED, model=HAIKU, outputs=outputs)
+    code, out = run(capsys)
+    assert code == 0 and "Re-checked on" not in out, out  # on all 50
+    assert "had no grade" not in out, out
+
+
 def test_a_model_change_rechecked_free(here, capsys):
     ws = _marked(here)
     _results(here, LENIENT, model=HAIKU)

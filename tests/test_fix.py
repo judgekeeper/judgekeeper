@@ -157,6 +157,25 @@ def test_the_split_hides_half_of_each_group(here, capsys):
     assert sum(marks.person[i] == "fail" for i in hidden) >= 5
 
 
+def test_an_empty_answer_kept_aside_is_found_in_the_regraded_file(here, capsys, monkeypatch):
+    """An empty answer is found by its question: kept aside, it no longer stops every test."""
+    monkeypatch.setattr(f"{__name__}._outputs",
+                        lambda n=N: ["" if i == 40 else answer(i, TAG) for i in range(n)])
+    ws = project(here)
+    run(capsys)
+    rows = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()]
+    empty = next(r["id"] for r in rows if r.get("output") == "")
+    split, m = fix.read_split(ws), fix.Marks(ws)
+    if empty in split.seen:  # kept aside, in place of one of the same kind
+        other = next(i for i in split.hidden
+                     if (m.person[i], m.judge[i]) == (m.person[empty], m.judge[empty]))
+        split.seen[split.seen.index(empty)], split.hidden[split.hidden.index(other)] = \
+            other, empty
+        fix.save_split(ws, split)
+    code, out = run(capsys, regraded(here).name)
+    assert code == 0 and "Result:" in out, out
+
+
 def _mark_more(ws, k: int, n: int = 80) -> list[str]:
     """Mark the next `k` answers not marked yet, as the person sees them."""
     session = StartSession(ws)
