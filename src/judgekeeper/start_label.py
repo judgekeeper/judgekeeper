@@ -389,6 +389,33 @@ def judge_of(data: dict) -> dict:
             "fingerprint": fp}
 
 
+def write_model(ws: Workspace, found) -> None:
+    """The model given with --judge-model (found.fingerprint) for a judge whose results name
+    none, after marking started: start.json, pool-judge.jsonl, result.json and report.html
+    name it now (judge.json: judge_setup.save). The same judge and grades, so nothing else."""
+    from judgekeeper.judgments import read_run
+
+    model = found.fingerprint["model"]
+    data = ws.data()
+    data.update(judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint))
+    _write_json(ws.start, data)
+    head, records = read_run(ws.pool_judge)
+    lines = [{**rec, "fingerprint": {**rec["fingerprint"], "model": model}}
+             for rec in records.values()]
+    fp = JudgeFingerprint.from_dict({**head["fingerprint"], "model": model,
+                                     "model_source": found.fingerprint.get("model_source")})
+    write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp, lines,
+              source=head.get("source"), normaliser=head.get("normaliser"))
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if isinstance(r, dict) and isinstance(r.get("judge"), dict):
+        r.update(fingerprint=data["fingerprint"], judge={**r["judge"], "name": data["judge"]})
+        _write_json(ws.result_json, r)
+        write_report(ws)
+
+
 def begin_marks(ws: Workspace) -> None:
     """A new marks.jsonl, its header from start.json: marking starts."""
     data = ws.data()

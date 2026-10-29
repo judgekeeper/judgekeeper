@@ -87,6 +87,7 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
+MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
@@ -967,6 +968,24 @@ def _changed(ws: Workspace, found: start.Found) -> list[str]:
     return judge_setup.changes(saved["setup"], judge_setup.of(found)) if saved else []
 
 
+def _model_given(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
+    """Whether `--judge-model` names the model of a judge whose results name none, after
+    marking started, and nothing else changed: it is written down then (write_model)."""
+    saved = judge_setup.read(ws)
+    new = judge_setup.of(found)
+    if (saved is None or found.model_source != start.GIVEN_BY_YOU or saved["setup"]["models"]
+            or judge_setup.changes({**saved["setup"], "models": new["models"]}, new)):
+        return False
+    data = ws.data()
+    if {q["id"]: q["group"] for q in data.get("queue") or []} != {
+            a.id: a.verdict for a in found.pool.answers}:  # the marks test other grades now
+        return False
+    with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes
+        start_label.write_model(ws, found)
+        judge_setup.save(ws, new, found.metric)
+    return True
+
+
 TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
               "mapped": "your own format"}
 
@@ -1404,6 +1423,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 start_label.prepare(found, say=lambda line: None)
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = [start_label.WORKED_OUT_AGAIN] if start_label.recompute_old(ws) else []
+    if not first and _model_given(talk, ws, found):  # the same judge: no change
+        head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge

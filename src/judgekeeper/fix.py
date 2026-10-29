@@ -115,7 +115,8 @@ REGRADE = {
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
                 "give the options you set before again with `-S`. `-S instructions=` takes a "
-                "rule with no comma (Inspect cuts `-S` values at commas); else grade it with "
+                "rule with no comma and no colon followed by a space (Inspect reads `-S` "
+                "values as YAML and cuts them at commas); else grade it with "
                 "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
@@ -399,12 +400,19 @@ def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     return sum(order.get(i, first) < first for i in seen)
 
 
+def _sum(d: dict) -> str:
+    """The sha256 of split.json's data `d` without its own: any edit by hand changes it."""
+    body = json.dumps({k: v for k, v in d.items() if k != "sha256"}, sort_keys=True,
+                      ensure_ascii=False)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
 def _split_problem(ws: Workspace, d) -> str | None:
     """What is wrong with split.json's data `d`, in a few words; None when it is as
     judgekeeper writes it: two lists of answers judgekeeper has, apart, about half kept aside
     (of the set's own marks, before it is retired: both from history.jsonl, the earlier
-    sets' marks no more than marks.jsonl says), and tests whose
-    counts fit them."""
+    sets' marks no more than marks.jsonl says), tests whose counts fit them, and its sha256
+    (one written before there was one is read as it is)."""
     if not isinstance(d, dict) or type(d.get("seed")) is not int or not isinstance(
             d.get("set", 1), int) or isinstance(d.get("set", 1), bool) or d.get("set", 1) < 1:
         return "it is not as judgekeeper writes it"
@@ -438,6 +446,8 @@ def _split_problem(ws: Workspace, d) -> str | None:
                                     targets.fix_verdict(t["fixed"], t["broke"], t["n"],
                                                         test=t["test"]).kind):
             return "a test in it has a result its counts don't give"
+    if "sha256" in d and d["sha256"] != _sum(d):  # a swap, a new seed, a mark taken out
+        return "it was changed by hand"
     return None
 
 
@@ -476,7 +486,8 @@ def save_split(ws: Workspace, split: Split) -> None:
     path = _folder(ws) / SPLIT
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, json.dumps(split.to_json(), indent=2) + "\n")
+    d = split.to_json()
+    write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
 def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
