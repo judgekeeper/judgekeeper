@@ -9,9 +9,3 @@ build/
 .ruff_cache/
 .env
 .DS_Store
-# judge outputs and reports are reproducible artifacts; commit only curated examples under docs/
-/runs/
-/reports/
-anchors/
-# `judgekeeper check` writes here by default
-/judgekeeper-report/

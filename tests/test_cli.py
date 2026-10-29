@@ -57,14 +57,14 @@ def test_a_port_out_of_range_is_a_usage_error_before_anything_is_written(tmp_pat
 
 # --- a closed output pipe ---------------------------------------------------------------------
 
-def _closed_stdout(cwd, *args) -> subprocess.CompletedProcess:
+def _closed_stdout(cwd, *args, env=None) -> subprocess.CompletedProcess:
     """judgekeeper with stdout a pipe whose reader already stopped (`| head` that is done)."""
     read, write = os.pipe()
     os.close(read)
     try:
         return subprocess.run([sys.executable, "-P", "-m", "judgekeeper", *args], cwd=cwd,
                               stdin=subprocess.DEVNULL, stdout=write, stderr=subprocess.PIPE,
-                              text=True, timeout=60, check=False)
+                              text=True, timeout=60, check=False, env=env)
     finally:
         os.close(write)
 
@@ -72,8 +72,12 @@ def _closed_stdout(cwd, *args) -> subprocess.CompletedProcess:
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows says a closed pipe another way")
 @pytest.mark.parametrize("args, code", [(["--help"], 0), (["--version"], 0),
                                         (["mark", "--help"], 0), (["nosuchcmd"], 2)])
-def test_a_closed_output_pipe_keeps_the_exit_code(tmp_path, args, code):
-    done = _closed_stdout(tmp_path, *args)
+@pytest.mark.parametrize("unbuffered", ["", "1"], ids=["buffered", "unbuffered"])
+def test_a_closed_output_pipe_keeps_the_exit_code(tmp_path, args, code, unbuffered):
+    """Unbuffered (PYTHONUNBUFFERED=1), the first line said already meets the closed pipe."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUNBUFFERED"}
+    done = _closed_stdout(tmp_path, *args, env={**env, "PYTHONUNBUFFERED": unbuffered}
+                          if unbuffered else env)
     assert done.returncode == code, done.stderr
     assert "BrokenPipeError" not in done.stderr and "Exception ignored" not in done.stderr
     if code == 0:

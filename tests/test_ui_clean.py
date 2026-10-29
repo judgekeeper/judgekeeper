@@ -230,7 +230,8 @@ def test_fix_it_is_one_line_and_the_websites_command_box():
 
 def test_the_copy_script_is_the_websites_and_clears_its_selection():
     s = report_page.SCRIPT
-    assert 'querySelectorAll("[data-copy]")' in s and "Copy failed" not in s
+    assert 'querySelectorAll("[data-copy]")' in s
+    assert 'said.textContent = ok ? "Copied" : "Copy failed";' in s  # only when it worked
     assert 'document.execCommand("copy")' in s
     assert s.index('document.execCommand("copy")') < s.rindex("removeAllRanges()")
     assert "1500" in s
@@ -329,4 +330,6 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
     site = Path(__file__).resolve().parents[1] / "website"
     for page in [*site.glob("*.html"), site / "errors" / "404.html"]:
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
-        assert refs and set(refs) == {"10"}, (page.name, refs)
+        assert refs and set(refs) == {"11"}, (page.name, refs)
+    # the browser check's script is new too: check.html loads it again
+    assert "assets/freecheck.js?v=10" in (site / "check.html").read_text(encoding="utf-8")

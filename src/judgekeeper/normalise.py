@@ -151,6 +151,7 @@ class Normaliser:
             raise NormaliseError("--pass-if applies to single-output items (pass/fail), "
                                  "not pairwise A/B verdicts")
         self.pass_if = pass_if
+        self.named = False  # a decision held the field --pass-if names (else plain scores)
         extra = parse_label_map(label_map, kind)
         base = DEFAULT_PAIRWISE_MAP if kind == PAIRWISE else DEFAULT_LABEL_MAP
         words = {} if kind == PAIRWISE else dict.fromkeys(NO_DECISION, ERROR)
@@ -175,6 +176,7 @@ class Normaliser:
     def _dict(self, d: dict) -> Normalised:
         reason = next((str(d[k]) for k in REASON_KEYS if d.get(k) is not None), "")
         if self.pass_if is not None and self.pass_if.name in d:
+            self.named = True
             res = self._value(d[self.pass_if.name])
         else:
             key = next((k for k in VERDICT_KEYS if k in d), None)

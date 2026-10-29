@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import judge_check, start
+from tests import test_reader_grader_details as grader_details
 from tests.conftest import FIXTURES
 from tests.start_projects import table_project
 
@@ -139,7 +140,7 @@ def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
     said = browser(path)
     assert said["ok"] is False and said["message"].startswith(
         "judgekeeper can't tell which columns hold the question, the answer and the grade (this "
-        "file has case, text and mark). In the browser it reads a CSV or JSONL file with a "
+        "file has case, text and mark). In the browser it reads a CSV, TSV or JSONL file with a "
         "question column (input or question), an answer column (output or answer) and a grade "
         "column (verdict or grade) holding Pass or Fail."), said
 
@@ -152,3 +153,15 @@ def test_an_error_grade_is_an_error_not_an_empty_decision(tmp_path):
     assert said["judges"]["verdict"]["findings"][0].startswith(
         "Your LLM-as-a-judge made no real decision on 2 of 22 answers: 1 error, 1 empty "
         "decision."), said
+
+
+@pytest.mark.parametrize("configured, made", [
+    *grader_details.OTHER_PROVIDER, *grader_details.SAME_PROVIDER])
+def test_a_made_grader_takes_the_config_id_as_the_tool_does(tmp_path, configured, made):
+    data = json.loads(grader_details.RESULTS.read_text(encoding="utf-8"))
+    data["config"]["defaultTest"]["options"]["provider"] = configured
+    for row in data["results"]["results"]:
+        row["testCase"].setdefault("options", {})["provider"] = made
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert _page(browser(path)) == tool(path)

@@ -291,16 +291,40 @@ def is_set_grader(value) -> bool:
             and isinstance(value.get("modelName"), str) and bool(value["modelName"]))
 
 
+# Providers whose made object always shows them (_made_by): with none shown, it is not one
+SHOWN = ("anthropic", "azure", "vertex", "google", "openai")
+
+
+def _made_by(made: dict, own: dict) -> str | None:
+    """The start of the id of the provider promptfoo 0.124 made `made` from, as far as it
+    shows: its Anthropic client, Azure's deployment, Google's vertexai switch, the key's
+    variable (one the config didn't set, as TOGETHER_API_KEY), or OpenAI's MCP client."""
+    config = made.get("config") if isinstance(made.get("config"), dict) else {}
+    env = config.get("apiKeyEnvar")
+    if "anthropic" in made:
+        return "anthropic"
+    if "deploymentName" in made:
+        return "azure"
+    if isinstance(config.get("vertexai"), bool):
+        return "vertex" if config["vertexai"] else "google"
+    if isinstance(env, str) and env.endswith("_API_KEY") and env != own.get("apiKeyEnvar"):
+        return env.removesuffix("_API_KEY").lower()
+    return "openai" if "mcpClient" in made else None
+
+
 def grader_of(assertion: dict, test_options: dict, default_test: dict):
     """The grader one model-graded assertion used, as the file holds it, or None for
     promptfoo's default grader. promptfoo 0.124 saves a grader set in the config into each
     test as the provider it made (no id, like --grader): the config's id for the same model
-    is taken, with the made provider's settings."""
+    and provider is taken, with the made provider's settings."""
     configured = _options(default_test).get("provider") or default_test.get("provider")
     grader = assertion.get("provider") or test_options.get("provider") or configured or None
     if is_set_grader(grader):
         pid = configured.get("id") if isinstance(configured, dict) else configured
-        if isinstance(pid, str) and pid.split(":")[-1] == grader["modelName"]:
+        own = configured.get("config") if isinstance(configured, dict) else None
+        maker = _made_by(grader, own if isinstance(own, dict) else {})
+        if isinstance(pid, str) and pid.split(":")[-1] == grader["modelName"] and (
+                pid.startswith(maker) if maker else pid.split(":")[0] not in SHOWN):
             return {"id": pid, "config": grader.get("config") or (
                 configured.get("config") if isinstance(configured, dict) else None) or {}}
     return grader

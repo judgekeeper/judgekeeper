@@ -258,8 +258,9 @@ def test_the_marking_page_words():
             'hidden>Show all</button></div>'
             '<div class="state" id="ans-status" aria-live="polite"></div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert ('<div class="row row-a"><div class="label">Answer</div><div class="a-scroll" '
-            'id="a-scroll"><p class="answer" id="a-text" dir="auto">') in page
+    assert ('<div class="row row-a"><div class="label">Answer</div><p class="run" id="a-run" '
+            'hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" '
+            'dir="auto">') in page  # the run line: only for a repeat graded differently
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
@@ -612,6 +613,12 @@ def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
     assert "<details open" not in html and 'hidden' not in part  # folded, all there
 
 
+def test_a_judge_that_gave_every_answer_one_grade_shows_kappa_as_n_a():
+    part = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)),
+                 '<details class="details band">', "</details>")
+    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a –" in _text(part)
+
+
 def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
     r = _result(100, 100, 40, 22, 40, 2)
     r["tnr_interval"] = [0.1, 0.9]  # wider than the result can use
@@ -825,7 +832,9 @@ var document = {documentElement: new El("html"),
   getElementById: function (id) { return ids[id] || null; },
   querySelectorAll: function (s) { return s === ".more" ? [more] : s === "[data-copy]" ? [copy] : []; },
   createRange: function () { return {selectNodeContents: function () {}}; },
-  execCommand: function (c) { sel.push("copy " + c); }};
+  execCommand: function (c) { sel.push("copy " + c);
+    if (execThrows) { throw new Error("no"); } return execWorks; }};
+var execWorks = true, execThrows = false;
 var window = {localStorage: {getItem: function () { return null; }, setItem: function () {}},
   addEventListener: function () {},
   getSelection: function () { return {removeAllRanges: function () { sel.push("clear"); },
@@ -849,8 +858,17 @@ function clearTimeout() {}
   var back = [said.textContent, copy.className];
   works = false; copy.listeners.click();  // no clipboard: select, copy, then clear
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  var fallback = [sel.slice(), said.textContent];
+  execWorks = false; sel.length = 0; copy.listeners.click();  // the copy itself failed
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  var failed = [sel.slice(), said.textContent, copy.className];
+  timers[timers.length - 1][0]();
+  var after = [said.textContent, copy.className];
+  execThrows = true; copy.listeners.click();
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   console.log(JSON.stringify({opened: opened, closed: closed, done: done, back: back,
-    fallback: [sel, said.textContent]}));
+    fallback: fallback, failed: failed, after: after,
+    thrown: [said.textContent, copy.className]}));
 })();
 """
     script = tmp_path / "page.js"
@@ -863,6 +881,10 @@ function clearTimeout() {}
     assert got["done"] == [["judgekeeper fix"], "Copied", "done", 1500]
     assert got["back"] == ["", ""]
     assert got["fallback"] == [["clear", "select", "copy copy", "clear"], "Copied"]
+    # "Copied" only when the copy worked: execCommand gave false, or threw
+    assert got["failed"] == [["clear", "select", "copy copy", "clear"], "Copy failed", "failed"]
+    assert got["after"] == ["", ""]
+    assert got["thrown"] == ["Copy failed", "failed"]
 
 
 def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):

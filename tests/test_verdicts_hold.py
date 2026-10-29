@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import batches, fix
+from judgekeeper import __version__, batches, fix
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data
@@ -346,7 +346,7 @@ def test_check_names_what_it_read_and_notes_newer_results_elsewhere(here, capsys
     capsys.readouterr()
     code, out = run(capsys, "check")
     assert code == 0 and out.startswith(
-        "judgekeeper 1.0.0 Step 5 of 5: Re-check New results: new.json "), out
+        f"judgekeeper {__version__} Step 5 of 5: Re-check New results: new.json "), out
     assert "Newer" not in out, out
     _inspect_log(here / "logs" / "new2.json", {i: not judge(i) for i in range(N)},
                  "Grade it C or I, any way.", created="2026-10-28T10:00:00+00:00")

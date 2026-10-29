@@ -139,3 +139,24 @@ def test_printed_stamps_every_later_mark(ws, served):
     client.label(id=items[1], label="fail", seconds=2)
     first, second = _clicks(ws)
     assert "link" not in first and second["link"] == "printed"
+
+
+def test_repeats_graded_differently_say_their_run_and_never_the_grade(tmp_path):
+    """One answer the LLM-as-a-judge graded three times, Pass once and Fail twice, is three
+    cards (start.build_pool's split). Each card gets its run and how many runs there were,
+    for the line "Run 2 of 3: graded differently"; never which grade it got."""
+    from tests.start_projects import table_project
+
+    path = table_project(tmp_path, split(16, 16))
+    first = path.read_text(encoding="utf-8").splitlines()[1]  # Pass
+    with path.open("a", encoding="utf-8", newline="") as f:
+        f.write(first.replace(",pass", ",fail") + "\r\n" + first.replace(",pass", ",fail") + "\r\n")
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    items = start_label.StartSession(ws).state()["items"]
+    runs = sorted(i["run"] for i in items if "run" in i)
+    assert runs == [[1, 3], [2, 3], [3, 3]]
+    assert len(items) == 34
+    for item in items:
+        assert set(item) <= {"id", "input", "output", "label", "skipped", "run"}, item
+    kept = ws.data()["runs"]  # in start.json: the run and the count only
+    assert sorted(kept.values()) == runs

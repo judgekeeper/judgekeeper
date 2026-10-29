@@ -242,6 +242,20 @@
 
   function isSetGrader(v) { return isObj(v) && !('id' in v) && isStr(v.modelName) && v.modelName.length > 0; }
 
+  // Providers whose made object always shows them (madeBy): with none shown, it is not one
+  var SHOWN = ['anthropic', 'azure', 'vertex', 'google', 'openai'];
+
+  // The start of the id of the provider promptfoo 0.124 made a grader from, as far as it shows
+  function madeBy(made, own) {
+    var config = isObj(made.config) ? made.config : {};
+    var env = config.apiKeyEnvar;
+    if ('anthropic' in made) return 'anthropic';
+    if ('deploymentName' in made) return 'azure';
+    if (typeof config.vertexai === 'boolean') return config.vertexai ? 'vertex' : 'google';
+    if (isStr(env) && env.slice(-8) === '_API_KEY' && env !== own.apiKeyEnvar) return env.slice(0, -8).toLowerCase();
+    return 'mcpClient' in made ? 'openai' : null;
+  }
+
   // The model a grader names: its id, or a --grader's modelName; null when the file has none
   function modelOf(value) {
     if (isObj(value) && !('id' in value) && (isObj(value.text) || isStr(value.text))) value = value.text;
@@ -332,7 +346,9 @@
         if (!truthy(grader)) grader = null;
         if (isSetGrader(grader)) {  // promptfoo 0.124 saves a config grader with no id: the config's id
           var pid = isObj(configured) ? configured.id : configured;
-          if (isStr(pid) && pid.split(':').pop() === grader.modelName) grader = pid;
+          var maker = madeBy(grader, isObj(configured) && isObj(configured.config) ? configured.config : {});
+          if (isStr(pid) && pid.split(':').pop() === grader.modelName &&
+              (maker ? pid.indexOf(maker) === 0 : SHOWN.indexOf(pid.split(':')[0]) < 0)) grader = pid;
         }
         var model = grader === null ? null : modelOf(grader);
         var metadata = isObj(c.metadata) ? c.metadata : {};
@@ -721,7 +737,7 @@
   var OUTPUT_WORDS = ['output', 'outputs', 'answer', 'answers', 'response', 'responses', 'completion', 'reply', 'generation'];
   var SCORE_WORDS = ['score', 'verdict', 'passed', 'pass', 'label', 'success', 'grade', 'rating', 'judgment', 'judgement'];
   var REASON_WORDS = ['reason', 'reasoning', 'explanation', 'rationale', 'comment', 'feedback', 'justification', 'why'];
-  var READ_NAMES = 'In the browser it reads a CSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
+  var READ_NAMES = 'In the browser it reads a CSV, TSV or JSONL file with a question column (input or question), an answer column (output or answer) and a grade column (verdict or grade) holding Pass or Fail.';
   function commonNames(rows, header) {
     var one = function (list) {
       var found = header.filter(function (h) { return isStr(h) && list.indexOf(h.trim().toLowerCase()) >= 0; });

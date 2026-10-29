@@ -718,6 +718,29 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
     assert fix.report_section(ws) == {"mistakes": [], "split_unknown": True}
 
 
+@pytest.mark.parametrize("number", [1, 2])
+def test_a_hand_added_set_line_in_history_does_not_skip_the_about_half_check(here, capsys,
+                                                                             number):
+    """A `set` line saying the earlier sets hold every shown mark: which marks the earlier
+    sets hold comes from marks.jsonl too (those marked before any kept aside)."""
+    from judgekeeper import marks
+    from judgekeeper.fingerprint import utc_now
+
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    _shrunk(d)
+    d["set"] = number
+    path.write_text(json.dumps(d), encoding="utf-8")
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "set", "seed": d["seed"],
+                                    "set": number, "earlier": len(d["visible"])})
+    code, out = run(capsys, regraded(here).name)
+    assert code == 2, out
+    assert ("judgekeeper can't use .judgekeeper/fix/split.json: it keeps far fewer than half "
+            "of your marks aside.") in " ".join(out.split())
+
+
 def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
     ws = project(here)
     run(capsys)  # keeps some marks aside

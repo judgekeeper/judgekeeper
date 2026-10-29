@@ -111,6 +111,8 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         else:
             where = " (the scores are between 0 and 1)" if g.pass_mark_sure else ""
         mark = g.pass_mark if g.pass_op == ">=" else f"{g.pass_op} {g.pass_mark}"
+        if not where:  # only a guess: the person is asked for it next
+            mark = "not known"
         lines.append(f"  pass mark:       {mark}{where}")
     return lines
 

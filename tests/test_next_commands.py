@@ -85,15 +85,38 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
     assert ws.report_html.is_file(), (out, sorted(p.name for p in ws.dir.iterdir()))
     page = ws.report_html.read_text(encoding="utf-8")
     on_page = {unescape(c) for c in re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page)}
-    # as the terminal prints them: mark keeps every flag, check and fix the path
+    # as the terminal prints them: mark keeps every flag but --port, check and fix the path
     named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
     assert {k: named[k] for k in ("mark", "check", "fix")} == {
-        "mark": BASE.replace("judgekeeper", "judgekeeper mark", 1),
+        "mark": BASE.replace("judgekeeper", "judgekeeper mark", 1).replace(" --port 0", ""),
         "check": "judgekeeper check evals/results.csv",
         "fix": "judgekeeper fix evals/results.csv"}
     assert on_page <= {named["mark"], named["fix"]}, on_page
     for gone in GONE:
         assert gone not in page and gone not in out, gone
+
+
+def test_report_html_never_keeps_the_port_of_the_run_that_made_it(project, capsys):
+    """report.html stays on disk after its page closed: a --port it showed would be the old
+    page's, so its commands leave it out (the page opens on a free port by itself)."""
+    flags = ["--label-map", "good=pass,bad=fail", "--port", "9123", "--no-browser"]
+    ws = Workspace(project)
+    assert main(["evals/results.csv", *flags, "--yes"]) == 0
+    session = StartSession(ws)
+    seen = {"pass": 0, "fail": 0}  # every other answer of each kind flipped, whatever the order
+    for q in ws.data()["queue"]:  # a result that is too early to tell: report.html says mark
+        seen[q["group"]] += 1
+        session.update({"id": q["id"], "label": q["group"] if seen[q["group"]] % 2 else
+                        {"pass": "fail", "fail": "pass"}[q["group"]], "seconds": 7})
+    capsys.readouterr()
+    assert main(["evals/results.csv", *flags, "--yes"]) == 0
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["port"] == 9123
+    page_text = ws.report_html.read_text(encoding="utf-8")
+    shown = [unescape(c) for c in re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page_text)]
+    assert shown and all("--port" not in c and "9123" not in c for c in shown), shown
+    named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
+    assert named["mark"] == f"judgekeeper mark evals/results.csv --label-map {MAP} --no-browser"
+    assert not [c for c in named.values() if "--port" in c], named
 
 
 def test_every_marked_line_names_the_runs_command():

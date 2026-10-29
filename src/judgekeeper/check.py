@@ -111,8 +111,8 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
            "judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
-NEXT_NOT_MARKED = ("Next: run your eval on the questions you marked, then run `{command}` "
-                   "again; or start over on your new answers with `{new}`.")
+# Running the eval again makes new answers, which can't be compared: grade the marked ones
+NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
@@ -666,7 +666,8 @@ def table_lines(g: dict) -> list[str]:
 def expect_lines(g: dict) -> list[str]:
     """What to expect, one line per group whose outcome says something: for Worse, by about
     how much agreement drops in every 100 answers and the range; for no big drop, the most
-    it could drop. A Not sure group gets no line: its word says it."""
+    it could drop, or "no drop" when it didn't drop. A Not sure group gets no line: its word
+    says it. A clear rise in both groups is said last."""
     out = []
     for key, _, said in SIDES:
         x = g[key]
@@ -678,9 +679,14 @@ def expect_lines(g: dict) -> list[str]:
                        f"(somewhere between {_points(x['high'])} and {_points(x['low'])}).")
         elif x["low"] >= 0:
             out.append(f"{lead} none of the range is a drop.")
+        elif x["change"] >= 0:  # no drop seen; the range can't rule one out
+            out.append(f"{lead} no drop, though these marks can't rule out one of up to "
+                       f"{_points(x['low'])} in every 100.")
         else:
             out.append(f"{lead} agreement drops by no more than {_points(x['low'])} in "
                        "every 100.")
+    if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
+        out.append("Agreement rose in both groups.")
     return out
 
 
@@ -1602,7 +1608,11 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
-        said.say(NEXT_NOT_MARKED.format(command=_command(state), new=program("--new")))
+        from judgekeeper import fix
+
+        answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
+        regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
+        said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
         return True
     if not few and looked is None:
         return False  # the check goes on, and says them there

@@ -688,6 +688,25 @@ def test_metric_and_dataset_files_over_100_mb_together_are_refused(tmp_path):
     assert "remove the files your evaluation didn't save" in e.value.next_step
 
 
+def test_small_files_mlflow_reads_whole_over_200_mb_together_are_refused(tmp_path,
+                                                                         monkeypatch):
+    """Tags, settings, metadata and assessments of 1 MB each, in many runs: 60 runs of 1,500
+    took 44 s and 4 GB. Here the total is 3 MB: three files pass, a fourth is refused."""
+    assert mlflow_store.SMALL_TOTAL == 200 * 2**20
+    monkeypatch.setattr(mlflow_store, "SMALL_TOTAL", 3 * 2**20)
+    for rel in ("1/a1b2/tags/t1", "1/a1b2/params/p1", "1/traces/tr-1/assessments/a-1"):
+        _store_file(tmp_path, rel, 2**20)
+    assert mlflow_store.unsafe_file(tmp_path / "mlruns") is None
+    _store_file(tmp_path, "1/c3d4/tags/t2", 2**20)
+    with pytest.raises(Damaged) as e:
+        mlflow_store.check_folder_store(tmp_path / "mlruns")
+    assert e.value.args[0] in (
+        f"judgekeeper didn't let MLflow read mlruns/: mlruns/1/{where} takes the store's tag, "
+        "setting, metadata and assessment files over 3 MB together, more than MLflow keeps "
+        "there." for where in ("a1b2/tags", "a1b2/params", "c3d4/tags", "traces/tr-1/assessments"))
+    assert "remove the files your evaluation didn't save" in e.value.next_step
+
+
 @POSIX
 def test_a_runs_artifacts_are_not_looked_into(tmp_path):
     """MLflow doesn't open them to read traces (judgekeeper reads a trace's spans itself)."""
@@ -895,8 +914,8 @@ def test_the_limits_are_said_in_the_reference():
     assert (f"an `mlflow.db` over {mlflow_store.STORE_LIMIT // 10**9} GB with its `-wal` and "
             "`-shm` files") in flat
     assert (mlflow_store.SMALL_LIMIT, mlflow_store.LARGE_LIMIT) == (2**20, 100 * 2**20)
-    assert ("a tag, setting or assessment file over 1 MB, or run metric and dataset files over "
-            "100 MB together") in flat
+    assert ("a tag, setting or assessment file over 1 MB, such files over 200 MB together, or run "
+            "metric and dataset files over 100 MB together") in flat
 
 
 # Messages that say what is true -----------------------------------------------------------

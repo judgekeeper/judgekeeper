@@ -306,9 +306,12 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
-        print(said(text))
-        for line in held_lines(text):  # a name left out of the command above, as data
-            print(said(line))
+        try:  # stdout closed by the program reading it: the exit code stays the command's
+            print(said(text))
+            for line in held_lines(text):  # a name left out of the command above, as data
+                print(said(line))
+        except OSError:
+            pass
         flush_stdout()  # piped or in the background, lines must not wait in a buffer
         self._blank = not text
 
@@ -1058,6 +1061,11 @@ PASS_OPS = {">=": operator.ge, ">": operator.gt, "<=": operator.le, "<": operato
 def passes(score: float, op: str, mark: float) -> str:
     """The verdict a score gets against a pass mark."""
     return "pass" if PASS_OPS[op](score, mark) else "fail"
+
+
+# --pass-if names a field, and the scores are plain numbers: the name is not used
+PASS_IF_UNNAMED = ("--pass-if {rule}: your scores are plain numbers, so the name {name} is not "
+                   "used; it reads as {plain}.")
 
 
 def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) -> dict | None:
@@ -2026,6 +2034,11 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                    or (kind == "mapped" and (saved.map or {}).get("kind", "score") == "score")
                    or any((r.metadata or {}).get("pass_mark") is not None for r in records))
     key = (saved.map.get("pass_mark_key") if kind == "mapped" else None)
+    rule_used = norm.pass_if
+    unnamed = ([PASS_IF_UNNAMED.format(rule=rule_used.text, name=rule_used.name,
+                                       plain=f"score{rule_used.op}{rule_used.threshold:g}")]
+               if rule_used and rule_used.name not in (None, "score") and not norm.named
+               and pool.answers else [])
     return Found(root=root, tool=kind, results=results, used=[x.label for x in used],
                  metric=metric, pool=pool, fingerprint=fingerprint, judge=judge, signs=signs,
                  rule=rule, description=description, metrics=metrics,
@@ -2043,7 +2056,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,
                  warnings=[w for w in first.records.warnings if not is_stripped_warning(w)]
-                 + list(first.records.per_metric.get(metric, {}).get("warnings") or []))
+                 + list(first.records.per_metric.get(metric, {}).get("warnings") or [])
+                 + unnamed)
 
 
 def _rule_key(r, kind: str) -> str | None:

@@ -39,6 +39,7 @@ from judgekeeper import (
     start_fix_rule,
     start_label,
     targets,
+    textio,
 )
 from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, is_page
@@ -559,16 +560,19 @@ def _shown(values) -> str:
 def _with_given_map(given: str | None, extra: tuple[str, ...]) -> tuple[str, ...]:
     """`extra` with the person's `given` map before the entries of its --label-map, which
     replaces theirs in the command (start.Talk.command): so no entry of theirs is lost."""
-    if not given or "--label-map" not in extra:
+    at = next((n for n, w in enumerate(extra)
+               if w == "--label-map" or w.startswith("--label-map=")), None)
+    if not given or at is None:
         return extra
-    at = extra.index("--label-map")
-    entries = extra[at + 1]
+    one_word = extra[at] != "--label-map"  # `--label-map=entries`
+    entries = extra[at].split("=", 1)[1] if one_word else extra[at + 1]
     merged = f"{given},{entries.strip(chr(34))}"
+    textio._held.pop(given, None)  # on Windows, only the merged map is said beside the command
     value = quote_arg(merged)
     if entries.startswith('"') and value == merged:  # a placeholder stays in its quotes
         value = f'"{merged}"'
     flag = (f"--label-map={value}",) if merged.startswith("-") else ("--label-map", value)
-    return (*extra[:at], *flag, *extra[at + 2:])
+    return (*extra[:at], *flag, *extra[at + (1 if one_word else 2):])
 
 
 def _add_label_map(talk: FrontTalk, extra: str) -> None:
@@ -1658,12 +1662,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         if mark_next:
             talk.para(SAY_WHY_NEXT)
-        else:
-            from judgekeeper.report_page import counts
-
-            c = counts(r)
-            talk.para(start_label.say_why_run(c["strict"] + c["easy"],
-                                              _command_of(talk, saved, "mark")))
+        else:  # the disagreements the result page lists: never those kept aside
+            talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
