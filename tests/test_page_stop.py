@@ -9,6 +9,7 @@ import pytest
 from judgekeeper import label
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
+from tests.test_fix_mlflow_lines import mlruns  # noqa: F401  (40 graded traces)
 
 
 @pytest.fixture
@@ -81,3 +82,44 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
     assert out.rstrip().splitlines()[-2:] == [
         "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
     assert not label.is_open(here / ".judgekeeper")
+
+
+@pytest.mark.parametrize("tool", ["csv", "mlflow"])
+def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsys, monkeypatch,
+                                                                 request, tool):
+    """The result, then the page: --wait served it, but asked its own page, not served yet,
+    whether it was open, and stopped at once (busy, exit 3), its server.json left."""
+    import shutil
+
+    from judgekeeper import judge_setup, start, start_label
+    from judgekeeper.start_label import StartSession
+    from tests.start_projects import table_project
+
+    monkeypatch.chdir(tmp_path)
+    if tool == "mlflow":
+        from judgekeeper.readers import mlflow_store
+
+        monkeypatch.setattr(mlflow_store, "_walked", {})
+        shutil.copytree(request.getfixturevalue("mlruns"), tmp_path / "mlruns")
+        request.addfinalizer(mlflow_store.remove_copies)
+    else:
+        table_project(tmp_path, split(20, 20))
+    found = start.find_judge(tmp_path)
+    judge_setup.save(start_label.Workspace(tmp_path), judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=lambda line="": None)
+    session = StartSession(ws)
+    for q in ws.data()["queue"][:34]:  # 6 left to mark
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    real = label.LabelServer.serve
+
+    def interrupted(self, *args, **kwargs):  # Ctrl-C while the page is served
+        self.stop()
+        real(self, *args, **kwargs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(label.LabelServer, "serve", interrupted)
+    code, out = _run(capsys, "--wait", "--no-browser", "--port", "0")
+    assert code == 130, out
+    assert "Result:" in out and "not answering" not in out
+    assert "Stopped." in out.splitlines()
+    assert not (ws.dir / label.LOCK).exists() and not label.is_open(ws.dir)
