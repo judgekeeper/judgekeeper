@@ -228,8 +228,9 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
     it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
     when two lines or more inside it read as whole rows: one value per column, and a grade
-    in the verdict column when the table has one (an answer over several lines, with commas,
-    is not a row); with `loose`, when it holds a line break at all (a hint, not a finding)."""
+    in the verdict column (or, with none, the score column) when the table has one (an
+    answer over several lines, with commas, is not a row); with `loose`, when it holds a
+    line break at all (a hint, not a finding)."""
     from judgekeeper.find import VERDICT_COLUMNS
 
     path = Path(path)
@@ -246,6 +247,9 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
                 header = row
                 verdict = next((i for i, c in enumerate(header)
                                 if column_name(c) in VERDICT_COLUMNS), None)
+                if verdict is None:  # find.grade_columns: with no verdict column, the score
+                    verdict = next((i for i, c in enumerate(header)
+                                    if column_name(c) == "score"), None)
             elif any(loose or (len(header) >= 3 and _rows_inside(cell, delimiter,
                                                                  len(header), verdict) >= 2)
                      for cell in row if "\n" in cell):
