@@ -261,7 +261,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `history/` | Earlier results, with the same fields as `result.json` |
 | `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a fixed set with its sha256 |
-| `fix/split.json` | Which marks are kept aside, the seed, and every test on them |
+| `fix/split.json` | Which marks are kept aside, the seed, and every test on them, with its sha256 |
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
 | `fix/marked-answers.csv` | Every marked answer, question and answer only, shuffled, to grade again |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |

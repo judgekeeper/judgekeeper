@@ -686,7 +686,18 @@ def _wrong_verdict(d):
                    "test": 1, "hidden": 25}]
 
 
+def _swapped(d):  # one shown and one kept aside trade places
+    d["visible"][0], d["hidden"][0] = d["hidden"][0], d["visible"][0]
+
+
+BY_HAND = "it was changed by hand"
+
+
 @pytest.mark.parametrize("change, why", [
+    (_swapped, BY_HAND),
+    (lambda d: d.update(seed=d["seed"] + 1), BY_HAND),
+    (lambda d: d["visible"].pop(), BY_HAND),  # read as a new mark, and written again
+    (lambda d: d["hidden"].pop(), BY_HAND),  # one kept aside, then shown
     (_overlap, "it names some marks as both kept aside and shown"),
     (_shrunk, "it keeps far fewer than half of your marks aside"),
     (_shrunk_later_set, "it keeps far fewer than half of your marks aside"),
@@ -712,6 +723,7 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
         assert code == 2, out
         assert (f"judgekeeper can't use .judgekeeper/fix/split.json: {why}. It says which of "
                 "your marks are kept aside") in flat
+        assert "delete it and run `judgekeeper fix --new`" in flat
         assert "pool-judge.jsonl" not in flat and "Result" not in flat
         assert path.read_bytes() == before
     # the result page shows none of the marks, and says it can't tell which are kept aside
@@ -757,6 +769,17 @@ def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
             "why.") in flat
     assert '<code>judgekeeper fix</code>' in html
     assert 'class="group' not in html and "Add a reason" not in html
+
+
+def test_a_split_written_before_its_sha256_is_read_and_gets_one(here, capsys):
+    ws = project(here)
+    run(capsys)
+    path = ws.dir / "fix" / "split.json"
+    d = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({k: v for k, v in d.items() if k != "sha256"}), encoding="utf-8")
+    code, out = run(capsys)
+    assert code == 0, out
+    assert _split(ws) == d  # the same split, with its sha256 again
 
 
 def test_a_split_that_is_not_json_is_refused_and_kept(here, capsys):
