@@ -119,8 +119,9 @@ SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its comm
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
-IN_BROWSER = "The marking page is already open in your browser."  # no new tab for it
-CLOSED_IT = "Closed it? Run `{command}` to print its link."  # no terminal: no link
+IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
+# --no-browser opened none, so "in your browser" could be false
+CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
@@ -512,6 +513,8 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
     `only`: the results files the marks were made on (_marked_files)."""
     given = _given_model(path) if talk.options["judge_model"] is None and saved is None else None
     kept = _kept_experiment(path) if talk.options["experiment"] is None else None
+    kept_map = _kept_label_map(path) if talk.options["label_map"] is None and saved is None \
+        else None
     while True:
         options = {k: talk.options[k] for k in FIND}
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
@@ -523,6 +526,8 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
                 options["metric"] = None
         if options["experiment"] is None:
             options["experiment"] = kept
+        if options["label_map"] is None:
+            options["label_map"] = kept_map
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
@@ -555,6 +560,18 @@ def _kept_experiment(path: Path) -> str | None:
     name = data.get("experiment") if isinstance(data, dict) and data.get("tool") == "mlflow" \
         else None
     return name if isinstance(name, str) else None
+
+
+def _kept_label_map(path: Path) -> str | dict | None:
+    """The --label-map the marks were read with, kept in start.json: read again with no
+    --label-map, so the plain command the page names doesn't ask the same question again."""
+    ws = Workspace(project.project_of(path))
+    try:
+        data = ws.data() if ws.start.is_file() else {}
+    except (OSError, ValueError):
+        return None
+    value = data.get("label_map") if isinstance(data, dict) else None
+    return value if isinstance(value, (str, dict)) and value else None
 
 
 def _given_model(path: Path) -> str | None:
@@ -1201,7 +1218,9 @@ def read_rows(found: start.Found, pass_if: str | None = None,
                   else mapper.filled(m["output"]))
         rows = [("question", mapper.filled(m["input"])), ("answer", answer),
                 ("grade", mapper.filled(m["score"], side, judge) + mark)]
-        if m.get("model_key"):
+        if found.fingerprint.get("model_source") == start.GIVEN_BY_YOU and m.get("model_key"):
+            rows.append(("model", f"{found.fingerprint['model']} (given with --judge-model)"))
+        elif m.get("model_key"):
             rows.append(("model", mapper.filled(m["model_key"], side, judge)))
         return rows
     return []

@@ -1041,7 +1041,7 @@ def test_mark_opens_the_result_page_again_while_the_page_is_open(here, capsys, p
     code, out = _run(capsys, "mark")
     assert code == 0
     assert len(pages[0]) == started + 1 and len(no_browser) == 1
-    assert "The marking page is already open in your browser." in " ".join(out.split()), out
+    assert "The marking page is already running." in " ".join(out.split()), out
 
 
 def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, capsys, pages,

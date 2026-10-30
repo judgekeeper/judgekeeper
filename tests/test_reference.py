@@ -260,5 +260,6 @@ def test_the_readmes_measure_step_says_what_a_result_needs():
 
     assert NEEDS == front.NEEDS_EACH_KIND.format(n=targets.ROUGH)
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure**"))
-    assert NEEDS in measure
+    measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))
+    assert f"at least {targets.ROUGH} Pass and {targets.ROUGH} Fail marks" in measure
+    assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())

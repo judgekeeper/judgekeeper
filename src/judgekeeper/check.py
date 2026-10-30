@@ -31,6 +31,7 @@ from judgekeeper import (
     __version__,
     batches,
     find,
+    judge_check,
     judge_setup,
     marks,
     page,
@@ -98,10 +99,14 @@ NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your mark
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
 NEXT_STORE = "Next: run `{command} {store}`: it reads the newest run."
+# The new MLflow run's scorer has another name: the same step from fix and check
+NAMED_AGAIN = ("evaluate the same traces again with your LLM-as-a-judge under the name {name}, "
+               "the one your marks test (`mlflow.genai.evaluate()`), then run "
+               "`{command} {store}`: it reads the newest run.")
 NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
-               "decision from your LLM-as-a-judge (such as an error).")
-NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
-               "error).")
+               "decision from your LLM-as-a-judge{why}.")
+NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
+SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text and question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
@@ -252,8 +257,15 @@ def read_given(state: State, path: Path):
             return None, (f"{shown} is outside your project; judgekeeper reads results only "
                           "inside it.")
         options["saved"] = replace(saved, file=rel)
+    where = state.ws.root if saved is not None else path
     try:
-        found = start.find_judge(state.ws.root if saved is not None else path, **options)
+        try:
+            found = start.find_judge(where, **options)
+        except start.StartError:
+            if options["judge_model"] is None:
+                raise
+            # a model given on an earlier run is only used while the results don't name one
+            found = start.find_judge(where, **{**options, "judge_model": None})
     except start.StartError as e:
         why = f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
         return None, OtherName(why) if e.drop == "--metric" else why
@@ -694,6 +706,12 @@ def expect_lines(g: dict) -> list[str]:
                        "every 100.")
     if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
         out.append("Agreement rose in both groups.")
+    dropped = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] == "worse"]
+    rose = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] != "worse"
+            and g[key]["new_right"] > g[key]["old_right"]]
+    if dropped and rose:  # "worse" next to a group that improved: say what decides
+        out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
+                   f"{dropped[0]}, and one big drop in either group makes the result worse.")
     return out
 
 
@@ -1157,6 +1175,18 @@ def no_decision(found, ids, ws: Workspace) -> list[str]:
     return [i for i in ids if _candidates(index, rows.get(i) or {})]
 
 
+def no_decision_why(found, ids, ws: Workspace) -> str:
+    """" (such as an error)" when one of the marked answers `ids` has no decision because the
+    judge's call failed or its grade is the word error; else nothing: an empty grade may be
+    one the eval tool counted as done."""
+    kinds = {id(r): kind for kind, r in found.pool.left.values()}
+    index = _index(r for _, r in found.pool.left.values())
+    rows = _rows(ws)
+    errors = (judge_check.ERROR, judge_check.ERROR_GRADE)
+    return SUCH_AS_ERROR if any(kinds[id(a)] in errors for i in ids
+                                for a in _candidates(index, rows.get(i) or {})) else ""
+
+
 UNKNOWN = ("judgekeeper can't tell which of the grades in {file} mean Pass and which mean "
            "Fail: {words}. It never guesses.")
 NEXT_UNKNOWN = ("grade each answer with the grade words your marked results use, then run "
@@ -1334,6 +1364,11 @@ def full(path: str, said: Said) -> int:
             from judgekeeper.fix import mlflow_store
 
             store = mlflow_store(state.ws)
+            if store and isinstance(problem, OtherName):
+                said.say("Next: " + NAMED_AGAIN.format(
+                    name=repr(scrub(state.data.get("metric") or "")), command=program("check"),
+                    store=store))
+                return EXIT_USAGE
             said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
                      NEXT_GIVEN.format(results=_new_results(state.data.get("tool")),
                                        command=program("check")))
@@ -1619,7 +1654,8 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     kinds = [state.marks[i] for i in matched]
     few = min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH
     if not matched:
-        said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
+        said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e),
+                                    why=no_decision_why(found, gone, state.ws)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
         from judgekeeper import fix
@@ -1635,7 +1671,8 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
                                else "them"))
         if e:
-            said.say(NO_DECISION.format(e=e, are=_are(e)))
+            said.say(NO_DECISION.format(e=e, are=_are(e),
+                                        why=no_decision_why(found, gone, state.ws)))
     c = _asked_again(found, gone, state.ws) if gone else 0
     if c:
         said.say(CHANGED.format(c=c))

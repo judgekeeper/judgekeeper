@@ -310,10 +310,12 @@ def _shapes(ws: Workspace) -> dict[str, list[dict]]:
         "other-question": [r | {"input": "A different question?"} for r in same],
         "zwsp": [r | {"output": r["output"].replace(" ", " \u200b", 1)} for r in same],
         "all-error": [r | {"verdict": "error"} for r in same],
+        "all-blank": [r | {"verdict": ""} for r in same],
     }
 
 
-@pytest.mark.parametrize("shape", ["unrelated", "other-question", "zwsp", "all-error"])
+@pytest.mark.parametrize("shape", ["unrelated", "other-question", "zwsp", "all-error",
+                                   "all-blank"])
 def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, shape):
     ws = project(here)
     capsys.readouterr()
@@ -323,8 +325,25 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
     if shape == "all-error":
         assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
                 "with no decision from your LLM-as-a-judge (such as an error).") in out
+    elif shape == "all-blank":  # not called an error: the eval tool may have counted them done
+        assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
+                "with no decision from your LLM-as-a-judge.") in out
+        assert "such as an error" not in out
     else:
         assert "None of your 60 marked answers is in your new results." in out
+
+
+@pytest.mark.parametrize("grade, why", [("", ""), ("error", " (such as an error)")])
+def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
+    """A few marked answers graded, a few there with no decision, the rest not in the file."""
+    ws = project(here)
+    capsys.readouterr()
+    same = [_row(i) for i in range(N)]
+    mixed = ([r | {"verdict": grade} for r in same[:4]] + same[4:10]
+             + _shapes(ws)["unrelated"][10:])
+    code, out = run(capsys, "check", write(here, "new.csv", mixed))
+    assert code == 3, out
+    assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out
 
 
 def test_check_on_unknown_grade_words_refuses_them(here, capsys):

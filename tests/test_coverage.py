@@ -104,10 +104,11 @@ def test_the_numbers_on_screen_are_in_the_committed_grid():
     md = (folder / "coverage.md").read_text(encoding="utf-8")
     readme = (root / "README.md").read_text(encoding="utf-8")
     level = grid["corrected"]["levels"][str(grid["corrected"]["chosen_level"])]
-    # the README's coverage figures: the lowest anywhere, and the main grid's average
+    # the coverage report holds the lowest anywhere and the main grid's average; the README
+    # says the average
     for figure in (lowest_tpr_tnr_coverage(grid), level["mean"]):
         assert f"{figure * 100:.1f}" in md, figure
-        assert f"{figure * 100:.1f}" in readme, figure
+    assert f"{level['mean'] * 100:.1f}" in readme
     for page in (readme, (root / "docs" / "reference.md").read_text(encoding="utf-8")):
         assert "examples/coverage" in page
 

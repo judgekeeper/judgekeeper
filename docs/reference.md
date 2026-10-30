@@ -4,6 +4,10 @@ Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check. The [R
 
 An LLM-as-a-judge is a model that grades your eval's answers by a rule you wrote. Each run ends with one `Next:` line that says what to do.
 
+## Install
+
+In your project folder, in its virtual environment, `pip install judgekeeper`, then `judgekeeper`. Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14 is supported. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever these pages say `judgekeeper`.
+
 ## judgekeeper: find, mark, measure
 
 ```
@@ -34,7 +38,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--experiment NAME_OR_ID` | MLflow: the experiment to read, when several have LLM-as-a-judge results. Kept with your marks: later runs read it without the flag |
 | `--tracking-uri URI` | MLflow: the local store to read (`mlflow.db`, `sqlite:///...`, an `mlruns/` folder or `file:...`) |
 | `--pass-if RULE` | When your LLM-as-a-judge's grades are scores: which pass, e.g. `'score>=0.5'` |
-| `--label-map MAP` | More spellings of your LLM-as-a-judge's grades, e.g. `'good=pass,bad=fail'` (added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0); `=error` for a value that is no decision |
+| `--label-map MAP` | More spellings of your LLM-as-a-judge's grades, e.g. `'good=pass,bad=fail'` (added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0); `=error` for a value that is no decision. Kept with your marks: later runs read the same way without it |
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
 | `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
@@ -288,6 +292,15 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 - **The browser didn't open:** open the link judgekeeper printed.
 - **"This link no longer works":** each time judgekeeper opens its page, it makes a new link, and older links stop working. Your marks are saved. Run `judgekeeper mark` to open the page again.
 - **To remove judgekeeper:** run `pip uninstall judgekeeper`, then delete `.judgekeeper/` and `judgekeeper.toml` from your project.
+
+## Checked on public data
+
+- **JailbreakBench.** GPT-4 graded 300 answers that three experts also marked. In 100 tests with 100 marks each, judgekeeper's ranges held the true TPR in 99, the true TNR in 94 and the true kappa in 100; all three at once in 93. [Report](examples/jailbreakbench/report.md)
+- **RAGTruth.** Two models graded 200 news summaries with one rule. Both failed about one in three of the summaries people passed, and judgekeeper said "needs work" in all 6 runs. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](examples/ragtruth/report.md)
+- **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](examples/probes/report.md)
+- **Simulation.** In made-up checks, the ranges held the true value as often as the level asks. The average is the chosen level's Average, in the report's first table. The lowest is when marking stops at 15 Pass and 15 Fail (the table "The real stopping rule"). [Coverage check](examples/coverage/coverage.md)
+
+The tests run on Linux, Windows and macOS.
 
 ## Exit codes
 

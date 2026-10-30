@@ -613,7 +613,8 @@
   }
   // table.open_quote: the line where a quoted cell starts that swallows the rows after it (its
   // quote never closes, or closes only rows later), or null. Read as Python's csv reader reads
-  // with strict on: a line at a time, and a quote out of place elsewhere ends the look.
+  // with strict on: a line at a time; text after a quote that closes on a later line, on a line
+  // that began as a row, names the row; any other quote out of place ends the look.
   function openQuote(text, d) {
     var lines = text.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [];
     var header = null, verdict = null, start = 1, k = 0, EOL = null;
@@ -640,7 +641,7 @@
             if (c === '"') { field += c; state = 'quoted'; }
             else if (c === d) { fields.push(field); field = ''; state = 'field'; }
             else if (newline) { fields.push(field); field = ''; state = c === EOL ? 'record' : 'eat'; }
-            else return null;  // a quote out of place, not one that never closes
+            else return k > start && line.split('"')[0].indexOf(d) >= 0 ? start : null;  // closed late on a line that began as a row: rows swallowed; else a quote out of place
           } else if (state === 'eat') {
             if (c === EOL) state = 'record'; else if (!newline) return null;
           }
@@ -649,6 +650,7 @@
       if (header === null) {
         header = fields;
         verdict = header.findIndex(function (h) { return VERDICT_COLUMNS.indexOf(columnName(h)) >= 0; });
+        if (verdict < 0) verdict = header.findIndex(function (h) { return columnName(h) === 'score'; });  // with no verdict column, the score
         if (verdict < 0) verdict = null;
       } else if (header.length >= 3 && fields.some(function (cell) { return cell.indexOf('\n') >= 0 && rowsInside(cell, d, header.length, verdict) >= 2; })) {
         return start;
@@ -1202,18 +1204,20 @@
     var models = Array.from(new Set(records.map(function (x) { return x.model; }).filter(truthy).map(String))).sort(pyOrder);
     var promptRec = records.find(function (x) { return truthy(x.prompt); });
     var rule = ruleText(promptRec ? promptRec.prompt : null);
+    // with no pass mark known, a plain 1 or 0 among scores is a score too: none is counted as a Pass or Fail
+    var scores = pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null;
     return {
       key: metric,  // as the file has it; never shown
       name: oneLine(clean(metric, 80)) || 'unnamed',
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
-      pass: pool.nPass, fail: pool.nFail,
+      pass: scores ? 0 : pool.nPass, fail: scores ? 0 : pool.nFail,
       merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
       human: r.humanFor === undefined || r.humanFor === metric ? r.nHuman : 0, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
-      scores: pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null,
+      scores: scores,
       counts: block,
       allFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'error'; }),
       allModelFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'model_failed'; }),
@@ -1221,8 +1225,8 @@
       modelNotWritten: r.tool === 'promptfoo' && !models.length,
       models: models.map(function (m) { return oneLine(clean(m, 120)); }),
       rule: rule === null ? null : oneLine(clean(rule)),
-      findings: findingLines(block),
-      first: pool.answers.length ? { input: pool.answers[0].input, output: pool.answers[0].output, verdict: pool.answers[0].verdict } : null
+      findings: scores ? [] : findingLines(block),
+      first: pool.answers.length && !scores ? { input: pool.answers[0].input, output: pool.answers[0].output, verdict: pool.answers[0].verdict } : null
     };
   }
 

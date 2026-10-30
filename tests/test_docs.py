@@ -9,7 +9,7 @@ import re
 from tests.website_pages import ROOT
 
 README = ROOT / "README.md"
-STEPS = (("Find", "`judgekeeper`"), ("Mark", "the page opens by itself"),
+STEPS = (("Find", "`judgekeeper`"), ("Mark", "a page opens in your browser"),
          ("Measure", "`judgekeeper`"), ("Fix", "`judgekeeper fix`"),
          ("Re-check", "`judgekeeper check`"))
 
@@ -40,7 +40,7 @@ def test_the_readme_is_short_and_in_order():
         assert needed in top, needed
     assert (ROOT / "docs" / "assets" / "demo.webp").stat().st_size < 1_000_000
     heads = list(_sections(text))
-    wanted = ["Install", "The 5 steps", "What the numbers mean", "Checked on public data",
+    wanted = ["Install", "The 5 steps", "The numbers", "Checked on public data",
               "More", "License"]
     assert [h for h in heads if h in wanted] == wanted
 
@@ -48,7 +48,7 @@ def test_the_readme_is_short_and_in_order():
 def test_the_readme_has_each_step_with_its_command():
     steps = _sections(_readme())["The 5 steps"]
     for n, (step, command) in enumerate(STEPS, 1):
-        line = next(x for x in steps.splitlines() if x.startswith(f"{n}. **{step}** ("))
+        line = next(x for x in steps.splitlines() if x.startswith(f"{n}. **{step}:**"))
         assert command in line, step
 
 
@@ -75,7 +75,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
     draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "hundred-marks" / "draws.csv")
     summary = json.loads(draws.with_name("summary.json").read_text(encoding="utf-8"))
     n, each = summary["draws"], summary["inside_each"]
-    jbb = linked["jailbreakbench/report.md"]
+    jbb = next(x for x in _sections((ROOT / "docs" / "reference.md").read_text(
+        encoding="utf-8"))["Checked on public data"].splitlines() if x.startswith("- **JailbreakBench"))
     assert f"In {n} tests with {summary['marks_per_draw']} marks each" in jbb
     assert (f"TPR in {each['tpr']}, the true TNR in {each['tnr']} and the true kappa in "
             f"{each['kappa']}; all three at once in {summary['all_three_inside']}") in jbb
@@ -117,11 +118,15 @@ def test_the_readme_says_where_its_coverage_figures_are():
     from_json = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
                     for k in ("tpr", "tnr"))
     assert lowest == f"{from_json * 100:.1f}"
-    line = next(x for x in _readme().splitlines() if x.startswith("- **Simulation.**"))
-    assert (f"held the true value {average} times in 100 on average (the chosen level's "
-            f"Average, in the report's first table). The lowest was {lowest} times in 100, when "
-            "marking stops at 15 Pass and 15 Fail (the table \"The real stopping rule\").") in line
+    line = next(x for x in _readme().splitlines() if x.startswith("- [Simulation]"))
+    assert f"held the true value {average} times in 100 on average" in line
     assert "never fewer" not in line
+    # the reference says where the average and the lowest are (and, by test_coverage, repeats
+    # neither figure)
+    reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
+    assert ("The average is the chosen level's Average, in the report's first table. The lowest "
+            "is when marking stops at 15 Pass and 15 Fail (the table \"The real stopping "
+            "rule\").") in reference
 
 
 def test_the_readme_keeps_to_the_agreed_words():
