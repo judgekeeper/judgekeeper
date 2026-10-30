@@ -39,9 +39,10 @@ def _old_grade(answer: str) -> str:
     return _row(_number(answer))["verdict"]
 
 
-def _as_before(ws, blank) -> list[dict]:
-    """marked-answers.csv graded again with every grade the old one gave, but `blank` with none."""
-    return [r | {"verdict": "error"} if r["output"] in blank else r
+def _as_before(ws, blank, grade: str = "error") -> list[dict]:
+    """marked-answers.csv graded again with every grade the old one gave, but `blank` with
+    `grade` (the word error, or nothing)."""
+    return [r | {"verdict": grade} if r["output"] in blank else r
             for r in regraded(ws, grade=_old_grade)]
 
 
@@ -62,14 +63,33 @@ def test_unchanged_grades_with_some_ungraded_are_counted(here, capsys, k):
     assert f"{k} from right to wrong" in out
 
 
-def test_unchanged_grades_with_most_ungraded_are_refused(here, capsys):
+@pytest.mark.parametrize("grade, why", [("error", " (such as an error)"), ("", "")])
+def test_unchanged_grades_with_most_ungraded_are_refused(here, capsys, grade, why):
+    """"(such as an error)" only when an answer was an error: a blank grade may be one the eval
+    tool counted as done."""
     ws = project(here)
     capsys.readouterr()
-    code, out = run(capsys, "fix", write(here, "new.csv", _as_before(ws, set(kept_aside(ws)[:16]))))
+    code, out = run(capsys, "fix", write(here, "new.csv",
+                                         _as_before(ws, set(kept_aside(ws)[:16]), grade)))
     assert code == 3, out
     assert "changes nothing" not in out
-    assert fix.MOSTLY_BLANK.format(k=16, n=30, have="have") in out
+    assert fix.MOSTLY_BLANK.format(k=16, n=30, have="have", why=why) in out
+    assert ("such as an error" in out) == bool(why)
     assert fix.read_split(ws).tests == []
+
+
+@pytest.mark.parametrize("grade, why", [("error", " (such as an error)"), ("", "")])
+def test_answers_missing_and_ungraded_say_an_error_only_for_an_error(here, capsys, grade, why):
+    """3 answers kept aside are not in the file and 2 are there with no grade."""
+    ws = project(here)
+    capsys.readouterr()
+    kept = kept_aside(ws)
+    rows = [r for r in _as_before(ws, set(kept[3:5]), grade) if r["output"] not in kept[:3]]
+    code, out = run(capsys, "fix", write(here, "new.csv", rows))
+    assert code == 3, out
+    assert ("3 are not in the file and 2 have no decision from your LLM-as-a-judge"
+            f"{why}. A rule is tested only on all of them") in out
+    assert ("such as an error" in out) == bool(why)
 
 
 # D2: the refusal first, and a replay says where its result came from -------------------------
@@ -100,7 +120,7 @@ def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     flat = " ".join(out.split())
     assert code == 3, out
     assert "You tested this LLM-as-a-judge before" not in flat
-    assert fix.MOSTLY_BLANK.format(k=n // 2 + 1, n=n, have="have") in flat
+    assert fix.MOSTLY_BLANK.format(k=n // 2 + 1, n=n, have="have", why="") in flat
     day = _day(tf._split(ws)["tests"][-1]["time"])
     code, out = tf.run(capsys, _regraded(here, "again.json", set(hidden[:4])))
     flat = " ".join(out.split())
@@ -110,8 +130,32 @@ def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
             f"on {day}.") in flat
     code, out = tf.run(capsys, _regraded(here, "full.json", set()))
     flat = " ".join(out.split())
-    assert code == 0 and f"The result above is from first.json on {day}." in flat, out
+    assert code == 0, out
+    assert (f"full.json has the same rule as first.json ({day}), so the result above is the "
+            f"same.") in flat
     assert "ungraded" not in flat
+    code, out = tf.run(capsys, "first.json")  # the file the result came from: no other name
+    assert code == 0 and (f"This file leaves 2 of the {n} ungraded; the result above is from "
+                          f"first.json on {day}.") in " ".join(out.split())
+
+
+def test_a_table_with_the_grades_of_an_earlier_file_names_both(here, capsys):
+    """A result reused for another file says which file is given now and that its grades match
+    the earlier one, not that "the result above is from" a file the person did not name."""
+    ws = project(here)
+    capsys.readouterr()
+    rows = regraded(ws, grade=_old_grade)
+    rows = [r | {"verdict": "fail" if r["verdict"] == "pass" else "pass"}
+            if r["output"] in kept_aside(ws)[:3] else r for r in rows]
+    assert run(capsys, "fix", write(here, "nomodel-rule2.csv", rows))[0] == 0
+    day = _day(json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
+               ["tests"][-1]["time"])
+    code, out = run(capsys, "fix", write(here, "regrade-rule2.csv", rows))
+    assert code == 0, out
+    assert "You tested this LLM-as-a-judge before" in out
+    assert (f"regrade-rule2.csv has the same grades as nomodel-rule2.csv ({day}), so the "
+            f"result above is the same.") in out
+    assert "The result above is from" not in out
 
 
 # D3: check names the earlier result in fix's own words ----------------------------------------
