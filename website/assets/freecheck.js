@@ -613,7 +613,8 @@
   }
   // table.open_quote: the line where a quoted cell starts that swallows the rows after it (its
   // quote never closes, or closes only rows later), or null. Read as Python's csv reader reads
-  // with strict on: a line at a time, and a quote out of place elsewhere ends the look.
+  // with strict on: a line at a time; text after a quote that closes on a later line, on a line
+  // that began as a row, names the row; any other quote out of place ends the look.
   function openQuote(text, d) {
     var lines = text.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [];
     var header = null, verdict = null, start = 1, k = 0, EOL = null;
@@ -640,7 +641,7 @@
             if (c === '"') { field += c; state = 'quoted'; }
             else if (c === d) { fields.push(field); field = ''; state = 'field'; }
             else if (newline) { fields.push(field); field = ''; state = c === EOL ? 'record' : 'eat'; }
-            else return null;  // a quote out of place, not one that never closes
+            else return k > start && line.split('"')[0].indexOf(d) >= 0 ? start : null;  // closed late on a line that began as a row: rows swallowed; else a quote out of place
           } else if (state === 'eat') {
             if (c === EOL) state = 'record'; else if (!newline) return null;
           }

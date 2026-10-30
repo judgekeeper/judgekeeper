@@ -139,6 +139,26 @@ def test_a_score_table_with_a_quote_that_never_closes_is_still_named(here, capsy
     assert code == 2 and "line 22 of results.csv has a quote that never closes" in flat(out), out
 
 
+@pytest.mark.parametrize("tail", ["one_quoted", "two_quoted", "reason_with_comma"])
+@pytest.mark.parametrize("grade", ["score", "verdict"])
+def test_a_quote_that_closes_only_on_a_later_row_is_named_not_dropped(here, capsys, grade, tail):
+    """The quote on line 42 closes on the next row's own quote: the cell holds the rest of its
+    row and the start of the next, and the rest of that row follows the closing quote. Rows used
+    to be dropped with no word (exit 0); now the quote on line 42 is named."""
+    mark = "0.9" if grade == "score" else "pass"
+    lines = [f"id,input,output,{grade},reason"]
+    lines += [f'q-{i},Question {i}?,"Answer {i}, short.",{mark},"Reason {i}, yes."'
+              for i in range(40)]
+    lines.append(f'q-40,Question 40?,"Answer 40 never closes,{mark},Reason 40.')
+    lines.append({"one_quoted": f'q-41,Question 41?,"Answer 41",{mark},Reason 41.',
+                  "two_quoted": f'q-41,Question 41?,"Answer 41",{mark},"Reason 41."\n'
+                                f'q-42,Question 42?,"Answer 42",{mark},"Reason 42."',
+                  "reason_with_comma": f'q-41,Question 41?,Answer 41,{mark},"Reason, 41."'}[tail])
+    (here / "results.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, out = find(capsys, *(("--pass-if", "score>=0.5") if grade == "score" else ()))
+    assert code == 2 and "line 42 of results.csv has a quote that never closes" in flat(out), out
+
+
 # A blank or NaN score -----------------------------------------------------------------------
 
 @pytest.mark.parametrize("blank", ["", "NaN"])

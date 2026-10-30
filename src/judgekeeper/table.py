@@ -227,10 +227,11 @@ def problem(path: str | Path) -> str | None:
 def open_quote(path: str | Path, loose: bool = False) -> int | None:
     """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
     it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
-    when two lines or more inside it read as whole rows: one value per column, and a grade
-    in the verdict column (or, with none, the score column) when the table has one (an
-    answer over several lines, with commas, is not a row); with `loose`, when it holds a
-    line break at all (a hint, not a finding)."""
+    when a quote closes on a later line that began as a row, with text after it, or two
+    lines or more inside it read as whole rows: one value per column, and a grade in the verdict column (or, with
+    none, the score column) when the table has one (an answer over several lines, with
+    commas, is not a row); with `loose`, when it holds a line break at all (a hint, not a
+    finding)."""
     from judgekeeper.find import VERDICT_COLUMNS
 
     path = Path(path)
@@ -256,9 +257,17 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
                 return start
             start = reader.line_num + 1
     except csv.Error as e:
-        if loose or "unexpected end of data" in str(e):  # loose: any quote out of place
+        # loose: any quote out of place; else one that closes on a later line, on a line
+        # that began as a row (a delimiter before the quote), swallowed the rows between
+        if loose or "unexpected end of data" in str(e) or (
+                reader.line_num > start and delimiter in _line(text, reader.line_num).split('"')[0]):
             return start
     return None
+
+
+def _line(text: str, number: int) -> str:
+    """Line `number` (from 1) of `text`, split as csv.reader splits lines."""
+    return io.StringIO(text, newline="").readlines()[number - 1]
 
 
 def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int | None) -> int:

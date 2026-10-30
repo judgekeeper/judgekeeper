@@ -72,6 +72,21 @@ def test_a_quote_that_never_closes_names_its_line(tmp_path):
                                  "rows after it can't be read.")
 
 
+@pytest.mark.parametrize("grade", ["verdict", "score"])
+def test_a_quote_that_closes_only_on_a_later_row_names_its_line(tmp_path, grade):
+    mark = "pass" if grade == "verdict" else "0.9"
+    rows = [f'q-{i},Question {i}?,"Answer {i}, short.",{mark},"Reason {i}, yes."'
+            for i in range(10)]
+    rows[4] = f'q-4,Question 4?,"Answer 4 never closes,{mark},Reason 4.'
+    path = _csv(tmp_path / "results.csv", f"id,input,output,{grade},reason", rows)
+    with pytest.raises(start.StartError, match="line 6 of results.csv has a quote that never"):
+        start.read_results_table(path)
+    result = browser(path)
+    assert result["ok"] is False
+    assert result["message"] == ("Line 6 of this file has a quote that never closes, so the "
+                                 "rows after it can't be read.")
+
+
 def test_a_long_answer_in_a_score_table_is_not_a_broken_quote(tmp_path):
     """Lines of the answer split into as many values as a row, with no score on them."""
     long = "\n".join(f"Point {k}, the fee, the term, the rules, and what members ask about "
