@@ -84,7 +84,7 @@ Step 1 of 5: Find
 Eval tool:       promptfoo
 File:            results.json
 Answers:         40 answers
-LLM-as-a-judge:  openai:gpt-4.1-mini
+LLM-as-a-judge:  my-judge-v1
 Rule:            "The answer solves the customer's problem and is polite."
 judgekeeper has read from your file:
   question   each test's vars
@@ -115,7 +115,7 @@ Step 1 of 5: Find
 Eval tool:       promptfoo
 File:            results.json
 Answers:         40 answers
-LLM-as-a-judge:  openai:gpt-4.1-mini
+LLM-as-a-judge:  my-judge-v1
 Rule:            "The answer solves the customer's problem and is polite."
 judgekeeper has read from your file:
   question   each test's vars
@@ -240,7 +240,7 @@ Step 5 of 5: Re-check
 New results: results.json
 
 Your LLM-as-a-judge's model changed:
-  openai:gpt-4.1-mini -&gt; openai:gpt-4.1-nano
+  my-judge-v1 -&gt; my-judge-v2
 
 Result: worse. Your new LLM-as-a-judge agrees with you less.
 

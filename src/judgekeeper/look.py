@@ -32,7 +32,7 @@ SHIELD = ('<svg viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
           '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
           'stroke-linecap="round" stroke-linejoin="round"/></svg>')
 LOGO = f'<span class="logo-mark">{SHIELD}</span>'
-BRAND = f'<span class="brand">{LOGO}<span>judgekeeper</span></span>'
+BRAND = f'<span class="brand">{LOGO}<span>judgekeeper<sup>™</sup></span></span>'
 
 
 @lru_cache(maxsize=1)
@@ -87,6 +87,7 @@ code, kbd { font-family: var(--mono); }
   overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .brand { display: flex; align-items: center; gap: 11px; color: var(--text); justify-self: center;
   font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+.brand sup { font-size: 12px; line-height: 1; font-weight: 600; }
 .logo-mark { display: inline-flex; flex: none; }
 .logo-mark svg { width: 34px; height: 38px; }
 .top .right { min-width: 0; display: flex; align-items: center; justify-content: flex-end;

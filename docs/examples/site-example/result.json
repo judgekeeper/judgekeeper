@@ -61,21 +61,21 @@
   "skipped": 0,
   "disagreements": 16,
   "left": 10,
-  "made_at": "2026-10-27T16:01:25Z",
+  "made_at": "2026-10-30T21:46:38Z",
   "numbers_version": 2,
   "judgekeeper_version": "1.0.0",
   "fingerprint": {
-    "provider": "openai",
-    "model": "openai:gpt-4.1-mini",
+    "provider": "my-judge-v1",
+    "model": "my-judge-v1",
     "snapshot": null,
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-10-27T16:01:25Z",
+    "created_at": "2026-10-30T21:46:38Z",
     "endpoint": "unknown"
   },
   "judge": {
-    "name": "llm-rubric \"The answer solves the customer's problem and is polite.\" with openai:gpt-4.1-mini",
+    "name": "llm-rubric \"The answer solves the customer's problem and is polite.\" with my-judge-v1",
     "tool": "promptfoo",
     "metric": "llm-rubric",
     "rule": "The answer solves the customer's problem and is polite.",
@@ -122,5 +122,5 @@
     "path": ".",
     "port": 8765
   },
-  "marks_sha256": "be1a087bd5f59a2e6ce4208c15b1f1fb6a36e2683aaec4631d74c6335d46a3ae"
+  "marks_sha256": "6ef0855335250a0327c2df08f5dc3495d8b3c4f887c1ddbd514c74c83425127f"
 }

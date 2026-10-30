@@ -51,6 +51,10 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "assets" / "demo.webp"
 FONTS = ROOT / "website" / "assets" / "fonts"
 WIDTH, HEIGHT, BAR = 1000, 720, 44  # the window, and its title bar, in pixels
+OUTLINE = (38, 42, 48)  # #262a30: the window's 1 pixel outline, on all four sides
+PAGE_WIDTH = 1280  # the marking page is laid out this wide, then scaled into the window
+SCALE = (WIDTH - 2) / PAGE_WIDTH  # inside the outline: it stays on the left and the right
+INNER_HEIGHT = HEIGHT - BAR - 1  # the page's rows: from under the bar to above the outline
 MAX_BYTES = 1_000_000
 SECONDS = (15.0, 20.0)  # how long the demo may last
 QUALITIES = (90, 85, 80, 75, 70, 65, 60)
@@ -194,12 +198,23 @@ class Frames:
         self.chrome.call("Emulation.setDeviceMetricsOverride", width=WIDTH, height=height,
                          deviceScaleFactor=1, mobile=False)
 
-    def _grab(self, height: int) -> Image.Image:
-        clip = {"x": 0, "y": 0, "width": WIDTH, "height": height, "scale": 1}
+    def _page_viewport(self) -> None:
+        """The marking page at PAGE_WIDTH: wide enough that no header text is cut off."""
+        self.chrome.call("Emulation.setDeviceMetricsOverride", width=PAGE_WIDTH,
+                         height=round(INNER_HEIGHT / SCALE), deviceScaleFactor=1, mobile=False)
+
+    def _grab(self, height: int, width: int = WIDTH, scale: float = 1) -> Image.Image:
+        clip = {"x": 0, "y": 0, "width": width, "height": height, "scale": scale}
         data = self.chrome.call("Page.captureScreenshot", format="png", clip=clip)["data"]
         parser = ImageFile.Parser()  # the PNG from bytes
         parser.feed(base64.b64decode(data))
         return parser.close().convert("RGB")
+
+    def _grab_page(self) -> Image.Image:
+        """The marking page, scaled by Chrome into the window's inner box (no outline pixel)."""
+        image = self._grab(INNER_HEIGHT / SCALE, PAGE_WIDTH, SCALE)
+        size = (WIDTH - 2, INNER_HEIGHT)
+        return image if image.size == size else image.resize(size, Image.LANCZOS)
 
     def add(self, image: Image.Image, ms: int) -> None:
         if self.items and not ImageChops.difference(self.items[-1][0], image).getbbox():
@@ -235,18 +250,49 @@ class Frames:
 
     def browser(self, bar: Image.Image, ms: int, pointer: tuple[float, float] | None = None,
                 pressed: bool = False) -> None:
-        page = self._grab(HEIGHT - BAR)
+        """A frame of the marking page; `pointer` is the mouse tip in the page's own pixels."""
+        problem = self.chrome.run(HEADER_PROBLEM)
+        if problem:
+            raise SystemExit(f"the marking page's header: {problem}")
+        page = self._grab_page()
         frame = Image.new("RGB", (WIDTH, HEIGHT), "#07080a")
         frame.paste(bar, (0, 0))
-        frame.paste(page, (0, BAR))
+        frame.paste(page, (1, BAR))
         draw = ImageDraw.Draw(frame)
-        draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline="#262a30")
+        draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=OUTLINE)
         if pointer is not None:
-            arrow(draw, pointer[0], pointer[1] + BAR, pressed)
+            arrow(draw, 1 + pointer[0] * SCALE, BAR + pointer[1] * SCALE, pressed)
+        check_outline(frame)
         self.add(frame, ms)
 
     def seconds(self) -> float:
         return sum(ms for _, ms in self.items) / 1000
+
+
+# The header must fit: nothing cut off with an ellipsis, and the same margin on the left (where
+# the LLM-as-a-judge's name starts) as on the right (where the count of marks ends).
+HEADER_PROBLEM = """(function () {
+  var cut = [].filter.call(document.querySelectorAll('.top .meta .v'),
+    function (e) { return e.scrollWidth > e.clientWidth; });
+  if (cut.length) return 'cut off: ' + cut[0].textContent;
+  var top = document.querySelector('.top');
+  var kids = [].map.call(top.querySelectorAll('.meta .k, .right *'),
+    function (e) { return e.getBoundingClientRect(); }).filter(function (r) { return r.width; });
+  var left = Math.min.apply(null, kids.map(function (r) { return r.left; }));
+  var right = window.innerWidth - Math.max.apply(null, kids.map(function (r) { return r.right; }));
+  if (Math.abs(left - right) > 2) return 'margins differ: ' + left + ' left, ' + right + ' right';
+  return '';
+})()"""
+
+
+def check_outline(frame: Image.Image) -> None:
+    """The window outline is there on all four sides of a frame, the whole way round."""
+    w, h = frame.size
+    lines = {"left": [(0, y) for y in range(h)], "right": [(w - 1, y) for y in range(h)],
+             "top": [(x, 0) for x in range(w)], "bottom": [(x, h - 1) for x in range(w)]}
+    for side, points in lines.items():
+        if any(frame.getpixel(point) != OUTLINE for point in points):
+            raise SystemExit(f"the window outline is missing on the {side} of a frame")
 
 
 def arrow(draw: ImageDraw.ImageDraw, x: float, y: float, pressed: bool) -> None:
@@ -287,9 +333,9 @@ def click(chrome: Chrome, frames: Frames, bar: Image.Image, element: str, hover:
 def marking(chrome: Chrome, frames: Frames, start: Start, link: str) -> None:
     """The marking page as judgekeeper opened it: close the first-time card, then mark three
     answers the way the person would, with the mouse."""
-    frames._viewport(HEIGHT - BAR)
+    frames._page_viewport()
     bar = frames.browser_bar(link)
-    frames._viewport(HEIGHT - BAR)
+    frames._page_viewport()
     chrome.visit(link)
     if chrome.run("document.getElementById('intro').hidden"):
         raise SystemExit("the marking page showed no first-time card")

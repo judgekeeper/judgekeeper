@@ -194,6 +194,19 @@ def test_focus_rings_and_no_focus_on_load():
         assert radii <= {"4px", "2px"}, (name, radii)  # the buttons, the welcome box
 
 
+def test_the_brand_has_one_tm_after_the_name_and_none_on_the_logo():
+    """Logo next to the wordmark: ™ right after the name, styled like the website's .brand sup."""
+    assert look.BRAND.endswith("<span>judgekeeper<sup>™</sup></span></span>")
+    assert look.BRAND.count("™") == 1 and "™" not in look.LOGO
+    for name, page in _served().items():
+        if 'class="brand"' not in page:
+            continue
+        style = page.split("<style>")[1].split("</style>")[0]
+        assert ".brand sup { font-size: 12px; line-height: 1; font-weight: 600; }" in style, name
+        assert page.count("<sup>™</sup>") == page.count('class="brand"'), name  # one each
+        assert "™" not in page.replace("<sup>™</sup>", ""), name  # never in text or code
+
+
 def test_the_top_bar_is_the_same_on_every_page():
     for name, page in (("marking", _marking()),
                        ("result", start_label.result_html(_result(*CHECK), back="/?token=t"))):
@@ -332,7 +345,7 @@ def test_the_welcome_box_is_a_modal_over_the_whole_window():
     assert '<button type="button" class="go" id="intro-ok">Start marking</button>' in page
     box = page.split('id="intro-box"')[1].split('tabindex="-1">', 1)[1].split("</div>\n</div>")[0]
     assert re.sub(r"<[^>]+>", " ", box).split() == [  # the logo, the headline, the button
-        "judgekeeper", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
+        "judgekeeper", "™", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
 
 
 def test_the_welcome_box_is_centred_green_and_plain():

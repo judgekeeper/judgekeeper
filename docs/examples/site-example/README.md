@@ -1,7 +1,7 @@
 # Example project (made-up answers)
 
 The example project the terminal screens on the website's home page show: a promptfoo eval of
-a support bot with 40 made-up answers, graded by openai:gpt-4.1-mini (23 Pass, 17 Fail), and
+a support bot with 40 made-up answers, graded by my-judge-v1 (23 Pass, 17 Fail), and
 30 made-up marks. No AI was called: the two steps that grade answers again used made-up promptfoo
 results.
 

@@ -46,7 +46,7 @@ MAX_BYTES = 250_000
 QUALITIES = (85, 82, 78, 74, 70, 65, 60)
 MARKED_FIRST = range(12, 21)  # how many answers are marked before the labeling picture
 RULE = "Is polite and correct."
-MODEL = "openai:gpt-4.1-mini"
+MODEL = "my-judge-v1"
 NAME = "Polite and correct"
 CHROMES = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
            "/Applications/Chromium.app/Contents/MacOS/Chromium")
