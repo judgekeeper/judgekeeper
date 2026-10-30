@@ -19,12 +19,14 @@ LEGAL = [(f"{GITHUB}/blob/main/docs/reference.md", "Full reference"), ("privacy.
          (f"{GITHUB}/blob/main/SECURITY.md", "Security")]
 THEME = "#0b0c0e"  # style.css --bg: a phone's browser bar takes the page's colour
 FONTS = ("manrope-latin-wght-normal.woff2",)  # the text font, so the first screen never jumps
-ASSETS = 11  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
+ASSETS = 12  # ?v= on style.css and site.js: add one when either changes, so visitors load them again
 LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="false">'
         '<path d="M32 3 L5 12 V34 C5 51 17 63 32 69 Z" fill="#1E293B"/>'
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
         '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
         'stroke-linecap="round" stroke-linejoin="round"/></svg>')
+NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
+        "The Apache-2.0 license covers the code, not the name or logo.")
 
 
 def head_links() -> str:
@@ -54,20 +56,21 @@ def header(target: str) -> str:
         '<a class="skip" href="#main">Skip to the content</a>\n'
         '<header class="menu"><div class="wrap">\n'
         f'<nav class="menu-l" aria-label="Pages">{_links(NAV, target)}</nav>\n'
-        f'<a class="brand" href="index.html">{LOGO}<span>judgekeeper</span></a>\n'
+        f'<a class="brand" href="index.html">{LOGO}<span>judgekeeper<sup>™</sup></span></a>\n'
         f'<div class="menu-r"><a class="gh" href="{GITHUB}">GitHub</a></div>\n'
         "</div></header>")
 
 
 def footer() -> str:
-    """The logo, then only the links the menu does not have, and the copyright. The links are a
-    div with role="navigation": a nav would pick up the menu's styles."""
+    """The logo, then only the links the menu does not have, the copyright, and the trademark
+    notice. The links are a div with role="navigation": a nav would pick up the menu's styles."""
     return (
         '<footer class="foot"><div class="wrap">\n'
         f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
         f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
         f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
         "Apache-2.0 license</a></span></div>\n"
+        f'<p class="note">{NOTE}</p>\n'
         "</div></footer>")
 
 
