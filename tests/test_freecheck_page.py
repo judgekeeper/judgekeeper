@@ -99,6 +99,24 @@ def test_grades_that_are_scores_say_the_tool_asks_for_a_pass_mark(name, tmp_path
         assert wrong not in said, wrong
 
 
+@needs_node
+@pytest.mark.parametrize("grades", [["1", "0.4", "0.7", "0.2", "0.9", "0.3"],
+                                    ["0.4", "1", "0", "0.2", "0.9", "0.3"]])
+def test_scores_with_a_plain_1_or_0_count_no_pass_or_fail_and_show_no_grade(tmp_path, grades):
+    """With no pass mark known, a 1 or a 0 among scores is a score too: no 'passed N answers',
+    no Pass or Fail on the first answer."""
+    path = tmp_path / "graded.csv"
+    path.write_text("input,output,verdict\n" + "".join(
+        f"Question {i}?,Answer {i}.,{g}\n" for i, g in enumerate(grades)), encoding="utf-8")
+    result = browser(path)
+    (judge,) = result["judges"]
+    assert (judge["pass"], judge["fail"], judge["first"]) == (0, 0, None)
+    said = _lines(result)
+    assert "which score counts as a pass" in said
+    for wrong in (" passed ", " failed ", "clear Pass or Fail", "nothing to mark"):
+        assert wrong not in said, wrong
+
+
 NOT_CHECKED = {
     "page-records.jsonl": ("This is a judgekeeper.record() file. This page does not read it: "
                            "run uvx judgekeeper in your project for this file."),

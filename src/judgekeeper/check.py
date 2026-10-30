@@ -31,6 +31,7 @@ from judgekeeper import (
     __version__,
     batches,
     find,
+    judge_check,
     judge_setup,
     marks,
     page,
@@ -103,9 +104,9 @@ NAMED_AGAIN = ("evaluate the same traces again with your LLM-as-a-judge under th
                "the one your marks test (`mlflow.genai.evaluate()`), then run "
                "`{command} {store}`: it reads the newest run.")
 NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} there with no "
-               "decision from your LLM-as-a-judge (such as an error).")
-NO_DECISION = ("{e} of them {are} there with no decision from your LLM-as-a-judge (such as an "
-               "error).")
+               "decision from your LLM-as-a-judge{why}.")
+NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
+SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
           "It finds a marked answer by its exact text and question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
@@ -1174,6 +1175,18 @@ def no_decision(found, ids, ws: Workspace) -> list[str]:
     return [i for i in ids if _candidates(index, rows.get(i) or {})]
 
 
+def no_decision_why(found, ids, ws: Workspace) -> str:
+    """" (such as an error)" when one of the marked answers `ids` has no decision because the
+    judge's call failed or its grade is the word error; else nothing: an empty grade may be
+    one the eval tool counted as done."""
+    kinds = {id(r): kind for kind, r in found.pool.left.values()}
+    index = _index(r for _, r in found.pool.left.values())
+    rows = _rows(ws)
+    errors = (judge_check.ERROR, judge_check.ERROR_GRADE)
+    return SUCH_AS_ERROR if any(kinds[id(a)] in errors for i in ids
+                                for a in _candidates(index, rows.get(i) or {})) else ""
+
+
 UNKNOWN = ("judgekeeper can't tell which of the grades in {file} mean Pass and which mean "
            "Fail: {words}. It never guesses.")
 NEXT_UNKNOWN = ("grade each answer with the grade words your marked results use, then run "
@@ -1641,7 +1654,8 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     kinds = [state.marks[i] for i in matched]
     few = min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH
     if not matched:
-        said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e)) if e
+        said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e),
+                                    why=no_decision_why(found, gone, state.ws)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
         from judgekeeper import fix
@@ -1657,7 +1671,8 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
                                else "them"))
         if e:
-            said.say(NO_DECISION.format(e=e, are=_are(e)))
+            said.say(NO_DECISION.format(e=e, are=_are(e),
+                                        why=no_decision_why(found, gone, state.ws)))
     c = _asked_again(found, gone, state.ws) if gone else 0
     if c:
         said.say(CHANGED.format(c=c))

@@ -119,8 +119,9 @@ SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its comm
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
-IN_BROWSER = "The marking page is already open in your browser."  # no new tab for it
-CLOSED_IT = "Closed it? Run `{command}` to print its link."  # no terminal: no link
+IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
+# --no-browser opened none, so "in your browser" could be false
+CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
 COULD_NOT = "run `{command}` in your own terminal (it keeps the page open there)."
 PORT_TAKEN = "Port {port} is in use, so the marking page could not start."
 PORT_PAGE = "Port {port} is in use by judgekeeper's marking page for another project."
