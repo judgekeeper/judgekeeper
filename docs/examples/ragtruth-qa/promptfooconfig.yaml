@@ -1,0 +1,42 @@
+# judgekeeper credit run: RAGTruth question answers, one LLM-as-a-judge per run.
+# Frozen 2026-10-30, before any result. The rule below is rule.txt word for word. It is the
+# news-summary rule of ../ragtruth/rule.txt with "answer" for "summary" and "passages" for "article";
+# nothing else in the wording changed.
+#
+# The run kit (not in this repository) writes one copy per judge, with the provider id below
+# filled in as exactly one of:
+#   haiku:  anthropic:messages:claude-haiku-5-5
+#   sonnet: anthropic:messages:claude-sonnet-5-5
+#
+# No app is called: the provider is promptfoo's echo, and the prompt is the dataset's own
+# answer, so the output being graded is the RAGTruth answer itself.
+#
+# Same settings as ../ragtruth/promptfooconfig.yaml: no temperature is sent beyond the API
+# default (1, written here so the judge fingerprint records what really ran), thinking and
+# effort at the models' defaults, max_tokens raised to 8192 so thinking cannot cut the JSON
+# reply short.
+description: RAGTruth question answers, credit run
+prompts:
+  - "{{answer}}"
+providers:
+  - echo
+defaultTest:
+  options:
+    provider:
+      id: JUDGE_PROVIDER
+      config:
+        temperature: 1
+        max_tokens: 8192
+  assert:
+    - type: llm-rubric
+      value: |-
+        Every claim in the answer is supported by the passages. Pass if every claim is supported by the passages. Fail if any claim is not supported by the passages or contradicts them.
+
+        Question:
+        {{question}}
+
+        Passages:
+        <passages>
+        {{passages}}
+        </passages>
+tests: file://tests.yaml

@@ -1,0 +1,1 @@
+Every claim in the overview is supported by the data. Pass if every claim is supported by the data. Fail if any claim is not supported by the data or contradicts it.
