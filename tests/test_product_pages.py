@@ -194,15 +194,22 @@ def test_focus_rings_and_no_focus_on_load():
         assert radii <= {"4px", "2px"}, (name, radii)  # the buttons, the welcome box
 
 
+# The ™ after the wordmark, the same on the website and the tool pages: 0.42em of the name, a
+# 0.2em of the name as a gap before it (.476em of the ™), raised by its own size so its top lines
+# up with the top of the letters.
+TM_RULE = (".brand sup { font-size: .42em; line-height: 1; font-weight: 600; margin-left: .476em; "
+           "position: relative; top: -1em; vertical-align: baseline; }")
+
+
 def test_the_brand_has_one_tm_after_the_name_and_none_on_the_logo():
-    """Logo next to the wordmark: ™ right after the name, styled like the website's .brand sup."""
+    """Logo next to the wordmark: ™ right after the name, styled as the website's .brand sup."""
     assert look.BRAND.endswith("<span>judgekeeper<sup>™</sup></span></span>")
     assert look.BRAND.count("™") == 1 and "™" not in look.LOGO
     for name, page in _served().items():
         if 'class="brand"' not in page:
             continue
         style = page.split("<style>")[1].split("</style>")[0]
-        assert ".brand sup { font-size: 12px; line-height: 1; font-weight: 600; }" in style, name
+        assert TM_RULE in " ".join(style.split()), name
         assert page.count("<sup>™</sup>") == page.count('class="brand"'), name  # one each
         assert "™" not in page.replace("<sup>™</sup>", ""), name  # never in text or code
 
