@@ -205,11 +205,26 @@ def test_a_second_run_while_the_page_is_open_opens_no_new_tab(here, capsys, no_b
         assert front.IN_BROWSER in flat, out
         if at_terminal:
             assert f"{base}/?token={token}" in out.splitlines()
-            assert "Closed it?" not in flat
+            assert "Need its link?" not in flat
         else:
             assert token not in out + err and "http://" not in out
-            assert "Closed it? Run `judgekeeper " in flat and \
-                "--no-browser` to print its link." in flat, out
+            assert "Need its link? Run `judgekeeper " in flat and \
+                "--no-browser` to print it." in flat, out
+
+
+def test_a_page_started_with_no_browser_is_not_called_open_in_the_browser(
+        here, capsys, no_browser, monkeypatch):
+    """No tab was ever opened for it, and the second run cannot tell: it says the page is
+    running, never that it is open in the browser."""
+    from judgekeeper import page
+
+    assert _run(capsys, "--no-browser", "--port", "0")[0] == 0
+    monkeypatch.setattr(page, "terminal", lambda: False)
+    code, out, _ = _run(capsys, "mark", "--port", "0")
+    flat = " ".join(out.split())
+    assert code == 0, out
+    assert "The marking page is already running." in flat, out
+    assert "in your browser" not in flat.replace("Open this link in your browser", ""), out
 
 
 @pytest.mark.parametrize("again", [("mark", "--port", "0"), ("--no-browser", "--port", "0"),
