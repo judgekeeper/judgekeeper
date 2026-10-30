@@ -1,7 +1,7 @@
 # Source: RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media
 # Revision: c103204b9ce28d6bbad859304bf30de72b8ed8fe
 # Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type Summary
-# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); judge: Claude Opus 5.5 through promptfoo llm-rubric with rule.txt, 2026-10-30
+# Grades: marks: the dataset's human labels (Fail when the annotators marked at least one hallucination span, else Pass); judge: Claude Opus 5.5 (API default effort, medium) through promptfoo llm-rubric with rule.txt, 2026-10-30
 # Holds: ids, grades and counts only; no article or summary
 # The screen below is judgekeeper's Measure output, copied exactly.
 
@@ -9,7 +9,7 @@ judgekeeper 1.0.0
 
 Step 3 of 5: Measure
 
-191 of your marks took under a second each. A result is only as
+189 of your marks took under a second each. A result is only as
 good as the marks. This looks like a program, not a person.
 
 200 of your marks came through a link printed with no terminal,
@@ -17,21 +17,21 @@ so another program on this computer could have made them. If you
 marked them yourself, nothing to do.
 
 Result: your LLM-as-a-judge needs work.
-You and your LLM-as-a-judge disagreed on 49 of 200 answers.
+You and your LLM-as-a-judge disagreed on 45 of 200 answers.
 
   You passed 100 answers. Of those, your LLM-as-a-judge passed
-  58 and failed 42.
-  You failed 100 answers. Of those, your LLM-as-a-judge passed 7
-  and failed 93.
+  61 and failed 39.
+  You failed 100 answers. Of those, your LLM-as-a-judge passed 6
+  and failed 94.
 
-Tell judgekeeper why you disagree on these 24: run
+Tell judgekeeper why you disagree on these 22: run
 `judgekeeper mark --no-browser`.
 `judgekeeper fix` uses your reasons to find where your
 LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 58% (between 51% and 65%)
-  When you say Fail, it also says Fail: about 93% (between 87% and 97%)
+  When you say Pass, it also says Pass: about 61% (between 54% and 68%)
+  When you say Fail, it also says Fail: about 94% (between 88% and 98%)
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

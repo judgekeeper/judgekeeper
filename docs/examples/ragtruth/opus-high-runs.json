@@ -3,13 +3,21 @@
   "dataset": "RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media",
   "revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
   "subset": "dataset/response.jsonl and source_info.jsonl, split test, task_type Summary",
-  "grades": "marks: the dataset's human labels; judge: Claude Opus 5.5 (anthropic:messages:claude-opus-5-5) through promptfoo llm-rubric with rule.txt, 3 runs, 2026-10-30",
+  "grades": "marks: the dataset's human labels; judge: Claude Opus 5.5 (anthropic:messages:claude-opus-5-5) with effort high set in the config, through promptfoo llm-rubric with rule.txt, 3 runs, 2026-10-30",
   "text": "ids, grades and counts only; no article, summary or reason"
  },
- "judge": "opus",
+ "judge": "opus-high",
  "runs": [
   {
    "run": 1,
+   "label_pass_judge_pass": 58,
+   "label_pass_judge_fail": 42,
+   "label_fail_judge_fail": 94,
+   "label_fail_judge_pass": 6,
+   "not_a_real_decision": 0
+  },
+  {
+   "run": 2,
    "label_pass_judge_pass": 61,
    "label_pass_judge_fail": 39,
    "label_fail_judge_fail": 94,
@@ -17,42 +25,29 @@
    "not_a_real_decision": 0
   },
   {
-   "run": 2,
-   "label_pass_judge_pass": 58,
-   "label_pass_judge_fail": 42,
-   "label_fail_judge_fail": 93,
-   "label_fail_judge_pass": 7,
-   "not_a_real_decision": 0
-  },
-  {
    "run": 3,
-   "label_pass_judge_pass": 58,
-   "label_pass_judge_fail": 42,
-   "label_fail_judge_fail": 92,
-   "label_fail_judge_pass": 8,
+   "label_pass_judge_pass": 62,
+   "label_pass_judge_fail": 38,
+   "label_fail_judge_fail": 94,
+   "label_fail_judge_pass": 6,
    "not_a_real_decision": 0
   }
  ],
  "answers": 200,
  "valid_in_all_runs": 200,
- "flipped_in_any_run": 11,
+ "flipped_in_any_run": 6,
  "flipped_ids": [
-  "274",
+  "411",
   "622",
-  "647",
   "1703",
-  "2251",
-  "2252",
-  "2375",
-  "3609",
-  "4443",
-  "4781",
-  "5483"
+  "2424",
+  "2532",
+  "4443"
  ],
  "flips_per_pair": {
-  "run1_vs_run2": 8,
-  "run1_vs_run3": 5,
-  "run2_vs_run3": 9
+  "run1_vs_run2": 5,
+  "run1_vs_run3": 4,
+  "run2_vs_run3": 3
  },
  "grades": {
   "29": [
@@ -143,7 +138,7 @@
   "274": [
    "pass",
    "pass",
-   "fail"
+   "pass"
   ],
   "334": [
    "pass",
@@ -162,8 +157,8 @@
   ],
   "411": [
    "fail",
-   "fail",
-   "fail"
+   "pass",
+   "pass"
   ],
   "413": [
    "fail",
@@ -236,7 +231,7 @@
    "fail"
   ],
   "622": [
-   "pass",
+   "fail",
    "pass",
    "fail"
   ],
@@ -247,7 +242,7 @@
   ],
   "647": [
    "pass",
-   "fail",
+   "pass",
    "pass"
   ],
   "658": [
@@ -461,8 +456,8 @@
    "fail"
   ],
   "1703": [
-   "pass",
    "fail",
+   "pass",
    "pass"
   ],
   "1730": [
@@ -576,14 +571,14 @@
    "fail"
   ],
   "2251": [
-   "pass",
+   "fail",
    "fail",
    "fail"
   ],
   "2252": [
-   "fail",
    "pass",
-   "fail"
+   "pass",
+   "pass"
   ],
   "2361": [
    "fail",
@@ -603,12 +598,12 @@
   "2375": [
    "fail",
    "fail",
-   "pass"
+   "fail"
   ],
   "2424": [
    "fail",
    "fail",
-   "fail"
+   "pass"
   ],
   "2445": [
    "pass",
@@ -642,7 +637,7 @@
   ],
   "2532": [
    "pass",
-   "pass",
+   "fail",
    "pass"
   ],
   "2534": [
@@ -767,8 +762,8 @@
   ],
   "3609": [
    "fail",
-   "pass",
-   "pass"
+   "fail",
+   "fail"
   ],
   "3638": [
    "fail",
@@ -946,8 +941,8 @@
    "fail"
   ],
   "4443": [
-   "pass",
    "fail",
+   "pass",
    "pass"
   ],
   "4471": [
@@ -977,7 +972,7 @@
   ],
   "4781": [
    "fail",
-   "pass",
+   "fail",
    "fail"
   ],
   "4796": [
@@ -1047,7 +1042,7 @@
   ],
   "5483": [
    "pass",
-   "fail",
+   "pass",
    "pass"
   ],
   "5564": [

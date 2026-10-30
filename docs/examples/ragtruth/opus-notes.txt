@@ -7,13 +7,25 @@
 
 Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
 Judge: anthropic:messages:claude-opus-5-5 (the alias; promptfoo does not save the model string the API returns).
-Sample: ../ragtruth/sample-ids.json, unchanged (hash checked before the run). Rule: ../ragtruth/rule.txt. Config: ../ragtruth/promptfooconfig.yaml with the provider filled in.
-Temperature: 1 (the API default; Claude Opus 5.5 rejects any other value). Thinking and effort at the model's defaults (effort medium).
-Cache off (--no-cache). One smoke call first (1485 tokens).
-Run starts: 1 2026-10-30T13:53:04Z, 2 2026-10-30T13:57:07Z, 3 2026-10-30T14:01:25Z
+Sample: sample-ids.json, unchanged (checked identical before the first run). Rule: rule.txt. Config: promptfooconfig.yaml with the provider filled in.
+Temperature: 1 (the API default; Claude Opus 5.5 rejects any other value). Cache off (--no-cache). One smoke call first (1485 tokens).
 
-Tokens, from promptfoo's own count of the LLM-as-a-judge calls:
+Effort. promptfoo 0.124.0 sends an effort setting only when the config has one. The Haiku and Sonnet runs had none, so each model ran at its API default: Haiku 5.5 medium, Sonnet 5.5 high (the API documentation's defaults). Opus 5.5's default is medium. So there are two sets of Opus runs:
+- opus-high-*: the config above plus "effort: high" under the provider's config, to match Sonnet. These are the Opus rows in report.md.
+- opus-medium-*: no effort in the config, the API default (medium), as Haiku ran. Run first; kept as an extra.
+
+Tokens, from promptfoo's own count of the LLM-as-a-judge calls (US$4 per million input and US$20 per million output tokens, Claude Opus 5.5 price list of 2026-10-06):
+
+effort high. Starts: 1 2026-10-30T14:23:30Z, 2 2026-10-30T14:27:58Z, 3 2026-10-30T14:32:24Z
+run 1: 200 calls, 323661 input tokens, 98360 output tokens (of which 51804 reasoning), errors 0, US$3.26
+run 2: 200 calls, 323661 input tokens, 99382 output tokens (of which 51052 reasoning), errors 0, US$3.28
+run 3: 200 calls, 323661 input tokens, 101647 output tokens (of which 53023 reasoning), errors 0, US$3.33
+Subtotal: 970983 input and 299389 output tokens, about US$9.87.
+
+default effort (medium). Starts: 1 2026-10-30T13:53:04Z, 2 2026-10-30T13:57:07Z, 3 2026-10-30T14:01:25Z
 run 1: 200 calls, 323661 input tokens, 88886 output tokens (of which 43661 reasoning), errors 0, US$3.07
 run 2: 200 calls, 323661 input tokens, 89688 output tokens (of which 44927 reasoning), errors 0, US$3.09
 run 3: 200 calls, 323661 input tokens, 88399 output tokens (of which 44050 reasoning), errors 0, US$3.06
-Total: 970983 input and 266973 output tokens. At US$4 per million input and US$20 per million output tokens (Claude Opus 5.5 price list, 2026-10-06): about US$9.22, plus under US$0.02 for the smoke call.
+Subtotal: 970983 input and 266973 output tokens, about US$9.22.
+
+Total for A: about US$19.10, plus under US$0.02 for the smoke call.
