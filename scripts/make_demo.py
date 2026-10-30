@@ -57,7 +57,9 @@ SCALE = (WIDTH - 2) / PAGE_WIDTH  # inside the outline: it stays on the left and
 INNER_HEIGHT = HEIGHT - BAR - 1  # the page's rows: from under the bar to above the outline
 MAX_BYTES = 1_000_000
 SECONDS = (15.0, 20.0)  # how long the demo may last
-QUALITIES = (90, 85, 80, 75, 70, 65, 60)
+# Quality 100 first: below it, a lossy frame that follows a fading one (the first-time card) can
+# keep a faint ghost of it in the next frames
+QUALITIES = (100, 90, 85, 80, 75, 70, 65, 60)
 CLICKED = 3  # answers marked with the mouse on camera
 MARK_SECONDS = (6, 4, 9, 5, 7, 3, 8)  # the seconds sent with each mark made over HTTP
 TYPE_STEP = 3  # characters typed per frame

@@ -247,3 +247,21 @@ def test_the_demo_script_checks_the_outline_of_every_frame():
     whole.putpixel((39, 12), (7, 8, 10))  # a gap in the right side
     with pytest.raises(SystemExit, match="missing on the right"):
         make_demo.check_outline(whole)
+
+
+def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
+    """The card (centred over the answer area) is shown in the first marking frames, then it is
+    gone: from then on that area is the page's background, to within 4 levels (a faded card the
+    WebP kept as a faint ghost showed up to 17 above)."""
+    background = (11, 12, 14)
+    states = []
+    for n, frame in _demo_frames():
+        header = frame[50:100, 3:997]
+        columns = (abs(header - background).sum(axis=2) > 60).any(axis=0).nonzero()[0]
+        if 997 - (columns.max() + 3) > 100:  # a terminal frame
+            continue
+        worst = abs(frame[310:450, 330:680] - background).max()
+        states.append("card" if worst > 100 else "clean" if worst <= 4 else f"ghost {worst} (frame {n})")
+    assert states and states[0] == "card", states
+    assert 1 <= states.count("card") <= 4 and set(states) <= {"card", "clean"}, states
+    assert states == sorted(states, key=lambda state: state != "card"), states  # card, then none
