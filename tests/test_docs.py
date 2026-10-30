@@ -225,6 +225,7 @@ def test_the_marking_page_in_the_demo_has_the_same_margin_on_both_sides():
 
 
 def test_the_demo_script_checks_the_outline_of_every_frame():
+    pytest.importorskip("termios")  # the script drives a pseudo-terminal: macOS and Linux only
     Image = pytest.importorskip("PIL.Image")
     spec = importlib.util.spec_from_file_location("make_demo_for_test",
                                                   ROOT / "scripts" / "make_demo.py")
