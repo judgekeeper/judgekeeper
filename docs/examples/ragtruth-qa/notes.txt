@@ -1,0 +1,17 @@
+# Source: RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media
+# Revision: c103204b9ce28d6bbad859304bf30de72b8ed8fe
+# Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type QA
+# Grades: none: these are the notes of the run, not results
+# Holds: ids, grades and counts only; no passage, data, question or answer
+# Notes for the RAGTruth QA run (credit run B). Numbers only.
+
+Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
+Judges: anthropic:messages:claude-haiku-5-5 and anthropic:messages:claude-sonnet-5-5 (the aliases; promptfoo does not save the model string the API returns). 1 run each.
+Sample: sample-ids.json, written and committed before any run. Rule: rule.txt. Config: promptfooconfig.yaml with the provider filled in.
+Temperature: 1 (the API default). Cache off (--no-cache).
+Effort: not set in the config, so the API default: medium for Haiku 5.5, high for Sonnet 5.5 (the API documentation's defaults), the same as in ../ragtruth/.
+
+Tokens, from promptfoo's own count of the LLM-as-a-judge calls (Haiku US$0.10 in / US$0.50 out per million tokens, Sonnet US$2 / US$10, price list of 2026-10-06):
+Claude Haiku 5.5: run 1 started 2026-10-30T14:09:52Z; 200 calls, 213754 input tokens, 120908 output tokens (of which 82431 reasoning), errors 0, US$0.08
+Claude Sonnet 5.5: run 1 started 2026-10-30T14:12:38Z; 200 calls, 213754 input tokens, 72666 output tokens (of which 24360 reasoning), errors 0, US$1.15
+Total for this task: about US$1.24.

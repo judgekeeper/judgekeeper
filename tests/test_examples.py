@@ -63,6 +63,8 @@ def test_every_link_into_docs_examples_points_at_a_committed_file():
 
 DATASETS = {"jailbreakbench": "886acc352a31533ffbcf4ef22c744658688086fc",
             "ragtruth": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+            "ragtruth-qa": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+            "ragtruth-data2txt": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
             "probes": "c103204b9ce28d6bbad859304bf30de72b8ed8fe"}
 
 
@@ -82,9 +84,19 @@ def test_every_results_file_from_a_dataset_says_where_it_comes_from():
             elif path.suffix == ".html":
                 assert text.startswith("<!doctype html>\n<!--\nSource: "), name
                 assert f"Revision: {revision}\n" in text, name
-    sample = json.loads((ROOT / "docs/examples/ragtruth/sample-ids.json").read_text(
-        encoding="utf-8"))
-    assert sample["commit"] == DATASETS["ragtruth"] and sample["filter"]
+    for folder in ("ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
+        sample = json.loads((ROOT / "docs/examples" / folder / "sample-ids.json").read_text(
+            encoding="utf-8"))
+        assert sample["commit"] == DATASETS[folder] and sample["filter"], folder
+        assert [len(ids) for ids in sample["ids"].values()] == [100, 100], folder
+
+
+def test_each_ragtruth_config_holds_its_frozen_rule_once_and_one_judge_slot():
+    for folder in ("ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
+        base = ROOT / "docs" / "examples" / folder
+        rule = (base / "rule.txt").read_text(encoding="utf-8").strip()
+        config = (base / "promptfooconfig.yaml").read_text(encoding="utf-8")
+        assert config.count(rule) == 1 and config.count("JUDGE_PROVIDER") == 1, folder
 
 
 def test_the_datasets_licenses_and_citations_are_in_the_notices():
@@ -95,7 +107,7 @@ def test_the_datasets_licenses_and_citations_are_in_the_notices():
                    "https://github.com/ParticleMedia/RAGTruth", *DATASETS.values()):
         assert needed in text, needed
     assert text.count("Permission is hereby granted, free of charge") == 4
-    for folder in ("jailbreakbench", "ragtruth"):
+    for folder in ("jailbreakbench", "ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
         loader = (ROOT / "docs" / "examples" / folder / "load.py").read_text(encoding="utf-8")
         assert DATASETS[folder] in loader and "print(NOTICE)" in loader, folder
 

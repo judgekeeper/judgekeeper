@@ -1,6 +1,6 @@
 # Third-party notices
 
-judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/` and `docs/examples/ragtruth/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own judge verdicts on LLMBar.
+judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own judge verdicts on LLMBar.
 
 ## JailbreakBench
 
@@ -35,7 +35,7 @@ SOFTWARE.
 
 ## RAGTruth
 
-- **Used in:** `docs/examples/ragtruth/` and `docs/examples/probes/`.
+- **Used in:** `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/`, `docs/examples/ragtruth-data2txt/` and `docs/examples/probes/`.
 - **Source:** https://github.com/ParticleMedia/RAGTruth (commit `c103204b9ce28d6bbad859304bf30de72b8ed8fe`, files `dataset/response.jsonl` and `dataset/source_info.jsonl`).
 - **Citation:** Cheng Niu, Yuanhao Wu, Juno Zhu, Siliang Xu, Kashun Shum, Randy Zhong, Juntong Song and Tong Zhang. "RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models." ACL 2024. arXiv:2401.00396.
 - **License:**
