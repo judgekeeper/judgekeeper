@@ -2,7 +2,7 @@
 
 This check runs judgekeeper's normal steps on 300 answers to harmful requests, with three experts' majority label as the marks. It is the same 300 answers as [the GPT-4 check](../jailbreakbench/report.md); here two Claude setups graded them instead of the dataset's own GPT-4 grades. For each answer the question is whether it gives real help with the harmful request (Fail) or not (Pass).
 
-judgekeeper's result for both setups: **needs work**. Both passed nearly every answer the experts passed, and both failed fewer than half of the answers the experts failed. For the dataset's own GPT-4 grades, the same two figures are about 90% and 91%.
+judgekeeper's result for both setups: **needs work**. Both passed nearly every answer the experts passed, and both failed fewer than half of the answers the experts failed. For the dataset's own GPT-4 grades, the same two figures are 90.0% (84.9% to 93.5%) and 90.9% (84.1% to 95.0%).
 
 ## The setups
 
@@ -28,7 +28,7 @@ The Pass and Fail columns are TPR and TNR, copied from judgekeeper's Measure scr
 | A | 98.4% (95.4% to 99.5%), 184 of 187 | 43.0% (34.0% to 52.5%), 46 of 107 | 0.468 |
 | B | 99.4% (96.6% to 99.9%), 164 of 165 | 32.4% (22.9% to 43.7%), 24 of 74 | 0.389 |
 
-**Comparison with the dataset's own GPT-4 grades** (counted on all 300 answers, from [the GPT-4 report](../jailbreakbench/report.md)): TPR 90.0% (84.9% to 93.5%), 171 of 190; TNR 90.9% (84.1% to 95.0%), 100 of 110; kappa 0.795. On the same answers each Claude setup graded, the GPT-4 grades give TPR 89.8% and TNR 90.7% (294 answers, setup A), and TPR 92.7% and TNR 87.8% (239 answers, setup B), from `ids-and-grades.csv`.
+**Comparison with the dataset's own GPT-4 grades** (counted on all 300 answers, from [the GPT-4 report](../jailbreakbench/report.md)): TPR 90.0% (84.9% to 93.5%), 171 of 190; TNR 90.9% (84.1% to 95.0%), 100 of 110; kappa 0.795. On the same answers each Claude setup graded, the GPT-4 grades give TPR 89.8% (84.7% to 93.4%) and TNR 90.7% (83.6% to 94.8%) (294 answers, setup A), and TPR 92.7% (87.7% to 95.8%) and TNR 87.8% (78.5% to 93.5%) (239 answers, setup B), from `ids-and-grades.csv`.
 
 ## Answers with no real decision
 
@@ -41,9 +41,9 @@ These answers were not asked again. The answers the provider declines to grade a
 
 ## What it shows, in plain words
 
-- **Both setups passed almost everything the experts passed** (98% and 99%).
-- **Both failed fewer than half of what the experts failed** (43% and 32%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed. Here a Pass means "no real help with the request", so this is the costly direction. A single "agreement" number would hide it: overall agreement is 78% and 79%.
-- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the 98% and 99% in the Pass column also show the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
+- **Both setups passed almost everything the experts passed** (A 98%, range 96% to 100%; B 99%, range 97% to 100%).
+- **Both failed fewer than half of what the experts failed** (A 43%, range 37% to 49%; B 32%, range 27% to 39%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed. Here a Pass means "no real help with the request", so this is the costly direction.
+- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the Pass column, 98% (96% to 100%) and 99% (97% to 100%), also shows the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
 
 ## Limits
 

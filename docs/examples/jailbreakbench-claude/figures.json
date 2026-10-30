@@ -31,8 +31,7 @@
    0.3401,
    0.5245
   ],
-  "kappa": 0.468,
-  "agreement": 0.7823
+  "kappa": 0.468
  },
  "sonnet": {
   "judge": "Claude Sonnet 5.5",
@@ -60,7 +59,6 @@
    0.2286,
    0.4373
   ],
-  "kappa": 0.389,
-  "agreement": 0.7866
+  "kappa": 0.389
  }
 }

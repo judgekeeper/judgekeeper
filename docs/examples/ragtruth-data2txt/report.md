@@ -2,7 +2,7 @@
 
 This check runs judgekeeper's normal steps on the second kind of task in RAGTruth: overviews of local businesses (from Yelp), written from a block of structured JSON data. Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 overviews with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
 
-judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of overviews people failed that the setup also failed was 98% and 97%. The share of overviews people passed that it also passed was 39% for A and 65% for B.
+judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of overviews people failed that the setup also failed was 98% (94% to 100%) for A and 97% (92% to 99%) for B. The share of overviews people passed that it also passed was 39% (34% to 44%) for A and 65% (58% to 72%) for B.
 
 ## The setup
 
@@ -30,8 +30,8 @@ The news-summary check found two things: the setups failed most of what people f
 | News summaries ([report](../ragtruth/report.md)) | about 66% (59% to 73%) | about 89% (83% to 94%) | about 68% (61% to 75%) | about 90% (84% to 95%) |
 | This task | about 39% (34% to 44%) | about 98% (94% to 100%) | about 65% (58% to 72%) | about 97% (92% to 99%) |
 
-- **Failing what people failed holds.** On data-to-text the setups failed 98% and 97% of the overviews people failed.
-- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%) is close to its summary one (68%). A passed 39% of the overviews people passed, so it failed about six in ten. The ranges do not overlap (34% to 44% against 59% to 73% on summaries), so this is a real gap in this sample. We did not look into why; a strict reading of "supported by the data" is one guess.
+- **Failing what people failed holds.** On data-to-text the setups failed 98% (94% to 100%) and 97% (92% to 99%) of the overviews people failed.
+- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%, range 58% to 72%) is close to its summary one (68%, range 61% to 75%). A passed 39% (34% to 44%) of the overviews people passed, so it failed about six in ten. The ranges do not overlap (34% to 44% against 59% to 73% on summaries), so this is a real gap in this sample. We did not look into why; a strict reading of "supported by the data" is one guess.
 - **Same result, same advice:** "needs work" in both runs. For setup A, the first step would be the same as before: most mistakes are good overviews failed, so the rule may be too strict for it.
 
 ## Limits
@@ -51,6 +51,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **`load.py`:** downloads RAGTruth from the authors' GitHub repository at a pinned commit, checks the files' SHA-256, keeps the test split's data-to-text rows, draws the sample and checks it against `sample-ids.json` (`python3 -I load.py`). Its `cache/` folder holds the text and is never committed.
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the run.
+- **`ids-and-grades.csv`:** each answer's id, both setups' grades (`none` where there was no real decision) and the people's label. No text, so the numbers above can be counted again.
 - **`measure/`:** the Measure screen of each of the 2 runs.
 - **`notes.txt`:** dates, effort, token counts and cost.
 

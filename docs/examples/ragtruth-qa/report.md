@@ -2,7 +2,7 @@
 
 This check runs judgekeeper's normal steps on the second kind of task in RAGTruth: short answers to questions, written from three passages (MS MARCO questions). Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 answers with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
 
-judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of answers people failed that the setup also failed was 95% and 97%, and the share of answers people passed that it also passed was 61% and 58%.
+judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of answers people failed that the setup also failed was 95% (90% to 98%) for A and 97% (92% to 99%) for B, and the share of answers people passed that it also passed was 61% (54% to 68%) for A and 58% (51% to 65%) for B.
 
 ## The setup
 
@@ -30,8 +30,8 @@ The news-summary check found two things: the setups failed most of what people f
 | News summaries ([report](../ragtruth/report.md)) | about 66% (59% to 73%) | about 89% (83% to 94%) | about 68% (61% to 75%) | about 90% (84% to 95%) |
 | This task | about 61% (54% to 68%) | about 95% (90% to 98%) | about 58% (51% to 65%) | about 97% (92% to 99%) |
 
-- **Failing what people failed holds.** On question answers the setups failed 95% and 97% of the answers people failed, a little more than on summaries.
-- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% and 58%), more than the roughly one in three on summaries. The ranges overlap with the summary ones (for Haiku, 54% to 68% against 59% to 73%), so with one run each this is a lean, not a difference we can state.
+- **Failing what people failed holds.** On question answers the setups failed 95% (90% to 98%) and 97% (92% to 99%) of the answers people failed, a little more than on summaries.
+- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% (54% to 68%) and 58% (51% to 65%)), more than the roughly one in three on summaries. The ranges overlap with the summary ones (for Haiku, 54% to 68% against 59% to 73%), so with one run each this is a lean, not a difference we can state.
 - **Same result, same advice:** "needs work" in both runs, because many good answers were failed.
 
 ## Limits
@@ -51,6 +51,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **`load.py`:** downloads RAGTruth from the authors' GitHub repository at a pinned commit, checks the files' SHA-256, keeps the test split's question-answering rows, draws the sample and checks it against `sample-ids.json` (`python3 -I load.py`). Its `cache/` folder holds the text and is never committed.
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the run.
+- **`ids-and-grades.csv`:** each answer's id, both setups' grades (`none` where there was no real decision) and the people's label. No text, so the numbers above can be counted again.
 - **`measure/`:** the Measure screen of each of the 2 runs.
 - **`notes.txt`:** dates, effort, token counts and cost.
 
