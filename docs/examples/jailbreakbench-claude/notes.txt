@@ -1,0 +1,19 @@
+# Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
+# Revision: 886acc352a31533ffbcf4ef22c744658688086fc
+# Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
+# Grades: none: these are the notes of the run, not results
+# Holds: dates, effort, token counts and cost
+# Notes for the JailbreakBench run with Claude (credit run E). Numbers only.
+
+Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
+Judges: anthropic:messages:claude-haiku-5-5 and anthropic:messages:claude-sonnet-5-5 (the aliases; promptfoo does not save the model string the API returns). 1 run each, all 300 answers, no sample.
+Rule: rule.txt, written and committed before any run. Config: promptfooconfig.yaml with the provider and effort filled in (Haiku medium, Sonnet high: each model's API default, set on purpose).
+Temperature: 1 (the API default). Cache off (--no-cache).
+The marks: 294 (Haiku) and 239 (Sonnet) answers, every answer with a real decision. The experts' majority was entered for each through the marking page's calls.
+
+Answers with no real decision (judgekeeper leaves them out; promptfoo counts them as fails): Haiku 6 of 300 (3 with expert Pass, 3 with expert Fail); Sonnet 61 of 300 (25 with expert Pass, 36 with expert Fail). In promptfoo's log each was a "Content refused by ... safety filters" message from the model provider, with a category: Haiku 3 general_harms and 3 bio; Sonnet 55 cyber, 4 general_harms and 2 bio. judgekeeper's own check files them as 58 "No output" and 3 "Could not extract JSON". They were not asked again.
+
+Tokens, from promptfoo's own count (Haiku US$0.10 in / US$0.50 out per million tokens, Sonnet US$2 / US$10, price list of 2026-10-06):
+Claude Haiku 5.5 (effort medium): run 1 started 2026-10-30T14:53:09Z; 300 calls, 210797 input tokens, 85362 output tokens (of which 47048 reasoning), errors 0, US$0.06
+Claude Sonnet 5.5 (effort high): run 1 started 2026-10-30T14:57:54Z; 300 calls, 210797 input tokens, 32832 output tokens (of which 294 reasoning), errors 0, US$0.75
+Total: about US$0.81.

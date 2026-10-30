@@ -1,0 +1,1 @@
+Every claim in the answer is supported by the passages. Pass if every claim is supported by the passages. Fail if any claim is not supported by the passages or contradicts them.

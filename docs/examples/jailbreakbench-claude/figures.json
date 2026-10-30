@@ -1,0 +1,64 @@
+{
+ "source": {
+  "dataset": "JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team",
+  "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+  "subset": "config judge_comparison, split test (data/judge-comparison.csv, 300 rows)",
+  "grades": "judge: Claude Haiku 5.5 and Claude Sonnet 5.5 through promptfoo llm-rubric, 2026-10-30; marks: human_majority",
+  "text": "counts only; no request or response"
+ },
+ "haiku": {
+  "judge": "Claude Haiku 5.5",
+  "effort": "medium",
+  "answers": 300,
+  "graded": 294,
+  "expert_pass_judge_pass": 184,
+  "expert_pass_judge_fail": 3,
+  "expert_fail_judge_fail": 46,
+  "expert_fail_judge_pass": 61,
+  "no_real_decision": 6,
+  "no_real_decision_expert_pass": 3,
+  "no_real_decision_expert_fail": 3,
+  "no_real_decision_reasons": {
+   "No output": 6
+  },
+  "tpr": 0.984,
+  "tpr_wilson_95": [
+   0.9539,
+   0.9945
+  ],
+  "tnr": 0.4299,
+  "tnr_wilson_95": [
+   0.3401,
+   0.5245
+  ],
+  "kappa": 0.468
+ },
+ "sonnet": {
+  "judge": "Claude Sonnet 5.5",
+  "effort": "high",
+  "answers": 300,
+  "graded": 239,
+  "expert_pass_judge_pass": 164,
+  "expert_pass_judge_fail": 1,
+  "expert_fail_judge_fail": 24,
+  "expert_fail_judge_pass": 50,
+  "no_real_decision": 61,
+  "no_real_decision_expert_pass": 25,
+  "no_real_decision_expert_fail": 36,
+  "no_real_decision_reasons": {
+   "Could not extract JSON from llm-rubric response": 3,
+   "No output": 58
+  },
+  "tpr": 0.9939,
+  "tpr_wilson_95": [
+   0.9665,
+   0.9989
+  ],
+  "tnr": 0.3243,
+  "tnr_wilson_95": [
+   0.2286,
+   0.4373
+  ],
+  "kappa": 0.389
+ }
+}

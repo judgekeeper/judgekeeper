@@ -62,7 +62,10 @@ def test_every_link_into_docs_examples_points_at_a_committed_file():
 
 
 DATASETS = {"jailbreakbench": "886acc352a31533ffbcf4ef22c744658688086fc",
+            "jailbreakbench-claude": "886acc352a31533ffbcf4ef22c744658688086fc",
             "ragtruth": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+            "ragtruth-qa": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+            "ragtruth-data2txt": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
             "probes": "c103204b9ce28d6bbad859304bf30de72b8ed8fe"}
 
 
@@ -82,9 +85,19 @@ def test_every_results_file_from_a_dataset_says_where_it_comes_from():
             elif path.suffix == ".html":
                 assert text.startswith("<!doctype html>\n<!--\nSource: "), name
                 assert f"Revision: {revision}\n" in text, name
-    sample = json.loads((ROOT / "docs/examples/ragtruth/sample-ids.json").read_text(
-        encoding="utf-8"))
-    assert sample["commit"] == DATASETS["ragtruth"] and sample["filter"]
+    for folder in ("ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
+        sample = json.loads((ROOT / "docs/examples" / folder / "sample-ids.json").read_text(
+            encoding="utf-8"))
+        assert sample["commit"] == DATASETS[folder] and sample["filter"], folder
+        assert [len(ids) for ids in sample["ids"].values()] == [100, 100], folder
+
+
+def test_each_ragtruth_config_holds_its_frozen_rule_once_and_one_judge_slot():
+    for folder in ("ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
+        base = ROOT / "docs" / "examples" / folder
+        rule = (base / "rule.txt").read_text(encoding="utf-8").strip()
+        config = (base / "promptfooconfig.yaml").read_text(encoding="utf-8")
+        assert config.count(rule) == 1 and config.count("JUDGE_PROVIDER") == 1, folder
 
 
 def test_the_datasets_licenses_and_citations_are_in_the_notices():
@@ -95,7 +108,7 @@ def test_the_datasets_licenses_and_citations_are_in_the_notices():
                    "https://github.com/ParticleMedia/RAGTruth", *DATASETS.values()):
         assert needed in text, needed
     assert text.count("Permission is hereby granted, free of charge") == 4
-    for folder in ("jailbreakbench", "ragtruth"):
+    for folder in ("jailbreakbench", "ragtruth", "ragtruth-qa", "ragtruth-data2txt"):
         loader = (ROOT / "docs" / "examples" / folder / "load.py").read_text(encoding="utf-8")
         assert DATASETS[folder] in loader and "print(NOTICE)" in loader, folder
 
@@ -158,3 +171,43 @@ def test_the_check_reports_name_no_removed_command():
     for name in ("real-data-check/report.md", "coverage/coverage.md"):
         text = (ROOT / "docs" / "examples" / name).read_text(encoding="utf-8")
         assert "start's" not in text and "`start`" not in text, name
+
+
+def _graded(folder: str) -> list[dict[str, str]]:
+    import csv
+
+    lines = [x for x in (ROOT / "docs/examples" / folder / "ids-and-grades.csv").read_text(
+        encoding="utf-8").splitlines() if not x.startswith("#")]
+    return list(csv.DictReader(lines))
+
+
+def test_the_ragtruth_task_tables_can_be_counted_again_from_their_grades_file():
+    for folder in ("ragtruth-qa", "ragtruth-data2txt"):
+        rows = _graded(folder)
+        assert len(rows) == 200 and len({r["id"] for r in rows}) == 200
+        report = (ROOT / "docs/examples" / folder / "report.md").read_text(encoding="utf-8")
+        for column, name in (("judge_haiku", "A (Haiku 5.5)"), ("judge_sonnet", "B (Sonnet 5.5)")):
+            row = next(x for x in report.splitlines() if x.startswith(f"| {name}, run 1"))
+            passed = [r for r in rows if r["people_label"] == "pass"]
+            failed = [r for r in rows if r["people_label"] == "fail"]
+            tpr = round(100 * sum(r[column] == "pass" for r in passed) / len(passed))
+            tnr = round(100 * sum(r[column] == "fail" for r in failed) / len(failed))
+            assert f"about {tpr}%" in row and f"about {tnr}%" in row, (folder, name, row)
+
+
+def test_the_jailbreakbench_claude_figures_can_be_counted_again_from_their_grades_file():
+    import json
+
+    base = ROOT / "docs/examples/jailbreakbench-claude"
+    rows = _graded("jailbreakbench-claude")
+    figures = json.loads((base / "figures.json").read_text(encoding="utf-8"))
+    assert len(rows) == 300 and "agreement" not in figures["haiku"]
+    for column, key in (("judge_haiku", "haiku"), ("judge_sonnet", "sonnet")):
+        count = {(e, g): sum(r["expert_majority"] == e and r[column] == g for r in rows)
+                 for e in ("pass", "fail") for g in ("pass", "fail", "none")}
+        f = figures[key]
+        assert count["pass", "pass"] == f["expert_pass_judge_pass"]
+        assert count["pass", "fail"] == f["expert_pass_judge_fail"]
+        assert count["fail", "fail"] == f["expert_fail_judge_fail"]
+        assert count["fail", "pass"] == f["expert_fail_judge_pass"]
+        assert count["pass", "none"] + count["fail", "none"] == f["no_real_decision"]

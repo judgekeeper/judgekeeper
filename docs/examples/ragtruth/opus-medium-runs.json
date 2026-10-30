@@ -1,0 +1,1059 @@
+{
+ "source": {
+  "dataset": "RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media",
+  "revision": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
+  "subset": "dataset/response.jsonl and source_info.jsonl, split test, task_type Summary",
+  "grades": "marks: the dataset's human labels; judge: Claude Opus 5.5 (anthropic:messages:claude-opus-5-5) at the API's default effort (medium) through promptfoo llm-rubric with rule.txt, 3 runs, 2026-10-30",
+  "text": "ids, grades and counts only; no article, summary or reason"
+ },
+ "judge": "opus",
+ "runs": [
+  {
+   "run": 1,
+   "label_pass_judge_pass": 61,
+   "label_pass_judge_fail": 39,
+   "label_fail_judge_fail": 94,
+   "label_fail_judge_pass": 6,
+   "not_a_real_decision": 0
+  },
+  {
+   "run": 2,
+   "label_pass_judge_pass": 58,
+   "label_pass_judge_fail": 42,
+   "label_fail_judge_fail": 93,
+   "label_fail_judge_pass": 7,
+   "not_a_real_decision": 0
+  },
+  {
+   "run": 3,
+   "label_pass_judge_pass": 58,
+   "label_pass_judge_fail": 42,
+   "label_fail_judge_fail": 92,
+   "label_fail_judge_pass": 8,
+   "not_a_real_decision": 0
+  }
+ ],
+ "answers": 200,
+ "valid_in_all_runs": 200,
+ "flipped_in_any_run": 11,
+ "flipped_ids": [
+  "274",
+  "622",
+  "647",
+  "1703",
+  "2251",
+  "2252",
+  "2375",
+  "3609",
+  "4443",
+  "4781",
+  "5483"
+ ],
+ "flips_per_pair": {
+  "run1_vs_run2": 8,
+  "run1_vs_run3": 5,
+  "run2_vs_run3": 9
+ },
+ "grades": {
+  "29": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "42": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "43": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "44": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "46": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "58": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "59": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "68": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "121": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "122": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "141": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "146": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "180": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "182": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "206": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "208": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "215": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "274": [
+   "pass",
+   "pass",
+   "fail"
+  ],
+  "334": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "359": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "410": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "411": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "413": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "434": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "435": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "444": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "445": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "462": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "464": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "466": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "480": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "482": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "542": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "585": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "602": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "610": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "622": [
+   "pass",
+   "pass",
+   "fail"
+  ],
+  "643": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "647": [
+   "pass",
+   "fail",
+   "pass"
+  ],
+  "658": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "721": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "723": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "730": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "836": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "837": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "838": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "843": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "844": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "856": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "857": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "885": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "886": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "908": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "910": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "911": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "925": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "929": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "962": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "963": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "996": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "998": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1000": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1106": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1107": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1109": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1155": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1184": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1185": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1238": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1239": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1340": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1478": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1516": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1517": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1585": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1646": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1679": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1682": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1698": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1700": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1702": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1703": [
+   "pass",
+   "fail",
+   "pass"
+  ],
+  "1730": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1733": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1748": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1828": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1891": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1893": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1894": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1895": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1965": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1986": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "1990": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "1991": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2069": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2120": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2122": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2136": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2137": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2141": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2168": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2171": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2246": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2247": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2251": [
+   "pass",
+   "fail",
+   "fail"
+  ],
+  "2252": [
+   "fail",
+   "pass",
+   "fail"
+  ],
+  "2361": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2373": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2374": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2375": [
+   "fail",
+   "fail",
+   "pass"
+  ],
+  "2424": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2445": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2456": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2457": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2468": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2487": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2488": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2532": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2534": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2535": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2604": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "2606": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2654": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2656": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2666": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2667": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2668": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2669": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2674": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2738": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2739": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2800": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2896": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "2897": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3079": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3081": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3082": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3146": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3148": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3248": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3558": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3561": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3609": [
+   "fail",
+   "pass",
+   "pass"
+  ],
+  "3638": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3640": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3812": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3814": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3858": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3861": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3862": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3875": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3938": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3940": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "3978": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "3982": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4010": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4013": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4015": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4018": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4030": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4035": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4050": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4052": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4054": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4065": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4078": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4079": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4117": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4119": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4120": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4206": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4265": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4299": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4301": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4346": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4347": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4349": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4442": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4443": [
+   "pass",
+   "fail",
+   "pass"
+  ],
+  "4471": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4526": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4533": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "4748": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4779": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4781": [
+   "fail",
+   "pass",
+   "fail"
+  ],
+  "4796": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "4844": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5034": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "5037": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5084": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5196": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "5276": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5388": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5391": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5392": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5393": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "5412": [
+   "fail",
+   "fail",
+   "fail"
+  ],
+  "5416": [
+   "pass",
+   "pass",
+   "pass"
+  ],
+  "5483": [
+   "pass",
+   "fail",
+   "pass"
+  ],
+  "5564": [
+   "fail",
+   "fail",
+   "fail"
+  ]
+ }
+}
