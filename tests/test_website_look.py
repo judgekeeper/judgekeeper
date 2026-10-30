@@ -174,7 +174,7 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
 def test_the_footer_names_match_the_licence():
     assert "Copyright 2026 Sathvik Thota" in (ROOT / "NOTICE").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "<h1>judgekeeper<sup>™</sup></h1>" in readme and readme.rstrip().endswith(TRADEMARK_NOTE)
+    assert "<h1>judgekeeper <sup><sup><sub>™</sub></sup></sup></h1>" in readme and readme.rstrip().endswith(TRADEMARK_NOTE)
     assert "Apache-2.0" in (ROOT / "TRADEMARKS.md").read_text(encoding="utf-8")
     for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE", "NOTICE"):
         assert (ROOT / path).is_file(), path
