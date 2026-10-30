@@ -47,6 +47,8 @@ judgekeeper only reads files. It makes no AI call and needs no API key. See [SEC
 
 Each comes with a range, such as "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both TPR and TNR is at least 80%. The numbers describe the answers you marked, not a promise about the next ones.
 
+How the numbers are worked out: [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out).
+
 ## Checked on public data
 
 - [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true value in 93 of 100 tests (all three numbers at once).
