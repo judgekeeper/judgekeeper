@@ -256,8 +256,15 @@ def read_given(state: State, path: Path):
             return None, (f"{shown} is outside your project; judgekeeper reads results only "
                           "inside it.")
         options["saved"] = replace(saved, file=rel)
+    where = state.ws.root if saved is not None else path
     try:
-        found = start.find_judge(state.ws.root if saved is not None else path, **options)
+        try:
+            found = start.find_judge(where, **options)
+        except start.StartError:
+            if options["judge_model"] is None:
+                raise
+            # a model given on an earlier run is only used while the results don't name one
+            found = start.find_judge(where, **{**options, "judge_model": None})
     except start.StartError as e:
         why = f"judgekeeper can't read {shown} as {name}: {scrub(str(e))}"
         return None, OtherName(why) if e.drop == "--metric" else why

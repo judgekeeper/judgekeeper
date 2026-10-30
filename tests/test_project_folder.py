@@ -558,3 +558,45 @@ def test_check_then_judgekeeper_keeps_the_given_model(here, capsys):
     assert judge_setup.read(Workspace(here))["setup"]["models"] == ["openai:gpt-4"]
     assert check.full(".", check.Said()) == 0
     assert start.GIVEN_BY_YOU in json.dumps(Workspace(here).data())
+
+
+def _remembered_model(here, capsys, model="openai:gpt-4"):
+    """A table project marked after --judge-model, so the model is remembered, not in the file."""
+    table_project(here, split(20, 20))
+    assert run(capsys, "--judge-model", model)[0] == 0
+    _mark(Workspace(here))
+    assert check.full(".", check.Said()) == 0
+    capsys.readouterr()
+
+
+def test_check_reads_a_new_file_that_names_the_same_model_as_the_one_given_before(here, capsys):
+    _remembered_model(here, capsys)
+    table_project(here, split(20, 20), name="regrade.csv", model="openai:gpt-4")
+    code, out, err = run(capsys, "check", "regrade.csv")
+    assert code == 0, out + err
+    assert "drop --judge-model" not in out + err
+    assert "model changed" not in flat(out)
+
+
+def test_check_names_a_model_change_in_a_new_file_after_a_model_was_given(here, capsys):
+    _remembered_model(here, capsys)
+    table_project(here, split(20, 20), name="regrade.csv", model="openai:gpt-4.1")
+    _, out, err = run(capsys, "check", "regrade.csv")
+    assert "drop --judge-model" not in out + err
+    assert "model changed: openai:gpt-4 -> openai:gpt-4.1" in flat(out).replace("'s model", " model")
+
+
+def test_fix_reads_a_new_file_that_names_its_model_after_a_model_was_given(here, capsys):
+    _remembered_model(here, capsys)
+    table_project(here, split(20, 20), name="regrade.csv", model="openai:gpt-4")
+    _, out, err = run(capsys, "fix", "regrade.csv")
+    assert "drop --judge-model" not in out + err
+    assert "can't read regrade.csv" not in flat(out + err)
+
+
+def test_a_model_given_now_still_conflicts_with_the_files_model_column(here, capsys):
+    table_project(here, split(20, 20), model="openai:gpt-4.1")
+    code, _, err = run(capsys, "--judge-model", "openai:gpt-4")
+    assert code == 2
+    assert ("results.csv already names the LLM-as-a-judge's model (openai:gpt-4.1): drop "
+            "--judge-model") in flat(err)
