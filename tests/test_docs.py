@@ -64,12 +64,14 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         found = re.findall(rf"\]\({re.escape(EXAMPLES)}([\w./-]+)\)", line)
         if not found:
             continue
-        report = (ROOT / "docs" / "examples" / found[0]).read_text(encoding="utf-8")
+        reports = "\n".join((ROOT / "docs" / "examples" / f).read_text(encoding="utf-8")
+                            for f in found)
         for figure in re.findall(r"\d+\.\d+|\d+%", line):
-            assert figure in report, (found[0], figure)
+            assert figure in reports, (found, figure)
         linked[found[0]] = line
-    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench/report.md",
-                              "probes/report.md", "ragtruth/report.md"]
+    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench-claude/report.md",
+                              "jailbreakbench/report.md", "probes/report.md", "ragtruth-qa/report.md",
+                              "ragtruth/report.md"]
     import json
 
     draws = (ROOT / "docs" / "examples" / "jailbreakbench" / "hundred-marks" / "draws.csv")
@@ -162,3 +164,21 @@ def test_the_readme_has_three_badges_version_tests_and_licence():
     badges = re.findall(r'<img src="([^"]+)" alt="([^"]+)">', README.read_text(encoding="utf-8"))
     assert [alt for src, alt in badges if "shields.io" in src or "badge.svg" in src] == [
         "PyPI version", "Tests", "Apache-2.0 license"]
+
+
+def test_the_reference_numbers_for_the_credit_runs_are_in_the_reports_they_link():
+    """Each public-data bullet of the reference that links a report: every % on it is in the
+    reports it links (the ones with several links, in any of them)."""
+    section = _sections((ROOT / "docs" / "reference.md").read_text(
+        encoding="utf-8"))["Checked on public data"]
+    checked = 0
+    for bullet in (x for x in section.splitlines() if x.startswith("- **")):
+        found = re.findall(r"\]\(examples/([\w./-]+)\)", bullet)
+        if not found:
+            continue
+        reports = "\n".join((ROOT / "docs" / "examples" / f).read_text(encoding="utf-8")
+                            for f in found)
+        for figure in re.findall(r"\d+\.\d+%|\d+%", bullet):
+            assert figure in reports, (found, figure)
+        checked += 1
+    assert checked >= 6

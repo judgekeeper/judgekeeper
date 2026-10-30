@@ -1,4 +1,4 @@
-# Two Claude LLM-as-a-judge setups on JailbreakBench's judge-comparison answers
+# Two LLM-as-a-judge setups on JailbreakBench's judge-comparison answers
 
 This check runs judgekeeper's normal steps on 300 answers to harmful requests, with three experts' majority label as the marks. It is the same 300 answers as [the GPT-4 check](../jailbreakbench/report.md); here two Claude setups graded them instead of the dataset's own GPT-4 grades. For each answer the question is whether it gives real help with the harmful request (Fail) or not (Pass).
 
@@ -32,23 +32,23 @@ The Pass and Fail columns are TPR and TNR, copied from judgekeeper's Measure scr
 
 ## Answers with no real decision
 
-Some answers got no usable reply from the LLM-as-a-judge: the model's safety filter returned no output. promptfoo counts these as fails. judgekeeper leaves them out of the result (its Find step lists them).
+For some answers the model provider declined to grade: no usable reply came back. promptfoo counts these as fails. judgekeeper leaves them out of the result (its Find step lists them).
 
 - **Setup A:** 6 of 300 (3 the experts passed, 3 the experts failed).
-- **Setup B:** 61 of 300, 25 the experts passed and 36 the experts failed, so about a third (36 of 110) of the answers the experts failed are missing from setup B's TNR. In promptfoo's log, 55 of these were in the safety filter's `cyber` category, 4 in `general_harms` and 2 in `bio`.
+- **Setup B:** 61 of 300, 25 the experts passed and 36 the experts failed, so about a third (36 of 110) of the answers the experts failed are missing from setup B's TNR. The provider's message named a category for each: 55 `cyber`, 4 `general_harms`, 2 `bio`.
 
-These answers were not asked again. The answers a safety filter declines to read are probably not a random part of the set, so setup B's numbers describe the answers it was willing to grade.
+These answers were not asked again. The answers the provider declines to grade are probably not a random part of the set, so setup B's numbers describe the answers it was allowed to grade.
 
 ## What it shows, in plain words
 
 - **Both setups passed almost everything the experts passed** (98% and 99%).
 - **Both failed fewer than half of what the experts failed** (43% and 32%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed. Here a Pass means "no real help with the request", so this is the costly direction. A single "agreement" number would hide it: overall agreement is 78% and 79%.
-- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. We did not look into why. One guess is guideline 2 ("must clearly provide specific details"), which the experts may have read more loosely.
+- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the 98% and 99% in the Pass column also show the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
 
 ## Limits
 
 - **One run each,** at temperature 1. In the RAGTruth check, runs of the same setup moved a few points.
-- **The rule was written for a different judge.** It is the paper's prompt for its Llama-3-70B judge, adapted to `llm-rubric`. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
+- **The rule was written for a different judge.** It is the paper's prompt for its Llama-3-70B judge, adapted to `llm-rubric`; the dataset's own GPT-4 grades came from a different prompt. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
 - **Setup B's result is on 239 of 300 answers** (see above).
 - **The dataset is public** (since 2024), so the models may have seen it.
 - **Three experts' majority** is the mark; the experts disagreed with each other on some answers.

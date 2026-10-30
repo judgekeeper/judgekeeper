@@ -1,13 +1,13 @@
-# Three Claude LLM-as-a-judge setups on RAGTruth's news summaries
+# Three LLM-as-a-judge setups on RAGTruth's news summaries
 
 This check runs judgekeeper's normal steps on a real LLM-as-a-judge task: does a news summary say only what the article says? Three LLM-as-a-judge setups, Claude Haiku 5.5, Claude Sonnet 5.5 and (added 2026-10-30) Claude Opus 5.5, graded 200 summaries with one rule, and RAGTruth's human labels were the marks.
 
-judgekeeper's result, in all 12 runs: **needs work**. All three LLM-as-a-judge setups fail most of the summaries people failed, but also a good share of the summaries people passed: about one in three for Haiku and Sonnet, about two in five for Opus.
+judgekeeper's result, in all 12 runs: **needs work**. Across the three LLM-as-a-judge setups (A, B and C below), the share of summaries people failed that the setup also failed was 87% to 94%, and the share of summaries people passed that it also passed was 58% to 71%. Changing the model did not close the gap.
 
 ## The setup
 
 - **The answers:** 200 news summaries from RAGTruth's test split, 100 that people labelled Pass and 100 Fail, picked by a fixed seed (`sample-ids.json`: the ids, the seed, the counts). `load.py` downloads the data; it is not in this repository.
-- **The LLM-as-a-judge setups:** Claude Haiku 5.5, Claude Sonnet 5.5 and Claude Opus 5.5 (aliases `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`).
+- **The LLM-as-a-judge setups:** **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`), **setup B** is Claude Sonnet 5.5 (`claude-sonnet-5-5`) and **setup C** is Claude Opus 5.5 (`claude-opus-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`).
 - **The rule:** frozen before any result (`rule.txt`): "Every claim in the summary is supported by the article. Pass if every claim is supported by the article. Fail if any claim is not supported by the article or contradicts it."
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
 - **Effort:** how hard the model thinks is a setting of its own. promptfoo sends it only when the config sets it, and the Haiku and Sonnet runs did not, so each ran at its API default: medium for Haiku 5.5, high for Sonnet 5.5. Opus 5.5's default is medium, so it first ran at medium (extra table below), which is not a like-for-like comparison with Sonnet. The Opus rows in the main table were run again with `effort: high` set in the config, to match Sonnet. The effort is the only difference in the config.
@@ -43,11 +43,10 @@ At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-r
 
 ## What it shows, in plain words
 
-- **All three LLM-as-a-judge setups catch made-up claims well.** When people said a summary had something unsupported, each also failed it about 9 times in 10.
-- **Haiku and Sonnet fail about one in three good summaries; Opus about two in five.** When people said a summary was fully supported, they still failed that many of them. With this rule, they are too strict. A single "accuracy" number would hide this, because the two directions are far apart.
-- **Sonnet agrees with people about as often as Haiku here,** with its ranges overlapping Haiku's, but steadier when asked again: 13 changed answers against 19.
-- **A larger model did not agree with people more often here.** Claude Opus 5.5 (effort high) disagreed with people on 44 to 48 of 200 answers, against 45 to 46 for Haiku and 38 to 42 for Sonnet. Of the summaries people passed, Opus also passed 58% to 62%, against 66% to 67% for Haiku and 68% to 71% for Sonnet; of the ones people failed, it also failed 94%, against 87% to 89% and 90% to 91%. Every range overlaps one from another setup, so three runs cannot say the three setups differ on agreement. The result did not change: "needs work" in all 3 Opus runs, for the same reason (good summaries failed).
-- **Thinking less or more changed little.** At its default effort (medium) Opus gave nearly the same numbers (second table). Opus at high effort used about 12% more output tokens than at medium (299,389 against 266,973 over 3 runs).
+- **All three setups failed most of the summaries people failed.** When people said a summary had something unsupported, each setup also failed it 87% to 94% of the time across the 12 runs.
+- **All three also failed a good share of the summaries people passed:** 29% to 42% across the 12 runs. With this rule, that is too strict. A single "accuracy" number would hide this, because the two directions are far apart.
+- **Changing the model did not close the gap.** Setup C (effort high) disagreed with people on 44 to 48 of 200 answers; setup A on 45 to 46 and setup B on 38 to 42. Of the summaries people passed, C also passed 58% to 62%, A 66% to 67% and B 68% to 71%; of the ones people failed, C also failed 94%, A 87% to 89% and B 90% to 91%. Every range overlaps one from another setup, so three runs cannot say the setups differ on agreement. "Needs work" in all 3 runs of C, for the same reason (good summaries failed).
+- **Setting the effort higher or lower changed little for setup C.** At its default effort (medium) it gave nearly the same numbers (second table). At high effort it used about 12% more output tokens than at medium (299,389 against 266,973 over 3 runs).
 - **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are good summaries failed, so the clue would be that the rule may be too strict.
 
 ## Limits
