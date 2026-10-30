@@ -1,0 +1,19 @@
+# Source: RAGTruth (github.com/ParticleMedia/RAGTruth), MIT license, Copyright (c) 2023 Particle Media
+# Revision: c103204b9ce28d6bbad859304bf30de72b8ed8fe
+# Subset: dataset/response.jsonl and source_info.jsonl, split test, task_type Summary
+# Grades: none: these are the notes of the Opus runs, not results
+# Holds: ids, grades and counts only; no article or summary
+# Notes for the Claude Opus 5.5 runs (credit run A). Numbers only.
+
+Date: 2026-10-30 (UTC). judgekeeper 1.0.0, commit bfc3606. promptfoo 0.124.0.
+Judge: anthropic:messages:claude-opus-5-5 (the alias; promptfoo does not save the model string the API returns).
+Sample: ../ragtruth/sample-ids.json, unchanged (hash checked before the run). Rule: ../ragtruth/rule.txt. Config: ../ragtruth/promptfooconfig.yaml with the provider filled in.
+Temperature: 1 (the API default; Claude Opus 5.5 rejects any other value). Thinking and effort at the model's defaults (effort medium).
+Cache off (--no-cache). One smoke call first (1485 tokens).
+Run starts: 1 2026-10-30T13:53:04Z, 2 2026-10-30T13:57:07Z, 3 2026-10-30T14:01:25Z
+
+Tokens, from promptfoo's own count of the LLM-as-a-judge calls:
+run 1: 200 calls, 323661 input tokens, 88886 output tokens (of which 43661 reasoning), errors 0, US$3.07
+run 2: 200 calls, 323661 input tokens, 89688 output tokens (of which 44927 reasoning), errors 0, US$3.09
+run 3: 200 calls, 323661 input tokens, 88399 output tokens (of which 44050 reasoning), errors 0, US$3.06
+Total: 970983 input and 266973 output tokens. At US$4 per million input and US$20 per million output tokens (Claude Opus 5.5 price list, 2026-10-06): about US$9.22, plus under US$0.02 for the smoke call.
