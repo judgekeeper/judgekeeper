@@ -42,6 +42,7 @@ img, svg { max-width: 100%; }
 /* ---- menu and footer ---- */
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.01em; text-decoration: none; color: inherit; white-space: nowrap; }
 .brand .logo { width: 32px; height: 36px; flex: none; }
+.brand sup { font-size: 12px; line-height: 1; font-weight: 600; }
 .menu { border-bottom: 1px solid var(--rule); }
 .menu .wrap { height: 76px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
 .menu-l { display: flex; gap: 30px; font-size: 15px; font-weight: 600; min-width: 0; }
@@ -56,6 +57,7 @@ img, svg { max-width: 100%; }
 .foot .brand { font-size: 16px; color: var(--fg); }
 .foot .brand .logo { width: 22px; height: 25px; }
 .foot-r { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+.foot .note { flex-basis: 100%; margin: 0; }
 .foot-r a { color: var(--muted); text-decoration: none; }
 .foot-r a:hover { color: var(--fg); text-decoration: underline; }
 @media (max-width: 760px) {

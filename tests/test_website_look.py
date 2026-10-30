@@ -39,6 +39,8 @@ GUIDE = WEBSITE / "start.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
+TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
+                  "The Apache-2.0 license covers the code, not the name or logo.")
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
 FONTS = WEBSITE / "assets" / "fonts"
@@ -145,8 +147,9 @@ def test_the_menu_is_home_the_guide_the_logo_and_github():
         (nav,) = _all(header, "nav", "menu-l")
         assert [(a.attrs["href"], a.text().strip()) for a in _all(nav, "a")] == NAV, page.name
         (brand,) = _all(header, "a", "brand")
-        assert brand.attrs["href"] == "index.html" and _flat(brand) == "judgekeeper"
+        assert brand.attrs["href"] == "index.html" and _flat(brand) == "judgekeeper™"
         assert _all(brand, "svg", "logo"), page.name
+        assert len(_all(brand, "sup")) == 1, f"{page.name}: one ™, after the name, none on the logo"
         (github,) = _all(header, "a", "gh")
         assert (github.attrs["href"], _flat(github)) == (GITHUB, "GitHub"), page.name
         assert not _all(header, "button"), f"{page.name}: no theme switch, no menu button"
@@ -163,11 +166,16 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
         assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "Apache-2.0 license")], page.name
         (copy,) = _all(links, "span", "copy")
         assert _flat(copy) == "© 2026 Sathvik Thota · Apache-2.0 license", page.name
+        (note,) = _all(footer, "p", "note")
+        assert _flat(note) == TRADEMARK_NOTE, page.name
         assert not _all(footer, "h2") and "More" not in _flat(footer), page.name
 
 
 def test_the_footer_names_match_the_licence():
     assert "Copyright 2026 Sathvik Thota" in (ROOT / "NOTICE").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "<h1>judgekeeper™</h1>" in readme and readme.rstrip().endswith(TRADEMARK_NOTE)
+    assert "Apache-2.0" in (ROOT / "TRADEMARKS.md").read_text(encoding="utf-8")
     for path in ("TRADEMARKS.md", "SECURITY.md", "LICENSE", "NOTICE"):
         assert (ROOT / path).is_file(), path
 
