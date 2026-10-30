@@ -1029,7 +1029,7 @@ def test_privacy_is_the_notice_the_law_asks_for():
                   "Data Privacy Framework and Standard Contractual Clauses",
                   "my legitimate interest", "not sold, shared or combined",
                   "Do Not Track", "erased or restricted, or object to its use",
-                  "Information Commissioner's Office", "Last updated: YYYY-MM-DD"):
+                  "Information Commissioner's Office", "Last updated: 2026-10-30"):
         assert words in text, words
     page = PRIVACY.read_text(encoding="utf-8")
     assert "90 days" not in page  # Railway gives no period in its policy or its DPA
