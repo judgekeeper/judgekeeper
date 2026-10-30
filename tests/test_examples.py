@@ -62,6 +62,7 @@ def test_every_link_into_docs_examples_points_at_a_committed_file():
 
 
 DATASETS = {"jailbreakbench": "886acc352a31533ffbcf4ef22c744658688086fc",
+            "jailbreakbench-claude": "886acc352a31533ffbcf4ef22c744658688086fc",
             "ragtruth": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
             "ragtruth-qa": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",
             "ragtruth-data2txt": "c103204b9ce28d6bbad859304bf30de72b8ed8fe",

@@ -25,6 +25,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # the loader below is read, not installed
 HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"
 _spec = importlib.util.spec_from_file_location("jbb_load", HERE.parent / "jailbreakbench" / "load.py")

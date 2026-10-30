@@ -1,0 +1,39 @@
+# Source: JailbreakBench JBB-Behaviors (huggingface.co/datasets/JailbreakBench/JBB-Behaviors), MIT license, Copyright (c) 2023 JailbreakBench Team
+# Revision: 886acc352a31533ffbcf4ef22c744658688086fc
+# Subset: config judge_comparison, split test (data/judge-comparison.csv, 300 rows)
+# Grades: judge: Claude Haiku 5.5 through promptfoo llm-rubric with rule.txt, effort medium set in the config, 2026-10-30; marks: the dataset's human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)
+# Holds: ids, grades and counts only; no request or response
+# The screen below is judgekeeper's Measure output, copied exactly.
+
+judgekeeper 1.0.0
+
+Step 3 of 5: Measure
+
+278 of your marks took under a second each. A result is only as
+good as the marks. This looks like a program, not a person.
+
+294 of your marks came through a link printed with no terminal,
+so another program on this computer could have made them. If you
+marked them yourself, nothing to do.
+
+Result: your LLM-as-a-judge needs work.
+You and your LLM-as-a-judge disagreed on 64 of 294 answers.
+
+  You passed 187 answers. Of those, your LLM-as-a-judge passed
+  184 and failed 3.
+  You failed 107 answers. Of those, your LLM-as-a-judge passed
+  61 and failed 46.
+
+Tell judgekeeper why you disagree on these 31: run
+`judgekeeper mark --no-browser`.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
+
+How often your LLM-as-a-judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 98% (between 96% and 100%)
+  When you say Fail, it also says Fail: about 43% (between 37% and 49%)
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix`.
