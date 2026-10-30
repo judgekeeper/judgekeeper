@@ -86,7 +86,7 @@ MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grad
            "results{why}. A rule is tested only on all of them: a rule that leaves the hard ones "
            "ungraded would look better than it is.")
 MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no decision from "
-                "your new rule (such as an error): more than half, too many to test it on.")
+                "your new rule{why}: more than half, too many to test it on.")
 COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
            "counted {them}.")
 REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then run "
@@ -1429,6 +1429,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         lookup,
         mixed_line,
         no_decision,
+        no_decision_why,
         repeats_line,
         unknown_grades,
     )
@@ -1489,9 +1490,10 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         return EXIT_NEEDS_YOU
     if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those;
         k = len(lack) if gone else len(blank)  # before a replay: this file can't test it
+        error = no_decision_why(found, lack, ws)  # " (such as an error)" only for an error
         talk.para(MISSING.format(k=k, n=len(split.hidden), have=_have(k),
-                                 why=_missing_why(gone, len(lack) - gone)) if gone else
-                  MOSTLY_BLANK.format(k=k, n=len(ids) + k, have=_have(k)))
+                                 why=_missing_why(gone, len(lack) - gone, error)) if gone else
+                  MOSTLY_BLANK.format(k=k, n=len(ids) + k, have=_have(k), why=error))
         _rewrite_lacking(talk, ws, m, lack)
         talk.next(_regrade_same(talk, ws))
         return EXIT_NEEDS_YOU
@@ -1539,10 +1541,11 @@ def _have(k: int) -> str:
     return "has" if k == 1 else "have"
 
 
-def _missing_why(gone: int, errors: int) -> str:
-    """Why answers kept aside have no grade: not in the file, or there with no decision."""
+def _missing_why(gone: int, errors: int, error: str = "") -> str:
+    """Why answers kept aside have no grade: not in the file, or there with no decision
+    (`error`: " (such as an error)" when one of them was an error)."""
     parts = ([f"{gone} {'is' if gone == 1 else 'are'} not in the file"] if gone else []) + (
-        [f"{errors} {_have(errors)} no decision from your LLM-as-a-judge (such as an error)"]
+        [f"{errors} {_have(errors)} no decision from your LLM-as-a-judge{error}"]
         if errors else [])
     return f": {' and '.join(parts)}" if parts else ""
 
@@ -1587,8 +1590,14 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
     file = test.get("file") if isinstance(test.get("file"), str) else None
     source = (f"the result above is from {file or 'an earlier file'}"
               f"{f' on {day}' if day else ''}.")
-    talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}" if blank
-              else source[0].upper() + source[1:])
+    if blank:
+        talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}")
+    elif file and file != scrub(path.as_posix()):  # another file: say which one is given now
+        same = "rule" if test.get("rule_hash") else "grades"
+        talk.para(f"{path.name} has the same {same} as {file}{f' ({day})' if day else ''}, so "
+                  f"the result above is the same.")
+    else:
+        talk.para(source[0].upper() + source[1:])
     talk.next(_after_step(talk, ws, m, str(test.get("verdict")), path))
     return EXIT_OK
 
