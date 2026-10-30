@@ -1204,18 +1204,20 @@
     var models = Array.from(new Set(records.map(function (x) { return x.model; }).filter(truthy).map(String))).sort(pyOrder);
     var promptRec = records.find(function (x) { return truthy(x.prompt); });
     var rule = ruleText(promptRec ? promptRec.prompt : null);
+    // with no pass mark known, a plain 1 or 0 among scores is a score too: none is counted as a Pass or Fail
+    var scores = pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null;
     return {
       key: metric,  // as the file has it; never shown
       name: oneLine(clean(metric, 80)) || 'unnamed',
       showName: nMetrics > 1 || r.tool === 'deepeval',
       answers: block.answers,
-      pass: pool.nPass, fail: pool.nFail,
+      pass: scores ? 0 : pool.nPass, fail: scores ? 0 : pool.nFail,
       merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
       human: r.humanFor === undefined || r.humanFor === metric ? r.nHuman : 0, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
-      scores: pool.unread.length > 0 && pool.unread.every(isNumber) ? shownValues(pool.unread) : null,
+      scores: scores,
       counts: block,
       allFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'error'; }),
       allModelFailed: !pool.answers.length && pool.left.length > 0 && pool.left.every(function (l) { return l.kind === 'model_failed'; }),
@@ -1223,8 +1225,8 @@
       modelNotWritten: r.tool === 'promptfoo' && !models.length,
       models: models.map(function (m) { return oneLine(clean(m, 120)); }),
       rule: rule === null ? null : oneLine(clean(rule)),
-      findings: findingLines(block),
-      first: pool.answers.length ? { input: pool.answers[0].input, output: pool.answers[0].output, verdict: pool.answers[0].verdict } : null
+      findings: scores ? [] : findingLines(block),
+      first: pool.answers.length && !scores ? { input: pool.answers[0].input, output: pool.answers[0].output, verdict: pool.answers[0].verdict } : null
     };
   }
 
