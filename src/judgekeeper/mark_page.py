@@ -950,7 +950,7 @@ def _progress() -> str:
     the link to the result (hidden until one is ready); under them, hidden until it is
     wanted, the line that says to keep going."""
     return ('<div class="progress-box"><div class="status-1"><div class="seg" id="progress" '
-            'role="progressbar" aria-label="Answers looked at" aria-valuemin="0" '
+            'role="progressbar" aria-label="How close your result is" aria-valuemin="0" '
             'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
