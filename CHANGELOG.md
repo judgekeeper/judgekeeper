@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (2026-10-31)
+- ™ on the judgekeeper name and logo, with the trademark notice, in the README, on the website and on the marking and report pages. The README title's ™ is shown small.
+- The example model names are neutral (`my-judge-v1`, `my-judge-v2`), and the example with two LLM-as-a-judge setups on JailbreakBench is now in `docs/examples/jailbreakbench-setups/`.
+- The demo is recorded again, with the new frame and the ™.
+- Wording fixes in the docs and the examples, and a line for people who use a coding agent, in the README and the Guide.
+- No change to what judgekeeper does.
+
 ## 1.0.0 (2026-10-30)
 
 The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, in its virtual environment, run `pip install judgekeeper`, then `judgekeeper`; or run `uvx judgekeeper`, which needs no virtual environment.
@@ -20,4 +27,4 @@ The 5 steps: Find. Mark. Measure. Fix. Re-check. In your project folder, in its 
 - Removed since 0.1.3: every 0.1 command, the built-in runners that called an AI, the pytest plugin, the GitHub Action and the agent skill.
 - The license is now Apache-2.0 (was MIT).
 
-Earlier versions (0.1.0 to 1.0.0b1): see the git tags and the PyPI release history.
+Earlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.

@@ -23,7 +23,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
 # The old LLMBar run, kept only as a source of the real-data check
@@ -86,8 +86,8 @@ def test_there_is_no_github_action():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION]  # the earlier ones are in the git tags and on PyPI
-    assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the git tags and the PyPI release history.")
+    assert entries == [VERSION, "1.0.0"]  # the earlier ones are on PyPI
+    assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
 
 
 def test_the_lead_changelog_entry_has_its_release_date():
@@ -590,7 +590,7 @@ def test_changelog_entry_says_1_0_is_commands_you_run():
     """The 1.0.0 entry (1.0.0b2 was never published and is folded into it): the 5 steps, the
     4 commands, that it only reads files and what is gone since 0.1.3."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("Earlier versions")]
+    entry = text[text.index("## 1.0.0 "):text.index("Earlier versions")]
     assert len(entry.strip().splitlines()) < 20
     assert "## 1.0.0b2" not in text and "free check" not in text and "browser check" in entry
     flat = " ".join(entry.split())

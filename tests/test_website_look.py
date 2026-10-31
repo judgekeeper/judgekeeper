@@ -39,6 +39,8 @@ GUIDE = WEBSITE / "start.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
+AGENT_LINE = ("Using a coding agent? Give it this page. It runs the steps and gives you the "
+              "marking page link; you mark, then it explains the result.")
 TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
                   "The Apache-2.0 license covers the code, not the name or logo.")
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
@@ -728,7 +730,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
         "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "Works on macOS, Linux and Windows, with Python 3.11 to 3.14."]
+        "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
+    assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
     # three windows, the title in each bar (the h3 stays for screen readers): your own file
     # or code across the column, then the keys and the handy commands side by side

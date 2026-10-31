@@ -10,6 +10,7 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 - **The LLM-as-a-judge setups:** A is Claude Haiku 5.5 (`claude-haiku-5-5`) and B is Claude Sonnet 5.5 (`claude-sonnet-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`). Effort was not set, so each ran at its API default, as in the news-summary check: medium for A, high for B.
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`): "Every claim in the overview is supported by the data. Pass if every claim is supported by the data. Fail if any claim is not supported by the data or contradicts it." It is the news-summary rule with "overview" and "data" in place of "summary" and "article". The data is shown to the LLM-as-a-judge as the JSON the writing model was given; nothing else was added.
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
+- **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
 - **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`.
 
 ## How often each LLM-as-a-judge agrees with people
