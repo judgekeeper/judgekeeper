@@ -3,6 +3,7 @@
 Nothing here publishes or calls a network service. The release workflow is parsed, never run.
 """
 
+import html
 import importlib.util
 import json
 import re
@@ -85,7 +86,8 @@ def test_there_is_no_github_action():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION, "1.0.0b1", "0.1.3", "0.1.2", "0.1.1", "0.1.0"]
+    assert entries == [VERSION]  # the earlier ones are in the git tags and on PyPI
+    assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the git tags and the PyPI release history.")
 
 
 def test_the_lead_changelog_entry_has_its_release_date():
@@ -467,6 +469,13 @@ def test_release_workflows_test_the_wheels_from_the_checkout_not_the_sdist():
 
 # The website build
 
+def _site_frame():
+    spec = importlib.util.spec_from_file_location("site_frame", ROOT / "scripts" / "site_frame.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _build_pages(out: Path) -> None:
     spec = importlib.util.spec_from_file_location("build_pages",
                                                   ROOT / "scripts" / "build_pages.py")
@@ -545,9 +554,15 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
             'probes/report.md"') in index
     assert "llmbar-haiku" not in index
-    # dark only, like the site
-    assert "prefers-color-scheme" not in index and "#fff;" not in index
-    assert "color-scheme: dark" in index
+    # the site's own look, menu and footer (one folder up), so dark only like the site
+    assert "prefers-color-scheme" not in index and "<style" not in index
+    frame = _site_frame()
+    for block in (frame.head_links(), frame.header(""), frame.footer()):
+        assert re.sub(r'(href|src)="(?![a-z]+:|#)', r'\1="../', block) in index
+    assert frame.NOTE in index and "judgekeeper<sup>™</sup>" in index
+    assert "judge-comparison" not in index and "LLM-as-a-judge comparison set" in index
+    # the JailbreakBench pages say their marks came through a printed link: the index says why
+    assert html.escape("The marks are JailbreakBench's three-expert majority labels") in index
 
 
 def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path):
@@ -575,9 +590,9 @@ def test_changelog_entry_says_1_0_is_commands_you_run():
     """The 1.0.0 entry (1.0.0b2 was never published and is folded into it): the 5 steps, the
     4 commands, that it only reads files and what is gone since 0.1.3."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index(f"## {VERSION}"):text.index("## 1.0.0b1")]
+    entry = text[text.index(f"## {VERSION}"):text.index("Earlier versions")]
     assert len(entry.strip().splitlines()) < 20
-    assert "## 1.0.0b2" not in text
+    assert "## 1.0.0b2" not in text and "free check" not in text and "browser check" in entry
     flat = " ".join(entry.split())
     for needed in ("`uvx judgekeeper`", "`pip install judgekeeper`", "`judgekeeper mark`",
                    "`judgekeeper fix`", "`judgekeeper check`", "only reads files",
@@ -588,33 +603,6 @@ def test_changelog_entry_says_1_0_is_commands_you_run():
     for gone in ("--off", "Only your click", "action.yml", "mode: fast", "hook", "ask first",
                  "AI calls"):
         assert gone not in flat, gone
-
-
-def test_changelog_entry_says_what_changed_since_0_1_3():
-    """0.2.0 was never released: the first beta's entry says what changed from 0.1.3."""
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    beta = "1.0.0b1"
-    entry = text[text.index(f"## {beta}"):text.index("## 0.1.3")]
-    assert len(entry.strip().splitlines()) < 20
-    assert "## 0.2.0" not in text
-    flat = " ".join(entry.split())
-    for needed in (f"`uvx judgekeeper@{beta}`", f"`pip install judgekeeper=={beta}`",
-                   "`judgekeeper mark`",
-                   "your browser", "TPR, TNR and kappa", "skills/judgekeeper/SKILL.md",
-                   "no AI call", "beta", "Removed:", "the pytest plugin", "the GitHub Action"):
-        assert needed in flat, needed
-    for name in ("init", "freeze", "judge", "validate", "baseline", "gate", "migrate", "check",
-                 "template", "import-labels", "label", "import", "export", "attribute", "demo"):
-        assert f"`{name}`" in flat, name
-
-
-def test_older_changelog_entries_stay_as_they_were_written():
-    """An entry is history: 0.1.2 keeps the headline it shipped with."""
-    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    entry = text[text.index("## 0.1.2"):text.index("## 0.1.1")]
-    for needed in ("Your AI judge grades your app. judgekeeper grades the judge.", "README",
-                   "docs/guide.md", "--help", "plain", "Nothing was removed or renamed"):
-        assert needed in entry, needed
 
 
 def test_readme_covers_uvx_and_pip_and_names_no_hidden_command():
@@ -631,7 +619,7 @@ def test_no_install_command_names_a_version():
     """1.0.0 is what uv and pip install by default: the changelog's newest entry and the
     README name no version."""
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    newest = changelog[:changelog.index("## ", changelog.index("## ") + 3)]
+    newest = changelog[:changelog.index("Earlier versions")]
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for text in (newest, readme):
         uvx = re.findall(r"uvx judgekeeper(@[\w.]+)?", text)

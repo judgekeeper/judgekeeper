@@ -223,7 +223,7 @@ When your LLM-as-a-judge runs in your own code, install judgekeeper in your proj
 ```python
 import judgekeeper
 judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
-                   reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")
+                   reason=reason, judge="my-judge-v1", rule=criteria, name="Safe wording")
 ```
 
 | Argument | What |

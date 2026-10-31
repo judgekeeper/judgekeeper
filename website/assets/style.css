@@ -349,6 +349,8 @@ td:first-child { min-width: 14ch; }
 /* ---- Privacy: a side list and the text ---- */
 .g .wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 64px; padding-block: 56px 96px; }
 .g-main { min-width: 0; max-width: 760px; }
+.g.solo .wrap { grid-template-columns: minmax(0, 1fr); }
+.g-main .meta { color: var(--muted); font-size: 14px; }
 .g-main h1 { font-size: 46px; font-weight: 800; letter-spacing: -.025em; line-height: 1.05; margin: 0 0 16px; text-wrap: balance; }
 .g-lede { font-size: 19px; color: var(--muted); margin: 0; line-height: 1.5; max-width: 60ch; }
 .g-head { padding: 0 0 56px; }

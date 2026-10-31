@@ -45,7 +45,7 @@ providers: [echo]
 tests: file://.judgekeeper/fix/marked-answers.csv
 defaultTest:
   options:
-    provider: anthropic:messages:claude-haiku-5-5  # your grader, as before
+    provider: <your grader model>  # your grader, as before
   assert:
     - type: llm-rubric
       metric: correctness  # the same metric: as before, if yours has one
@@ -138,7 +138,7 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 
 ## A CSV, TSV or JSONL file
 
-A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as gpt-4o, is not one); with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
+A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as my-judge-v1, is not one); with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
 
 ## Results in a format of its own
 

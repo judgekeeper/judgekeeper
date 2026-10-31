@@ -5,17 +5,19 @@
 - website/ is copied as it is (its README.md and its local `examples` link are left out).
 - docs/examples/ is copied to examples/. Each <name>/report.html is also written as
   <name>/index.html, so https://www.judgekeeper.com/examples/<name>/ serves it,
-  and examples/index.html lists the folders that have a README.md or a report.md.
+  and examples/index.html lists the folders that have a README.md or a report.md, in the
+  site's own menu and footer (scripts/site_frame.py).
 - The build stops if a page under examples/ has a <script> but not the
   Content-Security-Policy meta tag that judgekeeper's report pages carry: the site lets
   example pages run only the scripts that tag names by hash.
 
-Standard library only; run by deploy/railway/Dockerfile.
+Standard library only; run by deploy/railway/Dockerfile, with site_frame.py beside it.
 """
 
 from __future__ import annotations
 
 import html
+import importlib.util
 import json
 import re
 import shutil
@@ -28,20 +30,12 @@ INDEX = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>judgekeeper example reports</title>
-<style>
-:root {{ color-scheme: dark; --bg: #0b0c0e; --fg: #e6e8eb; --muted: #8b919a; --line: #262a30;
-  --link: #7aa2ff; }}
-body {{ margin: 0; background: var(--bg); color: var(--fg);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }}
-main {{ max-width: 760px; margin: 0 auto; padding: 32px 16px; }}
-a {{ color: var(--link); }}
-li {{ margin: 12px 0; }}
-.meta {{ color: var(--muted); font-size: 14px; }}
-</style>
+{head}
+{script}
 </head>
 <body>
-<main>
-<p><a href="../index.html">judgekeeper home</a></p>
+{header}
+<main id="main" class="g solo"><div class="wrap"><div class="g-main">
 <h1>judgekeeper example reports</h1>
 <p>Reports committed under <code>docs/examples/</code> in the repository. All come
 from real runs on public datasets (of judgekeeper, or of a check script that uses its
@@ -50,10 +44,37 @@ maths), except <code>site-example</code>: the made-up project the home page show
 <ul>
 {items}
 </ul>
-</main>
+</div></div></main>
+{footer}
 </body>
 </html>
 """
+# Folder titles as the index shows them: the dataset calls its set "judge_comparison".
+TITLE_WORDS = {"judge-comparison": "LLM-as-a-judge comparison"}
+# A line under a folder's title, where its report pages say something a reader should know first
+NOTES = {"jailbreakbench": "The marks are JailbreakBench's three-expert majority labels, "
+                            "entered by a script through the marking page's own calls. So the "
+                            "report pages note that the marks came through a link printed with "
+                            "no terminal."}
+LOCAL = re.compile(r'(href|src)="(?![a-z]+:|#|/)')  # a link to a file of the site
+
+
+def _frame():
+    """scripts/site_frame.py, by path: the website build copies only the scripts it runs."""
+    path = Path(__file__).resolve().with_name("site_frame.py")
+    spec = importlib.util.spec_from_file_location("site_frame", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def index_page(items: str) -> str:
+    """examples/index.html: the site's own head, menu and footer, its links one folder up."""
+    frame = _frame()
+    def up(block: str) -> str:
+        return LOCAL.sub(r'\1="../', block)
+    return INDEX.format(head=up(frame.head_links()), script=up(frame.script()),
+                        header=up(frame.header("")), footer=up(frame.footer()), items=items)
 
 
 REPO = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/"
@@ -82,6 +103,8 @@ def _describe(folder: Path) -> str:
         if (folder / name).is_file():
             title = (folder / name).read_text(encoding="utf-8").splitlines()[0].lstrip("# ")
             title = title.strip()
+            for old, new in TITLE_WORDS.items():
+                title = title.replace(old, new)
             break
     report_json = next((p for p in (folder / "report.json", folder / "result.json")
                         if p.is_file()), None)
@@ -118,9 +141,10 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
     links = {n: f"{n}/" if n in names else f"{REPO}{n}/report.md" for n in listed}
     items = "\n".join(
         f'<li><a href="{html.escape(links[n])}">{html.escape(n)}</a>'
-        f'<div class="meta">{html.escape(_describe(examples / n))}</div></li>'
+        f'<div class="meta">{html.escape(_describe(examples / n))}</div>'
+        + (f'<div class="meta">{html.escape(NOTES[n])}</div>' if n in NOTES else "") + "</li>"
         for n in listed)
-    (out / "examples" / "index.html").write_text(INDEX.format(items=items), encoding="utf-8",
+    (out / "examples" / "index.html").write_text(index_page(items), encoding="utf-8",
                                                  newline="\n")
     (out / ".nojekyll").write_text("", encoding="utf-8", newline="\n")
     return names
