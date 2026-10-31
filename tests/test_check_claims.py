@@ -18,7 +18,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import re
 import sys
 
 from judgekeeper import judge_setup
@@ -266,10 +265,11 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     assert ("None of your 50 marked answers is in your new results. judgekeeper finds a marked "
             "answer by its exact text and question.") in flat
     assert "labeled" not in flat
-    assert _next(out) == ("Next: run `judgekeeper fix` to write the answers you marked to "
-                          ".judgekeeper/fix/marked-answers.csv, grade them again with your "
-                          "LLM-as-a-judge, then run `judgekeeper check <new results file>`; or "
-                          "start over on your new answers with `judgekeeper --new`.")
+    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
+            "marked instead:") in flat
+    assert "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml" in flat
+    assert _next(out) == ("Next: follow the three steps above; or start over on your new "
+                          "answers with `judgekeeper --new`.")
     assert _history(ws) == []
 
 
@@ -282,8 +282,8 @@ def test_doing_what_no_marked_answer_says_gives_a_check_that_compares(here, caps
     _write(here / "results.json", other)
     code, out = run(capsys)
     assert code == 3
-    commands = re.findall(r"`(judgekeeper [^`]*)`", _next(out))
-    assert commands[:2] == ["judgekeeper fix", "judgekeeper check <new results file>"]
+    assert "3. Then: `judgekeeper check .judgekeeper/fix/new.json`" in _flat(out)
+    commands = ["judgekeeper fix", "judgekeeper check <new results file>"]
     assert main(["fix"]) == 0
     capsys.readouterr()
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()

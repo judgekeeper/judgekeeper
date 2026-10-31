@@ -249,3 +249,50 @@ def test_worse_still_wins_over_better(here):
     g = _groups(old_wrong=20, new_wrong=0, new_wrong_pass=30)  # Fail side rises, Pass side falls
     assert g["failed"]["verdict"] == "better" and g["passed"]["verdict"] == "worse"
     assert check.outcome(g) == "worse"
+
+
+# check: none of the marked answers are in the new results -------------------------------------
+
+def _none_in(root) -> str:
+    data = json.loads((root / FIRST["promptfoo"]).read_text(encoding="utf-8"))
+    for row in data["results"]["results"]:
+        row["response"]["output"] += " A new answer."
+    (root / "new.json").write_text(json.dumps(data), encoding="utf-8")
+    return "new.json"
+
+
+def test_check_with_none_of_the_answers_found_leads_with_the_steps(here, capsys, monkeypatch):
+    ws = any_project("promptfoo", here, monkeypatch)
+    capsys.readouterr()
+    code, out = run_any(capsys, "check", _none_in(here))
+    flat = _flat(out)
+    assert code == 3, out
+    line = next(n for n, x in enumerate(
+        (ws.dir / "fix" / "regrade.yaml").read_text(encoding="utf-8").splitlines(), 1)
+        if x.lstrip().startswith("provider:"))
+    assert "None of your" in flat and "is in your new results." in flat
+    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
+            "marked instead: "
+            f"1. Change the grader in .judgekeeper/fix/regrade.yaml (line {line}). "
+            "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
+            ".judgekeeper/fix/new.json` "
+            "3. Then: `judgekeeper check .judgekeeper/fix/new.json` "
+            "Next: follow the three steps above; or start over on your new answers with "
+            "`judgekeeper --new`.") in flat
+
+
+def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools(
+        here, capsys, monkeypatch):
+    from tests.test_new_results import _jsonl
+
+    any_project("jsonl", here, monkeypatch)
+    capsys.readouterr()
+    rows = _jsonl(here / "new.jsonl", [(0, True)])
+    rows.write_text(rows.read_text(encoding="utf-8").replace("Answer", "Another"),
+                    encoding="utf-8")
+    code, out = run_any(capsys, "check", rows.name)
+    flat = _flat(out)
+    assert code == 3, out
+    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
+            "marked instead: Next: run `judgekeeper fix` to write the answers you marked") in flat
+    assert "or start over on your new answers with `judgekeeper --new`." in flat
