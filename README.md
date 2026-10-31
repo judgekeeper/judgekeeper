@@ -15,7 +15,7 @@
   </p>
 </div>
 
-An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often yours agrees with you, and where it goes wrong.
+An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong.
 
 ![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
