@@ -25,8 +25,6 @@ LOGO = ('<svg class="logo" viewBox="0 0 64 72" aria-hidden="true" focusable="fal
         '<path d="M32 3 L59 12 V34 C59 51 47 63 32 69 Z" fill="#10B981"/>'
         '<path d="M18 36 L28 46 L47 25" fill="none" stroke="#FFFFFF" stroke-width="6" '
         'stroke-linecap="round" stroke-linejoin="round"/></svg>')
-NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
-        "The Apache-2.0 license covers the code, not the name or logo.")
 
 
 def head_links() -> str:
@@ -62,15 +60,14 @@ def header(target: str) -> str:
 
 
 def footer() -> str:
-    """The logo, then only the links the menu does not have, the copyright, and the trademark
-    notice. The links are a div with role="navigation": a nav would pick up the menu's styles."""
+    """The logo, then only the links the menu does not have, and the copyright. The
+    links are a div with role="navigation": a nav would pick up the menu's styles."""
     return (
         '<footer class="foot"><div class="wrap">\n'
         f'<div class="brand">{LOGO}<span>judgekeeper</span></div>\n'
         f'<div class="foot-r" role="navigation" aria-label="Legal">{_links(LEGAL)}'
         f'<span class="copy">© 2026 Sathvik Thota · <a href="{GITHUB}/blob/main/LICENSE">'
         "Apache-2.0 license</a></span></div>\n"
-        f'<p class="note">{NOTE}</p>\n'
         "</div></footer>")
 
 

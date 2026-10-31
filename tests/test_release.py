@@ -544,6 +544,15 @@ def test_every_local_link_in_the_built_pages_finds_its_file(tmp_path):
     assert missing == []
 
 
+def test_the_trademark_notice_is_at_the_end_of_the_readme_and_on_no_site_page(tmp_path):
+    notice = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
+              "The Apache-2.0 license covers the code, not the name or logo.")
+    assert (ROOT / "README.md").read_text(encoding="utf-8").rstrip().endswith(notice)
+    _build_pages(tmp_path)
+    pages = [*sorted((ROOT / "website").rglob("*.html")), *sorted(tmp_path.rglob("*.html"))]
+    assert pages and [p for p in pages if "trademarks of Sathvik" in p.read_text(encoding="utf-8")] == []
+
+
 def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tmp_path):
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
@@ -559,7 +568,7 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     frame = _site_frame()
     for block in (frame.head_links(), frame.header(""), frame.footer()):
         assert re.sub(r'(href|src)="(?![a-z]+:|#)', r'\1="../', block) in index
-    assert frame.NOTE in index and "judgekeeper<sup>™</sup>" in index
+    assert "judgekeeper<sup>™</sup>" in index
     assert "judge-comparison" not in index and "LLM-as-a-judge comparison set" in index
     # the JailbreakBench pages say their marks came through a printed link: the index says why
     assert html.escape("The marks are JailbreakBench's three-expert majority labels") in index

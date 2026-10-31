@@ -176,8 +176,7 @@ def test_the_footer_is_the_logo_the_legal_links_and_the_copyright():
         assert found == [*LEGAL, (f"{GITHUB}/blob/main/LICENSE", "Apache-2.0 license")], page.name
         (copy,) = _all(links, "span", "copy")
         assert _flat(copy) == "© 2026 Sathvik Thota · Apache-2.0 license", page.name
-        (note,) = _all(footer, "p", "note")
-        assert _flat(note) == TRADEMARK_NOTE, page.name
+        assert not _all(footer, "p", "note") and TRADEMARK_NOTE not in _flat(footer), page.name
         assert not _all(footer, "h2") and "More" not in _flat(footer), page.name
 
 
@@ -600,10 +599,10 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     (foot,) = _all(term, "div", "term-foot")
     (dot,) = _all(foot, "span", "tf-dot")
     assert dot.attrs.get("aria-hidden") == "true"
-    assert _flat(_all(foot, "span", "tf-text")[0]) == "made-up answers · not a real project"
+    assert _flat(_all(foot, "span", "tf-text")[0]) == "Example with made-up answers"
     (link,) = _all(foot, "a", "tf-link")
     assert (link.attrs["href"], _flat(link)) == ("examples/site-example/report.html",
-                                                 "open its report")
+                                                 "see its report")
     assert 'content: " ↗"' in _rule(".tf-link::after")
     assert "dashed" in _rule(".tf-link")
     bar = _rule(".term-foot")
