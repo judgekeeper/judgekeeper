@@ -102,6 +102,7 @@ Step 2 of 5: Mark
 A result needs at least 15 answers you mark Pass and 15 you mark
 Fail. If almost every answer passes, that can take many answers.
 
+Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
@@ -133,6 +134,7 @@ Step 2 of 5: Mark
 A result needs at least 15 answers you mark Pass and 15 you mark
 Fail. If almost every answer passes, that can take many answers.
 
+Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
@@ -223,8 +225,12 @@ Step 4 of 5: Fix (testing your new rule)
 New results: new-rule.json
 
 Your LLM-as-a-judge, tested on the 16 marks kept aside:
-  Old rule: agreed with you on 8 of 16 answers.
-  New rule: agreed with you on 16 of 16 answers.
+  Old rule:
+    When you say Pass: agrees on 4 of 8
+    When you say Fail: agrees on 4 of 8
+  New rule:
+    When you say Pass: agrees on 8 of 8
+    When you say Fail: agrees on 8 of 8
   With the new rule, 8 answers went from wrong to right, and
   none from right to wrong.
 
