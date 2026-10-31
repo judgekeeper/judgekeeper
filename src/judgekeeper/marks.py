@@ -44,7 +44,8 @@ BY = "page"
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
 BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
-LINKS = (PRINTED, BROWSER_ENV)
+ASKED = "asked"  # the person asked for the printed link (--no-browser) at a terminal
+LINKS = (PRINTED, BROWSER_ENV, ASKED)
 
 
 class MarksError(OSError):
@@ -260,7 +261,9 @@ def made(m: Marks, ids=None) -> dict:
             "printed": sum(x.get("link") == PRINTED for x in lines),
             "browser_env": sum(x.get("link") == BROWSER_ENV for x in lines),
             "unsure": sum(UNSURE in (x.get("reasons") or []) for x in lines),
-            "after_result": sum(x["id"] in m.after_result for x in lines)}
+            "after_result": sum(x["id"] in m.after_result for x in lines),
+            # only when there are some: result.json stays as it was for everyone else
+            **({"asked": asked} if (asked := sum(x.get("link") == ASKED for x in lines)) else {})}
 
 
 def not_counted_line(n: int) -> str | None:

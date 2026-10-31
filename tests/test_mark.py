@@ -85,6 +85,7 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail. If almost every answer passes, that can take many answers.",
         "",
+        "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
