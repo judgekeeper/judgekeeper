@@ -505,7 +505,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     assert re.search(r'href="site-example/".*Example project \(made-up answers\), '
                      r"my-judge-v1", index)
     assert "unedited" not in index and "real runs" in index and "made-up" in index
-    assert not re.search(r'(?:src|<link[^>]*href)="http', index)  # no external assets
+    assert not re.search(r'(?:src|<link(?! rel="canonical")[^>]*href)="http', index)  # no external assets
     assert (tmp_path / ".nojekyll").is_file()
     assert not (tmp_path / "CNAME").exists()  # the build sets no custom domain
 
@@ -551,6 +551,17 @@ def test_the_trademark_notice_is_at_the_end_of_the_readme_and_on_no_site_page(tm
     _build_pages(tmp_path)
     pages = [*sorted((ROOT / "website").rglob("*.html")), *sorted(tmp_path.rglob("*.html"))]
     assert pages and [p for p in pages if "trademarks of Sathvik" in p.read_text(encoding="utf-8")] == []
+
+
+def test_every_page_in_the_sitemap_names_itself_as_canonical(tmp_path):
+    _build_pages(tmp_path)
+    sitemap = (ROOT / "website" / "sitemap.xml").read_text(encoding="utf-8")
+    for loc in re.findall(r"<loc>(.*?)</loc>", sitemap):
+        path = loc.removeprefix("https://www.judgekeeper.com/")
+        page = tmp_path / (path + "index.html" if not path or path.endswith("/") else path)
+        links = [el.attrs["href"] for el in parse(page).iter()
+                 if el.tag == "link" and el.attrs.get("rel") == "canonical"]
+        assert links == [loc], loc
 
 
 def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tmp_path):

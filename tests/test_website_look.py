@@ -237,7 +237,7 @@ def test_no_page_or_asset_asks_another_server_for_anything():
             for el in parse(path).iter():
                 for attr in ("src", "href"):
                     url = el.attrs.get(attr, "")
-                    if el.tag in {"link", "script", "img"} and url:
+                    if el.tag in {"link", "script", "img"} and url and el.attrs.get("rel") != "canonical":
                         assert not re.match(r"(https?:)?//", url), (path.name, url)
     for url in re.findall(r"url\(([^)]+)\)", CSS):
         assert not re.match(r"['\"]?(https?:)?//", url), url
@@ -1310,9 +1310,6 @@ def test_on_a_phone_the_guides_pictures_open_full_size():
     assert "display: block" in _rule(".gx-text .gx-tap", _narrow(600))
 
 
-TOOLS = "For promptfoo, DeepEval, Inspect AI and MLflow"
-
-
 def test_testing_a_new_rule_is_said_for_every_eval_tool():
     """fix reads the new results as step 1 reads results, so a new rule is tested the same way
     for every eval tool, and fix prints how to grade the answers again for each (fix.REGRADE,
@@ -1322,9 +1319,7 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    assert len(meta) == 3
-    assert all(TOOLS not in m and "test a better rule" in m and "on your own computer" in m
-               for m in meta)
+    assert meta == ["See how often your LLM-as-a-judge agrees with you."] * 3
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))

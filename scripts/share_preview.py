@@ -25,6 +25,11 @@ def url(target: str) -> str:
     return SITE + ("" if target == "index.html" else target)
 
 
+def canonical(target: str) -> str:
+    """The page's own address for search engines: the same one the sitemap lists."""
+    return f'<link rel="canonical" href="{url(target)}">'
+
+
 def _attr(value: object) -> str:
     return html.escape(str(value), quote=False).replace('"', "&quot;")
 

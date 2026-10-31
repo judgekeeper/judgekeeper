@@ -62,6 +62,7 @@ def test_the_sitemap_lists_every_page():
         name = page.relative_to(WEBSITE).as_posix()
         url = "https://www.judgekeeper.com/" + ("" if name == "index.html" else name)
         assert url in locs, url
+    assert sitemap.count("<lastmod>2026-10-31</lastmod>") == sitemap.count("<loc>") == 5
 
 
 # Commands
@@ -323,7 +324,7 @@ def test_no_external_assets_and_no_tracking():
             for attr in ("src", "srcset", "data", "poster"):
                 if attr in el.attrs:
                     assert not _is_external(el.attrs[attr]), (page.name, el.tag, el.attrs)
-            if el.tag == "link":
+            if el.tag == "link" and el.attrs.get("rel") != "canonical":  # names, never loads
                 assert not _is_external(el.attrs.get("href", "")), (page.name, el.attrs)
             assert el.tag not in {"form", "iframe", "object", "embed"}, (page.name, el.tag)
     for path in WEBSITE.joinpath("assets").rglob("*"):
@@ -505,6 +506,21 @@ def test_every_page_carries_the_tags_the_generators_write():
         assert expected in page.read_text(encoding="utf-8"), (
             f"{name}: its share-preview tags are not what scripts/share_preview.py writes:\n"
             f"{expected}")
+        assert share_preview.canonical(name) in page.read_text(encoding="utf-8"), name
+
+
+def test_the_home_page_has_one_search_data_block():
+    """Search engines read the JSON-LD block; browsers do not run it, so the policy allows it."""
+    blocks = [el for el in parse(WEBSITE / "index.html").iter()
+              if el.tag == "script" and el.attrs.get("type") == "application/ld+json"]
+    assert len(blocks) == 1
+    data = json.loads(blocks[0].text())
+    assert [n["name"] for n in data["@graph"]] == ["judgekeeper", "judgekeeper"]
+    assert data["@graph"][1]["description"] == "See how often your LLM-as-a-judge agrees with you."
+    assert not {"offers", "aggregateRating", "author"} & set(data["@graph"][1])
+    for page in pages():
+        if page.name != "index.html":
+            assert "application/ld+json" not in page.read_text(encoding="utf-8"), page.name
 
 
 # Accessibility and brand
