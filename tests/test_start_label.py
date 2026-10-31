@@ -339,7 +339,7 @@ def test_the_word_trust_is_nowhere():
 
 def test_the_result_page_stands_alone():
     html = start_label.result_html(_result(900, 100, 25, 20, 25, 10))
-    for needed in ("Your <span class=\"term\">LLM-as-a-judge</span> needs work.", "You passed", "Kappa", "More details", "Fix it",
+    for needed in ("Your <span class=\"term\">LLM-as-a-judge</span> needs work.", "You passed", "Kappa", "More details", "What next",
                    "judgekeeper fix", '"Manrope"'):
         assert needed in html, needed
     assert "<a " not in html.split("<body>")[1]  # no link back: commands only

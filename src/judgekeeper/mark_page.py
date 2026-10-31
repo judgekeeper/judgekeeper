@@ -11,9 +11,12 @@ __NONCE__.
 So that each mark comes from a real look at the answer: Fail and Pass look the same but for
 their colour; after each mark the page ignores input for about 400 ms, and it ignores a held
 key and any key with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The
-progress bar follows the answers looked at, never the Pass and Fail balance, and no number on
-the page is a target. Skipped answers come back at the end. On a phone (760px and narrower)
-the card comes first, then the list.
+progress bar follows how close the result is (Pass and Fail marks, each counted up to ROUGH;
+a skipped answer counts for nothing), never full before the result is ready, and no number on
+the page is a target. When the result becomes ready while the page is open, a box says so,
+once. In an answer or a question only `**bold**` and "- " lines are formatted, built with
+createElement and createTextNode. Skipped answers come back at the end. On a phone (760px and
+narrower) the card comes first, then the list.
 """
 
 from __future__ import annotations
@@ -23,8 +26,10 @@ from html import escape
 from judgekeeper import look, targets
 from judgekeeper.redact import scrub, visible
 
-# Answers looked at that fill the bar: about what a first result takes (enough of each kind)
-FIRST = 2 * targets.ROUGH
+ROUGH = targets.ROUGH  # marks of each kind that fill the bar: a first result takes that many
+# Answers looked at (marked or skipped) after which, with no result yet, the page says to
+# keep going: about what a first result takes
+FIRST = 2 * ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
@@ -64,6 +69,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .seg i { display: block; width: 6px; height: 10px; background: var(--line); }
 .seg i.on { background: var(--text); }
 .count { font-family: var(--mono); font-size: 13px; }
+.progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
+  white-space: normal; text-align: right; }
 .see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none; }
 .see:hover { text-decoration: underline; }
 .wrap { flex: 1; display: grid; grid-template-columns: 400px 1fr; min-height: 0;
@@ -159,6 +167,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro .logo-mark svg { width: 30px; height: 33px; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
+.intro .note { margin: 0; color: var(--muted); font-size: 15px; }
+.intro .quiet { padding: 10px 20px; }
+.answer ul, .question ul { margin: .4em 0; padding-left: 1.4em; white-space: normal; }
+.answer li, .question li { margin: .15em 0; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
 /* the text as written: no font ligature turns -> into an arrow */
 .question, .answer, .item .q, .rule { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
@@ -264,6 +276,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-left: 16px; padding-right: 16px; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
+  .progress-box { width: 100%; align-items: flex-end; }
 }
 """
 
@@ -299,11 +312,20 @@ __TOP__
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
+<div class="scrim" id="ready" hidden>
+  <div class="intro" id="ready-box" role="dialog" aria-modal="true" aria-labelledby="ready-title" tabindex="-1">
+    __BRAND__
+    <h2 id="ready-title">Your result is ready.</h2>
+    <p class="note">More marks make it more precise.</p>
+    <a class="go" id="ready-see" href="#">See your result</a>
+    <button type="button" class="quiet" id="ready-keep">Keep marking</button>
+  </div>
+</div>
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
 (function () {
-  var TOKEN = "__TOKEN__", FIRST = __FIRST__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
+  var TOKEN = "__TOKEN__", FIRST = __FIRST__, ROUGH = __ROUGH__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -370,6 +392,33 @@ __TOP__
     if (text != null) { e.textContent = String(text); }
     return e;
   }
+  // `**bold**` as <strong> and lines that start with "- " as a list: built with createElement
+  // and createTextNode, never innerHTML. Anything else stays text; a `**` never closed stays.
+  var BOLD = /\\*\\*(.+?)\\*\\*/g;
+  function inline(into, text) {
+    var at = 0, m;
+    BOLD.lastIndex = 0;
+    while ((m = BOLD.exec(text))) {
+      if (m.index > at) { into.appendChild(document.createTextNode(text.slice(at, m.index))); }
+      into.appendChild(el("strong", null, m[1]));
+      at = m.index + m[0].length;
+    }
+    if (at < text.length) { into.appendChild(document.createTextNode(text.slice(at))); }
+  }
+  function rich(into, text) {
+    var plain = [], list = null;
+    function flush() { if (plain.length) { inline(into, plain.join("\\n")); plain = []; } }
+    String(text).split("\\n").forEach(function (line) {
+      if (line.slice(0, 2) !== "- ") { list = null; plain.push(line); return; }
+      flush();
+      if (!list) { list = el("ul"); into.appendChild(list); }
+      var item = el("li");
+      inline(item, line.slice(2));
+      list.appendChild(item);
+    });
+    flush();
+  }
+  function richEl(cls, text) { var e = el("span", cls); rich(e, text); return e; }
   function url(path) { return path + "?token=" + encodeURIComponent(TOKEN); }
   // A line that a mark was not saved is brought into view, also on a phone.
   function say(text, calm) {
@@ -421,15 +470,15 @@ __TOP__
     if (!parts) { return; }
     into.textContent = "";
     if (open) {
-      into.appendChild(el("span", "q-start", parts[0] + parts[2]));
-      into.appendChild(el("span", "q-end", parts[1]));
+      into.appendChild(richEl("q-start", parts[0] + parts[2]));
+      into.appendChild(richEl("q-end", parts[1]));
       return;
     }
-    into.appendChild(el("span", "q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
+    into.appendChild(richEl("q-head", parts[0].replace(/\\n\\s*\\n/g, "\\n")));
     var gap = el("span", "q-gap", "\u2026");
     gap.setAttribute("aria-hidden", "true");
     into.appendChild(gap);
-    into.appendChild(el("span", "q-tail", parts[1]));
+    into.appendChild(richEl("q-tail", parts[1]));
   }
   // A short one-line question is the big heading; a longer one, or several named values, reads
   // at normal size, about 4 lines of it, then "Show all".
@@ -448,10 +497,10 @@ __TOP__
     $("q-label").hidden = Array.isArray(value);  // its fields are labelled
     $("q-row").hidden = Array.isArray(it.input) && value === "";
     if (whole) { drawQuestion(false); }
-    else if (!Array.isArray(value)) { into.textContent = value; }
+    else if (!Array.isArray(value)) { rich(into, value); }
     else {
       value.forEach(function (pair) {
-        var name = el("span", "field-name", pair[0]), field = el("span", "field", pair[1]);
+        var name = el("span", "field-name", pair[0]), field = richEl("field", pair[1]);
         name.setAttribute("dir", "auto"); field.setAttribute("dir", "auto");
         into.appendChild(name); into.appendChild(field);
       });
@@ -525,7 +574,7 @@ __TOP__
       var t = part.text;
       if (k > 0) { t = t.replace(/^\\n+/, ""); }
       if (k < parts.length - 1) { t = t.replace(/\\n+$/, ""); }
-      if (t) { into.appendChild(document.createTextNode(t)); }
+      if (t) { rich(into, t); }
     });
     edges();
     var area = answerArea();
@@ -634,12 +683,15 @@ __TOP__
     walkingSkipped = false; open(+a.getAttribute("data-k")); focusCard();
   });
 
-  // The bar: answers looked at (marked or skipped), never the Pass and Fail balance; the
-  // count: the marks. The link to the result once the server says one is ready.
+  // The bar: how close the result is (Pass and Fail marks, each up to ROUGH; a skipped answer
+  // counts for nothing); the count: the marks. The link to the result once the server says one
+  // is ready, and, from FIRST answers looked at until then, one calm line under the bar.
   function renderProgress() {
     var marked = counts.correct + counts.wrong;
     var looked = marked + (counts.skipped || 0);
-    var share = status.ready ? 1 : Math.min(looked / FIRST, 0.95);
+    // the bar follows how close the result is: Pass and Fail marks, each up to ROUGH
+    var share = status.ready ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
+      Math.min(counts.wrong, ROUGH)) / (2 * ROUGH), 0.9);
     var bar = $("progress"), on = Math.round(share * SEGMENTS);
     Array.prototype.forEach.call(bar.children, function (cell, i) {
       cell.classList.toggle("on", i < on); });
@@ -648,6 +700,7 @@ __TOP__
       looked + " answers looked at");
     setText("count", marked + " marked");
     $("see").hidden = !status.ready;
+    $("keep").hidden = status.ready || looked < FIRST;
   }
 
   function render() {
@@ -744,9 +797,11 @@ __TOP__
     }).then(function (res) {
       clearTimeout(waited);
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
+      var wasReady = status.ready;
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       then();
+      if (status.ready && !wasReady && !readyShown && !ended) { showReady(); }
       while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
       clearTimeout(waited); queued = [];
@@ -817,7 +872,8 @@ __TOP__
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
   document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden || !$("ready").hidden) {
+      return; }
     var tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") { return; }
     var k = (e.key || "").toLowerCase();
@@ -849,6 +905,30 @@ __TOP__
     else if (e.key === "Tab") { e.preventDefault(); $("intro-ok").focus(); }
   });
 
+  // The result-ready box: once, when the result turns ready while this page is open (not when
+  // it opens already ready). The page behind it is inert. Esc is "Keep marking"; Tab stays
+  // between its two buttons.
+  var readyShown = false, readyBox = $("ready-box");
+  $("ready-see").setAttribute("href", url("/result"));
+  function showReady() {
+    readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
+    $("ready").hidden = false; $("app").setAttribute("inert", "");
+    readyBox.focus();
+  }
+  function keepMarking() {
+    $("ready").hidden = true; $("app").removeAttribute("inert");
+    focusCard();
+  }
+  $("ready-keep").addEventListener("click", keepMarking);
+  readyBox.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { e.preventDefault(); keepMarking(); }
+    else if (e.key === "Tab") {
+      e.preventDefault();
+      var order = [$("ready-see"), $("ready-keep")], at = order.indexOf(document.activeElement);
+      order[at < 0 ? (e.shiftKey ? 1 : 0) : (at + 1) % 2].focus();
+    }
+  });
+
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(); }
   if (!seenIntro()) {
@@ -862,14 +942,20 @@ __TOP__
 """
 
 
+KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
+
+
 def _progress() -> str:
-    """The top bar's right: the segments by answers looked at, the count of marks, and the
-    link to the result (hidden until one is ready)."""
-    return ('<div class="status-1"><div class="seg" id="progress" role="progressbar" '
-            'aria-label="Answers looked at" aria-valuemin="0" aria-valuemax="100" '
+    """The top bar's right: the segments by how close the result is, the count of marks, and
+    the link to the result (hidden until one is ready); under them, hidden until it is
+    wanted, the line that says to keep going."""
+    return ('<div class="progress-box"><div class="status-1"><div class="seg" id="progress" '
+            'role="progressbar" aria-label="Answers looked at" aria-valuemin="0" '
+            'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
-            '<a class="see" id="see" href="#" hidden>See your result</a></div>')
+            '<a class="see" id="see" href="#" hidden>See your result</a></div>'
+            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
 def _shown(value: str) -> str:
@@ -920,7 +1006,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
-            .replace("__FIRST__", str(FIRST))
+            .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS))
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))

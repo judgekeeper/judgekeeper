@@ -91,7 +91,7 @@ def test_the_result_names_only_the_command_that_was_run(project, capsys):
         "mark": BASE.replace("judgekeeper", "judgekeeper mark", 1).replace(" --port 0", ""),
         "check": "judgekeeper check evals/results.csv",
         "fix": "judgekeeper fix evals/results.csv"}
-    assert on_page <= {named["mark"], named["fix"]}, on_page
+    assert on_page <= {named["mark"], named["fix"], named["check"]}, on_page
     for gone in GONE:
         assert gone not in page and gone not in out, gone
 

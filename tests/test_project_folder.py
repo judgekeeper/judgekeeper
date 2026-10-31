@@ -438,7 +438,7 @@ def test_the_report_says_where_to_run_fix(here, capsys):
     _table_needs_work(here, capsys)
     report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "can&#x27;t re-run" not in report
-    assert ("<p>Run it in your project folder to see what to change.</p>"
+    assert ("<p>Next, in your terminal, in your project folder:</p>"
             '<div class="cmd"><code>judgekeeper fix</code>') in report
 
 

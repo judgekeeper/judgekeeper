@@ -296,7 +296,7 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
             "</code> to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "
             "grade them again with it, then run <code>judgekeeper check &lt;new results file&gt;"
             "</code>.") in report
-    assert "judgekeeper mark</code>" not in report and 'id="fix-h"' not in report
+    assert "judgekeeper mark</code>" not in report and 'id="next-h"' not in report
     _jk(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     shown = [int(x) for x in re.findall(r"<<<QUESTION\nQuestion (\d+)\?", mistakes)]

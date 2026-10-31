@@ -107,7 +107,8 @@ function fetch(url, opts) {
   if (body.label === "fail") { counts.wrong += 1; }
   if (body.deferred) { counts.skipped += 1; }
   return Promise.resolve({ok: true, json: function () {
-    return Promise.resolve({summary: {counts: counts, status: status}}); }});
+    return Promise.resolve({summary: {counts: Object.assign({}, counts),
+      status: Object.assign({}, status)}}); }});
 }
 function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }
@@ -116,6 +117,10 @@ var card = document.getElementById("answer-card");
 main.appendChild(section); section.appendChild(card);
 card.appendChild(document.getElementById("decide"));
 document.getElementById("intro").hidden = true;
+document.getElementById("ready").hidden = true;
+document.getElementById("keep").hidden = true;
+function tags(e) {  // every tag under e, text as "#TEXT"
+  return Array.prototype.concat.apply([e.tagName], e.children.map(tags)); }
 document.getElementById("data")._text = JSON.stringify(DATA);
 """
 
@@ -325,7 +330,7 @@ def test_after_a_mark_only_the_mark_word_is_coloured():
     assert got["failed"] == ["Marked Fail", [["", "Marked "], ["said fail", "Fail"]]]
 
 
-def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
+def test_the_bar_follows_the_marks_toward_a_result_and_the_count_the_marks():
     got = _run("""
       var start = [ids["progress"].getAttribute("aria-valuenow"),
                    ids["progress"].getAttribute("aria-valuetext"), ids["count"].textContent];
@@ -341,8 +346,8 @@ def test_the_bar_follows_answers_looked_at_and_the_count_the_marks():
                 ids["count"].textContent],
         texts: [ids["q-text"].textContent, ids["ans-status"].textContent]}));""")
     assert got["start"] == ["0", "0 answers looked at", "0 marked"]
-    share = round(2 / mark_page.FIRST * 100)
-    assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]  # a skip: no mark
+    share = round(1 / (2 * mark_page.ROUGH) * 100)  # one Pass; the skip counts for nothing
+    assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]
     assert got["ready"] == ["100", False, "2 marked"]
     assert got["texts"] == ["Question 3?", ""]  # not marked yet: no words
 
@@ -468,7 +473,8 @@ def test_on_a_wide_screen_the_card_does_not_scroll():
 # The input shows once -------------------------------------------------------------------------
 
 SHOWN = """
-  function parts(e) { return e.children.map(function (c) { return [c.className, c.textContent]; }); }
+  function parts(e) { return e.children.filter(function (c) { return c.tagName !== "#TEXT"; })
+    .map(function (c) { return [c.className, c.textContent]; }); }
   var side = ids["queue"].children[0].children[0].children.filter(function (c) {
     return c.className === "q"; })[0];
   console.log(JSON.stringify({heading: ids["q-label"].textContent, hidden: ids["q-row"].hidden,
@@ -537,3 +543,123 @@ def test_a_repeat_graded_differently_says_its_run_and_nothing_else():
 def test_the_run_line_is_on_the_page_hidden_until_an_answer_has_one():
     page = mark_page.label_page("support bot", "judgekeeper mark")
     assert '<p class="run" id="a-run" hidden></p>' in page
+
+
+def _bar(counts: dict, ready: bool = False) -> list:
+    return _run("""
+      console.log(JSON.stringify([ids["progress"].getAttribute("aria-valuenow"),
+                                  ids["keep"].hidden]));""",
+                data=_data(counts=counts, status={"text": "x", "ready": ready}))
+
+
+def test_the_bar_counts_pass_and_fail_each_up_to_the_rough_number_and_never_fills_before_ready():
+    rough = mark_page.ROUGH
+    assert rough == 15
+    assert _bar({"correct": 0, "wrong": 0, "skipped": 0})[0] == "0"
+    assert _bar({"correct": 15, "wrong": 0, "skipped": 0})[0] == "50"
+    assert _bar({"correct": 40, "wrong": 0, "skipped": 0})[0] == "50"  # more of one kind: no more
+    assert _bar({"correct": 20, "wrong": 3, "skipped": 0})[0] == "60"
+    assert _bar({"correct": 0, "wrong": 0, "skipped": 40})[0] == "0"  # skipped: nothing
+    assert _bar({"correct": 15, "wrong": 15, "skipped": 0})[0] == "90"  # not ready: not full
+    assert _bar({"correct": 15, "wrong": 15, "skipped": 0}, ready=True)[0] == "100"
+
+
+def test_the_calm_line_shows_once_enough_are_looked_at_and_no_result_yet():
+    first = mark_page.FIRST
+    assert _bar({"correct": 5, "wrong": 5, "skipped": 0})[1] is True
+    assert _bar({"correct": first, "wrong": 0, "skipped": 0})[1] is False
+    assert _bar({"correct": 10, "wrong": 10, "skipped": first - 20})[1] is False  # skips look too
+    assert _bar({"correct": first, "wrong": 0, "skipped": 0}, ready=True)[1] is True
+    page = mark_page.label_page(None)
+    assert ('<p class="keep" id="keep" hidden>Keep going: your result appears once there are '
+            "enough Pass and Fail marks.</p>") in page
+
+
+def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_marking():
+    got = _run("""
+      key("ArrowRight"); await settle();
+      var before = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert")];
+      status.ready = true; later(500);
+      key("ArrowLeft"); await settle();
+      var shown = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
+                   document.activeElement === ids["ready-box"], ids["ready-see"].getAttribute("href"),
+                   sent.length];
+      key("ArrowRight"); await settle();  // behind the box: nothing is marked
+      var behind = sent.length;
+      ids["ready-box"].fire("keydown", {key: "Escape"});
+      var closed = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
+                    document.activeElement === ids["answer-card"]];
+      later(500); key("ArrowRight"); await settle();
+      console.log(JSON.stringify({before: before, shown: shown, behind: behind, closed: closed,
+                                  again: ids["ready"].hidden, sent: sent.length}));""")
+    assert got["before"] == [True, None]
+    assert got["shown"] == [False, "", True, "/result?token=t0k", 2]
+    assert got["behind"] == 2
+    assert got["closed"] == [True, None, True]
+    assert got["again"] is True and got["sent"] == 3
+
+
+def test_the_ready_box_buttons_and_tab_stay_inside_it():
+    got = _run("""
+      status.ready = true;
+      key("ArrowRight"); await settle();
+      ids["ready-box"].fire("keydown", {key: "Tab"});
+      var first = document.activeElement === ids["ready-see"];
+      ids["ready-see"].fire("keydown", {key: "Tab"});  // on the box's key handler only
+      ids["ready-box"].fire("keydown", {key: "Tab", shiftKey: true});
+      var back = document.activeElement === ids["ready-keep"];
+      ids["ready-keep"].fire("click");
+      console.log(JSON.stringify({first: first, back: back, closed: ids["ready"].hidden,
+        focus: document.activeElement === ids["answer-card"], sent: sent.length}));""")
+    assert got == {"first": True, "back": True, "closed": True, "focus": True, "sent": 1}
+
+
+def test_the_ready_box_does_not_come_when_the_page_opens_already_ready():
+    got = _run("""
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({hidden: ids["ready"].hidden}));""",
+               data=_data(counts={"correct": 15, "wrong": 15, "skipped": 0},
+                          status={"text": "x", "ready": True}),
+               before="status.ready = true;\n")
+    assert got == {"hidden": True}
+
+
+def test_the_ready_box_has_the_welcome_boxs_look_and_its_words():
+    page = mark_page.label_page(None)
+    box = page[page.index('<div class="scrim" id="ready"'):page.index('<script type="application')]
+    assert 'class="intro" id="ready-box" role="dialog" aria-modal="true"' in box
+    assert "judgekeeper" in box and 'class="brand"' in box  # the logo
+    assert '<h2 id="ready-title">Your result is ready.</h2>' in box
+    assert '<p class="note">More marks make it more precise.</p>' in box
+    assert '<a class="go" id="ready-see" href="#">See your result</a>' in box
+    assert 'id="ready-keep">Keep marking</button>' in box
+
+
+def test_bold_and_bullets_in_an_answer_are_built_without_innerhtml_and_all_else_is_text():
+    answer = ("**<img src=x onerror=alert(1)>** and <script>alert(1)</script>\n"
+              "- <b>x</b>\n- **two** items\n**unclosed and * a star\nlast line")
+    got = _run("""
+      var a = ids["a-text"];
+      console.log(JSON.stringify({tags: tags(a), text: a.textContent, html: a.innerHTML,
+        strong: a.children.filter(function (c) { return c.tagName === "STRONG"; })
+          .map(function (c) { return c.textContent; })}));""",
+               data=_data(1, items=[{"id": "a0", "input": "Q?", "output": answer, "label": None,
+                                      "skipped": False}]))
+    assert set(got["tags"]) <= {"DIV", "#TEXT", "STRONG", "UL", "LI"}, got["tags"]
+    assert got["html"] == ""
+    assert "<script>alert(1)</script>" in got["text"] and "<b>x</b>" in got["text"]
+    assert "**unclosed and * a star" in got["text"]  # an unclosed ** stays as stars
+    assert got["strong"] == ["<img src=x onerror=alert(1)>"]
+    assert got["tags"].count("LI") == 2 and got["tags"].count("UL") == 1
+
+
+def test_bold_and_bullets_work_in_a_question_and_in_its_named_parts():
+    got = _run("""
+      var q = ids["q-text"];
+      console.log(JSON.stringify({tags: tags(q), text: q.textContent}));""",
+               data=_data(1, items=[{"id": "a0", "output": "A.", "label": None, "skipped": False,
+                                      "input": [["Topic", "**Pass** if <i>kind</i>"],
+                                                ["Rules", "- one\n- two"]]}]))
+    assert set(got["tags"]) <= {"DIV", "SPAN", "#TEXT", "STRONG", "UL", "LI"}, got["tags"]
+    assert got["tags"].count("STRONG") == 1 and got["tags"].count("LI") == 2
+    assert "<i>kind</i>" in got["text"] and "**" not in got["text"]
