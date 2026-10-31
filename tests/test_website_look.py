@@ -563,6 +563,26 @@ def test_the_demo_card_is_drawn_like_the_marking_page():
         assert size in _rule(f".{cls}"), cls
 
 
+def _raw(el: Element) -> str:
+    """The text of an element with its spaces as written (no collapsing inside)."""
+    return "".join(c if isinstance(c, str) else _raw(c) for c in el.children)
+
+
+def test_the_steps_read_cleanly_as_plain_text():
+    # Google glues the number, the bold name and the sentence together: hidden ". " and ": "
+    # between them keep it readable. The page looks the same: they use the .sr class.
+    (tabs,) = _all(_main(HOME), "div", "steplist")
+    texts = [" ".join(_raw(b).split()) for b in _all(tabs, "button")]
+    assert texts == [f"{n}. {name}: {words}" for n, (_, name, words) in enumerate(STEPS, 1)]
+    assert texts[0] == "1. Find: Find your eval results and the LLM-as-a-judge that graded them."
+    assert "data-nosnippet" in tabs.attrs  # Google leaves the step list out of its snippet
+    assert "data-nosnippet" in _by_id(HOME, "demo").attrs  # and the marking demo
+    for b in _all(tabs, "button"):
+        hidden = [s for s in b.iter() if s.tag == "span" and "sr" in s.classes()]
+        assert [_raw(s) for s in hidden] == [". ", ": "]
+        assert all(s.attrs.get("aria-hidden") is None for s in hidden)
+
+
 def test_the_steps_list_picks_a_screen_for_the_terminal():
     steps = _all(_main(HOME), "section", "steps")[0]
     assert steps.attrs.get("id") == "steps"
@@ -573,7 +593,7 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
     assert [el for el in tabs.children if getattr(el, "tag", None)] == buttons  # tabs, no list
     found = [(b.attrs["data-step"], _flat(_all(b, "b")[0]), _flat(_all(b, "span", "d")[0]))
              for b in buttons]
-    assert found == STEPS
+    assert found == [(key, name + ":", words) for key, name, words in STEPS]  # ": " is hidden
     assert [b.attrs.get("aria-selected") for b in buttons] == [
         "true", "false", "false", "false", "false"]
     assert [b.attrs.get("tabindex") for b in buttons] == ["0", "-1", "-1", "-1", "-1"]
@@ -1319,7 +1339,11 @@ def test_testing_a_new_rule_is_said_for_every_eval_tool():
     meta = [el.attrs["content"] for el in parse(HOME).iter()
             if el.tag == "meta" and "description" in el.attrs.get("name", "")
             + el.attrs.get("property", "")]
-    assert meta == ["See how often your LLM-as-a-judge agrees with you."] * 3
+    short = "See how often your LLM-as-a-judge agrees with you."
+    assert meta == [short + (" 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads "
+                             "the results your eval tool saved."), short, short]
+    for json_ld in (el for el in _els(HOME) if el.attrs.get("type") == "application/ld+json"):
+        assert short in json_ld.text() and "5 steps:" not in json_ld.text()
     assert "test it on marks kept aside." in _flat(_by_id(HOME, "tab-fix"))
     assert "promptfoo" not in _flat(_by_id(HOME, "tab-fix"))
     step = _flat(_by_id(GUIDE, "step-fix"))
