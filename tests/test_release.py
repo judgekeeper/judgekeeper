@@ -3,6 +3,7 @@
 Nothing here publishes or calls a network service. The release workflow is parsed, never run.
 """
 
+import html
 import importlib.util
 import json
 import re
@@ -560,6 +561,8 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
         assert re.sub(r'(href|src)="(?![a-z]+:|#)', r'\1="../', block) in index
     assert frame.NOTE in index and "judgekeeper<sup>™</sup>" in index
     assert "judge-comparison" not in index and "LLM-as-a-judge comparison set" in index
+    # the JailbreakBench pages say their marks came through a printed link: the index says why
+    assert html.escape("The marks are JailbreakBench's three-expert majority labels") in index
 
 
 def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path):

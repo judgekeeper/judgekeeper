@@ -51,6 +51,11 @@ maths), except <code>site-example</code>: the made-up project the home page show
 """
 # Folder titles as the index shows them: the dataset calls its set "judge_comparison".
 TITLE_WORDS = {"judge-comparison": "LLM-as-a-judge comparison"}
+# A line under a folder's title, where its report pages say something a reader should know first
+NOTES = {"jailbreakbench": "The marks are JailbreakBench's three-expert majority labels, "
+                            "entered by a script through the marking page's own calls. So the "
+                            "report pages note that the marks came through a link printed with "
+                            "no terminal."}
 LOCAL = re.compile(r'(href|src)="(?![a-z]+:|#|/)')  # a link to a file of the site
 
 
@@ -136,7 +141,8 @@ def build(website: Path, examples: Path, out: Path) -> list[str]:
     links = {n: f"{n}/" if n in names else f"{REPO}{n}/report.md" for n in listed}
     items = "\n".join(
         f'<li><a href="{html.escape(links[n])}">{html.escape(n)}</a>'
-        f'<div class="meta">{html.escape(_describe(examples / n))}</div></li>'
+        f'<div class="meta">{html.escape(_describe(examples / n))}</div>'
+        + (f'<div class="meta">{html.escape(NOTES[n])}</div>' if n in NOTES else "") + "</li>"
         for n in listed)
     (out / "examples" / "index.html").write_text(index_page(items), encoding="utf-8",
                                                  newline="\n")

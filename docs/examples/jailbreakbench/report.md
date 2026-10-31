@@ -1,5 +1,7 @@
 # judgekeeper on JailbreakBench's judge-comparison set
 
+The marks are JailbreakBench's three-expert majority labels, entered by a script through the marking page's own calls. So the report pages note that the marks came through a link printed with no terminal.
+
 This check asks one question: when judgekeeper estimates how often an LLM-as-a-judge agrees with experts, does the real value fall inside the range it prints?
 
 That needs a set where the real value is known. JailbreakBench published one: 300 answers, each graded by GPT-4 and by three experts. judgekeeper got the GPT-4 grades and the experts' marks and ran its normal steps; its estimates were then compared with the real values on all 300 answers.
