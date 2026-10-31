@@ -432,6 +432,20 @@ def test_the_share_preview_picture_is_a_small_wide_png():
     assert image.stat().st_size < 300_000  # some apps show no picture when it is heavier
 
 
+def test_the_share_preview_shield_stands_alone_with_a_small_tm_at_its_top_right():
+    """The shield has no wordmark next to it, so it carries the ™ (scripts/make_social_preview.py
+    puts it just right of the shield's top corner, in the text colour); the headline has none."""
+    Image = pytest.importorskip("PIL.Image")
+    picture = Image.open(WEBSITE / "assets/social-preview.png").convert("RGB")
+
+    def light(box):  # pixels as bright as the page's text colour (#e6e8eb)
+        crop = picture.crop(box)
+        return sum(1 for r, g, b in crop.getdata() if min(r, g, b) > 150)
+
+    assert light((292, 200, 332, 236)) > 40  # the ™, right of the shield's top corner
+    assert light((292, 300, 332, 420)) == 0  # nothing beside the rest of the shield
+
+
 def test_favicon_ico_is_the_logo_at_three_sizes():
     """/favicon.ico, which browsers ask for on pages without an icon (the example reports):
     an ICO holding the logo as PNGs, 16, 32 and 48 pixels."""

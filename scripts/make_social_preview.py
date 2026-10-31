@@ -4,7 +4,7 @@
     python scripts/make_social_preview.py --chrome PATH    # a Chrome or Chromium to use
 
 It writes a small page with the site's colours and fonts (website/assets/fonts/) and the logo
-at left: the headline, the five steps and the install command. Headless Chrome takes it as a
+at left, alone, so with a small ™ at its top right: the headline, the five steps and the install command. Headless Chrome takes it as a
 1200 x 630 PNG. scripts/share_preview.py holds the picture's size and alt text.
 Standard library only.
 """
@@ -37,7 +37,10 @@ html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden;
 body {{ background: #0b0c0e; color: #e6e8eb; font-family: "Manrope", sans-serif;
   display: flex; align-items: center; gap: 64px; padding: 0 88px; box-sizing: border-box;
   -webkit-font-smoothing: antialiased; }}
-.logo {{ width: 200px; height: 225px; flex: none; }}
+.mark {{ position: relative; width: 200px; height: 225px; flex: none; }}
+.mark .logo {{ width: 200px; height: 225px; }}
+.tm {{ position: absolute; left: 100%; top: 0; margin-left: 4px; font-size: 28px;
+  line-height: 1; font-weight: 600; }}
 h1 {{ font-size: 64px; line-height: 1.04; letter-spacing: -.028em; font-weight: 800;
   margin: 0 0 28px; }}
 .steps {{ font-size: 30px; font-weight: 600; color: #8b919a; margin: 0 0 40px; }}
@@ -46,7 +49,7 @@ h1 {{ font-size: 64px; line-height: 1.04; letter-spacing: -.028em; font-weight: 
   background: #07080a; }}
 .cmd b {{ color: #10B981; font-weight: 500; }}
 </style></head><body>
-<div class="logo">{logo}</div>
+<div class="mark"><div class="logo">{logo}</div><span class="tm">™</span></div>
 <div>
 <h1>Check your<br>LLM-as-a-judge<br>in 5 steps.</h1>
 <p class="steps">Find. Mark. Measure. Fix. Re-check.</p>

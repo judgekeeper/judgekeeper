@@ -1,10 +1,10 @@
 # Third-party notices
 
-judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-claude/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own judge verdicts on LLMBar.
+judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own judge verdicts on LLMBar.
 
 ## JailbreakBench
 
-- **Used in:** `docs/examples/jailbreakbench/` and `docs/examples/jailbreakbench-claude/`.
+- **Used in:** `docs/examples/jailbreakbench/` and `docs/examples/jailbreakbench-setups/`.
 - **Source:** https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors (config `judge_comparison`, revision `886acc352a31533ffbcf4ef22c744658688086fc`); code and license: https://github.com/JailbreakBench/jailbreakbench
 - **Citation:** Patrick Chao, Edoardo Debenedetti, Alexander Robey, Maksym Andriushchenko, Francesco Croce, Vikash Sehwag, Edgar Dobriban, Nicolas Flammarion, George J. Pappas, Florian Tramèr, Hamed Hassani and Eric Wong. "JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models." NeurIPS 2024 Datasets and Benchmarks Track. arXiv:2404.01318.
 - **License:**

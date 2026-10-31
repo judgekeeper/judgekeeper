@@ -4,7 +4,10 @@ come from the committed reports in docs/examples/.
 
 from __future__ import annotations
 
+import importlib.util
 import re
+
+import pytest
 
 from tests.website_pages import ROOT
 
@@ -69,7 +72,7 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         for figure in re.findall(r"\d+\.\d+|\d+%", line):
             assert figure in reports, (found, figure)
         linked[found[0]] = line
-    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench-claude/report.md",
+    assert sorted(linked) == ["coverage/coverage.md", "jailbreakbench-setups/report.md",
                               "jailbreakbench/report.md", "probes/report.md", "ragtruth-qa/report.md",
                               "ragtruth/report.md"]
     import json
@@ -182,3 +185,85 @@ def test_the_reference_numbers_for_the_credit_runs_are_in_the_reports_they_link(
             assert figure in reports, (found, figure)
         checked += 1
     assert checked >= 6
+
+
+# The demo ------------------------------------------------------------------------------------
+
+OUTLINE = (38, 42, 48)  # the window's 1 pixel outline (#262a30)
+
+
+def _demo_frames():
+    Image = pytest.importorskip("PIL.Image")
+    np = pytest.importorskip("numpy")
+    demo = Image.open(ROOT / "docs" / "assets" / "demo.webp")
+    for n in range(demo.n_frames):
+        demo.seek(n)
+        yield n, np.array(demo.convert("RGB")).astype(int)
+
+
+def test_every_demo_frame_has_the_window_outline_on_all_four_sides():
+    for n, frame in _demo_frames():
+        for side, edge in (("left", frame[:, 0]), ("right", frame[:, -1]),
+                           ("top", frame[0]), ("bottom", frame[-1])):
+            assert abs(edge - OUTLINE).max() <= 12, f"frame {n}: no outline on the {side}"
+
+
+def test_the_marking_page_in_the_demo_has_the_same_margin_on_both_sides():
+    """In the header band of a frame showing the marking page, the first ink is as far from the
+    left as the last ink is from the right (the page is laid out wide, then scaled)."""
+    seen = 0
+    for n, frame in _demo_frames():
+        band = frame[50:100, 3:997]
+        ink = abs(band - (11, 12, 14)).sum(axis=2) > 60
+        columns = ink.any(axis=0).nonzero()[0]
+        left, right = columns.min() + 3, 997 - (columns.max() + 3)
+        if right > 100:  # a terminal frame: its text is not the page's header
+            continue
+        seen += 1
+        assert abs(left - right) <= 3, f"frame {n}: {left} px on the left, {right} on the right"
+    assert seen >= 10
+
+
+def test_the_demo_script_checks_the_outline_of_every_frame():
+    pytest.importorskip("termios")  # the script drives a pseudo-terminal: macOS and Linux only
+    Image = pytest.importorskip("PIL.Image")
+    spec = importlib.util.spec_from_file_location("make_demo_for_test",
+                                                  ROOT / "scripts" / "make_demo.py")
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))  # make_demo imports make_site_shots
+    try:
+        make_demo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(make_demo)
+    finally:
+        sys.path.remove(str(ROOT / "scripts"))
+    whole = Image.new("RGB", (40, 30), "#07080a")
+    for x in range(40):
+        whole.putpixel((x, 0), OUTLINE)
+        whole.putpixel((x, 29), OUTLINE)
+    for y in range(30):
+        whole.putpixel((0, y), OUTLINE)
+        whole.putpixel((39, y), OUTLINE)
+    make_demo.check_outline(whole)  # all four sides: no error
+    whole.putpixel((39, 12), (7, 8, 10))  # a gap in the right side
+    with pytest.raises(SystemExit, match="missing on the right"):
+        make_demo.check_outline(whole)
+
+
+def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
+    """The card (centred over the answer area) is shown in the first marking frames, then it is
+    gone: from then on the part of the answer area below any answer text (the card's second
+    headline line and its button, rows 358 to 455) is the page's background, to within 4 levels
+    (a faded card the WebP kept as a faint ghost showed up to 17 above)."""
+    background = (11, 12, 14)
+    states = []
+    for n, frame in _demo_frames():
+        header = frame[50:100, 3:997]
+        columns = (abs(header - background).sum(axis=2) > 60).any(axis=0).nonzero()[0]
+        if 997 - (columns.max() + 3) > 100:  # a terminal frame
+            continue
+        worst = abs(frame[358:455, 330:680] - background).max()
+        states.append("card" if worst > 100 else "clean" if worst <= 4 else f"ghost {worst} (frame {n})")
+    assert states and states[0] == "card", states
+    assert 1 <= states.count("card") <= 4 and set(states) <= {"card", "clean"}, states
+    assert states == sorted(states, key=lambda state: state != "card"), states  # card, then none

@@ -52,6 +52,15 @@ def files(tmp_path_factory) -> dict[str, Path]:
     return paths
 
 
+def test_no_example_names_a_real_model():
+    """The examples are shown on the page as they are: their LLM-as-a-judge and the model it
+    grades have neutral names (my-judge-v1, my-app-model)."""
+    real = re.compile(r"gpt-|openai|claude|anthropic|gemini|llama|mistral", re.IGNORECASE)
+    for name in NAMES:
+        assert not real.search(_text(name)), name
+    assert "my-judge-v1" in _text("promptfoo-results.json")
+
+
 def _page_state(*steps: str) -> list[dict]:
     out = subprocess.run([NODE, str(ROOT / "tests" / "freecheck_page.mjs"), *steps],
                          capture_output=True, text=True, check=True, encoding="utf-8")

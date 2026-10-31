@@ -14,7 +14,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDERS = ("src", "scripts", "tests")
-NOT_TEXT_FILES = {"webbrowser", "self._opener", "tarfile", "os"}  # os.open: a descriptor, no text
+# os.open: a descriptor, no text; Image.open: a picture (PIL)
+NOT_TEXT_FILES = {"webbrowser", "self._opener", "tarfile", "os", "Image"}
 
 
 def _mode(call: ast.Call) -> str:

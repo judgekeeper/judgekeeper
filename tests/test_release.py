@@ -494,7 +494,7 @@ def test_pages_site_is_the_website_with_each_report_under_examples(tmp_path):
     # Home's terminal figures: their report, said to be made-up
     assert (tmp_path / "examples" / "site-example" / "index.html").is_file()
     assert re.search(r'href="site-example/".*Example project \(made-up answers\), '
-                     r"openai:gpt-4\.1-mini", index)
+                     r"my-judge-v1", index)
     assert "unedited" not in index and "real runs" in index and "made-up" in index
     assert not re.search(r'(?:src|<link[^>]*href)="http', index)  # no external assets
     assert (tmp_path / ".nojekyll").is_file()
@@ -539,7 +539,7 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     listed = re.findall(r'<li><a href="[^"]*">([\w-]+)</a>', index)
-    assert listed == ["jailbreakbench", "jailbreakbench-claude", "kept-aside", "probes", "ragtruth",
+    assert listed == ["jailbreakbench", "jailbreakbench-setups", "kept-aside", "probes", "ragtruth",
                       "ragtruth-data2txt", "ragtruth-qa", "real-data-check", "site-example"]
     # a folder with no report.html links to its report.md on GitHub
     assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'

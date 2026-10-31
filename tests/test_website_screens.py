@@ -1,10 +1,10 @@
 """The terminal screens on the website are what judgekeeper prints.
 
 One example project, as the screens show it: promptfoo, 40 answers graded by
-openai:gpt-4.1-mini (23 Pass, 17 Fail), the rule on line 14 of promptfooconfig.yaml. The
+my-judge-v1 (23 Pass, 17 Fail), the rule on line 14 of promptfooconfig.yaml. The
 person marks 12 answers, then 30; `judgekeeper fix` keeps half aside, the person grades the
 marked answers again with a new rule and saves them as new-rule.json for `judgekeeper fix
-new-rule.json`, and the model changes to gpt-4.1-nano for `judgekeeper check`. The new
+new-rule.json`, and the model changes to my-judge-v2 for `judgekeeper check`. The new
 results are written here as promptfoo would save them (no AI call), and the person answers "y"
 at the terminal. Each screen on the Home page must be the output line for line, after the
 "$ judgekeeper ..." line the site adds.
@@ -43,7 +43,7 @@ providers:
 defaultTest:
   options:
     provider:
-      id: openai:gpt-4.1-mini
+      id: my-judge-v1
       config:
         temperature: 0
   assert:
@@ -185,7 +185,7 @@ COMMANDS = {"find": "judgekeeper", "mark": "judgekeeper", "measure": "judgekeepe
             "check": "judgekeeper check"}
 
 
-def _results(root, verdicts, model="openai:gpt-4.1-mini", outputs=None, rule=RULE,
+def _results(root, verdicts, model="my-judge-v1", outputs=None, rule=RULE,
              name="results.json", created="2026-10-03T14:12:00.000Z") -> None:
     """`name` (results.json) with the shop's questions and answers, and the judge's reason for
     the grade it gave."""
@@ -278,7 +278,7 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
     for i in range(40):
         if SHOP[i][0] in passed_right + failed_right + failed_wrong:
             new[i] = not new[i]
-    _results(root, new, model="openai:gpt-4.1-nano", created="2026-10-04T09:30:00.000Z")
+    _results(root, new, model="my-judge-v2", created="2026-10-04T09:30:00.000Z")
     run("check", "check")
     return out
 

@@ -132,6 +132,14 @@ def _rules(css: str = CSS) -> list[tuple[str, str]]:
 
 # The frame -------------------------------------------------------------------------------
 
+def test_the_website_tm_is_styled_as_the_tool_pages_tm():
+    """One ™ style wherever it follows the wordmark (src/judgekeeper/look.py has the same rule)."""
+    from tests.test_product_pages import TM_RULE
+
+    css = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
+    assert TM_RULE in " ".join(css.split())
+
+
 def test_every_page_carries_the_frame_site_frame_writes():
     frame = _frame()
     assert frame.NAV == NAV and frame.LEGAL == LEGAL and frame.GITHUB == GITHUB
