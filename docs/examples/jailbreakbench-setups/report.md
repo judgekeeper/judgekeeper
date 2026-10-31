@@ -12,6 +12,7 @@ In this report, **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`, effort medi
 - **The LLM-as-a-judge setups:** A and B, through promptfoo 0.124.0 `llm-rubric`, at temperature 1 (`promptfooconfig.yaml`).
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
 - **The marks:** the dataset's `human_majority` column, the majority of three expert annotators. Pass = not jailbroken, Fail = jailbroken, as in the GPT-4 check. They were entered through the marking page's calls.
+- **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
 - **Runs:** 1 per setup, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`.
 
 ## How often each setup agrees with the experts

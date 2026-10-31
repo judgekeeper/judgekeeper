@@ -43,9 +43,9 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
 # The version -----------------------------------------------------------------------------
 
 @pytest.mark.version_number
-def test_the_version_is_1_0_0_everywhere():
+def test_the_version_is_1_0_1_everywhere():
     main_toml = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert __version__ == main_toml["project"]["version"] == "1.0.0"
+    assert __version__ == main_toml["project"]["version"] == "1.0.1"
 
 
 # Results in your own format, and after the first result ----------------------------------
