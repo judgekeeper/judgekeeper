@@ -381,6 +381,9 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
              "Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
+HOME_DESCRIPTION = "See how often your LLM-as-a-judge agrees with you."
+HOME_MORE = (" 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads the results "
+             "your eval tool saved.")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
 
@@ -415,6 +418,9 @@ def test_every_page_has_the_share_preview_tags():
         assert tag["og:site_name"] == "judgekeeper", name
         assert tag["twitter:card"] == "summary_large_image", name
         assert title and tag["og:title"] == title == tag["twitter:title"], name
+        if name == "index.html":  # search results get the longer line; link previews keep the short
+            assert description == HOME_DESCRIPTION + HOME_MORE, name
+            description = HOME_DESCRIPTION
         assert description and tag["og:description"] == description, name
         assert tag["twitter:description"] == description, name
         assert tag["og:url"] == SITE + ("" if name == "index.html" else name), name
@@ -502,6 +508,8 @@ def test_every_page_carries_the_tags_the_generators_write():
     for page in pages():
         name = page.relative_to(WEBSITE).as_posix()
         title, description, _ = _head(page)
+        if name == "index.html":  # the share tags keep the short line (see HOME_MORE)
+            description = HOME_DESCRIPTION
         expected = share_preview.tags(name, title, description)
         assert expected in page.read_text(encoding="utf-8"), (
             f"{name}: its share-preview tags are not what scripts/share_preview.py writes:\n"

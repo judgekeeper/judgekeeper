@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Check your LLM-as-a-judge in 5 steps | judgekeeper</title>
-<meta name="description" content="See how often your LLM-as-a-judge agrees with you.">
+<meta name="description" content="See how often your LLM-as-a-judge agrees with you. 5 steps: Find. Mark. Measure. Fix. Re-check. Open source; it reads the results your eval tool saved.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="judgekeeper">
 <meta property="og:title" content="Check your LLM-as-a-judge in 5 steps | judgekeeper">
@@ -40,7 +40,7 @@
     <nav class="five" aria-label="The five steps"><a href="#steps" data-step="find" class="is-on">Find.</a><a href="#steps" data-step="mark">Mark.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
     <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try step 1 in your browser</a></div>
   </div>
-  <div class="hero-r"><section class="jk-card" id="demo" tabindex="0" aria-label="Live demo of the marking page">
+  <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
     <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
     <div class="jk-live">
       <div class="jk-row jk-row-q">
@@ -69,7 +69,7 @@
 </div></section>
 <section class="steps" id="steps"><div class="wrap">
   <h2>What each step looks like.</h2>
-  <div class="steps-grid"><div class="steplist" role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1</span><span class="t"><b>Find</b><span class="d">Find your eval results and the LLM-as-a-judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2</span><span class="t"><b>Mark</b><span class="d">Mark your answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3</span><span class="t"><b>Measure</b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4</span><span class="t"><b>Fix</b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5</span><span class="t"><b>Re-check</b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
+  <div class="steps-grid"><div class="steplist" data-nosnippet role="tablist" aria-label="Steps" aria-orientation="vertical"><button type="button" role="tab" id="tab-find" data-step="find" aria-selected="true" aria-controls="term" tabindex="0"><span class="n">1<span class="sr">. </span></span><span class="t"><b>Find<span class="sr">: </span></b><span class="d">Find your eval results and the LLM-as-a-judge that graded them.</span></span></button><button type="button" role="tab" id="tab-mark" data-step="mark" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">2<span class="sr">. </span></span><span class="t"><b>Mark<span class="sr">: </span></b><span class="d">Mark your answers Pass or Fail in your browser.</span></span></button><button type="button" role="tab" id="tab-measure" data-step="measure" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">3<span class="sr">. </span></span><span class="t"><b>Measure<span class="sr">: </span></b><span class="d">See how often your LLM-as-a-judge agrees with you.</span></span></button><button type="button" role="tab" id="tab-fix" data-step="fix" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">4<span class="sr">. </span></span><span class="t"><b>Fix<span class="sr">: </span></b><span class="d">Write a better rule and test it on marks kept aside.</span></span></button><button type="button" role="tab" id="tab-check" data-step="check" aria-selected="false" aria-controls="term" tabindex="-1"><span class="n">5<span class="sr">. </span></span><span class="t"><b>Re-check<span class="sr">: </span></b><span class="d">Change your LLM-as-a-judge and see if it still agrees with you.</span></span></button></div><div class="term" id="term" role="tabpanel" aria-labelledby="tab-find">
     <div class="term-bar">
       <span class="term-title">example project</span>
       <div class="term-tabs" id="t-tabs" role="tablist" aria-label="Fix" hidden>
