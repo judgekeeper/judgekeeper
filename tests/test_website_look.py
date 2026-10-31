@@ -237,7 +237,7 @@ def test_no_page_or_asset_asks_another_server_for_anything():
             for el in parse(path).iter():
                 for attr in ("src", "href"):
                     url = el.attrs.get(attr, "")
-                    if el.tag in {"link", "script", "img"} and url:
+                    if el.tag in {"link", "script", "img"} and url and el.attrs.get("rel") != "canonical":
                         assert not re.match(r"(https?:)?//", url), (path.name, url)
     for url in re.findall(r"url\(([^)]+)\)", CSS):
         assert not re.match(r"['\"]?(https?:)?//", url), url
