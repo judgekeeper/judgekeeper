@@ -80,9 +80,10 @@ STEPS = """\
                                     its rule, grade your marked answers again,
                                     and test the new rule on the half of your
                                     marks kept aside
-  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge and
-                                    run your eval, see if it still agrees
-                                    with you"""
+  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade
+                                    your marked answers again
+                                    (.judgekeeper/fix/marked-answers.csv) and
+                                    see if it still agrees with you"""
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV, TSV or JSONL file with these columns:

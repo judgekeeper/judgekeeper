@@ -37,7 +37,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
 2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks.
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
-5. **Re-check:** `judgekeeper check` shows if it still agrees after you change the model or the rule.
+5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`). `judgekeeper check` shows if it still agrees with you.
 
 judgekeeper only reads files. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
