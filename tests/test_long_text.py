@@ -275,8 +275,12 @@ def test_the_opened_question_fades_while_there_is_more_below():
 CONTEXT = ("Context:\n" + "Pets in the cabin cost $125 each way. " * 30
            + "\n\nA missing bag must be reported within 24 hours.\n\n"
            + "Question: How long do I have to report a missing bag?")
+HIDDEN = "hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
+
+
 HEAD_TAIL = """
-  function parts(e) { return e.children.map(function (c) { return [c.className, c.textContent]; }); }
+  function parts(e) { return e.children.filter(function (c) { return c.tagName !== "#TEXT"; })
+    .map(function (c) { return [c.className, c.textContent]; }); }
   var side = ids["queue"].children[0].children[0].children.filter(function (c) {
     return c.className === "q"; })[0];
   var folded = parts(ids["q-text"]);
@@ -384,11 +388,11 @@ def test_each_heading_has_its_own_kept_aside_line_under_it():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"] - 4, c["strict"] - 1))
     assert ('<h2 id="g-easy">You said Fail, your <span class="term">LLM-as-a-judge</span> said '
-            'Pass</h2></div><p class="kept">4 more are kept aside to test a fix fairly.</p>') in html
+            f'Pass</h2></div><p class="kept">4 more are {HIDDEN}</p>') in html
     assert "shown;" not in html and "* " not in _text(html)
-    assert '<p class="kept">1 more is kept aside to test a fix fairly.</p>' in html
+    assert f'<p class="kept">1 more is {HIDDEN}</p>' in html
     none = _html(_mistakes(c["easy"], c["strict"]))
-    assert 'class="kept"' not in none and "more are kept aside" not in none
+    assert 'class="kept"' not in none and "more are hidden" not in none
 
 
 def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
@@ -408,7 +412,7 @@ def test_a_group_with_none_shown_is_left_out_but_still_counted():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"], 0))
     assert 'id="g-strict"' not in html and "said Fail (0" not in html
-    assert f"{c['strict']} more are kept aside to test a fix fairly." in html
+    assert f"{c['strict']} more are {HIDDEN}" in html
 
 
 OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'

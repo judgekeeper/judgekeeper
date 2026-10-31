@@ -877,7 +877,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
 
 # The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 
-S11_FIX = "Fix it Run it in your project folder to see what to change. `judgekeeper fix`"
+S11_FIX = "Next, in your terminal, in your project folder: `judgekeeper fix`"
 
 
 def _page_text(html: str) -> str:
@@ -918,7 +918,7 @@ def test_the_live_result_page_says_what_fix_does_for_an_own_file(here, capsys, n
         call("/label", {"id": item["id"], "label": label, "seconds": 5})
     with urllib.request.urlopen(f"{base}/result?token={token}", timeout=10) as r:
         live = r.read().decode("utf-8")
-    assert 'id="fix-h"' in live, live
+    assert 'id="next-h"' in live, live
     assert S11_FIX in _page_text(live), live
     assert "tells you where to write a better rule" not in live
     run(capsys, "--yes")

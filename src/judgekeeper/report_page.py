@@ -9,8 +9,11 @@ so (reasons.py), and a second fixed script (REASONS_SCRIPT) saves each change wi
 only that page may connect back (LIVE_CSP). report.html shows the reasons read-only.
 
 The marks kept aside are counted, never shown: fix.py keeps them to test a new rule fairly.
-Which parts show depends on the result's level (targets.level): Fix it only when the
-LLM-as-a-judge needs work, and only the counts before there is a result (too_early).
+Which parts show depends on the result's level (targets.level): What next once there is a
+result (the fix command only when the LLM-as-a-judge needs work), and only the counts before
+there is a result (too_early). In an answer or a question only `**bold**` and "- " lines are
+formatted (_rich); a row with a reason box keeps its answer as plain text, because the box
+counts characters of it.
 """
 
 from __future__ import annotations
@@ -271,7 +274,7 @@ table { border-collapse: collapse; width: 100%; }
 main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,.06);
   border-radius: 4px; padding: 2px 6px; -webkit-box-decoration-break: clone;
   box-decoration-break: clone; }
-/* Wide: the lists, the notes, More details and Fix it keep to 1376px, in the middle; the
+/* Wide: the lists, the notes, More details and What next keep to 1376px, in the middle; the
    hairlines run the full width */
 .band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));
   padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }
@@ -390,7 +393,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   border-right: 1.75px solid var(--muted); border-bottom: 1.75px solid var(--muted);
   transform: rotate(-45deg) translateY(-2px); }
 .details[open] summary::before { transform: rotate(45deg) translateY(-4px); }
-.details h2, .fix h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+.details h2, .next h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .details summary h2 { font-size: 22px; }
 /* a field the same in every row (an agent's prompt), once above the lists, folded */
 .same { margin: 48px 0 0; }
@@ -424,12 +427,15 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .kappa .i[aria-expanded="true"] + .tip, .kappa .i:focus-visible:not([data-shut]) + .tip {
   display: block; }
 @media (hover: hover) { .kappa:hover .tip { display: block; } }
-.fix { border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
-.fix-in { display: grid; grid-template-columns: 1fr minmax(min(380px, 100%), auto); gap: 24px 48px;
-  align-items: center; }
-.fix-in h2, .fix-in p { grid-column: 1; }
-.fix-in .cmd { grid-column: 2; grid-row: 1 / span 2; }
-.fix p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }
+.next { border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
+.next-in { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.next p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }
+.main-lines { padding-top: 40px; }
+.main-lines .panel { margin-bottom: 0; }
+/* bold and a list in an answer or a question: only these two */
+.tbl td ul { margin: 6px 0; padding-left: 1.3em; white-space: normal; }
+.tbl td li { margin: 2px 0; }
+.tbl td strong { font-weight: 700; }
 /* the command box with Copy: the website's, exactly; the "$" is drawn, never copied */
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
@@ -498,9 +504,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .panel tbody td { margin-top: 4px; }
   .panel td[data-label]::before { content: attr(data-label) " "; font-family: var(--sans);
     color: var(--muted); font-size: 13px; }
-  .fix { padding-top: 40px; padding-bottom: 56px; }
-  .fix-in { grid-template-columns: 1fr; }
-  .fix-in .cmd { grid-column: 1; grid-row: auto; }
+  .next { padding-top: 40px; padding-bottom: 56px; }
   .cmd { display: grid; width: 100%; min-width: 0; }
   .cmd code { padding: 12px 14px; }
   .tbl td::before { font-size: 13px; }
@@ -725,17 +729,57 @@ def _question(m: dict, same: tuple = ()) -> tuple[str, str]:
     in order when the row is open (SCRIPT, STYLE)."""
     fields = m.get("fields")
     if fields:
-        return "", "\n".join(f'<span class="fname">{_e(k)}</span>{_e(v)}' for k, v in fields
+        return "", "\n".join(f'<span class="fname">{_e(k)}</span>{_rich(v)}' for k, v in fields
                              if k not in same)
     parts = head_tail(m["question"])
     if not parts:
-        return "", _e(m["question"])
+        return "", _rich(m["question"])
     head, gap, tail = parts
     peek = "\n".join([line[:PEEK_CHARS] for line in head.split("\n") if line.strip()][:2])
-    return " ht", (f'<span class="q-peek" aria-hidden="true">{_e(peek)}</span>'
+    return " ht", (f'<span class="q-peek" aria-hidden="true">{_rich(peek)}</span>'
                    '<span class="q-gap" aria-hidden="true">…</span>'
-                   f'<span class="q-full">{_e(head + gap)}</span>'
-                   f'<span class="q-end">{_e(tail)}</span>')
+                   f'<span class="q-full">{_rich(head + gap)}</span>'
+                   f'<span class="q-end">{_rich(tail)}</span>')
+
+
+BOLD = re.compile(r"\*\*(.+?)\*\*")
+
+
+def _rich(text: str, spans=()) -> str:
+    """Text for a cell: escaped first, then only `**bold**` as <strong> and lines that start
+    with "- " as <ul><li>. Anything else stays text; a `**` never closed stays as stars. The
+    words the person marked (`spans`, offsets in `text`) keep their <b class="hl">."""
+    marks = reasons.merged(spans, len(text))
+
+    def piece(a: int, b: int, bold: bool) -> str:
+        out, at = [], a
+        for s, e in marks:
+            s, e = max(s, a), min(e, b)
+            if e > s:
+                out += [_e(text[at:s]), f'<b class="hl">{_e(text[s:e])}</b>']
+                at = e
+        html = "".join(out) + _e(text[at:b])
+        return f"<strong>{html}</strong>" if bold else html
+
+    def line(a: int, b: int) -> str:
+        out, at = [], a
+        for m in BOLD.finditer(text, a, b):
+            out += [piece(at, m.start(), False), piece(m.start(1), m.end(1), True)]
+            at = m.end()
+        return "".join(out) + piece(at, b, False)
+
+    blocks: list[tuple[str, list[str]]] = []
+    pos = 0
+    for ln in text.split("\n"):
+        a, b = pos, pos + len(ln)
+        pos = b + 1
+        kind, html = ("ul", line(a + 2, b)) if ln.startswith("- ") else ("p", line(a, b))
+        if blocks and blocks[-1][0] == kind:
+            blocks[-1][1].append(html)
+        else:
+            blocks.append((kind, [html]))
+    return "".join("\n".join(v) if k == "p" else
+                   "<ul>" + "".join(f"<li>{x}</li>" for x in v) + "</ul>" for k, v in blocks)
 
 
 def _answer(text: str, spans) -> str:
@@ -882,7 +926,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
         body.append(f'<tr{extra}>'
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
-                    f'{_answer(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
+                    f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
                     f'<td colspan="3" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
@@ -901,8 +945,8 @@ REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 def _kept(n: int) -> str:
     """How many more of a group are kept aside, or nothing."""
-    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test a fix '
-            'fairly.</p>' if n else "")
+    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} hidden on purpose, so a '
+            "new rule can be tested on answers you haven't looked at again.</p>" if n else "")
 
 
 # In place of the lists when split.json can't be used, around the fix command
@@ -923,6 +967,8 @@ def _same(rows: list[dict]) -> list[tuple[str, str]]:
 
 
 SAME = "The same in every answer below"
+WHY_OPTIONAL = "Optional: tell judgekeeper why you disagree."  # above the first list
+WHY_USES = "uses your reasons to suggest a better rule."
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
@@ -944,11 +990,17 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
             f'</span>{SAME}</summary><p>{_e(v)}</p></details></div>' for k, v in same]
     names = tuple(k for k, _ in same)
     left = 0  # kept aside of a group with none to show
+    first = True
     for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
                              ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
         kept = max(0, c[key] - len(rows))
         if rows:
+            if first and live:  # where a reason can be added; report.html says it once, below
+                out.append(f'<div class="band"><p class="add-why">{_e(WHY_OPTIONAL)} <code>'
+                           f'{_e(fix_command or "judgekeeper fix")}</code> {_e(WHY_USES)}</p>'
+                           "</div>")
+            first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
                               (fixing or {}).get("left_out", 0), names))
         else:
@@ -989,40 +1041,64 @@ def _caption(r: dict) -> str:
             f"(you marked {marked}).")
 
 
-def _details(r: dict) -> str:
-    """More details, folded: how often the judge agrees with the person, estimated (weighted,
-    with their ranges), and kappa."""
+def _main_lines(r: dict) -> str:
+    """Under the headline result, open: how often the judge agrees with the person when they
+    say Pass and when they say Fail, estimated (weighted, with their ranges)."""
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
+    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
+                   f'<td data-label="Between">{_e(between)}</td></tr>'
+                   for name, est, between in rows)
+    return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
+            f'with you"><table class="panel"><caption>{_caption(r)}</caption>'
+            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
+            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
+            f"</tr></thead><tbody>{body}</tbody></table></section>")
+
+
+def _details(r: dict) -> str:
+    """More details, folded: kappa and its range."""
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
-                   f'<td data-label="Between">{_e(between)}</td></tr>'
-                   for name, est, between in rows)
-    body += (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-             f'{_two(kappa) if kappa is not None else "n/a"}</td><td data-label="Between">'
-             f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
+            f'{_two(kappa) if kappa is not None else "n/a"}</td><td data-label="Between">'
+            f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
-            f'</summary><table class="panel"><caption>{_caption(r)}</caption>'
+            '</summary><table class="panel">'
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             f"</tr></thead><tbody>{body}</tbody></table></details>")
 
 
-def _fix(r: dict) -> str:
-    """Fix it: one line, and the command (`judgekeeper fix` prints what to do next) in the
-    website's command box with Copy."""
-    fix = _e(commands(r)["fix"])
-    return ('<section class="fix band" aria-labelledby="fix-h"><div class="fix-in">'
-            '<h2 id="fix-h">Fix it</h2>'
-            "<p>Run it in your project folder to see what to change.</p>"
-            f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
-            f'aria-label="Copy the command">{COPY_ICONS}</button></div></div></section>')
+def _next(r: dict, live: bool) -> str:
+    """What next, once there is a result: where the marks are saved; when the judge needs work,
+    the command (`judgekeeper fix` prints what to do next) in the website's command box with
+    Copy; when it is good enough, that there is nothing more to do; on the page the marking
+    server serves (`live`), that marking more makes the numbers more certain."""
+    step = next_step(r)
+    if step == "mark":
+        return ""
+    saved = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
+             "folder. You can close this page.</p>")
+    out = [saved]
+    if step == "fix":
+        out.append("<p>Next, in your terminal, in your project folder:</p>"
+                   f'<div class="cmd"><code>{_e(commands(r)["fix"])}</code><button type="button" '
+                   f'class="copy" data-copy aria-label="Copy the command">{COPY_ICONS}</button>'
+                   "</div>")
+    else:
+        out.append(f'<p>Nothing more to do. Run <code>{_e(commands(r)["check"])}</code> after '
+                   f"you change your {TERM}.</p>")
+    if live:
+        out.append("<p>Want more certain numbers? Keep marking on the marking page. It closes "
+                   "by itself after 30 minutes without use.</p>")
+    return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
+            f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
 
 
 def _last_check(last: dict | None, worse: str) -> str:
@@ -1042,7 +1118,7 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of Fix it; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
+    and of What next; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
     copy keeps it too."""
     from judgekeeper.front import tool_name
 
@@ -1055,13 +1131,15 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     top = _last_check(last, worse) if worse else ""
     parts = [top, _verdict(r, c, back, worse, above=bool(top)), _counts(r, c), _made(r)]
     live = back is not None
+    if level is not None:  # a result, also a rough one: the two main lines, open
+        parts.append(_main_lines(r))
     if shows_disagreements(r):  # real numbers: the disagreements and the estimates
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
         parts += [_groups(c, fixing, live, mark, commands(r)["fix"]), _details(r)]
     elif level is not None:  # too early to tell: the estimates and their ranges all the same
         parts.append(_details(r))
-    if level == "not_gate" and not worse:
-        parts.append(_fix(r))
+    if not worse:
+        parts.append(_next(r, live))
     parts.append(held_note(r, "".join(parts)))
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"

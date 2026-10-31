@@ -18,7 +18,7 @@ from tests.test_product_pages import (
     _text,
 )
 
-KEPT = " kept aside to test a fix fairly."
+KEPT = " hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
 
 
 def _page(result=NOT_GATE_TNR, mistakes=(1, 0), live=False, **fixing) -> str:
@@ -74,7 +74,7 @@ def test_the_kept_aside_count_is_under_its_own_group():
     easy, strict = _part(html, 'id="g-easy"'), _part(html, 'id="g-strict"')
     assert '<p class="kept">15 more are' + KEPT + "</p>" in easy
     assert '<p class="kept">1 more is' + KEPT + "</p>" in strict
-    assert easy.index("kept aside") < easy.index("<table")
+    assert easy.index("hidden on purpose") < easy.index("<table")
     assert "*" not in _text(html) and "a new rule fairly" not in html
 
 
@@ -203,20 +203,21 @@ def test_with_every_answer_marked_the_caption_is_short():
 
 def test_too_early_shows_the_counts_and_the_folded_details():
     html = start_label.result_html(_result(*TOO_EARLY))
-    assert '<details class="details band">' in html and 'class="fix band"' not in html
+    assert '<details class="details band">' in html and 'class="next band"' not in html
 
 
-def test_good_enough_has_no_fix_it():
+def test_good_enough_has_no_fix_command():
     html = start_label.result_html(_result(*GATE))
-    assert 'class="fix band"' not in html and '<details class="details band">' in html
+    assert 'class="cmd"' not in html and '<details class="details band">' in html
+    assert 'class="next band"' in html
 
 
-# Fix it ---------------------------------------------------------------------------------------
+# What next ------------------------------------------------------------------------------------
 
-def test_fix_it_is_one_line_and_the_websites_command_box():
+def test_what_next_has_the_websites_command_box():
     html = _page()
-    fix = _part(html, '<section class="fix band"')
-    assert "<p>Run it in your project folder to see what to change.</p>" in fix
+    fix = _part(html, '<section class="next band"')
+    assert "<p>Next, in your terminal, in your project folder:</p>" in fix
     assert "marked-answers.csv" not in fix and "In your project folder" not in fix
     assert '<div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" ' \
            'data-copy aria-label="Copy the command">' in fix
@@ -244,7 +245,17 @@ def test_the_copy_script_is_the_websites_and_clears_its_selection():
 def test_report_html_keeps_one_closing_line():
     text = _text(_page(mistakes=(2, 0)))
     assert "Tell judgekeeper why you disagree on these" in text
-    assert "uses your reasons" not in text
+    assert "uses your reasons" not in text and "Optional: tell judgekeeper" not in text
+
+
+def test_the_live_page_says_above_the_first_list_that_reasons_are_optional():
+    html = _page(mistakes=(2, 1), live=True)
+    line = ('<div class="band"><p class="add-why">Optional: tell judgekeeper why you disagree. '
+            '<code>judgekeeper fix</code> uses your reasons to suggest a better rule.</p></div>')
+    assert html.count(line) == 1
+    assert html.index(line) < html.index('id="g-easy"') < html.index('id="g-strict"')
+    none = _page(mistakes=(0, 0), live=True)
+    assert "Optional: tell judgekeeper" not in none
 
 
 def test_the_term_stays_on_one_line_everywhere():
@@ -316,12 +327,11 @@ def test_the_website_copy_clears_its_selection_after_the_fallback():
     assert select.index('document.execCommand("copy")') < select.rindex("removeAllRanges()")
 
 
-def test_the_fix_it_copy_box_keeps_one_width_when_copied():
-    # a percentage min-width does not hold in an auto grid column: the column itself keeps 380px
-    assert (".fix-in { display: grid; grid-template-columns: 1fr minmax(min(380px, 100%), auto);"
-            in report_page.STYLE)
-    phone = report_page.STYLE.split(".fix-in { grid-template-columns: 1fr; }", 1)
-    assert len(phone) == 2  # one column on a narrow screen, the box at full width
+def test_the_what_next_copy_box_keeps_one_width_when_copied():
+    # the box is as wide as its 380px minimum (or the page), so "Copied" fits inside it
+    assert ".next-in { display: flex; flex-direction: column; align-items: flex-start;" \
+        in report_page.STYLE
+    assert "min-width: min(380px, 100%)" in report_page.STYLE.split("\n.cmd {", 1)[1].split("}", 1)[0]
 
 
 def test_every_website_page_loads_the_new_site_js_and_style_css():
