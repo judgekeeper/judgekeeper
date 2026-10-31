@@ -130,9 +130,14 @@ def run(capsys, *argv):
     out, err = capsys.readouterr()
     lines = (out + err).splitlines()
     for line in lines:
-        assert len(line) <= 80, line
+        assert len(line) <= 80 or (line.startswith("`") and line.endswith("`")), line
     assert TAG.strip() not in out + err
     return code, out + err
+
+
+def _value_line(ws) -> int:
+    text = (ws.dir / "fix" / "regrade.yaml").read_text(encoding="utf-8")
+    return next(n for n, x in enumerate(text.splitlines(), 1) if x.lstrip().startswith("value:"))
 
 
 def _split(ws) -> dict:
@@ -262,10 +267,11 @@ def test_the_first_run(here, capsys, monkeypatch):
         f"{len(split['hidden'])} of your marks are kept aside to test your new rule fairly. "
         f".judgekeeper/fix/marked-answers.csv holds all {N} marked answers, questions and "
         "answers only, so you can't tell which are kept aside. "
-        f"{fix.regrade_line('promptfoo')} "
-        "Next: change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
-        ".judgekeeper/fix/marked-answers.csv again, save the results, then run "
-        "`judgekeeper fix <new results file>`.")
+        f"1. Change the rule in .judgekeeper/fix/regrade.yaml (line {_value_line(ws)}). "
+        "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
+        ".judgekeeper/fix/new.json` "
+        "3. Then: `judgekeeper fix .judgekeeper/fix/new.json` "
+        "Next: follow the three steps above.")
     for gone in ("hidden", "set aside", "Each mistake, with", "Clues", "passed but you failed",
                  "it passed", "it failed", "hand this file", "rule.txt", "AI call", "--yes"):
         assert gone not in out, gone
@@ -558,8 +564,14 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     assert lines[2] == "Step 4 of 5: Fix (testing your new rule)"
     assert "New results: regraded.json" in lines
     at = lines.index(f"Your LLM-as-a-judge, tested on the {n} marks kept aside:")
-    assert lines[at + 1:at + 3] == [f"  Old rule: agreed with you on {right} of {n} answers.",
-                                    f"  New rule: agreed with you on {n} of {n} answers."]
+    side = r"    When you say (Pass|Fail): agrees on (\d+) of (\d+)"
+    assert lines[at + 1] == "  Old rule:" and lines[at + 4] == "  New rule:"
+    was = [re.fullmatch(side, lines[at + k]) for k in (2, 3)]
+    now = [re.fullmatch(side, lines[at + k]) for k in (5, 6)]
+    assert all(was) and all(now)
+    assert [m[1] for m in was] == [m[1] for m in now] == ["Pass", "Fail"]
+    assert sum(int(m[2]) for m in was) == right and sum(int(m[3]) for m in was) == n
+    assert all(m[2] == m[3] for m in now) and sum(int(m[3]) for m in now) == n
     went = f"{fixed} answers went" if fixed != 1 else "1 answer went"
     assert f"With the new rule, {went} from wrong to right, and none from right to wrong." in flat
     assert "fixed" not in out and "broke" not in out

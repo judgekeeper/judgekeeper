@@ -230,7 +230,7 @@ def run(capsys, *argv) -> tuple[int, str]:
     code = main([str(a) for a in argv])
     out, err = capsys.readouterr()
     for line in (out + err).splitlines():
-        assert len(line) <= 80, line
+        assert len(line) <= 80 or (line.startswith("`") and line.endswith("`")), line
     return code, out + err
 
 
@@ -261,8 +261,14 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     assert {tuple(r) for r in rows[1:]} == {(question(i), answer(i)) for i in range(N)}
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
-    assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
-    file = {"inspect": fix.new_log(ws), "mlflow": fix.mlflow_store(ws)}.get(tool, fix.NEW_RESULTS)
+    if tool == "promptfoo":  # a ready config: the three steps
+        assert "Change the rule in .judgekeeper/fix/regrade.yaml (line " in " ".join(out.split())
+        assert (ws.dir / "fix" / "regrade.yaml").is_file()
+        file = ".judgekeeper/fix/new.json"
+    else:
+        assert fix.regrade_line(None if tool == "jsonl" else tool) in " ".join(out.split())
+        file = {"inspect": fix.new_log(ws), "mlflow": fix.mlflow_store(ws)}.get(
+            tool, fix.NEW_RESULTS)
     assert f"fix {file}" in " ".join(out.split())
 
     gone = kept[0]  # not graded again: said, and no verdict without it

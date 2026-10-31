@@ -431,7 +431,9 @@ def test_fix_for_a_table_judge_tests_new_grades_from_a_file(here, capsys, no_cal
     n = test["hidden"]
     assert test["n"] == n and test["broke"] == 0
     assert f"tested on the {n} marks kept aside" in flat(out)
-    assert f"New rule: agreed with you on {n} of {n} answers." in out
+    sides = re.findall(r"When you say \w+: agrees on (\d+) of (\d+)", out)
+    assert sum(int(b) for _, b in sides[2:]) == n  # the new rule, both sides
+    assert all(a == b for a, b in sides[2:])  # it agrees on every one
 
 
 def test_the_report_says_where_to_run_fix(here, capsys):
