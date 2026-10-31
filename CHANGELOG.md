@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.0.1 (2026-10-31)
-- ™ on the judgekeeper name and logo, with the trademark notice, in the README, on the website and on the marking and report pages. The README title's ™ is shown small.
+- ™ on the judgekeeper name and logo in the README, on the website and on the marking and report pages, with the trademark notice at the end of the README. The README title's ™ is shown small.
 - The example model names are neutral (`my-judge-v1`, `my-judge-v2`), and the example with two LLM-as-a-judge setups on JailbreakBench is now in `docs/examples/jailbreakbench-setups/`.
 - The demo is recorded again, with the new frame and the ™.
 - Wording fixes in the docs and the examples, and a line for people who use a coding agent, in the README and the Guide.
