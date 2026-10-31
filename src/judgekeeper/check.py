@@ -1669,6 +1669,13 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                                     why=no_decision_why(found, gone, state.ws)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
+        if not e:  # the eval wrote new answers: grade the marked ones instead
+            said.say(GRADE_MARKED)
+            if _say_steps(said, state):
+                said.say()
+                said.say("Next: " + fix.FOLLOW_STEPS.rstrip(".")
+                         + f"; or start over on your new answers with `{program('--new')}`.")
+                return True
         answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
         regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
         said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
@@ -1695,16 +1702,24 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                                 need=targets.ROUGH))
         said.say()
         said.say(GRADE_MARKED)
-        steps = fix.regrade_steps(state.ws, program("check"), "grader") \
-            if state.data.get("tool") == "promptfoo" else None
-        if steps:  # a ready config: change the grader in it
-            for line in steps.split("\n"):
-                said.say(line)
+        if _say_steps(said, state):  # a ready config: change the grader in it
             said.say()
             said.say("Next: " + fix.FOLLOW_STEPS)
         else:  # new answers can't be compared
             said.say("Next: " + regrade_marked(state, every=True))
     return few
+
+
+def _say_steps(said: Said, state: State) -> bool:
+    """For promptfoo, the three steps that grade the marked answers again with regrade.yaml
+    (written if there is none); whether they were said."""
+    from judgekeeper import fix
+
+    steps = fix.regrade_steps(state.ws, program("check"), "grader") \
+        if state.data.get("tool") == "promptfoo" else None
+    for line in (steps or "").split("\n") if steps else ():
+        said.say(line)
+    return bool(steps)
 
 
 def _asked_again(found, ids, ws: Workspace) -> int:
