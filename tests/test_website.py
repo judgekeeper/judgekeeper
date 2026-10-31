@@ -379,7 +379,7 @@ SHARE_TAGS = ["og:type", "og:site_name", "og:title", "og:description", "og:url",
               "og:image:width", "og:image:height", "og:image:alt", "twitter:card",
               "twitter:title", "twitter:description", "twitter:image"]
 SHARE_ALT = ("The judgekeeper logo and the words: Check your LLM-as-a-judge in 5 steps. "
-             "Find. Mark. Measure. Fix. Re-check. uvx judgekeeper")
+             "Find. Mark. Measure. Fix. Re-check. pip install judgekeeper or uvx judgekeeper")
 SITE_PAGES = {"index.html", "start.html", "check.html", "privacy.html"}
 
 
@@ -442,8 +442,33 @@ def test_the_share_preview_shield_stands_alone_with_a_small_tm_at_its_top_right(
         crop = picture.crop(box)
         return sum(1 for r, g, b in crop.getdata() if min(r, g, b) > 150)
 
-    assert light((292, 200, 332, 236)) > 40  # the ™, right of the shield's top corner
-    assert light((292, 300, 332, 420)) == 0  # nothing beside the rest of the shield
+    assert light((280, 200, 320, 236)) > 40  # the ™, right of the shield's top corner
+    assert light((280, 300, 320, 420)) == 0  # nothing beside the rest of the shield
+
+
+def test_the_share_preview_shows_both_install_commands_one_under_the_other():
+    """Two command boxes (pip first, then uvx) stacked at the text's left, with room after the ™."""
+    Image = pytest.importorskip("PIL.Image")
+    picture = Image.open(WEBSITE / "assets/social-preview.png").convert("RGB")
+
+    def runs(x):  # vertical runs of the command boxes' fill (#07080a) down one column
+        found, start = [], None
+        for y in range(picture.height):
+            inside = picture.getpixel((x, y)) == (7, 8, 10)
+            if inside and start is None:
+                start = y
+            if not inside and start is not None:
+                found.append((start, y))
+                start = None
+        return found
+
+    boxes = runs(400)  # just inside the boxes' left edge
+    assert len(boxes) == 2 and boxes[0][1] < boxes[1][0]
+    assert boxes[0][1] - boxes[0][0] == boxes[1][1] - boxes[1][0]  # the same height
+    assert boxes[1][0] - boxes[0][1] < 20  # a small gap between them
+    assert picture.getpixel((620, boxes[0][0] + 5)) == (7, 8, 10)  # wide enough for pip install
+    for y in range(190, 240):  # clear space between the shield's ™ and the headline
+        assert all(min(picture.getpixel((x, y))) < 60 for x in range(340, 380)), y
 
 
 def test_favicon_ico_is_the_logo_at_three_sizes():

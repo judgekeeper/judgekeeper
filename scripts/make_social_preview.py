@@ -4,7 +4,7 @@
     python scripts/make_social_preview.py --chrome PATH    # a Chrome or Chromium to use
 
 It writes a small page with the site's colours and fonts (website/assets/fonts/) and the logo
-at left, alone, so with a small ™ at its top right: the headline, the five steps and the install command. Headless Chrome takes it as a
+at left, alone, so with a small ™ at its top right: the headline, the five steps and the two install commands. Headless Chrome takes it as a
 1200 x 630 PNG. scripts/share_preview.py holds the picture's size and alt text.
 Standard library only.
 """
@@ -35,7 +35,7 @@ PAGE = """<!doctype html>
   src: url("{fonts}/jetbrains-mono-latin-500-normal.woff2") format("woff2"); }}
 html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden; }}
 body {{ background: #0b0c0e; color: #e6e8eb; font-family: "Manrope", sans-serif;
-  display: flex; align-items: center; gap: 64px; padding: 0 88px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 112px; padding: 0 80px; box-sizing: border-box;
   -webkit-font-smoothing: antialiased; }}
 .mark {{ position: relative; width: 200px; height: 225px; flex: none; }}
 .mark .logo {{ width: 200px; height: 225px; }}
@@ -48,12 +48,13 @@ h1 {{ font-size: 64px; line-height: 1.04; letter-spacing: -.028em; font-weight: 
   font-size: 30px; padding: 14px 26px; border: 1px solid #262a30; border-radius: 10px;
   background: #07080a; }}
 .cmd b {{ color: #10B981; font-weight: 500; }}
+.cmds {{ display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }}
 </style></head><body>
 <div class="mark"><div class="logo">{logo}</div><span class="tm">™</span></div>
 <div>
 <h1>Check your<br>LLM-as-a-judge<br>in 5 steps.</h1>
 <p class="steps">Find. Mark. Measure. Fix. Re-check.</p>
-<div class="cmd"><b>$</b> uvx judgekeeper</div>
+<div class="cmds"><div class="cmd"><b>$</b> pip install judgekeeper</div><div class="cmd"><b>$</b> uvx judgekeeper</div></div>
 </div>
 </body></html>
 """
