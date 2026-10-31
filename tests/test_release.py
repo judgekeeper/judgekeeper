@@ -23,7 +23,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
 # The old LLMBar run, kept only as a source of the real-data check
@@ -86,7 +86,7 @@ def test_there_is_no_github_action():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION, "1.0.0"]  # the earlier ones are on PyPI
+    assert entries == [VERSION, "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
     assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
 
 

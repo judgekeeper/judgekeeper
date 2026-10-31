@@ -1,6 +1,6 @@
 [project]
 name = "judgekeeper"
-version = "1.0.1"
+version = "1.0.2"
 description = "Check your LLM-as-a-judge in 5 steps: Find. Mark. Measure. Fix. Re-check."
 readme = "README.md"
 license = "Apache-2.0"

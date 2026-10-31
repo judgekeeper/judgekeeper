@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2 (2026-10-31)
+- The marking page's progress bar follows how close your result is, and a "Your result is ready" box tells you when it is.
+- The result page says what is saved and what to do next.
+- The result page explains why you can add a reason when you disagree, and what is hidden on purpose.
+- The two main lines, "When you say Pass" and "When you say Fail", are shown open.
+- Bold text and bullet lists in answers show on the marking page and in report.html (not yet in the live result page's rows with a reason box).
+- `judgekeeper fix` writes a ready re-grade file for promptfoo (`.judgekeeper/fix/regrade.yaml`) and says the three steps to use it.
+- Re-check says to grade your marked answers again, and when your eval wrote new answers it points you to the same steps.
+- Re-check says "Better" when a group agrees with you clearly more.
+- `judgekeeper fix` shows how the old and new rule agree with you on Pass and on Fail.
+- The terminal says "Opening the marking page in your browser…" before it opens it.
+- A printed link you asked for gets a softer note.
+
 ## 1.0.1 (2026-10-31)
 - ™ on the judgekeeper name and logo in the README, on the website and on the marking and report pages, with the trademark notice at the end of the README. The README title's ™ is shown small.
 - The example model names are neutral (`my-judge-v1`, `my-judge-v2`), and the example with two LLM-as-a-judge setups on JailbreakBench is now in `docs/examples/jailbreakbench-setups/`.
