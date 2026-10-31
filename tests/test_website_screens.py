@@ -405,8 +405,10 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
     old_right = hidden - (result["disagreements"] - int(shown[1]))
     new_right = old_right + tested["fixed"] - tested["broke"]
     assert tested["hidden"] == hidden and tested["verdict"] == "better"
-    assert f"Old rule: agreed with you on {old_right} of {hidden} answers." in screen
-    assert f"New rule: agreed with you on {new_right} of {hidden} answers." in screen
+    sides = re.findall(r"agrees on (\d+) of (\d+)", screen)  # old Pass, Fail; new Pass, Fail
+    assert len(sides) == 4 and sum(int(b) for _, b in sides[:2]) == hidden
+    assert sum(int(a) for a, _ in sides[:2]) == old_right
+    assert sum(int(a) for a, _ in sides[2:]) == new_right
     assert f"{tested['fixed']} answers went from wrong to right" in screen and not tested["broke"]
 
     # Re-check: each side's counts, and the drop on answers you pass with its range

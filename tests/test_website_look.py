@@ -879,8 +879,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "fixes 1 in 10 and breaks 5 in 100 right answers needs more than 120 "
              "(simulation).")],
         "step-check": [
-            ("Changed your LLM-as-a-judge’s model or rule? Grade the answers you marked again "
-             "the same way as in step 4, then:"),
+            ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
+             "(.judgekeeper/fix/marked-answers.csv) the same way as in step 4, then:"),
             ("judgekeeper finds the answers you marked in your new results by their exact text "
              "and question, compares the new grades with your marks, and tells you if your "
              "LLM-as-a-judge "

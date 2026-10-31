@@ -68,7 +68,7 @@ GROUPS = (("passed", "pass", "Answers you passed"), ("failed", "fail", "Answers 
 SAID = {"passed": "You passed", "failed": "You failed"}
 NEXT_NOT_SURE = "mark more answers with `{mark}`, then run `{command}` again."
 NO_DROP = round(targets.NO_DROP_MARGIN * 100)
-VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure",
+VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure", "better": "Better",
                  "no_drop": f"No drop bigger than {NO_DROP} points"}
 # The screen: the result first, then the table's outcome word per group
 RESULT = {"worse": "Result: worse. Your new LLM-as-a-judge agrees with you less.",
@@ -76,7 +76,9 @@ RESULT = {"worse": "Result: worse. Your new LLM-as-a-judge agrees with you less.
                        "agrees with you less."),
           "no_drop": (f"Result: no drop bigger than {NO_DROP} in every 100 answers for your new "
                       "LLM-as-a-judge.")}
-TABLE_WORDS = {"worse": "Worse", "not_sure": "Not sure", "no_drop": "No big drop"}
+TABLE_WORDS = {"worse": "Worse", "not_sure": "Not sure", "no_drop": "No big drop",
+               "better": "Better"}
+BETTER_LINE = "Better: your new LLM-as-a-judge agrees with you more on this side."
 TABLE_HEAD = ("Agreed with you:", "Old LLM-as-a-judge", "New LLM-as-a-judge")
 COLUMNS = (24, 21, 21)  # the table's columns line up for 1- to 3-digit counts, within 80
 SIDES = (("passed", "Pass", "pass"), ("failed", "Fail", "fail"))  # group, what you said
@@ -118,6 +120,8 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
 # Running the eval again makes new answers, which can't be compared: grade the marked ones
+GRADE_MARKED = ("Your eval wrote new answers, so there's nothing to compare. Grade the answers "
+                "you marked instead:")
 NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
@@ -597,6 +601,8 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
              "now_wrong": wrong, "now_right": right, "verdict": "not tested"}
         if n:
             paired = targets.paired_verdict(right, wrong, n)
+            if paired["verdict"] == "no_drop" and paired["low"] > targets.NO_DROP_MARGIN:
+                paired["verdict"] = "better"  # the whole range is a rise of more than the margin
             g.update(verdict=paired["verdict"], change=paired["change"], low=paired["low"],
                      high=paired["high"], exit_worse=paired["exit_worse"])
         if rates is not None:
@@ -662,7 +668,7 @@ def outcome(g: dict) -> str | None:
         return "worse"
     if "not_sure" in kinds:
         return "not_sure"
-    return "no_drop" if "no_drop" in kinds else None
+    return "no_drop" if "no_drop" in kinds or "better" in kinds else None
 
 
 def table_lines(g: dict) -> list[str]:
@@ -753,6 +759,9 @@ def paired_lines(g: dict) -> list[str]:
     if g["verdict"] == "not_sure":
         return [(f"Not sure: {_count(wrong)} went from right to wrong, and {_count(right)} from "
                  f"wrong to right. It could be up to {_points(g['low'])} points worse.")]
+    if g["verdict"] == "better":
+        went = f"{_count(wrong)} went from right to wrong, and {_count(right)} from wrong to right."
+        return [BETTER_LINE, went]
     first = (f"{VERDICT_WORDS['no_drop']}: {_count(wrong)} went from right to wrong, "
              f"{_count(right)} from wrong to right.")
     if g["low"] >= 0:
@@ -1653,13 +1662,13 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     e = len(no_decision(found, gone, state.ws)) if gone else 0
     kinds = [state.marks[i] for i in matched]
     few = min(kinds.count("pass"), kinds.count("fail")) < targets.ROUGH
+    from judgekeeper import fix
+
     if not matched:
         said.say(NONE_GRADED.format(n=_n(total, "marked answer"), e=e, are=_are(e),
                                     why=no_decision_why(found, gone, state.ws)) if e
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
-        from judgekeeper import fix
-
         answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
         regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
         said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
@@ -1685,7 +1694,16 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say("Next: " + regrade_marked(state, every=True))  # new answers can't be compared
+        said.say(GRADE_MARKED)
+        steps = fix.regrade_steps(state.ws, program("check"), "grader") \
+            if state.data.get("tool") == "promptfoo" else None
+        if steps:  # a ready config: change the grader in it
+            for line in steps.split("\n"):
+                said.say(line)
+            said.say()
+            said.say("Next: " + fix.FOLLOW_STEPS)
+        else:  # new answers can't be compared
+            said.say("Next: " + regrade_marked(state, every=True))
     return few
 
 

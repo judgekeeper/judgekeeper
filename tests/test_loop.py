@@ -34,6 +34,9 @@ LINK = "Open this link in your browser to mark answers:"
 PRINTED_LINE = ("{n} of your marks came through a link printed with no terminal, so another "
                 "program on this computer could have made them. If you marked them yourself, "
                 "nothing to do.")
+OPENING_BROWSER = "Opening the marking page in your browser…"
+ASKED_LINE = ("You opened the page from a printed link. If you marked these yourself, "
+              "nothing to do.")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
 
@@ -133,6 +136,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail. If almost every answer passes, that can take many answers.",
         "",
+        "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
         "one at a time. Mark each one Pass or Fail, the way you want your",
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
@@ -487,7 +491,8 @@ def test_the_result_counts_marks_made_through_a_printed_link(here, capsys, pages
     assert _flat(out).count(PRINTED_LINE.format(n=2)) == 1  # once per Measure
 
 
-def test_at_a_terminal_a_printed_link_is_not_stamped(here, capsys, pages, monkeypatch):
+def test_at_a_terminal_a_link_asked_for_is_stamped_as_asked_for(here, capsys, pages,
+                                                                monkeypatch):
     monkeypatch.setattr(page, "terminal", lambda: True)
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "--no-browser")
@@ -495,8 +500,47 @@ def test_at_a_terminal_a_printed_link_is_not_stamped(here, capsys, pages, monkey
     ws = start_label.Workspace(here)
     _post_marks(_link(out), ws, 3)
     lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
+    assert len(lines) == 3 and all(x["link"] == "asked" for x in lines)
+    made = marks.made(marks.read(ws.marks))
+    assert (made["asked"], made["printed"]) == (3, 0)
+    # the note is the soft one: the person asked for the link, so nothing alarming
+    assert _flat(" ".join(start_label.link_lines(made))) == ASKED_LINE
+
+
+def test_at_a_terminal_a_link_printed_because_no_browser_opened_is_not_stamped(
+        here, capsys, pages, monkeypatch, browser_fails):
+    monkeypatch.setattr(page, "terminal", lambda: True)
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    ws = start_label.Workspace(here)
+    _post_marks(_link(out), ws, 3)
+    lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
     assert len(lines) == 3 and not any("link" in x for x in lines)
-    assert marks.made(marks.read(ws.marks))["printed"] == 0
+    made = marks.made(marks.read(ws.marks))
+    assert ("asked" not in made, made["printed"]) == (True, 0)
+
+
+def test_the_terminal_says_it_is_opening_the_browser_before_it_does(here, capsys, pages,
+                                                                      monkeypatch):
+    seen = []
+
+    def opens(url, *a, **k):  # what had been printed when the browser was asked to open
+        seen.append(capsys.readouterr().out)
+        return True
+
+    monkeypatch.delenv("BROWSER", raising=False)
+    monkeypatch.setattr("webbrowser.open", opens)
+    promptfoo_project(here, split(20, 16))
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    assert len(seen) == 1 and seen[0].endswith("\n" + OPENING_BROWSER + "\n"), seen[0][-120:]
+
+
+def test_nothing_is_said_about_opening_when_no_browser_opens(here, capsys, pages, no_browser):
+    promptfoo_project(here, split(20, 16))
+    _, out, _ = run(capsys, "--no-browser")
+    assert OPENING_BROWSER not in out and no_browser == []
 
 
 def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):

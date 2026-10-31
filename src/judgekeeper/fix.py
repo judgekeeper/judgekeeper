@@ -36,6 +36,7 @@ from judgekeeper import __version__, batches, find, marks, reasons, start_fix_ru
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.judgments import read_run
 from judgekeeper.links import link, said
+from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, next_marks, shown_folder
 from judgekeeper.table import guard_cell
@@ -131,6 +132,14 @@ REGRADE = {
                  "test_run_<date>.json in your results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
+# promptfoo: a ready config that grades the marked answers again (written as text: no YAML
+# parser; every value is a JSON string, which is also a YAML string)
+REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
+REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
+                 "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
+                 "3. Then: `{command} {new}`")
+FOLLOW_STEPS = "follow the three steps above."
+NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}; {answers} has only question and answer."
 NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
 RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
                 f"new grades, then run `{{command}} {NEW_RECORDS}`.")
@@ -1222,6 +1231,129 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
 
 
+def _yaml_string(text: str) -> str:
+    """`text` as a double-quoted YAML string: a JSON string is one, with the line breaks and
+    control characters YAML knows beyond JSON's escaped too."""
+    return re.sub("[\x7f-\x9f\u2028\u2029\ufeff\ud800-\udfff]",
+                  lambda m: f"\\u{ord(m.group()):04x}", json.dumps(text, ensure_ascii=False))
+
+
+def _promptfoo_assertion(ws: Workspace, data: dict) -> tuple[str, str | None] | None:
+    """The type of the model-graded assertion the metric names, and the `metric:` it has (None
+    when the metric is the type), read from the first results file; None when not found."""
+    from judgekeeper.readers import promptfoo as reader
+
+    metric = data.get("metric")
+    if not isinstance(metric, str) or not metric:
+        return None
+    files = data.get("results_files") or []
+    try:
+        if not (files and isinstance(files[0], str)):
+            raise ValueError("no results file")
+        for row in reader._load(Path(ws.root) / files[0])["results"]["results"]:
+            if not isinstance(row, dict):
+                continue
+            one = reader._one_rubric(row)
+            parts = reader._components(row.get("gradingResult")) or (
+                [{"assertion": one}] if one else [])
+            for part in parts:
+                a = part.get("assertion") if isinstance(part, dict) else None
+                a = a if isinstance(a, dict) else {}
+                kind = a.get("type")
+                if reader.judge_type(kind) and (a.get("metric") or kind) == metric:
+                    return kind, a.get("metric") or None
+    except (RecordsError, OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return (metric, None) if reader.judge_type(metric) == metric else None
+
+
+def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
+    """The text of fix/regrade.yaml: the marked answers as tests, the `echo` provider, the
+    grader the results name, the same assertion type (and metric name) with the rule as its
+    value. None when the grader, the assertion or the one rule can't be read."""
+    fp = data.get("fingerprint") if isinstance(data.get("fingerprint"), dict) else {}
+    provider, grader, rule = fp.get("provider"), fp.get("model"), data.get("rule")
+    if not (isinstance(provider, str) and isinstance(grader, str) and isinstance(rule, str)
+            and rule.strip() and data.get("one_rule", True)
+            and provider not in ("file", "exec") and grader.startswith(f"{provider}:")):
+        return None
+    kind = _promptfoo_assertion(ws, data)
+    if kind is None:
+        return None
+    lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
+             "providers: [" + _yaml_string("echo") + "]",
+             "tests: " + _yaml_string(f"file://{ANSWERS}"),
+             "defaultTest:",
+             "  options:",
+             "    provider: " + _yaml_string(grader),
+             "  assert:",
+             "    - type: " + _yaml_string(kind[0]),
+             *(["      metric: " + _yaml_string(kind[1])] if kind[1] else []),
+             "      value: " + _yaml_string(rule)]
+    return "\n".join(lines) + "\n"
+
+
+def _line_of(path: Path, key: str) -> int | None:
+    """The line (from 1) of the first `key:` in the file, or None."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+    return next((n for n, line in enumerate(text.splitlines(), 1)
+                 if line.lstrip(" -").startswith(f"{key}:")), None)
+
+
+def promptfoo_regrade(ws: Workspace) -> Path | None:
+    """fix/regrade.yaml for promptfoo, written when there is none (a file the person changed
+    stays as it is). The path, or None when it can't be had: another eval tool, no one rule,
+    a grader or rule not read from the results, a file that can't be written. Writes only
+    inside .judgekeeper/."""
+    try:
+        data = ws.cached_data()
+    except (OSError, ValueError, AttributeError):
+        return None
+    if data.get("tool") != "promptfoo":
+        return None
+    path = _folder(ws) / REGRADE_FILE
+    try:
+        marks._refuse_links(path)
+        if not path.is_file():
+            text = _regrade_yaml(ws, data)
+            if text is None:
+                return None
+            make_private(path.parent)
+            write_replacing(path, text, newline="")
+    except OSError:
+        return None
+    return path if _line_of(path, "value") else None
+
+
+def regrade_steps(ws: Workspace, command: str, what: str = "rule") -> str | None:
+    """The three steps that grade the marked answers again with promptfoo, `what` ("rule" or
+    "grader") changed in regrade.yaml first, then `command` run on the new results. None when
+    there is no regrade.yaml to point at (today's text stays)."""
+    path = promptfoo_regrade(ws)
+    line = path and _line_of(path, "value" if what == "rule" else "provider")
+    if not line:
+        return None
+    shown = f"{shown_folder(ws)}/{FOLDER}"
+    return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line,
+                                config=quote_arg(f"{shown}/{REGRADE_FILE}"),
+                                new=quote_arg(f"{shown}/{NEW_JSON}"), command=command)
+
+
+def not_a_column(ws: Workspace) -> list[str]:
+    """One line per variable the rule uses that marked-answers.csv has no column for."""
+    try:
+        rule = ws.cached_data().get("rule")
+    except (OSError, ValueError, AttributeError):
+        return []
+    names = dict.fromkeys(re.findall(r"\{\{\s*([A-Za-z_]\w*)", rule if isinstance(rule, str)
+                                     else ""))
+    return [NOT_A_COLUMN.format(name=n, answers=ANSWERS) for n in names
+            if n not in ANSWER_COLUMNS]
+
+
 def regrade_line(tool: str | None, command: str = "judgekeeper fix",
                  file: str | None = None) -> str:
     """How to grade the marked answers again with the person's own eval tool; for a format
@@ -1269,7 +1401,13 @@ def new_log(ws: Workspace) -> str:
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
-    talk.para(regrade_line(tool, talk.command(), _first_file(ws)))
+    steps = regrade_steps(ws, talk.command()) if tool == "promptfoo" else None
+    talk.para(steps or regrade_line(tool, talk.command(), _first_file(ws)))
+    if steps:  # a ready config: the steps above are the whole way
+        for line in not_a_column(ws):
+            talk.para(line)
+        talk.next(FOLLOW_STEPS)
+        return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
@@ -1518,8 +1656,11 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
     talk.say(f"Your LLM-as-a-judge, tested on the {len(ids)} marks kept aside:")
     for name, grades in (("Old", old), ("New", new)):
-        agreed = sum(grades[i] == m.person[i] for i in ids)
-        talk.say(f"  {name} rule: agreed with you on {agreed} of {len(ids)} answers.")
+        talk.say(f"  {name} rule:")
+        for side, mark in (("Pass", "pass"), ("Fail", "fail")):
+            of = [i for i in ids if m.person[i] == mark]
+            agreed = sum(grades[i] == mark for i in of)
+            talk.say(f"    When you say {side}: agrees on {agreed} of {len(of)}")
     talk.para(went_line(fixed, broke), indent="  ")
     talk.say()
     talk.para(RESULT[v.kind])

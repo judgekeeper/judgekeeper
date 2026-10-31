@@ -94,6 +94,7 @@ def test_screen_1_the_first_run(here, capsys):
     assert lines == [
         *FIRST,
         *NEEDS,
+        "Opening the marking page in your browser…",
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
@@ -278,7 +279,7 @@ def test_screen_8_help(capsys):
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[:23] == [
+    assert lines[:24] == [
         "Check your LLM-as-a-judge in 5 steps.",
         "",
         "  1. Find      judgekeeper          finds your eval results and the",
@@ -290,9 +291,10 @@ def test_screen_8_help(capsys):
         "                                    its rule, grade your marked answers again,",
         "                                    and test the new rule on the half of your",
         "                                    marks kept aside",
-        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge and",
-        "                                    run your eval, see if it still agrees",
-        "                                    with you",
+        "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade",
+        "                                    your marked answers again",
+        "                                    (.judgekeeper/fix/marked-answers.csv) and",
+        "                                    see if it still agrees with you",
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV, TSV or JSONL file with these columns:",
@@ -303,7 +305,7 @@ def test_screen_8_help(capsys):
         "Commands:",
         "  mark    mark more answers",
     ]
-    assert lines[23:27] == [
+    assert lines[24:28] == [
         "  fix     see where your LLM-as-a-judge goes wrong; with the results of grading",
         "          your marked answers again, test a better rule on the marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",

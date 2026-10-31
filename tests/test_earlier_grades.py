@@ -72,7 +72,9 @@ def test_the_unchanged_rule_on_marks_made_after_a_check_is_not_better(adopted, t
     _rubric(tmp_path, [person(i) != (i == 56) for i in range(N)], "V3 rule.", name="v3.json",
             only=LATER)
     code, out = _jk(capsys, "fix", "v3.json")  # a new rule, tested on the right grades
-    assert code == 0 and "Old rule: agreed with you on 20 of 20 answers." in out, out
+    assert code == 0, out
+    assert "    When you say Pass: agrees on 10 of 10" in out, out
+    assert "    When you say Fail: agrees on 10 of 10" in out, out
 
 
 def test_a_new_rule_leaves_out_the_answers_with_an_earlier_grade(adopted, tmp_path):

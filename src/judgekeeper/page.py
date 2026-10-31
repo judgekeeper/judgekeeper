@@ -5,7 +5,8 @@ The page's link holds its token. The command makes the token, hands it to the pa
 on its stdin (`main`) and opens the link in the browser itself (`show`), so the output prints
 no link unless no browser opens (or with --no-browser). Marks made through a link printed with
 no terminal (`terminal`: another program reads the output) are stamped "link": "printed", and
-with BROWSER set "link": "browser-env". A link printed at a terminal is not stamped.
+with BROWSER set "link": "browser-env". A link asked for with --no-browser at a terminal is
+stamped "asked". A link printed at a terminal because no browser opened is not stamped.
 
 The token is kept in server.json (owner-only, removed when the page stops), so a second run
 prints the same link and the open tab keeps working: a page already showing the same thing
@@ -48,6 +49,7 @@ from judgekeeper.start_label import StartSession, Workspace
 
 LINK = "Open this link in your browser to mark answers:"
 RESULT_LINK = "Open this link in your browser to see your result:"
+OPENING_BROWSER = "Opening the marking page in your browser…"
 DONE = "When you're done, run {program} in your terminal."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 KEPT = "kept"  # the page was open already, with no terminal: no new tab, no link printed
@@ -301,6 +303,8 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
     if opens and os.environ.get("BROWSER") and not _stamp(page, marks.BROWSER_ENV):
         return None
     began = _clock()
+    if opens:
+        say(OPENING_BROWSER)
     in_browser = opens and webbrowser.open(url)
     if in_browser and _clock() - began > SLOW_BROWSER:  # it hung: the link is printed too
         in_browser = False
@@ -308,7 +312,8 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
         return BROWSER
     if page.kept and not no_browser and not at_terminal:
         return KEPT
-    if not at_terminal and not _stamp(page):
+    how = PRINTED if not at_terminal else marks.ASKED if no_browser else None
+    if how and not _stamp(page, how):
         return None
     say(RESULT_LINK if result else LINK)
     print(url)  # the link whole: printed by hand, never by say
