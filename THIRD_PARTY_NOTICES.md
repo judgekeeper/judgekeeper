@@ -1,6 +1,6 @@
 # Third-party notices
 
-judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own judge verdicts on LLMBar.
+judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own LLM-as-a-judge verdicts on LLMBar.
 
 ## JailbreakBench
 
@@ -66,7 +66,7 @@ SOFTWARE.
 
 ## LLMBar
 
-- **Used in:** `docs/examples/real-data-check/` (the judge verdicts are in `docs/examples/real-data-check/sources/llmbar-haiku.json`).
+- **Used in:** `docs/examples/real-data-check/` (the LLM-as-a-judge verdicts are in `docs/examples/real-data-check/sources/llmbar-haiku.json`).
 - **Source:** https://github.com/princeton-nlp/LLMBar (revision `900616bff90b6c6c8e1681f7d079250637c55992`).
 - **Citation:** Zhiyuan Zeng, Jiatong Yu, Tianyu Gao, Yu Meng, Tanya Goyal and Danqi Chen. "Evaluating Large Language Models at Evaluating Instruction Following." ICLR 2024.
 - **License:**

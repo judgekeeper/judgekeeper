@@ -1,0 +1,61 @@
+{
+  "set": 1,
+  "seed": 7,
+  "made_at": "2026-10-31T00:11:03Z",
+  "visible": [
+    "05b81752ba3d4a6d",
+    "0cf06d4681565c46",
+    "1a168efd803560a2",
+    "65ecce0946ab4783",
+    "8f20882321a9c28b",
+    "a600be9301cf60e4",
+    "ab7fb2e7bc07a9cb",
+    "ae9bc15defd8a962",
+    "bc4fd2506a03f30f",
+    "cde9576b291a7556",
+    "ced8b85a098ca588",
+    "dde3e9fda926e739",
+    "e1b0d9c413095b4c",
+    "e4a6b06906a27d63"
+  ],
+  "hidden": [
+    "05bbe4f57f751a11",
+    "16a66c92583cc261",
+    "2f71ab8300b9b24a",
+    "39c55aefff2d315d",
+    "4a054f35a1d72058",
+    "4acd57627a5f73ca",
+    "7c7a0f9a7ee838a9",
+    "8d17fba324cc5901",
+    "8d8df9300fc229c7",
+    "a4550127d03377b8",
+    "b8c5ea519a356bbe",
+    "c125268f2f64db13",
+    "e42d60f45afc2a20",
+    "eedcf8bd3b3aedf7",
+    "f12c36d9ad384438",
+    "f62985cfbc901d12"
+  ],
+  "tests": [
+    {
+      "kind": "rule",
+      "time": "2026-10-31T00:11:03Z",
+      "rule_hash": "sha256:102261537cf975dc2f3cd03a28f9c47a868103a6e80dc3846f84b2d08b3e52d6",
+      "setup_hash": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
+      "key": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
+      "from": {
+        "setup_hash": "sha256:04fefb41f80b66a0829df6d0f678a35f66b40cc8f3410b3c4f37be41e25a3371",
+        "rule_hash": "sha256:375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67"
+      },
+      "n": 16,
+      "hidden": 16,
+      "fixed": 8,
+      "broke": 0,
+      "verdict": "better",
+      "test": 1,
+      "file": "new-rule.json"
+    }
+  ],
+  "pass_mark": null,
+  "sha256": "662685f8569a7c18933df35d54113e60adaa398ef7f90d4e11370dbd33ee3b2c"
+}

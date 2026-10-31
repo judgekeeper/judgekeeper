@@ -10,7 +10,9 @@ at the terminal. Each screen on the Home page must be the output line for line, 
 "$ judgekeeper ..." line the site adds.
 
 The Measure step's report.html and result.json are committed in docs/examples/site-example/,
-so the figures on the screens come from a report (Home's terminal links it). To write them again:
+so the figures on the screens come from a report (Home's terminal links it), and so are the
+files the Fix and Re-check steps write (END_FILES: as they are at the end of the run). To write
+them again:
 
     TZ=UTC JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
 """
@@ -178,6 +180,11 @@ SHOP = [
 ]
 SEED = 7  # the marks fix keeps aside
 MEASURE_STEP = "measure-step"  # where the run keeps the Measure step's report
+CHECK_STEP = "check"  # where the run keeps the Re-check step's report
+# The Fix and Re-check steps' files, in .judgekeeper/ at the end of the run (the report is
+# kept after the Re-check): the source of the Fix, Fix (testing) and Re-check screens
+END_FILES = ["history.jsonl", "fix/mistakes.md", "fix/split.json", "fix/marked-answers.csv",
+             f"{CHECK_STEP}/report.html"]
 NEW_RESULTS = "new-rule.json"  # the marked answers graded again with the new rule
 SITE_EXAMPLE = Path(__file__).resolve().parent.parent / "docs" / "examples" / "site-example"
 COMMANDS = {"find": "judgekeeper", "mark": "judgekeeper", "measure": "judgekeeper",
@@ -280,6 +287,8 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
             new[i] = not new[i]
     _results(root, new, model="my-judge-v2", created="2026-10-04T09:30:00.000Z")
     run("check", "check")
+    (root / CHECK_STEP).mkdir()
+    shutil.copyfile(root / ".judgekeeper" / "report.html", root / CHECK_STEP / "report.html")
     return out
 
 
@@ -303,10 +312,16 @@ def test_each_screen_on_the_site_is_what_judgekeeper_prints(tmp_path, monkeypatc
 
 def _steady(name: str, text: str) -> str:
     """The file without what changes from run to run: the times, the date of the results in
-    the computer's own time zone, and the hash of the marks (each mark keeps its time)."""
+    the computer's own time zone, the hashes of the marks (each mark keeps its time), and the
+    order of the marked answers."""
     if name == "result.json":
         text = re.sub(r'"marks_sha256": "[0-9a-f]+"', '"marks_sha256": "…"', text)
         text = re.sub(r'"results_date": "[^"]*"', '"results_date": "…"', text)
+    if name in ("history.jsonl", "fix/split.json"):  # their hashes of the marks
+        text = re.sub(r'"(marks_hash|sha256)": "[0-9a-f]+"', r'"\1": "…"', text)
+    if name == "fix/marked-answers.csv":  # shuffled each run, so the order tells nothing
+        head, *rows = text.splitlines()
+        text = "\n".join([head, *sorted(rows)])
     return re.sub(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", "…", text)
 
 
@@ -316,10 +331,13 @@ def test_the_site_example_report_is_this_run(tmp_path, monkeypatch, capsys):
     root.mkdir()
     monkeypatch.chdir(root)
     real_screens(root, capsys, monkeypatch)
-    for name in ("report.html", "result.json"):
-        made = (root / MEASURE_STEP / name).read_text(encoding="utf-8")
+    made_in = {name: root / MEASURE_STEP / name for name in ("report.html", "result.json")}
+    made_in |= {name: (root if name.startswith(CHECK_STEP) else root / ".judgekeeper") / name
+                for name in END_FILES}
+    for name, path in made_in.items():
+        made = path.read_text(encoding="utf-8")
         if os.environ.get("JK_WRITE_SITE_EXAMPLE"):
-            SITE_EXAMPLE.mkdir(parents=True, exist_ok=True)
+            (SITE_EXAMPLE / name).parent.mkdir(parents=True, exist_ok=True)
             (SITE_EXAMPLE / name).write_text(made, encoding="utf-8", newline="\n")
         kept = (SITE_EXAMPLE / name).read_text(encoding="utf-8")
         assert _steady(name, kept) == _steady(name, made), name
@@ -347,3 +365,60 @@ def test_site_example_report_is_the_measure_step():
         assert number in text, number
     readme = (SITE_EXAMPLE / "README.md").read_text(encoding="utf-8")
     assert "Measure step" in readme
+
+
+def _site_screen(name: str) -> str:
+    """A screen on Home as it reads: its lines joined, one space between words."""
+    return " ".join(" ".join(_site("index.html")[name]).split())
+
+
+def test_the_fix_and_re_check_screens_are_the_committed_files():
+    """Each figure on Home's Fix, Fix (testing) and Re-check screens is in a file the example
+    run wrote and docs/examples/site-example/ keeps."""
+    lines = [json.loads(line) for line in
+             (SITE_EXAMPLE / "history.jsonl").read_text(encoding="utf-8").splitlines()]
+    (measured,) = [x for x in lines if x["kind"] == "result"]
+    (tested,) = [x for x in lines if x["kind"] == "fix"]
+    (checked,) = [x for x in lines if x["kind"] == "check"]
+    result = json.loads((SITE_EXAMPLE / "result.json").read_text(encoding="utf-8"))
+    split_ = json.loads((SITE_EXAMPLE / "fix" / "split.json").read_text(encoding="utf-8"))
+    mistakes = (SITE_EXAMPLE / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    marked = (SITE_EXAMPLE / "fix" / "marked-answers.csv").read_text(encoding="utf-8")
+
+    # Fix: the mistakes on the marks not kept aside, how many are kept aside, all marked
+    screen = _site_screen("fix")
+    shown = re.search(r"made (\d+) mistakes\. In (\d+), it said Pass where you said Fail\. In "
+                      r"the other (\d+)", " ".join(mistakes.split()))
+    assert shown and f"made {shown[1]} mistakes. In {shown[2]}," in screen
+    assert f"In the other {shown[3]}, it said Fail" in screen
+    words = re.search(r"\(about \d+ words, against \d+\)", mistakes)
+    assert words and words[0] in screen
+    hidden = len(split_["hidden"])
+    assert f"{hidden} of your marks are kept aside" in screen
+    marks = measured["marks"]
+    assert len(split_["hidden"]) + len(split_["visible"]) == marks == len(marked.splitlines()) - 1
+    assert f"holds all {marks} marked answers" in screen
+
+    # Fix (testing): the kept-aside marks the old rule got wrong are the disagreements not
+    # among the mistakes fix showed; the new rule fixed and broke the ones history.jsonl says
+    screen = _site_screen("fix_test")
+    old_right = hidden - (result["disagreements"] - int(shown[1]))
+    new_right = old_right + tested["fixed"] - tested["broke"]
+    assert tested["hidden"] == hidden and tested["verdict"] == "better"
+    assert f"Old rule: agreed with you on {old_right} of {hidden} answers." in screen
+    assert f"New rule: agreed with you on {new_right} of {hidden} answers." in screen
+    assert f"{tested['fixed']} answers went from wrong to right" in screen and not tested["broke"]
+
+    # Re-check: each side's counts, and the drop on answers you pass with its range
+    screen = _site_screen("check")
+    for side, words in (("passed", "Pass"), ("failed", "Fail")):
+        g = checked["groups"][side]
+        assert re.search(rf"When you said {words} {g['old_right']} of {g['n']} "
+                         rf"{g['new_right']} of {g['n']} ", screen), side
+    g = checked["groups"]["passed"]
+    drop = (round(-g["change"] * 100), round(-g["high"] * 100), round(-g["low"] * 100))
+    assert "agreement drops by about {} in every 100 (somewhere between {} and {})".format(
+        *drop) in screen
+    report = _report_text((SITE_EXAMPLE / CHECK_STEP / "report.html").read_text(encoding="utf-8"))
+    assert "Last check" in report and "about {} points lower (between {} and {})".format(
+        *drop) in report

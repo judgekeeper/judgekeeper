@@ -6,8 +6,10 @@ a support bot with 40 made-up answers, graded by my-judge-v1 (23 Pass, 17 Fail),
 results.
 
 `report.html` and `result.json` are what judgekeeper wrote for it at the Measure step (step 3),
-after the 30 marks and before `judgekeeper fix`. They are made, and checked against the
-screens, by `tests/test_website_screens.py`:
+after the 30 marks and before `judgekeeper fix`. The other screens' files are from the end of the
+run: `fix/` (mistakes.md, split.json, marked-answers.csv) feeds the Fix screen, `history.jsonl`'s
+fix line the Fix (testing) screen, and its check line and `check/report.html` the Re-check screen.
+They are made, and checked against the screens, by `tests/test_website_screens.py`:
 
     TZ=UTC JK_WRITE_SITE_EXAMPLE=1 pytest tests/test_website_screens.py
 
