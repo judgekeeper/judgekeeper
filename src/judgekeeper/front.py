@@ -308,8 +308,8 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     try:
         if stop:
             return _stop(talk, path)
-        if not marking and not _started(path):
-            talk.say(STEP.format(n=1, name="Find"))
+        if talk.labels is not None or not marking and not _started(path):  # an import
+            talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
@@ -394,8 +394,6 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     if not plan.matched:
         raise _labels_stop(talk, labels_mod.nothing_matched(talk.labels_from))
     added = labels_mod.add(ws, plan, talk.labels_from)
-    if not first:  # a later run says nothing under Find until now
-        talk.step = STEP.format(n=1, name="Find")
     for line in labels_mod.said(added, plan, talk.labels_from):
         if line.startswith("  "):
             talk.para(line[2:], indent="  ")

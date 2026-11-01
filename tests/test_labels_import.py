@@ -838,6 +838,31 @@ def test_the_same_import_twice_says_nothing_is_new(here, capsys):
     assert "Nothing new" not in out
 
 
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_later_import_says_find_before_it_reads(here, capsys, monkeypatch, command):
+    """A big import reads for a while: Find's header is said when Find starts, not after."""
+    from judgekeeper import front
+
+    table(here)
+    run(capsys, "--no-browser")
+    write_labels(here / "mine.csv", labelled(range(10)))
+    seen = []
+    finding = front.find_found
+
+    def find_found(*args, **kwargs):
+        out = capsys.readouterr().out
+        seen.append("Step 1 of 5: Find" in out)
+        print(out, end="")
+        return finding(*args, **kwargs)
+
+    monkeypatch.setattr(front, "find_found", find_found)
+    code, out = run(capsys, *command, "--labels", "mine.csv", "--no-browser")
+    assert code == 0, out
+    assert seen == [True]
+    assert out.count("Step 1 of 5: Find") == 1
+    assert out.index("Step 1 of 5: Find") < out.index("Added 10 marks from mine.csv")
+
+
 def test_a_labels_stop_has_no_excel_note_about_another_file(here, capsys):
     table(here)
     (here / "labels.xlsx").write_bytes(b"PK\x03\x04")
