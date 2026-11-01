@@ -195,7 +195,8 @@ def test_an_import_first_with_too_few_says_what_a_result_needs(here, capsys):  #
     said = flat(out)
     assert ("You have 38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
             "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
-            "on answers your LLM-as-a-judge passed and 20 on answers it failed.") in said
+            "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
+            "when there are fewer).") in said
 
 
 def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here, capsys, pages):  # noqa: F811
