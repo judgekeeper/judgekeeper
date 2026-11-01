@@ -306,7 +306,11 @@ def test_a_project_folder_never_reads_the_project_above_it(here, capsys, monkeyp
     assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
     assert not (here / "inner" / ".judgekeeper").exists()
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
-    assert "--stop" not in out and run(capsys, "--stop")[1].count("No marking page is open.")
+    assert "--stop" not in out
+    stop = flat(run(capsys, "--stop")[1])  # the pages below, never the one above
+    assert ("Marking pages are open in a/ and b/." if len(names) > 1
+            else "Closed the marking page.") in stop, stop
+    assert page.is_open(here / ".judgekeeper")
 
 
 @pytest.mark.parametrize("names", [("a", "b"), ("a",)])
@@ -825,3 +829,37 @@ def test_stop_finds_the_store_the_run_read_whatever_rule_found_it(here, capsys, 
     assert code == 0 and "Reading the project folder above it" in flat(out), out + err
     assert "Closed the marking page." in run(capsys, "--stop")[1]
     assert not page.is_open(here / ".judgekeeper")
+
+
+# --stop also finds a page opened from a folder right below ------------------------------
+
+def _evals_with_labels(folder, capsys):
+    from tests.test_labels_import import labelled, write_labels
+    table_project(folder, split(20, 20))
+    labels = write_labels(folder.parent / f"{folder.name}-labels.csv", labelled(range(10)))
+    code, out, err = run(capsys, folder.name, "--labels", labels.name, "--no-browser")
+    assert code == 0, out + err
+    assert page.is_open(folder / ".judgekeeper") and not (folder.parent / ".judgekeeper").exists()
+
+
+@pytest.mark.parametrize("marker", [".git", None])
+def test_stop_closes_the_page_opened_from_the_folder_below(here, capsys, marker):
+    _marker(here, marker)
+    _evals_with_labels(here / "evals", capsys)  # judgekeeper evals --labels evals-labels.csv
+    code, out, _ = run(capsys, "--stop")
+    assert code == 0 and "Closed the marking page. Your marks are saved." in flat(out), out
+    assert not page.is_open(here / "evals" / ".judgekeeper")
+
+
+def test_stop_names_the_pages_open_in_folders_below(here, capsys):
+    _marker(here, ".git")
+    for name in ("a", "b"):
+        _evals_with_labels(here / name, capsys)
+    code, out, _ = run(capsys, "--stop")
+    assert code == 3, out
+    assert "Marking pages are open in a/ and b/." in flat(out)
+    assert next_lines(out) == [("Next: go to one of those folders (`cd a`), then run "
+                                "`judgekeeper --stop` there.")]
+    assert page.is_open(here / "a" / ".judgekeeper") and page.is_open(here / "b" / ".judgekeeper")
+    for name in ("a", "b"):
+        assert "Closed the marking page." in run(capsys, f"{name}", "--stop")[1]
