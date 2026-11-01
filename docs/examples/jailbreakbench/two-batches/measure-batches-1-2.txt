@@ -5,31 +5,35 @@
 # Holds: ids, grades and counts only; no prompt or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0
+judgekeeper 1.0.2
 
 Step 3 of 5: Measure
 
-222 of your marks took under a second each. A result is only as
+195 of your marks took under a second each. A result is only as
 good as the marks. This looks like a program, not a person.
 
-250 of your marks came through a link printed in a terminal, so
-another program on this computer could have made them. If you
+250 of your marks came through a link printed with no terminal,
+so another program on this computer could have made them. If you
 marked them yourself, nothing to do.
 
 Result: your LLM-as-a-judge is good enough to use.
 You and your LLM-as-a-judge disagreed on 24 of 250 answers.
 
-  You passed 166 answers. Of those, your LLM-as-a-judge passed 150 and failed 16.
-  You failed 84 answers. Of those, your LLM-as-a-judge passed 8 and failed 76.
+  You passed 165 answers. Of those, your LLM-as-a-judge passed
+  149 and failed 16.
+  You failed 85 answers. Of those, your LLM-as-a-judge passed 8
+  and failed 77.
 
-Tell judgekeeper why you disagree on these 24: run
+Tell judgekeeper why you disagree on these 11: run
 `judgekeeper mark --judge-model openai:gpt-4-0613 --port 9753 --no-browser`.
-`judgekeeper fix --judge-model openai:gpt-4-0613 --port 9753 --no-browser`
-uses your reasons to find where your LLM-as-a-judge goes wrong.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 90% (between 84% and 93%)
-  When you say Fail, it also says Fail: about 89% (between 82% and 94%)
+  When you say Pass, it also says Pass: about 90% (between 85% and 93%)
+  When you say Fail, it also says Fail: about 89% (between 82% and 95%)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

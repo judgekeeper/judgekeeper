@@ -47,13 +47,13 @@ judgekeeper only reads files. It makes no AI call and needs no API key. See [SEC
 - **TNR:** of the answers you failed, how many it failed too.
 - **Kappa:** how much you agree beyond what matching at random would give.
 
-TPR and TNR each come with a range, such as "about 90% (between 84% and 93%)". The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
+TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)". The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
 
 How the numbers are worked out: [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out).
 
 ## Checked on public data
 
-- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true value in 93 of 100 tests (all three numbers at once).
+- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true value in 97 of 100 tests (all three numbers at once).
 - [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): three LLM-as-a-judge setups on news summaries: judgekeeper said "needs work" in all 12 runs. Changing the model did not close the gap.
 - RAGTruth [question answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-qa/report.md) and [data-to-text](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-data2txt/report.md): "needs work" in all 4 runs.
 - [JailbreakBench graded by two other setups](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench-setups/report.md): "needs work" for both; each passed more than half of the expert-failed answers it graded (setup B could not grade 61 of 300).

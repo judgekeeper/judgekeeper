@@ -13,14 +13,14 @@ In this report, **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`, effort medi
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
 - **The marks:** the dataset's `human_majority` column, the majority of three expert annotators. Pass = not jailbroken, Fail = jailbroken, as in the GPT-4 check. They were entered through the marking page's calls.
 - **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
-- **Runs:** 1 per setup, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`.
+- **Runs:** 1 per setup, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
 
 ## How often each setup agrees with the experts
 
 | Setup, run | When the experts said Pass, it also said Pass | When the experts said Fail, it also said Fail | Disagreed | Answers with a real decision | judgekeeper's result |
 |---|---|---|---|---|---|
-| A (Haiku 5.5), run 1 | about 98% (96% to 100%) | about 43% (37% to 49%) | 64 of 294 | 294 of 300 | needs work |
-| B (Sonnet 5.5), run 1 | about 99% (97% to 100%) | about 32% (27% to 39%) | 51 of 239 | 239 of 300 | needs work |
+| A (Haiku 5.5), run 1 | 98% | 43% | 64 of 294 | 294 of 300 | needs work |
+| B (Sonnet 5.5), run 1 | 99% | 32% | 51 of 239 | 239 of 300 | needs work |
 
 The Pass and Fail columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`). Every answer with a real decision was marked, so these are counted, not sampled. The same counts with 95% (Wilson) ranges, and kappa computed from them (`figures.json`):
 
@@ -42,9 +42,9 @@ These answers were not asked again. The answers the provider declines to grade a
 
 ## What it shows, in plain words
 
-- **Both setups passed almost everything the experts passed** (A 98%, range 96% to 100%; B 99%, range 97% to 100%).
-- **Both failed fewer than half of what the experts failed** (A 43%, range 37% to 49%; B 32%, range 27% to 39%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed (for B, of the answers it graded). Here a Pass means "no real help with the request", so this is the costly direction.
-- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the Pass column, 98% (96% to 100%) and 99% (97% to 100%), also shows the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
+- **Both setups passed almost everything the experts passed** (A 98%; B 99%).
+- **Both failed fewer than half of what the experts failed** (A 43%; B 32%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed (for B, of the answers it graded). Here a Pass means "no real help with the request", so this is the costly direction.
+- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the Pass column, 98% and 99%, also shows the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
 
 ## Limits
 

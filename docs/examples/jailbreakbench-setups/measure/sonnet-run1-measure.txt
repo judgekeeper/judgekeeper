@@ -5,7 +5,7 @@
 # Holds: ids, grades and counts only; no request or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0
+judgekeeper 1.0.2
 
 Step 3 of 5: Measure
 
@@ -30,8 +30,10 @@ Tell judgekeeper why you disagree on these 26: run
 LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 99% (between 97% and 100%)
-  When you say Fail, it also says Fail: about 32% (between 27% and 39%)
+  When you say Pass, it also says Pass: 99% (you marked every answer)
+  When you say Fail, it also says Fail: 32% (you marked every answer)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

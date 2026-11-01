@@ -10,10 +10,10 @@ No AI calls were made. The GPT-4 grades come from the paper's own run.
 
 ## The result
 
-- **In 93 of 100 draws with 100 marks each, judgekeeper's ranges held all three real values for GPT-4 against experts:** TPR, TNR and kappa in the same draw. Each on its own: TPR in 99 of 100, TNR in 94 of 100, kappa in 100 of 100. Each draw marked the 100 answers judgekeeper's marking page offered, on judgekeeper 1.0.0, commit `7ec7a5e`, on 2026-10-27. See "100 draws, 100 marks each" below.
-- **How wide the ranges were, on average over the 100 draws:** 11.6 points for TPR, 18.3 points for TNR, and 0.247 for kappa.
-- **With 250 marks per draw, in 20 of 20 draws** (two batches, commit `bc0d099`), the ranges held all three real values. See "Two batches, 20 draws, 250 marks per draw" below.
-- **One more single draw, on judgekeeper 1.0.0b2 (commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One draw on commit `6437d85`" below.
+- **In 97 of 100 draws with 100 marks each, judgekeeper's ranges held all three real values for GPT-4 against experts:** TPR, TNR and kappa in the same draw. Each on its own: TPR in 99 of 100, TNR in 98 of 100, kappa in 99 of 100. Each draw marked the 100 answers judgekeeper's marking page offered, on commit `7059dbd`, on 2026-11-01. See "100 draws, 100 marks each" below.
+- **How wide the ranges were, on average over the 100 draws:** 12.5 points for TPR, 17.8 points for TNR, and 0.254 for kappa.
+- **With 250 marks per draw, in 20 of 20 draws** (two batches, commit `7059dbd`), the ranges held all three real values. See "Two batches, 20 draws, 250 marks per draw" below.
+- **One more single draw, one random draw on an older build (judgekeeper 1.0.0b2, commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One draw on commit `6437d85`" below.
 - **An earlier run of 20 single draws** (commit `e3052c7`) held all three real values in 20 of 20.
 
 ## What was checked
@@ -35,7 +35,7 @@ Each row became one line of an own-format JSONL file: `id`, `input` (the prompt)
 ## How it ran
 
 1. **Find.** `judgekeeper` read the file: 300 answers, 181 Pass and 119 Fail from the LLM-as-a-judge.
-2. **Mark.** The marking page offered 100 answers: 50 the LLM-as-a-judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes). It never saw the LLM-as-a-judge's grade while marking.
+2. **Mark.** The marking page offered 100 answers. On commit `7059dbd` that is 58 or 59 the LLM-as-a-judge passed and 41 or 42 it failed (see below); on the older commits, 50 and 50. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes). It never saw the LLM-as-a-judge's grade while marking.
 3. **Measure.** `judgekeeper` was run again and printed its result.
 
 ## The real values, on all 300 answers
@@ -65,52 +65,55 @@ These match the paper's Table 1 for GPT-4. The paper counts "jailbroken" as posi
 
 The paper gives no ranges and no kappa. Kappa 0.795 is computed from the dataset.
 
-## 100 draws, 100 marks each (commit `7ec7a5e`)
+## 100 draws, 100 marks each (commit `7059dbd`)
 
 This is how a person would mark: one draw of 100 answers. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed a different 100 (the seed of each draw is in `hundred-marks/draws.csv`).
 
 1. **Find.** The results file held all 300 answers. `judgekeeper` read it and opened the marking page.
-2. **Mark.** The page offered 100 answers in its normal order: 50 the LLM-as-a-judge passed and 50 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes).
+2. **Mark.** The page offered 100 answers in its normal order: first 20 the LLM-as-a-judge passed and 20 it failed, then the rest mixed in about the share each kind has in all 300. So each draw's 100 held 58 or 59 answers the LLM-as-a-judge passed and 41 or 42 it failed. A script entered the experts' majority for each one, through the page's own calls (the same calls a click makes).
 3. **Measure.** `judgekeeper` was run again, and the real TPR, TNR and kappa on all 300 answers were compared with the ranges it gave.
-
-Before this run, the script was tried once with 2 full draws, on the same commit (seeds 1079684004 and 1444341094): both held all three real values. They are not among the 100.
 
 There was no bar to pass; the run was made once and is reported as it came out. Result (`hundred-marks/summary.json`):
 
-- all three inside: **93 of 100 draws**;
-- TPR inside 99 of 100, TNR inside 94 of 100, kappa inside 100 of 100;
+- all three inside: **97 of 100 draws**;
+- TPR inside 99 of 100, TNR inside 98 of 100, kappa inside 99 of 100;
 - every draw counted its 100 marks and showed no dataset text on any screen;
-- 43 draws said "good enough to use" and 57 said "too early to tell". None said the LLM-as-a-judge needs work. Disagreements in the 100 ranged from 6 to 17.
+- 17 draws said "good enough to use" and 83 said "too early to tell". None said the LLM-as-a-judge needs work. Disagreements in the 100 ranged from 5 to 17.
 
-The 7 draws that missed:
+The 3 draws that missed:
 
 | Draw | Missed | Range | Real value |
 |---|---|---|---|
-| d002, d057, d100 | TNR | 91.1% to 100% | 90.9% |
-| d035, d059, d092 | TNR | 91.4% to 100% | 90.9% |
-| d063 | TPR | 77.0% to 89.6% | 90.0% |
+| d030 | TNR | 68.0% to 90.7% | 90.9% |
+| d030 | kappa | 0.463 to 0.777 | 0.795 |
+| d038 | TNR | 92.9% to 100% | 90.9% |
+| d095 | TPR | 90.2% to 99.3% | 90.0% |
 
-**Why TNR missed.** In each of the 6 TNR misses, the 50 answers GPT-4 passed held none of the 10 the experts failed, so judgekeeper's TNR range sat above the real value. With 50 of GPT-4's 181 passes shown, that comes up about 3.6 times in 100 draws; here it came up 6 times. These 6 draws all said "good enough to use"; the real TPR and TNR (90.0% and 90.9%) are both above the 80% that result asks for.
+**Why d038 missed.** The 59 answers GPT-4 passed that it showed held none of the 10 the experts failed, so its TNR range sat above the real value. That comes up about 2 times in 100 draws. It said "good enough to use"; the real TPR and TNR (90.0% and 90.9%) are both above the 80% that result asks for.
 
-**Why TPR missed.** d063 had 17 disagreements, the most of the 100 draws, and its TPR range ended just below the real value.
+**Why d030 and d095 missed.** d030 had 17 disagreements, the most of the 100 draws: 7 of the answers GPT-4 passed were ones the experts failed, so its TNR and kappa ranges ended just below the real values. It said "too early to tell". d095's TPR range started just above the real value.
 
 Draw 1's Measure (`hundred-marks/measure-draw-001.txt`, the result lines copied exactly):
 
 ```
-Result: your LLM-as-a-judge is good enough to use.
-You and your LLM-as-a-judge disagreed on 7 of 100 answers.
+Result: too early to tell. Mark more answers to get a result.
+You and your LLM-as-a-judge disagreed on 8 of 100 answers.
 
-  You passed 53 answers. Of those, your LLM-as-a-judge passed 48 and failed 5.
-  You failed 47 answers. Of those, your LLM-as-a-judge passed 2 and failed 45.
+  You passed 59 answers. Of those, your LLM-as-a-judge passed 55
+  and failed 4.
+  You failed 41 answers. Of those, your LLM-as-a-judge passed 4
+  and failed 37.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 94% (between 87% and 98%)
-  When you say Fail, it also says Fail: about 94% (between 82% and 99%)
+  When you say Pass, it also says Pass: about 94% (between 86% and 98%)
+  When you say Fail, it also says Fail: about 90% (between 79% and 96%)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 ```
 
 Every draw's seed, counts, estimates, ranges and inside yes/no are in `hundred-marks/draws.csv`. `hundred_marks.py` made them.
 
-## Two batches, 20 draws, 250 marks per draw (commit `bc0d099`)
+## Two batches, 20 draws, 250 marks per draw (commit `7059dbd`)
 
 New answers can join the marking as a second batch. This repeat checks that the ranges still hold when they do. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed different answers.
 
@@ -124,25 +127,29 @@ The bar was 19 of 20 draws with all three real values inside in the same draw. R
 - TPR inside 20 of 20, TNR inside 20 of 20, kappa inside 20 of 20;
 - every draw counted the marks from both batches, put batch 2 exactly on rows 150 to 299, and showed no dataset text on any screen.
 
-Draw 1's Measure after both batches (`two-batches/measure-batches-1-2.txt`, copied exactly):
+Draw 1's Measure after both batches (`two-batches/measure-batches-1-2.txt`, the result lines copied exactly):
 
 ```
 Result: your LLM-as-a-judge is good enough to use.
 You and your LLM-as-a-judge disagreed on 24 of 250 answers.
 
-  You passed 166 answers. Of those, your LLM-as-a-judge passed 150 and failed 16.
-  You failed 84 answers. Of those, your LLM-as-a-judge passed 8 and failed 76.
+  You passed 165 answers. Of those, your LLM-as-a-judge passed
+  149 and failed 16.
+  You failed 85 answers. Of those, your LLM-as-a-judge passed 8
+  and failed 77.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 90% (between 84% and 93%)
-  When you say Fail, it also says Fail: about 89% (between 82% and 94%)
+  When you say Pass, it also says Pass: about 90% (between 85% and 93%)
+  When you say Fail, it also says Fail: about 89% (between 82% and 95%)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 ```
 
 Every draw's estimates and ranges are in `two-batches/draws.csv`.
 
 ## One draw on commit `6437d85`
 
-The first draw of the check (100 marks, one batch) was run once more on judgekeeper 1.0.0b2, commit `6437d85`. It was not run again on `bc0d099`. Measure printed, in the wording of an older version (`measure-round-1.txt`, the result lines copied exactly):
+The first draw of the check (100 marks, one batch) was run once more on an older build, judgekeeper 1.0.0b2, commit `6437d85`. It is one random draw, and it was not run again on later builds. Measure printed, in the wording of an older version (`measure-round-1.txt`, the result lines copied exactly):
 
 ```
 Result: your judge is good enough to use.
