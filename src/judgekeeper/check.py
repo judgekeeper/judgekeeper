@@ -122,6 +122,7 @@ TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you
 # Running the eval again makes new answers, which can't be compared: grade the marked ones
 GRADE_MARKED = ("Your eval wrote new answers, so there's nothing to compare. Grade the answers "
                 "you marked instead:")
+GRADE_SAME = "Grade the answers you marked:"  # too few, and none of them asked again
 NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
@@ -1701,7 +1702,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say(GRADE_MARKED)
+        said.say(GRADE_MARKED if c else GRADE_SAME)
         if _say_steps(said, state):  # a ready config: change the grader in it
             said.say()
             said.say("Next: " + fix.FOLLOW_STEPS)

@@ -81,6 +81,21 @@ def test_a_rerun_with_new_text_says_how_many_marked_answers_it_holds(here, capsy
                               f"they join your marks as a new batch. Then run `{command}` again.")
 
 
+def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here, capsys):
+    """The eval run again with a new rule on the first 10 marked answers only: too few to
+    tell, and they are the answers marked, not new ones."""
+    _marked(here)
+    _results(here, MARKED[:10], rubric="Pass only if the answer is short.",
+             created="2026-10-20T09:00:00Z")
+    code, out = run(capsys)
+    said = _flat(out)
+    assert code == 3, out
+    assert "rule changed" in said and "40 of your 50 marked answers had no grade" in said, out
+    assert "Result: can't tell yet." in said
+    assert "wrote new answers" not in said and "nothing to compare" not in said, out
+    assert "Grade the answers you marked: 1. Change the grader in" in said, out
+
+
 def test_a_table_with_no_rule_never_says_same_rule(tmp_path, monkeypatch, capsys):
     table_project(tmp_path, ["good"] * 30 + ["bad"] * 30, name="results.csv")
     monkeypatch.chdir(tmp_path)

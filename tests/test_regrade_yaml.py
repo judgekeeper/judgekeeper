@@ -171,7 +171,7 @@ def _few(root, rows: int = 10) -> str:
     return "few.json"
 
 
-def test_check_with_too_few_answers_leads_with_the_new_answers_and_the_steps(
+def test_check_with_too_few_of_the_same_answers_leads_with_the_steps(
         here, capsys, monkeypatch):
     ws = any_project("promptfoo", here, monkeypatch)
     capsys.readouterr()
@@ -183,8 +183,9 @@ def test_check_with_too_few_answers_leads_with_the_new_answers_and_the_steps(
     line = next(n for n, x in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
                 if x.lstrip().startswith("provider:"))
     assert "Result: can't tell yet." in flat
-    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
-            "marked instead: "
+    assert "wrote new answers" not in flat  # the 10 are answers it marked, not new ones
+    assert ("can't tell yet. Your new results hold 4 of the answers you marked Pass and 6 you "
+            "marked Fail; a re-check needs 15 of each. Grade the answers you marked: "
             f"1. Change the grader in .judgekeeper/fix/regrade.yaml (line {line}). "
             "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
             ".judgekeeper/fix/new.json` "
@@ -192,7 +193,7 @@ def test_check_with_too_few_answers_leads_with_the_new_answers_and_the_steps(
     assert yaml.safe_load(path.read_text(encoding="utf-8"))["providers"] == ["echo"]
 
 
-def test_check_with_too_few_answers_keeps_the_old_text_for_other_tools(
+def test_check_with_too_few_of_the_same_answers_keeps_the_old_next_for_other_tools(
         here, capsys, monkeypatch):
     from tests.test_new_results import _jsonl, judge
 
@@ -202,8 +203,9 @@ def test_check_with_too_few_answers_keeps_the_old_text_for_other_tools(
                                                 [(i, judge(i)) for i in range(10)]).name)
     flat = _flat(out)
     assert code == 3, out
-    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
-            "marked instead: Next: run `judgekeeper fix` to write the answers you marked to "
+    assert "wrote new answers" not in flat
+    assert ("Grade the answers you marked: Next: run `judgekeeper fix` to write the answers you "
+            "marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again") in flat
     assert not (here / ".judgekeeper" / "fix" / "regrade.yaml").exists()
 
