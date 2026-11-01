@@ -195,7 +195,8 @@ def test_an_import_first_with_too_few_says_what_a_result_needs(here, capsys):  #
     said = flat(out)
     assert ("You have 38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
             "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
-            "on answers your LLM-as-a-judge passed and 20 on answers it failed.") in said
+            "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
+            "when there are fewer).") in said
 
 
 def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here, capsys, pages):  # noqa: F811
@@ -206,3 +207,19 @@ def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here,
     _, out = run(capsys, "mark")
     assert "You have marks on all 36 answers. There are no more to mark." in out
     assert "You have marked all" not in out
+
+
+def test_a_long_file_name_can_wrap_on_the_result_page_and_report(here, capsys):  # noqa: F811
+    table(here, 60, 60)
+    name = "L" * 120 + "ラベル" * 14 + ".csv"  # 250 bytes, nowhere to break
+    rows = [{"answer": answer(i), "label": "pass"} for i in range(20)]
+    rows += [{"answer": answer(i), "label": "fail"} for i in range(60, 80)]
+    write_labels(here / name, rows)
+    run(capsys, "--labels", name)
+    ws = Workspace(here)
+    html = ws.report_html.read_text(encoding="utf-8")
+    page = start_label.result_html(_result(ws), back="/?token=t")  # served by the marking page
+    for doc in (html, page):
+        assert re.search(r"\.file\s*\{[^}]*overflow-wrap:\s*anywhere", doc)
+        assert doc.count(f'<span class="file">{name}</span>') >= 2  # the gate and where from
+        assert name not in re.sub(r'<span class="file">[^<]*</span>', "", doc)

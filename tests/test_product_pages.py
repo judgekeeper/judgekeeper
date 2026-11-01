@@ -17,6 +17,7 @@ import pytest
 
 from judgekeeper import look, mark_page, report_page, start_label, weighted
 from judgekeeper.textio import program
+from tests.start_projects import unwrapped
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_FONTS = ROOT / "src" / "judgekeeper" / "fonts"
@@ -49,6 +50,12 @@ def _served() -> dict[str, str]:
 
 _new = _served
 TERM = '<span class="term">LLM-as-a-judge</span>'
+
+
+def _html(*args, **kwargs) -> str:
+    """The result page with each command's word spans taken off (test_command_wrap.py checks
+    those), so a test reads a command as it is."""
+    return unwrapped(start_label.result_html(*args, **kwargs))
 
 
 def _flat(html: str) -> str:
@@ -285,7 +292,7 @@ def test_the_marking_page_words():
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
             'id="undo" aria-keyshortcuts="Z"><span>Undo</span><kbd>Z</kbd></button></div>') in page
-    assert '<p class="foot">To come back: <code>judgekeeper mark</code></p>' in page
+    assert '<p class="foot">To come back: <code>judgekeeper mark</code></p>' in unwrapped(page)
     # Skip and Undo side by side: each has its own padding, no gap between them
     assert (".sub { display: flex; align-items: center; justify-content: center; "
             "padding: 0 40px 6px; }") in mark_page.STYLE
@@ -329,7 +336,7 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.startswith('<div class="progress-box" id="progress-box"><div class="status-1">'
                             '<div class="seg" '
                             'id="progress" '
-                            'role="progressbar" aria-label="How close your result is" '
+                            'role="progressbar" aria-label="How close your first numbers are" '
                             'aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">')
     assert right.count("<i></i>") == mark_page.SEGMENTS == 16
     assert '<span class="count" id="count">0 marked</span>' in right
@@ -493,10 +500,10 @@ def test_good_and_needs_work_lead_with_the_disagreements():
     (TOO_FEW, "")])  # no result yet: no count
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
     said = said.replace("LLM-as-a-judge", TERM)
-    served = start_label.result_html(_result(*counts), back="/?token=t")
+    served = _html(_result(*counts), back="/?token=t")
     assert (f'<p class="lead">{said}<a href="/?token=t">Mark more answers to get a result.</a>'
             "</p>") in served
-    saved = start_label.result_html(_result(*counts))
+    saved = _html(_result(*counts))
     assert (f'<p class="lead">{said}Run <code>{program("mark")}</code> to mark more answers.</p>'
             in saved)
     assert "<a " not in saved.split("<body>")[1]  # the saved copy has no server to go back to
@@ -710,7 +717,7 @@ TO_MARK_MORE = ("<p>To mark more, run <code>{mark}</code> in your project folder
 
 def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
     judge = {"tool": "promptfoo", "rule": "Is polite."}
-    html = start_label.result_html(_result(*NOT_GATE_TNR, judge=judge))
+    html = _html(_result(*NOT_GATE_TNR, judge=judge))
     part = _part(html, NEXT_OPEN)
     fix = program("fix")
     assert '<h2 id="next-h">What next</h2>' in part and "Fix it" not in html
@@ -724,7 +731,7 @@ def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
 
 
 def test_what_next_says_there_is_nothing_more_when_the_judge_is_good_enough():
-    html = start_label.result_html(_result(*GATE))
+    html = _html(_result(*GATE))
     part = _part(html, NEXT_OPEN)
     assert SAVED in part
     assert (f"<p>Nothing more to do. Run <code>judgekeeper check</code> after you change your "
@@ -735,8 +742,8 @@ def test_what_next_says_there_is_nothing_more_when_the_judge_is_good_enough():
 def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_serves():
     mark = program("mark")
     for counts in (GATE, NOT_GATE_TNR):
-        live = _part(start_label.result_html(_result(*counts), "/?token=t"), NEXT_OPEN)
-        saved_html = start_label.result_html(_result(*counts))
+        live = _part(_html(_result(*counts), "/?token=t"), NEXT_OPEN)
+        saved_html = _html(_result(*counts))
         saved = _part(saved_html, NEXT_OPEN)
         assert KEEP_MARKING in live and CLOSED.format(mark=mark) in live, counts
         assert live.index(KEEP_MARKING) < live.index("Closed?")
@@ -751,20 +758,21 @@ def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_se
 def test_what_next_never_sends_to_marking_when_every_answer_is_marked():
     mark = program("mark")
     for counts in (GATE, NOT_GATE_TNR):
-        live = _part(start_label.result_html(_result(*counts, left=0), "/?token=t"), NEXT_OPEN)
-        saved = _part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN)
+        live = unwrapped(_part(start_label.result_html(_result(*counts, left=0), "/?token=t"),
+                               NEXT_OPEN))
+        saved = unwrapped(_part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN))
         assert SAVED in live and SAVED in saved, counts
         assert "Keep marking" not in live and "Closed?" not in live, counts
         assert TO_MARK_MORE.format(mark=mark) not in saved, counts
         assert mark not in live and mark not in saved, counts
-    left = _part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN)
+    left = unwrapped(_part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN))
     assert TO_MARK_MORE.format(mark=mark) in left
 
 def test_the_mark_line_comes_after_the_next_step():
     mark = program("mark")
-    fix = _part(start_label.result_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
+    fix = _part(_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
     assert fix.index('class="cmd"') < fix.index(TO_MARK_MORE.format(mark=mark))
-    good = _part(start_label.result_html(_result(*GATE)), NEXT_OPEN)
+    good = _part(_html(_result(*GATE)), NEXT_OPEN)
     assert good.index("Nothing more to do") < good.index(TO_MARK_MORE.format(mark=mark))
 
 
@@ -772,8 +780,8 @@ def test_the_mark_command_keeps_the_flags_of_the_run():
     r = _result(*GATE, flags={"path": "evals/app", "port": 9000})
     mark = report_page.commands(r)["mark"]
     assert mark == f"{program('mark')} evals/app"
-    assert TO_MARK_MORE.format(mark=mark) in start_label.result_html(r)
-    assert CLOSED.format(mark=mark) in start_label.result_html(r, "/?token=t")
+    assert TO_MARK_MORE.format(mark=mark) in _html(r)
+    assert CLOSED.format(mark=mark) in _html(r, "/?token=t")
 
 
 def test_what_next_is_the_same_one_command_for_a_table_of_grades():
@@ -788,7 +796,7 @@ def test_what_next_is_the_same_one_command_for_a_table_of_grades():
 
 
 def test_what_next_keeps_the_path_the_result_was_made_for():
-    html = start_label.result_html(_result(*NOT_GATE_TNR, flags={"path": "evals/app"}))
+    html = _html(_result(*NOT_GATE_TNR, flags={"path": "evals/app"}))
     assert f'<div class="cmd"><code>{program("fix")} evals/app</code>' in html
 
 

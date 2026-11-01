@@ -31,7 +31,7 @@ import pytest
 from judgekeeper import __version__, fix, label, start_fix_rule, targets
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import answer, promptfoo_data, question
+from tests.start_projects import answer, promptfoo_data, question, unwrapped
 from tests.test_only_reads import only_reads
 
 TAG = " SECRET-9b1d"
@@ -884,7 +884,7 @@ def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
     assert "kept aside to test a new rule fairly" not in flat
     assert ("judgekeeper can't tell which answers are kept aside: run judgekeeper fix to see "
             "why.") in flat
-    assert '<code>judgekeeper fix</code>' in html
+    assert '<code>judgekeeper fix</code>' in unwrapped(html)
     assert 'class="group' not in html and "Add a reason" not in html
 
 

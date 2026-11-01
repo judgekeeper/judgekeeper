@@ -196,7 +196,7 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
         "That's not enough for a result yet.",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed.",
+        "on answers it failed (or all of them, when there are fewer).",
         "",
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
