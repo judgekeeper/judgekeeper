@@ -167,9 +167,10 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys):
     assert "9 answers went from right to wrong" in flat(top)
     assert "points lower (between" in top
     said = flat(re.sub("<[^>]+>", " ", top))
-    for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
-        assert re.search(rf"When you say {side}, it also says {side}: (about )?\d+% "
-                         rf"\(between \d+% and \d+%\)", said), said
+    for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range (every
+        # answer marked here, so each is exact)
+        assert re.search(rf"When you say {side}, it also says {side}: (about \d+% "
+                         rf"\(between \d+% and \d+%\)|exactly \d+%)", said), said
     said_top = re.sub('<span class="term">(.*?)</span>', r"\1", top)
     assert "Go back to your old LLM-as-a-judge" in said_top
     assert re.sub('<span class="term">(.*?)</span>', r"\1", html).count(

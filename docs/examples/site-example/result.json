@@ -58,8 +58,8 @@
   "skipped": 0,
   "disagreements": 16,
   "left": 10,
-  "made_at": "2026-11-01T01:28:10Z",
-  "numbers_version": 2,
+  "made_at": "2026-11-01T01:48:00Z",
+  "numbers_version": 3,
   "judgekeeper_version": "1.0.2",
   "fingerprint": {
     "provider": "my-judge-v1",
@@ -68,7 +68,7 @@
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-11-01T01:28:10Z",
+    "created_at": "2026-11-01T01:48:00Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -119,5 +119,5 @@
     "path": ".",
     "port": 8765
   },
-  "marks_sha256": "3a6b6c55ec3463c21dc9593da09eb8b699290391455c2886018b5df82f70dae6"
+  "marks_sha256": "c2c83e3470ac6eeca7541316642dcc2959aea226daf37c48bdc2779c109720b0"
 }

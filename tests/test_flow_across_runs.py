@@ -168,7 +168,7 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
     code, out = _jk(capsys)
     assert "Result: your LLM-as-a-judge is good enough to use." in out  # 17 of 20 each side
-    assert "it also says Pass: 85%" in out and "about" not in out
+    assert "it also says Pass: exactly 85%" in out and "about" not in out and "between" not in out
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
     assert code == 0
