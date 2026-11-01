@@ -130,8 +130,9 @@ def test_the_readme_says_where_its_coverage_figures_are():
     # neither figure)
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert ("The average is the chosen level's Average, in the report's first table. The lowest "
-            "is when marking stops at 15 Pass and 15 Fail (the table \"The real stopping "
-            "rule\").") in reference
+            "is after grading again with 10 marks in each group, in batches (the table "
+            "\"Batches\"); before grading again, it is when marking stops at 15 Pass and 15 "
+            "Fail (the table \"The real stopping rule\").") in reference
 
 
 def test_the_readme_keeps_to_the_agreed_words():

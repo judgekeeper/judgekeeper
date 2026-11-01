@@ -17,9 +17,9 @@ SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "coverage_check.py
 CELLS = [(0.9, 0.95, 0.6, 10), (0.5, 0.6, 0.6, 10), (0.7, 0.95, 0.95, 10), (0.9, 0.95, 0.95, 10),
          (0.7, 0.95, 0.95, 15), (0.9, 0.95, 0.95, 15)]
 # After grading again with 10 labels per group (answers missing from the new results drop
-# out, so this happens), a steady judge's ranges hold the true value a little less often:
-# when every label agrees, Jeffreys' draws pull its share passed again below 1 (91.7 in 100
-# at the third cell). Those cells get this lower floor; 15 per group keeps the usual one.
+# out, so this happens), a steady judge's ranges can hold the true value a little less often
+# (91.6 in 100 in the committed grid, for 60 and 15 answers in batches). Those cells get this
+# lower floor; 15 per group keeps the usual one.
 FLOOR_STEADY_10 = 0.91
 
 
