@@ -523,18 +523,25 @@ def test_the_page_gets_the_next_answers_not_the_whole_pool(big):
     assert len(json.dumps(state)) < 100_000
 
 
-def test_marking_moves_the_window_and_keeps_every_mark_before_it(big):
+@pytest.mark.parametrize("seed, again", [(0, False), (45, True)])  # 45: one comes back at 150
+def test_marking_moves_the_window_and_keeps_every_mark_before_it(tmp_path, monkeypatch, seed,
+                                                                 again):
+    monkeypatch.setattr(start_label.secrets, "randbelow", lambda n: seed)
+    big = start_label.prepare(_found(tmp_path, n_pass=1500, n_fail=1500), say=lambda line: None)
     session = start_label.StartSession(big)
     ids = [i["id"] for i in session.items]
     for k in range(150):
         session.update({"id": ids[k], "label": "pass" if k % 2 else "fail"})
     session.update({"id": ids[150], "deferred": True})
     state = start_label.StartSession(big).state()
-    assert len(state["items"]) == 151 + start_label.AHEAD
+    items = [i for i in state["items"] if "again" not in i]
+    assert len(state["items"]) - len(items) == again
+    assert len(items) == 151 + start_label.AHEAD
     assert state["start"] == 151 and state["items"][150]["skipped"] is True
-    assert [i["id"] for i in state["items"]] == ids[:151 + start_label.AHEAD]
+    assert ("again" in state["items"][151]) == again  # shown again first, where marking goes on
+    assert [i["id"] for i in items] == ids[:151 + start_label.AHEAD]
     assert state["counts"] == {"correct": 75, "wrong": 75, "skipped": 1}
-    assert state["total"] == 3000
+    assert state["total"] == 3000 + again
 
 
 def test_a_small_pool_is_sent_whole(workspace):
