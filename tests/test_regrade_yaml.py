@@ -52,7 +52,8 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     line = next(n for n, x in enumerate(lines, 1) if x.lstrip().startswith("value:"))
     assert _written(ws) == {
         "prompts": ["{{answer}}"], "providers": ["echo"], "tests": "file://marked-answers.csv",
-        "defaultTest": {"options": {"provider": "openai:gpt-4.1-mini"},
+        "defaultTest": {"options": {"provider": {"id": "openai:gpt-4.1-mini",
+                                                 "config": {"temperature": 0}}},
                         "assert": [{"type": "llm-rubric", "value": RULE}]}}
     flat = _flat(out)
     assert (f"1. Change the rule in .judgekeeper/fix/regrade.yaml (line {line}). "
@@ -298,3 +299,72 @@ def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools
     assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
             "marked instead: Next: run `judgekeeper fix` to write the answers you marked") in flat
     assert "or start over on your new answers with `judgekeeper --new`." in flat
+
+
+# the grader's config ---------------------------------------------------------------------------
+
+SECRET = "test-value-not-a-real-key-0000"
+BEARER = "Bearer abcdefghijklmnopqrstuvwxyz123456"
+
+
+def _grader_config(root, config: dict) -> None:
+    """The grader of every answer in results.json given `config`, as promptfoo saves it."""
+    path = root / "results.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for row in data["results"]["results"]:
+        row["testCase"]["options"]["provider"]["config"] = config
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_the_grader_config_is_kept_without_any_key(here, capsys):
+    from tests.test_fix import regraded
+
+    ws = project(here)
+    _grader_config(here, {"temperature": 0, "apiBaseUrl": "http://127.0.0.1:9590/v1",
+                          "max_tokens": 300, "apiKey": SECRET, "access_token": SECRET,
+                          "headers": {"X-Team": "support", "Authorization": BEARER}})
+    code, out = run(capsys)
+    assert code == 0, out
+    text = (ws.dir / "fix" / "regrade.yaml").read_text(encoding="utf-8")
+    provider = yaml.safe_load(text)["defaultTest"]["options"]["provider"]
+    assert provider == {"id": "openai:gpt-4.1-mini",
+                        "config": {"temperature": 0, "apiBaseUrl": "http://127.0.0.1:9590/v1",
+                                   "max_tokens": 300, "headers": {"X-Team": "support"}}}
+    assert SECRET not in text and "abcdefghijklmnop" not in text
+    for name in ("apiKey", "access_token", "headers.Authorization"):
+        assert (f"    # {name} left out: judgekeeper never writes keys to files. Set it the "
+                "way your own config does.\n") in text
+    lines = text.splitlines()
+    comments = [n for n, x in enumerate(lines) if x.lstrip().startswith("#")]
+    assert lines[max(comments) + 1].lstrip().startswith("provider:")  # right above it
+    value = next(n for n, x in enumerate(lines, 1) if x.lstrip().startswith("value:"))
+    assert f"Change the rule in .judgekeeper/fix/regrade.yaml (line {value})." in _flat(out)
+    # the person follows the steps: promptfoo saves the grader regrade.yaml names
+    new = regraded(here)
+    data = json.loads(new.read_text(encoding="utf-8"))
+    for row in data["results"]["results"]:
+        row["testCase"]["options"]["provider"] = provider
+    new.write_text(json.dumps(data), encoding="utf-8")
+    code = main(["check", new.name])
+    flat = _flat("".join(capsys.readouterr()))
+    assert "Your LLM-as-a-judge changed: rule changed." in flat, flat
+    assert "temperature" not in flat
+
+
+def test_a_grader_with_no_config_is_its_name_alone(tmp_path):
+    ws = SimpleNamespace(root=tmp_path)
+    data = {"fingerprint": GRADER, "rule": RULE, "metric": "llm-rubric", "results_files": []}
+    text = fix._regrade_yaml(ws, data)
+    assert yaml.safe_load(text)["defaultTest"]["options"] == {"provider": "openai:gpt-4.1-mini"}
+    assert "#" not in text
+
+
+def test_the_docs_say_when_no_regrade_file_is_written():
+    from pathlib import Path
+
+    docs = " ".join((Path(__file__).parent.parent / "docs" / "eval-tools.md")
+                    .read_text(encoding="utf-8").split())
+    assert ("`judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader "
+            "is a named provider") in docs
+    assert ("For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no "
+            "file and prints the steps instead.") in docs
