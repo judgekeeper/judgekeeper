@@ -21,7 +21,7 @@ import pytest
 
 from judgekeeper import marks, start_label
 from judgekeeper.start_label import Workspace
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, split, unwrapped
 from tests.test_check import HAIKU
 from tests.test_front import run
 from tests.test_loop import _click, _flat, _post_marks
@@ -884,7 +884,7 @@ def _page_text(html: str) -> str:
     """What a reader sees, a command in backticks as the terminal writes it."""
     from html import unescape
 
-    html = re.sub(r"<code>(.*?)</code>", r"`\1`", html)
+    html = re.sub(r"<code>(.*?)</code>", r"`\1`", unwrapped(html))
     return " ".join(unescape(re.sub(r"<[^>]+>", " ", html)).split())
 
 

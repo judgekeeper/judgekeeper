@@ -607,7 +607,8 @@ def _all_marked(r: dict) -> str:
 def _code_line(text: str) -> str:
     """A next step as a sentence: its first letter in capitals, each `command` as code."""
     parts = text.split("`")
-    out = "".join(f"<code>{_e(x)}</code>" if i % 2 else _term(x) for i, x in enumerate(parts))
+    out = "".join(f"<code>{look.command(_e(x))}</code>" if i % 2 else _term(x)
+                  for i, x in enumerate(parts))
     return out[:1].upper() + out[1:]
 
 
@@ -643,7 +644,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
-        then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+        then = f"Run <code>{look.command(_e(commands(r)['mark']))}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
     from judgekeeper.labels import gate_line
 
@@ -1011,7 +1012,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     out = []
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
         return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
-                f'{_e(fix_command or "judgekeeper fix")}</code>{_e(SPLIT_UNKNOWN[1])}</p></div>')
+                f'{look.command(_e(fix_command or "judgekeeper fix"))}</code>'
+                f'{_e(SPLIT_UNKNOWN[1])}</p></div>')
     same = _same(mistakes)
     out += [f'<div class="band"><details class="same"><summary><span class="fname">{_e(k)}'
             f'</span>{SAME}</summary><p>{_e(v)}</p></details></div>' for k, v in same]
@@ -1025,8 +1027,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         if rows:
             if first and live:  # where a reason can be added; report.html says it once, below
                 out.append(f'<div class="band"><p class="add-why">{_e(WHY_OPTIONAL)} <code>'
-                           f'{_e(fix_command or "judgekeeper fix")}</code> {_e(WHY_USES)}</p>'
-                           "</div>")
+                           f'{look.command(_e(fix_command or "judgekeeper fix"))}</code> '
+                           f'{_e(WHY_USES)}</p></div>')
             first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
                               (fixing or {}).get("left_out", 0), names))
@@ -1156,13 +1158,15 @@ def _next(r: dict, back: str | None) -> str:
     out = [saved]
     if step == "fix":
         out.append("<p>Next, in your terminal, in your project folder:</p>"
-                   f'<div class="cmd"><code>{_e(commands(r)["fix"])}</code><button type="button" '
+                   f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
+                   '<button type="button" '
                    f'class="copy" data-copy aria-label="Copy the command">{COPY_ICONS}</button>'
                    "</div>")
     else:
-        out.append(f'<p>Nothing more to do. Run <code>{_e(commands(r)["check"])}</code> after '
+        out.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
+                   '</code> after '
                    f"you change your {TERM}.</p>")
-    mark = f"<code>{_e(commands(r)['mark'])}</code>"
+    mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
     more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
     if more and back is not None:
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'

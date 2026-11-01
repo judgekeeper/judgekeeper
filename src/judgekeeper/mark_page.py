@@ -1078,7 +1078,7 @@ def label_page(description: str | None, command: str | None = None,
                      _text(visible(tool)) if tool else None)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__GRADED__", _graded(metric, rule))
-            .replace("__COMMAND__", _shown(command))
+            .replace("__COMMAND__", look.command(_shown(command)))
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
@@ -1116,5 +1116,6 @@ def old_link_page() -> str:
             + look.top("", "")
             + '<main class="old"><div class="box"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
-            + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
+            + f"<p>To open the page again, run <code>{look.command(escape(program('mark')))}"
+            "</code>.</p>"
             + "</div></main>\n</body>\n</html>\n")
