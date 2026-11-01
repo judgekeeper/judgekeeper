@@ -75,3 +75,17 @@ def test_its_disagreements_wait_for_the_usual_count(one_grade, capsys, pages):
     assert 'class="verdict' in html and "needs" in html
     assert 'id="g-easy"' not in html and 'id="g-strict"' not in html  # none listed yet
     assert not (ws.dir / "fix" / "split.json").exists()
+
+
+def test_measure_names_fix_only_once_fix_can_run(one_grade, capsys, pages):
+    """Fix needs 15 marks of each kind: before that, Measure's Next line is the mark one, with
+    fix's own reason."""
+    run(capsys, "--no-browser")
+    _mark(one_grade, ["pass"] * 4 + ["fail"])
+    _, out, _ = run(capsys)
+    lines = out.splitlines()
+    assert "Result: your LLM-as-a-judge needs work." in flat(out)
+    assert "judgekeeper fix" not in out
+    assert lines[-5:] == ["", "You have not marked enough answers yet to fix your",
+                          "LLM-as-a-judge.", "",
+                          "Next: run `judgekeeper mark` to mark more answers."], out

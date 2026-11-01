@@ -2042,6 +2042,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
+    elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
+        talk.para(fix.NOT_ENOUGH)
+        talk.say()
+        next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix":
         next_step = NEXT_FIX.format(command=_fix_command(talk))
     else:
