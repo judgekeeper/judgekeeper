@@ -58,9 +58,13 @@ def test_the_reference_explains_the_own_format():
     assert "calling a metric's `measure()` directly saves nothing" in reference
 
 
-def test_see_your_result_shows_once_there_are_enough_marks():
-    """The page shows the button only once there are enough marks of each kind."""
-    reference = " ".join(REFERENCE.read_text(encoding="utf-8").split())
-    assert "See your result" in reference
-    assert "any time" not in reference.split("See your result", 1)[1][:80]
-    assert "appears once there are enough marks of each kind" in reference
+def test_the_reference_names_both_links_the_page_shows():
+    """The page's link reads "See the numbers so far" from the first numbers, and "See your
+    result" once there is a result: the reference and the README say both, in the page's
+    own words."""
+    from judgekeeper.mark_page import SEE_FIRST, SEE_READY
+
+    line = (f'"{SEE_FIRST}" appears with your first numbers, and "{SEE_READY}" once there is a '
+            "result.")
+    for doc in (REFERENCE, ROOT / "README.md"):
+        assert line in " ".join(doc.read_text(encoding="utf-8").split()), doc.name
