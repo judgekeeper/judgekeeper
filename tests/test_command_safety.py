@@ -206,19 +206,24 @@ def test_a_venv_not_activated_says_its_program_as_typed(tmp_path):
     assert again.returncode == 0, again.stderr
 
 
+@pytest.mark.parametrize("windows", [False, True])
 def test_off_the_path_python_m_is_named_only_when_that_python_can_import_it(monkeypatch,
-                                                                            tmp_path):
-    monkeypatch.setattr(sys, "platform", "darwin")
+                                                                            tmp_path, windows):
+    if sys.platform == "win32" and not windows:
+        pytest.skip("a Windows path can't be faked into a POSIX one")
+    monkeypatch.setattr(sys, "platform", "win32" if windows else "darwin")
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.delenv("UV", raising=False)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["/opt/tools/bin/judgekeeper"])  # typed in full
+    program = os.path.join(os.path.abspath(os.sep), "opt", "tools", "bin", "judgekeeper")
+    monkeypatch.setattr(sys, "argv", [program])  # typed in full
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: True)
-    assert textio.program("mark") == "python3 -P -m judgekeeper mark"
+    python = "py" if windows else "python3"
+    assert textio.program("mark") == f"{python} -P -m judgekeeper mark"
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
-    assert textio.program("mark") == "/opt/tools/bin/judgekeeper mark"  # outside home: as it is
-    monkeypatch.setattr(sys, "argv", ["/opt/tools/bin/pytest"])  # not judgekeeper's own: as before
-    assert textio.program("mark") == "judgekeeper mark"
+    assert textio.program("mark") == f"{program} mark"  # outside home: as it is, no quotes
+    monkeypatch.setattr(sys, "argv", [os.path.join(os.path.dirname(program), "pytest")])
+    assert textio.program("mark") == "judgekeeper mark"  # not judgekeeper's own: as before
 
 
 def test_program_names_python_p_m_only_when_started_so(monkeypatch):
