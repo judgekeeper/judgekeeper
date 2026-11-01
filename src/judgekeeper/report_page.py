@@ -644,8 +644,12 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     else:
         then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
+    from judgekeeper.labels import gate_line
+
+    gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
+    gate = f'<p class="lead">{_term(gate)}</p>' if gate else ""
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-            f'class="{cls}">{_term(headline)}</h1><p class="lead">{lead}</p></section>')
+            f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -692,12 +696,13 @@ def _counts(r: dict, c: dict) -> str:
         row += (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on '
                 f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
                 'left out.</p>')
-    from judgekeeper.labels import assumes_line
+    from judgekeeper.labels import assumes_line, looks_off_line
     from judgekeeper.start_label import second_thoughts
 
     assumes = assumes_line(r.get("imported"))  # marks brought with --labels
+    off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
     thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
-    for line in ([assumes] if assumes else []) + thoughts:
+    for line in [x for x in (assumes, off) if x] + thoughts:
         row += f'<p class="left-out band">{_term(line)}</p>'
     return row
 

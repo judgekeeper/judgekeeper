@@ -1921,6 +1921,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
+    gate = labels_mod.gate_line(r.get("import_gate"), r.get("imported"))
+    if gate:  # imported marks not yet checked against page marks
+        talk.para(gate)
     for line in agreement_lines(r):
         if line.startswith("  "):  # an indented count, wrapped under itself
             talk.para(line[2:], indent="  ")
@@ -1947,6 +1950,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if assumes:
         talk.say()
         talk.para(assumes)
+        off = labels_mod.looks_off_line(r.get("imports_off"), r.get("imported"))
+        if off:  # a warning, never a stop
+            talk.para(off)
     which = _which_judge(ws, found)
     if which:
         talk.say()

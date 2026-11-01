@@ -12,10 +12,16 @@ both ends, keys hidden, a spreadsheet's guard quote), with the question when one
 label becomes one line of marks.jsonl (marks.imported_line, "by": "file"); an answer that
 already has a mark keeps it. The words are read as grades are (normalise.Normaliser), with the
 project's label map; anything else stops before a line is written.
+
+Imported marks are checked against the page's: no coloured verdict until PAGE_MARKS page marks
+in each of the LLM-as-a-judge's groups, or none left to mark there (still_needed); then, per
+group, Fisher's exact test on the share marked Pass, imported against page marks, and a
+warning when p < CHECK_LEVEL in either group (looks_off). Never a stop.
 """
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -49,6 +55,15 @@ SKIPPED = (  # (reason, one, many): said in this order
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
            "random and labelled without looking at your LLM-as-a-judge's grade.")
 FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
+# The check of imported marks against page marks (see the top)
+PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
+CHECK_LEVEL = 0.025  # 0.05 split over the two groups
+GATE = ("Mark {n} more answers on the page to check the marks from {name}. Until then, it's "
+        "too early to tell.")
+LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
+             "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
+             "those you marked on the page. The numbers may be off.")
+GROUP_DID = {"pass": "passed", "fail": "failed"}
 
 
 class LabelsStop(Exception):
@@ -418,3 +433,70 @@ def said(added: Added, plan: Plan, source: str) -> list[str]:
 def nothing_matched(source: str) -> LabelsStop:
     return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that the "
                         "answer text is the same, word for word.")])
+
+
+# Imported marks against page marks -----------------------------------------------------------
+
+def by_group(m: marks.Marks, ids, groups: dict[str, str]) -> dict:
+    """{group: {"file": [Pass, Fail], "page": [Pass, Fail]}}: the marks that count among `ids`,
+    per group of the LLM-as-a-judge (`groups`: answer id to its group), by how each was made
+    (its last line: an imported answer marked again on the page is a page mark)."""
+    out = {g: {"file": [0, 0], "page": [0, 0]} for g in ("pass", "fail")}
+    for i, mark in m.counted().items():
+        g = groups.get(i)
+        if (ids is not None and i not in ids) or g not in out:
+            continue
+        by = "file" if m.last[i].get("by") == marks.BY_FILE else "page"
+        out[g][by][0 if mark == "pass" else 1] += 1
+    return out
+
+
+def still_needed(page: dict[str, int], left: dict[str, int]) -> int:
+    """How many more page marks a coloured verdict needs: per group, up to PAGE_MARKS, never
+    more than the answers left to mark there (none left: nothing needed)."""
+    return sum(min(max(PAGE_MARKS - page.get(g, 0), 0), left.get(g, 0)) for g in ("pass", "fail"))
+
+
+def gate_line(n: int, imported: dict | None) -> str | None:
+    if not n or not imported:
+        return None
+    return GATE.format(n=n, name=names(imported.get("from") or ["a file"]))
+
+
+def fisher_p(a: int, b: int, c: int, d: int) -> float:
+    """Fisher's exact test, two-sided, on the table [[a, b], [c, d]]: the chance of a table
+    with the same margins at most as likely as this one."""
+    row, col, n = a + b, a + c, a + b + c + d
+    if not row or not col or row == n or col == n:
+        return 1.0
+
+    def chance(x: int) -> float:
+        return math.comb(col, x) * math.comb(n - col, row - x) / math.comb(n, row)
+
+    seen = chance(a)
+    return min(1.0, sum(p for x in range(max(0, row + col - n), min(row, col) + 1)
+                        if (p := chance(x)) <= seen * (1 + 1e-7)))
+
+
+def looks_off(counts: dict) -> dict | None:
+    """The group where imported and page marks differ most ({"group", "file": % marked Pass of
+    the imported, "page": of the page marks}) when p < CHECK_LEVEL there; None otherwise, or
+    while a group has under PAGE_MARKS page marks."""
+    if any(sum(counts[g]["page"]) < PAGE_MARKS for g in ("pass", "fail")):
+        return None
+    found = None
+    for g in ("pass", "fail"):
+        (fp, ff), (pp, pf) = counts[g]["file"], counts[g]["page"]
+        p = fisher_p(fp, ff, pp, pf)
+        if p < CHECK_LEVEL and (found is None or p < found[0]):
+            found = (p, {"group": g, "file": round(100 * fp / (fp + ff)),
+                         "page": round(100 * pp / (pp + pf))})
+    return found and found[1]
+
+
+def looks_off_line(off: dict | None, imported: dict | None) -> str | None:
+    if not off or not imported:
+        return None
+    name = names(imported.get("from") or ["a file"])
+    return LOOKS_OFF.format(name=name, did=GROUP_DID[off["group"]], x=off["file"],
+                            y=off["page"])

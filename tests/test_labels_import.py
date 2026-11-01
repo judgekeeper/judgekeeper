@@ -564,7 +564,7 @@ def _marked_like_this(root: Path, how: str, capsys) -> dict:
 
 
 NUMBERS = ("tpr", "tnr", "kappa", "tpr_interval", "tnr_interval", "kappa_interval", "labels",
-           "groups", "check", "verdict_level", "disagreements", "left", "smallest_drop")
+           "groups", "check", "disagreements", "left", "smallest_drop")
 
 
 def test_imported_marks_give_the_same_numbers_as_page_marks(tmp_path, capsys, monkeypatch):
@@ -575,6 +575,8 @@ def test_imported_marks_give_the_same_numbers_as_page_marks(tmp_path, capsys, mo
         assert by_file.get(key) == by_page.get(key), key
     assert by_file["imported"] == {"marks": 34, "pass": 18, "fail": 16, "from": ["mine.csv"]}
     assert "imported" not in by_page
+    # the same numbers; the colour waits for page marks that check the imported ones
+    assert by_file["verdict_level"] == "too_early" and by_file["import_gate"] == 12 + 14
 
 
 # How the marks were made ------------------------------------------------------------------

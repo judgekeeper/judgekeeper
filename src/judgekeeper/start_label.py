@@ -631,13 +631,35 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
             "headline": r["verdict"] if ready else None}
 
 
+def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
+    """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
+    verdict still needs to check them (labels.still_needed), and the group where they don't
+    look like the page marks (labels.looks_off): (None, 0, None) without any."""
+    from judgekeeper import labels as labels_mod
+
+    imported = marks.imported(m, ids=ids)
+    if not imported:
+        return None, 0, None
+    groups = {q["id"]: q["group"] for q in data["queue"]}
+    counts = labels_mod.by_group(m, ids, groups)
+    counted = m.counted()
+    left = {g: sum(q["group"] == g and q["id"] not in counted for q in data["queue"])
+            for g in ("pass", "fail")}
+    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
+    return imported, needed, labels_mod.looks_off(counts)
+
+
 def start_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters for `start`'s labeling: from the session's labels. With
     every answer marked and no result yet, `done` holds what the end card says
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
     ws = session.workspace
-    status = strata_status(batches.counted_strata(ws.cached_data(), session.marked(),
-                                                  ws.cached_strata()))
+    data = ws.cached_data()
+    status = strata_status(batches.counted_strata(data, session.marked(), ws.cached_strata()))
+    if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
+        ids = set(batches.counted_labels(data, session.marked()))
+        if import_check(marks.read(ws.marks), data, ids)[1]:
+            status.update(text=FIRST_NUMBERS, ready=False, headline=None)
     every = bool(session.items) and all(i["label"] for i in session.items)
     if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
@@ -1318,9 +1340,14 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
-    imported = marks.imported(m, ids=set(labels))  # only the marks this result counts
+    imported, needed, off = import_check(m, data, set(labels))  # only the marks it counts
     if imported:
         r["imported"] = imported
+    if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
+        r.update(import_gate=needed, verdict_level="too_early")
+        r["verdict"] = _verdict(r)
+    if off:
+        r["imports_off"] = off
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
@@ -1330,11 +1357,15 @@ def compute(ws: Workspace, session: StartSession) -> dict:
 
 
 def marks_digest(ws: Workspace, session: StartSession) -> str:
-    """What a result is made from: the marks (answer and label, never a skip) and the judge's
-    verdicts."""
+    """What a result is made from: the marks (answer and label, never a skip, and whether it
+    was brought with --labels: a page mark can check it) and the judge's verdicts."""
     import hashlib
 
-    marks = sorted([i["id"], i["label"]] for i in session.items if i["label"])
+    from judgekeeper import marks as marks_mod
+
+    last = marks_mod.read(ws.marks).last if ws.marks.is_file() else {}
+    marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") == marks_mod.BY_FILE]
+                   for i in session.items if i["label"])
     verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
     return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
 
