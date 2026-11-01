@@ -91,6 +91,8 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
 
+Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ more than chance would explain (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
+
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
 ```
