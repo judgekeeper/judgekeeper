@@ -1456,7 +1456,8 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
 
 def history_line(ws: Workspace, r: dict) -> dict:
     """The line history.jsonl gets for a new result: the judge as marks.jsonl's header keeps
-    it, the counts and the numbers. No answer text, no ids."""
+    it, the counts and the numbers, and the verdict with the wider ranges it came from (so a
+    past verdict can be traced). No answer text, no ids."""
     head = marks.read(ws.marks).header or {}
 
     def rate(key):
@@ -1467,7 +1468,9 @@ def history_line(ws: Workspace, r: dict) -> dict:
     line = {"time": r["made_at"], "kind": "result", "judge": head.get("judge"),
             "marks": labels["correct"] + labels["wrong"], "pass": labels["correct"],
             "fail": labels["wrong"], "marks_hash": r["marks_sha256"], "tpr": rate("tpr"),
-            "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop")}
+            "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop"),
+            "verdict_level": r.get("verdict_level"),
+            **{f"{k}_verdict_interval": r.get(f"{k}_verdict_interval") for k in ("tpr", "tnr")}}
     if r.get("batches"):  # which batches the result is on (batches.about)
         line["batches"] = r["batches"]
     return line
