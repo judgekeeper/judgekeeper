@@ -693,9 +693,11 @@ def _counts(r: dict, c: dict) -> str:
         row += (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on '
                 f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
                 'left out.</p>')
+    from judgekeeper.labels import assumes_line
     from judgekeeper.start_label import second_thoughts
 
-    for line in second_thoughts(r.get("made")):
+    assumes = assumes_line(r.get("imported"))  # marks brought with --labels
+    for line in ([assumes] if assumes else []) + second_thoughts(r.get("made")):
         row += f'<p class="left-out band">{_term(line)}</p>'
     return row
 

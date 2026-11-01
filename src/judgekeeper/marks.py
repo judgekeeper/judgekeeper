@@ -4,7 +4,9 @@ The first line is a header: the LLM-as-a-judge as it was when marking started (t
 rule hash, pass mark, fingerprint), the pool sizes (`weighted` corrects for picking half from
 each of the judge's groups) and the results files. Then one line per click: {"id", "mark":
 "pass" | "fail" | "skip" | null, "group", "at", "seconds", "sitting", "by": "page"}, plus a
-few optional fields. `at` is the server's UTC time; null clears a mark (undo).
+few optional fields. `at` is the server's UTC time; null clears a mark (undo). A label brought
+with `--labels` (labels.py) is a line with "by": "file", "seconds" null, one "sitting" per
+import and "from": the file's base name, or "results" for the labels already in the results.
 
 A reason line (reasons.py) carries the same mark and changes only the reasons, so the mark
 keeps its own time. The last line for an answer wins. A line without its stamps (`by`, `at`,
@@ -41,6 +43,9 @@ VERSION = 1
 MARKS = ("pass", "fail", "skip", None)
 MAX_SECONDS = 3600
 BY = "page"
+BY_FILE = "file"  # a label brought with --labels
+COUNTED_BY = (BY, BY_FILE)
+FROM_RESULTS = "results"  # "from" of the labels already in the results
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
 BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
@@ -60,6 +65,11 @@ def header(*, judge: dict, pool: dict, results: list) -> dict:
 
 def new_sitting() -> str:
     return secrets.token_hex(8)
+
+
+def new_import() -> str:
+    """The "sitting" of one import of labels (--labels): never a page's."""
+    return f"file-{secrets.token_hex(4)}"
 
 
 def _seconds(value) -> float | None:
@@ -90,6 +100,15 @@ def stamp(item_id: str, mark: str | None, group: str | None, seconds, sitting: s
     if why is not None:
         line.update(why)
     return line
+
+
+def imported_line(item_id: str, mark: str, group: str | None, sitting: str, source: str) -> dict:
+    """One label brought with --labels as a line of marks.jsonl: no seconds, `source` the
+    file's base name (never a path) or FROM_RESULTS."""
+    if mark not in ("pass", "fail"):
+        raise ValueError("an imported mark must be pass or fail")
+    return {"id": item_id, "mark": mark, "group": group, "at": utc_now(), "seconds": None,
+            "sitting": sitting, "by": BY_FILE, "from": source}
 
 
 def _line(data: dict) -> str:
@@ -159,6 +178,16 @@ def append(path: str | Path, data: dict) -> None:
         f.write(_line(data))
 
 
+def append_all(path: str | Path, lines: list[dict]) -> None:
+    """Add `lines` to a JSONL file in .judgekeeper/ at once (an import of labels)."""
+    if not lines:
+        return
+    path = Path(path)
+    _refuse_links(path)
+    with open_private(path, "a", encoding="utf-8", newline="\n") as f:
+        f.write("".join(_line(x) for x in lines))
+
+
 @dataclass
 class Marks:
     header: dict | None = None
@@ -175,7 +204,7 @@ class Marks:
 
 def _stamped(x) -> bool:
     return (isinstance(x, dict) and isinstance(x.get("id"), str) and "mark" in x
-            and x["mark"] in MARKS and x.get("by") == BY
+            and x["mark"] in MARKS and x.get("by") in COUNTED_BY
             and all(isinstance(x.get(k), str) and x[k] for k in STAMPS))
 
 
@@ -242,20 +271,22 @@ def _timed(out: Marks, x: dict, last_at: dict) -> None:
 
 def made(m: Marks, ids=None) -> dict:
     """How the marks that count (of the answers `ids`, default all) were made: how many, how
-    many Pass and Fail, in how many sittings, the middle value of their seconds (None when no
-    mark has one), how many took under a second (by `seconds`, else by the time since the
-    mark before), the lines not counted, how many were made through a printed link or a page
-    the program named in BROWSER opened, how many the person wasn't sure about
-    (reasons.UNSURE), and how many were changed after the judge's grades were shown."""
+    many Pass and Fail, in how many sittings on the page, the middle value of their seconds
+    (None when no mark has one), how many took under a second (by `seconds`, else by the time
+    since the mark before), the lines not counted, how many were made through a printed link
+    or a page the program named in BROWSER opened, how many the person wasn't sure about
+    (reasons.UNSURE), and how many were changed after the judge's grades were shown. Marks
+    brought with --labels count in the totals only: they have no sitting and no time."""
     from judgekeeper.reasons import UNSURE
 
     lines = [m.last[i] for i in m.counted() if ids is None or i in ids]
-    seconds = [x["seconds"] for x in lines if isinstance(x.get("seconds"), (int, float))]
-    timed = seconds + [m.gap[x["id"]] for x in lines  # no `seconds`: the time between marks
+    page = [x for x in lines if x["by"] == BY]
+    seconds = [x["seconds"] for x in page if isinstance(x.get("seconds"), (int, float))]
+    timed = seconds + [m.gap[x["id"]] for x in page  # no `seconds`: the time between marks
                        if not isinstance(x.get("seconds"), (int, float)) and x["id"] in m.gap]
     return {"marks": len(lines), "pass": sum(x["mark"] == "pass" for x in lines),
             "fail": sum(x["mark"] == "fail" for x in lines),
-            "sittings": len({x["sitting"] for x in lines}),
+            "sittings": len({x["sitting"] for x in page}),
             "seconds": round(statistics.median(seconds)) if seconds else None,
             "under_second": sum(s < 1 for s in timed), "not_counted": m.not_counted,
             "printed": sum(x.get("link") == PRINTED for x in lines),
@@ -264,6 +295,20 @@ def made(m: Marks, ids=None) -> dict:
             "after_result": sum(x["id"] in m.after_result for x in lines),
             # only when there are some: result.json stays as it was for everyone else
             **({"asked": asked} if (asked := sum(x.get("link") == ASKED for x in lines)) else {})}
+
+
+def imported(m: Marks, ids=None) -> dict | None:
+    """The marks that count (of the answers `ids`, default all) brought with --labels: how
+    many, how many Pass and Fail, and where from (each import's "from", first seen first);
+    None when there are none."""
+    lines = [m.last[i] for i in m.counted() if (ids is None or i in ids)]
+    lines = [x for x in lines if x["by"] == BY_FILE]
+    if not lines:
+        return None
+    sources = [x.get("from") for x in lines if isinstance(x.get("from"), str) and x["from"]]
+    return {"marks": len(lines), "pass": sum(x["mark"] == "pass" for x in lines),
+            "fail": sum(x["mark"] == "fail" for x in lines),
+            "from": list(dict.fromkeys(sources))}
 
 
 def not_counted_line(n: int) -> str | None:
