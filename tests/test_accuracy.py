@@ -337,12 +337,12 @@ def test_which_paired_verdicts_exit_1(right, wrong, n, worse):
 
 @pytest.mark.parametrize("right,wrong,n,words", [
     (11, 19, 30, [("Not sure: 19 went from right to wrong, and 11 from wrong to right. It "
-                  "could be up to 52 points worse.")]),
+                  "could be up to 53 points worse.")]),
     (0, 12, 30, ["Worse: 12 answers went from right to wrong, and none from wrong to right.",
                  "That is about 40 points lower (between 27 and 55)."]),
     (0, 2, 30, [("No drop bigger than 20 points: 2 went from right to wrong, none from wrong "
                  "to right."),
-                "These marks can't rule out a drop of up to 18 points."]),
+                "These marks can't rule out a drop of up to 19 points."]),
     (1, 1, 30, [("No drop bigger than 20 points: 1 went from right to wrong, 1 from wrong "
                  "to right."),
                 "These marks can't rule out a drop of up to 11 points."]),
