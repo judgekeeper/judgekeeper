@@ -85,9 +85,8 @@ def _strata(n_pass, c_p, n_fail, c_f, pool=(8000, 2000)):
 
 
 def test_first_numbers_without_a_verdict_are_not_ready():
-    """15 Pass and 15 Fail marks, too early to tell: the first numbers are in, nothing pops
-    up."""
-    status = start_label.strata_status(_strata(18, 15, 18, 3))
+    """Enough marks, too early to tell: the first numbers are in, nothing pops up."""
+    status = start_label.strata_status(_strata(20, 17, 20, 3, pool=(500, 500)))
     assert status["first"] and not status["ready"]
     assert status["text"] == FIRST_NUMBERS
     assert status["headline"] is None
@@ -152,3 +151,10 @@ def test_looking_after_every_mark_rarely_says_good_enough_for_a_judge_under_the_
                 wrong += level == "gate"
                 break
     assert wrong / runs < 0.04, wrong
+
+
+def test_no_first_numbers_under_20_marks_in_a_group():
+    """15 marked Pass and 15 Fail, but 19 marks among the answers the LLM-as-a-judge failed."""
+    status = start_label.strata_status(_strata(30, 14, 19, 1))
+    assert not status["first"] and status["text"] == "Mark a few more answers to see your result."
+    assert start_label.strata_status(_strata(30, 14, 20, 1))["first"]

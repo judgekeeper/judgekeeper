@@ -305,9 +305,9 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
 
 def test_the_verdict_levels_follow_the_ranges():
     green = _result(500, 500, 50, 50, 50, 0)
-    amber = _result(500, 500, 15, 13, 15, 2)       # 87% each side, ranges reach below 80%
+    amber = _result(500, 500, 20, 17, 20, 3)       # 85% each side, ranges reach below 80%
     red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
-    early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is wide: no colour
+    early = _result(900, 100, 20, 20, 20, 0)       # the Fail side's range is wide: no colour
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
     assert green["verdict"] == "Your LLM-as-a-judge is good enough to use."
     assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."

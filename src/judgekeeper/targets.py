@@ -1,6 +1,8 @@
 """How many marks a check needs, and the verdicts on the numbers: one set for every command.
 
-A first result needs ROUGH marks of each kind. The verdict follows the ranges, never a number
+A first result needs ROUGH marks of each kind, and FIRST_GROUP marks in each of the
+LLM-as-a-judge's groups (or every answer of a smaller one): a count fixed in advance, so an
+early result is not just a lucky one where the judge passes most answers. The verdict follows the ranges, never a number
 alone (level), and is given the wider verdict ranges (weighted.VERDICT_LEVEL), since the person
 can look after every mark. No rule shows or hides a number by its range's width: a narrow
 early range is often a lucky one.
@@ -22,6 +24,7 @@ from functools import lru_cache
 from statistics import NormalDist
 
 ROUGH = 15
+FIRST_GROUP = 20  # marks among the answers the judge passed, and among those it failed
 EPS = 1e-9
 
 # The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
@@ -94,10 +97,12 @@ def best_possible(real_pass: float, slip: float) -> dict:
             "tnr": (1 - p) * (1 - e) / ((1 - p) * (1 - e) + p * e)}
 
 
-def check(correct: int, wrong: int) -> dict:
-    """{"check": "too_few" | "result"}: under ROUGH of each kind there is no result yet (a
-    count rule, never a width)."""
-    return {"check": "too_few" if min(correct, wrong) < ROUGH else "result"}
+def check(correct: int, wrong: int, groups: dict | None = None) -> dict:
+    """{"check": "too_few" | "result"}: under ROUGH of each kind, or (with `groups`, {group:
+    (marked, answers in it)}) under FIRST_GROUP marks in a group of the judge that holds more
+    answers than that, there is no result yet. Count rules, never a width."""
+    short = any(marked < min(FIRST_GROUP, size) for marked, size in (groups or {}).values())
+    return {"check": "too_few" if min(correct, wrong) < ROUGH or short else "result"}
 
 
 TINY = 1e-300  # a chance under this adds nothing the power can show

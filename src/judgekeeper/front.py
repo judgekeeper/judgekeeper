@@ -98,7 +98,9 @@ INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
 # Said where marking starts, before the page opens (and in the README and the reference)
-NEEDS_EACH_KIND = "A result needs at least {n} answers you mark Pass and {n} you mark Fail."
+NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail, and "
+                   "{g} marks on answers your LLM-as-a-judge passed and {g} on answers it "
+                   "failed.")
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
@@ -1237,7 +1239,7 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
     (`said`: Find said how few it failed in this run, so only that)."""
-    out = NEEDS_EACH_KIND.format(n=targets.ROUGH)
+    out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
         out += " " + (rest[:1].upper() + rest[1:] if said else
@@ -1624,8 +1626,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)
     counts = session.counts()
-    counted = list(batches.counted_labels(ws.data(), session.marked()).values())
-    enough = min(counted.count("pass"), counted.count("fail")) >= targets.ROUGH
+    enough = start_label.has_result(batches.counted_strata(ws.data(), session.marked()))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))

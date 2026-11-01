@@ -45,3 +45,18 @@ def test_many_marks_see_a_drop_of_five_points_quickly():
     began = time.monotonic()
     assert targets.smallest_drop(2000, 2000) == 5
     assert time.monotonic() - began < 5
+
+
+# The first result also needs marks in each of the LLM-as-a-judge's groups ---------------------
+
+@pytest.mark.parametrize(("groups", "check"), [
+    ({"pass": (19, 1000), "fail": (40, 1000)}, "too_few"),  # 19 marks where it passed
+    ({"pass": (20, 1000), "fail": (20, 1000)}, "result"),
+    ({"pass": (40, 1000), "fail": (12, 12)}, "result"),  # every answer it failed is marked
+    ({"pass": (40, 1000), "fail": (11, 12)}, "too_few"),
+    ({"pass": (40, 1000), "fail": (0, 0)}, "result"),  # it failed none
+])
+def test_the_first_result_needs_marks_in_each_group_of_the_llm_as_a_judge(groups, check):
+    assert targets.FIRST_GROUP == 20
+    assert targets.check(20, 20, groups) == {"check": check}
+    assert targets.check(14, 30, groups) == {"check": "too_few"}

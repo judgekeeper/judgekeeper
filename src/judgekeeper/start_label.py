@@ -617,13 +617,21 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
     return strata_status([(1, "pass", n_pool_pass, n_p, c_p), (1, "fail", n_pool_fail, n_f, c_f)])
 
 
+def has_result(strata: list[tuple[int, str, int, int, int]]) -> bool:
+    """Whether the marks in these strata (batches.counted_strata) give a first result: the
+    counts targets.check asks for, of each kind and in each of the judge's groups."""
+    correct = sum(s[4] for s in strata)
+    groups = {g: (sum(s[3] for s in strata if s[1] == g), sum(s[2] for s in strata if s[1] == g))
+              for g in ("pass", "fail")}
+    return targets.check(correct, sum(s[3] for s in strata) - correct, groups)["check"] != "too_few"
+
+
 def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     """progress_status from the marks in each stratum, as the result counts them
     (batches.counted_strata). Under ROUGH marks of each kind there is no result yet, a count
     rule (targets.check): no range is drawn. `first`: the first numbers are in; `ready`: a
     coloured verdict, whose words are `headline`."""
-    correct = sum(s[4] for s in strata)
-    if min(correct, sum(s[3] for s in strata) - correct) < ROUGH:
+    if not has_result(strata):
         return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
     r = describe(weighted.stratified(strata))
     ready = coloured(r)
@@ -938,7 +946,7 @@ def describe(corrected: dict) -> dict:
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
     r = dict(corrected)
     r["labels"] = {"correct": correct, "wrong": wrong}
-    r.update(targets.check(correct, wrong))
+    r.update(targets.check(correct, wrong, {k: (v["labeled"], v["pool"]) for k, v in g.items()}))
     r["verdict_level"] = _level(r)
     r["verdict"] = _verdict(r)
     return r

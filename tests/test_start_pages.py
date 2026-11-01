@@ -95,8 +95,9 @@ FIRST = "Your first numbers are in. Too early to tell: keep marking."
 @pytest.mark.parametrize("counts, text, first, ready", [
     ((100, 100, 0, 0, 0, 0), FEW, False, False),
     ((100, 100, 22, 14, 22, 0), FEW, False, False),  # 14 marked Pass
-    ((100, 100, 15, 12, 15, 3), FIRST, True, False),  # too early to tell
-    ((100, 100, 15, 14, 15, 1), FIRST, True, False),  # the 99% ends still reach under 80%
+    ((100, 100, 15, 12, 15, 3), FEW, False, False),  # 15 of each kind, 15 marks per group
+    ((100, 100, 20, 16, 20, 4), FIRST, True, False),  # too early to tell
+    ((100, 100, 20, 19, 20, 1), FIRST, True, False),  # the 99% ends still reach under 80%
     ((100, 100, 50, 48, 50, 2), "Your result is ready.", True, True),  # good enough
 ])
 def test_the_status_line(counts, text, first, ready):

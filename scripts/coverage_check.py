@@ -477,14 +477,17 @@ def _kappa_cell(args: tuple) -> dict:
 
 def _marked_until(rng: random.Random, passed: tuple, failed: tuple, each: int) -> dict:
     """Marks in blocks of 5 from each of the judge's groups, (answers, share Correct) each,
-    drawn without putting back, until `each` Pass and Fail (or every answer marked): per group
+    drawn without putting back, until `each` Pass and Fail and targets.FIRST_GROUP marks in
+    each group (or every answer of a smaller group), or every answer marked: per group
     [marked, marked Pass]."""
     g = {"pass": [0, 0], "fail": [0, 0]}
     left = {name: [size, round(share * size)] for name, (size, share) in
             (("pass", passed), ("fail", failed))}
     while True:
         said_pass = g["pass"][1] + g["fail"][1]
-        if min(said_pass, g["pass"][0] + g["fail"][0] - said_pass) >= each or \
+        sizes = {"pass": passed[0], "fail": failed[0]}
+        if min(said_pass, g["pass"][0] + g["fail"][0] - said_pass) >= each and \
+                all(g[k][0] >= min(targets.FIRST_GROUP, sizes[k]) for k in g) or \
                 not any(size for size, _ in left.values()):
             return g
         for group in ("pass", "fail"):
@@ -631,8 +634,9 @@ def accuracy_markdown(acc: dict) -> list[str]:
                      f"{row['true']:.2f} | {_pct(row['coverage'])} | {_w(row['width'])} |")
     lines += ["", "### The real stopping rule", "",
               (f"{ACCURACY_RUNS:,} simulated markings per case: 5 from each of the "
-               f"LLM-as-a-judge's groups per block, until {FIRST} Pass and {FIRST} Fail (the "
-               f"first result), and until {RELIABLE} of each. How often the TPR and TNR ranges "
+               f"LLM-as-a-judge's groups per block, until {FIRST} Pass and {FIRST} Fail and "
+               f"{targets.FIRST_GROUP} marks in each group (the first result), and until "
+               f"{RELIABLE} of each. How often the TPR and TNR ranges "
                "hold the true value at the stop. Every range is shown, whatever its width."), "",
               "| pi | a | w | stop | TPR | TNR |",
               "|---|---|---|---|---|---|"]
