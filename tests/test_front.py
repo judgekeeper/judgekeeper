@@ -764,3 +764,9 @@ def test_few_fails_says_finding_fail_marks_can_take_many_marks():
 def test_otherwise_only_what_a_result_needs(fails, answers):
     assert front.needs_each_kind(fails=fails, answers=answers) == (
         "A result needs at least 15 answers you mark Pass and 15 you mark Fail.")
+
+
+def test_after_finds_few_fails_line_only_the_second_half():
+    assert front.needs_each_kind(fails=9, answers=100, said=True) == (
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail. Finding 15 "
+        "answers you mark Fail can take many marks.")

@@ -101,8 +101,9 @@ NEEDS_EACH_KIND = "A result needs at least {n} answers you mark Pass and {n} you
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
-FINDING_FAILS = ("Your LLM-as-a-judge failed only {f} of {answers} answers, so finding {n} "
-                 "answers you mark Fail can take many marks.")
+FINDING = "finding {n} answers you mark Fail can take many marks."
+FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
+FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
@@ -163,6 +164,7 @@ class FrontTalk(start.Talk):
         self.labels: str | None = None
         self.labels_read: list | None = None
         self.labels_from: str | None = None
+        self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
         self.refresh()
 
     def refresh(self) -> None:
@@ -1186,13 +1188,16 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
     return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
 
 
-def needs_each_kind(fails: int, answers: int) -> str:
+def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
-    FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many."""
-    said = NEEDS_EACH_KIND.format(n=targets.ROUGH)
+    FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
+    (`said`: Find said how few it failed in this run, so only that)."""
+    out = NEEDS_EACH_KIND.format(n=targets.ROUGH)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
-        said += " " + FINDING_FAILS.format(f=fails, answers=answers, n=targets.ROUGH)
-    return said
+        rest = FINDING.format(n=targets.ROUGH)
+        out += " " + (rest[:1].upper() + rest[1:] if said else
+                      FINDING_FAILS.format(f=fails, answers=answers, n=targets.ROUGH))
+    return out
 
 
 def passed_failed(n_pass: int, n_fail: int) -> str:
@@ -1340,6 +1345,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     if pool.answers:
         talk.say(passed_failed(pool.n_pass, pool.n_fail))
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
+        talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
     for others in (_other_files(found), _other_projects(found), _nested_here(found),
                    _outer_marks(found)):
@@ -1721,7 +1727,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     after = PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
         groups = list(session.groups.values())  # every answer to mark, each batch's too
-        talk.para(needs_each_kind(groups.count("fail"), len(groups)))
+        talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page

@@ -391,3 +391,27 @@ def test_start_marks_on_the_same_file(here, capsys, pages):
     r = save_result(ws, session, say=lambda line: None)
     assert r["labels"] == {"correct": 20, "wrong": 16}
     assert start.ROUGH == 15
+
+
+# Few fails: what step 2 says --------------------------------------------------------------
+
+FEW_FAILS_FIND = "Your LLM-as-a-judge failed only 5 of 100 answers. That may mean it passes too much"
+FINDING = "Finding 15 answers you mark Fail can take many marks."
+FULL = ("Your LLM-as-a-judge failed only 5 of 100 answers, so finding 15 answers you mark Fail "
+        "can take many marks.")
+
+
+def test_few_fails_said_by_find_step_2_says_only_the_rest(here, capsys, pages, no_browser):
+    promptfoo_project(here, split(95, 5), tag=TAG)
+    code, out, _err = run(capsys)
+    flat = _flat(out)
+    assert code == 0, out
+    assert FEW_FAILS_FIND in flat and FINDING in flat and FULL not in flat
+
+
+def test_mark_with_no_find_says_the_whole_few_fails_line(here, capsys, pages, no_browser):
+    promptfoo_project(here, split(95, 5), tag=TAG)
+    code, out, _err = run(capsys, "mark")
+    flat = _flat(out)
+    assert code == 0, out
+    assert FEW_FAILS_FIND not in flat and FULL in flat
