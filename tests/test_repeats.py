@@ -302,3 +302,47 @@ def test_the_page_shows_an_offered_repeat_next_and_sends_its_slot():
     assert got["listed"] == len(data["items"])  # never twice in the list
     assert got["sent"][:2] == [["a0", "pass", None], ["a0", "fail", 10]]
     assert got["back"] == "Question 0?" and got["sent"][2] == ["a0", None, 10]  # undo: the repeat
+
+
+def _until_offer(session):
+    """Mark answers in queue order until the server offers a repeat; (marks made, offer)."""
+    for k, item in enumerate(session.items):
+        session.update({"id": item["id"], "label": "pass" if k % 2 else "fail", "seconds": 3})
+        if session.offer:
+            return k + 1, session.offer
+    raise AssertionError("no repeat offered")
+
+
+def test_a_repeat_showing_when_the_page_closed_comes_first_on_the_next_page(ws):
+    _, offer = _until_offer(start_label.StartSession(ws))
+    state = start_label.StartSession(ws).state()  # the tab closed; `judgekeeper mark` again
+    first = state["items"][state["start"]]
+    assert first["id"] == offer["id"] and first["again"] == offer["slot"]
+    assert first["label"] is None and first["output"] == offer["output"]
+    assert [i["id"] for i in state["items"]].count(offer["id"]) == 2  # its own place too
+    assert state["total"] == len(start_label.StartSession(ws).items) + 1
+
+
+def test_that_repeat_can_be_marked_from_the_new_page_and_is_then_gone(ws):
+    _, offer = _until_offer(start_label.StartSession(ws))
+    page = start_label.StartSession(ws)
+    page.state()
+    page.update({"id": offer["id"], "label": "pass", "again": offer["slot"]})
+    assert marks.read(ws.marks).slots == {offer["slot"]}
+    state = start_label.StartSession(ws).state()
+    assert all("again" not in i for i in state["items"])
+
+
+def test_the_same_repeat_whichever_page_asks(ws):
+    session = start_label.StartSession(ws)
+    _, offer = _until_offer(session)
+    again = start_label.StartSession(ws)
+    again.state()
+    assert again.offered == {offer["slot"]: offer["id"]}
+
+
+def test_once_the_next_answer_is_marked_a_missed_repeat_is_not_shown(ws):
+    n, _ = _until_offer(start_label.StartSession(ws))
+    page = start_label.StartSession(ws)
+    page.update({"id": page.items[n]["id"], "label": "pass"})  # past it without the repeat
+    assert all("again" not in i for i in start_label.StartSession(ws).state()["items"])

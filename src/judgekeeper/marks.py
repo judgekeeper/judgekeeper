@@ -207,6 +207,7 @@ class Marks:
     # before it in the same sitting, by `at`: the timing when the page sent no `seconds`
     repeats: dict[str, dict] = field(default_factory=dict)  # answer id -> its last repeat line
     slots: set[int] = field(default_factory=set)  # the repeats' slots: each is shown once
+    line_of: dict[str, int] = field(default_factory=dict)  # answer id -> its last mark's line
 
     def counted(self) -> dict[str, str]:
         """{answer id: "pass" or "fail"}: the marks that count."""
@@ -266,6 +267,7 @@ def read(path: str | Path) -> Marks:
             out.last[x["id"]] = _with_reasons(before, x)
             if "reasons" not in x:  # a mark, not a reason line
                 _timed(out, x, last_at)
+                out.line_of[x["id"]] = n
         else:
             out.not_counted += 1
     # changed after the grades were shown, and not back to the mark it had then

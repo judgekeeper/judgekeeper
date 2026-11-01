@@ -679,7 +679,6 @@ class StartSession(LabelSession):
         self.seed = data.get("seed")
         self.offer: dict | None = None  # an answer to show again, in the answer to the last change
         self.offered: dict[int, str] = {}  # slot -> the answer this page was asked to show again
-        self.recent: list[str] = []  # the answers last marked on this page, newest last
         self.link: str | None = None  # marks.PRINTED once the page's link was printed with no terminal
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         self.changes = 0  # counts every change to the marks in memory
@@ -703,6 +702,8 @@ class StartSession(LabelSession):
         self.page_marked = {i for i, x in m.last.items()
                             if x["by"] == marks.BY and x["mark"] in ("pass", "fail")}
         self.slots, self.repeated = set(m.slots), set(m.repeats)
+        self.line_of = dict(m.line_of)  # answer id -> its last mark's place in marks.jsonl
+        self.lines = max(self.line_of.values(), default=0)
         for item in self.items:
             line = m.last.get(item["id"]) or {}
             mark = line.get("mark")
@@ -763,30 +764,38 @@ class StartSession(LabelSession):
                 self.page_marked.add(item["id"])
             else:
                 self.page_marked.discard(item["id"])
+            self.lines += 1
+            self.line_of[item["id"]] = self.lines
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
         if mark in ("pass", "fail") and before["label"] not in ("pass", "fail"):
-            self.recent = [*self.recent, item["id"]][-REPEAT_GAP:]
-            self.offer = self._due()
+            due = self._due()
+            if due is not None and due[0] not in self.offered:
+                self.offered[due[0]] = due[1]
+                self.offer = {**self._again(due[1]), "slot": due[0]}
 
-    def _due(self) -> dict | None:
-        """The answer to show again after this mark, as the page shows an answer (with its
-        `slot`), or None: one slot in each REPEAT_EVERY page marks from REPEAT_FROM on (where
-        in each is seeded), each slot once; an answer marked Pass or Fail on the page, not one
-        of the last REPEAT_GAP marked here and never shown again before."""
+    def _due(self) -> tuple[int, str] | None:
+        """(slot, answer) when an answer is to be shown again now, else None: one slot in each
+        REPEAT_EVERY page marks from REPEAT_FROM on (where in each is seeded), at the count of
+        answers marked Pass or Fail on the page, each slot once. The answer: one marked on the
+        page, not one of the last REPEAT_GAP marked (by marks.jsonl) and never shown again
+        before; the same whichever page asks."""
         page = sorted(i for i in self.page_marked if i in self.by_id)
         n = len(page)
         block = random.Random(f"{self.seed}:{n // REPEAT_EVERY}").randrange(REPEAT_EVERY)
-        if n < REPEAT_FROM or n % REPEAT_EVERY != block or n in self.slots or n in self.offered:
+        if n < REPEAT_FROM or n % REPEAT_EVERY != block or n in self.slots:
             return None
-        shown = self.repeated | set(self.offered.values()) | set(self.recent)
+        if n in self.offered:
+            return n, self.offered[n]
+        recent = sorted(page, key=lambda i: self.line_of.get(i, -1))[-REPEAT_GAP:]
+        shown = self.repeated | set(self.offered.values()) | set(recent)
         left = [i for i in page if i not in shown]
-        if not left:
-            return None
-        pick = random.Random(f"{self.seed}:{n}").choice(left)
-        self.offered[n] = pick
-        return {**self._shown(self.by_id[pick]), "label": None, "skipped": False, "slot": n}
+        return (n, random.Random(f"{self.seed}:{n}").choice(left)) if left else None
+
+    def _again(self, item_id: str) -> dict:
+        """An answer shown again, as the page shows any answer still to mark."""
+        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False}
 
     def _repeat(self, item: dict, body: dict) -> None:
         """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark."""
@@ -865,7 +874,11 @@ class StartSession(LabelSession):
         start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
         items = [self._shown(i) for i in shown]
-        return {"items": items, "total": len(self.items), "start": start,
+        due = self._due()  # shown again and not marked yet (the page closed): it comes first
+        if due is not None:
+            self.offered[due[0]] = due[1]
+            items.insert(start, {**self._again(due[1]), "again": due[0]})
+        return {"items": items, "total": len(self.items) + (due is not None), "start": start,
                 "counts": self.counts(), "status": self.current_status()}
 
 
