@@ -194,7 +194,8 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                     server = page_server(ws, port, flags, token=token, stamp=stamp)
                     return Page(server.url, server.port, server.token, server)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
-                            "link": stamp, "python_m": textio.started_with_python_m()}
+                            "link": stamp, "python_m": textio.started_with_python_m(),
+                            "program": textio.program()}
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None
@@ -369,6 +370,9 @@ def main() -> int:
         settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
                     "link": given.get("link")}
         textio._python_m = given.get("python_m") is True  # its commands say `python3 -P -m`
+        program = given.get("program")  # the run's own name for judgekeeper: the page says it
+        if isinstance(program, str) and program.isprintable() and 0 < len(program) < 4096:
+            textio._typed = program
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

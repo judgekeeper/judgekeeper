@@ -18,6 +18,7 @@ from judgekeeper import __version__, page, start_label, textio
 from judgekeeper.cli import version_lines
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import next_lines, run
+from tests.test_mark import _click
 
 UVX = f"uvx judgekeeper@{__version__}" if textio.is_prerelease() else "uvx judgekeeper"
 CACHES = ["/Users/me/.cache/uv/archive-v0/r-lOTHILJ6Qzv6Y1",
@@ -147,6 +148,7 @@ def test_mark_names_no_bare_command(here, capsys, by_uvx):
 def test_stop_and_start_over_name_uvx(here, capsys, by_uvx):
     records_project(here, split(16, 16), name="helpfulness")
     run(capsys, "--metric", "helpfulness")
+    _click(start_label.Workspace(here), 1)  # a mark to move: --new asks first
     code, out, _ = run(capsys, "--metric", "helpfulness", "--new")
     assert code == 3
     assert f"`{UVX} --metric helpfulness --new --yes`" in out

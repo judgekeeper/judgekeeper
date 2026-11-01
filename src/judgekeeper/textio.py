@@ -105,23 +105,111 @@ def started_with_python_m() -> bool:
     return _python_m or getattr(spec, "name", None) == "judgekeeper.__main__"
 
 
+# The marking page's own process: the program the run that started it names (page.main)
+_typed: str | None = None
+SCRIPT_NAMES = ("judgekeeper", "judgekeeper.exe", "judgekeeper-script.py")
+_imports: dict[str, bool] = {}
+
+
+def imports_judgekeeper(python: str) -> bool:
+    """Whether `python` on the PATH can import judgekeeper (asked once per program found)."""
+    import shutil
+
+    found = shutil.which(python)
+    if found is None:
+        return False
+    if found not in _imports:
+        try:
+            done = subprocess.run([found, "-P", "-c", "import judgekeeper"], timeout=30,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, check=False)
+            _imports[found] = done.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            _imports[found] = False
+    return _imports[found]
+
+
+def _started_as_judgekeeper() -> bool:
+    """Whether this process is `python -m judgekeeper` or the `judgekeeper` command itself
+    (not, say, a test runner that imported it)."""
+    typed = sys.argv[0] if sys.argv else ""
+    return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
+
+
+def command_path(path: str) -> str:
+    """`path` as a program to run from this folder, quoted: relative when the two share a
+    folder below the top, with a folder in it so the shell never looks it up on the PATH;
+    else under the home folder as `~/...` (`%USERPROFILE%\\...` on Windows, which cmd reads
+    inside quotes too): never the user name; else, or on another drive, the path as it is."""
+    try:
+        here = os.getcwd()
+        shared = os.path.commonpath([here, path])
+        shown = os.path.relpath(path, here)
+    except (OSError, ValueError):
+        return quote_arg(path)
+    if os.path.dirname(shared) != shared:  # more than the top in common: from here
+        if os.sep not in shown and "/" not in shown:
+            shown = os.path.join(os.curdir, shown)
+        return quote_arg(shown)
+    try:
+        home = os.path.realpath(Path.home())
+        inside = os.path.relpath(path, home)
+    except (OSError, RuntimeError, ValueError):
+        return quote_arg(path)
+    if inside == os.curdir or inside.startswith(os.pardir):
+        return quote_arg(path)
+    if is_windows():
+        rest = quote_arg(inside.replace("/", "\\"))
+        if rest == PLACEHOLDER or "%" in inside:  # held back: it can't be in a command
+            return quote_arg(path)
+        if rest.startswith('"'):
+            return '"%USERPROFILE%\\' + rest[1:]
+        return "%USERPROFILE%\\" + rest
+    return f"~/{quote_arg(inside)}"  # ~ outside the quotes: the shell reads it
+
+
+def off_path(any_start: bool = False) -> str | None:
+    """judgekeeper as it runs again when no `judgekeeper` command is on the PATH: the program
+    as typed when that was a path from here (`venv/bin/judgekeeper`); else `python3 -P -m
+    judgekeeper` when that python can import it (-P: a project's json.py never runs); else
+    the program's path from here. None when judgekeeper can't tell how it was started (and
+    not `any_start`)."""
+    if _typed is not None:
+        return _typed
+    typed = sys.argv[0] if sys.argv else ""
+    python_m = started_with_python_m()
+    script = not python_m and _started_as_judgekeeper()
+    if not (python_m or script or any_start):
+        return None
+    if script and not os.path.isabs(typed) and (os.path.isfile(typed)
+                                                 or os.path.isfile(typed + ".exe")):
+        return quote_arg(typed)
+    python = "py" if is_windows() else "python3"
+    if imports_judgekeeper(python):
+        return f"{python} -P -m judgekeeper"
+    if script:
+        return command_path(os.path.abspath(typed))
+    return f"{command_path(sys.executable)} -P -m judgekeeper"
+
+
 def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper` when uvx started it (uvx
     puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
     betas unless the version is named), with the extras it was started with (uvx_with);
-    `python3 -P -m judgekeeper` (`py` on Windows) when `python -m` started it and the
-    `judgekeeper` command is not on the PATH (-P: a project's json.py never runs); else
+    when the `judgekeeper` command is not on the PATH, the form that runs (off_path); else
     `judgekeeper`; then the subcommand."""
     import shutil
 
     from judgekeeper import __version__
 
     name = "judgekeeper"
-    if started_by_uvx():
+    if _typed is not None:
+        name = _typed
+    elif started_by_uvx():
         pin = f"@{__version__}" if is_prerelease() else ""
         name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
-    elif started_with_python_m() and not shutil.which("judgekeeper"):
-        name = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
+    elif _started_as_judgekeeper() and not shutil.which("judgekeeper"):
+        name = off_path() or name
     return f"{name} {subcommand}" if subcommand else name
 
 
