@@ -1239,36 +1239,61 @@ def _yaml_string(text) -> str:
                   lambda m: f"\\u{ord(m.group()):04x}", json.dumps(text, ensure_ascii=False))
 
 
-KEY_WORDS = {"key", "keys", "token", "secret", "secrets", "password", "passwords"}
+KEY_PARTS = ("key", "token", "secret", "password", "passwd", "credential", "auth", "bearer",
+             "cookie", "session")
 LEFT_OUT = ("# {name} left out: judgekeeper never writes keys to files. Set it the way your own "
             "config does.")
+_GONE = object()  # a value left out
 
 
 def _key_like(name: str) -> bool:
-    """A field named for a key: one of its words (apiKey, access_token, client-secret) is
-    KEY_WORDS. max_tokens is a count, not a token."""
-    words = re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name).lower())
-    return any(w in KEY_WORDS for w in words)
+    """A name that may hold a key: it contains any of KEY_PARTS, in any case (apiKey, apikey,
+    sessionToken, credentials, Authorization). Cautious on purpose."""
+    return any(part in name.lower() for part in KEY_PARTS)
 
 
-def _without_keys(config: dict, at: str = "") -> tuple[dict, list[str]]:
-    """(`config` without any field that may hold a key, the names of those left out): a field
-    named like a key, or a value judgekeeper hides as one (an Authorization header)."""
-    kept, left = {}, []
-    for name, value in config.items():
-        path = f"{at}{name}"
-        if _key_like(str(name)):
-            left.append(path)
-        elif isinstance(value, dict):
-            inner, gone = _without_keys(value, f"{path}.")
-            if inner or not gone:  # a block left empty by the keys goes too
-                kept[name] = inner
-            left += gone
-        elif scrub(json.dumps(value, ensure_ascii=False)) != json.dumps(value, ensure_ascii=False):
-            left.append(path)
-        else:
-            kept[name] = value
-    return kept, left
+def _names_a_key(value) -> bool:
+    """A {name: "x-api-key", value: ...} pair: its value is a key under a plain field name."""
+    return isinstance(value, dict) and any(
+        isinstance(value.get(f), str) and _key_like(value[f]) for f in ("name", "header"))
+
+
+def _clean(value, path: str, left: list[str]):
+    """`value` without anything that may hold a key (each one's path added to `left`), or
+    _GONE: a field named like a key (unless its value is a number or true/false: a key never
+    is), a dict or list holding a {name: <key-like>} pair, and any text judgekeeper hides as a
+    key. A dict or list emptied by that goes too."""
+    if isinstance(value, dict):
+        kept, before = {}, len(left)
+        for name, v in value.items():
+            at = f"{path}.{name}" if path else str(name)
+            if (_key_like(str(name)) and not isinstance(v, int | float)) or _names_a_key(v) or (
+                    isinstance(v, list) and any(_names_a_key(x) for x in v)):
+                left.append(at)
+                continue
+            v = _clean(v, at, left)
+            if v is not _GONE:
+                kept[name] = v
+        return _GONE if not kept and len(left) > before and value else kept
+    if isinstance(value, list):
+        out, before = [], len(left)
+        for i, v in enumerate(value):
+            v = _clean(v, f"{path}[{i}]", left)
+            if v is not _GONE:
+                out.append(v)
+        return _GONE if not out and len(left) > before else out
+    if isinstance(value, str) and scrub(value) != value:
+        left.append(path)
+        return _GONE
+    return value
+
+
+def _without_keys(config: dict) -> tuple[dict, list[str]]:
+    """(`config` without any field that may hold a key, the paths of those left out, as
+    headers[0].value): _clean."""
+    left: list[str] = []
+    kept = _clean(config, "", left)
+    return ({} if kept is _GONE else kept), left
 
 
 def _promptfoo_assertion(ws: Workspace, data: dict) -> tuple[str, str | None] | None:

@@ -52,7 +52,7 @@ defaultTest:
       value: Your new rule. The question was {{question}}.
 ```
 
-Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret or password in it, or a value that looks like a key): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
+Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
 
 For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
 

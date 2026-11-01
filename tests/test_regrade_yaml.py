@@ -368,3 +368,23 @@ def test_the_docs_say_when_no_regrade_file_is_written():
             "is a named provider") in docs
     assert ("For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no "
             "file and prints the steps instead.") in docs
+
+
+def test_any_field_that_may_hold_a_key_is_left_out():
+    config = {"temperature": 0, "maxTokens": 512, "max_tokens": 300, "apiBaseUrl": "http://x/v1",
+              "apikey": SECRET, "secretkey": SECRET, "sessionToken": SECRET,
+              "credentials": {"type": "service_account", "client_email": "a@b.c"},
+              "Authorization": "x", "bearer": "x", "cookie": "x", "passwd": "x",
+              "useAuth": True, "deployment": "support-4o",
+              "headers": [{"name": "x-api-key", "value": "abc"}],
+              "extra": [{"privateKey": SECRET, "region": "eu"}, "plain", BEARER],
+              "nested": {"deep": [{"items": [{"api_KEY_value": SECRET, "n": 1}]}]}}
+    kept, left = fix._without_keys(config)
+    assert kept == {"temperature": 0, "maxTokens": 512, "max_tokens": 300,
+                    "apiBaseUrl": "http://x/v1", "useAuth": True, "deployment": "support-4o",
+                    "extra": [{"region": "eu"}, "plain"],
+                    "nested": {"deep": [{"items": [{"n": 1}]}]}}
+    assert left == ["apikey", "secretkey", "sessionToken", "credentials", "Authorization",
+                    "bearer", "cookie", "passwd", "headers", "extra[0].privateKey", "extra[2]",
+                    "nested.deep[0].items[0].api_KEY_value"]
+    assert SECRET not in json.dumps(kept) and "abc" not in json.dumps(kept)
