@@ -5,31 +5,37 @@
 # Holds: ids, grades and counts only; no article or summary
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0
+judgekeeper 1.0.2
 
 Step 3 of 5: Measure
 
-178 of your marks took under a second each. A result is only as
+183 of your marks took under a second each. A result is only as
 good as the marks. This looks like a program, not a person.
 
-200 of your marks came through a link printed in a terminal, so
-another program on this computer could have made them. If you
+200 of your marks came through a link printed with no terminal,
+so another program on this computer could have made them. If you
 marked them yourself, nothing to do.
+
+You saw 1 answer twice and marked it the same way both times.
 
 Result: your LLM-as-a-judge needs work.
 You and your LLM-as-a-judge disagreed on 38 of 200 answers.
 
-  You passed 100 answers. Of those, your LLM-as-a-judge passed 71 and failed 29.
-  You failed 100 answers. Of those, your LLM-as-a-judge passed 9 and failed 91.
+  You passed 100 answers. Of those, your LLM-as-a-judge passed
+  71 and failed 29.
+  You failed 100 answers. Of those, your LLM-as-a-judge passed 9
+  and failed 91.
 
-Tell judgekeeper why you disagree on these 38: run
+Tell judgekeeper why you disagree on these 18: run
 `judgekeeper mark --no-browser`.
-`judgekeeper fix --no-browser` uses your reasons to find where
-your LLM-as-a-judge goes wrong.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 71% (between 64% and 78%)
-  When you say Fail, it also says Fail: about 91% (between 85% and 95%)
+  When you say Pass, it also says Pass: 71% (you marked every answer)
+  When you say Fail, it also says Fail: 91% (you marked every answer)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

@@ -5,11 +5,11 @@
 # Holds: ids, grades and counts only; no passage, data, question or answer
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0
+judgekeeper 1.0.2
 
 Step 3 of 5: Measure
 
-190 of your marks took under a second each. A result is only as
+184 of your marks took under a second each. A result is only as
 good as the marks. This looks like a program, not a person.
 
 200 of your marks came through a link printed with no terminal,
@@ -30,8 +30,10 @@ Tell judgekeeper why you disagree on these 31: run
 LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 39% (between 34% and 44%)
-  When you say Fail, it also says Fail: about 98% (between 94% and 100%)
+  When you say Pass, it also says Pass: 39% (you marked every answer)
+  When you say Fail, it also says Fail: 98% (you marked every answer)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

@@ -2,7 +2,7 @@
 
 This check runs judgekeeper's normal steps on the second kind of task in RAGTruth: overviews of local businesses (from Yelp), written from a block of structured JSON data. Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 overviews with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
 
-judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of overviews people failed that the setup also failed was 98% (94% to 100%) for A and 97% (92% to 99%) for B. The share of overviews people passed that it also passed was 39% (34% to 44%) for A and 65% (58% to 72%) for B.
+judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of overviews people failed that the setup also failed was 98% for A and 97% for B. The share of overviews people passed that it also passed was 39% for A and 65% for B.
 
 ## The setup
 
@@ -11,14 +11,14 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`): "Every claim in the overview is supported by the data. Pass if every claim is supported by the data. Fail if any claim is not supported by the data or contradicts it." It is the news-summary rule with "overview" and "data" in place of "summary" and "article". The data is shown to the LLM-as-a-judge as the JSON the writing model was given; nothing else was added.
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
 - **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
-- **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`.
+- **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
 
 ## How often each LLM-as-a-judge agrees with people
 
 | LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
 |---|---|---|---|---|
-| A (Haiku 5.5), run 1 | about 39% (34% to 44%) | about 98% (94% to 100%) | 63 of 200 | needs work |
-| B (Sonnet 5.5), run 1 | about 65% (58% to 72%) | about 97% (92% to 99%) | 38 of 200 | needs work |
+| A (Haiku 5.5), run 1 | 39% | 98% | 63 of 200 | needs work |
+| B (Sonnet 5.5), run 1 | 65% | 97% | 38 of 200 | needs work |
 
 The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`).
 
@@ -28,11 +28,11 @@ The news-summary check found two things: the setups failed most of what people f
 
 | Task | A: Pass also Pass | A: Fail also Fail | B: Pass also Pass | B: Fail also Fail |
 |---|---|---|---|---|
-| News summaries ([report](../ragtruth/report.md)) | about 66% (59% to 73%) | about 89% (83% to 94%) | about 68% (61% to 75%) | about 90% (84% to 95%) |
-| This task | about 39% (34% to 44%) | about 98% (94% to 100%) | about 65% (58% to 72%) | about 97% (92% to 99%) |
+| News summaries ([report](../ragtruth/report.md)) | 66% | 89% | 68% | 90% |
+| This task | 39% | 98% | 65% | 97% |
 
-- **Failing what people failed holds.** On data-to-text the setups failed 98% (94% to 100%) and 97% (92% to 99%) of the overviews people failed.
-- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%, range 58% to 72%) is close to its summary one (68%, range 61% to 75%). A passed 39% (34% to 44%) of the overviews people passed, so it failed about six in ten. The ranges do not overlap (34% to 44% against 59% to 73% on summaries), so this is a real gap in this sample. We did not look into why; a strict reading of "supported by the data" is one guess.
+- **Failing what people failed holds.** On data-to-text the setups failed 98% and 97% of the overviews people failed.
+- **"About one in three good ones failed" holds for setup B, not for setup A.** B's Pass column (65%) is close to its summary one (68%). A passed 39% of the overviews people passed, so it failed about six in ten. That is 27 points below its 66% on summaries, a real gap in these samples. We did not look into why; a strict reading of "supported by the data" is one guess.
 - **Same result, same advice:** "needs work" in both runs. For setup A, the first step would be the same as before: most mistakes are good overviews failed, so the rule may be too strict for it.
 
 ## Limits

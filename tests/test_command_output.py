@@ -449,7 +449,7 @@ def test_one_range_form_everywhere():
     for name in ("README.md", "docs/reference.md", "website/index.html"):
         text = (ROOT / name).read_text(encoding="utf-8")
         assert not re.search(r"could be \d+%", text), name
-    assert '"about 90% (between 84% and 93%)"' in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert '"about 90% (between 85% and 93%)"' in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
