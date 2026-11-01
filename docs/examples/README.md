@@ -2,7 +2,7 @@
 
 One line per folder: what it is, the commit it ran on, the model and the date.
 
-- **`coverage/`**: how often judgekeeper's ranges hold the true value, on simulated checks. Made by `scripts/coverage_check.py`; numbers from commit `d71d89c`; no model; 2026-11-01.
+- **`coverage/`**: how often judgekeeper's ranges hold the true value, on simulated checks. Made by `scripts/coverage_check.py`; numbers from commit `8b5a71f`; no model; 2026-11-01.
 - **`jailbreakbench/`**: judgekeeper's steps on JailbreakBench's judge-comparison set, checked against the experts' labels. 100 draws of 100 marks on commit `7ec7a5e`, two batches (250 marks per draw) on `bc0d099`, one draw on `6437d85` (first run `e3052c7`); GPT-4 (`openai:gpt-4-0613`), its grades taken from the dataset; 2026-10-27 (two batches 2026-10-25, one draw 2026-10-21, first run 2026-10-17).
 - **`jailbreakbench-setups/`**: judgekeeper's steps on the same JailbreakBench set, with two Claude LLM-as-a-judge setups grading the 300 answers and the experts' majority as the marks, 1 run each. Commit `bfc3606`; Claude Haiku 5.5 and Claude Sonnet 5.5; 2026-10-30.
 - **`kept-aside/`**: what `fix` says on simulated new rules whose true effect is known, through its own split and verdict. Made by `scripts/kept_aside_check.py`; numbers from commit `d71d89c`; no model; 2026-11-01.

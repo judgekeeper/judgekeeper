@@ -11,7 +11,7 @@ only that page may connect back (LIVE_CSP). report.html shows the reasons read-o
 The marks kept aside are counted, never shown: fix.py keeps them to test a new rule fairly.
 Which parts show depends on the result's level (targets.level): What next once there is a
 result (the fix command only when the LLM-as-a-judge needs work), and only the counts before
-there is a result (too_early). In an answer or a question only `**bold**` and "- " lines are
+there is a result (too_few). In an answer or a question only `**bold**` and "- " lines are
 formatted (_rich); a row with a reason box keeps its answer as plain text, because the box
 counts characters of it.
 """
@@ -23,7 +23,7 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS
+from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, WIDER
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -590,10 +590,9 @@ def next_step(r: dict) -> str | None:
 
 
 def shows_disagreements(r: dict) -> bool:
-    """Whether the page lists the disagreements (and the estimates): real numbers, not too
-    early to tell."""
-    level = r.get("verdict_level") if r["check"] != "too_few" else None
-    return level not in ("too_early", None)
+    """Whether the page lists the disagreements (and the estimates): whenever there is a
+    result, too early to tell too."""
+    return r["check"] != "too_few"
 
 
 def _all_marked(r: dict) -> str:
@@ -645,8 +644,12 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     else:
         then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
+    from judgekeeper.labels import gate_line
+
+    gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
+    gate = f'<p class="lead">{_term(gate)}</p>' if gate else ""
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-            f'class="{cls}">{_term(headline)}</h1><p class="lead">{lead}</p></section>')
+            f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -693,12 +696,13 @@ def _counts(r: dict, c: dict) -> str:
         row += (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on '
                 f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
                 'left out.</p>')
-    from judgekeeper.labels import assumes_line
+    from judgekeeper.labels import assumes_line, looks_off_line
     from judgekeeper.start_label import second_thoughts
 
     assumes = assumes_line(r.get("imported"))  # marks brought with --labels
+    off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
     thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
-    for line in ([assumes] if assumes else []) + thoughts:
+    for line in [x for x in (assumes, off) if x] + thoughts:
         row += f'<p class="left-out band">{_term(line)}</p>'
     return row
 
@@ -1085,7 +1089,8 @@ def _main_lines(r: dict) -> str:
             f'with you"><table class="panel"><caption>{_caption(r)}</caption>'
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table></section>")
+            f"</tr></thead><tbody>{body}</tbody></table>"
+            f'<p class="note wider">{_e(WIDER)}</p></section>')
 
 
 def _details(r: dict) -> str:

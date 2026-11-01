@@ -244,9 +244,9 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
 
 # What a result needs, said up front -----------------------------------------------------------
 
-NEEDS = ("A result needs at least 15 answers you mark Pass and 15 you mark Fail. If your "
-         "LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can "
-         "take many marks.")
+NEEDS = ("A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks on "
+         "answers your LLM-as-a-judge passed and 20 on answers it failed. If your LLM-as-a-judge "
+         "fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.")
 
 
 def test_the_reference_says_what_a_result_needs_near_its_top():
@@ -259,7 +259,8 @@ def test_the_reference_says_what_a_result_needs_near_its_top():
 def test_the_readmes_measure_step_says_what_a_result_needs():
     from judgekeeper import front, targets
 
-    assert NEEDS.startswith(front.NEEDS_EACH_KIND.format(n=targets.ROUGH) + " If ")
+    first = front.NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    assert NEEDS.startswith(first + " If ")
     assert f"under {front.FEW_FAILS:.0%} of the answers" in NEEDS
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))

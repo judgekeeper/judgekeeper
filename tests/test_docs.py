@@ -133,8 +133,9 @@ def test_the_readme_says_where_its_coverage_figures_are():
     assert ("The average is the chosen level's Average, in the report's first table. The lowest, "
             f"{again * 100:.1f}, is after grading again with 10 marks in each group, in batches "
             "(table \"Batches\"). Before grading again, the lowest is "
-            f"{lowest}, when marking stops at 15 Pass and 15 Fail (table \"The real stopping "
-            "rule\").") in reference
+            f"{lowest}, when marking stops as early as it can: 15 of your Passes, 15 of "
+            "your Fails, and 20 marks on answers your LLM-as-a-judge passed and 20 on "
+            "answers it failed (table \"The real stopping rule\").") in reference
 
 
 def test_the_readme_keeps_to_the_agreed_words():

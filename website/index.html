@@ -100,7 +100,8 @@ Fail.
 Step 2 of 5: Mark
 
 A result needs at least 15 answers you mark Pass and 15 you mark
-Fail.
+Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed.
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -132,7 +133,8 @@ Fail.
 Step 2 of 5: Mark
 
 A result needs at least 15 answers you mark Pass and 15 you mark
-Fail.
+Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed.
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -160,12 +162,12 @@ judgekeeper 1.0.2
 Step 3 of 5: Measure
 
 Result: your LLM-as-a-judge needs work.
-You and your LLM-as-a-judge disagreed on 16 of 30 answers.
+You and your LLM-as-a-judge disagreed on 16 of 37 answers.
 
-  You passed 15 answers. Of those, your LLM-as-a-judge passed 7
+  You passed 20 answers. Of those, your LLM-as-a-judge passed 12
   and failed 8.
-  You failed 15 answers. Of those, your LLM-as-a-judge passed 8
-  and failed 7.
+  You failed 17 answers. Of those, your LLM-as-a-judge passed 8
+  and failed 9.
 
 Tell judgekeeper why you disagree on these 8: run
 `judgekeeper mark`.
@@ -173,8 +175,10 @@ Tell judgekeeper why you disagree on these 8: run
 LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 54% (between 35% and 72%)
-  When you say Fail, it also says Fail: about 39% (between 23% and 58%)
+  When you say Pass, it also says Pass: about 63% (between 52% and 70%)
+  When you say Fail, it also says Fail: about 49% (between 38% and 66%)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
@@ -193,7 +197,7 @@ Where your LLM-as-a-judge goes wrong:
   you said Fail. In the other 4, it said Fail where you said
   Pass.
   When it said Pass and you said Fail, the answers are long
-  (about 10 words, against 6).
+  (about 12 words, against 8).
 
 All 8 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
@@ -202,8 +206,8 @@ hand it to a coding agent to help you write one.
 Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
   "The answer solves the customer's problem and is polite."
 
-16 of your marks are kept aside to test your new rule fairly.
-.judgekeeper/fix/marked-answers.csv holds all 30 marked answers,
+19 of your marks are kept aside to test your new rule fairly.
+.judgekeeper/fix/marked-answers.csv holds all 37 marked answers,
 questions and answers only, so you can't tell which are kept
 aside.
 
@@ -224,13 +228,13 @@ Step 4 of 5: Fix (testing your new rule)
 
 New results: new-rule.json
 
-Your LLM-as-a-judge, tested on the 16 marks kept aside:
+Your LLM-as-a-judge, tested on the 19 marks kept aside:
   Old rule:
-    When you say Pass: agrees on 4 of 8
-    When you say Fail: agrees on 4 of 8
+    When you say Pass: agrees on 6 of 10
+    When you say Fail: agrees on 5 of 9
   New rule:
-    When you say Pass: agrees on 8 of 8
-    When you say Fail: agrees on 8 of 8
+    When you say Pass: agrees on 10 of 10
+    When you say Fail: agrees on 9 of 9
   With the new rule, 8 answers went from wrong to right, and
   none from right to wrong.
 
@@ -253,11 +257,13 @@ Your LLM-as-a-judge's model changed:
 Result: worse. Your new LLM-as-a-judge agrees with you less.
 
 Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
-  When you said Pass    7 of 15              1 of 15              Worse
-  When you said Fail    7 of 15              7 of 15              Not sure
+  When you said Pass    12 of 20             6 of 20              Worse
+  When you said Fail    9 of 17              9 of 17              No big drop
 
-On answers you pass, agreement drops by about 40 in every 100
-(somewhere between 19 and 61).
+On answers you pass, agreement drops by about 30 in every 100
+(somewhere between 15 and 48).
+On answers you fail, no drop, though these marks can't rule out
+one of up to 18 in every 100.
 
 One run, so a small change may be chance.
 

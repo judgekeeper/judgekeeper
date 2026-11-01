@@ -831,6 +831,9 @@ def _handler(server: LabelServer):
                                  or f"could not write {server.session.out}: {e}"})
                 return
             summary = server.session.summary()
+            pop_up = getattr(server.session, "pop_up", None)
+            if pop_up is not None and pop_up(summary["status"]):
+                summary["popup"] = True
             self._json(200, {"summary": summary})
             if server.stays:
                 return

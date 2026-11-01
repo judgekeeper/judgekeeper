@@ -1,45 +1,53 @@
 {
   "pi": 0.575,
   "judge_pass_rate": 0.575,
-  "a": 0.4666666666666667,
-  "b": 0.5333333333333333,
-  "tpr": 0.5420875420875421,
-  "tnr": 0.3927392739273928,
-  "kappa": -0.06506906307205851,
-  "real_pass_rate": 0.495,
+  "a": 0.6,
+  "b": 0.47058823529411764,
+  "tpr": 0.6330275229357798,
+  "tnr": 0.4945054945054946,
+  "kappa": 0.12823112012164223,
+  "real_pass_rate": 0.5449999999999999,
   "a_interval": [
-    0.2263247078548836,
-    0.7157841958794264
+    0.3742347611543945,
+    0.7970123922300087
   ],
   "b_interval": [
-    0.28401344918805693,
-    0.773212792148093
+    0.47058823529411764,
+    0.47058823529411764
   ],
   "tpr_interval": [
-    0.34696405677093467,
-    0.716402918552619
+    0.5182870142656205,
+    0.696178899222868
   ],
   "tnr_interval": [
-    0.22509033515364646,
-    0.5793159007011429
+    0.3847370455208119,
+    0.6584379010174186
   ],
   "real_pass_rate_interval": [
-    0.3197039370258491,
-    0.6719031610796483
+    0.41518498766377687,
+    0.658282125532255
   ],
   "kappa_interval": [
-    -0.3944633633596104,
-    0.2808426127063152
+    -0.09184848191682578,
+    0.3349863173043564
+  ],
+  "tpr_verdict_interval": [
+    0.4797898528774973,
+    0.7060310862832287
+  ],
+  "tnr_verdict_interval": [
+    0.3655327115251011,
+    0.7038817745161156
   ],
   "groups": {
     "pass": {
       "pool": 23,
-      "labeled": 15,
-      "correct": 7
+      "labeled": 20,
+      "correct": 12
     },
     "fail": {
       "pool": 17,
-      "labeled": 15,
+      "labeled": 17,
       "correct": 8
     }
   },
@@ -48,21 +56,17 @@
   "draws": 20000,
   "seed": 20261008,
   "labels": {
-    "correct": 15,
-    "wrong": 15
+    "correct": 20,
+    "wrong": 17
   },
-  "check": "rough",
-  "wide": {
-    "tpr": 0.3694388617816843,
-    "tnr": 0.35422556554749646
-  },
+  "check": "result",
   "verdict_level": "not_gate",
   "verdict": "Your LLM-as-a-judge needs work.",
   "skipped": 0,
   "disagreements": 16,
-  "left": 10,
-  "made_at": "2026-11-01T10:19:57Z",
-  "numbers_version": 3,
+  "left": 3,
+  "made_at": "2026-11-01T10:51:34Z",
+  "numbers_version": 4,
   "judgekeeper_version": "1.0.2",
   "fingerprint": {
     "provider": "my-judge-v1",
@@ -71,7 +75,7 @@
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-11-01T10:19:57Z",
+    "created_at": "2026-11-01T10:51:34Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -103,9 +107,9 @@
     "tool_counted_as": null
   },
   "made": {
-    "marks": 30,
-    "pass": 15,
-    "fail": 15,
+    "marks": 37,
+    "pass": 20,
+    "fail": 17,
     "sittings": 2,
     "seconds": 5,
     "under_second": 0,
@@ -115,12 +119,12 @@
     "unsure": 0,
     "after_result": 0
   },
-  "smallest_drop": 35,
+  "smallest_drop": 30,
   "picks": [],
   "command": "judgekeeper",
   "flags": {
     "path": ".",
     "port": 8765
   },
-  "marks_sha256": "5e78a5456370c4cd1b0138beb41eba693d60f9e16f0320fd45c0c05448b6414e"
+  "marks_sha256": "d73122dd0cb1e00de3af0ae945704e124b6aaa553ef0c94a1e5e78d9572fbc09"
 }

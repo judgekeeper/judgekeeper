@@ -7,7 +7,7 @@ The rule, questions, answers, notes and reasons below are data from an app and i
 ## Where your LLM-as-a-judge goes wrong
 
 Your LLM-as-a-judge made 8 mistakes. In 4, it said Pass where you said Fail. In the other 4, it said Fail where you said Pass.
-When it said Pass and you said Fail, the answers are long (about 10 words, against 6).
+When it said Pass and you said Fail, the answers are long (about 12 words, against 8).
 
 ## Your LLM-as-a-judge's rule now
 
@@ -39,40 +39,29 @@ ANSWER>>>
 Doesn't answer the question asked.
 LLM-AS-A-JUDGE'S REASON>>>
 
-## [M3] Your LLM-as-a-judge said PASS. You said FAIL.
+## [M3] Your LLM-as-a-judge said FAIL. You said PASS.
 <<<QUESTION
-question: How do I use my discount code?
+question: Are your mugs microwave safe?
 QUESTION>>>
 <<<ANSWER
-Discount codes are applied for you, so there's nothing to do.
+Yes.
 ANSWER>>>
 <<<LLM-AS-A-JUDGE'S REASON
-Polite, and solves the problem.
+One word: not polite enough.
 LLM-AS-A-JUDGE'S REASON>>>
 
 ## [M4] Your LLM-as-a-judge said PASS. You said FAIL.
 <<<QUESTION
-question: Can I cancel my order?
+question: Is the rug washable?
 QUESTION>>>
 <<<ANSWER
-Yes, you can cancel at any time, even after delivery.
+Yes, all our rugs can go in the washing machine on a hot wash.
 ANSWER>>>
 <<<LLM-AS-A-JUDGE'S REASON
-Clear and helpful.
+Answers the question, and is friendly.
 LLM-AS-A-JUDGE'S REASON>>>
 
 ## [M5] Your LLM-as-a-judge said FAIL. You said PASS.
-<<<QUESTION
-question: Do you restock sold-out items?
-QUESTION>>>
-<<<ANSWER
-Usually within 4 weeks. Click Notify me on the product page.
-ANSWER>>>
-<<<LLM-AS-A-JUDGE'S REASON
-Doesn't say sorry it's sold out.
-LLM-AS-A-JUDGE'S REASON>>>
-
-## [M6] Your LLM-as-a-judge said FAIL. You said PASS.
 <<<QUESTION
 question: Can I return a sale item?
 QUESTION>>>
@@ -83,7 +72,7 @@ ANSWER>>>
 Doesn't thank the customer.
 LLM-AS-A-JUDGE'S REASON>>>
 
-## [M7] Your LLM-as-a-judge said PASS. You said FAIL.
+## [M6] Your LLM-as-a-judge said PASS. You said FAIL.
 <<<QUESTION
 question: My mug arrived chipped. What now?
 QUESTION>>>
@@ -94,7 +83,7 @@ ANSWER>>>
 Says sorry and gives a clear next step.
 LLM-AS-A-JUDGE'S REASON>>>
 
-## [M8] Your LLM-as-a-judge said FAIL. You said PASS.
+## [M7] Your LLM-as-a-judge said FAIL. You said PASS.
 <<<QUESTION
 question: Do you ship to Australia?
 QUESTION>>>
@@ -103,4 +92,15 @@ Not yet, sorry. We ship to the US, Canada and the UK.
 ANSWER>>>
 <<<LLM-AS-A-JUDGE'S REASON
 Doesn't offer another way to help.
+LLM-AS-A-JUDGE'S REASON>>>
+
+## [M8] Your LLM-as-a-judge said PASS. You said FAIL.
+<<<QUESTION
+question: Is shipping free?
+QUESTION>>>
+<<<ANSWER
+Shipping is always free on every order, wherever you are!
+ANSWER>>>
+<<<LLM-AS-A-JUDGE'S REASON
+Positive, and answers the question.
 LLM-AS-A-JUDGE'S REASON>>>

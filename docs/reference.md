@@ -17,7 +17,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--new | --wait | --stop] [--version] [--debug]
 ```
 
-Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
+Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed. If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
 
 | What is there | What `judgekeeper` does |
 |---|---|
@@ -88,6 +88,10 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 **Running it again** adds only what is new. An answer you already marked keeps your mark, from the page or an earlier import; judgekeeper says how many it kept. You can change an imported mark on the page.
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
+
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
+
+Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
@@ -185,9 +189,11 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 **What it says.** One result line, from the ranges:
 
-- "Your LLM-as-a-judge is good enough to use." when the low end of both ranges is at least 80%;
-- "Your LLM-as-a-judge needs work." when a range stays below 80%;
+- "Your LLM-as-a-judge is good enough to use." when the low end of both wider ranges (99%) is at least 80%;
+- "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
 - "Too early to tell. Mark more answers to get a result." otherwise.
+
+The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it.
 
 ## What it reads
 
@@ -293,6 +299,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `server.json`, `page.json` | The open page: port, process, token, and a secret that only closes it. Removed when it stops |
 | `page.log` | What the page wrote in the background |
 | `opening` | Empty: a run is opening the page |
+| `ready-seen.json` | When the marking page first showed a result, so the "Your result is ready." box opens only once |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
 | `history/` | Earlier results, with the same fields as `result.json` |
 | `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
@@ -329,7 +336,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 - **RAGTruth, two more tasks.** Two of those setups (A and B) graded 200 question answers and 200 data-to-text overviews, 1 run each. judgekeeper said "needs work" in all 4 runs. Of the answers people passed, the setup also passed 61% (54% to 68%) for A and 58% (51% to 65%) for B on question answers, and 39% (34% to 44%) and 65% (58% to 72%) on data-to-text; of the answers people failed, it also failed 95% (90% to 98%) and 97% (92% to 99%), and 98% (94% to 100%) and 97% (92% to 99%). [Question answers](examples/ragtruth-qa/report.md), [data-to-text](examples/ragtruth-data2txt/report.md)
 - **JailbreakBench, graded by two other setups.** The same 300 answers were graded by two LLM-as-a-judge setups (A and B), with the three experts' majority as the marks. judgekeeper said "needs work" for both. Of the answers the experts passed, the setup also passed 98% (96% to 100%) for A and 99% (97% to 100%) for B; of the answers the experts failed, it also failed 43% (37% to 49%) and 32% (27% to 39%). The model provider declined to grade 6 answers for A and 61 for B, and judgekeeper leaves those out. For the dataset's own LLM-as-a-judge the same two figures are 90.0% (84.9% to 93.5%) and 90.9% (84.1% to 95.0%). [Report](examples/jailbreakbench-setups/report.md)
 - **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](examples/probes/report.md)
-- **Simulation.** In made-up checks, the ranges held the true value as often as the level asks. The average is the chosen level's Average, in the report's first table. The lowest, 91.6, is after grading again with 10 marks in each group, in batches (table "Batches"). Before grading again, the lowest is 93.5, when marking stops at 15 Pass and 15 Fail (table "The real stopping rule"). [Coverage check](examples/coverage/coverage.md)
+- **Simulation.** In made-up checks, the ranges held the true value as often as the level asks. The average is the chosen level's Average, in the report's first table. The lowest, 91.6, is after grading again with 10 marks in each group, in batches (table "Batches"). Before grading again, the lowest is 93.2, when marking stops as early as it can: 15 of your Passes, 15 of your Fails, and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (table "The real stopping rule"). [Coverage check](examples/coverage/coverage.md)
 
 The tests run on Linux, Windows and macOS.
 

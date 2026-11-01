@@ -157,7 +157,7 @@ def test_the_page_never_holds_the_judges_verdict(workspace):
     try:
         data = _page_data(server)
         assert set(data) == {"items", "total", "start", "counts", "status"}
-        assert set(data["status"]) == {"text", "ready"}
+        assert set(data["status"]) == {"text", "first", "ready", "headline"}
         for item in data["items"]:
             assert set(item) == {"id", "input", "output", "label", "skipped"}
         page = server.page()[0]
@@ -305,20 +305,20 @@ def _result(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
 
 def test_the_verdict_levels_follow_the_ranges():
     green = _result(500, 500, 50, 50, 50, 0)
-    amber = _result(500, 500, 15, 13, 15, 2)       # 87% each side, ranges reach below 80%
+    amber = _result(500, 500, 20, 17, 20, 3)       # 85% each side, ranges reach below 80%
     red = _result(500, 500, 40, 38, 40, 24)        # many answers it failed should pass
-    early = _result(900, 100, 15, 15, 15, 0)       # the Fail side's range is too wide
+    early = _result(900, 100, 20, 20, 20, 0)       # the Fail side's range is wide: no colour
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
     assert green["verdict"] == "Your LLM-as-a-judge is good enough to use."
     assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."
     assert red["verdict"] == "Your LLM-as-a-judge needs work."
-    assert early["verdict_level"] == "too_early"
+    assert early["verdict_level"] == "check"  # a wide range is never too early by itself
     assert early["verdict"] == "Too early to tell. Mark more answers to get a result."
     assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert start_label.sentences(too_few) == [
         "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
-    assert [r["check"] for r in (amber, too_few)] == ["reliable", "too_few"]
-    assert _result(100, 100, 50, 48, 50, 2)["check"] == "reliable"
+    assert [r["check"] for r in (amber, too_few)] == ["result", "too_few"]
+    assert _result(100, 100, 50, 48, 50, 2)["check"] == "result"
 
 
 # 900 passes and 100 fails in the pool, 25 marked in each group, 24 and 1 marked Pass: 25

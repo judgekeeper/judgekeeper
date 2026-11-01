@@ -22,6 +22,10 @@ import random
 # never assumed: the first of 0.95, 0.96 and 0.97 whose ranges hold the true TPR, TNR and real
 # pass rate at least 93 times in 100 in every cell of the grid and 95 in 100 on average.
 LEVEL = 0.96  # 0.95 held the true value only 91.6 times in 100 in its lowest cell
+# The wider ranges the coloured verdict uses (good enough / needs work), from the same draws:
+# the person can look after every mark, and at 0.96 a lucky streak seen on one of many looks
+# said "good enough" up to 10.6 times in 100 for an LLM-as-a-judge just under the bar.
+VERDICT_LEVEL = 0.99
 DRAWS = 20_000  # enough that another seed moves no range by more than about 0.01
 SEED = 20261008
 
@@ -114,10 +118,12 @@ def stratified(strata: list[tuple[int, str, int, int, int]], level: float = LEVE
     out = {"pi": pi, "judge_pass_rate": pi, **point}
     for key in ("a", "b", "tpr", "tnr", "real_pass_rate", "kappa"):
         out[f"{key}_interval"] = middle(samples.get(key), level, point[key])
+    for key in ("tpr", "tnr"):
+        out[f"{key}_verdict_interval"] = middle(samples.get(key), VERDICT_LEVEL, point[key])
     if (n_pool_pass == 0) != (n_pool_fail == 0):  # one grade for every answer: TPR and TNR
         for key in ("tpr", "tnr"):  # are known exactly (1 and 0, or 0 and 1)
-            out[f"{key}_interval"] = [point[key], point[key]] if point[key] is not None \
-                else [None, None]
+            known = [point[key], point[key]] if point[key] is not None else [None, None]
+            out[f"{key}_interval"] = out[f"{key}_verdict_interval"] = known
     groups = {}
     for g in ("pass", "fail"):
         labeled, correct = (sum(s[i] for s in strata if s[1] == g) for i in (3, 4))
@@ -324,11 +330,14 @@ def general_strata(items: list[tuple], pool: dict, level: float = LEVEL, draws: 
     if any(pool[g] > 0 and not xs for g, xs in by_group.items()):
         for key in keys:  # a group of the judge with nothing counted: unknown, as in corrected
             out[key], out[f"{key}_interval"] = None, [None, None]
+            out[f"{key}_verdict_interval"] = [None, None]
         out["kappa"], out["kappa_interval"] = None, [None, None]
     else:
         drawn = _general_draws(by_group, pool, draws, seed)
         for key in (*keys, "kappa"):
             out[f"{key}_interval"] = middle(drawn[key], level, out[key])
+        for key in keys:
+            out[f"{key}_verdict_interval"] = middle(drawn[key], VERDICT_LEVEL, out[key])
     out.update(interval_methods=methods, level=level, draws=draws, seed=seed,
                strata={_name(g): {"pool": pool[g], "labeled": len(by_group[g])} for g in pool})
     return out

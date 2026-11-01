@@ -9,7 +9,23 @@ import pytest
 from judgekeeper import label
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
-from tests.test_fix_mlflow_lines import mlruns  # noqa: F401  (40 graded traces)
+from tests.test_fix_mlflow_lines import STORE
+
+
+@pytest.fixture(scope="module")
+def mlruns46(tmp_path_factory):
+    """A real MLflow folder store of 46 graded traces (23 passed, 23 failed), so 20 marks in
+    each group leave answers to mark."""
+    import subprocess
+    import sys
+
+    pytest.importorskip("mlflow")
+    build = tmp_path_factory.mktemp("mlruns-46")
+    (build / "make_store.py").write_text(STORE.replace("range(40)", "range(46)"),
+                                         encoding="utf-8")
+    subprocess.run([sys.executable, "make_store.py"], cwd=build, check=True,
+                   capture_output=True)
+    return build / "mlruns"
 
 
 @pytest.fixture
@@ -101,15 +117,18 @@ def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsy
         from judgekeeper.readers import mlflow_store
 
         monkeypatch.setattr(mlflow_store, "_walked", {})
-        shutil.copytree(request.getfixturevalue("mlruns"), tmp_path / "mlruns")
+        shutil.copytree(request.getfixturevalue("mlruns46"), tmp_path / "mlruns")
         request.addfinalizer(mlflow_store.remove_copies)
     else:
-        table_project(tmp_path, split(20, 20))
+        table_project(tmp_path, split(23, 23))
     found = start.find_judge(tmp_path)
     judge_setup.save(start_label.Workspace(tmp_path), judge_setup.of(found), found.metric)
     ws = start_label.prepare(found, say=lambda line="": None)
     session = StartSession(ws)
-    for q in ws.data()["queue"][:34]:  # 6 left to mark
+    queue = ws.data()["queue"]
+    # 20 in each group, 6 left to mark
+    picked = [q for g in ("pass", "fail") for q in [x for x in queue if x["group"] == g][:20]]
+    for q in picked:
         session.update({"id": q["id"], "label": q["group"], "seconds": 5})
     real = label.LabelServer.serve
 

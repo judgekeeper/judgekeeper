@@ -302,7 +302,9 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     assert cell >= first  # so "the lowest" before grading again is the first result's
     assert (f'The lowest, {pct(lowest)}, is after grading again with 10 marks in each group, in '
             f'batches (table "Batches"). Before grading again, the lowest is {pct(first)}, when '
-            'marking stops at 15 Pass and 15 Fail') in _flat(ROOT / "docs" / "reference.md")
+            'marking stops as early as it can: 15 of your Passes, 15 of your Fails, and 20 '
+            'marks on answers your LLM-as-a-judge passed and 20 on answers it failed') in _flat(
+        ROOT / "docs" / "reference.md")
     simulated = f"the ranges held the true value {pct(level['mean'])} times in 100 on average"
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links

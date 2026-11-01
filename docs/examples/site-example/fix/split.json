@@ -1,45 +1,52 @@
 {
   "set": 1,
   "seed": 7,
-  "made_at": "2026-11-01T10:19:57Z",
+  "made_at": "2026-11-01T10:51:34Z",
   "visible": [
     "05b81752ba3d4a6d",
+    "05bbe4f57f751a11",
     "0cf06d4681565c46",
     "1a168efd803560a2",
-    "65ecce0946ab4783",
-    "8f20882321a9c28b",
-    "a600be9301cf60e4",
+    "34cb880baa7221a4",
+    "4386d00c60679155",
+    "4a054f35a1d72058",
+    "4acd57627a5f73ca",
+    "7393bed195c040f1",
+    "8d17fba324cc5901",
     "ab7fb2e7bc07a9cb",
-    "ae9bc15defd8a962",
+    "b8c5ea519a356bbe",
     "bc4fd2506a03f30f",
     "cde9576b291a7556",
     "ced8b85a098ca588",
     "dde3e9fda926e739",
-    "e1b0d9c413095b4c",
-    "e4a6b06906a27d63"
+    "eedcf8bd3b3aedf7",
+    "f12c36d9ad384438"
   ],
   "hidden": [
-    "05bbe4f57f751a11",
     "16a66c92583cc261",
     "2f71ab8300b9b24a",
     "39c55aefff2d315d",
-    "4a054f35a1d72058",
-    "4acd57627a5f73ca",
+    "65ecce0946ab4783",
     "7c7a0f9a7ee838a9",
-    "8d17fba324cc5901",
+    "8636d32e405cf3e6",
     "8d8df9300fc229c7",
+    "8f20882321a9c28b",
+    "a3aa32487f6aa49f",
     "a4550127d03377b8",
-    "b8c5ea519a356bbe",
+    "a600be9301cf60e4",
+    "ae9bc15defd8a962",
     "c125268f2f64db13",
+    "ceacc2d4707558fd",
+    "e1b0d9c413095b4c",
     "e42d60f45afc2a20",
-    "eedcf8bd3b3aedf7",
-    "f12c36d9ad384438",
-    "f62985cfbc901d12"
+    "e4a6b06906a27d63",
+    "f62985cfbc901d12",
+    "f8a22fc1e2a70f4e"
   ],
   "tests": [
     {
       "kind": "rule",
-      "time": "2026-11-01T10:19:58Z",
+      "time": "2026-11-01T10:51:34Z",
       "rule_hash": "sha256:102261537cf975dc2f3cd03a28f9c47a868103a6e80dc3846f84b2d08b3e52d6",
       "setup_hash": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
       "key": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
@@ -47,8 +54,8 @@
         "setup_hash": "sha256:04fefb41f80b66a0829df6d0f678a35f66b40cc8f3410b3c4f37be41e25a3371",
         "rule_hash": "sha256:375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67"
       },
-      "n": 16,
-      "hidden": 16,
+      "n": 19,
+      "hidden": 19,
       "fixed": 8,
       "broke": 0,
       "verdict": "better",
@@ -58,18 +65,18 @@
           17,
           4,
           0,
-          8
+          9
         ],
         [
           23,
           4,
           0,
-          8
+          10
         ]
       ],
       "file": "new-rule.json"
     }
   ],
   "pass_mark": null,
-  "sha256": "52b635a78858ea9da135cc2ce9e35d16079c2da4cbf33d653bf0d16f662e2fe6"
+  "sha256": "5114b22214a777a5f14093a3f5f06896804915df3a1fc3f5f11713a5957044f7"
 }

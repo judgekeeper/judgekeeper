@@ -477,14 +477,17 @@ def _kappa_cell(args: tuple) -> dict:
 
 def _marked_until(rng: random.Random, passed: tuple, failed: tuple, each: int) -> dict:
     """Marks in blocks of 5 from each of the judge's groups, (answers, share Correct) each,
-    drawn without putting back, until `each` Pass and Fail (or every answer marked): per group
+    drawn without putting back, until `each` Pass and Fail and targets.FIRST_GROUP marks in
+    each group (or every answer of a smaller group), or every answer marked: per group
     [marked, marked Pass]."""
     g = {"pass": [0, 0], "fail": [0, 0]}
     left = {name: [size, round(share * size)] for name, (size, share) in
             (("pass", passed), ("fail", failed))}
     while True:
         said_pass = g["pass"][1] + g["fail"][1]
-        if min(said_pass, g["pass"][0] + g["fail"][0] - said_pass) >= each or \
+        sizes = {"pass": passed[0], "fail": failed[0]}
+        if min(said_pass, g["pass"][0] + g["fail"][0] - said_pass) >= each and \
+                all(g[k][0] >= min(targets.FIRST_GROUP, sizes[k]) for k in g) or \
                 not any(size for size, _ in left.values()):
             return g
         for group in ("pass", "fail"):
@@ -499,25 +502,20 @@ def _marked_until(rng: random.Random, passed: tuple, failed: tuple, each: int) -
 
 
 def _stopping(args: tuple) -> dict:
-    """One case under the real stopping rule: coverage of TPR and TNR at the stop, and at
-    the first result the share of each width word."""
+    """One case under the real stopping rule: coverage of TPR and TNR at the stop."""
     pi, a, w, each = args
     rng = random.Random(SEED + int(pi * 100) + int(a * 1000) + int(w * 10000) + each)
     n_pass, n_fail = pool_counts(pi)
     true = truth(n_pass / POOL, real(a, n_pass), real(1 - w, n_fail))
     hits = {"tpr": 0, "tnr": 0}
-    words = {"tpr": {}, "tnr": {}}
     for _ in range(ACCURACY_RUNS):
         g = _marked_until(rng, (n_pass, a), (n_fail, 1 - w), each)
         r = weighted.corrected(n_pass, n_fail, *g["pass"], *g["fail"], draws=4000)
         for k in ("tpr", "tnr"):
             lo, hi = r[f"{k}_interval"]
             hits[k] += lo is not None and lo - 1e-12 <= true[k] <= hi + 1e-12
-            word = str(targets.width_word(r[f"{k}_interval"]) or "plain")
-            words[k][word] = words[k].get(word, 0) + 1
     return {"pi": pi, "a": a, "w": w, "each": each,
-            "coverage": {k: v / ACCURACY_RUNS for k, v in hits.items()},
-            "words": {k: {x: c / ACCURACY_RUNS for x, c in v.items()} for k, v in words.items()}}
+            "coverage": {k: v / ACCURACY_RUNS for k, v in hits.items()}}
 
 
 def _green(args: tuple) -> dict:
@@ -636,26 +634,21 @@ def accuracy_markdown(acc: dict) -> list[str]:
                      f"{row['true']:.2f} | {_pct(row['coverage'])} | {_w(row['width'])} |")
     lines += ["", "### The real stopping rule", "",
               (f"{ACCURACY_RUNS:,} simulated markings per case: 5 from each of the "
-               f"LLM-as-a-judge's groups per block, until {FIRST} Pass and {FIRST} Fail (the "
-               f"first result), and until {RELIABLE} of each. How often the TPR and TNR ranges "
-               "hold the true value at the stop, and at the first result how often each width "
-               "word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over "
-               "20; Sharp: 20 or less)."), "",
-              "| pi | a | w | stop | TPR | TNR | TPR words | TNR words |",
-              "|---|---|---|---|---|---|---|---|"]
-    names = {"too_wide": "not enough", "rough": "rough", "plain": "plain", "sharp": "sharp",
-             "exact": "exact"}
+               f"LLM-as-a-judge's groups per block, until {FIRST} Pass and {FIRST} Fail and "
+               f"{targets.FIRST_GROUP} marks in each group (the first result), and until "
+               f"{RELIABLE} of each. How often the TPR and TNR ranges "
+               "hold the true value at the stop. Every range is shown, whatever its width."), "",
+              "| pi | a | w | stop | TPR | TNR |",
+              "|---|---|---|---|---|---|"]
     for row in acc["stopping"]:
-        said = {k: ", ".join(f"{names[x]} {v:.0%}" for x, v in sorted(row["words"][k].items()))
-                for k in ("tpr", "tnr")}
         lines.append(f"| {row['pi']:.0%} | {row['a']} | {row['w']} | {row['each']} + "
                      f"{row['each']} | {_pct(row['coverage']['tpr'])} | "
-                     f"{_pct(row['coverage']['tnr'])} | {said['tpr']} | {said['tnr']} |")
+                     f"{_pct(row['coverage']['tnr'])} |")
     lines += ["", "### How often the verdict is green", "",
               (f"{ACCURACY_RUNS:,} simulated markings per case, stopped at {FIRST} + {FIRST} and "
-               f"at {RELIABLE} + {RELIABLE}. Green needs the low end of both ranges at 80% or "
-               "more, so an LLM-as-a-judge whose weaker side is 80% or less should rarely be "
-               "green. In percent."), "",
+               f"at {RELIABLE} + {RELIABLE}. Green needs the low end of both wider ranges (the "
+               f"middle {weighted.VERDICT_LEVEL:.0%}) at 80% or more, so an LLM-as-a-judge whose "
+               "weaker side is 80% or less should rarely be green. In percent."), "",
               "| LLM-as-a-judge passes | TPR | TNR | stop | green |",
               "|---|---|---|---|---|"]
     for row in acc["green"]:
@@ -946,11 +939,11 @@ def markdown(result: dict) -> str:
     lines += ["", "## Another seed", "",
               (f"With {s['draws']:,} draws, {s['seeds']} other seeds moved a range end by at "
               f"most {s['largest_change']:.4f} on the counts tried."), "",
-              "## When is a check reliable?", "",
+              "## How wide the ranges are", "",
               (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block as "
               f"`judgekeeper` picks, until {RELIABLE} Correct and {RELIABLE} Wrong. "
               "The share whose TPR and TNR ranges are both no wider than each width, and the "
-              f"average widths. The width judgekeeper uses: {targets.MAX_WIDTH:.2f}."), "",
+              "average widths. No rule in judgekeeper follows a range's width."), "",
               "| pi | a | w | " + " | ".join(f"≤ {m:.2f}" for m in WIDTHS)
               + " | TPR width | TNR width |",
               "|---|---|---|" + "---|" * (len(WIDTHS) + 2)]

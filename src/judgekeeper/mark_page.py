@@ -21,6 +21,7 @@ narrower) the card comes first, then the list.
 
 from __future__ import annotations
 
+import json
 from html import escape
 
 from judgekeeper import look, targets
@@ -68,11 +69,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .seg { display: flex; gap: 3px; }
 .seg i { display: block; width: 6px; height: 10px; background: var(--line); }
 .seg i.on { background: var(--text); }
-.count { font-family: var(--mono); font-size: 13px; }
+.count { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
 .progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
   white-space: normal; text-align: right; }
-.see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none; }
+.see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none;
+  white-space: nowrap; }
 .see:hover { text-decoration: underline; }
 .wrap { flex: 1; display: grid; grid-template-columns: 400px 1fr; min-height: 0;
   height: calc(100vh - 72px); }
@@ -276,7 +278,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-left: 16px; padding-right: 16px; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
-  .progress-box { width: 100%; align-items: flex-end; }
+  .progress-box { width: 100%; align-items: flex-end; scroll-margin-top: 8px; }
+  /* the link drops under the bar when the three don't fit on one line */
+  .status-1 { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
 }
 """
 
@@ -316,7 +320,7 @@ __TOP__
   <div class="intro" id="ready-box" role="dialog" aria-modal="true" aria-labelledby="ready-title" tabindex="-1">
     __BRAND__
     <h2 id="ready-title">Your result is ready.</h2>
-    <p class="note">More marks make it more precise.</p>
+    <p class="note" id="ready-note"></p>
     <a class="go" id="ready-see" href="#">See your result</a>
     <button type="button" class="quiet" id="ready-keep">Keep marking</button>
   </div>
@@ -326,6 +330,7 @@ __TOP__
 "use strict";
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, ROUGH = __ROUGH__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
+  var WORDS = __WORDS__;  // the link and the line under the bar (_words)
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -426,14 +431,16 @@ __TOP__
     $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
-  // On a phone the card comes first, then the list: the card is scrolled into view (at once under
-  // reduced motion). Wider, the card is next to the list and stays where it is.
+  // On a phone the card comes first, then the list: the bar, which sits before the card, is
+  // scrolled to the top, so its link and line show with the card (at once under reduced
+  // motion). Wider, the card is next to the list and stays where it is.
   function media(query) { return !!(window.matchMedia && window.matchMedia(query).matches); }
   function focusCard() {
     var to = ended ? $("end") : card;
     to.focus({preventScroll: true});
-    if (media("(max-width: 760px)") && to.scrollIntoView) {
-      to.scrollIntoView({behavior: media("(prefers-reduced-motion: reduce)") ? "auto" : "smooth",
+    var into = ended ? to : $("progress-box");
+    if (media("(max-width: 760px)") && into.scrollIntoView) {
+      into.scrollIntoView({behavior: media("(prefers-reduced-motion: reduce)") ? "auto" : "smooth",
                          block: "start"});
     }
   }
@@ -686,14 +693,15 @@ __TOP__
     walkingSkipped = false; open(+a.getAttribute("data-k")); focusCard();
   });
 
-  // The bar: how close the result is (Pass and Fail marks, each up to ROUGH; a skipped answer
-  // counts for nothing); the count: the marks. The link to the result once the server says one
-  // is ready, and, from FIRST answers looked at until then, one calm line under the bar.
+  // The bar: how close the first numbers are (Pass and Fail marks, each up to ROUGH; a skipped
+  // answer counts for nothing); the count: the marks. The link from the first numbers on ("See
+  // the numbers so far" until a coloured verdict, then "See your result"), and, from FIRST
+  // answers looked at until a coloured verdict, one calm line under the bar.
   function renderProgress() {
     var marked = counts.correct + counts.wrong;
     var looked = marked + (counts.skipped || 0);
     // the bar follows how close the result is: Pass and Fail marks, each up to ROUGH
-    var share = status.ready ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
+    var share = status.first ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
       Math.min(counts.wrong, ROUGH)) / (2 * ROUGH), 0.9);
     var bar = $("progress"), on = Math.round(share * SEGMENTS);
     Array.prototype.forEach.call(bar.children, function (cell, i) {
@@ -702,8 +710,11 @@ __TOP__
     bar.setAttribute("aria-valuetext", looked === 1 ? "1 answer looked at" :
       looked + " answers looked at");
     setText("count", marked + " marked");
-    $("see").hidden = !status.ready;
-    $("keep").hidden = status.ready || looked < FIRST;
+    var see = $("see"), keep = $("keep");
+    see.hidden = !status.first;
+    see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
+    keep.hidden = status.ready || (!status.first && looked < FIRST);
+    keep.textContent = status.first ? WORDS.first : WORDS.wait;
   }
 
   function render() {
@@ -813,12 +824,11 @@ __TOP__
     }).then(function (res) {
       clearTimeout(waited);
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
-      var wasReady = status.ready;
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       showAgain(res.body.summary.again);
       then();
-      if (status.ready && !wasReady && !readyShown && !ended) { showReady(); }
+      if (res.body.summary.popup && !readyShown && !ended) { showReady(); }
       while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
       clearTimeout(waited); queued = [];
@@ -922,13 +932,14 @@ __TOP__
     else if (e.key === "Tab") { e.preventDefault(); $("intro-ok").focus(); }
   });
 
-  // The result-ready box: once, when the result turns ready while this page is open (not when
-  // it opens already ready). The page behind it is inert. Esc is "Keep marking"; Tab stays
+  // The result-ready box: once, when the result first turns ready (the server says so with
+  // `popup`; not when the page opens already ready, nor after a reload or on another page). The page behind it is inert. Esc is "Keep marking"; Tab stays
   // between its two buttons.
   var readyShown = false, readyBox = $("ready-box");
   $("ready-see").setAttribute("href", url("/result"));
   function showReady() {
     readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
+    setText("ready-note", status.headline || "");
     $("ready").hidden = false; $("app").setAttribute("inert", "");
     readyBox.focus();
   }
@@ -960,19 +971,31 @@ __TOP__
 
 
 KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
+SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
+SEE_READY = "See your result"
 
 
 def _progress() -> str:
     """The top bar's right: the segments by how close the result is, the count of marks, and
     the link to the result (hidden until one is ready); under them, hidden until it is
     wanted, the line that says to keep going."""
-    return ('<div class="progress-box"><div class="status-1"><div class="seg" id="progress" '
+    return ('<div class="progress-box" id="progress-box"><div class="status-1"><div class="seg" id="progress" '
             'role="progressbar" aria-label="How close your result is" aria-valuemin="0" '
             'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
-            '<a class="see" id="see" href="#" hidden>See your result</a></div>'
+            f'<a class="see" id="see" href="#" hidden>{escape(SEE_READY)}</a></div>'
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
+
+
+def _words() -> str:
+    """The link's and the line's words, as the page's script reads them: before the first
+    numbers, from them until a coloured verdict, and with one."""
+    from judgekeeper.start_label import FIRST_NUMBERS
+
+    words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
+             "seeReady": SEE_READY}
+    return json.dumps(words).replace("<", "\\u003c")
 
 
 def _shown(value: str) -> str:
@@ -1024,7 +1047,7 @@ def label_page(description: str | None, command: str | None = None,
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
-            .replace("__SEGMENTS__", str(SEGMENTS))
+            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)

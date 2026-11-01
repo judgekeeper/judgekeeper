@@ -755,7 +755,8 @@ def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, 
 
 def test_few_fails_says_finding_fail_marks_can_take_many_marks():
     assert front.needs_each_kind(fails=9, answers=100) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail. Your "
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "on answers your LLM-as-a-judge passed and 20 on answers it failed. Your "
         "LLM-as-a-judge failed only 9 of 100 answers, so finding 15 answers you mark Fail can "
         "take many marks.")
 
@@ -763,10 +764,12 @@ def test_few_fails_says_finding_fail_marks_can_take_many_marks():
 @pytest.mark.parametrize(("fails", "answers"), [(10, 100), (50, 100), (0, 0), (0, 40)])
 def test_otherwise_only_what_a_result_needs(fails, answers):
     assert front.needs_each_kind(fails=fails, answers=answers) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail.")
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "on answers your LLM-as-a-judge passed and 20 on answers it failed.")
 
 
 def test_after_finds_few_fails_line_only_the_second_half():
     assert front.needs_each_kind(fails=9, answers=100, said=True) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail. Finding 15 "
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "on answers your LLM-as-a-judge passed and 20 on answers it failed. Finding 15 "
         "answers you mark Fail can take many marks.")

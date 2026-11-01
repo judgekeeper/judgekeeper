@@ -52,14 +52,16 @@ def _counting(monkeypatch, module, name):
 def test_the_ranges_are_drawn_once_per_change_not_per_request(tmp_path, monkeypatch):
     ws, session = _page(tmp_path, n=60)
     queue = ws.data()["queue"]
-    for n, q in enumerate(queue[:32]):  # past the count rule: the status draws ranges
+    passed = [q for q in queue if q["group"] == "pass"]
+    failed = [q for q in queue if q["group"] == "fail"]  # 20: all of them
+    for n, q in enumerate(passed[:21] + failed):  # past the count rule: the status draws ranges
         session.update({"id": q["id"], "label": ("pass", "fail")[n % 2]})
     draws = _counting(monkeypatch, weighted, "stratified")
     for _ in range(5):  # GET /state, GET / and the status a POST answers with
         session.state()
         session.summary()
     assert len(draws) == 1
-    session.update({"id": queue[32]["id"], "label": "pass"})
+    session.update({"id": passed[21]["id"], "label": "pass"})
     session.summary()
     session.state()
     assert len(draws) == 2
@@ -72,7 +74,8 @@ def test_no_range_is_drawn_before_there_are_enough_marks(tmp_path, monkeypatch):
         session.update({"id": q["id"], "label": "pass"})
         before = session.summary()["status"]
     assert draws == []
-    assert before == {"text": start_label.VERDICTS[None], "ready": False}
+    assert before == {"text": start_label.VERDICTS[None], "first": False, "ready": False,
+                      "headline": None}
 
 
 def test_start_json_is_read_once_while_it_does_not_change(tmp_path, monkeypatch):

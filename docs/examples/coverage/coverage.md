@@ -255,9 +255,9 @@ Lowest cell per number, before → now: TPR 92.4 → 96.4; TNR 53.8 → 95.9. Ka
 
 With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the counts tried.
 
-## When is a check reliable?
+## How wide the ranges are
 
-1,000 simulated labelings per case, 5 from each group per block as `judgekeeper` picks, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. The width judgekeeper uses: 0.30.
+1,000 simulated labelings per case, 5 from each group per block as `judgekeeper` picks, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. No rule in judgekeeper follows a range's width.
 
 | pi | a | w | ≤ 0.25 | ≤ 0.30 | ≤ 0.35 | ≤ 0.40 | TPR width | TNR width |
 |---|---|---|---|---|---|---|---|---|
@@ -306,26 +306,26 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ### The real stopping rule
 
-1,000 simulated markings per case: 5 from each of the LLM-as-a-judge's groups per block, until 15 Pass and 15 Fail (the first result), and until 25 of each. How often the TPR and TNR ranges hold the true value at the stop, and at the first result how often each width word is said (Not enough marks yet: over 40 points; Rough: over 30; plain: over 20; Sharp: 20 or less).
+1,000 simulated markings per case: 5 from each of the LLM-as-a-judge's groups per block, until 15 Pass and 15 Fail and 20 marks in each group (the first result), and until 25 of each. How often the TPR and TNR ranges hold the true value at the stop. Every range is shown, whatever its width.
 
-| pi | a | w | stop | TPR | TNR | TPR words | TNR words |
-|---|---|---|---|---|---|---|---|
-| 50% | 0.85 | 0.85 | 15 + 15 | 93.6 | 93.5 | plain 83%, rough 12%, sharp 5% | plain 84%, rough 10%, sharp 6% |
-| 50% | 0.85 | 0.85 | 25 + 25 | 96.0 | 95.2 | plain 75%, sharp 25% | plain 73%, sharp 27% |
-| 70% | 0.85 | 0.85 | 15 + 15 | 94.3 | 94.8 | plain 2%, sharp 98% | plain 4%, rough 47%, not enough 49% |
-| 70% | 0.85 | 0.85 | 25 + 25 | 97.6 | 95.9 | sharp 100% | plain 6%, rough 94%, sharp 0% |
-| 90% | 0.85 | 0.85 | 15 + 15 | 96.8 | 95.7 | sharp 100% | plain 6%, rough 10%, sharp 1%, not enough 83% |
-| 90% | 0.85 | 0.85 | 25 + 25 | 99.1 | 96.1 | sharp 100% | plain 13%, rough 29%, sharp 0%, not enough 58% |
-| 50% | 0.95 | 0.95 | 15 + 15 | 98.7 | 98.6 | plain 46%, rough 0%, sharp 53% | plain 41%, rough 0%, sharp 59% |
-| 50% | 0.95 | 0.95 | 25 + 25 | 98.6 | 98.7 | plain 4%, sharp 96% | plain 3%, sharp 97% |
-| 70% | 0.95 | 0.6 | 15 + 15 | 97.4 | 97.4 | sharp 100% | plain 23%, rough 8%, not enough 69% |
-| 70% | 0.95 | 0.6 | 25 + 25 | 97.2 | 98.0 | sharp 100% | plain 18%, rough 70%, sharp 10%, not enough 1% |
-| 90% | 0.95 | 0.6 | 15 + 15 | 98.7 | 98.6 | sharp 100% | plain 0%, rough 1%, not enough 99% |
-| 90% | 0.95 | 0.6 | 25 + 25 | 99.2 | 97.4 | sharp 100% | plain 0%, rough 4%, not enough 96% |
+| pi | a | w | stop | TPR | TNR |
+|---|---|---|---|---|---|
+| 50% | 0.85 | 0.85 | 15 + 15 | 95.4 | 93.2 |
+| 50% | 0.85 | 0.85 | 25 + 25 | 96.0 | 95.2 |
+| 70% | 0.85 | 0.85 | 15 + 15 | 95.0 | 93.5 |
+| 70% | 0.85 | 0.85 | 25 + 25 | 97.6 | 95.9 |
+| 90% | 0.85 | 0.85 | 15 + 15 | 96.6 | 94.7 |
+| 90% | 0.85 | 0.85 | 25 + 25 | 99.1 | 96.1 |
+| 50% | 0.95 | 0.95 | 15 + 15 | 99.0 | 98.0 |
+| 50% | 0.95 | 0.95 | 25 + 25 | 98.6 | 98.7 |
+| 70% | 0.95 | 0.6 | 15 + 15 | 97.4 | 97.4 |
+| 70% | 0.95 | 0.6 | 25 + 25 | 97.2 | 98.0 |
+| 90% | 0.95 | 0.6 | 15 + 15 | 98.7 | 98.4 |
+| 90% | 0.95 | 0.6 | 25 + 25 | 99.2 | 97.4 |
 
 ### How often the verdict is green
 
-1,000 simulated markings per case, stopped at 15 + 15 and at 25 + 25. Green needs the low end of both ranges at 80% or more, so an LLM-as-a-judge whose weaker side is 80% or less should rarely be green. In percent.
+1,000 simulated markings per case, stopped at 15 + 15 and at 25 + 25. Green needs the low end of both wider ranges (the middle 99%) at 80% or more, so an LLM-as-a-judge whose weaker side is 80% or less should rarely be green. In percent.
 
 | LLM-as-a-judge passes | TPR | TNR | stop | green |
 |---|---|---|---|---|
@@ -333,10 +333,10 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 | 90% | 98% | 75% | 25 + 25 | 0.0 |
 | 90% | 98% | 80% | 15 + 15 | 0.0 |
 | 90% | 98% | 80% | 25 + 25 | 0.0 |
-| 50% | 75% | 95% | 15 + 15 | 0.4 |
+| 50% | 75% | 95% | 15 + 15 | 0.1 |
 | 50% | 75% | 95% | 25 + 25 | 0.0 |
-| 50% | 80% | 95% | 15 + 15 | 2.6 |
-| 50% | 80% | 95% | 25 + 25 | 1.2 |
+| 50% | 80% | 95% | 15 + 15 | 0.2 |
+| 50% | 80% | 95% | 25 + 25 | 0.2 |
 
 ### After grading again, an LLM-as-a-judge that turns grades round
 

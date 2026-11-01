@@ -341,8 +341,19 @@ def test_the_same_repeat_whichever_page_asks(ws):
     assert again.offered == {offer["slot"]: offer["id"]}
 
 
-def test_once_the_next_answer_is_marked_a_missed_repeat_is_not_shown(ws):
-    n, _ = _until_offer(start_label.StartSession(ws))
+@pytest.mark.parametrize("seed", [None, 402])  # 402: the next mark is a new repeat's slot
+def test_once_the_next_answer_is_marked_a_missed_repeat_is_not_shown(tmp_path, monkeypatch,
+                                                                    seed):
+    if seed is not None:
+        monkeypatch.setattr(start_label.secrets, "randbelow", lambda n: seed)
+    promptfoo_project(tmp_path, split(150, 150))
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    n, missed = _until_offer(start_label.StartSession(ws))
     page = start_label.StartSession(ws)
     page.update({"id": page.items[n]["id"], "label": "pass"})  # past it without the repeat
-    assert all("again" not in i for i in start_label.StartSession(ws).state()["items"])
+    again = [i for i in start_label.StartSession(ws).state()["items"] if "again" in i]
+    # the missed slot is gone; its answer, never marked a second time, may come back in a later
+    # slot as any answer may
+    assert all(i["again"] != missed["slot"] for i in again)
+    if seed is not None:  # a repeat whose own slot came due is shown, the missed one is not
+        assert [i["again"] for i in again] == [missed["slot"] + 1]

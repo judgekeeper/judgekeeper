@@ -257,7 +257,7 @@ def real_screens(root, capsys, monkeypatch) -> dict[str, list[str]]:
                  ("fail", "fail", 2)], person)
     run("mark")
     _mark(root, [("pass", "pass", 3), ("fail", "pass", 4), ("pass", "fail", 6),
-                 ("fail", "fail", 5)], person)
+                 ("fail", "fail", 7), ("pass", "pass", 5)], person)  # 20 and all 17
     run("measure")
     # Home's Measure screen links its report: keep that step's report as it was then
     kept = root / MEASURE_STEP
@@ -359,9 +359,9 @@ def test_site_example_report_is_the_measure_step():
     assert len([q for q, *_ in SHOP if q in text]) == 8  # 4 shown of each kind of mistake
     for gone in ("Last check", "old LLM-as-a-judge", "new LLM-as-a-judge"):
         assert gone not in text, gone
-    for number in ("16 of 30 answers", "You passed 15 answers. It passed 7 and failed 8",
-                   "You failed 15 answers. It passed 8 and failed 7", "about 54% 35% and 72%",
-                   "about 39% 23% and 58%", "−0.07"):
+    for number in ("16 of 37 answers", "You passed 20 answers. It passed 12 and failed 8",
+                   "You failed 17 answers. It passed 8 and failed 9", "about 63% 52% and 70%",
+                   "about 49% 38% and 66%", "0.13 −0.09 and 0.33"):
         assert number in text, number
     readme = (SITE_EXAMPLE / "README.md").read_text(encoding="utf-8")
     assert "Measure step" in readme

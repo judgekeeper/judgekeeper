@@ -100,8 +100,15 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
-TOO_FEW_TO_TELL = " The ranges are still too wide to tell."  # enough of each: not a count
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
+# The marking page, once there is a coloured verdict (good enough or needs work) and, from the
+# first numbers (ROUGH of each kind) until then, the line under its bar
+READY = "Your result is ready."
+FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
+# Under the two main lines on the result page and in the terminal: why the result line can
+# still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
+WIDER = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
+         "You can look after every mark.")
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
@@ -113,7 +120,7 @@ DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
 # with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
-NUMBERS_VERSION = 3
+NUMBERS_VERSION = 4
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
 
@@ -135,6 +142,7 @@ class Workspace:
         self.result_html = self.dir / "result.html"  # the result page's name before 1.0
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
+        self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
         self.judge_check_json = self.dir / judge_check.JSON_FILE
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
@@ -588,27 +596,18 @@ def shown_question(ws: Workspace, value, output=None):
     return question_view(value)
 
 
-def _all_exact(r: dict) -> bool:
-    """Whether both ranges have no width: more marks can't change them."""
-    ends = [r.get(f"{k}_interval") or [None, None] for k in ("tpr", "tnr")]
-    return all(lo is not None and hi is not None and hi - lo <= 1e-12 for lo, hi in ends)
+def coloured(r: dict) -> bool:
+    """Whether the result has a coloured verdict: good enough or needs work."""
+    return r["check"] != "too_few" and r.get("verdict_level") in ("gate", "not_gate")
 
 
 def status_line(r: dict) -> str:
-    """How far along a check is, in the words the person reads (no targets, no numbers): the
-    line under the meters on the labeling page, and on the result when a range is still
-    wide. The counts behind it are targets.check's."""
+    """How far along a check is, in the words the person reads (no targets, no numbers):
+    ready only with a coloured verdict; from the first numbers until then, too early to tell.
+    The count behind it is targets.check's."""
     if r["check"] == "too_few":
         return VERDICTS[None]
-    if r["check"] == "reliable":
-        return "Your result is ready."
-    wide = r.get("wide") or {}
-    if not wide and _all_exact(r):  # a judge that passes (or fails) every answer
-        return "You can see your result now."
-    if not wide:
-        return "You can see your result now. Marking more answers narrows its ranges."
-    sides = " and ".join(SAID[key] for key in ("tpr", "tnr") if key in wide)
-    return f"Marking more answers narrows the range for the answers you marked {sides}."
+    return READY if coloured(r) else FIRST_NUMBERS
 
 
 def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
@@ -618,15 +617,44 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
     return strata_status([(1, "pass", n_pool_pass, n_p, c_p), (1, "fail", n_pool_fail, n_f, c_f)])
 
 
+def has_result(strata: list[tuple[int, str, int, int, int]]) -> bool:
+    """Whether the marks in these strata (batches.counted_strata) give a first result: the
+    counts targets.check asks for, of each kind and in each of the judge's groups."""
+    correct = sum(s[4] for s in strata)
+    groups = {g: (sum(s[3] for s in strata if s[1] == g), sum(s[2] for s in strata if s[1] == g))
+              for g in ("pass", "fail")}
+    return targets.check(correct, sum(s[3] for s in strata) - correct, groups)["check"] != "too_few"
+
+
 def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     """progress_status from the marks in each stratum, as the result counts them
     (batches.counted_strata). Under ROUGH marks of each kind there is no result yet, a count
-    rule (targets.check): no range is drawn."""
-    correct = sum(s[4] for s in strata)
-    if min(correct, sum(s[3] for s in strata) - correct) < ROUGH:
-        return {"text": VERDICTS[None], "ready": False}
+    rule (targets.check): no range is drawn. `first`: the first numbers are in; `ready`: a
+    coloured verdict, whose words are `headline`."""
+    if not has_result(strata):
+        return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
     r = describe(weighted.stratified(strata))
-    return {"text": status_line(r), "ready": r["check"] != "too_few"}
+    ready = coloured(r)
+    return {"text": status_line(r), "first": r["check"] != "too_few", "ready": ready,
+            "headline": r["verdict"] if ready else None}
+
+
+def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
+    """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
+    verdict still needs to check them (labels.still_needed), and the group where they don't
+    look like the page marks (labels.looks_off): (None, 0, None) without any."""
+    from judgekeeper import labels as labels_mod
+
+    imported = marks.imported(m, ids=ids)
+    if not imported:
+        return None, 0, None
+    groups = {q["id"]: q["group"] for q in data["queue"]}
+    counts = labels_mod.by_group(m, ids, groups)
+    counted = m.counted()
+    left = {g: sum(q["group"] == g and q["id"] not in counted for q in data["queue"])
+            for g in ("pass", "fail")}
+    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
+    return imported, needed, labels_mod.looks_off(counts)
 
 
 def start_status(session: StartSession, run: str | None = None) -> dict:
@@ -634,15 +662,19 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     every answer marked and no result yet, `done` holds what the end card says
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
     ws = session.workspace
-    status = strata_status(batches.counted_strata(ws.cached_data(), session.marked(),
-                                                  ws.cached_strata()))
+    data = ws.cached_data()
+    status = strata_status(batches.counted_strata(data, session.marked(), ws.cached_strata()))
+    if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
+        ids = set(batches.counted_labels(data, session.marked()))
+        if import_check(marks.read(ws.marks), data, ids)[1]:
+            status.update(text=FIRST_NUMBERS, ready=False, headline=None)
     every = bool(session.items) and all(i["label"] for i in session.items)
     if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
                                 mark_command(run))
         status.update(text=done[0], done=done)
-    elif every:  # never "marking more answers narrows...": there is none left to mark
+    elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
     return status
 
@@ -879,8 +911,23 @@ class StartSession(LabelSession):
         if due is not None:
             self.offered[due[0]] = due[1]
             items.insert(start, {**self._again(due[1]), "again": due[0]})
+        status = self.current_status()
+        self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": self.current_status()}
+                "counts": self.counts(), "status": status}
+
+    def pop_up(self, status: dict) -> bool:
+        """True the first time a marking page gets a coloured verdict (`status` ready): the
+        page shows the pop-up then. Kept on disk (ready_seen), so a reload or a new page
+        never shows it again, even when the verdict goes back to too early and returns."""
+        seen = self.workspace.ready_seen
+        if not status.get("ready") or seen.is_file():
+            return False
+        try:
+            _write_json(seen, {"at": utc_now()})
+        except OSError:  # the mark is saved; the pop-up still shows on this page
+            pass
+        return True
 
 
 # The result ------------------------------------------------------------------------------
@@ -892,10 +939,12 @@ def plain(x: float | None) -> float | None:
 
 
 def _level(r: dict) -> str | None:
-    """The verdict from the ranges (targets.level); None before a first result."""
+    """The verdict from the wider verdict ranges (targets.level, weighted.VERDICT_LEVEL);
+    None before a first result."""
     if r["check"] == "too_few":
         return None
-    return targets.level(r["tpr_interval"], r["tnr_interval"])
+    return targets.level(*(r.get(f"{k}_verdict_interval") or r[f"{k}_interval"]
+                           for k in ("tpr", "tnr")))
 
 
 def _verdict(r: dict) -> str:
@@ -912,7 +961,7 @@ def describe(corrected: dict) -> dict:
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
     r = dict(corrected)
     r["labels"] = {"correct": correct, "wrong": wrong}
-    r.update(targets.check(correct, wrong, r["tpr_interval"], r["tnr_interval"]))
+    r.update(targets.check(correct, wrong, {k: (v["labeled"], v["pool"]) for k, v in g.items()}))
     r["verdict_level"] = _level(r)
     r["verdict"] = _verdict(r)
     return r
@@ -951,15 +1000,13 @@ def sentences(r: dict) -> list[str]:
 
 
 def too_early(value, interval) -> bool:
-    """Whether a number can't be given yet: unknown, or its range wider than
-    targets.TOO_WIDE."""
-    known = value is not None and bool(interval) and interval[0] is not None
-    return not known or targets.width_word(interval) == "too_wide"
+    """Whether a number can't be given yet: unknown. A wide range is still shown."""
+    return value is None or not interval or interval[0] is None
 
 
 def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
-    about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
+    about 61% (between 42% and 78%)."; too early to tell only with no number."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
@@ -993,13 +1040,11 @@ def mark_command(run: str | None = None) -> str:
 
 def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     """Every answer is marked, so there is none left to mark: the line that says so (what a
-    result needs while a kind is under ROUGH, else that it is still too early to tell), and the
+    result needs: with every answer marked, only a kind under ROUGH can stop one), and the
     Next: line. New answers join the marks as a batch (batches.py): `command` (mark_command)
     adds them once the eval ran on more questions."""
     command = command or mark_command()
-    short = min(labels["correct"], labels["wrong"]) < ROUGH
-    first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
-                                                             if short else TOO_FEW_TO_TELL)
+    first = ALL_MARKED.format(marks=marks_words(labels)) + NEEDS_EACH.format(n=ROUGH)
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
@@ -1277,7 +1322,8 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
     new = weighted.general_strata([(by[i], labels[i], verdicts[i]) for i in labels], sizes,
                                   **draws)
     out.update({k: new[k] for k in ("tpr", "tnr", "kappa", "tpr_interval", "tnr_interval",
-                                    "kappa_interval")})
+                                    "kappa_interval", "tpr_verdict_interval",
+                                    "tnr_verdict_interval")})
     total = pool["pass"] + pool["fail"]
     out["judge_pass_rate"] = pool["pass"] / total if total else None
     return out
@@ -1315,9 +1361,14 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
-    imported = marks.imported(m, ids=set(labels))  # only the marks this result counts
+    imported, needed, off = import_check(m, data, set(labels))  # only the marks it counts
     if imported:
         r["imported"] = imported
+    if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
+        r.update(import_gate=needed, verdict_level="too_early")
+        r["verdict"] = _verdict(r)
+    if off:
+        r["imports_off"] = off
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
@@ -1327,11 +1378,15 @@ def compute(ws: Workspace, session: StartSession) -> dict:
 
 
 def marks_digest(ws: Workspace, session: StartSession) -> str:
-    """What a result is made from: the marks (answer and label, never a skip) and the judge's
-    verdicts."""
+    """What a result is made from: the marks (answer and label, never a skip, and whether it
+    was brought with --labels: a page mark can check it) and the judge's verdicts."""
     import hashlib
 
-    marks = sorted([i["id"], i["label"]] for i in session.items if i["label"])
+    from judgekeeper import marks as marks_mod
+
+    last = marks_mod.read(ws.marks).last if ws.marks.is_file() else {}
+    marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") == marks_mod.BY_FILE]
+                   for i in session.items if i["label"])
     verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
     return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
 
