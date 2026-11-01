@@ -751,3 +751,16 @@ def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, 
     assert "Eval tool:       promptfoo" in out
     assert flag not in assert_one_next_at_the_end(out)
     assert code == 0, out
+# The Mark step -------------------------------------------------------------------------------
+
+def test_few_fails_says_finding_fail_marks_can_take_many_marks():
+    assert front.needs_each_kind(fails=9, answers=100) == (
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail. Your "
+        "LLM-as-a-judge failed only 9 of 100 answers, so finding 15 answers you mark Fail can "
+        "take many marks.")
+
+
+@pytest.mark.parametrize(("fails", "answers"), [(10, 100), (50, 100), (0, 0), (0, 40)])
+def test_otherwise_only_what_a_result_needs(fails, answers):
+    assert front.needs_each_kind(fails=fails, answers=answers) == (
+        "A result needs at least 15 answers you mark Pass and 15 you mark Fail.")

@@ -17,7 +17,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--new | --wait | --stop] [--version] [--debug]
 ```
 
-Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
+Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
 
 | What is there | What `judgekeeper` does |
 |---|---|

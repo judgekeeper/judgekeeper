@@ -83,7 +83,7 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "Step 2 of 5: Mark",
         "",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail. If almost every answer passes, that can take many answers.",
+        "Fail.",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -291,7 +291,7 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail. If almost every answer passes, that can take many answers.",
+        "Fail.",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 
