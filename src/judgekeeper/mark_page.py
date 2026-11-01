@@ -278,7 +278,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-left: 16px; padding-right: 16px; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
-  .progress-box { width: 100%; align-items: flex-end; }
+  .progress-box { width: 100%; align-items: flex-end; scroll-margin-top: 8px; }
   /* the link drops under the bar when the three don't fit on one line */
   .status-1 { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
 }
