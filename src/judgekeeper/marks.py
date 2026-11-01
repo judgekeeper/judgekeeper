@@ -17,12 +17,15 @@ through a link.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import math
 import os
+import re
 import secrets
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -235,14 +238,37 @@ def _with_reasons(before: dict | None, x: dict) -> dict:
     return {**x, **{k: before[k] for k in FIELDS if k in before}}
 
 
+_parsed: dict[str, tuple[bytes, Marks]] = {}  # path -> (its bytes' digest, its marks)
+PARSED_KEPT = 4  # files whose last reading is kept
+
+
 def read(path: str | Path) -> Marks:
-    """The marks in `path` (none when it is missing)."""
+    """The marks in `path` (none when it is missing). Parsed once per version of the file:
+    a run reads marks.jsonl many times, and with many marks each parse takes seconds. The
+    file's bytes decide (a digest), so any change is read again. Each caller gets its own
+    copy of the containers."""
     path = Path(path)
-    out = Marks()
     try:
-        text = path.read_text(encoding="utf-8")
+        data = path.read_bytes()
     except FileNotFoundError:
-        return out
+        return Marks()
+    key, digest = os.path.abspath(path), hashlib.blake2b(data, digest_size=16).digest()
+    hit = _parsed.get(key)
+    if hit is None or hit[0] != digest:
+        # as read_text reads it: UTF-8, line ends made "\n"
+        hit = digest, _parse(io.TextIOWrapper(io.BytesIO(data), encoding="utf-8").read())
+        _parsed.pop(key, None)
+        _parsed[key] = hit
+        while len(_parsed) > PARSED_KEPT:
+            _parsed.pop(next(iter(_parsed)))
+    m = hit[1]
+    return replace(m, header=dict(m.header) if m.header is not None else None,
+                   last=dict(m.last), after_result=set(m.after_result), gap=dict(m.gap),
+                   repeats=dict(m.repeats), slots=set(m.slots), line_of=dict(m.line_of))
+
+
+def _parse(text: str) -> Marks:
+    out = Marks()
     was: dict[str, str | None] = {}  # answer id -> its mark before the first change after
     last_at: dict[str, datetime] = {}  # sitting -> the time of its last mark
     for n, raw in enumerate(jsonl_lines(text)):
@@ -278,15 +304,30 @@ def read(path: str | Path) -> Marks:
 def _timed(out: Marks, x: dict, last_at: dict, own: bool = True) -> None:
     """The time since the mark before in the same sitting; `own` False (a repeat): only the
     time the next mark is timed from."""
-    try:
-        at = datetime.strptime(x["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    except ValueError:
+    at = _at(x["at"])
+    if at is None:
         return
     if own and x["sitting"] in last_at and at >= last_at[x["sitting"]]:
         out.gap[x["id"]] = (at - last_at[x["sitting"]]).total_seconds()
     elif own:
         out.gap.pop(x["id"], None)
     last_at[x["sitting"]] = at
+
+
+_AT = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
+
+
+def _at(text) -> datetime | None:
+    """A mark's `at` as strptime("%Y-%m-%dT%H:%M:%SZ") reads it (None when it can't): the
+    form judgekeeper writes is read directly, being 10 times quicker; any other is left to
+    strptime."""
+    try:
+        if isinstance(text, str) and _AT.fullmatch(text):
+            return datetime(int(text[:4]), int(text[5:7]), int(text[8:10]), int(text[11:13]),
+                            int(text[14:16]), int(text[17:19]), tzinfo=UTC)
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return None
 
 
 def made(m: Marks, ids=None) -> dict:

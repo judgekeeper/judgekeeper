@@ -315,6 +315,16 @@ def _base(answer_id: str) -> str:
 
 def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
           left: dict | None = None) -> Plan:
+    """Which answers of the queue the labels are for (_match), each text made ready for
+    matching once (check.texts_once)."""
+    from judgekeeper.check import texts_once
+
+    with texts_once():
+        return _match(found_labels, pool_rows, queue, left)
+
+
+def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
+           left: dict | None = None) -> Plan:
     """Which answers of the queue (`pool_rows`: pool.jsonl by id) the labels are for. `left`:
     the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), to tell
     those from answers not in the results."""

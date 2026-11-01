@@ -1209,8 +1209,7 @@ def _fixing(ws: Workspace, r: dict) -> dict | None:
 
     if not shows_disagreements(r):
         return None
-    fix.prepare_split(ws)
-    section = fix.report_section(ws)
+    section = fix.prepared_section(ws)
     if not section:
         return None
     if section["mistakes"]:
@@ -1231,8 +1230,7 @@ def why_count(ws: Workspace, r: dict) -> int:
 
     if not shows_disagreements(r):
         return 0
-    fix.prepare_split(ws)
-    section = fix.report_section(ws)
+    section = fix.prepared_section(ws)
     return len(section["mistakes"]) if section else 0
 
 

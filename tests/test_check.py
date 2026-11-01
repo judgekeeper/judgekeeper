@@ -554,3 +554,19 @@ def test_no_internal_words_in_the_code():
     for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not re.search(r"\bScene \d|walkthrough", text), path.name
+
+
+def test_inside_texts_once_each_text_is_scrubbed_once(monkeypatch):
+    """Matching many answers asks for the same texts many times: inside texts_once() each is
+    scrubbed once; outside it nothing is kept."""
+    calls = []
+    real = check.scrub
+    monkeypatch.setattr(check, "scrub", lambda text: calls.append(text) or real(text))
+    with check.texts_once():
+        assert check._text(" a ") == check._text(" a ") == "a"
+        with check.texts_once():  # inside another: the same memo
+            assert check._text(" a ") == "a"
+        assert check._text({"q": 1}) == check._text({"q": 1})  # not text: never kept
+    assert len(calls) == 3
+    check._text(" a ")
+    assert len(calls) == 4
