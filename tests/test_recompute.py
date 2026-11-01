@@ -52,9 +52,9 @@ def _old(ws: Workspace) -> dict:
 
 
 def _no_width(text: str) -> bool:
-    """TPR 100% and TNR 0% with no width, as the terminal ("between 0% and 0%") or a page
-    ("0% and 0%") says them."""
-    return all(re.search(rf"\b{x}% and {x}%", text) for x in (0, 100))
+    """TPR 100% and TNR 0% with no width: "exactly 100%" and "exactly 0%", no range."""
+    return (all(re.search(rf"\bexactly {x}%", text) for x in (0, 100))
+            and not re.search(r"\b(0% and 0%|100% and 100%)", text))
 
 
 def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
@@ -65,7 +65,7 @@ def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
     assert code == 0, out + err
     assert AGAIN in " ".join(out.split())
     assert _no_width(out)
-    assert "Pass: 100% (between 100% and 100%)" in " ".join(out.split())
+    assert "Pass: exactly 100%" in " ".join(out.split())
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["numbers_version"] == start_label.NUMBERS_VERSION
     assert r["tpr_interval"] == [1.0, 1.0] and r["tnr_interval"] == [0.0, 0.0]

@@ -1019,14 +1019,14 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
 def estimate(value, interval) -> tuple[str, str]:
     """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
     range is too wide for a result (the headline says it is too early to tell). Too early to
-    tell when there is no number yet. A range of no width (a judge that passes or fails every
-    answer) is exact, with no "about". Ends that round to the same percent are shown with one
+    tell when there is no number yet. A range of no width (every answer marked, or a judge that
+    passes or fails every answer) is exact: "exactly 78%", with no range. Ends that round to the same percent are shown with one
     decimal, never as one point."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return _pct(value), f"{_pct(lo)} and {_pct(hi)}"
+        return f"exactly {_pct(value)}", "–"
     if _pct(lo) == _pct(hi):
         return f"about {_pct(value)}", f"{lo:.1%} and {hi:.1%}"
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
@@ -1062,14 +1062,17 @@ def _main_lines(r: dict) -> str:
 
 
 def _details(r: dict) -> str:
-    """More details, folded: kappa and its range."""
+    """More details, folded: kappa and its range ("exactly" with none when it has no width)."""
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
+    shown = _two(kappa) if kappa is not None else "n/a"
+    if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
+        shown, lo = f"exactly {shown}", None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-            f'{_two(kappa) if kappa is not None else "n/a"}</td><td data-label="Between">'
+            f'{shown}</td><td data-label="Between">'
             f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
             '</summary><table class="panel">'

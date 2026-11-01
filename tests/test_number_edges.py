@@ -4,7 +4,7 @@ counted when it is asked again."""
 
 from __future__ import annotations
 
-from judgekeeper import report_page, start_label, targets
+from judgekeeper import front, report_page, start_label, targets
 
 
 def test_a_range_ending_exactly_on_the_bar_reaches_it():
@@ -17,8 +17,17 @@ def test_a_range_ending_exactly_on_the_bar_reaches_it():
 
 
 def test_a_judge_that_passes_every_answer_has_exact_numbers():
-    assert report_page.estimate(1.0, [1.0, 1.0]) == ("100%", "100% and 100%")  # no "about"
-    assert report_page.estimate(0.0, [0.0, 0.0]) == ("0%", "0% and 0%")
+    assert report_page.estimate(1.0, [1.0, 1.0]) == ("exactly 100%", "–")  # no range
+    assert report_page.estimate(0.0, [0.0, 0.0]) == ("exactly 0%", "–")
+    assert report_page.estimate(0.78, [0.78, 0.78]) == ("exactly 78%", "–")
+    assert start_label.side_sentence("tnr", 0.78, [0.78, 0.78]) == (
+        "You failed: your LLM-as-a-judge also failed exactly 78%.")
+    assert front.estimate_lines({"tpr": 1.0, "tpr_interval": [1.0, 1.0], "tnr": 0.78,
+                                 "tnr_interval": [0.78, 0.78]})[1:] == [
+        "  When you say Pass, it also says Pass: exactly 100%",
+        "  When you say Fail, it also says Fail: exactly 78%"]
+    page = report_page._details({"kappa": 0.62, "kappa_interval": [0.62, 0.62]})
+    assert "exactly 0.62" in page and "0.62 and 0.62" not in page
     check = targets.check(25, 25, [1.0, 1.0], [0.0, 0.0])
     assert check == {"check": "rough", "wide": {}}  # never "reliable" from no width at all
     r = {"check": "rough", "wide": {}, "tpr_interval": [1.0, 1.0], "tnr_interval": [0.0, 0.0]}

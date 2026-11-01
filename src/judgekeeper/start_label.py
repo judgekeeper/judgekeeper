@@ -962,7 +962,7 @@ def side_sentence(key: str, value, interval) -> str:
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
-        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} (exactly)."
+        return f"You {did}: your LLM-as-a-judge also {did} exactly {_pct(value)}."
     return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
             f"{_pct(interval[0])} and {_pct(interval[1])}).")
 
