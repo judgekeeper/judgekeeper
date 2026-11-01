@@ -269,5 +269,7 @@ def test_the_page_says_python_m_when_started_that_way(project):
         with urllib.request.urlopen(f"{base}/?token={m[3]}", timeout=10) as r:
             return r.read().decode("utf-8")
 
-    assert command in retried(send)
+    shown = retried(send)
+    said = sorted(set(re.findall(r"[^<>\n]{0,60}-m judgekeeper[^<>\n]{0,30}", shown)))
+    assert command in shown, (command, said)
     assert py_m("mark", "--stop").returncode == 0
