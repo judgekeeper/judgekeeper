@@ -945,7 +945,7 @@ def sentences(r: dict) -> list[str]:
             return all_marked_lines(r["labels"],
                                     mark_command(command_from(r.get("flags"), kept=True)))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
-    return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
+    return [side_sentence(key, r[key], r[f"{key}_interval"], all_labeled(r)) for key in SAID]
 
 
 def too_early(value, interval) -> bool:
@@ -955,14 +955,16 @@ def too_early(value, interval) -> bool:
     return not known or targets.width_word(interval) == "too_wide"
 
 
-def side_sentence(key: str, value, interval) -> str:
+def side_sentence(key: str, value, interval, every: bool = False) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
     about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
-        return f"You {did}: your LLM-as-a-judge also {did} exactly {_pct(value)}."
+        from judgekeeper.report_page import no_range
+
+        return f"You {did}: your LLM-as-a-judge also {did} {no_range(_pct(value), every)}."
     return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
             f"{_pct(interval[0])} and {_pct(interval[1])}).")
 

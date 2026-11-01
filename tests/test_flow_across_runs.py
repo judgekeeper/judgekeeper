@@ -159,8 +159,8 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
 
 
 def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
-    """Every answer marked: the numbers are about those answers, so they are exact, and the
-    result is never "too early to tell"."""
+    """Every answer marked: the numbers are about those answers, so they have no range (and
+    never say "exactly"), and the result is never "too early to tell"."""
     from tests.start_projects import promptfoo_project
 
     promptfoo_project(here, split(20, 20))
@@ -168,7 +168,10 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
     code, out = _jk(capsys)
     assert "Result: your LLM-as-a-judge is good enough to use." in out  # 17 of 20 each side
-    assert "it also says Pass: exactly 85%" in out and "about" not in out and "between" not in out
+    assert "it also says Pass: 85% (you marked every answer)" in out
+    assert "about" not in out and "between" not in out and "exactly" not in out
+    html = Workspace(here).report_html.read_text(encoding="utf-8")
+    assert "85% (you marked every answer)" in html and "exactly" not in html
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
     assert code == 0

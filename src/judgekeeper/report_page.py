@@ -436,7 +436,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .tbl td ul { margin: 6px 0; padding-left: 1.3em; white-space: normal; }
 .tbl td li { margin: 2px 0; }
 .tbl td strong { font-weight: 700; }
-/* the command box with Copy: the website's, exactly; the "$" is drawn, never copied */
+/* the command box with Copy: the same as the website's; the "$" is drawn, never copied */
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
   min-width: min(380px, 100%); background: #07080a; }
@@ -1016,20 +1016,30 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     return "".join(out)
 
 
-def estimate(value, interval) -> tuple[str, str]:
+def estimate(value, interval, every: bool = False) -> tuple[str, str]:
     """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
     range is too wide for a result (the headline says it is too early to tell). Too early to
-    tell when there is no number yet. A range of no width (every answer marked, or a judge that
-    passes or fails every answer) is exact: "exactly 78%", with no range. Ends that round to the same percent are shown with one
-    decimal, never as one point."""
+    tell when there is no number yet. A range of no width has no range, and says why: "78%
+    (you marked every answer)" when `every` answer is marked, else (a judge that passes or
+    fails every answer) "100% (with no range)". Ends that round to the same percent are shown
+    with one decimal, never as one point."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return f"exactly {_pct(value)}", "–"
+        return no_range(_pct(value), every), "–"
     if _pct(lo) == _pct(hi):
         return f"about {_pct(value)}", f"{lo:.1%} and {hi:.1%}"
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
+
+
+EVERY_MARKED = "you marked every answer"
+NO_RANGE = "with no range"
+
+
+def no_range(shown: str, every: bool) -> str:
+    """A number whose range has no width, and why: "78% (you marked every answer)"."""
+    return f"{shown} ({EVERY_MARKED if every else NO_RANGE})"
 
 
 def _caption(r: dict) -> str:
@@ -1049,7 +1059,7 @@ def _main_lines(r: dict) -> str:
     say Pass and when they say Fail, estimated (weighted, with their ranges)."""
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
-        est, between = estimate(r.get(key), r.get(f"{key}_interval"))
+        est, between = estimate(r.get(key), r.get(f"{key}_interval"), r.get("left") == 0)
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'
@@ -1062,11 +1072,11 @@ def _main_lines(r: dict) -> str:
 
 
 def _details(r: dict) -> str:
-    """More details, folded: kappa and its range ("exactly" with none when it has no width)."""
+    """More details, folded: kappa and its range (none when it has no width, and why)."""
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        shown, lo = f"exactly {shown}", None
+        shown, lo = no_range(shown, r.get("left") == 0), None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '

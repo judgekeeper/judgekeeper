@@ -658,7 +658,7 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general_strata(items, pool)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
-            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
+            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'], every)}" for k in ("tpr", "tnr"))]
 
 
 def outcome(g: dict) -> str | None:
@@ -1824,7 +1824,7 @@ def last_check(ws: Workspace) -> dict | None:
     if rates:
         from judgekeeper.front import estimate_lines
 
-        lines += [x.strip() for x in estimate_lines(rates)[1:]]
+        lines += [x.strip() for x in estimate_lines(rates, every_marked(ws))[1:]]
     return {"judge": ", ".join(names) or None, "lines": lines}
 
 

@@ -1787,15 +1787,17 @@ def agreement_lines(r: dict) -> list[str]:
              f"{c['easy']} and failed {c['failed'] - c['easy']}.")]
 
 
-def estimate_lines(r: dict) -> list[str]:
+def estimate_lines(r: dict, every: bool | None = None) -> list[str]:
     """How often the judge agrees with you, estimated, as the result page's More details
     (report_page.estimate): "about 57% (between 37% and 74%)", also while it is too early to
-    tell; "exactly 78%" with no width; too early to tell only with no number yet."""
+    tell; "78% (you marked every answer)" with no width; too early to tell only with no number
+    yet. `every`: every answer is marked (by default, as `r` says)."""
     from judgekeeper.report_page import estimate
 
     out = [AGREES]
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
-        shown, between = estimate(r.get(key), r.get(f"{key}_interval"))
+        shown, between = estimate(r.get(key), r.get(f"{key}_interval"),
+                                  start_label.all_labeled(r) if every is None else every)
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
     return out

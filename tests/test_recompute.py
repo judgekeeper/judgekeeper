@@ -2,7 +2,8 @@
 a fix to the numbers reaches a folder measured before it. A result saved by this one is not.
 The old result is one an older judgekeeper saved for a judge that passed every answer, 23 Pass and
 17 Fail marks: ranges of some width and an older numbers version. That judge's TPR and TNR on
-those answers are exactly 100% and 0%, as this version works them out.
+those answers are 100% and 0% with no range (every answer is marked), as this version works
+them out.
 """
 
 from __future__ import annotations
@@ -52,9 +53,11 @@ def _old(ws: Workspace) -> dict:
 
 
 def _no_width(text: str) -> bool:
-    """TPR 100% and TNR 0% with no width: "exactly 100%" and "exactly 0%", no range."""
-    return (all(re.search(rf"\bexactly {x}%", text) for x in (0, 100))
-            and not re.search(r"\b(0% and 0%|100% and 100%)", text))
+    """TPR 100% and TNR 0% with no width: "100% (you marked every answer)", no range, and
+    never "exactly"."""
+    return (all(re.search(rf"\b{x}% \(you marked every answer\)", text) for x in (0, 100))
+            and not re.search(r"\b(0% and 0%|100% and 100%)", text)
+            and "exactly" not in text)
 
 
 def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
@@ -65,7 +68,7 @@ def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
     assert code == 0, out + err
     assert AGAIN in " ".join(out.split())
     assert _no_width(out)
-    assert "Pass: exactly 100%" in " ".join(out.split())
+    assert "Pass: 100% (you marked every answer)" in " ".join(out.split())
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["numbers_version"] == start_label.NUMBERS_VERSION
     assert r["tpr_interval"] == [1.0, 1.0] and r["tnr_interval"] == [0.0, 0.0]
