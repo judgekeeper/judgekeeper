@@ -296,6 +296,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));
   padding-right: max(0px, calc((100% - 1376px) / 2 - var(--gutter))); }
 .left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
+.file { overflow-wrap: anywhere; }  /* a file name with no break in it wraps, also on a phone */
 .group { padding-top: 64px; }
 .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
 .gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
@@ -647,7 +648,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     from judgekeeper.labels import gate_line
 
     gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
-    gate = f'<p class="lead">{_term(gate)}</p>' if gate else ""
+    gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
 
@@ -658,6 +659,17 @@ TERM = '<span class="term">LLM-as-a-judge</span>'
 def _term(text: str) -> str:
     """`text` escaped, "LLM-as-a-judge" kept on one line wherever it is."""
     return _e(text).replace("LLM-as-a-judge", TERM)
+
+
+def _files(html: str, r: dict) -> str:
+    """`html` with each file the marks were imported from in a span that may wrap anywhere,
+    so a long name with no break in it stays on the page."""
+    names = sorted({_e(x) for x in (r.get("imported") or {}).get("from") or []
+                    if isinstance(x, str) and x}, key=len, reverse=True)
+    if not names:
+        return html
+    return re.sub("|".join(map(re.escape, names)),
+                  lambda m: f'<span class="file">{m.group(0)}</span>', html)
 
 
 def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
@@ -711,7 +723,7 @@ def _counts(r: dict, c: dict) -> str:
     off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
     thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
     for line in [x for x in (assumes, off) if x] + thoughts:
-        row += f'<p class="left-out band">{_term(line)}</p>'
+        row += f'<p class="left-out band">{_files(_term(line), r)}</p>'
     return row
 
 
