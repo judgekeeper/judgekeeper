@@ -99,7 +99,7 @@ def test_the_first_run_names_no_bare_command(here, capsys, by_uvx, no_browser):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys)
     assert code == 0, out
-    assert next_lines(out) == ['Next: mark until "See your result" appears, then click it.']
+    assert next_lines(out) == ['Next: mark answers until the link at the top shows your numbers, then click it.']
     assert not _bare_commands(out), out
 
 
@@ -107,7 +107,7 @@ def test_a_printed_link_names_no_bare_command(here, capsys, by_uvx):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "--no-browser")
     assert code == 0, out
-    assert next_lines(out) == ['Next: mark until "See your result" appears, then click it.']
+    assert next_lines(out) == ['Next: mark answers until the link at the top shows your numbers, then click it.']
     assert not _bare_commands(out), out
 
 
@@ -120,7 +120,7 @@ def test_marking_started_and_the_result_name_uvx(here, capsys, by_uvx):
     for item in session.items[:10]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     _, out, _ = run(capsys)
-    assert next_lines(out) == ['Next: keep marking until "See your result" appears, then click it.'] and not _bare_commands(out), out
+    assert next_lines(out) == ['Next: mark answers until the link at the top shows your numbers, then click it.'] and not _bare_commands(out), out
     for item in session.items[10:]:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     code, out, _ = run(capsys)
@@ -141,7 +141,7 @@ def test_mark_names_no_bare_command(here, capsys, by_uvx):
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "mark", "--no-browser")
     assert code == 0, out
-    assert next_lines(out) == ['Next: mark until "See your result" appears, then click it.']
+    assert next_lines(out) == ['Next: mark answers until the link at the top shows your numbers, then click it.']
     assert not _bare_commands(out), out
 
 
@@ -172,4 +172,4 @@ def test_without_uvx_nothing_changes(here, capsys, no_browser, monkeypatch):
     promptfoo_project(here, split(20, 16))
     _, out, _ = run(capsys)
     assert "uvx" not in out
-    assert next_lines(out) == ['Next: mark until "See your result" appears, then click it.']
+    assert next_lines(out) == ['Next: mark answers until the link at the top shows your numbers, then click it.']

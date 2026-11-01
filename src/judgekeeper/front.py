@@ -112,8 +112,7 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = 'mark until "See your result" appears, then click it.'
-NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
+NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
@@ -319,8 +318,11 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
             talk.say()
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
+        from judgekeeper.check import texts_once
+
         try:
-            return _run(talk, path, wait, marking)
+            with texts_once():  # a run matches and scrubs the same texts many times
+                return _run(talk, path, wait, marking)
         except Exception:
             talk.say_step()  # the error cli.py prints comes under Step 1 too
             raise
@@ -418,8 +420,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if not path.exists():
         raise not_found(path)
     path = _remembered(talk, path)
-    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
-            sessions := _sessions_below(path)):  # never a second session above one
+    if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
+            sessions := _sessions_below(path)):  # never a second session above one, nor
+        # one above's for them: results in a folder with its own session belong to it
         raise _go_to(talk, sessions)
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
@@ -1098,6 +1101,22 @@ def _outer_marks(found: start.Found) -> str | None:
     return None
 
 
+def _kept_apart(found: start.Found) -> str | None:
+    """A session above whose marks are for other results than these: these get their own
+    .judgekeeper/ here, said once, when marking starts here."""
+    root = Path(found.root)
+    apart = project.kept_apart(root, root / found.given if found.given else None)
+    if apart is None:
+        return None
+    above, files = apart
+    try:
+        rel = Path(os.path.relpath(above, Path.cwd().resolve())).as_posix()
+    except ValueError:  # another drive on Windows
+        rel = above.name
+    return ("These results get their own marks here. "
+            + (f"The marks in {rel}/ are for {', '.join(files)}." if files else "")).strip()
+
+
 def tool_version(found: start.Found) -> str | None:
     """The eval tool's version: from its results, else the project's lockfile."""
     return judge_setup.version_of(found)[0]
@@ -1248,6 +1267,11 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
         out += " " + (rest[:1].upper() + rest[1:] if said else
                       FINDING_FAILS.format(f=fails, answers=answers, n=targets.ROUGH))
     return out
+
+
+def _needs_each_kind(talk, session: StartSession) -> None:
+    groups = list(session.groups.values())  # every answer to mark, each batch's too
+    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
@@ -1409,7 +1433,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
     for others in (_other_files(found), _other_projects(found), _nested_here(found),
-                   _outer_marks(found)):
+                   _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
@@ -1765,7 +1789,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
-        talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
+        some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
+        talk.say(f"You have {'marks on' if some_imported else 'marked'} all {_n(n, 'answer')}. "
+                 "There are no more to mark.")  # the page didn't mark the imported ones
         talk.say()
         for line in head:
             talk.para(line)
@@ -1804,15 +1830,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                       "yet.")
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
-        if not enough:
+        if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
+            _needs_each_kind(talk, session)
         elif gate := _import_gate(ws, session):  # as the result says it
             talk.para(gate)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
-        groups = list(session.groups.values())  # every answer to mark, each batch's too
-        talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+        _needs_each_kind(talk, session)
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
@@ -1827,7 +1853,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
-    next_step = (NEXT_MORE if enough else NEXT_KEEP_MARKING if n else NEXT_MARK)
+    next_step = NEXT_MORE if enough else NEXT_MARK
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para("Next: " + next_step.format(command=command))
@@ -2041,6 +2067,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if not path.exists():
         raise not_found(path)
     ws = Workspace(project.project_of(path))
+    if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
+        ws = Workspace(start.reads_in(path))  # the folder a run from here reads
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):

@@ -772,9 +772,10 @@ def project_folder(folder: Path) -> Path | None:
 
 def results_above(root: Path) -> Path | None:
     """The project folder above `root` when it holds results judgekeeper reads; never from a
-    git repository's own folder (a repository is one project)."""
+    folder that is a project of its own (any PROJECT_MARKERS: one project never reads
+    another)."""
     try:
-        if (root / ".git").exists():
+        if any((root / m).exists() for m in PROJECT_MARKERS):
             return None
     except OSError:
         return None

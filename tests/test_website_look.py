@@ -869,7 +869,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert done == {
         "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
                        "judgekeeper to your results file:")],
-        "step-mark": ["When See your result appears, click it."],
+        "step-mark": ["When the link at the top shows your numbers, click it."],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
                           "of your marks to be measured. Mark more answers, then look again:")]}
     # each step's words, as the person reads them

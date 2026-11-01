@@ -23,7 +23,7 @@ import time
 
 import pytest
 
-from judgekeeper import check, fix, judge_setup, page, start, start_label, textio
+from judgekeeper import __version__, check, find, fix, judge_setup, page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project
@@ -266,27 +266,59 @@ def test_results_in_one_folder_below_or_a_project_are_read_as_before(here, capsy
 
 # A git repository is one project ---------------------------------------------------------
 
-def _repo_with_sessions(root, capsys, monkeypatch, names=("a", "b")):
-    """A git repository in `root` whose results are only in folders below that each hold a
-    session of their own."""
-    (root / ".git").mkdir(parents=True)
+MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+
+
+def _marker(folder, marker) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    if marker == ".git":
+        (folder / ".git").mkdir()
+    elif marker is not None:
+        (folder / marker).write_text("", encoding="utf-8")
+
+
+def _repo_with_sessions(root, capsys, monkeypatch, names=("a", "b"), marker=".git"):
+    """A folder `root` (a project of its own by `marker`, or none) whose results are only in
+    folders below that each hold a session of their own."""
+    _marker(root, marker)
     for i, name in enumerate(names):
         _session_in(root / name, capsys, monkeypatch, 2 + i)
     monkeypatch.chdir(root)
 
 
-@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
-def test_a_git_repo_never_reads_the_project_above_it(here, capsys, monkeypatch, names):
+def _outer_with_marks(here, capsys) -> bytes:
     (here / "pyproject.toml").write_text("", encoding="utf-8")
     table_project(here, split(20, 16), name="outer.csv", tag="outer")
     assert run(capsys, "--no-browser")[0] == 0
     _mark(Workspace(here), only=range(8))
-    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
-    _repo_with_sessions(here / "inner", capsys, monkeypatch, names)
+    return (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+
+
+@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
+@pytest.mark.parametrize("marker", MARKERS)
+def test_a_project_folder_never_reads_the_project_above_it(here, capsys, monkeypatch, names,
+                                                           marker):
+    before = _outer_with_marks(here, capsys)
+    _repo_with_sessions(here / "inner", capsys, monkeypatch, names, marker)
     code, out, err = run(capsys, "--no-browser")
     assert code == 3, out + err
     assert "Reading the project folder above" not in out
     assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
+    assert not (here / "inner" / ".judgekeeper").exists()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    assert "--stop" not in out and run(capsys, "--stop")[1].count("No marking page is open.")
+
+
+@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
+def test_a_folder_inside_a_project_never_starts_marks_on_another_folders_answers(
+        here, capsys, monkeypatch, names):
+    before = _outer_with_marks(here, capsys)
+    _repo_with_sessions(here / "inner", capsys, monkeypatch, names, marker=None)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 3, out + err
+    assert out.splitlines()[:3] == [f"judgekeeper {__version__}", "", "Step 1 of 5: Find"], out
+    assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
+    assert "To check it, run" not in flat(out)
     assert not (here / "inner" / ".judgekeeper").exists()
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
 
@@ -647,7 +679,7 @@ def test_a_judge_model_given_once_is_remembered(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "changed" not in out
-    assert _next(out) == 'Next: keep marking until "See your result" appears, then click it.'
+    assert _next(out) == 'Next: mark answers until the link at the top shows your numbers, then click it.'
 
 
 def test_check_then_judgekeeper_keeps_the_given_model(here, capsys):
@@ -700,3 +732,96 @@ def test_a_model_given_now_still_conflicts_with_the_files_model_column(here, cap
     assert code == 2
     assert ("results.csv already names the LLM-as-a-judge's model (openai:gpt-4.1): drop "
             "--judge-model") in flat(err)
+
+
+# A store above is for its own results only ------------------------------------------------
+
+@pytest.mark.parametrize("marker", [".git", "pyproject.toml", None])
+def test_new_results_below_a_store_get_their_own_marks(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16), name="sub2/results.csv", tag="sub2")
+    assert run(capsys, "sub2/results.csv", "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    table_project(here / "evals3", split(20, 16), tag="evals3")
+    monkeypatch.chdir(here / "evals3")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert ("These results get their own marks here. The marks in ../ are for "
+            "sub2/results.csv.") in flat(out), out
+    assert "You marked 5 answers" not in out and "File:            results.csv" in out
+    assert (here / "evals3" / ".judgekeeper" / "start.json").is_file()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    run(capsys, "--stop")
+    code, out, _ = run(capsys, "--no-browser")  # the next run says nothing more about it
+    assert code == 0 and "get their own marks" not in out
+    run(capsys, "--stop")
+
+
+@pytest.mark.parametrize("marker", [".git", "pyproject.toml", None])
+def test_the_store_above_stays_for_the_results_it_reads(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16), name="sub2/results.csv", tag="sub2")
+    assert run(capsys, "sub2/results.csv", "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    (here / "src").mkdir()
+    for folder in (here / "sub2", here / "src"):
+        monkeypatch.chdir(folder)
+        code, out, err = run(capsys, "--no-browser")
+        assert code == 0, out + err
+        assert "You marked 5 answers so far" in out and "get their own marks" not in out
+        assert not (folder / ".judgekeeper").exists()
+        assert "Closed the marking page." in run(capsys, "--stop")[1]
+
+
+# --stop closes the page a run from the same folder opened -------------------------------
+
+@pytest.mark.parametrize("marker", MARKERS)
+def test_stop_closes_the_page_a_run_from_a_subfolder_opened(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16))
+    (here / "src").mkdir()
+    monkeypatch.chdir(here / "src")
+    code, out, err = run(capsys, "--no-browser")  # reads the project folder above
+    assert code == 0, out + err
+    assert "Reading the project folder above it" in flat(out)
+    assert page.is_open(here / ".judgekeeper")
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+    assert not page.is_open(here / ".judgekeeper")
+
+
+@pytest.mark.parametrize("marker", MARKERS)
+def test_stop_in_a_project_below_leaves_the_page_above_open(here, capsys, monkeypatch, marker):
+    _marker(here, ".git")
+    table_project(here, split(20, 16))
+    assert run(capsys, "--no-browser")[0] == 0
+    _marker(here / "pkg", marker)
+    monkeypatch.chdir(here / "pkg")
+    code, out, _ = run(capsys, "--no-browser")  # a project of its own: never the one above
+    assert code != 0 and "Reading the project folder above it" not in flat(out)
+    assert "No marking page is open." in run(capsys, "--stop")[1]
+    assert page.is_open(here / ".judgekeeper")
+    monkeypatch.chdir(here)
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+
+
+def _reads_any_project_above(root):  # results_above before a project kept to itself
+    up = find.project_folder(root)
+    found = None if up is None else find.search(up)
+    return up if found is not None and any(found.readable(t) for t in find.TOOLS) else None
+
+
+@pytest.mark.parametrize("marker", ["pyproject.toml", ".git"])
+def test_stop_finds_the_store_the_run_read_whatever_rule_found_it(here, capsys, monkeypatch,
+                                                                   marker):
+    monkeypatch.setattr(find, "results_above", _reads_any_project_above)
+    _marker(here, ".git")
+    table_project(here, split(20, 16))
+    _marker(here / "pkg", marker)
+    monkeypatch.chdir(here / "pkg")
+    code, out, err = run(capsys, "--no-browser")  # a page served from the store above
+    assert code == 0 and "Reading the project folder above it" in flat(out), out + err
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+    assert not page.is_open(here / ".judgekeeper")

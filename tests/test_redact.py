@@ -267,3 +267,20 @@ def test_names_in_a_list_stay_on_one_line():
 
     for listed in (start._and(["a\nb", "c"]), start._or(["a", "c d"])):
         assert "\n" not in listed and " " not in listed
+
+
+def test_inside_scrub_once_each_text_is_scrubbed_once(monkeypatch):
+    """A big run scrubs the same texts many times: inside scrub_once() each is scrubbed once,
+    and a credential set in the meantime is still hidden (the memo starts again)."""
+    calls = []
+    real = redact._scrub_now
+    monkeypatch.setattr(redact, "_scrub_now", lambda text: calls.append(text) or real(text))
+    monkeypatch.delenv("JK_MEMO_TEST_API_KEY", raising=False)
+    text = "the value is zq9-memo-secret-value-1234"
+    with redact.scrub_once():
+        assert scrub(text) == scrub(text) == text
+        assert len(calls) == 1
+        monkeypatch.setenv("JK_MEMO_TEST_API_KEY", "zq9-memo-secret-value-1234")
+        assert scrub(text) == f"the value is {REDACTED}"
+    scrub(text)
+    assert len(calls) == 3  # outside it, nothing is kept
