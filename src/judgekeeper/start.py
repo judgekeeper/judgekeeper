@@ -292,6 +292,13 @@ class Talk:
         path = Path(where) if self.path == "." else Path(self.path) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
+    def command_in(self, folder: str, *extra: str) -> str:
+        """`command` run on `folder` (written as it goes on the line, from the folder the
+        command runs in) in place of the person's path, where the command takes its path."""
+        flags = self._flags_for(extra)
+        given = flags[:1] == (quote_arg(self.path),) and self.path != "."
+        return " ".join((self.program, folder, *(flags[1:] if given else flags), *extra))
+
     def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
         """The person's flags without those `extra` gives again (`--flag value` or
         `--flag=value`): argparse keeps only the last, so theirs would be lost anyway."""

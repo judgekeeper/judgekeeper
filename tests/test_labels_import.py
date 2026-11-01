@@ -932,3 +932,95 @@ def test_step_2_after_an_import_says_marks_not_marked(here, capsys):
     text = flat(out)
     assert "You have 10 marks so far: 10 Pass, 0 Fail." in text
     assert "You marked" not in text
+
+
+# A labels FILE given in full: never a full path in what is said -------------------------------
+
+def _apart(tmp_path, monkeypatch) -> tuple[Path, Path]:
+    """A project in proj/ (run from there) and a labels folder lf/ beside it."""
+    proj, lf = tmp_path / "proj", tmp_path / "lf"
+    table(proj)
+    lf.mkdir()
+    monkeypatch.chdir(proj)
+    return proj, lf
+
+
+def _no_full_path(out: str, tmp_path: Path) -> None:
+    for full in {str(tmp_path), str(tmp_path.resolve()), str(Path.home())}:
+        assert full not in out, full
+
+
+def test_an_excel_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    (lf / "labels.xlsx").write_bytes(b"PK\x03\x04")
+    code, out = run(capsys, "--labels", str(lf / "labels.xlsx"))
+    assert code == 3
+    assert ("judgekeeper can't read Excel files. Save labels.xlsx as CSV, then run: "
+            f"{CMD} --labels ../lf/labels.csv") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_a_missing_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    code, out = run(capsys, "--labels", str(lf / "nothere.csv"))
+    assert code == 3
+    assert ("Can't find nothere.csv. Check the name and folder, then run: "
+            f"{CMD} --labels <file>") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_a_link_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    write_labels(lf / "real.csv", labelled(range(3)))
+    try:
+        os.symlink(lf / "real.csv", lf / "link.csv")
+    except (OSError, NotImplementedError):
+        pytest.skip("no symlinks here")
+    code, out = run(capsys, "mark", "--labels", str(lf / "link.csv"))
+    assert code == 3
+    assert ("link.csv is a link to another file. judgekeeper does not read labels through "
+            "links. Give the file itself.") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_unknown_words_in_a_file_given_in_full(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    write_labels(lf / "words.csv", [{"answer": answer(0), "label": "meh"}])
+    code, out = run(capsys, "--labels", str(lf / "words.csv"))
+    assert code == 3
+    text = flat(out)
+    assert "Some labels in words.csv aren't Pass or Fail: meh." in text
+    assert (f'then run: {CMD} --labels ../lf/words.csv --label-map "WORD=pass,WORD=fail"'
+            in text)
+    _no_full_path(out, tmp_path)
+
+
+def _printed_command(out: str, lead: str) -> list[str]:
+    import shlex
+
+    line = flat(out).split(lead, 1)[1]
+    words = shlex.split(line.split(" Next:")[0].rstrip("."))
+    assert words[0] == "judgekeeper"
+    return words[1:]
+
+
+@pytest.mark.parametrize("sub", [(), ("mark",)])
+def test_a_folder_given_in_full_runs_as_printed(tmp_path, monkeypatch, capsys, sub):
+    """The folder-as-FILE stop names the folder from here, and its "put it first" line runs
+    as printed (with `mark`, the folder goes after it): exit 0 or 3, never 2."""
+    _, lf = _apart(tmp_path, monkeypatch)
+    table(tmp_path / "other")
+    write_labels(lf / "labels.csv", labelled(range(3)))
+    code, out = run(capsys, *sub, "--labels", str(tmp_path / "other"))
+    assert code == 3
+    text = flat(out)
+    assert "../other is a folder. Give the labels file instead:" in text
+    _no_full_path(out, tmp_path)
+    words = _printed_command(out, "To check that folder, put it first: ")
+    assert words[:len(sub) + 1] == [*sub, "../other"], words
+    words = [str(lf / "labels.csv") if w == "<file>" else w for w in words]
+    try:
+        again = main(words)
+    except SystemExit as e:  # argparse refused the line
+        again = e.code
+    assert again in (0, 3), again

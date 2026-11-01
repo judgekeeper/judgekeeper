@@ -19,7 +19,6 @@ not in the help.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import sys
 import textwrap
@@ -210,12 +209,12 @@ def again(args_list: list[str], drop: str | None = None) -> str:
         before = words[-1] if words else ""
         labels = "--labels" in (flag, before)
         path = labels or not (flag or arg.startswith("-") or _takes_value(before))
-        shown = _from_here(value, labels) if path else value
+        shown = textio.from_here(value, labels) if path else value
         words.append(flag + eq + (shown if shown in ANOTHER_DRIVE else quote_arg(shown)))
     return " ".join((program(), *words))
 
 
-ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
+ANOTHER_DRIVE = textio.ANOTHER_DRIVE
 _ON_OFF: set[str] = set()
 
 
@@ -227,18 +226,6 @@ def _takes_value(word: str) -> bool:
         _ON_OFF.update(o for p in parsers for a in p._actions if a.nargs == 0
                        for o in a.option_strings)
     return word.startswith("-") and "=" not in word and word not in _ON_OFF
-
-
-def _from_here(value: str, labels: bool) -> str:
-    """A path given in full, as a Next: line repeats it: from the folder the command runs in;
-    on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
-    if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
-        return value
-    try:
-        rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))
-    except ValueError:  # another drive (Windows)
-        return ANOTHER_DRIVE[0 if labels else 1]
-    return rel.replace(os.sep, "/")
 
 
 def _step(step: str, args_list: list[str], drop: str | None = None) -> str:

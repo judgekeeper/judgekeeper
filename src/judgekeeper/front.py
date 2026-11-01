@@ -189,6 +189,9 @@ class FrontTalk(start.Talk):
     def command_at(self, where: str | Path, *extra: str) -> str:
         return super().command_at(where, *_with_given_map(self.options.get("label_map"), extra))
 
+    def command_in(self, folder: str, *extra: str) -> str:
+        return super().command_in(folder, *_with_given_map(self.options.get("label_map"), extra))
+
     def looking(self, root: Path) -> None:
         """Said only when nothing is found."""
 
@@ -365,7 +368,7 @@ def _labels_file(talk: FrontTalk) -> Path | None:
     if talk.labels is None or talk.labels == labels_mod.IN_RESULTS:
         return None
     try:
-        return labels_mod.check_file(talk.labels, talk.command)
+        return labels_mod.check_file(talk.labels, talk.command, talk.command_in)
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
 

@@ -558,6 +558,27 @@ def is_link(path: Path) -> bool:
 _is_link = is_link
 
 
+ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
+
+
+def from_here(value: str, labels: bool) -> str:
+    """A path given in full, as a Next: line repeats it: from the folder the command runs in;
+    on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
+    if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
+        return value
+    try:
+        rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))
+    except ValueError:  # another drive (Windows)
+        return ANOTHER_DRIVE[0 if labels else 1]
+    return rel.replace(os.sep, "/")
+
+
+def runnable(value: str, labels: bool) -> str:
+    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE)."""
+    shown = from_here(value, labels)
+    return shown if shown in ANOTHER_DRIVE else quote_arg(shown)
+
+
 # File-system errors --------------------------------------------------------------------------
 
 def shown_path(path) -> str:
