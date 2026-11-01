@@ -1285,6 +1285,36 @@ def _misshapen(root: Path) -> None:
             raise not_results_error(path, why)
 
 
+def _read_above(root: Path, found: find.Search, tool: str | None) -> tuple[str, Path] | None:
+    """("records" or "results", the project folder above `root`) when a run in `root` reads
+    there: no results here, and record()'s records saved there (from any subfolder), or
+    results in the project folder above (find.results_above)."""
+    available = [t for t in find.TOOLS if found.readable(t)]
+    if "records" not in available and (tool == "records" or tool is None and not available):
+        above = find.records_above(root)
+        if above is not None:
+            return "records", above
+    if not available and tool is None and not found.too_big() and not found.unreadable:
+        above = find.results_above(root)
+        if above is not None:
+            return "results", above
+    return None
+
+
+def reads_in(folder: Path) -> Path:
+    """The folder a run in `folder` (no tool named) reads its results in, and so keeps its
+    marks in: `folder`, or the project folder above it (_read_above). --stop closes the page
+    a run from `folder` opened."""
+    root = Path(folder).resolve()
+    seen = {root}
+    while (above := _read_above(root, find.search(root), None)) is not None:
+        root = above[1].resolve()
+        if root in seen:
+            break
+        seen.add(root)
+    return root
+
+
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
     """(project folder, tool, its readable results newest first, tool signs)."""
     if not path.exists():
@@ -1327,19 +1357,16 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                 continue
             _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
                   else f"{rel} {how}, so it was left out.")
-    if "records" not in available and (tool == "records" or tool is None and not available):
-        above = find.records_above(root)
-        if above is not None:  # record() saves at the project root, from any subfolder
-            talk.say(RECORDS_ABOVE.format(root=above))
-            talk.say()
-            return _locate(talk, above, tool)
-    if not available and tool is None and not found.too_big() and not found.unreadable:
-        above = find.results_above(root)
-        if above is not None:  # run from a subfolder (src/, say) of the project
-            _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
-                        f"({above.name}).")
-            talk.say()
-            return _locate(talk, above, tool)
+    above = _read_above(root, found, tool)
+    if above is not None and above[0] == "records":  # record() saves at the project root
+        talk.say(RECORDS_ABOVE.format(root=above[1]))
+        talk.say()
+        return _locate(talk, above[1], tool)
+    if above is not None:  # run from a subfolder (src/, say) of the project
+        _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
+                    f"({above[1].name}).")
+        talk.say()
+        return _locate(talk, above[1], tool)
     if tool is not None:
         if tool not in available:
             if any(r.tool == tool for r in found.too_big()):

@@ -156,7 +156,7 @@ def test_the_page_never_holds_the_judges_verdict(workspace):
     server, thread, client = _server(ws)
     try:
         data = _page_data(server)
-        assert set(data) == {"items", "total", "start", "counts", "status"}
+        assert set(data) == {"items", "total", "start", "counts", "status", "version"}
         assert set(data["status"]) == {"text", "first", "ready", "headline"}
         for item in data["items"]:
             assert set(item) == {"id", "input", "output", "label", "skipped"}

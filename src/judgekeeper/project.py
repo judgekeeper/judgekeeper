@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from judgekeeper import marks
@@ -53,12 +54,40 @@ def project_of(path: Path) -> Path:
     """The project folder every command keeps .judgekeeper/ in. A results file or an MLflow
     store given as the path never moves it: it is found from the folder the command runs in.
     From there (or the folder given), the nearest folder up whose .judgekeeper/ holds marks,
-    without leaving the project (a folder with find.PROJECT_MARKERS); else the folder
-    itself, the same with a path given or not."""
+    without leaving the project (a folder with find.PROJECT_MARKERS), when the results here
+    are the ones it reads or there are none here (kept_apart); else the folder itself, the
+    same with a path given or not."""
+    here, given = _here(path)
+    above = store_above(here)
+    if above is None or above != here and _apart(here, above, given):
+        return here
+    return above
+
+
+def kept_apart(here: Path, given: Path | None = None) -> tuple[Path, list[str]] | None:
+    """(the folder above whose .judgekeeper/ holds marks, the results it reads) when the
+    results in `here` (or the file or folder `given`) are not those and so get their own
+    .judgekeeper/ in `here`."""
+    here = Path(here).resolve()
+    given = None if given is None else Path(given).resolve()
+    above = store_above(here)
+    if above is None or above == here or not _apart(here, above, given):
+        return None
+    return above, _read_by(above)
+
+
+def _here(path: Path) -> tuple[Path, Path | None]:
+    """(the folder the walk starts from, the results file or MLflow store given, if any)."""
     from judgekeeper import find
 
-    given = path.is_file() or find.is_mlflow_folder(path)
-    here = Path.cwd().resolve() if given else path.resolve()
+    if path.is_file() or find.is_mlflow_folder(path):
+        return Path.cwd().resolve(), path.resolve()
+    return path.resolve(), None
+
+
+def store_above(here: Path) -> Path | None:
+    """The nearest folder from `here` up whose .judgekeeper/ holds a session, without leaving
+    the project or reaching the home folder."""
     try:
         home = Path.home().resolve()
     except (RuntimeError, OSError):
@@ -71,7 +100,53 @@ def project_of(path: Path) -> Path:
             return folder
         if is_project(folder):
             break
-    return here
+    return None
+
+
+def _read_by(store: Path) -> list[str]:
+    """The results the session in `store` reads, named from `store`: the file (or folder)
+    given by path when marking started, else the files it found."""
+    import json
+
+    try:
+        data = json.loads(Workspace(store).start.read_text(encoding="utf-8"))
+        given = data.get("given")
+        files = [given] if isinstance(given, str) and given else data.get("results_files")
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [f for f in files if isinstance(f, str)] if isinstance(files, list) else []
+
+
+def _apart(here: Path, store: Path, given: Path | None) -> bool:
+    """Whether the results here (the one given, else those found in `here`) are other than
+    the ones the session in `store` reads: then they get their own .judgekeeper/."""
+    try:
+        stamp = Workspace(store).start.stat().st_mtime_ns
+    except OSError:
+        stamp = 0
+    return _apart_cached(here, store, given, stamp)
+
+
+def forget() -> None:
+    """Forget which results were found apart: each command looks again."""
+    _apart_cached.cache_clear()
+
+
+@lru_cache(maxsize=64)  # one command asks many times; the answer is the same
+def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bool:
+    from judgekeeper import find
+
+    if given is not None:
+        mine = {given}
+    elif not here.is_dir():  # a pipe or a device: the command refuses it
+        return False
+    else:
+        found = find.search(here)
+        mine = {r.path.resolve() for results in found.results.values() for r in results}
+    if not mine:
+        return False
+    theirs = [(store / f).resolve() for f in _read_by(store)]
+    return not all(any(m == t or m.is_relative_to(t) for t in theirs) for m in mine)
 
 
 def is_project(folder: Path) -> bool:

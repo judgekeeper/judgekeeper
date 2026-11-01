@@ -24,6 +24,7 @@ import math
 import os
 import re
 import stat
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,7 +43,7 @@ from judgekeeper import (
 )
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
-from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_value
+from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
 from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import (
     flush_stdout,
@@ -869,7 +870,7 @@ def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
     inside a project. None for "." and for anything it can read."""
-    from judgekeeper.project import project_of as _project
+    from judgekeeper.project import store_above
     from judgekeeper.textio import file_kind
 
     if path == "." or find.is_mlflow_folder(Path(path)):
@@ -882,7 +883,7 @@ def path_problem(path: str) -> str | None:
         kind = file_kind(given.stat().st_mode)
     except OSError:
         return f"There is no file or folder named {name} here."
-    if kind == "folder" and _project(given) != given.resolve():
+    if kind == "folder" and store_above(given.resolve()) not in (None, given.resolve()):
         return (f"{name} is a folder inside your project, not a results file or your project "
                 "folder.")
     if kind not in (None, "folder"):
@@ -1091,10 +1092,40 @@ def _history(ws: Workspace) -> list[dict]:
     return out
 
 
+_memo: dict[str, str] | None = None  # each text's _text, while texts_once() is on
+
+
+@contextmanager
+def texts_once():
+    """Within it, each text is made ready for matching (_text) once: matching many marks
+    asks for the same texts again and again, and scrubbing one takes time. Nothing is kept
+    after it."""
+    global _memo
+    if _memo is not None:  # inside another: that one's
+        yield
+        return
+    _memo = {}
+    try:
+        with scrub_once():  # and each text scrubbed once, for every other use too
+            yield
+    finally:
+        _memo = None
+
+
 def _text(value) -> str:
     """An answer's or a question's text as matched: scrubbed as pool.jsonl keeps it, with a
     spreadsheet's guard quote (table.guard_cell) and the line endings and the space at both
     ends left out."""
+    memo = _memo
+    if memo is None or not isinstance(value, str):
+        return _text_now(value)
+    hit = memo.get(value)
+    if hit is None:
+        hit = memo[value] = _text_now(value)
+    return hit
+
+
+def _text_now(value) -> str:
     from judgekeeper.start_label import display
     from judgekeeper.table import unguard_cell
 
@@ -1169,6 +1200,7 @@ def _candidates(index: dict, row: dict) -> list:
     return list(found.values())
 
 
+@texts_once()
 def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
     """({id: the new judge's answer} for the marked answers `marked` found in the results, the
     ids found there with different grades). For a judge whose results are many files, in

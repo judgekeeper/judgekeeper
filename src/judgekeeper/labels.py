@@ -58,8 +58,8 @@ FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = ("Mark {n} more answers on the page to check the marks from {name}. Until then, it's "
-        "too early to tell.")
+GATE = ("Mark at least {n} more answers on the page to check the marks from {name}. Until "
+        "then, it's too early to tell.")
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
@@ -332,6 +332,16 @@ def _base(answer_id: str) -> str:
 
 def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
           left: dict | None = None) -> Plan:
+    """Which answers of the queue the labels are for (_match), each text made ready for
+    matching once (check.texts_once)."""
+    from judgekeeper.check import texts_once
+
+    with texts_once():
+        return _match(found_labels, pool_rows, queue, left)
+
+
+def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
+           left: dict | None = None) -> Plan:
     """Which answers of the queue (`pool_rows`: pool.jsonl by id) the labels are for. `left`:
     the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), to tell
     those from answers not in the results."""

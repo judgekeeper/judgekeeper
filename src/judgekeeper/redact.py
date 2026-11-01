@@ -24,6 +24,7 @@ import itertools
 import os
 import re
 from array import array
+from contextlib import contextmanager
 
 REDACTED = "[REDACTED]"
 _MASK = "\ue000"  # where a credential was, while scrub() works out what to hide
@@ -240,10 +241,44 @@ def _secret_values() -> list[str]:
     return found
 
 
+_memo: dict[str, str] | None = None  # each text scrubbed, while scrub_once() is on
+_memo_for: list | None = None  # the credentials the memo's texts were scrubbed of
+
+
+@contextmanager
+def scrub_once():
+    """Within it, each text is scrubbed once: a big run scrubs the same texts again and
+    again. Started again whenever the credentials change; nothing is kept after it."""
+    global _memo, _memo_for
+    if _memo is not None:  # inside another: that one's
+        yield
+        return
+    _memo, _memo_for = {}, None
+    try:
+        yield
+    finally:
+        _memo, _memo_for = None, None
+
+
 def scrub(text: str | None) -> str | None:
     """Return `text` with every credential replaced by [REDACTED]. None passes through. A
     credential split by a hidden character (which a page or the terminal then drops), or right
     after one, is found too: then the text comes back without its hidden characters."""
+    global _memo_for
+    memo = _memo
+    if memo is None or not text or not isinstance(text, str):
+        return _scrub_now(text)
+    secrets = _secret_values()
+    if secrets is not _memo_for:  # other credentials: start again
+        memo.clear()
+        _memo_for = secrets
+    hit = memo.get(text)
+    if hit is None:
+        hit = memo[text] = _scrub_now(text)
+    return hit
+
+
+def _scrub_now(text: str | None) -> str | None:
     if not text:
         return text
     escaped = _ESCAPED_KEY.search(text) is not None

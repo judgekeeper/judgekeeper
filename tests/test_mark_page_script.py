@@ -703,3 +703,56 @@ def test_a_verdict_that_goes_back_to_too_early_changes_the_link_and_never_reopen
                            "Your first numbers are in. Too early to tell: keep marking."]
     assert got["box"] is True  # once only
     assert got["link"] == "See your result"
+
+
+# A page left open while marks are imported -----------------------------------------------------
+
+STALE = """
+  var stateAsked = 0;
+  function answer(summary) { return Promise.resolve({ok: true, json: function () {
+    return Promise.resolve({summary: summary}); }}); }
+  fetch = function (url, opts) {
+    if (url.indexOf("/state") === 0) {
+      stateAsked += 1;
+      var items = DATA.items.map(function (it, k) {  // a1 and a2 came in from the import
+        return Object.assign({}, it, {label: k === 0 ? "pass" : (k < 3 ? "fail" : null)}); });
+      return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+        {items: items, total: items.length, start: 3, version: "v3",
+         counts: {correct: 1, wrong: 2, skipped: 0}, status: {text: "Keep going.", ready: false}});
+      }});
+    }
+    var body = JSON.parse(opts.body); sent.push({url: url, body: body});
+    return answer({counts: {correct: 1, wrong: 2, skipped: 0}, version: "v3",
+                   before: BEFORE, status: {text: "Keep going.", ready: false}});
+  };
+"""
+
+
+def test_a_page_whose_marks_changed_takes_the_new_list_before_the_next_answer():
+    got = _run("var BEFORE = 'v2';" + STALE + """
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      console.log(JSON.stringify({at: ids["q-text"].textContent, stateAsked: stateAsked,
+        reloads: reloads, heard: ids["done"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               _data(version="v1"))
+    assert got["sent"] == [["a0", "pass"]] and got["stateAsked"] == 1
+    assert got["at"] == "Question 3?"  # not a1, which the import marked
+    assert got["reloads"] == 0
+
+
+def test_a_page_whose_marks_did_not_change_goes_on_as_before():
+    got = _run("var BEFORE = 'v1';" + STALE + """
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      later(400); key("ArrowLeft"); for (var n = 0; n < 6; n++) { await settle(); }
+      console.log(JSON.stringify({at: ids["q-text"].textContent, stateAsked: stateAsked}));""",
+               _data(version="v1"))
+    # the first mark's version before is the page's; the second's (still "v1") is not the
+    # "v3" the first answer gave, so it takes the list again
+    assert got == {"at": "Question 3?", "stateAsked": 1}
+
+
+def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
+    got = _run("""
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({at: ids["q-text"].textContent, reloads: reloads}));""")
+    assert got == {"at": "Question 1?", "reloads": 0}

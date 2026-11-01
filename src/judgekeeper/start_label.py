@@ -707,11 +707,13 @@ class StartSession(LabelSession):
         self.sitting = marks.new_sitting()
         self.seed = data.get("seed")
         self.offer: dict | None = None  # an answer to show again, in the answer to the last change
+        self.dropped: int | None = None  # a repeat card the last change took back (its slot)
         self.offered: dict[int, str] = {}  # slot -> the answer this page was asked to show again
         self.link: str | None = None  # marks.PRINTED once the page's link was printed with no terminal
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         self.changes = 0  # counts every change to the marks in memory
         self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
+        self.before: str | None = None  # marks.jsonl's version before the last change (version)
         self._status: tuple | None = None  # (changes, start.json's stamp, the status)
         super().__init__(ws.pool, ws.marks)
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
@@ -757,13 +759,24 @@ class StartSession(LabelSession):
             self._status = (key, self.status(self))
         return self._status[1]
 
+    def version(self) -> str:
+        """marks.jsonl's version (its size and time), as the page holds it: when the version
+        before a change is not the page's, someone else wrote marks (an import, another page)
+        and the page takes its list and counts again (/state) before the next answer."""
+        stamp = file_stamp(self.out)
+        return f"{stamp[0]}-{stamp[1]}" if stamp else ""
+
     def update(self, body: dict) -> None:
         """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
         stamped line. The marks on disk are read again first, so marks another page wrote are
         kept. A change with reasons and no mark (the result page) is a reason line
-        (add_reasons). A mark changed after the judge's grades were shown is stamped so."""
+        (add_reasons). A mark changed after the judge's grades were shown is stamped so.
+        A change that changes nothing (the page's own mark again) writes no line. A first
+        mark changed drops a repeat card still due for that answer (`dropped`): it would be
+        compared with a mark the person no longer gives."""
+        self.before = self.version()
         self._reread()
-        self.offer = None
+        self.offer = self.dropped = None
         item = self.by_id[body["id"]]
         if "again" in body:
             self._repeat(item, body)
@@ -777,6 +790,8 @@ class StartSession(LabelSession):
         try:
             self._apply(item, body)
             mark = item["label"] or ("skip" if item["deferred"] else None)
+            if self._same(before, item):
+                return  # nothing changed: no line, so a post sent again and again adds nothing
             changed = before["label"] in ("pass", "fail") and mark != before["label"]
             line = marks.stamp(item["id"], mark, self.groups.get(item["id"]),
                                body.get("seconds"), self.sitting, note=body.get("note"),
@@ -798,11 +813,24 @@ class StartSession(LabelSession):
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+        if changed:  # a repeat card due for it would compare with the mark it had
+            for slot, i in list(self.offered.items()):
+                if i == item["id"] and slot not in self.slots:
+                    del self.offered[slot]
+                    self.dropped = slot
         if mark in ("pass", "fail") and before["label"] not in ("pass", "fail"):
             due = self._due()
             if due is not None and due[0] not in self.offered:
                 self.offered[due[0]] = due[1]
                 self.offer = {**self._again(due[1]), "slot": due[0]}
+
+    def _same(self, before: dict, item: dict) -> bool:
+        """Whether a change left `item` as it was (`before`): the same mark, skip and note,
+        and a Pass or Fail made on the page (one from an import, marked the same on the page,
+        is a page mark now: a change)."""
+        if any(before[k] != item[k] for k in ("label", "deferred", "note")):
+            return False
+        return item["label"] not in ("pass", "fail") or item["id"] in self.page_marked
 
     def _due(self) -> tuple[int, str] | None:
         """(slot, answer) when an answer is to be shown again now, else None: one slot in each
@@ -882,7 +910,10 @@ class StartSession(LabelSession):
         counts = self.counts()
         return {"n_items": len(self.items), "n_labeled": counts["correct"] + counts["wrong"],
                 "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items),
-                "status": self.current_status(), **({"again": self.offer} if self.offer else {})}
+                "status": self.current_status(), "version": self.version(),
+                **({"before": self.before} if self.before is not None else {}),
+                **({"again": self.offer} if self.offer else {}),
+                **({"dropped": self.dropped} if self.dropped is not None else {})}
 
     def _shown(self, i: dict) -> dict:
         """One answer as the page shows it."""
@@ -911,7 +942,7 @@ class StartSession(LabelSession):
         status = self.current_status()
         self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": status}
+                "counts": self.counts(), "status": status, "version": self.version()}
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
@@ -1211,8 +1242,7 @@ def _fixing(ws: Workspace, r: dict) -> dict | None:
 
     if not shows_disagreements(r):
         return None
-    fix.prepare_split(ws)
-    section = fix.report_section(ws)
+    section = fix.prepared_section(ws)
     if not section:
         return None
     if section["mistakes"]:
@@ -1234,8 +1264,7 @@ def why_count(ws: Workspace, r: dict) -> int:
 
     if not shows_disagreements(r):
         return 0
-    fix.prepare_split(ws)
-    section = fix.report_section(ws)
+    section = fix.prepared_section(ws)
     return len(fix.without_why(section["mistakes"])) if section else 0
 
 

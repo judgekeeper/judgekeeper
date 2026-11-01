@@ -185,6 +185,15 @@ START_OVER = "run `{program} --new` to start over: your marks move to .judgekeep
 
 
 def new_answers(ws, found) -> list:
+    """The graded answers in the newest results the pool does not hold (_new_answers), each
+    text made ready for matching once (check.texts_once)."""
+    from judgekeeper.check import texts_once
+
+    with texts_once():
+        return _new_answers(ws, found)
+
+
+def _new_answers(ws, found) -> list:
     """The graded answers in the newest results (`found`) that the pool does not hold, by their
     exact question and answer text (scrubbed, as pool.jsonl keeps them), each once. An answer
     asked as a pool row's question is that row's, as check.lookup finds it: grading

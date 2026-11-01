@@ -99,7 +99,8 @@ def test_screen_1_the_first_run(here, capsys):
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
-        'Next: mark until "See your result" appears, then click it.',
+        "Next: mark answers until the link at the top shows your numbers,",
+        "then click it.",
     ]
 
 
@@ -115,7 +116,8 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]
-    assert lines[-1] == 'Next: mark until "See your result" appears, then click it.'
+    assert lines[-2:] == ["Next: mark answers until the link at the top shows your numbers,",
+                          "then click it."]
 
 
 
@@ -146,12 +148,15 @@ def test_screen_2_again_before_a_first_result(here, capsys):
         "",
         "You marked 12 answers so far: 8 Pass, 4 Fail.",
         "That's not enough for a result yet.",
+        "A result needs at least 15 answers you mark Pass and 15 you mark",
+        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, when there are fewer).",
         "",
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
         "",
-        'Next: keep marking until "See your result" appears, then click',
-        "it.",
+        "Next: mark answers until the link at the top shows your numbers,",
+        "then click it.",
     ]
 
 
