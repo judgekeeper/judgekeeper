@@ -811,6 +811,19 @@ __TOP__
     items.splice(pos + 1, 0, it); total += 1;
   }
 
+  // A card shown again whose answer's first mark was just changed: the server took it back
+  // (`dropped`, its slot). The places after it move up one, also in the undo list.
+  function dropAgain(slot) {
+    if (slot == null) { return; }
+    for (var k = items.length - 1; k >= 0; k--) {
+      if (items[k].again !== slot) { continue; }
+      items.splice(k, 1); total -= 1;
+      if (k < pos) { pos -= 1; }
+      history = history.filter(function (h) { return h !== k; })
+        .map(function (h) { return h > k ? h - 1 : h; });
+    }
+  }
+
   // The list and counts again (/state), as a reload gives them, when someone else wrote marks
   // since this page last looked: the next answer is then one still to mark.
   function refresh(heard, popup) {
@@ -847,6 +860,7 @@ __TOP__
       var stale = res.body.summary.before != null && res.body.summary.before !== version;
       if (res.body.summary.version != null) { version = res.body.summary.version; }
       if (stale) { refresh(heard, res.body.summary.popup); return; }
+      dropAgain(res.body.summary.dropped);
       showAgain(res.body.summary.again);
       then();
       if (res.body.summary.popup && !readyShown && !ended) { showReady(); }
