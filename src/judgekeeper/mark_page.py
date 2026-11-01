@@ -345,6 +345,9 @@ __TOP__
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
   var lockUntil = 0;         // clicks are ignored until then, after each mark
+  // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
+  // nobody reads an answer that fast, so it was a second press meant for the one before.
+  var FRESH_MS = 250, freshUntil = 0;
   var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
@@ -763,7 +766,7 @@ __TOP__
       window.location.reload(); return; }
     var i = nextIndex(pos + 1);
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
-    if (i !== null) { open(i); return; }
+    if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
     finish();
   }
@@ -875,8 +878,9 @@ __TOP__
   }
 
   // Each click waits LOCK_MS after the action before: a double click never marks an answer not
-  // yet on screen. A key is never ignored (`key`): one pressed while a mark is saved waits for
-  // it (act); a key held down does nothing.
+  // yet on screen. A key (`key`) is not locked: one pressed while a mark is saved waits for it
+  // (act), then does nothing within FRESH_MS of the next answer showing; a key held down does
+  // nothing.
   function locked(key) {
     var t = Date.now();
     if (t < lockUntil && !key) { return true; }
@@ -895,8 +899,10 @@ __TOP__
 
   function act(f) { if (busy) { queued.push(f); } else { f(); } }
 
+  function fresh() { return Date.now() < freshUntil; }
+
   function mark(value, key) {
-    if (ended || locked(key)) { return; }
+    if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
     send({label: value}, function () {
@@ -905,7 +911,7 @@ __TOP__
   }
 
   function skip(key) {
-    if (ended || locked(key)) { return; }
+    if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
@@ -959,6 +965,7 @@ __TOP__
   }
   function startMarking() {
     $("intro").hidden = true; $("app").removeAttribute("inert");
+    shownAt = Date.now();  // the answer is on screen from now
     try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
@@ -981,6 +988,7 @@ __TOP__
   }
   function keepMarking() {
     $("ready").hidden = true; $("app").removeAttribute("inert");
+    shownAt = Date.now();  // the box covered the answer until now: its time starts here
     focusCard();
   }
   $("ready-keep").addEventListener("click", keepMarking);
