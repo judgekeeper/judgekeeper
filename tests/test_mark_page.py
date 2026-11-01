@@ -19,7 +19,9 @@ from tests.test_label_server import Client
 
 
 @pytest.fixture
-def ws(tmp_path):
+def ws(tmp_path, request, monkeypatch):
+    if hasattr(request, "param"):  # the marking seed, which picks the answers shown again
+        monkeypatch.setattr(start_label.secrets, "randbelow", lambda n: request.param)
     promptfoo_project(tmp_path, split(16, 16))
     return start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
 
@@ -113,7 +115,8 @@ def test_it_stays_open_after_the_result_also_once_every_answer_is_marked(ws, ser
     assert thread.is_alive() and client.state()  # the result page may still ask it
 
 
-def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, served,
+@pytest.mark.parametrize("ws, again", [(0, False), (45, True)], indirect=["ws"])  # 45: at 30
+def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, again, served,
                                                                        monkeypatch):
     monkeypatch.setattr(label_mod, "RESULT_WAIT", 0)
     server, _, client = served
@@ -131,8 +134,11 @@ def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, serve
     assert resp.status == 200
     [data] = re.findall(r'<script type="application/json" id="data">(.*?)</script>',
                         body.decode("utf-8"), re.DOTALL)
-    shown = {i["id"]: i["label"] for i in json.loads(data)["items"]}
+    data = json.loads(data)["items"]
+    shown = {i["id"]: i["label"] for i in data if "again" not in i}
     assert all(shown[i["id"]] == groups[i["id"]] for i in items[:30])
+    back = [i for i in data if "again" in i]  # shown again, not marked again yet
+    assert len(back) == again and all(i["label"] is None and i["id"] in shown for i in back)
     saved = (ws.dir / "report.html").read_text(encoding="utf-8")
     assert server.token not in saved and "Keep marking</a>" not in saved
     assert "To mark more, run <code>" in saved

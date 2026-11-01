@@ -225,6 +225,14 @@ def _write_json(path: Path, data) -> None:
 # The queue -------------------------------------------------------------------------------
 
 AHEAD = 100  # answers past the furthest one marked that the page gets at once
+# Repeats: from REPEAT_FROM page marks on, one answer in about REPEAT_EVERY comes back a second
+# time (never said, never one of the last REPEAT_GAP marked), so the result can say how often
+# the person marks the same answer differently. Only the first mark counts.
+REPEAT_FROM = 10
+REPEAT_EVERY = 20
+REPEAT_GAP = 5
+SLIP_FROM = 10  # repeats before the result says what a perfect judge would show at that rate
+
 
 def build_queue(answers, seed: int) -> list[dict]:
     """[{"id", "group"}] for every answer in the pool, in the order the page shows them.
@@ -668,6 +676,9 @@ class StartSession(LabelSession):
         self.pool = data.get("pool", {})
         self.status = status or start_status
         self.sitting = marks.new_sitting()
+        self.seed = data.get("seed")
+        self.offer: dict | None = None  # an answer to show again, in the answer to the last change
+        self.offered: dict[int, str] = {}  # slot -> the answer this page was asked to show again
         self.link: str | None = None  # marks.PRINTED once the page's link was printed with no terminal
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         self.changes = 0  # counts every change to the marks in memory
@@ -687,6 +698,12 @@ class StartSession(LabelSession):
         m = marks.read(self.out)
         self._marks_seen, self.changes = seen, self.changes + 1
         self.not_counted = m.not_counted
+        # for repeats (_due): the answers marked on the page, the slots shown and answers shown
+        self.page_marked = {i for i, x in m.last.items()
+                            if x["by"] == marks.BY and x["mark"] in ("pass", "fail")}
+        self.slots, self.repeated = set(m.slots), set(m.repeats)
+        self.line_of = dict(m.line_of)  # answer id -> its last mark's place in marks.jsonl
+        self.lines = max(self.line_of.values(), default=0)
         for item in self.items:
             line = m.last.get(item["id"]) or {}
             mark = line.get("mark")
@@ -717,7 +734,11 @@ class StartSession(LabelSession):
         kept. A change with reasons and no mark (the result page) is a reason line
         (add_reasons). A mark changed after the judge's grades were shown is stamped so."""
         self._reread()
+        self.offer = None
         item = self.by_id[body["id"]]
+        if "again" in body:
+            self._repeat(item, body)
+            return
         if any(k in body for k in ("reasons", "note", "rule_parts", "spans")):
             if "label" in body or "deferred" in body:
                 raise ValueError("a reason is given on your result page, not with a mark")
@@ -739,9 +760,62 @@ class StartSession(LabelSession):
             if seen == self._marks_seen:  # nobody else wrote in between: memory is the file
                 self._marks_seen = file_stamp(self.out)
             self.changes += 1
+            if mark in ("pass", "fail"):
+                self.page_marked.add(item["id"])
+            else:
+                self.page_marked.discard(item["id"])
+            self.lines += 1
+            self.line_of[item["id"]] = self.lines
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+        if mark in ("pass", "fail") and before["label"] not in ("pass", "fail"):
+            due = self._due()
+            if due is not None and due[0] not in self.offered:
+                self.offered[due[0]] = due[1]
+                self.offer = {**self._again(due[1]), "slot": due[0]}
+
+    def _due(self) -> tuple[int, str] | None:
+        """(slot, answer) when an answer is to be shown again now, else None: one slot in each
+        REPEAT_EVERY page marks from REPEAT_FROM on (where in each is seeded), at the count of
+        answers marked Pass or Fail on the page, each slot once. The answer: one marked on the
+        page, not one of the last REPEAT_GAP marked (by marks.jsonl) and never shown again
+        before; the same whichever page asks."""
+        page = sorted(i for i in self.page_marked if i in self.by_id)
+        n = len(page)
+        block = random.Random(f"{self.seed}:{n // REPEAT_EVERY}").randrange(REPEAT_EVERY)
+        if n < REPEAT_FROM or n % REPEAT_EVERY != block or n in self.slots:
+            return None
+        if n in self.offered:
+            return n, self.offered[n]
+        recent = sorted(page, key=lambda i: self.line_of.get(i, -1))[-REPEAT_GAP:]
+        shown = self.repeated | set(self.offered.values()) | set(recent)
+        left = [i for i in page if i not in shown]
+        return (n, random.Random(f"{self.seed}:{n}").choice(left)) if left else None
+
+    def _again(self, item_id: str) -> dict:
+        """An answer shown again, as the page shows any answer still to mark."""
+        return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False}
+
+    def _repeat(self, item: dict, body: dict) -> None:
+        """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark."""
+        slot = body["again"]
+        if type(slot) is not int or self.offered.get(slot) != item["id"]:
+            raise ValueError("not a repeat this page showed")
+        label = body.get("label")
+        if label not in ("pass", "fail", None):
+            raise ValueError("label must be pass, fail or null")
+        mark = "skip" if body.get("deferred") is True and label is None else label
+        if not self.out.is_file():
+            begin_marks(self.workspace)
+        seen = file_stamp(self.out)
+        marks.append(self.out, marks.repeat_line(item["id"], mark, self.groups.get(item["id"]),
+                                                 body.get("seconds"), self.sitting, slot,
+                                                 link=self.link))
+        if seen == self._marks_seen:
+            self._marks_seen = file_stamp(self.out)
+        self.slots.add(slot)
+        self.repeated.add(item["id"])
 
     def add_reasons(self, item: dict, body: dict) -> None:
         """Why the person disagrees with the judge on `item` (reasons.check), as a line with
@@ -779,7 +853,16 @@ class StartSession(LabelSession):
         counts = self.counts()
         return {"n_items": len(self.items), "n_labeled": counts["correct"] + counts["wrong"],
                 "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items),
-                "status": self.current_status()}
+                "status": self.current_status(), **({"again": self.offer} if self.offer else {})}
+
+    def _shown(self, i: dict) -> dict:
+        """One answer as the page shows it."""
+        raw = self.raw[i["id"]]
+        return {"id": i["id"], "input": shown_question(self.workspace, raw.get("input"),
+                                                       raw.get("output")),
+                "output": display(raw.get("output")), "label": i["label"],
+                "skipped": i["deferred"],
+                **({"run": self.runs[i["id"]]} if i["id"] in self.runs else {})}
 
     def state(self) -> dict:
         """What the page needs: the answers up to the furthest one marked or skipped and the
@@ -790,14 +873,12 @@ class StartSession(LabelSession):
         shown = self.items[:touched + 1 + AHEAD]
         start = next((n for n, i in enumerate(shown)
                       if not i["label"] and not i["deferred"]), 0)
-        items = [{"id": i["id"], "input": shown_question(self.workspace,
-                                                          self.raw[i["id"]].get("input"),
-                                                          self.raw[i["id"]].get("output")),
-                  "output": display(self.raw[i["id"]].get("output")), "label": i["label"],
-                  "skipped": i["deferred"],
-                  **({"run": self.runs[i["id"]]} if i["id"] in self.runs else {})}
-                 for i in shown]
-        return {"items": items, "total": len(self.items), "start": start,
+        items = [self._shown(i) for i in shown]
+        due = self._due()  # shown again and not marked yet (the page closed): it comes first
+        if due is not None:
+            self.offered[due[0]] = due[1]
+            items.insert(start, {**self._again(due[1]), "again": due[0]})
+        return {"items": items, "total": len(self.items) + (due is not None), "start": start,
                 "counts": self.counts(), "status": self.current_status()}
 
 
@@ -958,11 +1039,13 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
 _plural = plural  # textio.plural
 
 
-def made_lines(made: dict | None, imported: dict | None = None) -> list[str]:
+def made_lines(made: dict | None, imported: dict | None = None,
+               real_pass: float | None = None) -> list[str]:
     """How the marks were made (marks.made; `imported`: marks.imported, the marks brought with
     --labels), and a note when more than a quarter of the page's marks took under a second each
     (more than half: it looks like a program), when lines of marks.jsonl are not counted, or
-    when marks came through a page another program could have used (link_lines)."""
+    when marks came through a page another program could have used (link_lines); then
+    second_thoughts (`real_pass`: the result's real pass rate)."""
     from judgekeeper.labels import names
 
     if not made or not made["marks"]:
@@ -988,12 +1071,15 @@ def made_lines(made: dict | None, imported: dict | None = None) -> list[str]:
                    "as the marks." + (" This looks like a program, not a person."
                                       if quick * 2 > n else ""))
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
-    return out + ([not_counted] if not_counted else []) + link_lines(made) + second_thoughts(made)
+    return (out + ([not_counted] if not_counted else []) + link_lines(made)
+            + second_thoughts(made, real_pass))
 
 
-def second_thoughts(made: dict | None) -> list[str]:
-    """How many marks the person wasn't sure about, and how many they changed after seeing the
-    judge's grades (marks.made): the same in the terminal, on the result page and report.html."""
+def second_thoughts(made: dict | None, real_pass: float | None = None) -> list[str]:
+    """How many marks the person wasn't sure about, how many they changed after seeing the
+    judge's grades, and how often they marked an answer shown again differently (marks.made;
+    `real_pass`: the result's real pass rate): the same in the terminal, on the result page and
+    report.html."""
     made = made or {}
     out = []
     if made.get("unsure"):
@@ -1001,6 +1087,27 @@ def second_thoughts(made: dict | None) -> list[str]:
     if made.get("after_result"):
         out.append(f"You changed {_plural(made['after_result'], 'mark', 'marks')} after seeing "
                    "your LLM-as-a-judge's grades.")
+    return out + repeat_lines(made.get("repeats"), real_pass)
+
+
+def repeat_lines(repeats: dict | None, real_pass: float | None = None) -> list[str]:
+    """The answers shown twice and how many were marked differently the second time; from
+    SLIP_FROM of them, with some marked differently, what even a perfect LLM-as-a-judge would
+    show at that rate (targets.best_possible: the numbers stay as they are)."""
+    if not repeats or not repeats.get("seen"):
+        return []
+    n, k = repeats["seen"], repeats["changed"]
+    seen = "1 answer" if n == 1 else f"{n} answers"
+    if not k:
+        return [(f"You saw {seen} twice and marked {'it' if n == 1 else 'each'} the same way "
+                "both times.")]
+    out = [(f"You saw {seen} twice and marked {'it' if n == 1 else k} differently the second "
+           "time. Only your first mark counts.")]
+    if n >= SLIP_FROM and real_pass is not None:
+        best = targets.best_possible(real_pass, targets.slip_rate(k / n))
+        out.append(f"At this rate, even a perfect LLM-as-a-judge would agree with you only "
+                   f"about {round(best['tpr'] * 100)}% when you say Pass and "
+                   f"{round(best['tnr'] * 100)}% when you say Fail.")
     return out
 
 

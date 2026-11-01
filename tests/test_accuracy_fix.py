@@ -47,7 +47,8 @@ def test_the_reference_says_how_extra_tests_stay_fair():
 
     reference = (Path(__file__).parent.parent / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "the levels divided by the number of tests" in reference
-    assert "1 in 20" not in reference  # a figure with no report behind it is not stated
+    fixing = reference[reference.index("## fix:"):reference.index("## check:")]
+    assert "1 in 20" not in fixing  # a figure with no report behind it is not stated
 
 
 # Hidden marks from the first result on ---------------------------------------------------------
