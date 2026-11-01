@@ -232,7 +232,7 @@ def _takes_value(word: str) -> bool:
 def _from_here(value: str, labels: bool) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in;
     on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
-    if not os.path.isabs(value):
+    if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return value
     try:
         rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))

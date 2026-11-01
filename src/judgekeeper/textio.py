@@ -565,7 +565,7 @@ def shown_path(path) -> str:
     for a file in it, else from the folder the command runs in, else its name alone."""
     text = os.fsdecode(path)
     p = Path(text)
-    if not p.is_absolute():
+    if not p.anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return text
     if WORKSPACE in p.parts:
         return "/".join(p.parts[p.parts.index(WORKSPACE):])
