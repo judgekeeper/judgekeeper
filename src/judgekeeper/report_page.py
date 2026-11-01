@@ -992,6 +992,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     to show is left out), each with how many more of it are kept aside; those of a group
     with none to show after the lists. In report.html, which can't save a reason, a line
     last: to say why, run `mark` (`mark`: the command)."""
+    from judgekeeper.fix import without_why
     from judgekeeper.start_label import say_why_run
 
     mistakes = (fixing or {}).get("mistakes") or []
@@ -1022,8 +1023,9 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
             left += kept
     if left:
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
-    if mistakes and not live and mark:
-        tell = say_why_run(len(mistakes), mark)  # the ones listed: never those kept aside
+    asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
+    if asked and not live and mark:
+        tell = say_why_run(asked, mark)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 

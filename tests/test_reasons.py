@@ -1085,6 +1085,27 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 
+def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, capsys, pages,
+                                                                         no_browser):
+    """Reasons given on the result page are not asked for again: the line counts the rest,
+    and is not said when every one has a reason."""
+    ws, passes, fails, _ = _ready(here)
+    n = len(passes) + len(fails)
+    assert n > 3
+    _say(ws, passes[0], reasons=["wrong_fact"])  # a tap
+    _say(ws, fails[0], reasons=[], note="Too strict about the tone")  # a note only
+    code, out = _run(capsys)
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert f"Tell judgekeeper why you disagree on these {n - 2}:" in flat, out
+    assert f"disagree on these {n - 2}:" in _report(ws).replace("\n", " ")
+    for i in [*passes[1:], *fails[1:]]:
+        _say(ws, i, reasons=[], note="Wrong")
+    code, out = _run(capsys)
+    assert code == 0, out
+    assert "Tell judgekeeper why" not in out and "Tell judgekeeper why" not in _report(ws)
+
+
 def test_measure_says_nothing_about_why_when_you_agreed_on_all(here, capsys, pages,
                                                                 no_browser):
     from tests.start_projects import promptfoo_project, split

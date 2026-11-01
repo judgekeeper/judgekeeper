@@ -700,6 +700,16 @@ RESULT_WORDS = {"better": "better", "safe": "safe to try",
                 "worse": "looks worse"}
 
 
+def without_why(mistakes: list[dict]) -> list[dict]:
+    """The disagreements of report_section the person has given no reason on yet (no tap,
+    note or marked words)."""
+    def given(x: dict) -> bool:
+        why = x.get("why") or {}
+        return bool(why.get("reasons") or why.get("note") or why.get("spans"))
+
+    return [x for x in mistakes if not given(x)]
+
+
 def report_section(ws: Workspace) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
     judge's reason, each text whole (the page folds each row), a many-field question's

@@ -1220,9 +1220,10 @@ def _fixing(ws: Workspace, r: dict) -> dict | None:
 
 
 def why_count(ws: Workspace, r: dict) -> int:
-    """How many disagreements the result page lists with a reason box, for the result
-    `r`: none while it is too early to tell (the page lists none), else the mistakes on
-    the marks the person can see (fix.report_section), the hidden marks set aside first."""
+    """How many disagreements the result page lists with a reason box and no reason yet, for
+    the result `r`: none while it is too early to tell (the page lists none), else the
+    mistakes on the marks the person can see (fix.report_section), the hidden marks set
+    aside first, with no reason given (fix.without_why)."""
     from judgekeeper import fix
     from judgekeeper.report_page import shows_disagreements
 
@@ -1230,7 +1231,7 @@ def why_count(ws: Workspace, r: dict) -> int:
         return 0
     fix.prepare_split(ws)
     section = fix.report_section(ws)
-    return len(section["mistakes"]) if section else 0
+    return len(fix.without_why(section["mistakes"])) if section else 0
 
 
 def _now(ws: Workspace, r: dict) -> dict:
