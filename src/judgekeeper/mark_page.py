@@ -428,14 +428,16 @@ __TOP__
     $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
-  // On a phone the card comes first, then the list: the card is scrolled into view (at once under
-  // reduced motion). Wider, the card is next to the list and stays where it is.
+  // On a phone the card comes first, then the list: the bar above the card is scrolled to the
+  // top, so its link and line show with the card (at once under reduced motion). Wider, the
+  // card is next to the list and stays where it is.
   function media(query) { return !!(window.matchMedia && window.matchMedia(query).matches); }
   function focusCard() {
     var to = ended ? $("end") : card;
     to.focus({preventScroll: true});
-    if (media("(max-width: 760px)") && to.scrollIntoView) {
-      to.scrollIntoView({behavior: media("(prefers-reduced-motion: reduce)") ? "auto" : "smooth",
+    var into = ended ? to : $("progress-box");
+    if (media("(max-width: 760px)") && into.scrollIntoView) {
+      into.scrollIntoView({behavior: media("(prefers-reduced-motion: reduce)") ? "auto" : "smooth",
                          block: "start"});
     }
   }
@@ -974,7 +976,7 @@ def _progress() -> str:
     """The top bar's right: the segments by how close the result is, the count of marks, and
     the link to the result (hidden until one is ready); under them, hidden until it is
     wanted, the line that says to keep going."""
-    return ('<div class="progress-box"><div class="status-1"><div class="seg" id="progress" '
+    return ('<div class="progress-box" id="progress-box"><div class="status-1"><div class="seg" id="progress" '
             'role="progressbar" aria-label="How close your result is" aria-valuemin="0" '
             'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'

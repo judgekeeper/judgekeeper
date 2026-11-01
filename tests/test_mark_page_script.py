@@ -439,7 +439,8 @@ def test_a_save_with_no_answer_in_10_seconds_says_so_and_can_be_tried_again():
 
 
 def _phone(width: int, still: bool = False) -> str:
-    """A window `width` px wide (reduced motion when `still`); the card's scrolls are kept."""
+    """A window `width` px wide (reduced motion when `still`); the scrolls of the bar above the
+    card are kept."""
     return f"""
       window.innerWidth = {width};
       window.matchMedia = function (q) {{
@@ -450,7 +451,7 @@ def _phone(width: int, still: bool = False) -> str:
       }};
       var scrolled = [];
       El.prototype.scrollIntoView = function (o) {{
-        if (this === ids["answer-card"]) {{ scrolled.push(o); }} }};
+        if (this === ids["progress-box"]) {{ scrolled.push(o); }} }};
     """
 
 
@@ -462,7 +463,8 @@ _PICK = """
 
 
 def test_on_a_phone_an_answer_picked_from_the_list_scrolls_into_view():
-    """At 390px the list sits below the card: the card picked comes into view, smoothly."""
+    """At 390px the list sits below the card: the card picked comes into view, smoothly, with
+    the bar, its link and its line above it."""
     got = _run(_PICK, before=_phone(390))
     assert got == {"at": "Question 4?", "scrolled": [{"behavior": "smooth", "block": "start"}]}
 
