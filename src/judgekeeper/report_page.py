@@ -1116,10 +1116,10 @@ def _details(r: dict) -> str:
 def _next(r: dict, back: str | None) -> str:
     """What next, once there is a result: where the marks are saved; when the judge needs work,
     the command (`judgekeeper fix` prints what to do next) in the website's command box with
-    Copy; when it is good enough, that there is nothing more to do; then how to mark more: on
-    the page the marking server serves, a link back to the marking page (`back`, with its
-    token) and the command for once it has closed; in report.html the command only, so the
-    token is never saved."""
+    Copy; when it is good enough, that there is nothing more to do; then, unless every answer
+    is marked, how to mark more: on the page the marking server serves, a link back to the
+    marking page (`back`, with its token) and the command for once it has closed; in
+    report.html the command only, so the token is never saved."""
     step = next_step(r)
     if step == "mark":
         return ""
@@ -1135,11 +1135,12 @@ def _next(r: dict, back: str | None) -> str:
         out.append(f'<p>Nothing more to do. Run <code>{_e(commands(r)["check"])}</code> after '
                    f"you change your {TERM}.</p>")
     mark = f"<code>{_e(commands(r)['mark'])}</code>"
-    if back is not None:
+    more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
+    if more and back is not None:
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
                    "<p>It closes by itself after 30 minutes without use. Closed? Run "
                    f"{mark} in your project folder: your marks are still there.</p>")
-    else:
+    elif more:
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'

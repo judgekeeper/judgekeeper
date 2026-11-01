@@ -747,6 +747,19 @@ def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_se
         assert "<a " not in saved and "token" not in saved_html
 
 
+
+def test_what_next_never_sends_to_marking_when_every_answer_is_marked():
+    mark = program("mark")
+    for counts in (GATE, NOT_GATE_TNR):
+        live = _part(start_label.result_html(_result(*counts, left=0), "/?token=t"), NEXT_OPEN)
+        saved = _part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN)
+        assert SAVED in live and SAVED in saved, counts
+        assert "Keep marking" not in live and "Closed?" not in live, counts
+        assert TO_MARK_MORE.format(mark=mark) not in saved, counts
+        assert mark not in live and mark not in saved, counts
+    left = _part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN)
+    assert TO_MARK_MORE.format(mark=mark) in left
+
 def test_the_mark_line_comes_after_the_next_step():
     mark = program("mark")
     fix = _part(start_label.result_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
