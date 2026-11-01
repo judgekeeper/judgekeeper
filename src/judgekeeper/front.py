@@ -2040,6 +2040,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if not path.exists():
         raise not_found(path)
     ws = Workspace(project.project_of(path))
+    if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
+        ws = Workspace(start.reads_in(path))  # the folder a run from here reads
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):

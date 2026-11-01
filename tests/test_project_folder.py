@@ -23,7 +23,7 @@ import time
 
 import pytest
 
-from judgekeeper import __version__, check, fix, judge_setup, page, start, start_label, textio
+from judgekeeper import __version__, check, find, fix, judge_setup, page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project
@@ -774,3 +774,54 @@ def test_the_store_above_stays_for_the_results_it_reads(here, capsys, monkeypatc
         assert "You marked 5 answers so far" in out and "get their own marks" not in out
         assert not (folder / ".judgekeeper").exists()
         assert "Closed the marking page." in run(capsys, "--stop")[1]
+
+
+# --stop closes the page a run from the same folder opened -------------------------------
+
+@pytest.mark.parametrize("marker", MARKERS)
+def test_stop_closes_the_page_a_run_from_a_subfolder_opened(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16))
+    (here / "src").mkdir()
+    monkeypatch.chdir(here / "src")
+    code, out, err = run(capsys, "--no-browser")  # reads the project folder above
+    assert code == 0, out + err
+    assert "Reading the project folder above it" in flat(out)
+    assert page.is_open(here / ".judgekeeper")
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+    assert not page.is_open(here / ".judgekeeper")
+
+
+@pytest.mark.parametrize("marker", MARKERS)
+def test_stop_in_a_project_below_leaves_the_page_above_open(here, capsys, monkeypatch, marker):
+    _marker(here, ".git")
+    table_project(here, split(20, 16))
+    assert run(capsys, "--no-browser")[0] == 0
+    _marker(here / "pkg", marker)
+    monkeypatch.chdir(here / "pkg")
+    code, out, _ = run(capsys, "--no-browser")  # a project of its own: never the one above
+    assert code != 0 and "Reading the project folder above it" not in flat(out)
+    assert "No marking page is open." in run(capsys, "--stop")[1]
+    assert page.is_open(here / ".judgekeeper")
+    monkeypatch.chdir(here)
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+
+
+def _reads_any_project_above(root):  # results_above before a project kept to itself
+    up = find.project_folder(root)
+    found = None if up is None else find.search(up)
+    return up if found is not None and any(found.readable(t) for t in find.TOOLS) else None
+
+
+@pytest.mark.parametrize("marker", ["pyproject.toml", ".git"])
+def test_stop_finds_the_store_the_run_read_whatever_rule_found_it(here, capsys, monkeypatch,
+                                                                   marker):
+    monkeypatch.setattr(find, "results_above", _reads_any_project_above)
+    _marker(here, ".git")
+    table_project(here, split(20, 16))
+    _marker(here / "pkg", marker)
+    monkeypatch.chdir(here / "pkg")
+    code, out, err = run(capsys, "--no-browser")  # a page served from the store above
+    assert code == 0 and "Reading the project folder above it" in flat(out), out + err
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+    assert not page.is_open(here / ".judgekeeper")
