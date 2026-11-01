@@ -140,6 +140,10 @@ def test_files_given_in_full_from_outside_the_project_are_kept_from_it(here, cap
     assert result["flags"]["path"] != ".", (result["flags"], said[-1])
     found = _whole_paths(here / ".judgekeeper", here, other, tmp_path, Path.home())
     assert found == {}, (found, [s[:2] for s in said])
+    whole = {str(other), os.path.realpath(other), str(tmp_path), os.path.realpath(tmp_path)}
+    printed = [(argv, line) for argv, _, out in said for line in out.splitlines()
+               if any(w in line for w in whole)]
+    assert printed == [], printed  # every command it prints names them from here
 
 
 def test_an_older_split_with_a_whole_path_still_reads(here, capsys, tmp_path_factory):

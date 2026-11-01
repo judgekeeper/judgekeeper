@@ -21,7 +21,6 @@ import pytest
 
 from judgekeeper import background, start
 from judgekeeper.cli import main
-from judgekeeper.textio import quote_arg
 from tests.start_projects import (
     answer,
     flat_jsonl,
@@ -248,7 +247,7 @@ def test_without_a_terminal_the_pass_mark_is_a_flag(tmp_path, capsys):
     assert code == 3
     assert next_lines(out)[-1] == (
         "Next: decide which score counts as a pass, then run "
-        f"`judgekeeper {quote_arg(path)} --pass-if \"score>=N\"`.")
+        "`judgekeeper graded.jsonl --pass-if \"score>=N\"`.")  # named from here
     code, out = check(capsys, path, "--yes", "--pass-if", "score>=4")
     assert code == 0, out
     assert saved(tmp_path)["pass_mark"] == 4
@@ -265,7 +264,7 @@ def test_without_a_terminal_it_stops_at_the_question_before_saving(tmp_path, cap
     code, out = check(capsys, tmp_path)
     assert code == 3
     assert "Save how to read evals/graded.jsonl in judgekeeper.toml?" in out
-    assert f"or `judgekeeper {quote_arg(tmp_path)} --yes` to say yes." in next_lines(out)[-1]
+    assert "or `judgekeeper . --yes` to say yes." in next_lines(out)[-1]
     assert snapshot(tmp_path) == before
 
 

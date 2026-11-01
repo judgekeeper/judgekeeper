@@ -1004,8 +1004,10 @@ class Talk:
             self.say(line)
 
     def command(self, subcommand: str = "fix") -> str:
+        from judgekeeper.start import path_word
+
         return " ".join((program(subcommand), *([] if self.path == "." else
-                                                [quote_arg(self.path)])))
+                                                [path_word(self.path)])))
 
     def next(self, text: str) -> None:
         self.say()

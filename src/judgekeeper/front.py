@@ -1955,7 +1955,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
 
 def _check_command(talk: FrontTalk) -> str:
     """`judgekeeper check`, with the path when it is not this folder."""
-    path = [] if talk.path == "." else [quote_arg(talk.path)]
+    path = [] if talk.path == "." else [start.path_word(talk.path)]
     return " ".join((program("check"), *path))
 
 
