@@ -430,10 +430,11 @@ def said(added: Added, plan: Plan, source: str) -> list[str]:
     """What the import says: the marks added, the labels skipped and why, and the earlier
     marks kept. Indented lines start with two spaces."""
     name = shown_name(source)
-    out = [(f"Added {plural(added.marks, 'mark', 'marks')} from {name} ({added.passed} Pass, "
-            f"{added.failed} Fail).")]
-    if not added.marks and not added.kept and added.same:
-        out.append(f"Nothing new: the labels in {name} are already your marks.")
+    if not added.marks and not added.kept and added.same:  # "Added 0 marks" would say nothing
+        out = [f"Nothing new: the labels in {name} are already your marks."]
+    else:
+        out = [(f"Added {plural(added.marks, 'mark', 'marks')} from {name} ({added.passed} "
+                f"Pass, {added.failed} Fail).")]
     n = sum(plan.skipped.values())
     if n:
         out.append(f"Skipped {plural(n, 'label', 'labels')}:")
