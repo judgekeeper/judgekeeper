@@ -772,7 +772,8 @@ class StartSession(LabelSession):
         """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
         stamped line. The marks on disk are read again first, so marks another page wrote are
         kept. A change with reasons and no mark (the result page) is a reason line
-        (add_reasons). A mark changed after the judge's grades were shown is stamped so."""
+        (add_reasons). A mark changed after the judge's grades were shown is stamped so.
+        A change that changes nothing (the page's own mark again) writes no line."""
         self.before = self.version()
         self._reread()
         self.offer = None
@@ -789,6 +790,8 @@ class StartSession(LabelSession):
         try:
             self._apply(item, body)
             mark = item["label"] or ("skip" if item["deferred"] else None)
+            if self._same(before, item):
+                return  # nothing changed: no line, so a post sent again and again adds nothing
             changed = before["label"] in ("pass", "fail") and mark != before["label"]
             line = marks.stamp(item["id"], mark, self.groups.get(item["id"]),
                                body.get("seconds"), self.sitting, note=body.get("note"),
@@ -815,6 +818,14 @@ class StartSession(LabelSession):
             if due is not None and due[0] not in self.offered:
                 self.offered[due[0]] = due[1]
                 self.offer = {**self._again(due[1]), "slot": due[0]}
+
+    def _same(self, before: dict, item: dict) -> bool:
+        """Whether a change left `item` as it was (`before`): the same mark, skip and note,
+        and a Pass or Fail made on the page (one from an import, marked the same on the page,
+        is a page mark now: a change)."""
+        if any(before[k] != item[k] for k in ("label", "deferred", "note")):
+            return False
+        return item["label"] not in ("pass", "fail") or item["id"] in self.page_marked
 
     def _due(self) -> tuple[int, str] | None:
         """(slot, answer) when an answer is to be shown again now, else None: one slot in each
