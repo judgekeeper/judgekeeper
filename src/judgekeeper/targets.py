@@ -100,7 +100,14 @@ def best_possible(real_pass: float, slip: float) -> dict:
 def check(correct: int, wrong: int, groups: dict | None = None) -> dict:
     """{"check": "too_few" | "result"}: under ROUGH of each kind, or (with `groups`, {group:
     (marked, answers in it)}) under FIRST_GROUP marks in a group of the judge that holds more
-    answers than that, there is no result yet. Count rules, never a width."""
+    answers than that, there is no result yet. Count rules, never a width.
+    A judge that gave every answer one grade (the other group holds none) has exact numbers:
+    one answer marked the other way (Fail when it passed all, Pass when it failed all) puts
+    one of them at 0, so that is a result at once."""
+    sizes = {g: size for g, (_, size) in (groups or {}).items()}
+    if sizes.get("fail") == 0 and sizes.get("pass") and wrong >= 1 or (
+            sizes.get("pass") == 0 and sizes.get("fail") and correct >= 1):
+        return {"check": "result"}
     short = any(marked < min(FIRST_GROUP, size) for marked, size in (groups or {}).values())
     return {"check": "too_few" if min(correct, wrong) < ROUGH or short else "result"}
 

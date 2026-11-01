@@ -592,8 +592,13 @@ def next_step(r: dict) -> str | None:
 
 def shows_disagreements(r: dict) -> bool:
     """Whether the page lists the disagreements (and the estimates): whenever there is a
-    result, too early to tell too."""
-    return r["check"] != "too_few"
+    result, too early to tell too, from ROUGH marks of each kind (when the hidden marks are
+    set aside, fix.prepare_split: a judge of one grade has a result before that)."""
+    from judgekeeper.targets import ROUGH
+
+    labels = r.get("labels") or {}
+    return r["check"] != "too_few" and min(labels.get("correct", ROUGH),
+                                           labels.get("wrong", ROUGH)) >= ROUGH
 
 
 def _all_marked(r: dict) -> str:
