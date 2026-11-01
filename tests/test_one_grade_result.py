@@ -78,8 +78,8 @@ def test_its_disagreements_wait_for_the_usual_count(one_grade, capsys, pages):
 
 
 def test_measure_names_fix_only_once_fix_can_run(one_grade, capsys, pages):
-    """Fix needs 15 marks of each kind: before that, Measure's Next line is the mark one, with
-    fix's own reason."""
+    """Fix needs 15 marks of each kind: before that, Measure says so; with exact numbers, more
+    marks would not make them more certain, so its Next line does not ask for them."""
     run(capsys, "--no-browser")
     _mark(one_grade, ["pass"] * 4 + ["fail"])
     _, out, _ = run(capsys)
@@ -88,7 +88,7 @@ def test_measure_names_fix_only_once_fix_can_run(one_grade, capsys, pages):
     assert "judgekeeper fix" not in out
     assert lines[-5:] == ["", "You have not marked enough answers yet to fix your",
                           "LLM-as-a-judge.", "",
-                          "Next: run `judgekeeper mark` to mark more answers."], out
+                          "Next: run `judgekeeper mark` when you want to continue."], out
 
 
 def test_no_ranges_to_narrow_when_none_is_shown(one_grade, capsys, pages):

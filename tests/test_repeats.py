@@ -441,12 +441,29 @@ def test_the_same_repeat_answer_posted_again_writes_nothing(ws):
     assert marks.made(marks.read(ws.marks))["repeats"] == before
 
 
-def test_a_repeat_answer_changed_is_still_written(ws):
+def test_alternating_posts_on_an_answered_repeat_add_no_lines(ws):
+    """An answered repeat keeps its first answer: a post that switches it writes nothing."""
     session = start_label.StartSession(ws)
     offers = _mark_all(session, 200, answer_repeats=False)
     _, offer = offers[0]
     first = session.by_id[offer["id"]]["label"]
     flip = "fail" if first == "pass" else "pass"
-    for label in (flip, first, first, first):
+    session.update({"id": offer["id"], "label": flip, "again": offer["slot"]})
+    size = ws.marks.stat().st_size
+    for n in range(10):
+        session.update({"id": offer["id"], "label": first if n % 2 == 0 else flip,
+                        "again": offer["slot"]})
+    assert ws.marks.stat().st_size == size
+    assert [x["mark"] for x in _lines_of_repeats(ws)] == [flip]
+
+
+def test_after_the_person_undoes_a_repeat_a_new_answer_replaces_it(ws):
+    session = start_label.StartSession(ws)
+    offers = _mark_all(session, 200, answer_repeats=False)
+    _, offer = offers[0]
+    first = session.by_id[offer["id"]]["label"]
+    flip = "fail" if first == "pass" else "pass"
+    for label in (flip, None, first, flip, first):
         session.update({"id": offer["id"], "label": label, "again": offer["slot"]})
-    assert [x["mark"] for x in _lines_of_repeats(ws)] == [flip, first]
+    assert [x["mark"] for x in _lines_of_repeats(ws)] == [flip, None, first]
+    assert marks.made(marks.read(ws.marks))["repeats"]["changed"] == 0

@@ -864,7 +864,9 @@ class StartSession(LabelSession):
         return {**self._shown(self.by_id[item_id]), "label": None, "skipped": False}
 
     def _repeat(self, item: dict, body: dict) -> None:
-        """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark."""
+        """A mark on an answer shown again (`again`: its slot): a repeat line, never a mark. The
+        first answer for a slot stays; a new one is written only after the person's undo of it
+        (so a client that sends answers again and again adds nothing)."""
         slot = body["again"]
         if type(slot) is not int or self.offered.get(slot) != item["id"]:
             raise ValueError("not a repeat this page showed")
@@ -872,8 +874,9 @@ class StartSession(LabelSession):
         if label not in ("pass", "fail", None):
             raise ValueError("label must be pass, fail or null")
         mark = "skip" if body.get("deferred") is True and label is None else label
-        if self.slot_mark.get(slot) == mark:
-            return  # the slot already holds this answer: a post sent again adds nothing
+        now = self.slot_mark.get(slot)
+        if (mark is not None if now in ("pass", "fail") else mark == now):
+            return  # an answered slot keeps its first answer until the person undoes it
         if not self.out.is_file():
             begin_marks(self.workspace)
         seen = file_stamp(self.out)
