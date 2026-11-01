@@ -329,7 +329,7 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.startswith('<div class="progress-box" id="progress-box"><div class="status-1">'
                             '<div class="seg" '
                             'id="progress" '
-                            'role="progressbar" aria-label="How close your result is" '
+                            'role="progressbar" aria-label="How close your first numbers are" '
                             'aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">')
     assert right.count("<i></i>") == mark_page.SEGMENTS == 16
     assert '<span class="count" id="count">0 marked</span>' in right
