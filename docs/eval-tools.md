@@ -37,7 +37,7 @@ judgekeeper
 
 Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`. When results are only in promptfoo's database, it prints how to save them: `promptfoo eval -o promptfoo-results.json`, or `promptfoo list evals` and `promptfoo export eval <id> -o promptfoo-results.json`. It runs neither. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` shows is the assertion's `value`, unless it differs per test. An assertion's `threshold` is its pass mark: `check` notices when it changes, and `fix` may test a better one. The question is the test's vars; a test with no vars (questions written in `prompts:`) is asked by its prompt. Ids are the test's `description` when each is unique, else a hash of its vars.
 
-To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you: `marked-answers.csv` as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
+To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:gpt-4.1-mini`): `marked-answers.csv` as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
 
 ```yaml
 prompts: ['{{answer}}']
@@ -45,12 +45,16 @@ providers: [echo]
 tests: file://.judgekeeper/fix/marked-answers.csv
 defaultTest:
   options:
-    provider: <your grader model>  # your grader, as before
+    provider: <your grader model>  # your grader and its config, as before
   assert:
     - type: llm-rubric
       metric: correctness  # the same metric: as before, if yours has one
       value: Your new rule. The question was {{question}}.
 ```
+
+Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
+
+For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
 
 The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json`, then `judgekeeper fix new.json`.
 

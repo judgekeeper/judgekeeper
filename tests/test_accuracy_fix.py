@@ -202,10 +202,10 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     for kind in ("fix", "check"):
         _pick(ws, kind)
     _results(here, MARKED, rubric="Is polite, correct and short.")
-    _tested_by_fix(here, ws)  # a rule fix tested (a pick), and its check (another)
+    _tested_by_fix(here, ws)  # a rule fix tested, then checked: one more choice
     code = main(["check"])
     out = _flat(capsys.readouterr().out)
-    assert ("You've used these marks to choose 4 changes, so they may now make your "
+    assert ("You've used these marks to choose 3 changes, so they may now make your "
             "LLM-as-a-judge look better than it is.") in out
     assert "Mark some new answers" not in out and "honest" not in out
     assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`: "
@@ -263,8 +263,10 @@ def _tested_by_fix(root, ws) -> None:
     from judgekeeper import judge_setup, marks, start
     from judgekeeper.fingerprint import utc_now
 
-    rule = judge_setup.of(start.find_judge(root))["rule_hash"]
-    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "fix", "rule_hash": rule})
+    setup = judge_setup.of(start.find_judge(root))
+    marks.append(ws.history_jsonl, {"time": utc_now(), "kind": "fix",
+                                    "rule_hash": setup["rule_hash"],
+                                    "setup_hash": judge_setup.hash_of(setup)})
 
 
 def _backdate(ws, before: int) -> None:
@@ -346,8 +348,30 @@ def test_checking_the_same_change_again_is_not_another_pick(here, capsys):
     _rule_change(here)
     main(["check"])  # worse: the change stays open
     main(["check"])
+    main(["check"])
     capsys.readouterr()
-    assert check.picks(Workspace(here))["n"] == 2  # the fix test, and one check of it
+    p = check.picks(Workspace(here))
+    assert p["n"] == 1 and not p["ask"]  # the fix test and three checks of it: one choice
+    assert check.picks_lines(p) == []
+
+
+def test_three_rules_tried_are_three_choices(here, capsys):
+    from judgekeeper import check
+    from judgekeeper.cli import main
+    from judgekeeper.start_label import Workspace
+    from tests.test_check import LENIENT, _marked, _results
+
+    ws = _marked(here)
+    for rule in ("Is polite.", "Is polite and short.", "Is polite, correct and short."):
+        _results(here, LENIENT, rubric=rule)
+        _tested_by_fix(here, ws)
+        main(["check"])
+    capsys.readouterr()
+    p = check.picks(Workspace(here))
+    assert p["n"] == 3 and p["ask"]
+    assert check.picks_lines(p) == [
+        ("You've used these marks to choose 3 changes, so they may now make your "
+         "LLM-as-a-judge look better than it is. Mark some new answers.")]
 
 
 # The person's own slips ----------------------------------------------------------------------

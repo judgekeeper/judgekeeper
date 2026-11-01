@@ -301,11 +301,12 @@ def test_the_page_offers_the_new_batch_first(here):
     _more_questions(here)
     batches.add(ws, start.find_judge(here))
     state = StartSession(ws).state()
-    first = [_index(x["input"]) for x in state["items"][:10]]
+    items = [x for x in state["items"] if "again" not in x]  # an answer shown again may lead
+    first = [_index(x["input"]) for x in items[:10]]
     assert set(first) == set(range(36, 46))
     assert state["items"][state["start"]]["label"] is None
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
-    head = [groups[x["id"]] for x in state["items"][:10]]
+    head = [groups[x["id"]] for x in items[:10]]
     assert head.count("pass") == head.count("fail") == 5  # half passed, half failed
 
 

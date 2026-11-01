@@ -643,7 +643,8 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
         if near * 2 > n:
             out.append([(f"{near} of your LLM-as-a-judge's {n} mistakes sit close to the pass "
                          "mark."), "Moving the pass mark may fix them."])
-    for judge, final, name in (("fail", "pass", strict), ("pass", "fail", easy)):
+    for judge, final, name in (("fail", "pass", "it said Fail and you said Pass"),
+                               ("pass", "fail", "it said Pass and you said Fail")):
         side = [len(m["output"].split()) for m in wrong if m["judge"] == judge]
         agreed = [len(m["output"].split()) for m in rows
                   if m["judge"] == m["final"] == final]
@@ -651,7 +652,7 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
             continue
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
-            out.append([(f"Where {name}, the answers are long (about {_about(long)} words, "
+            out.append([(f"When {name}, the answers are long (about {_about(long)} words, "
                          f"against {_about(usual)}).")])
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
@@ -1258,16 +1259,80 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
 
 
-def _yaml_string(text: str) -> str:
-    """`text` as a double-quoted YAML string: a JSON string is one, with the line breaks and
-    control characters YAML knows beyond JSON's escaped too."""
+def _yaml_string(text) -> str:
+    """`text` as a double-quoted YAML string (any JSON value as YAML's flow form): JSON is
+    YAML, with the line breaks and control characters YAML knows beyond JSON's escaped too."""
     return re.sub("[\x7f-\x9f\u2028\u2029\ufeff\ud800-\udfff]",
                   lambda m: f"\\u{ord(m.group()):04x}", json.dumps(text, ensure_ascii=False))
+
+
+KEY_PARTS = ("key", "token", "secret", "password", "passwd", "credential", "auth", "bearer",
+             "cookie", "session")
+LEFT_OUT = ("# {name} left out: judgekeeper never writes keys to files. Set it the way your own "
+            "config does.")
+_GONE = object()  # a value left out
+
+
+def _key_like(name: str) -> bool:
+    """A name that may hold a key: it contains any of KEY_PARTS, in any case (apiKey, apikey,
+    sessionToken, credentials, Authorization). Cautious on purpose."""
+    return any(part in name.lower() for part in KEY_PARTS)
+
+
+def _names_a_key(value) -> bool:
+    """A {name: "x-api-key", value: ...} pair: its value is a key under a plain field name."""
+    return isinstance(value, dict) and any(
+        isinstance(value.get(f), str) and _key_like(value[f]) for f in ("name", "header"))
+
+
+def _clean(value, path: str, left: list[str]):
+    """`value` without anything that may hold a key (each one's path added to `left`), or
+    _GONE: a field named like a key (unless its value is a number or true/false: a key never
+    is), a dict or list holding a {name: <key-like>} pair, and any text judgekeeper hides as a
+    key. A dict or list emptied by that goes too."""
+    if isinstance(value, dict):
+        kept, before = {}, len(left)
+        for name, v in value.items():
+            at = f"{path}.{name}" if path else str(name)
+            if (_key_like(str(name)) and not isinstance(v, int | float)) or _names_a_key(v) or (
+                    isinstance(v, list) and any(_names_a_key(x) for x in v)):
+                left.append(at)
+                continue
+            v = _clean(v, at, left)
+            if v is not _GONE:
+                kept[name] = v
+        return _GONE if not kept and len(left) > before and value else kept
+    if isinstance(value, list):
+        out, before = [], len(left)
+        for i, v in enumerate(value):
+            v = _clean(v, f"{path}[{i}]", left)
+            if v is not _GONE:
+                out.append(v)
+        return _GONE if not out and len(left) > before else out
+    if isinstance(value, str) and scrub(value) != value:
+        left.append(path)
+        return _GONE
+    return value
+
+
+def _without_keys(config: dict) -> tuple[dict, list[str]]:
+    """(`config` without any field that may hold a key, the paths of those left out, as
+    headers[0].value): _clean."""
+    left: list[str] = []
+    kept = _clean(config, "", left)
+    return ({} if kept is _GONE else kept), left
 
 
 def _promptfoo_assertion(ws: Workspace, data: dict) -> tuple[str, str | None] | None:
     """The type of the model-graded assertion the metric names, and the `metric:` it has (None
     when the metric is the type), read from the first results file; None when not found."""
+    found = _promptfoo_grader(ws, data)
+    return None if found is None else found[:2]
+
+
+def _promptfoo_grader(ws: Workspace, data: dict) -> tuple[str, str | None, dict] | None:
+    """_promptfoo_assertion, and the `config` of the grader that assertion used ({} when it
+    has none or the file can't be read)."""
     from judgekeeper.readers import promptfoo as reader
 
     metric = data.get("metric")
@@ -1277,7 +1342,11 @@ def _promptfoo_assertion(ws: Workspace, data: dict) -> tuple[str, str | None] | 
     try:
         if not (files and isinstance(files[0], str)):
             raise ValueError("no results file")
-        for row in reader._load(Path(ws.root) / files[0])["results"]["results"]:
+        loaded = reader._load(Path(ws.root) / files[0])
+        config = loaded.get("config")
+        default_test = (config if isinstance(config, dict) else {}).get("defaultTest") or {}
+        default_test = default_test if isinstance(default_test, dict) else {}
+        for row in loaded["results"]["results"]:
             if not isinstance(row, dict):
                 continue
             one = reader._one_rubric(row)
@@ -1288,31 +1357,39 @@ def _promptfoo_assertion(ws: Workspace, data: dict) -> tuple[str, str | None] | 
                 a = a if isinstance(a, dict) else {}
                 kind = a.get("type")
                 if reader.judge_type(kind) and (a.get("metric") or kind) == metric:
-                    return kind, a.get("metric") or None
+                    grader = reader.grader_of(a, reader._options(row.get("testCase")),
+                                              default_test)
+                    own = grader.get("config") if isinstance(grader, dict) else None
+                    return kind, a.get("metric") or None, own if isinstance(own, dict) else {}
     except (RecordsError, OSError, ValueError, KeyError, TypeError, AttributeError):
         pass
-    return (metric, None) if reader.judge_type(metric) == metric else None
+    return (metric, None, {}) if reader.judge_type(metric) == metric else None
 
 
 def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     """The text of fix/regrade.yaml: the marked answers as tests, the `echo` provider, the
     grader the results name, the same assertion type (and metric name) with the rule as its
-    value. None when the grader, the assertion or the one rule can't be read."""
+    value. The grader keeps its config, without any field that may hold a key: a comment
+    names each one left out. None when the grader, the assertion or the one rule can't be
+    read."""
     fp = data.get("fingerprint") if isinstance(data.get("fingerprint"), dict) else {}
     provider, grader, rule = fp.get("provider"), fp.get("model"), data.get("rule")
     if not (isinstance(provider, str) and isinstance(grader, str) and isinstance(rule, str)
             and rule.strip() and data.get("one_rule", True)
             and provider not in ("file", "exec") and grader.startswith(f"{provider}:")):
         return None
-    kind = _promptfoo_assertion(ws, data)
-    if kind is None:
+    found = _promptfoo_grader(ws, data)
+    if found is None:
         return None
+    kind, config = found[:2], found[2]
+    kept, left = _without_keys(config)
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
              "providers: [" + _yaml_string("echo") + "]",
              "tests: " + _yaml_string(f"file://{ANSWERS}"),
              "defaultTest:",
              "  options:",
-             "    provider: " + _yaml_string(grader),
+             *("    " + LEFT_OUT.format(name=one_line(scrub(name))) for name in left),
+             "    provider: " + _yaml_string({"id": grader, "config": kept} if kept else grader),
              "  assert:",
              "    - type: " + _yaml_string(kind[0]),
              *(["      metric: " + _yaml_string(kind[1])] if kind[1] else []),

@@ -1729,13 +1729,16 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if n:
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
         waiting = n - len(counted)
+        so_far = (f"You have {_n(n, 'mark')}"  # some came with --labels: not marked here
+                  if marks.imported(marks.read(ws.marks), ids=set(session.by_id))
+                  else f"You marked {_n(n, 'answer')}")
         if waiting:  # the counts before "not enough" are those that count, never the batch's
-            talk.para(f"You marked {_n(n, 'answer')} so far: {counted.count('pass')} Pass, "
+            talk.para(f"{so_far} so far: {counted.count('pass')} Pass, "
                       f"{counted.count('fail')} Fail count for a result, and {waiting} more "
                       f"{'is' if waiting == 1 else 'are'} in a newer batch that doesn't count "
                       "yet.")
         else:
-            talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
+            talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:
             talk.say(NOT_ENOUGH)
         talk.say()

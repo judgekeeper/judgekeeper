@@ -876,3 +876,12 @@ def test_labels_for_another_question_are_not_used(here, capsys):
     _, out = run(capsys, "--labels")
     assert "Added 1 mark from your results (0 Pass, 1 Fail)." in flat(out)
     assert by_output(Workspace(here)) == {answer(30): "fail"}
+
+
+def test_step_2_after_an_import_says_marks_not_marked(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(10)))
+    _, out = run(capsys, "--labels", "mine.csv")
+    text = flat(out)
+    assert "You have 10 marks so far: 10 Pass, 0 Fail." in text
+    assert "You marked" not in text
