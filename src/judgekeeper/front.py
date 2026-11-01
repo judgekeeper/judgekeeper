@@ -1942,6 +1942,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         for line in estimate_lines(r):
             talk.say(line)
+        talk.para(start_label.WIDER)
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
     if assumes:
         talk.say()

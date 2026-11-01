@@ -1,8 +1,9 @@
 """How many marks a check needs, and the verdicts on the numbers: one set for every command.
 
-A first result needs ROUGH marks of each kind; a result is ready when the TPR and TNR ranges
-are each no wider than MAX_WIDTH. The words for a number follow its range's width
-(width_word), and the verdict follows the ranges, never a number alone (level).
+A first result needs ROUGH marks of each kind. The verdict follows the ranges, never a number
+alone (level), and is given the wider verdict ranges (weighted.VERDICT_LEVEL), since the person
+can look after every mark. No rule shows or hides a number by its range's width: a narrow
+early range is often a lucky one.
 
 `paired_verdict` compares the old and new LLM-as-a-judge on the same marks with Tango's score
 range for a paired difference (90%), which works with zero cells too; the worst drop the marks
@@ -11,8 +12,6 @@ could hide is always said. `smallest_drop` is worked out exactly, with no random
 "safe to try", on counts weighted to the whole set of answers (`weighted_counts`); each extra
 rule on the same marks divides the levels, so trying rule after rule does not turn a
 coincidence into "better".
-
-The width cut-offs are a judgement, kept as names so they can change after real use.
 """
 
 from __future__ import annotations
@@ -23,13 +22,7 @@ from functools import lru_cache
 from statistics import NormalDist
 
 ROUGH = 15
-MAX_WIDTH = 0.30
 EPS = 1e-9
-
-# The words for a number, by the width of its range (in points / 100)
-TOO_WIDE = 0.40  # wider: too early to give a number
-ROUGH_WIDTH = 0.30  # wider (up to TOO_WIDE): rough
-SHARP_WIDTH = 0.20  # this wide or less: sharp
 
 # The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
 RATE_GATE = 0.80
@@ -57,20 +50,9 @@ def _points(width: float) -> float:
 
 
 def width_word(interval) -> str | None:
-    """"too_wide", "rough", None (plain), "sharp" or "exact" for a range; None when it is
-    unknown. A width on a cut-off takes the narrower side: 40 points is rough, 30 plain, 20
-    sharp."""
+    """"exact" for a range of no width; else None (also when it is unknown)."""
     width = _width(interval)
-    if width is None:
-        return None
-    points = _points(width)
-    if points <= 0:
-        return "exact"
-    if points > TOO_WIDE * 100:
-        return "too_wide"
-    if points > ROUGH_WIDTH * 100:
-        return "rough"
-    return "sharp" if points <= SHARP_WIDTH * 100 else None
+    return "exact" if width is not None and _points(width) <= 0 else None
 
 
 def side(interval) -> str | None:
@@ -86,13 +68,13 @@ def side(interval) -> str | None:
 
 
 def level(tpr_interval, tnr_interval) -> str:
-    """The verdict from the two ranges: "not_gate" (red) when a side is "no", whatever its
-    width; "too_early" (no colour) when a side is wider than TOO_WIDE or unknown; "gate"
-    (green) when both are "yes"; else "check" (can't tell yet)."""
+    """The verdict from the two (verdict) ranges: "not_gate" (red) when a side is "no";
+    "too_early" (no colour) when a side is unknown; "gate" (green) when both are "yes"; else
+    "check" (can't tell yet). The width never decides."""
     sides = [side(tpr_interval), side(tnr_interval)]
     if "no" in sides:
         return "not_gate"
-    if None in sides or "too_wide" in (width_word(tpr_interval), width_word(tnr_interval)):
+    if None in sides:
         return "too_early"
     return "gate" if sides == ["yes", "yes"] else "check"
 
@@ -112,23 +94,10 @@ def best_possible(real_pass: float, slip: float) -> dict:
             "tnr": (1 - p) * (1 - e) / ((1 - p) * (1 - e) + p * e)}
 
 
-def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
-    """{"check": "too_few" | "rough" | "reliable", "wide": {"tpr" | "tnr": width or None}}.
-
-    Under ROUGH of each kind there is no result yet (a count rule). After that the result is
-    reliable when both ranges are MAX_WIDTH wide or less; `wide` names each one that is wider,
-    or unknown (None)."""
-    if min(correct, wrong) < ROUGH:
-        return {"check": "too_few", "wide": {}}
-    wide = {}
-    exact = False  # a range of no width: exact, but no sign that the marks are enough
-    for key, interval in (("tpr", tpr_interval), ("tnr", tnr_interval)):
-        width = _width(interval)
-        if width is None or width > MAX_WIDTH + EPS:
-            wide[key] = width
-        elif width <= EPS:
-            exact = True
-    return {"check": "rough" if wide or exact else "reliable", "wide": wide}
+def check(correct: int, wrong: int) -> dict:
+    """{"check": "too_few" | "result"}: under ROUGH of each kind there is no result yet (a
+    count rule, never a width)."""
+    return {"check": "too_few" if min(correct, wrong) < ROUGH else "result"}
 
 
 TINY = 1e-300  # a chance under this adds nothing the power can show

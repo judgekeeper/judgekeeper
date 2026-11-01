@@ -339,17 +339,22 @@ def test_the_bar_follows_the_marks_toward_a_result_and_the_count_the_marks():
       var two = [ids["progress"].getAttribute("aria-valuenow"),
                  ids["progress"].getAttribute("aria-valuetext"), ids["see"].hidden,
                  ids["count"].textContent];
+      status.first = true;
+      key("ArrowLeft"); await settle();
+      var first = [ids["progress"].getAttribute("aria-valuenow"), ids["see"].hidden,
+                   ids["see"].textContent];
       status.ready = true;
       key("ArrowLeft"); await settle();
-      console.log(JSON.stringify({start: start, two: two,
+      console.log(JSON.stringify({start: start, two: two, first: first,
         ready: [ids["progress"].getAttribute("aria-valuenow"), ids["see"].hidden,
-                ids["count"].textContent],
+                ids["count"].textContent, ids["see"].textContent],
         texts: [ids["q-text"].textContent, ids["ans-status"].textContent]}));""")
     assert got["start"] == ["0", "0 answers looked at", "0 marked"]
     share = round(1 / (2 * mark_page.ROUGH) * 100)  # one Pass; the skip counts for nothing
     assert got["two"] == [str(share), "2 answers looked at", True, "1 marked"]
-    assert got["ready"] == ["100", False, "2 marked"]
-    assert got["texts"] == ["Question 3?", ""]  # not marked yet: no words
+    assert got["first"] == ["100", False, "See the numbers so far"]  # too early: no "ready"
+    assert got["ready"] == ["100", False, "3 marked", "See your result"]
+    assert got["texts"] == ["Question 4?", ""]  # not marked yet: no words
 
 
 def test_the_undo_button_undoes_like_the_key():
@@ -545,11 +550,14 @@ def test_the_run_line_is_on_the_page_hidden_until_an_answer_has_one():
     assert '<p class="run" id="a-run" hidden></p>' in page
 
 
-def _bar(counts: dict, ready: bool = False) -> list:
+def _bar(counts: dict, ready: bool = False, first: bool | None = None) -> list:
+    """[the bar's value, whether the line under it is hidden, that line]: `first`, the first
+    numbers are in (with `ready`, a coloured verdict, too)."""
+    first = ready if first is None else first
     return _run("""
       console.log(JSON.stringify([ids["progress"].getAttribute("aria-valuenow"),
-                                  ids["keep"].hidden]));""",
-                data=_data(counts=counts, status={"text": "x", "ready": ready}))
+                                  ids["keep"].hidden, ids["keep"].textContent]));""",
+                data=_data(counts=counts, status={"text": "x", "first": first, "ready": ready}))
 
 
 def test_the_bar_counts_pass_and_fail_each_up_to_the_rough_number_and_never_fills_before_ready():
@@ -560,7 +568,8 @@ def test_the_bar_counts_pass_and_fail_each_up_to_the_rough_number_and_never_fill
     assert _bar({"correct": 40, "wrong": 0, "skipped": 0})[0] == "50"  # more of one kind: no more
     assert _bar({"correct": 20, "wrong": 3, "skipped": 0})[0] == "60"
     assert _bar({"correct": 0, "wrong": 0, "skipped": 40})[0] == "0"  # skipped: nothing
-    assert _bar({"correct": 15, "wrong": 15, "skipped": 0})[0] == "90"  # not ready: not full
+    assert _bar({"correct": 15, "wrong": 15, "skipped": 0})[0] == "90"  # no numbers: not full
+    assert _bar({"correct": 15, "wrong": 15, "skipped": 0}, first=True)[0] == "100"
     assert _bar({"correct": 15, "wrong": 15, "skipped": 0}, ready=True)[0] == "100"
 
 
@@ -570,6 +579,12 @@ def test_the_calm_line_shows_once_enough_are_looked_at_and_no_result_yet():
     assert _bar({"correct": first, "wrong": 0, "skipped": 0})[1] is False
     assert _bar({"correct": 10, "wrong": 10, "skipped": first - 20})[1] is False  # skips look too
     assert _bar({"correct": first, "wrong": 0, "skipped": 0}, ready=True)[1] is True
+    keep = "Keep going: your result appears once there are enough Pass and Fail marks."
+    assert _bar({"correct": first, "wrong": 0, "skipped": 0})[2] == keep
+    # the first numbers, too early to tell: the line says so, even before FIRST looked at
+    shown = _bar({"correct": 15, "wrong": 15, "skipped": 0}, first=True)
+    assert shown[1] is False
+    assert shown[2] == "Your first numbers are in. Too early to tell: keep marking."
     page = mark_page.label_page(None)
     assert ('<p class="keep" id="keep" hidden>Keep going: your result appears once there are '
             "enough Pass and Fail marks.</p>") in page
@@ -579,11 +594,12 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
     got = _run("""
       key("ArrowRight"); await settle();
       var before = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert")];
-      status.ready = true; later(500);
+      status.first = true; status.ready = true; later(500);
+      status.headline = "Your LLM-as-a-judge needs work.";
       key("ArrowLeft"); await settle();
       var shown = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
                    document.activeElement === ids["ready-box"], ids["ready-see"].getAttribute("href"),
-                   sent.length];
+                   sent.length, ids["ready-note"].textContent];
       key("ArrowRight"); await settle();  // behind the box: nothing is marked
       var behind = sent.length;
       ids["ready-box"].fire("keydown", {key: "Escape"});
@@ -593,7 +609,8 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
       console.log(JSON.stringify({before: before, shown: shown, behind: behind, closed: closed,
                                   again: ids["ready"].hidden, sent: sent.length}));""")
     assert got["before"] == [True, None]
-    assert got["shown"] == [False, "", True, "/result?token=t0k", 2]
+    assert got["shown"] == [False, "", True, "/result?token=t0k", 2,
+                            "Your LLM-as-a-judge needs work."]
     assert got["behind"] == 2
     assert got["closed"] == [True, None, True]
     assert got["again"] is True and got["sent"] == 3
@@ -630,7 +647,7 @@ def test_the_ready_box_has_the_welcome_boxs_look_and_its_words():
     assert 'class="intro" id="ready-box" role="dialog" aria-modal="true"' in box
     assert "judgekeeper" in box and 'class="brand"' in box  # the logo
     assert '<h2 id="ready-title">Your result is ready.</h2>' in box
-    assert '<p class="note">More marks make it more precise.</p>' in box
+    assert '<p class="note" id="ready-note"></p>' in box  # the verdict's words, when it opens
     assert '<a class="go" id="ready-see" href="#">See your result</a>' in box
     assert 'id="ready-keep">Keep marking</button>' in box
 
@@ -663,3 +680,21 @@ def test_bold_and_bullets_work_in_a_question_and_in_its_named_parts():
     assert set(got["tags"]) <= {"DIV", "SPAN", "#TEXT", "STRONG", "UL", "LI"}, got["tags"]
     assert got["tags"].count("STRONG") == 1 and got["tags"].count("LI") == 2
     assert "<i>kind</i>" in got["text"] and "**" not in got["text"]
+
+
+def test_a_verdict_that_goes_back_to_too_early_changes_the_link_and_never_reopens_the_box():
+    got = _run("""
+      status.first = true; status.ready = true; status.headline = "x"; later(500);
+      key("ArrowRight"); await settle();
+      ids["ready-box"].fire("keydown", {key: "Escape"});
+      status.ready = false; status.headline = null; later(500);
+      key("ArrowRight"); await settle();
+      var back = [ids["see"].textContent, ids["keep"].hidden, ids["keep"].textContent];
+      status.ready = true; status.headline = "x"; later(500);
+      key("ArrowRight"); await settle();
+      console.log(JSON.stringify({back: back, box: ids["ready"].hidden,
+                                  link: ids["see"].textContent}));""")
+    assert got["back"] == ["See the numbers so far", False,
+                           "Your first numbers are in. Too early to tell: keep marking."]
+    assert got["box"] is True  # once only
+    assert got["link"] == "See your result"

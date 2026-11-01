@@ -37,7 +37,7 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
     # 2. the judge gave every answer the same grade, some still unmarked
     r = _r((400, 0), (40, 0), weighted.corrected(400, 0, 40, 23, 0, 0), left=360)
     assert report_page.why_for(r, "tpr") == "it gave every answer the same grade"
-    assert start_label.sentences({**r, "check": "rough"})[0] == (
+    assert start_label.sentences({**r, "check": "result"})[0] == (
         "You passed: your LLM-as-a-judge also passed 100% (it gave every answer the same grade).")
     # 3. every answer it failed marked, all of them Fail: TPR 100%, TNR keeps a range
     out = weighted.corrected(900, 30, 25, 20, 30, 0)
@@ -62,10 +62,9 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
         "  When you say Fail, it also says Fail: 78% (you marked every answer)"]
     page = report_page._details({"kappa": 0.62, "kappa_interval": [0.62, 0.62], "left": 0})
     assert "0.62 (you marked every answer)" in page and "0.62 and 0.62" not in page
-    check = targets.check(25, 25, [1.0, 1.0], [0.0, 0.0])
-    assert check == {"check": "rough", "wide": {}}  # never "reliable" from no width at all
-    r = {"check": "rough", "wide": {}, "tpr_interval": [1.0, 1.0], "tnr_interval": [0.0, 0.0]}
-    assert start_label.status_line(r) == "You can see your result now."
+    assert targets.check(25, 25) == {"check": "result"}
+    r = {"check": "result", "verdict_level": targets.level([1.0, 1.0], [0.0, 0.0])}
+    assert start_label.status_line(r) == "Your result is ready."  # needs work, with no range
 
 
 def _said(path: Path) -> list[str]:

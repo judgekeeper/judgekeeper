@@ -89,28 +89,19 @@ def test_the_page_shows_the_question_without_its_name(tmp_path):
 # (pool passes, pool fails, marked in the pass group, of them Pass, in the fail group, of
 # them Pass). No target and no number is ever on the page: only what to do.
 FEW = "Mark a few more answers to see your result."
-BOTH_WIDE = "Marking more answers narrows the range for the answers you marked Pass and Fail."
+FIRST = "Your first numbers are in. Too early to tell: keep marking."
 
 
-@pytest.mark.parametrize("counts, text, ready", [
-    ((100, 100, 0, 0, 0, 0), FEW, False),
-    ((100, 100, 22, 14, 22, 0), FEW, False),  # 14 marked Pass
-    ((1000, 1000, 15, 12, 15, 3), BOTH_WIDE, True),  # both ranges still over 30 points wide
-    ((100, 100, 15, 14, 15, 1), "Your result is ready.", True),  # narrow enough already
-    ((100, 100, 50, 48, 50, 2), "Your result is ready.", True),
+@pytest.mark.parametrize("counts, text, first, ready", [
+    ((100, 100, 0, 0, 0, 0), FEW, False, False),
+    ((100, 100, 22, 14, 22, 0), FEW, False, False),  # 14 marked Pass
+    ((100, 100, 15, 12, 15, 3), FIRST, True, False),  # too early to tell
+    ((100, 100, 15, 14, 15, 1), FIRST, True, False),  # the 99% ends still reach under 80%
+    ((100, 100, 50, 48, 50, 2), "Your result is ready.", True, True),  # good enough
 ])
-def test_the_status_line(counts, text, ready):
-    assert start_label.progress_status(*counts) == {"text": text, "ready": ready}
-
-
-def test_the_status_line_says_which_range_more_marks_narrow():
-    status = start_label.progress_status(900, 100, 25, 24, 25, 1)
-    assert status["ready"] is True
-    assert status["text"] == ("Marking more answers narrows the range for the answers you "
-                              "marked Fail.")
-    both = start_label.status_line({"check": "rough", "wide": {"tpr": 0.4, "tnr": None}})
-    assert both == ("Marking more answers narrows the range for the answers you marked Pass "
-                    "and Fail.")
+def test_the_status_line(counts, text, first, ready):
+    status = start_label.progress_status(*counts)
+    assert (status["text"], status["first"], status["ready"]) == (text, first, ready)
 
 
 def test_the_page_shows_the_status_the_server_sends():

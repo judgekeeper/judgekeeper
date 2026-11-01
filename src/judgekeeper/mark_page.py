@@ -21,6 +21,7 @@ narrower) the card comes first, then the list.
 
 from __future__ import annotations
 
+import json
 from html import escape
 
 from judgekeeper import look, targets
@@ -316,7 +317,7 @@ __TOP__
   <div class="intro" id="ready-box" role="dialog" aria-modal="true" aria-labelledby="ready-title" tabindex="-1">
     __BRAND__
     <h2 id="ready-title">Your result is ready.</h2>
-    <p class="note">More marks make it more precise.</p>
+    <p class="note" id="ready-note"></p>
     <a class="go" id="ready-see" href="#">See your result</a>
     <button type="button" class="quiet" id="ready-keep">Keep marking</button>
   </div>
@@ -326,6 +327,7 @@ __TOP__
 "use strict";
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, ROUGH = __ROUGH__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
+  var WORDS = __WORDS__;  // the link and the line under the bar (_words)
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -686,14 +688,15 @@ __TOP__
     walkingSkipped = false; open(+a.getAttribute("data-k")); focusCard();
   });
 
-  // The bar: how close the result is (Pass and Fail marks, each up to ROUGH; a skipped answer
-  // counts for nothing); the count: the marks. The link to the result once the server says one
-  // is ready, and, from FIRST answers looked at until then, one calm line under the bar.
+  // The bar: how close the first numbers are (Pass and Fail marks, each up to ROUGH; a skipped
+  // answer counts for nothing); the count: the marks. The link from the first numbers on ("See
+  // the numbers so far" until a coloured verdict, then "See your result"), and, from FIRST
+  // answers looked at until a coloured verdict, one calm line under the bar.
   function renderProgress() {
     var marked = counts.correct + counts.wrong;
     var looked = marked + (counts.skipped || 0);
     // the bar follows how close the result is: Pass and Fail marks, each up to ROUGH
-    var share = status.ready ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
+    var share = status.first ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
       Math.min(counts.wrong, ROUGH)) / (2 * ROUGH), 0.9);
     var bar = $("progress"), on = Math.round(share * SEGMENTS);
     Array.prototype.forEach.call(bar.children, function (cell, i) {
@@ -702,8 +705,11 @@ __TOP__
     bar.setAttribute("aria-valuetext", looked === 1 ? "1 answer looked at" :
       looked + " answers looked at");
     setText("count", marked + " marked");
-    $("see").hidden = !status.ready;
-    $("keep").hidden = status.ready || looked < FIRST;
+    var see = $("see"), keep = $("keep");
+    see.hidden = !status.first;
+    see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
+    keep.hidden = status.ready || (!status.first && looked < FIRST);
+    keep.textContent = status.first ? WORDS.first : WORDS.wait;
   }
 
   function render() {
@@ -929,6 +935,7 @@ __TOP__
   $("ready-see").setAttribute("href", url("/result"));
   function showReady() {
     readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
+    setText("ready-note", status.headline || "");
     $("ready").hidden = false; $("app").setAttribute("inert", "");
     readyBox.focus();
   }
@@ -960,6 +967,8 @@ __TOP__
 
 
 KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
+SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
+SEE_READY = "See your result"
 
 
 def _progress() -> str:
@@ -971,8 +980,18 @@ def _progress() -> str:
             'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
-            '<a class="see" id="see" href="#" hidden>See your result</a></div>'
+            f'<a class="see" id="see" href="#" hidden>{escape(SEE_READY)}</a></div>'
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
+
+
+def _words() -> str:
+    """The link's and the line's words, as the page's script reads them: before the first
+    numbers, from them until a coloured verdict, and with one."""
+    from judgekeeper.start_label import FIRST_NUMBERS
+
+    words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
+             "seeReady": SEE_READY}
+    return json.dumps(words).replace("<", "\\u003c")
 
 
 def _shown(value: str) -> str:
@@ -1024,7 +1043,7 @@ def label_page(description: str | None, command: str | None = None,
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
-            .replace("__SEGMENTS__", str(SEGMENTS))
+            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)

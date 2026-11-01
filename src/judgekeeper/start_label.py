@@ -100,8 +100,16 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
-TOO_FEW_TO_TELL = " The ranges are still too wide to tell."  # enough of each: not a count
+TOO_FEW_TO_TELL = " It's still too early to tell."  # enough of each: not a count
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
+# The marking page, once there is a coloured verdict (good enough or needs work) and, from the
+# first numbers (ROUGH of each kind) until then, the line under its bar
+READY = "Your result is ready."
+FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
+# Under the two main lines on the result page and in the terminal: why the result line can
+# still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
+WIDER = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
+         "You can look after every mark.")
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
@@ -588,27 +596,18 @@ def shown_question(ws: Workspace, value, output=None):
     return question_view(value)
 
 
-def _all_exact(r: dict) -> bool:
-    """Whether both ranges have no width: more marks can't change them."""
-    ends = [r.get(f"{k}_interval") or [None, None] for k in ("tpr", "tnr")]
-    return all(lo is not None and hi is not None and hi - lo <= 1e-12 for lo, hi in ends)
+def coloured(r: dict) -> bool:
+    """Whether the result has a coloured verdict: good enough or needs work."""
+    return r["check"] != "too_few" and r.get("verdict_level") in ("gate", "not_gate")
 
 
 def status_line(r: dict) -> str:
-    """How far along a check is, in the words the person reads (no targets, no numbers): the
-    line under the meters on the labeling page, and on the result when a range is still
-    wide. The counts behind it are targets.check's."""
+    """How far along a check is, in the words the person reads (no targets, no numbers):
+    ready only with a coloured verdict; from the first numbers until then, too early to tell.
+    The count behind it is targets.check's."""
     if r["check"] == "too_few":
         return VERDICTS[None]
-    if r["check"] == "reliable":
-        return "Your result is ready."
-    wide = r.get("wide") or {}
-    if not wide and _all_exact(r):  # a judge that passes (or fails) every answer
-        return "You can see your result now."
-    if not wide:
-        return "You can see your result now. Marking more answers narrows its ranges."
-    sides = " and ".join(SAID[key] for key in ("tpr", "tnr") if key in wide)
-    return f"Marking more answers narrows the range for the answers you marked {sides}."
+    return READY if coloured(r) else FIRST_NUMBERS
 
 
 def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f: int,
@@ -621,12 +620,15 @@ def progress_status(n_pool_pass: int, n_pool_fail: int, n_p: int, c_p: int, n_f:
 def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     """progress_status from the marks in each stratum, as the result counts them
     (batches.counted_strata). Under ROUGH marks of each kind there is no result yet, a count
-    rule (targets.check): no range is drawn."""
+    rule (targets.check): no range is drawn. `first`: the first numbers are in; `ready`: a
+    coloured verdict, whose words are `headline`."""
     correct = sum(s[4] for s in strata)
     if min(correct, sum(s[3] for s in strata) - correct) < ROUGH:
-        return {"text": VERDICTS[None], "ready": False}
+        return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
     r = describe(weighted.stratified(strata))
-    return {"text": status_line(r), "ready": r["check"] != "too_few"}
+    ready = coloured(r)
+    return {"text": status_line(r), "first": r["check"] != "too_few", "ready": ready,
+            "headline": r["verdict"] if ready else None}
 
 
 def start_status(session: StartSession, run: str | None = None) -> dict:
@@ -642,7 +644,7 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
                                 mark_command(run))
         status.update(text=done[0], done=done)
-    elif every:  # never "marking more answers narrows...": there is none left to mark
+    elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
     return status
 
@@ -892,10 +894,12 @@ def plain(x: float | None) -> float | None:
 
 
 def _level(r: dict) -> str | None:
-    """The verdict from the ranges (targets.level); None before a first result."""
+    """The verdict from the wider verdict ranges (targets.level, weighted.VERDICT_LEVEL);
+    None before a first result."""
     if r["check"] == "too_few":
         return None
-    return targets.level(r["tpr_interval"], r["tnr_interval"])
+    return targets.level(*(r.get(f"{k}_verdict_interval") or r[f"{k}_interval"]
+                           for k in ("tpr", "tnr")))
 
 
 def _verdict(r: dict) -> str:
@@ -912,7 +916,7 @@ def describe(corrected: dict) -> dict:
     wrong = g["pass"]["labeled"] + g["fail"]["labeled"] - correct
     r = dict(corrected)
     r["labels"] = {"correct": correct, "wrong": wrong}
-    r.update(targets.check(correct, wrong, r["tpr_interval"], r["tnr_interval"]))
+    r.update(targets.check(correct, wrong))
     r["verdict_level"] = _level(r)
     r["verdict"] = _verdict(r)
     return r
@@ -951,15 +955,13 @@ def sentences(r: dict) -> list[str]:
 
 
 def too_early(value, interval) -> bool:
-    """Whether a number can't be given yet: unknown, or its range wider than
-    targets.TOO_WIDE."""
-    known = value is not None and bool(interval) and interval[0] is not None
-    return not known or targets.width_word(interval) == "too_wide"
+    """Whether a number can't be given yet: unknown. A wide range is still shown."""
+    return value is None or not interval or interval[0] is None
 
 
 def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
-    about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
+    about 61% (between 42% and 78%)."; too early to tell only with no number."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
@@ -1277,7 +1279,8 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
     new = weighted.general_strata([(by[i], labels[i], verdicts[i]) for i in labels], sizes,
                                   **draws)
     out.update({k: new[k] for k in ("tpr", "tnr", "kappa", "tpr_interval", "tnr_interval",
-                                    "kappa_interval")})
+                                    "kappa_interval", "tpr_verdict_interval",
+                                    "tnr_verdict_interval")})
     total = pool["pass"] + pool["fail"]
     out["judge_pass_rate"] = pool["pass"] / total if total else None
     return out
