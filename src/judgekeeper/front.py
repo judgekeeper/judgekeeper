@@ -318,8 +318,11 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
             talk.say()
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
+        from judgekeeper.check import texts_once
+
         try:
-            return _run(talk, path, wait, marking)
+            with texts_once():  # a run matches and scrubs the same texts many times
+                return _run(talk, path, wait, marking)
         except Exception:
             talk.say_step()  # the error cli.py prints comes under Step 1 too
             raise

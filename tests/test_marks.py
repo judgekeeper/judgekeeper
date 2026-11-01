@@ -202,3 +202,70 @@ def test_a_link_in_the_workspace_stops_a_click(ws, tmp_path):
         session.update({"id": session.items[0]["id"], "label": "pass"})
     assert outside.read_text(encoding="utf-8") == ""
     assert session.items[0]["label"] is None
+
+
+# Read once per version of the file -------------------------------------------------------------
+
+def _stamped_line(i: int, mark: str = "pass", at: str = "2026-11-01T10:00:00Z") -> dict:
+    return {**marks.stamp(f"a{i}", mark, mark, 3, "s1"), "at": at}
+
+
+def test_the_marks_file_is_parsed_once_per_version(tmp_path, monkeypatch):
+    """Every read of the same marks.jsonl in a run gives the same marks, parsed once; a
+    change to the file (an added line, or a rewrite of the same size) is read again."""
+    path = tmp_path / "marks.jsonl"
+    marks.append(path, _stamped_line(0))
+    marks.append(path, _stamped_line(1, "fail"))
+    parsed = []
+    real = marks.loads
+    monkeypatch.setattr(marks, "loads", lambda raw: parsed.append(raw) or real(raw))
+    first = marks.read(path)
+    assert first.counted() == {"a0": "pass", "a1": "fail"} and len(parsed) == 2
+    assert marks.read(path).counted() == first.counted() and len(parsed) == 2  # not again
+    marks.append(path, _stamped_line(2))
+    assert marks.read(path).counted() == {"a0": "pass", "a1": "fail", "a2": "pass"}
+    assert len(parsed) == 5
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace('"mark": "fail"', '"mark": "pass"'), encoding="utf-8")
+    assert marks.read(path).counted()["a1"] == "pass"  # same size, new words: read again
+
+
+def test_each_read_of_the_marks_is_its_own(tmp_path):
+    """A read's marks can be changed by its caller without changing the next read's."""
+    path = tmp_path / "marks.jsonl"
+    marks.append(path, _stamped_line(0))
+    one = marks.read(path)
+    one.last.clear()
+    one.after_result.add("a0")
+    two = marks.read(path)
+    assert two.counted() == {"a0": "pass"} and not two.after_result
+
+
+def test_a_time_in_another_form_still_reads_as_strptime_does(tmp_path):
+    """The quick reading of `at` gives what strptime gives, also for a time it would refuse."""
+    path = tmp_path / "marks.jsonl"
+    marks.append(path, {**_stamped_line(0), "seconds": None})
+    marks.append(path, {**_stamped_line(1, at="2026-11-01T10:00:07Z"), "seconds": None})
+    marks.append(path, {**_stamped_line(2, at="2026-11-01T10:00:09.5Z"), "seconds": None})
+    marks.append(path, {**_stamped_line(3, at="2026-11-1T10:00:19Z"), "seconds": None})
+    gap = marks.read(path).gap
+    assert gap["a1"] == 7.0
+    assert "a2" not in gap  # strptime refuses a fraction: no time
+    assert gap["a3"] == 12.0  # one-digit day: strptime reads it
+
+
+def test_a_mark_made_on_the_page_mid_run_is_seen(ws):
+    """A run reads the marks, the page writes a mark, the run reads them again: the new mark
+    is there (the file changed, so it is parsed again)."""
+    from judgekeeper.check import texts_once
+
+    session = start_label.StartSession(ws)
+    first, second = session.items[0]["id"], session.items[1]["id"]
+    assert marks.read(ws.marks).counted() == {}
+    with texts_once():  # as a run does
+        session.update({"id": first, "label": "pass", "seconds": 4})
+        assert marks.read(ws.marks).counted() == {first: "pass"}
+        session.update({"id": second, "label": "fail", "seconds": 4})
+        assert marks.read(ws.marks).counted() == {first: "pass", second: "fail"}
+        session.update({"id": first, "label": "fail", "seconds": 4})  # changed on the page
+        assert marks.read(ws.marks).counted()[first] == "fail"

@@ -588,11 +588,12 @@ def retire(split: Split, asked: bool = False, adopted: bool = False) -> None:
                    **({"adopted": True} if adopted else {})}
 
 
-def prepare_split(ws: Workspace) -> None:
+def prepare_split(ws: Workspace, m: Marks | None = None) -> None:
     """Set the hidden marks aside when the first result appears (and take in marks made
-    since), before any mistake is shown; nothing when there are too few marks."""
+    since), before any mistake is shown; nothing when there are too few marks. `m`: the
+    marks, when the caller has them (Marks(ws))."""
     try:
-        m = Marks(ws)
+        m = m if m is not None else Marks(ws)
     except (OSError, ValueError, KeyError):
         return
     if m.enough():
@@ -700,15 +701,27 @@ RESULT_WORDS = {"better": "better", "safe": "safe to try",
                 "worse": "looks worse"}
 
 
-def report_section(ws: Workspace) -> dict | None:
+def prepared_section(ws: Workspace) -> dict | None:
+    """report_section after prepare_split, on one reading of the marks: with many marks,
+    reading them takes time."""
+    try:
+        m = Marks(ws)
+    except (OSError, ValueError, KeyError):
+        return None
+    prepare_split(ws, m)
+    return report_section(ws, m)
+
+
+def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
     judge's reason, each text whole (the page folds each row), a many-field question's
     `fields` as the marking page shows them, and the person's reasons on it (`why`:
     reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
     buttons. Never a hidden mark. None when there is none. A split.json that can't be used
-    can't say which marks are kept aside: no mistake and `split_unknown`."""
+    can't say which marks are kept aside: no mistake and `split_unknown`. `m`: the marks,
+    when the caller has them (Marks(ws))."""
     try:
-        m = Marks(ws)
+        m = m if m is not None else Marks(ws)
     except (OSError, ValueError, KeyError):
         return None
     ok, split = shown_split(ws)
