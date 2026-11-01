@@ -13,7 +13,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 judgekeeper never runs your eval tool and never asks your LLM-as-a-judge itself. To test a new rule, `judgekeeper fix` writes every answer you marked in `.judgekeeper/fix/marked-answers.csv`, with two columns, `question` and `answer`. You grade those answers again with your new rule in your eval tool, keeping your LLM-as-a-judge's name the same, save the results, and run `judgekeeper fix <new results file>`. Each tool's part below says how. `fix` and `check` read the new results with the choices you made at the start (`--metric`, `--experiment`), so you don't give them again.
 
-To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by their exact text and question, and running your eval again usually makes new answers, which it can't compare.
+To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by the same text, word for word, and the same question, and running your eval again usually makes new answers, which it can't compare.
 
 ## How failed calls are spotted
 

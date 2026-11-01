@@ -1621,7 +1621,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
-                  f"judgekeeper finds them by their exact text and question.")
+                  f"judgekeeper finds them by the same text, word for word, and the same question.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU

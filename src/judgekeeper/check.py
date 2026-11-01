@@ -95,8 +95,8 @@ NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be chance."
-NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by its "
-           "exact text and question.")
+NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by "
+           "the same text, word for word, and the same question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
@@ -110,7 +110,7 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
 NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
 SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by its exact text and question.")
+          "It finds a marked answer by the same text, word for word, and the same question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
