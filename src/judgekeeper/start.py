@@ -417,6 +417,11 @@ class Pool:
     n_results: int = 0  # grades read for the chosen judge, repeats counted each
     repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
+    # the human labels in the results that --labels uses: (answer id, value, name), and the
+    # words that read them (the judge's own label map). Never Inspect AI's edited scores: it
+    # keeps a person's label only when they change a score, so they are almost all disagreements
+    humans: list = field(default_factory=list)
+    label_map: dict = field(default_factory=dict)
     # answers graded more than once with different grades, each repeat its own answer:
     # id -> (repeats, passes, fails)
     split: dict = field(default_factory=dict)
@@ -465,14 +470,15 @@ def _mark_of(r: ScoreRecord, v, norm: Normaliser, threshold) -> tuple[float | No
 
 
 def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normaliser,
-               own_ids: bool = False) -> Pool:
+               own_ids: bool = False, human_labels: bool = True) -> Pool:
     """The pool from the judge `metric`'s verdicts in `files`, newest file first. An answer
     whose verdicts are all no real decision (the reader's mark, or nothing the normaliser can
     read) goes to `left` with its kind instead. An answer's id is made from its text, or with
     `own_ids` (a table, an own format) the file's own id when the reader kept it. Repeats of
     an answer with the same grade count once; with different grades, each repeat is its own
-    answer (`split`): they are never merged into one grade silently."""
-    pool = Pool()
+    answer (`split`): they are never merged into one grade silently. Human labels are
+    counted; with `human_labels` they are also kept for --labels (Pool.humans)."""
+    pool = Pool(label_map=dict(norm.label_map))
     chosen: dict[str, Answer] = {}
     for source, records in files:
 
@@ -487,6 +493,8 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
         for r in records:
             if r.annotator_kind == HUMAN:
                 pool.n_human += 1
+                if human_labels:
+                    pool.humans.append((key_of(r), _verdict_value(r, None), r.name))
                 continue
             if r.annotator_kind != LLM or r.name != metric:
                 continue
@@ -2033,14 +2041,16 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                       label_map={**first.records.label_map, **parse_label_map(label_map)})
     used = [first]
     own_ids = kind in ("table", "mapped")
-    pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids)
+    humans = kind != "inspect"  # Pool.humans
+    pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids, humans)
     identity = _identity(first.records, metric)
     for older in read_older:
         if len(pool.answers) >= MIN_POOL and kind != "records":
             break
         if _identity(older.records, metric) == identity:
             used.append(older)
-            pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids)
+            pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids,
+                              humans)
 
     records = [r for x in used for r in x.records
                if r.annotator_kind == LLM and r.name == metric]

@@ -38,12 +38,12 @@ def test_the_marks_line():
     made = {"marks": 32, "pass": 16, "fail": 16, "sittings": 1, "seconds": 9,
             "under_second": 0, "not_counted": 0}
     assert start_label.made_lines(made) == [
-        ("Your marks: 32 (16 Pass, 16 Fail), made on the page in 1 sitting, about 9 seconds "
-         "each.")]
+        ("Your marks: 32 (16 Pass, 16 Fail), marked on the page over 1 visit, about 9 "
+         "seconds each.")]
     made.update(sittings=2, seconds=1)
-    assert start_label.made_lines(made)[0].endswith("in 2 sittings, about 1 second each.")
+    assert start_label.made_lines(made)[0].endswith("over 2 visits, about 1 second each.")
     made.update(seconds=None)
-    assert start_label.made_lines(made)[0].endswith("made on the page in 2 sittings.")
+    assert start_label.made_lines(made)[0].endswith("marked on the page over 2 visits.")
 
 
 def test_quick_marks_are_said_when_more_than_a_quarter():
@@ -96,7 +96,7 @@ def test_the_report_page_shows_neither_line_and_the_result_keeps_both(ws):
     r = save_result(ws, _mark(ws), say=lambda line: None)
     saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert start_label.made_lines(saved["made"])[0] == (
-        "Your marks: 40 (20 Pass, 20 Fail), made on the page in 1 sitting, about 9 seconds "
+        "Your marks: 40 (20 Pass, 20 Fail), marked on the page over 1 visit, about 9 seconds "
         "each.")
     assert saved["smallest_drop"] == r["smallest_drop"] == 25
     page = (ws.dir / "report.html").read_text(encoding="utf-8")

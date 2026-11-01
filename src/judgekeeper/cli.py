@@ -242,6 +242,7 @@ def _front_parser() -> argparse.ArgumentParser:
                    help="MLflow: the local store to read (mlflow.db, sqlite:///..., an mlruns/ "
                         "folder or file:...)")
     _normaliser_args(p)
+    _labels_arg(p)
     p.add_argument("--judge-model", metavar="NAME",
                    help="the LLM-as-a-judge's model, when the results do not record it")
     p.add_argument("--yes", action="store_true",
@@ -279,6 +280,7 @@ def _parser() -> argparse.ArgumentParser:
                     help="MLflow: the local store to read (mlflow.db, sqlite:///..., an "
                          "mlruns/ folder or file:...)")
     _normaliser_args(mk)
+    _labels_arg(mk)
     mk.add_argument("--judge-model", metavar="NAME",
                     help="the LLM-as-a-judge's model, when the results do not record it")
     mk.add_argument("--yes", action="store_true",
@@ -322,6 +324,16 @@ def _page_args(p: argparse.ArgumentParser) -> None:
     what.add_argument("--stop", action="store_true", help="close the open page")
 
 
+def _labels_arg(p: argparse.ArgumentParser) -> None:
+    """--labels [FILE], on `judgekeeper` and `mark` only."""
+    from judgekeeper.labels import IN_RESULTS
+
+    p.add_argument("--labels", nargs="?", const=IN_RESULTS, metavar="FILE",
+                   help="use Pass/Fail labels you already have as your marks: from FILE (CSV, "
+                        "TSV or JSONL with an answer and a label column), or with no FILE the "
+                        "human labels already in your results")
+
+
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
                    help="when your LLM-as-a-judge's grades are scores: which pass, e.g. "
@@ -339,7 +351,8 @@ def cmd_mark(args) -> int:
                     tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                     label_map=args.label_map, judge_model=args.judge_model,
                     yes=args.yes, port=args.port,
-                    no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
+                    no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop,
+                    labels=args.labels)
 
 
 def cmd_check(args) -> int:
@@ -361,7 +374,8 @@ def cmd_front(args) -> int:
                      tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                      label_map=args.label_map, judge_model=args.judge_model,
                      yes=args.yes, port=args.port,
-                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop)
+                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop,
+                     labels=args.labels)
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}

@@ -198,3 +198,17 @@ def test_a_made_grader_takes_the_config_id_as_the_tool_does(tmp_path, configured
     path = tmp_path / "results.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     assert _page(browser(path)) == tool(path)
+
+
+def test_human_labels_in_a_table_are_said_as_the_tool_says_them(tmp_path):
+    """The Find line for labels already in the results: the page says the plain command."""
+    from judgekeeper import front
+
+    path = table_project(tmp_path, [True] * 8 + [False] * 4, name="table.csv",
+                         extra={"human_label": ["pass"] * 6 + [""] * 6})
+    (judge,) = browser(path)["judges"]
+    said = [x for x in front._notes(start.find_judge(path), "judgekeeper --labels")
+            if x.startswith("Found")]
+    assert said == [("Found 6 Pass/Fail labels in your results. To use them as your marks, run: "
+                     "judgekeeper --labels")]
+    assert said[0] in judge["lines"]

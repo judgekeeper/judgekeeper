@@ -1274,7 +1274,7 @@
     L.push({ text: '' });
     if (j.pass + j.fail) L.push({ text: 'Your LLM-as-a-judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
     var notes = [];
-    if (j.human) notes.push('Your results also hold ' + n(j.human, 'human label') + '. judgekeeper does not use them: you mark the answers yourself.');
+    if (j.human) notes.push('Found ' + n(j.human, 'Pass/Fail label') + ' in your results. To use them as your marks, run: judgekeeper --labels');
     var total = j.pass + j.fail;
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {
       if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your LLM-as-a-judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');

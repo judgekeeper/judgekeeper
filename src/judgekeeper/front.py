@@ -41,6 +41,7 @@ from judgekeeper import (
     targets,
     textio,
 )
+from judgekeeper import labels as labels_mod
 from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
@@ -153,6 +154,11 @@ class FrontTalk(start.Talk):
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
+        # --labels (never repeated in a command): a file's name or labels.IN_RESULTS; then the
+        # labels read, and where from (marks.jsonl's "from")
+        self.labels: str | None = None
+        self.labels_read: list | None = None
+        self.labels_from: str | None = None
         self.refresh()
 
     def refresh(self) -> None:
@@ -272,13 +278,15 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         pass_if: str | None = None, label_map: str | None = None,
         judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
-        wait: bool = False, stop: bool = False) -> int:
-    """`judgekeeper`. Returns the exit code."""
+        wait: bool = False, stop: bool = False, labels: str | None = None) -> int:
+    """`judgekeeper`. Returns the exit code. `labels`: --labels, a file's name or
+    labels.IN_RESULTS."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
                "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = FrontTalk(yes=yes, path=path, options=options, new=new)
+    talk.labels = labels
     return go(talk, Path(path), wait=wait, stop=stop, marking=False)
 
 
@@ -319,12 +327,71 @@ def _started(path: Path) -> bool:
 # Finding -----------------------------------------------------------------------------------
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
+    given = _labels_file(talk)  # a folder, an Excel file, no file: said before any search
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
+    _read_labels(talk, found, given)  # nothing is written before the labels are read
     talk.step = None
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
         return _say(talk, found, mapped, wait)
     return _go_on(talk, found, mapped, wait, marking)
+
+
+def _labels_stop(talk: FrontTalk, e: labels_mod.LabelsStop) -> Stop:
+    """Why the labels can't be used (exit 3): nothing was written."""
+    for line in e.lines:
+        talk.para(line)
+    if e.next_step:
+        talk.say()
+    return talk.stop(EXIT_QUESTION, e.next_step)
+
+
+def _labels_file(talk: FrontTalk) -> Path | None:
+    """The labels file --labels names, checked before the results are looked for."""
+    if talk.labels is None or talk.labels == labels_mod.IN_RESULTS:
+        return None
+    try:
+        return labels_mod.check_file(talk.labels, talk.command)
+    except labels_mod.LabelsStop as e:
+        raise _labels_stop(talk, e) from None
+
+
+def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None:
+    """The labels --labels asks for, read (with the project's label map) before anything is
+    written: a word that isn't Pass or Fail stops here."""
+    if talk.labels is None:
+        return
+    try:
+        if path is None:
+            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command)
+            talk.labels_from = marks.FROM_RESULTS
+        else:
+            start._read_anyway(talk, path)
+            talk.labels_read = labels_mod.read_file(path, talk.labels, found.pool.label_map,
+                                                    talk.command)
+            talk.labels_from = path.name
+    except labels_mod.LabelsStop as e:
+        raise _labels_stop(talk, e) from None
+
+
+def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bool) -> None:
+    """The labels read (_read_labels) as marks, once the pool is ready: said under Find."""
+    if talk.labels_read is None:
+        return
+    rows = start_label.StartSession(ws).raw
+    plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
+    if not plan.matched:
+        raise _labels_stop(talk, labels_mod.nothing_matched(talk.labels_from))
+    added = labels_mod.add(ws, plan, talk.labels_from)
+    if not first:  # a later run says nothing under Find until now
+        talk.step = STEP.format(n=1, name="Find")
+    for line in labels_mod.said(added, plan, talk.labels_from):
+        if line.startswith("  "):
+            talk.para(line[2:], indent="  ")
+        else:
+            talk.para(line)
+    talk.say()
+    talk.labels_read = None  # once
 
 
 def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.StartSettings | None]:
@@ -876,15 +943,16 @@ def _columns_line(found: start.Found, pass_if: str | None = None) -> str | None:
     return SCORE_READ if pass_if and verdict and "score" in columns else None
 
 
-def _notes(found: start.Found) -> list[str]:
+def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
+    """The notes under the counts; `labels_command`: the command that uses the human labels
+    in the results (None when --labels was given)."""
     pool, out = found.pool, [*found.stopped, *found.warnings]
     if judge_check.model_not_written(found):  # said once, with its fix, by the free checks
         out = [w for w in out if DEFAULT_GRADER_NOTE not in w]
     if not pool.answers:  # "none with a clear grade": where the grades came from is moot
         out = [w for w in out if "default grader" not in w]
-    if pool.n_human:
-        out.append(f"Your results also hold {_n(pool.n_human, 'human label')}. judgekeeper does "
-                   "not use them: you mark the answers yourself.")
+    if pool.humans and labels_command:
+        out.append(labels_mod.found_line(len(pool.humans), labels_command))
     n = len(pool.answers)
     for count, did, too in ((pool.n_fail, "failed", "passes too much"),
                             (pool.n_pass, "passed", "fails too much")):
@@ -1258,7 +1326,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     pool = found.pool
     if pool.answers:
         talk.say(passed_failed(pool.n_pass, pool.n_fail))
-    for note in _notes(found):
+    for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.para(note)
     for others in (_other_files(found), _other_projects(found), _nested_here(found),
                    _outer_marks(found)):
@@ -1486,6 +1554,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     elif not first and _ran_again(ws, found):
         head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
         batches.seen(ws, found)  # said once
+    with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
+        _import_labels(talk, ws, found, first)
     session = StartSession(ws)
     counts = session.counts()
     counted = list(batches.counted_labels(ws.data(), session.marked()).values())
@@ -1762,8 +1832,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
                                         _check_command(talk), ws)
     r = start_label.store_result(ws, session, _flags_of(talk, saved), worse=worse or None,
                                  redraw=True)
-    made = marks.made(marks.read(ws.marks), ids=set(session.by_id))  # reasons added since
-    for line in made_lines(made)[1:]:  # the notes on how they were made; the count is below
+    m = marks.read(ws.marks)
+    made = marks.made(m, ids=set(session.by_id))  # reasons added since
+    for line in made_lines(made, marks.imported(m, ids=set(session.by_id)))[1:]:
+        # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
@@ -1788,6 +1860,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         for line in estimate_lines(r):
             talk.say(line)
+    assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
+    if assumes:
+        talk.say()
+        talk.para(assumes)
     which = _which_judge(ws, found)
     if which:
         talk.say()

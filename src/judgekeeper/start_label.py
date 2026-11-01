@@ -958,20 +958,31 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
 _plural = plural  # textio.plural
 
 
-def made_lines(made: dict | None) -> list[str]:
-    """How the marks were made (marks.made), and a note when more than a quarter took under a
-    second each (more than half: it looks like a program), when lines of marks.jsonl are not
-    counted, or when marks came through a page another program could have used (link_lines)."""
+def made_lines(made: dict | None, imported: dict | None = None) -> list[str]:
+    """How the marks were made (marks.made; `imported`: marks.imported, the marks brought with
+    --labels), and a note when more than a quarter of the page's marks took under a second each
+    (more than half: it looks like a program), when lines of marks.jsonl are not counted, or
+    when marks came through a page another program could have used (link_lines)."""
+    from judgekeeper.labels import names
+
     if not made or not made["marks"]:
         return []
     n, quick = made["marks"], made["under_second"]
-    line = (f"Your marks: {n} ({made['pass']} Pass, {made['fail']} Fail), made on the page in "
-            f"{_plural(made['sittings'], 'sitting', 'sittings')}")
-    seconds = made.get("seconds")
-    if seconds is not None:
-        line += (", under a second each" if seconds == 0
-                 else f", about {_plural(seconds, 'second', 'seconds')} each")
+    k = (imported or {}).get("marks") or 0
+    counts = f"Your marks: {n} ({made['pass']} Pass, {made['fail']} Fail)"
+    if k and k >= n:
+        line = f"{counts}, all from {names(imported['from'])}"
+    elif k:
+        line = f"{counts}: {k} from {names(imported['from'])}, {n - k} marked on the page"
+    else:
+        line = (f"{counts}, marked on the page over "
+                f"{_plural(made['sittings'], 'visit', 'visits')}")
+        seconds = made.get("seconds")
+        if seconds is not None:
+            line += (", under a second each" if seconds == 0
+                     else f", about {_plural(seconds, 'second', 'seconds')} each")
     out = [line + "."]
+    n -= k  # the page's marks: an import has no time
     if quick and quick * 4 > n:
         out.append(f"{quick} of your marks took under a second each. A result is only as good "
                    "as the marks." + (" This looks like a program, not a person."
@@ -1190,7 +1201,11 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                     "results_date": data.get("results_date")})
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
-    r["made"] = marks.made(marks.read(ws.marks), ids=set(session.by_id))
+    m = marks.read(ws.marks)
+    r["made"] = marks.made(m, ids=set(session.by_id))
+    imported = marks.imported(m, ids=set(labels))  # only the marks this result counts
+    if imported:
+        r["imported"] = imported
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
