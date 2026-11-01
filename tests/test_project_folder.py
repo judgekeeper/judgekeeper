@@ -732,3 +732,45 @@ def test_a_model_given_now_still_conflicts_with_the_files_model_column(here, cap
     assert code == 2
     assert ("results.csv already names the LLM-as-a-judge's model (openai:gpt-4.1): drop "
             "--judge-model") in flat(err)
+
+
+# A store above is for its own results only ------------------------------------------------
+
+@pytest.mark.parametrize("marker", [".git", "pyproject.toml", None])
+def test_new_results_below_a_store_get_their_own_marks(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16), name="sub2/results.csv", tag="sub2")
+    assert run(capsys, "sub2/results.csv", "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    table_project(here / "evals3", split(20, 16), tag="evals3")
+    monkeypatch.chdir(here / "evals3")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert ("These results get their own marks here. The marks in ../ are for "
+            "sub2/results.csv.") in flat(out), out
+    assert "You marked 5 answers" not in out and "File:            results.csv" in out
+    assert (here / "evals3" / ".judgekeeper" / "start.json").is_file()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    run(capsys, "--stop")
+    code, out, _ = run(capsys, "--no-browser")  # the next run says nothing more about it
+    assert code == 0 and "get their own marks" not in out
+    run(capsys, "--stop")
+
+
+@pytest.mark.parametrize("marker", [".git", "pyproject.toml", None])
+def test_the_store_above_stays_for_the_results_it_reads(here, capsys, monkeypatch, marker):
+    _marker(here, marker)
+    table_project(here, split(20, 16), name="sub2/results.csv", tag="sub2")
+    assert run(capsys, "sub2/results.csv", "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    (here / "src").mkdir()
+    for folder in (here / "sub2", here / "src"):
+        monkeypatch.chdir(folder)
+        code, out, err = run(capsys, "--no-browser")
+        assert code == 0, out + err
+        assert "You marked 5 answers so far" in out and "get their own marks" not in out
+        assert not (folder / ".judgekeeper").exists()
+        assert "Closed the marking page." in run(capsys, "--stop")[1]

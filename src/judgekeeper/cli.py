@@ -26,7 +26,7 @@ import textwrap
 import traceback
 from pathlib import Path
 
-from judgekeeper import __version__, textio
+from judgekeeper import __version__, project, textio
 from judgekeeper.anchors import AnchorError
 from judgekeeper.find import TOOLS
 from judgekeeper.judgments import JudgmentsError
@@ -491,6 +491,7 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    project.forget()  # a test or a long session may run many commands in one process
     try:
         code = _main(argv)
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
