@@ -11,6 +11,7 @@ import sys
 import pytest
 
 from judgekeeper import textio
+from tests.test_label_server import _serve_until_done
 
 posix = pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
                            reason="file permissions: POSIX, not as root")
@@ -44,3 +45,18 @@ def test_a_refused_rename_names_the_file_not_the_temporary_one(tmp_path, monkeyp
     assert e.value.filename == str(path) and e.value.filename2 is None
     assert ".tmp" not in textio.describe_os_error(e.value)
     assert list(tmp_path.iterdir()) == []  # no temporary file left
+
+
+def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path):
+    def result(session, back):
+        raise PermissionError(13, "Permission denied", str(tmp_path / "marks.jsonl"))
+
+    server, thread, client = _serve_until_done(tmp_path, result=result)
+    try:
+        resp, payload = client.request("GET", "/result")
+        said = payload.decode()
+        assert resp.status == 500 and said.startswith("Not saved: cannot write ")
+        assert ".." not in said and "permissions. Your marks are saved;" in said
+    finally:
+        server.stop()
+        thread.join(timeout=5)
