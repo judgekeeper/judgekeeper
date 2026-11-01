@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.start_projects import unwrapped
+
 pytestmark = pytest.mark.skipif(sys.platform == "win32",
                                 reason="the script runs judgekeeper under a pseudo-terminal")
 
@@ -44,7 +46,7 @@ def test_the_pages_are_a_persons_and_the_judge_needs_work(shots, tmp_path, monke
     try:
         assert "--port" not in start.process.args
         items = start.get("/state")["items"]
-        page = start.get("/").decode("utf-8")
+        page = unwrapped(start.get("/").decode("utf-8"))
         assert "judgekeeper mark --no-browser" in page
         assert "--port" not in page
         shots.mark(start, items)

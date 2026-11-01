@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 
 from judgekeeper import look, mark_page, report_page, start_label
+from tests.start_projects import unwrapped
 from tests.test_mark_page_script import _run
 from tests.test_product_pages import (
     GATE,
@@ -216,7 +217,7 @@ def test_good_enough_has_no_fix_command():
 
 def test_what_next_has_the_websites_command_box():
     html = _page()
-    fix = _part(html, '<section class="next band"')
+    fix = unwrapped(_part(html, '<section class="next band"'))
     assert "<p>Next, in your terminal, in your project folder:</p>" in fix
     assert "marked-answers.csv" not in fix and "In your project folder" not in fix
     assert '<div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" ' \
@@ -249,7 +250,7 @@ def test_report_html_keeps_one_closing_line():
 
 
 def test_the_live_page_says_above_the_first_list_that_reasons_are_optional():
-    html = _page(mistakes=(2, 1), live=True)
+    html = unwrapped(_page(mistakes=(2, 1), live=True))
     line = ('<div class="band"><p class="add-why">Optional: tell judgekeeper why you disagree. '
             '<code>judgekeeper fix</code> uses your reasons to suggest a better rule.</p></div>')
     assert html.count(line) == 1
@@ -281,7 +282,7 @@ def test_no_not_marked_yet_and_no_legend():
 
 
 def test_the_footer_says_to_come_back():
-    page = mark_page.label_page("support bot", "judgekeeper mark")
+    page = unwrapped(mark_page.label_page("support bot", "judgekeeper mark"))
     assert '<p class="foot">To come back: <code>judgekeeper mark</code>' in page
     assert "Come back any time" not in page
 

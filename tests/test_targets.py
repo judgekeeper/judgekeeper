@@ -59,4 +59,5 @@ def test_many_marks_see_a_drop_of_five_points_quickly():
 def test_the_first_result_needs_marks_in_each_group_of_the_llm_as_a_judge(groups, check):
     assert targets.FIRST_GROUP == 20
     assert targets.check(20, 20, groups) == {"check": check}
-    assert targets.check(14, 30, groups) == {"check": "too_few"}
+    one_grade = groups["fail"][1] == 0  # it failed none: one Fail mark gives its TNR, 0
+    assert targets.check(14, 30, groups) == {"check": "result" if one_grade else "too_few"}

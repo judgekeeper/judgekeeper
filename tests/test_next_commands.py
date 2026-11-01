@@ -17,7 +17,7 @@ from judgekeeper import page, report_page, start_label
 from judgekeeper.cli import main, parse_args
 from judgekeeper.start_label import StartSession, Workspace
 from judgekeeper.textio import quote_arg
-from tests.start_projects import split, table_project
+from tests.start_projects import split, table_project, unwrapped
 
 FLAGS = ["--label-map", "good=pass,bad=fail", "--port", "0", "--no-browser"]
 MAP = quote_arg("good=pass,bad=fail")  # in double quotes on Windows
@@ -111,7 +111,7 @@ def test_report_html_never_keeps_the_port_of_the_run_that_made_it(project, capsy
     capsys.readouterr()
     assert main(["evals/results.csv", *flags, "--yes"]) == 0
     assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["port"] == 9123
-    page_text = ws.report_html.read_text(encoding="utf-8")
+    page_text = unwrapped(ws.report_html.read_text(encoding="utf-8"))
     shown = [unescape(c) for c in re.findall(r"<code[^>]*>(judgekeeper[^<]*)</code>", page_text)]
     assert shown and all("--port" not in c and "9123" not in c for c in shown), shown
     named = report_page.commands(json.loads(ws.result_json.read_text(encoding="utf-8")))
@@ -154,8 +154,8 @@ def test_marked_line_is_the_same_everywhere(
         server.httpd.server_close()
         server.release()
     assert f"then run `{MARK}`: the new answers join the ones you marked." in card
-    for name, text in (("result page", html),
-                       ("report.html", ws.report_html.read_text(encoding="utf-8"))):
+    for name, text in (("result page", unwrapped(html)),
+                       ("report.html", unwrapped(ws.report_html.read_text(encoding="utf-8")))):
         assert (f"then run <code>{escape(MARK)}</code>: the new answers join the ones you "
                 "marked.") in text, name
     capsys.readouterr()

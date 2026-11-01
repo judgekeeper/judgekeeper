@@ -21,7 +21,7 @@ import pytest
 from judgekeeper import front, report_page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, split, unwrapped
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_result_json_and_report_keep_the_value_as_data_on_windows(windows, value
     saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert saved["flags"]["metric"] == value
     assert "'" not in saved["command"] and "NAME" in saved["command"]
-    html = ws.report_html.read_text(encoding="utf-8")
+    html = unwrapped(ws.report_html.read_text(encoding="utf-8"))
     assert "--metric NAME" in html
     assert f"NAME: {escape(value)}" in " ".join(html.split())
     assert value not in html or escape(value) == value

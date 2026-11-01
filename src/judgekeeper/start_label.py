@@ -1297,9 +1297,18 @@ def write_report(ws: Workspace, worse: str | None = None) -> None:
 def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
                 back: str = "/") -> str:
     """The result page the marking page serves at /result: the result from the marks so far,
-    with the reason boxes. `flags`: start.run_flags of the run that opened the page."""
-    r = store_result(ws, session, flags)
-    return result_html(_scrubbed(_now(ws, r)), back, fixing=_fixing(ws, r))
+    with the reason boxes. `flags`: start.run_flags of the run that opened the page.
+    While .judgekeeper/ can't be written, the result from the marks, not saved, and no
+    disagreement listed: the hidden marks can't be set aside first."""
+    try:
+        r = store_result(ws, session, flags)
+    except OSError:
+        r = _made(ws, session, flags)
+    try:
+        fixing = _fixing(ws, r)
+    except OSError:
+        fixing = None
+    return result_html(_scrubbed(_now(ws, r)), back, fixing=fixing)
 
 
 def page_template(about: dict | None = None, command: str | None = None,
@@ -1447,7 +1456,8 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
 
 def history_line(ws: Workspace, r: dict) -> dict:
     """The line history.jsonl gets for a new result: the judge as marks.jsonl's header keeps
-    it, the counts and the numbers. No answer text, no ids."""
+    it, the counts and the numbers, and the verdict with the wider ranges it came from (so a
+    past verdict can be traced). No answer text, no ids."""
     head = marks.read(ws.marks).header or {}
 
     def rate(key):
@@ -1458,10 +1468,26 @@ def history_line(ws: Workspace, r: dict) -> dict:
     line = {"time": r["made_at"], "kind": "result", "judge": head.get("judge"),
             "marks": labels["correct"] + labels["wrong"], "pass": labels["correct"],
             "fail": labels["wrong"], "marks_hash": r["marks_sha256"], "tpr": rate("tpr"),
-            "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop")}
+            "tnr": rate("tnr"), "kappa": r["kappa"], "smallest_drop": r.get("smallest_drop"),
+            "verdict_level": r.get("verdict_level"),
+            **{f"{k}_verdict_interval": r.get(f"{k}_verdict_interval") for k in ("tpr", "tnr")}}
     if r.get("batches"):  # which batches the result is on (batches.about)
         line["batches"] = r["batches"]
     return line
+
+
+def _made(ws: Workspace, session: StartSession, flags: dict | None,
+          digest: str | None = None) -> dict:
+    """The result from the marks so far, with the flags (start.run_flags) it keeps and the
+    command they make: what store_result saves."""
+    from judgekeeper.start import command_from, saved_flags
+
+    flags = saved_flags(flags)
+    r = compute(ws, session)
+    r["command"] = command_from(flags, kept=True)
+    r["flags"] = flags
+    r["marks_sha256"] = digest or marks_digest(ws, session)
+    return r
 
 
 def store_result(ws: Workspace, session: StartSession,
@@ -1474,19 +1500,13 @@ def store_result(ws: Workspace, session: StartSession,
     With no new marks since the saved result, that result stays as it is, and history.jsonl
     gets no line; `redraw` draws its report.html again. `worse`: the next step after a check
     found the new judge worse (check.worse_step), on report.html."""
-    from judgekeeper.start import command_from, saved_flags
-
-    flags = saved_flags(flags)
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
         if redraw:
             write_report(ws, worse=worse)
         return same
-    r = compute(ws, session)
-    r["command"] = command_from(flags, kept=True)
-    r["flags"] = flags
-    r["marks_sha256"] = digest
+    r = _made(ws, session, flags, digest)
     anchors = [{"id": i["id"], "input": session.raw[i["id"]].get("input", ""),
                 "output": session.raw[i["id"]].get("output", ""), "human_label": i["label"],
                 **{k: session.raw[i["id"]][k] for k in AGENT_FIELDS if k in session.raw[i["id"]]}}
