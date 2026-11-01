@@ -26,7 +26,7 @@ import pytest
 from judgekeeper import __version__, check, find, fix, judge_setup, page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project
+from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project, unwrapped
 from tests.test_front import flat, next_lines, run
 from tests.test_only_reads import only_reads
 
@@ -572,7 +572,7 @@ def test_fix_for_a_table_judge_tests_new_grades_from_a_file(here, capsys, no_cal
 
 def test_the_report_says_where_to_run_fix(here, capsys):
     _table_needs_work(here, capsys)
-    report = flat((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
+    report = flat(unwrapped((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8")))
     assert "can&#x27;t re-run" not in report
     assert ("<p>Next, in your terminal, in your project folder:</p>"
             '<div class="cmd"><code>judgekeeper fix</code>') in report
@@ -619,7 +619,7 @@ def test_too_early_with_mistakes_says_mark_more_as_the_report_does(here, capsys)
     _, out, _ = run(capsys)
     assert "Result: too early to tell." in out
     assert _next(out) == "Next: run `judgekeeper mark` to mark more answers."
-    report = (here / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
+    report = unwrapped((here / ".judgekeeper" / "report.html").read_text(encoding="utf-8"))
     assert "<code>judgekeeper mark</code> to mark more answers." in report
     assert "judgekeeper fix" not in report
 

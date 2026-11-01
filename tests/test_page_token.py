@@ -371,3 +371,24 @@ def test_a_lock_naming_another_programs_listener_gets_nothing(here, capsys, list
     assert _status(base, f"/state?token={token}") == 200
     assert not [s for s in seen if token in s[1] + s[2]]
     assert not [s for s in seen if s[0] == "POST" or "STOP-FROM-PROJECT" in s[1]]
+
+
+def test_the_same_flags_after_start_json_changed_say_no_restart_line(here, capsys,
+                                                                    monkeypatch):
+    """`fix` and `check` write start.json, so the open page starts again to show it; the
+    flags are the same, so the line about "this command's flags" would be untrue."""
+    from judgekeeper import page
+
+    code, out, _ = _run(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out
+    first = out.splitlines()[out.splitlines().index(page.LINK) + 1]
+    ws = start_label.Workspace(here)
+    old_pid = label.read_lock(ws.dir)["pid"]
+    data = json.loads(ws.start.read_text(encoding="utf-8"))
+    ws.start.write_text(json.dumps(data, indent=1), encoding="utf-8")  # as a check rewrites it
+    monkeypatch.setattr(page, "terminal", lambda: True)
+    code, out, _ = _run(capsys, "mark", "--no-browser", "--port", "0")
+    assert code == 0, out
+    assert page.STARTS_AGAIN not in out
+    assert label.read_lock(ws.dir)["pid"] != old_pid  # it did start again, quietly
+    assert first in out.splitlines()  # the same link

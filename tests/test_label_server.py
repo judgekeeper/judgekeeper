@@ -17,6 +17,7 @@ from judgekeeper import label as label_mod
 from judgekeeper import textio
 from judgekeeper.label import LabelError, LabelServer, LabelSession
 from tests.page_http import retried
+from tests.start_projects import unwrapped
 
 # A page as the caller passes it: the server fills in the nonce, the token and the data.
 PAGE = ('<!doctype html><title>labels</title>'
@@ -651,7 +652,7 @@ def test_a_browser_with_an_old_link_gets_a_page_and_a_script_gets_json(tmp_path,
     page = payload.decode()
     assert resp.status == 403 and resp.getheader("Content-Type").startswith("text/html")
     assert "This link no longer works." in page and "Your marks are saved." in page
-    assert "<code>judgekeeper mark</code>" in page
+    assert "<code>judgekeeper mark</code>" in unwrapped(page)
     assert "default-src 'none'" in resp.getheader("Content-Security-Policy")
     resp, payload = client.request("GET", "/?token=old", token=False)
     assert resp.status == 403 and json.loads(payload) == {"error": "missing or wrong token"}

@@ -130,6 +130,15 @@ def test_one_history_line_per_new_set_of_marks(ws):
     assert isinstance(second["kappa"], float) and second["time"].endswith("Z")
 
 
+def test_a_history_line_keeps_the_verdict_and_the_ends_that_decided_it(ws):
+    """A past "good enough" can be traced: the verdict and the 99% ranges it came from."""
+    r = save_result(ws, _mark(ws), say=lambda line: None)
+    line = _history(ws)[-1]
+    assert line["verdict_level"] == r["verdict_level"] is not None
+    for key in ("tpr_verdict_interval", "tnr_verdict_interval"):
+        assert line[key] == list(r[key]) and len(line[key]) == 2
+
+
 def test_no_answer_text_or_ids_in_the_history(ws):
     save_result(ws, _mark(ws), say=lambda line: None)
     text = (ws.dir / "history.jsonl").read_text(encoding="utf-8")

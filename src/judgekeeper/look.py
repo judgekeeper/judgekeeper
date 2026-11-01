@@ -64,6 +64,7 @@ TOKENS = """
 # focus ring, inset in the text colour, so no ring ever shows a gap.
 BASE = """
 * { box-sizing: border-box; }
+.cw { white-space: nowrap; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--text); font: 500 16px/1.5 var(--sans);
@@ -111,6 +112,19 @@ code, kbd { font-family: var(--mono); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important;
   animation: none !important; scroll-behavior: auto !important; } }
 """
+
+
+LONG_WORD = 40  # a word of a command longer than this (a long path) may wrap: it stays on the page
+
+
+def command(escaped: str) -> str:
+    """An escaped command as a page shows it: each word in a span that doesn't wrap (.cw), so
+    it breaks only between words, never inside a flag such as --no-browser. Its text, which
+    Copy takes, is unchanged."""
+    from html import unescape
+
+    return " ".join(f'<span class="cw">{w}</span>' if w and len(unescape(w)) <= LONG_WORD else w
+                    for w in escaped.split(" "))
 
 
 def script_hash(script: str) -> str:
