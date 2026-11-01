@@ -297,6 +297,7 @@ def test_a_program_under_home_run_from_a_folder_outside_it_is_named_from_home(mo
     assert "someone" not in textio.program()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
 def test_on_windows_a_program_under_home_is_named_from_userprofile(monkeypatch, tmp_path):
     """cmd reads %USERPROFILE% inside double quotes too: the user name is never shown."""
     monkeypatch.setattr("shutil.which", lambda name: None)
@@ -310,3 +311,30 @@ def test_on_windows_a_program_under_home_is_named_from_userprofile(monkeypatch, 
         '"%USERPROFILE%\\My Tools\\venv\\Scripts\\judgekeeper.exe" mark')
     monkeypatch.setattr(sys, "argv", ["/Users/someone/venv/Scripts/judgekeeper.exe"])
     assert textio.program() == "%USERPROFILE%\\venv\\Scripts\\judgekeeper.exe"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_path_typed_in_home_from_a_folder_outside_it_is_repeated_from_home(monkeypatch,
+                                                                             tmp_path):
+    """A Next: line repeats a whole path from here; sharing only the top folder, a path in
+    the home folder is `~/...`, never `../../Users/<name>/...`."""
+    monkeypatch.setenv("HOME", "/Users/someone")
+    monkeypatch.chdir(tmp_path)
+    assert textio.from_here("/Users/someone/labels.csv", labels=True) == "~/labels.csv"
+    assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
+        "~/'My Labels/l.csv'")
+    assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == "~/My Labels/l.csv"
+    inside = tmp_path / "data" / "l.csv"  # sharing more than the top: from here, as before
+    assert textio.from_here(str(inside), labels=True) == "data/l.csv"
+    assert textio.from_here("/opt/data/l.csv", labels=True).endswith("opt/data/l.csv")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
+def test_on_windows_a_path_in_home_is_repeated_from_userprofile(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", "/Users/someone")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
+        '"%USERPROFILE%\\My Labels\\l.csv"')
+    assert textio.runnable("/Users/someone/labels.csv", labels=False) == (
+        "%USERPROFILE%\\labels.csv")

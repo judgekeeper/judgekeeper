@@ -151,21 +151,44 @@ def command_path(path: str) -> str:
         if os.sep not in shown and "/" not in shown:
             shown = os.path.join(os.curdir, shown)
         return quote_arg(shown)
+    inside = _in_home(path)
+    return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
+
+
+HOME_FORMS = ("~/", "%USERPROFILE%\\")  # a path in the home folder, as a shell reads it
+
+
+def _in_home(path: str) -> str | None:
+    """`path` from the home folder when it is inside it, else None."""
     try:
         home = os.path.realpath(Path.home())
         inside = os.path.relpath(path, home)
     except (OSError, RuntimeError, ValueError):
-        return quote_arg(path)
-    if inside == os.curdir or inside.startswith(os.pardir):
-        return quote_arg(path)
+        return None
+    first = inside.replace("\\", "/").split("/")[0]
+    return None if inside == os.curdir or first == os.pardir else inside
+
+
+def _home_shown(inside: str) -> str:
+    """A path in the home folder as a line shows it: `~/...` (`%USERPROFILE%\\...` on
+    Windows), never the user name."""
+    if is_windows():
+        return HOME_FORMS[1] + inside.replace("/", "\\")
+    return HOME_FORMS[0] + inside.replace(os.sep, "/")
+
+
+def _home_command(inside: str) -> str | None:
+    """`_home_shown`, quoted for a shell with the home part left outside the quotes (the
+    shell reads it there; cmd reads %USERPROFILE% inside double quotes too). None when the
+    rest can't be in a command (Windows: held back)."""
     if is_windows():
         rest = quote_arg(inside.replace("/", "\\"))
-        if rest == PLACEHOLDER or "%" in inside:  # held back: it can't be in a command
-            return quote_arg(path)
+        if rest == PLACEHOLDER or "%" in inside:
+            return None
         if rest.startswith('"'):
-            return '"%USERPROFILE%\\' + rest[1:]
-        return "%USERPROFILE%\\" + rest
-    return f"~/{quote_arg(inside)}"  # ~ outside the quotes: the shell reads it
+            return '"' + HOME_FORMS[1] + rest[1:]
+        return HOME_FORMS[1] + rest
+    return HOME_FORMS[0] + quote_arg(inside.replace(os.sep, "/"))
 
 
 def off_path(any_start: bool = False) -> str | None:
@@ -676,13 +699,19 @@ ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 def from_here(value: str, labels: bool) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in;
-    on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
+    when the two share only the top folder and the path is in the home folder, `~/...`
+    (_home_shown); on another drive, `<file>` for --labels and PATH for the rest. Never the
+    whole path, nor the user name."""
     if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return value
     try:
-        rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))
+        real, here = os.path.realpath(value), os.path.realpath(os.getcwd())
+        rel = os.path.relpath(real, here)
+        shared = os.path.commonpath([real, here])
     except ValueError:  # another drive (Windows)
         return ANOTHER_DRIVE[0 if labels else 1]
+    if os.path.dirname(shared) == shared and (inside := _in_home(real)) is not None:
+        return _home_shown(inside)
     return rel.replace(os.sep, "/")
 
 
@@ -695,9 +724,15 @@ def shown_from_here(value) -> str:
 
 
 def runnable(value: str, labels: bool) -> str:
-    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE)."""
+    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE); a path in
+    the home folder keeps its `~/` outside the quotes."""
     shown = from_here(value, labels)
-    return shown if shown in ANOTHER_DRIVE else quote_arg(shown)
+    if shown in ANOTHER_DRIVE:
+        return shown
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return _home_command(shown[len(form):]) or ANOTHER_DRIVE[0 if labels else 1]
+    return quote_arg(shown)
 
 
 # File-system errors --------------------------------------------------------------------------
