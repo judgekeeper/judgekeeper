@@ -6,6 +6,7 @@ and `mark --stop` closes it with no process left behind."""
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -269,7 +270,7 @@ def test_the_page_says_python_m_when_started_that_way(project):
         with urllib.request.urlopen(f"{base}/?token={m[3]}", timeout=10) as r:
             return r.read().decode("utf-8")
 
-    shown = retried(send)
+    shown = html.unescape(retried(send))  # as the browser shows it: the page writes _ as &#95;
     said = sorted(set(re.findall(r"[^<>\n]{0,60}-m judgekeeper[^<>\n]{0,30}", shown)))
     assert command in shown, (command, said)
     assert py_m("mark", "--stop").returncode == 0
