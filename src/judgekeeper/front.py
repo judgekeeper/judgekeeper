@@ -55,6 +55,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    shown_path,
     wrap,
 )
 
@@ -308,8 +309,8 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     try:
         if stop:
             return _stop(talk, path)
-        if not marking and not _started(path):
-            talk.say(STEP.format(n=1, name="Find"))
+        if talk.labels is not None or not marking and not _started(path):  # an import
+            talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
@@ -394,8 +395,6 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     if not plan.matched:
         raise _labels_stop(talk, labels_mod.nothing_matched(talk.labels_from))
     added = labels_mod.add(ws, plan, talk.labels_from)
-    if not first:  # a later run says nothing under Find until now
-        talk.step = STEP.format(n=1, name="Find")
     for line in labels_mod.said(added, plan, talk.labels_from):
         if line.startswith("  "):
             talk.para(line[2:], indent="  ")
@@ -420,6 +419,11 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
         raise _go_to_one(talk, folders)
+    if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
+        raise _go_to_one(talk, folders)  # a session below never joins other results here
+    if path.is_file() and (owner := _session_owning(path)) is not None:
+        talk.para(_nested_line([owner]))  # its own project's answers, never a batch here
+        raise talk.stop(EXIT_QUESTION, f"run `{program()}` in {owner}/.")
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -532,7 +536,7 @@ def not_found(path: Path) -> StartError:
         return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
                           f"named {word} here.", f"run `{program()}`, or "
                                                  f"`{program()} --help` to see the commands.")
-    return StartError(f"file or folder not found: {path}",
+    return StartError(f"file or folder not found: {shown_path(path)}",
                       "check the path, then run `{command}`.")
 
 
@@ -910,6 +914,42 @@ def _projects_below(folder: Path) -> list[str]:
             return []
         tops.add(parts[0])
     return sorted(tops) if len(tops) > 1 else []
+
+
+def _beside_a_session(folder: Path) -> list[str]:
+    """The folders below `folder` that hold results, when one is a project with a session of
+    its own (find.nested_results) and the others hold the rest, none in `folder` itself or a
+    tool's own folder there: projects of their own, never one session for them."""
+    if not _sessions_below(folder):  # the walk below only when a session is right below
+        return []
+    found = find.search(folder)
+    nested = find.nested_results(found)
+    if not nested or len(_sessions_below(folder, nested)) < len(nested) or any(
+            "/" not in sign for signs in found.signs.values() for sign in signs):
+        return []
+    tops = set()
+    for result in (r for rs in found.results.values() for r in rs):
+        parts = Path(result.rel).parts
+        if len(parts) < 2 or parts[0] in TOOL_FOLDERS:
+            return []
+        tops.add(parts[0])
+    return sorted({*nested, *tops}) if tops else []
+
+
+def _session_owning(path: Path) -> str | None:
+    """A results file in a folder below this project whose own .judgekeeper/ holds a
+    session: that folder, from the folder the command runs in."""
+    root = project.project_of(path)
+    here = Path.cwd().resolve()
+    folder = path.resolve().parent
+    if not folder.is_relative_to(root):
+        return None
+    while folder != root:
+        ws = Workspace(folder)
+        if ws.start.is_file() or ws.labels.is_file():
+            return Path(os.path.relpath(folder, here)).as_posix()
+        folder = folder.parent
+    return None
 
 
 def _go_to_one(talk: FrontTalk, folders: list[str]) -> Stop:

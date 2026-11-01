@@ -296,12 +296,15 @@ def test_answers_without_a_clear_grade_never_join(here):
 
 # The page offers the newest batch first -------------------------------------------------------
 
-def test_the_page_offers_the_new_batch_first(here):
+@pytest.mark.parametrize("seed, again", [(0, False), (35, True)])  # 35: one shown again
+def test_the_page_offers_the_new_batch_first(here, monkeypatch, seed, again):
+    monkeypatch.setattr(start_label.secrets, "randbelow", lambda n: seed)
     ws = _all_marked(here)
     _more_questions(here)
     batches.add(ws, start.find_judge(here))
     state = StartSession(ws).state()
     items = [x for x in state["items"] if "again" not in x]  # an answer shown again may lead
+    assert any("again" in x for x in state["items"]) == again
     first = [_index(x["input"]) for x in items[:10]]
     assert set(first) == set(range(36, 46))
     assert state["items"][state["start"]]["label"] is None

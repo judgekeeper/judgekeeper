@@ -53,8 +53,8 @@ def project_of(path: Path) -> Path:
     """The project folder every command keeps .judgekeeper/ in. A results file or an MLflow
     store given as the path never moves it: it is found from the folder the command runs in.
     From there (or the folder given), the nearest folder up whose .judgekeeper/ holds marks,
-    without leaving the project (a folder with find.PROJECT_MARKERS); else, for a file, the
-    project the folder is in; else the folder itself."""
+    without leaving the project (a folder with find.PROJECT_MARKERS); else the folder
+    itself, the same with a path given or not."""
     from judgekeeper import find
 
     given = path.is_file() or find.is_mlflow_folder(path)
@@ -71,8 +71,6 @@ def project_of(path: Path) -> Path:
             return folder
         if is_project(folder):
             break
-    if given and not is_project(here):
-        return find.project_folder(here) or here
     return here
 
 

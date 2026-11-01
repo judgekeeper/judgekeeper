@@ -771,7 +771,13 @@ def project_folder(folder: Path) -> Path | None:
 
 
 def results_above(root: Path) -> Path | None:
-    """The project folder above `root` when it holds results judgekeeper reads."""
+    """The project folder above `root` when it holds results judgekeeper reads; never from a
+    git repository's own folder (a repository is one project)."""
+    try:
+        if (root / ".git").exists():
+            return None
+    except OSError:
+        return None
     up = project_folder(root)
     if up is None:
         return None

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -136,3 +137,80 @@ def test_each_process_writes_its_own_temporary_file(tmp_path, monkeypatch):
     monkeypatch.setattr(textio.tempfile, "mkstemp", mkstemp)
     textio.write_replacing(tmp_path / "server.json", "new")
     assert prefixes == [f".server.json.{os.getpid()}."]
+
+
+# No whole path in an error -------------------------------------------------------------------
+
+def _no_whole_path(text: str, *folders) -> None:
+    for folder in (*folders, Path.home()):
+        assert str(folder) not in text, text
+        assert str(Path(folder).resolve()) not in text, text
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
+                    reason="file permissions: POSIX, not as root")
+def test_a_project_folder_that_cant_be_written_is_named_from_the_project(here, capsys):
+    here.chmod(0o555)
+    try:
+        code, out, err = run(capsys, "--no-browser")
+    finally:
+        here.chmod(0o755)
+    assert code == 2, out + err
+    assert "cannot write .judgekeeper: permission denied." in _flat(out + err)
+    _no_whole_path(out + err, here)
+
+
+def test_a_mark_that_cant_be_saved_names_the_file_in_judgekeeper(tmp_path):
+    marks = tmp_path / "proj" / ".judgekeeper" / "marks.jsonl"
+    said = textio.describe_os_error(PermissionError(13, "Permission denied", str(marks)))
+    assert said.startswith("cannot write .judgekeeper/marks.jsonl: permission denied.")
+    _no_whole_path(said, tmp_path)
+
+
+@pytest.mark.parametrize("given", ["inside", "outside"])
+def test_a_path_given_in_full_is_shown_from_here_or_by_its_name(here, tmp_path_factory, capsys,
+                                                                 given):
+    folder = here if given == "inside" else tmp_path_factory.mktemp("elsewhere")
+    missing = folder / "data" / "missing.csv"
+    code, out, err = run(capsys, str(missing))
+    assert code != 0
+    shown = "data/missing.csv" if given == "inside" else "missing.csv"
+    assert f"file or folder not found: {shown}" in _flat(out + err)
+    _no_whole_path(out + err, here, folder)
+
+
+def test_shown_path_keeps_a_relative_path_as_given(here):
+    assert textio.shown_path("out/x") == "out/x"
+    assert textio.shown_path(here / "out" / "x") == "out/x"
+    assert textio.shown_path(here) == "."
+    assert textio.shown_path(Path("/nowhere/else/r.csv")) == "r.csv"
+
+
+def test_a_next_line_repeats_a_full_path_from_here(here, tmp_path_factory):
+    from judgekeeper import cli
+
+    other = tmp_path_factory.mktemp("labels") / "l.csv"
+    rel = os.path.relpath(other.resolve(), here.resolve()).replace(os.sep, "/")
+    said = cli.again(["--labels", str(other), "--no-browser", "--port", "9605"])
+    assert said == f"judgekeeper --labels {rel} --no-browser --port 9605"
+    assert cli.again([str(here / "data" / "r.csv")]) == "judgekeeper data/r.csv"
+    assert cli.again([f"--labels={here / 'l.csv'}"]) == "judgekeeper --labels=l.csv"
+    _no_whole_path(said, here, other.parent)
+
+
+def test_a_labels_file_on_another_drive_is_named_as_a_file(here, monkeypatch):
+    from judgekeeper import cli
+
+    def other_drive(path, start=None):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(cli.os.path, "relpath", other_drive)
+    assert (cli.again(["--labels", "/elsewhere/labels.csv", "--port", "9605"])
+            == "judgekeeper --labels <file> --port 9605")
+
+
+def test_a_value_that_is_no_path_is_repeated_as_given(here):
+    from judgekeeper import cli
+
+    assert (cli.again(["--experiment", "/Shared/team-exp", "--no-browser", str(here / "r.csv")])
+            == "judgekeeper --experiment /Shared/team-exp --no-browser r.csv")

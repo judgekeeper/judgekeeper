@@ -41,6 +41,7 @@ from judgekeeper.records import (
     load_json,
     read_rows,
 )
+from judgekeeper.textio import shown_path
 
 # Assertion types graded by a model (promptfoo src/types/index.ts, BaseAssertionTypesSchema).
 MODEL_GRADED = frozenset({
@@ -366,7 +367,7 @@ def _ids(rows: list[dict], id_var: str | None, path: Path) -> tuple[list[str], b
         for r in rows:
             value = (r.get("vars") or {}).get(id_var)
             if value is None or value == "":
-                raise RecordsError(f"{path}: test {r.get('testIdx')} has no var {id_var!r} "
+                raise RecordsError(f"{shown_path(path)}: test {r.get('testIdx')} has no var {id_var!r} "
                                    "(--id-var)")
             ids.append(suffix(str(value), r))
         return ids, False

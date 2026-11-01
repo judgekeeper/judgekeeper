@@ -50,6 +50,7 @@ from judgekeeper.textio import (
     program,
     quote_arg,
     read_cached,
+    said_next,
     wrap,
     write_replacing,
 )
@@ -965,6 +966,7 @@ class Talk:
         self.path = path
 
     def say(self, text: str = "") -> None:
+        said_next(text)
         print(said(text))
         for line in held_lines(text):  # a name left out of the command above, as data
             print(said(line))

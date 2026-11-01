@@ -42,7 +42,7 @@ from judgekeeper.records import (
     load_json,
     read_rows,
 )
-from judgekeeper.textio import MAX_NESTING, error_type, get_extra, read_json
+from judgekeeper.textio import MAX_NESTING, error_type, get_extra, read_json, shown_path
 
 DEFAULT_LABELS = {"C": "pass", "I": "fail"}
 # Inspect's scorers that check text in code, never with a model: not judges, left out
@@ -955,7 +955,7 @@ def _read(path: Path, data, samples, with_errors: bool) -> RecordList:
     if not isinstance(spec, dict):
         raise damaged(path, "Inspect AI", EVAL_DAMAGED if isinstance(data, dict) and "eval" in data
                       else "is not an Inspect AI log (no eval)")
-    no_samples = RecordsError(f"{path}: the log has no samples (was it written with "
+    no_samples = RecordsError(f"{shown_path(path)}: the log has no samples (was it written with "
                               "--no-log-samples?)")
     if not isinstance(samples, list | Iterator) or samples == []:
         raise no_samples

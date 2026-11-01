@@ -276,6 +276,14 @@ def not_a_file_message(path: str | Path, kind: str) -> str:
 
 
 last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
+
+
+def said_next(text: str) -> None:
+    """Note a line about to be printed: a Next: line ends what the command says."""
+    global next_said
+    if text.startswith("Next:"):
+        next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
 PROGRESS_EVERY = 5  # seconds between those lines
 _reading = {"since": 0.0, "said": None}
@@ -552,17 +560,36 @@ _is_link = is_link
 
 # File-system errors --------------------------------------------------------------------------
 
+def shown_path(path) -> str:
+    """A path as an error shows it, never the whole path from the root: from .judgekeeper/ on
+    for a file in it, else from the folder the command runs in, else its name alone."""
+    text = os.fsdecode(path)
+    p = Path(text)
+    if not p.anchor:  # on Windows, \x\r.csv has no drive but is not relative
+        return text
+    if WORKSPACE in p.parts:
+        return "/".join(p.parts[p.parts.index(WORKSPACE):])
+    try:
+        rel = p.relative_to(Path.cwd().resolve())
+    except (ValueError, OSError):
+        try:
+            rel = p.resolve().relative_to(Path.cwd().resolve())
+        except (ValueError, OSError):
+            return p.name or text
+    return rel.as_posix() if rel.parts else "."
+
+
 def _folder_needed(path) -> str:
-    return (f"{path} is a file, but a folder is needed there. Choose another location, or "
+    return (f"{shown_path(path)} is a file, but a folder is needed there. Choose another location, or "
             "move the file.")
 
 
 def _file_needed(path) -> str:
-    return f"{path} is a folder, but a file is needed there. Add a file name to the path."
+    return f"{shown_path(path)} is a folder, but a file is needed there. Add a file name to the path."
 
 
 def _cannot_write(path) -> str:
-    message = (f"cannot write {path}: permission denied. Choose a location you can write to, "
+    message = (f"cannot write {shown_path(path)}: permission denied. Choose a location you can write to, "
                "or change the folder's permissions.")
     if is_windows():
         message += " If the file is open in Excel or another program, close it first."
@@ -638,7 +665,7 @@ def describe_os_error(e: OSError) -> str | None:
     """
     if not isinstance(e.filename, str | bytes | os.PathLike):
         return None  # no path, or a file descriptor
-    path = os.fsdecode(e.filename)
+    path = shown_path(e.filename)
     if isinstance(e, NotAFile):
         return f"{path} is a {e.kind}, not a file. Move or rename it, then try again."
     if isinstance(e, FileBusyError):
@@ -651,9 +678,10 @@ def describe_os_error(e: OSError) -> str | None:
     if isinstance(e, IsADirectoryError):
         return _file_needed(path)
     if isinstance(e, PermissionError):
-        if is_windows() and os.path.isdir(path):
+        real = os.fsdecode(e.filename)
+        if is_windows() and os.path.isdir(real):
             return _file_needed(path)  # Windows says "permission denied" for this
-        if os.path.isfile(path) and not os.access(path, os.R_OK):
+        if os.path.isfile(real) and not os.access(real, os.R_OK):
             return f"cannot read {path}: permission denied. Check the file's permissions."
         return _cannot_write(path)
     if isinstance(e, FileNotFoundError):
