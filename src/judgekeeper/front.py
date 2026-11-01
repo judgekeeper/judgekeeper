@@ -1586,7 +1586,8 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
-        project.move_to_previous(ws, talk.say)
+        if project.move_to_previous(ws, talk.say) is not None:
+            talk.say()  # a blank line before the step header, as everywhere
     _write(found)  # judge.json and the free checks: the judge as it is now
     return _marking(talk, ws, found, wait, saved, marking)
 

@@ -380,6 +380,16 @@ def test_new_starts_over_after_a_yes(here, capsys, pages):
     assert "You marked" not in out and "It shows the answers one at a time." in _flat(out)
 
 
+
+def test_new_yes_leaves_a_blank_line_after_moving_the_marks(here, capsys, pages):
+    """As before every step header: one blank line after "Nothing was deleted."."""
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    _click(start_label.Workspace(here), 4)
+    code, out, _ = run(capsys, "--new", "--yes")
+    assert code == 0, out
+    assert re.search(r"Nothing was deleted\.\n\nStep 2 of 5: Mark\n", out), out
+
 # A new eval run no longer asks to start over ----------------------------------------------
 
 def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages):
