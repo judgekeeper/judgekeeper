@@ -838,6 +838,25 @@ def test_the_same_import_twice_says_nothing_is_new(here, capsys):
     assert "Nothing new" not in out
 
 
+def test_ctrl_c_after_the_import_was_written_then_again_says_nothing_is_new(here, capsys,
+                                                                             monkeypatch):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(10)))
+    written = labels.add
+
+    def add_then_stop(*args, **kwargs):
+        written(*args, **kwargs)
+        raise KeyboardInterrupt  # Ctrl-C after the marks were written, before "Added"
+
+    monkeypatch.setattr(labels, "add", add_then_stop)
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 130 and "Added" not in out, out
+    monkeypatch.setattr(labels, "add", written)
+    _, out = run(capsys, "--labels", "mine.csv")
+    assert ("Added 0 marks from mine.csv (0 Pass, 0 Fail). Nothing new: the labels in mine.csv "
+            "are already your marks.") in flat(out)
+
+
 @pytest.mark.parametrize("command", [[], ["mark"]])
 def test_a_later_import_says_find_before_it_reads(here, capsys, monkeypatch, command):
     """A big import reads for a while: Find's header is said when Find starts, not after."""
