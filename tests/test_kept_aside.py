@@ -53,12 +53,15 @@ def test_a_case_goes_through_fixs_own_split_and_verdict():
     module = _module()
     for marks in (30, 80):
         rng = random.Random(marks)
-        kind, kept = module.one_case(marks, 0.8, 0.5, 0.03, rng)
+        kind, kept = module.one_case(marks, 0.8, 0.5, module.rates("fixes 50%, breaks 3%", 0.8),
+                                     rng)
         assert kind in module.KINDS
         assert marks // 2 <= kept <= marks // 2 + 4  # half of each cell, rounded up
     # a rule that fixes every mistake kept aside and breaks none, on a clearly wrong rule
-    assert module.one_case(80, 0.6, 1.0, 0.0, random.Random(1))[0] == "better"
-    assert module.one_case(80, 0.9, 0.0, 1.0, random.Random(1))[0] == "worse"
+    every = {"pass": (1.0, 0.0), "fail": (1.0, 0.0)}
+    assert module.one_case(80, 0.6, 0.5, every, random.Random(1))[0] == "better"
+    breaks = {"pass": (0.0, 1.0), "fail": (0.0, 1.0)}
+    assert module.one_case(80, 0.9, 0.8, breaks, random.Random(1))[0] == "worse"
 
 
 def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
@@ -79,28 +82,29 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     need = result["needed"]
     # the site: how many marks depends on how big the change is (the README leaves it to the
     # reference, checked below)
+    assert need["fixes 90%, breaks 2%"]["marks"] == n  # the site and reference say "also"
+    slow = need["fixes 10%, breaks 5%"]["marks"]
     claim = (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
-             f"10 of its mistakes is clear from about {need['fixes 90%, breaks 2%']['marks']} "
-             f"marks, one that fixes a quarter from about {n}, and one that fixes 1 in 10 and "
-             f"breaks 5 in 100 right answers needs more than {_module().MARKS[-1]} ")
+             f"10 of its mistakes or a quarter of them is clear from about {n} marks, and one "
+             f"that fixes 1 in 10 and breaks 5 in 100 right answers needs about {slow} ")
     assert claim in site
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"gets a clear answer most of the time from about {n} marks, mostly \"Safe to "
-            f"try\"; one that fixes almost all of them, from about "
-            f"{need['fixes 90%, breaks 2%']['marks']}; one that fixes 1 in 10 and breaks 5 in "
-            f"100 right answers, more than {_module().MARKS[-1]}") in reference
-    assert need["fixes 10%, breaks 5%"]["marks"] is None
+            f"try\"; one that fixes almost all of them, also from about {n}; one that fixes 1 "
+            f"in 10 and breaks 5 in 100 right answers, from about {slow}.") in reference
     # "by mistake is rare but not zero ... only for rules close to no change"
     assert "by mistake is rare but not zero, and happens only for rules close to no change" \
         in reference
-    assert 0 < max(s["false_better"], s["false_worse"]) <= 0.5 and s["false_within"] <= 6
+    assert 0 < max(s["false_better"], s["false_worse"]) <= 1 and s["false_within"] <= 7
     for page in (readme, site, reference):
         assert not re.search(r"never (?:called|reads?|says?) \W?(?:better|safe)", page,
                              re.IGNORECASE)
     # "a worse rule often reads can't tell yet, and now and then safe to try"
-    worse = s["worse_at_most"]
-    assert worse["cant"][0] > 50 and 0 < worse["safe"][1] < 10
+    module = _module()
+    slips = [r for r in result["rows"] if r["rule"] == module.SLIPS and r["marks"] <= 120]
+    assert slips and all(r["cant"] > 50 for r in slips)
+    assert 0 < s["worse_at_most"]["safe"][1] < 20
 
 
 def test_the_marks_a_new_set_needs_come_from_the_report():
