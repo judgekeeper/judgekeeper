@@ -107,6 +107,31 @@ def test_a_results_file_given_by_path_keeps_the_marks_in_the_project(here, capsy
     assert not (here / "src" / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize("marker", [".git", "pyproject.toml"])
+@pytest.mark.parametrize("path_first", [True, False])
+def test_a_file_given_in_a_folder_inside_the_project_keeps_one_set_of_marks(
+        here, capsys, monkeypatch, marker, path_first):
+    """With no marks above, a results file given by path starts them in the folder you run
+    in, as plain `judgekeeper` does there: one set of marks either way."""
+    if marker == ".git":
+        (here / ".git").mkdir()
+    else:
+        (here / marker).write_text("", encoding="utf-8")
+    table_project(here / "evals", split(20, 16))
+    monkeypatch.chdir(here / "evals")
+    first, then = (["results.csv"], []) if path_first else ([], ["results.csv"])
+    code, out, err = run(capsys, *first, "--no-browser")
+    assert code == 0, out + err
+    assert (here / "evals" / ".judgekeeper" / "start.json").is_file()
+    assert not (here / ".judgekeeper").exists()
+    _mark(Workspace(here / "evals"), only=range(3))
+    assert run(capsys, "--stop")[0] == 0
+    code, out, err = run(capsys, *then, "--no-browser")
+    assert code == 0, out + err
+    assert "You marked 3 answers so far: 3 Pass, 0 Fail." in out
+    assert not (here / ".judgekeeper").exists()
+
+
 def test_a_results_file_outside_the_project_keeps_the_marks_here(tmp_path, capsys,
                                                                   monkeypatch):
     project, other = tmp_path / "proj", tmp_path / "other"
