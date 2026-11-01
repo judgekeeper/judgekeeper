@@ -443,6 +443,20 @@ def _seen(ws: Workspace) -> dict:
     return data if ok else {}
 
 
+def _from_root(path, root: Path) -> str:
+    """`path` as results-seen.json keeps it: from the project folder (`..` allowed), so the
+    file names no folder outside it; on another drive, as it is."""
+    try:
+        return os.path.relpath(path, root)
+    except ValueError:
+        return str(path)
+
+
+def _at_root(path: str, root: Path) -> str:
+    """A path results-seen.json keeps, as a path to read (an older file's whole path stays)."""
+    return os.path.normpath(os.path.join(root, path))
+
+
 def _remember(state: State, found, setup: dict) -> None:
     """results-seen.json: the setup of the results just read, and what it depends on."""
     root = state.ws.root
@@ -455,9 +469,11 @@ def _remember(state: State, found, setup: dict) -> None:
         marks._refuse_links(path)
         write_replacing(path, json.dumps({
             "judgekeeper_version": __version__, "key": key, "setup": setup,
-            "setup_hash": judge_setup.hash_of(setup), "read": read,
-            "newest": str(found.results[0].path), "configs": [str(p) for p in _configs(found)],
-            "root": str(root), "covered": False}, indent=2, ensure_ascii=False) + "\n")
+            "setup_hash": judge_setup.hash_of(setup),
+            "read": [_from_root(p, root) for p in read],
+            "newest": _from_root(found.results[0].path, root),
+            "configs": [_from_root(p, root) for p in _configs(found)],
+            "covered": False}, indent=2, ensure_ascii=False) + "\n")
     except (OSError, ValueError, marks.MarksError):
         pass  # the next check reads the results again
 
@@ -490,14 +506,15 @@ def _now(state: State) -> tuple[Now | None, str | None]:
     """(the judge in the newest results, None), from results-seen.json when nothing it
     depends on changed; else read, and remembered. (None, why) when it can't be read."""
     seen = _seen(state.ws)
-    if seen and seen.get("root") == str(state.ws.root) and seen.get("covered"):
+    root = state.ws.root
+    if seen and seen.get("covered"):
         try:
-            same = _key(state, [str(p) for p in seen["read"]]) == seen.get("key")
-        except (OSError, ValueError):
+            same = _key(state, [_at_root(str(p), root) for p in seen["read"]]) == seen.get("key")
+        except (OSError, ValueError, TypeError):
             same = False
-        if same:
-            configs = [Path(p) for p in seen.get("configs") or []]
-            newest = Path(seen.get("newest") or "")
+        if same and isinstance(seen.get("newest"), str):
+            configs = [Path(_at_root(str(p), root)) for p in seen.get("configs") or []]
+            newest = Path(_at_root(seen["newest"], root))
             return Now(seen["setup"], _newer(configs, newest), newest=newest), None
     found, problem = _newest(state)
     if found is None:
