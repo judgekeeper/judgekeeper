@@ -1361,7 +1361,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                   else f"{rel} {how}, so it was left out.")
     above = _read_above(root, found, tool)
     if above is not None and above[0] == "records":  # record() saves at the project root
-        talk.say(RECORDS_ABOVE.format(root=above[1]))
+        talk.say(RECORDS_ABOVE.format(root=textio.shown_from_here(above[1])))  # `..`, never whole
         talk.say()
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
