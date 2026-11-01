@@ -88,7 +88,8 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
 def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsys, monkeypatch,
                                                                  request, tool):
     """The result, then the page: --wait served it, but asked its own page, not served yet,
-    whether it was open, and stopped at once (busy, exit 3), its server.json left."""
+    whether it was open, and stopped at once (busy, exit 3), its server.json left. Ctrl-C
+    after the result's Next: line adds no second one."""
     import shutil
 
     from judgekeeper import judge_setup, start, start_label
@@ -121,5 +122,5 @@ def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsy
     code, out = _run(capsys, "--wait", "--no-browser", "--port", "0")
     assert code == 130, out
     assert "Result:" in out and "not answering" not in out
-    assert "Stopped." in out.splitlines()
+    assert "Stopped." not in out and out.count("Next:") == 1  # Next: was the last word
     assert not (ws.dir / label.LOCK).exists() and not label.is_open(ws.dir)

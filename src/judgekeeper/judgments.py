@@ -20,7 +20,7 @@ from pathlib import Path
 from judgekeeper.fingerprint import JudgeFingerprint
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.runners.base import Judgment
-from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
+from judgekeeper.textio import jsonl_lines, read_utf8, shown_path, write_replacing
 
 # Fields of a judgment line that hold text from the model or the provider.
 FREE_TEXT_FIELDS = ("rationale", "rationale_ba", "error", "error_ba")
@@ -120,21 +120,21 @@ def read_run(path: str | Path) -> tuple[dict, dict[str, dict]]:
         try:
             rows.append(json.loads(line))
         except json.JSONDecodeError:
-            raise JudgmentsError(f"{path}: line {n}: invalid JSON") from None
+            raise JudgmentsError(f"{shown_path(path)}: line {n}: invalid JSON") from None
     if not rows or rows[0].get("type") != "header":
-        raise JudgmentsError(f"{path}: first line must be a header")
+        raise JudgmentsError(f"{shown_path(path)}: first line must be a header")
     header = rows[0]
     if "fingerprint" not in header:
-        raise JudgmentsError(f"{path}: header has no fingerprint")
+        raise JudgmentsError(f"{shown_path(path)}: header has no fingerprint")
     try:
         JudgeFingerprint.from_dict(header["fingerprint"])
     except ValueError as e:
-        raise JudgmentsError(f"{path}: {e}") from None
+        raise JudgmentsError(f"{shown_path(path)}: {e}") from None
     records: dict[str, dict] = {}
     for rec in rows[1:]:
         if rec.get("type") != "judgment" or "id" not in rec:
-            raise JudgmentsError(f"{path}: malformed judgment line {rec!r:.80}")
+            raise JudgmentsError(f"{shown_path(path)}: malformed judgment line {rec!r:.80}")
         if "fingerprint" not in rec:
-            raise JudgmentsError(f"{path}: judgment {rec['id']} has no fingerprint")
+            raise JudgmentsError(f"{shown_path(path)}: judgment {rec['id']} has no fingerprint")
         records[rec["id"]] = rec
     return header, records

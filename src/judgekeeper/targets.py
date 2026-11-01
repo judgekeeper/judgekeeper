@@ -171,15 +171,37 @@ def check(correct: int, wrong: int, tpr_interval, tnr_interval) -> dict:
     return {"check": "rough" if wide or exact else "reliable", "wide": wide}
 
 
-def _pmf(n: int, p: float) -> list[float]:
-    """Binomial(n, p) probabilities of 0..n, in logs so a large n does not overflow."""
+TINY = 1e-300  # a chance under this adds nothing the power can show
+
+
+def _pmf(n: int, p: float, least: int = 0) -> tuple[int, list[float]]:
+    """(first k, the Binomial(n, p) probabilities from k on) over the counts from `least` up
+    whose chance is not far under TINY, walked out from the likeliest, in logs so a large n
+    does not overflow. The counts left out add nothing a float can hold."""
     if p <= 0:
-        return [1.0] + [0.0] * n
+        return 0, [1.0]
     if p >= 1:
-        return [0.0] * n + [1.0]
-    lp, lq = math.log(p), math.log1p(-p)
-    return [math.exp(math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1)
-                     + k * lp + (n - k) * lq) for k in range(n + 1)]
+        return n, [1.0]
+    lp, lq, ln = math.log(p), math.log1p(-p), math.lgamma(n + 1)
+    floor = math.log(TINY) - 50
+
+    def log_chance(k: int) -> float:
+        return ln - math.lgamma(k + 1) - math.lgamma(n - k + 1) + k * lp + (n - k) * lq
+
+    top = max(min(n, int((n + 1) * p)), least)
+    odds = lp - lq
+    down, up = [], [log_chance(top)]
+    while (k := top - len(down)) > least:  # k - 1 from k: times k / (n - k + 1) / odds
+        v = (down[-1] if down else up[0]) + math.log(k / (n - k + 1)) - odds
+        if v <= floor:
+            break
+        down.append(v)
+    while (k := top + len(up) - 1) < n:  # k + 1 from k: times (n - k) / (k + 1) * odds
+        v = up[-1] + math.log((n - k) / (k + 1)) + odds
+        if v <= floor:
+            break
+        up.append(v)
+    return top - len(down), [math.exp(v) for v in (*reversed(down), *up)]
 
 
 def _score(right: int, wrong: int, n: int, change: float) -> float:
@@ -196,24 +218,34 @@ def _score(right: int, wrong: int, n: int, change: float) -> float:
     return diff / math.sqrt(variance)
 
 
+def _end(now_right: int, now_wrong: int, n: int, lo: float, hi: float, target: float) -> float:
+    """One end of paired_range, found by halving."""
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if _score(now_right, now_wrong, n, mid) > target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def _z(level: float) -> float:
+    return NormalDist().inv_cdf((1 + level) / 2)
+
+
 def paired_range(now_right: int, now_wrong: int, n: int,
                  level: float = PAIRED_LEVEL) -> tuple[float, float]:
     """The range of the change (new right minus old right, as a share of the n marks): every
     change whose score is within the two-sided `level` (the score falls as the change grows,
     so each end is found by halving)."""
-    z = NormalDist().inv_cdf((1 + level) / 2)
-    seen = (now_right - now_wrong) / n
+    z, seen = _z(level), (now_right - now_wrong) / n
+    return (_end(now_right, now_wrong, n, -1.0, seen, z),
+            _end(now_right, now_wrong, n, seen, 1.0, -z))
 
-    def end(lo: float, hi: float, target: float) -> float:
-        for _ in range(60):
-            mid = (lo + hi) / 2
-            if _score(now_right, now_wrong, n, mid) > target:
-                lo = mid
-            else:
-                hi = mid
-        return (lo + hi) / 2
 
-    return end(-1.0, seen, z), end(seen, 1.0, -z)
+def _paired_high(now_right: int, now_wrong: int, n: int) -> float:
+    """paired_range's top end alone."""
+    return _end(now_right, now_wrong, n, (now_right - now_wrong) / n, 1.0, -_z(PAIRED_LEVEL))
 
 
 def paired_verdict(now_right: int, now_wrong: int, n: int) -> dict:
@@ -233,34 +265,35 @@ def paired_verdict(now_right: int, now_wrong: int, n: int) -> dict:
             "now_wrong": now_wrong, "n": n, "verdict": verdict, "exit_worse": exit_worse}
 
 
-@lru_cache(maxsize=512)
-def _worse_from(n: int) -> tuple[int, ...]:
-    """For each count turned right (0..n), the fewest turned wrong that a re-check of n marks
-    calls "Worse" (n + 1 when none does). More turned wrong only lowers the range."""
-    out = []
-    for right in range(n + 1):
-        lo, hi = right, n - right + 1  # the first count turned wrong with the range below 0
-        while lo < hi:
-            mid = (lo + hi) // 2
-            if paired_range(right, mid, n)[1] < 0:
-                hi = mid
-            else:
-                lo = mid + 1
-        out.append(lo)
-    return tuple(out)
+@lru_cache(maxsize=1 << 16)
+def _worse_from(n: int, right: int) -> int:
+    """With `right` turned right, the fewest turned wrong that a re-check of n marks calls
+    "Worse" (n + 1 when none does). More turned wrong only lowers the range."""
+    lo, hi = right, n - right + 1  # the first count turned wrong with the range below 0
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _paired_high(right, mid, n) < 0:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
 
 
 def _power(n: int, drop: float, right: float, turns: float = TURNS_RIGHT) -> float:
-    """How often a re-check of n marks calls a fall of `drop` (0 to 1) "Worse"."""
+    """How often a re-check of n marks calls a fall of `drop` (0 to 1) "Worse". Only the
+    counts that can happen are worked out (_pmf): thousands of imported marks stay quick."""
     p_wrong = (drop + (1 - right) * turns)  # right * (the chance a right one turns wrong)
     p_right = (1 - right) * turns
-    need = _worse_from(n)
     caught = 0.0
-    for k_right, chance in enumerate(_pmf(n, p_right)):
-        if chance < 1e-300 or need[k_right] > n - k_right:
+    first, chances = _pmf(n, p_right)
+    for k_right, chance in enumerate(chances, start=first):
+        if chance < TINY:
             continue
-        rest = _pmf(n - k_right, min(p_wrong / (1 - p_right), 1.0))
-        caught += chance * sum(rest[need[k_right]:])
+        need = _worse_from(n, k_right)
+        if need > n - k_right:
+            continue
+        start, rest = _pmf(n - k_right, min(p_wrong / (1 - p_right), 1.0), need)
+        caught += chance * sum(rest[max(need - start, 0):])
     return caught
 
 
