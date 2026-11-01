@@ -68,19 +68,16 @@ SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only i
 
 def shown_folder(ws: Workspace) -> str:
     """The workspace folder as the person finds it from where they ran start: .judgekeeper
-    here, else its path (next to a results file given from elsewhere, or a link's target)."""
-    import os
-
+    here, else its path from here, however many `..` (next to a results file given from
+    elsewhere, or a link's target); on another drive, its name. Never the whole path."""
     here = Path.cwd().resolve() / FOLDER
     folder = ws.dir.resolve()
     if folder == here:
         return FOLDER
     try:
-        rel = Path(os.path.relpath(folder, Path.cwd().resolve()))
+        return Path(os.path.relpath(folder, Path.cwd().resolve())).as_posix()
     except ValueError:  # another drive on Windows
-        return folder.as_posix()
-    # a folder nearby as ../elsewhere/.judgekeeper; one far away as its whole path
-    return rel.as_posix() if rel.parts.count("..") <= 2 else folder.as_posix()
+        return folder.name
 
 
 # The three headlines, the same in the terminal and on the result page (report_page.STATES)
