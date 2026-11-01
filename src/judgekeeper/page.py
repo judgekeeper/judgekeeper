@@ -117,6 +117,12 @@ def page_key(ws: Workspace, flags: dict | None) -> dict:
     return {"flags": flags, "start": about}
 
 
+def _same_flags(old: dict | None, key: dict) -> bool:
+    """Whether the open page (its lock, `old`) was started with the flags of `key`."""
+    settings = old.get("settings") if isinstance(old, dict) else None
+    return isinstance(settings, dict) and settings.get("flags") == key["flags"]
+
+
 def page_server(ws: Workspace, port: int, flags: dict | None = None,
                 token: str | None = None, stamp: str | None = None):
     """The marking page: marking, and the result. Every click is a stamped
@@ -173,7 +179,8 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                 and old["settings"] == page_key(ws, flags)):
             return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
-            say(STARTS_AGAIN)
+            if not _same_flags(old, page_key(ws, flags)):  # else only start.json changed
+                say(STARTS_AGAIN)
             background.stop(ws.dir)
         stamp = old["link"] if old is not None else None
         picked = port == DEFAULT_PORT  # judgekeeper's choice, not the person's
