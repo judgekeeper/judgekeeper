@@ -179,7 +179,7 @@ def test_mark_says_how_many_page_marks_the_imported_marks_still_need(here, capsy
     write_labels(here / "mine.csv", rows)
     run(capsys, "--labels", "mine.csv")
     _, out = run(capsys, "mark")
-    assert "You marked 40 answers so far: 20 Pass, 20 Fail." in out
+    assert "You have 40 marks so far: 20 Pass, 20 Fail." in out
     assert GATE.format(n=30, name="mine.csv") in flat(out)
     _page(Workspace(here), {i: "pass" for i in range(20, 35)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys, "mark")

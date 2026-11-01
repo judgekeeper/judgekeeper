@@ -326,7 +326,8 @@ def test_marking_page_layout():
 def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     page = _marking()
     right = page.split('<div class="right">')[1].split("</header>")[0]
-    assert right.startswith('<div class="progress-box"><div class="status-1"><div class="seg" '
+    assert right.startswith('<div class="progress-box" id="progress-box"><div class="status-1">'
+                            '<div class="seg" '
                             'id="progress" '
                             'role="progressbar" aria-label="How close your result is" '
                             'aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">')
@@ -341,7 +342,7 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert ".seg { display: flex; gap: 3px; }" in style
     assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style
     assert ".seg i.on { background: var(--text); }" in style
-    assert ".count { font-family: var(--mono); font-size: 13px; }" in style
+    assert ".count { font-family: var(--mono); font-size: 13px; white-space: nowrap; }" in style
     assert ".see { font-size: 13px; font-weight: 700; color: var(--green);" in style
     assert "progress-label" not in page and "SHORT_SIDE" not in page
 

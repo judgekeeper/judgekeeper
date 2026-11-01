@@ -431,9 +431,9 @@ __TOP__
     $("status").classList.toggle("calm", !!calm);
     if (text && $("status").scrollIntoView) { $("status").scrollIntoView({block: "nearest"}); }
   }
-  // On a phone the card comes first, then the list: the bar above the card is scrolled to the
-  // top, so its link and line show with the card (at once under reduced motion). Wider, the
-  // card is next to the list and stays where it is.
+  // On a phone the card comes first, then the list: the bar, which sits before the card, is
+  // scrolled to the top, so its link and line show with the card (at once under reduced
+  // motion). Wider, the card is next to the list and stays where it is.
   function media(query) { return !!(window.matchMedia && window.matchMedia(query).matches); }
   function focusCard() {
     var to = ended ? $("end") : card;
