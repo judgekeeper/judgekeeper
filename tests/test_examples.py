@@ -193,7 +193,8 @@ def test_the_ragtruth_task_tables_can_be_counted_again_from_their_grades_file():
             failed = [r for r in rows if r["people_label"] == "fail"]
             tpr = round(100 * sum(r[column] == "pass" for r in passed) / len(passed))
             tnr = round(100 * sum(r[column] == "fail" for r in failed) / len(failed))
-            assert f"about {tpr}%" in row and f"about {tnr}%" in row, (folder, name, row)
+            # every answer was marked, so Measure prints the counted share with no range
+            assert f"| {tpr}% | {tnr}% |" in row, (folder, name, row)
 
 
 def test_the_jailbreakbench_claude_figures_can_be_counted_again_from_their_grades_file():

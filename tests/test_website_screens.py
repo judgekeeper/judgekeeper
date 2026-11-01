@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -418,7 +419,8 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
         assert re.search(rf"When you said {words} {g['old_right']} of {g['n']} "
                          rf"{g['new_right']} of {g['n']} ", screen), side
     g = checked["groups"]["passed"]
-    drop = (round(-g["change"] * 100), round(-g["high"] * 100), round(-g["low"] * 100))
+    drop = (round(-g["change"] * 100), round(-g["high"] * 100),
+            math.ceil(round(-g["low"] * 100, 6)))  # the far end is rounded up
     assert "agreement drops by about {} in every 100 (somewhere between {} and {})".format(
         *drop) in screen
     report = _report_text((SITE_EXAMPLE / CHECK_STEP / "report.html").read_text(encoding="utf-8"))

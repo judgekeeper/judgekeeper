@@ -2,7 +2,7 @@
 
 This check runs judgekeeper's normal steps on the second kind of task in RAGTruth: short answers to questions, written from three passages (MS MARCO questions). Two LLM-as-a-judge setups, **setup A** (Claude Haiku 5.5, `claude-haiku-5-5`) and **setup B** (Claude Sonnet 5.5, `claude-sonnet-5-5`), graded 200 answers with one rule, and RAGTruth's human labels were the marks. It is the same check as [the news-summary one](../ragtruth/report.md), with one run per setup instead of three.
 
-judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of answers people failed that the setup also failed was 95% (90% to 98%) for A and 97% (92% to 99%) for B, and the share of answers people passed that it also passed was 61% (54% to 68%) for A and 58% (51% to 65%) for B.
+judgekeeper's result, in both runs: **needs work**. For setups A and B, the share of answers people failed that the setup also failed was 95% for A and 97% for B, and the share of answers people passed that it also passed was 61% for A and 58% for B.
 
 ## The setup
 
@@ -11,14 +11,14 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`): "Every claim in the answer is supported by the passages. Pass if every claim is supported by the passages. Fail if any claim is not supported by the passages or contradicts them." It is the news-summary rule with "answer" and "passages" in place of "summary" and "article". The question is shown to the LLM-as-a-judge above the passages, because a short answer cannot be read without it; nothing else was added.
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
 - **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
-- **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`.
+- **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
 
 ## How often each LLM-as-a-judge agrees with people
 
 | LLM-as-a-judge, run | When people said Pass, the LLM-as-a-judge also said Pass | When people said Fail, the LLM-as-a-judge also said Fail | Disagreed | judgekeeper's result |
 |---|---|---|---|---|
-| A (Haiku 5.5), run 1 | about 61% (54% to 68%) | about 95% (90% to 98%) | 44 of 200 | needs work |
-| B (Sonnet 5.5), run 1 | about 58% (51% to 65%) | about 97% (92% to 99%) | 45 of 200 | needs work |
+| A (Haiku 5.5), run 1 | 61% | 95% | 44 of 200 | needs work |
+| B (Sonnet 5.5), run 1 | 58% | 97% | 45 of 200 | needs work |
 
 The first two columns are TPR and TNR, copied from judgekeeper's Measure screens (`measure/`).
 
@@ -28,11 +28,11 @@ The news-summary check found two things: the setups failed most of what people f
 
 | Task | A: Pass also Pass | A: Fail also Fail | B: Pass also Pass | B: Fail also Fail |
 |---|---|---|---|---|
-| News summaries ([report](../ragtruth/report.md)) | about 66% (59% to 73%) | about 89% (83% to 94%) | about 68% (61% to 75%) | about 90% (84% to 95%) |
-| This task | about 61% (54% to 68%) | about 95% (90% to 98%) | about 58% (51% to 65%) | about 97% (92% to 99%) |
+| News summaries ([report](../ragtruth/report.md)) | 66% | 89% | 68% | 90% |
+| This task | 61% | 95% | 58% | 97% |
 
-- **Failing what people failed holds.** On question answers the setups failed 95% (90% to 98%) and 97% (92% to 99%) of the answers people failed, a little more than on summaries.
-- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% (54% to 68%) and 58% (51% to 65%)), more than the roughly one in three on summaries. The ranges overlap with the summary ones (for Haiku, 54% to 68% against 59% to 73%), so with one run each this is a lean, not a difference we can state.
+- **Failing what people failed holds.** On question answers the setups failed 95% and 97% of the answers people failed, a little more than on summaries.
+- **"About one in three good ones failed" does not hold exactly.** On question answers the setups failed about four in ten of the answers people passed (the Pass column is 61% and 58%), more than the roughly one in three on summaries. With one run each, this is a lean, not a difference we can state.
 - **Same result, same advice:** "needs work" in both runs, because many good answers were failed.
 
 ## Limits

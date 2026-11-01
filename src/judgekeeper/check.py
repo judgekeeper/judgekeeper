@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -706,14 +707,16 @@ def expect_lines(g: dict) -> list[str]:
         lead = f"On answers you {said},"
         if x["verdict"] == "worse":
             out.append(f"{lead} agreement drops by about {_points(x['change'])} in every 100 "
-                       f"(somewhere between {_points(x['high'])} and {_points(x['low'])}).")
+                       f"(somewhere between {_points(x['high'])} and {_worst(x['low'])}).")
         elif x["low"] >= 0:
             out.append(f"{lead} none of the range is a drop.")
+        elif x["change"] >= 0 and not _worst(x["low"]):  # a range end of 0 once rounded
+            out.append(f"{lead} no drop.")
         elif x["change"] >= 0:  # no drop seen; the range can't rule one out
             out.append(f"{lead} no drop, though these marks can't rule out one of up to "
-                       f"{_points(x['low'])} in every 100.")
+                       f"{_worst(x['low'])} in every 100.")
         else:
-            out.append(f"{lead} agreement drops by no more than {_points(x['low'])} in "
+            out.append(f"{lead} agreement drops by no more than {_worst(x['low'])} in "
                        "every 100.")
     if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
         out.append("Agreement rose in both groups.")
@@ -748,6 +751,12 @@ def _points(x: float) -> int:
     return round(abs(x) * 100)
 
 
+def _worst(low: float) -> int:
+    """The far end of a drop's range in points, rounded up so it never reads smaller than
+    it is (−20.1 is 21); the rounding to 6 places keeps float noise from adding a point."""
+    return math.ceil(round(-low * 100, 6)) if low < 0 else 0
+
+
 def _count(k: int) -> str:
     return str(k) if k else "none"
 
@@ -760,10 +769,10 @@ def paired_lines(g: dict) -> list[str]:
         went = f"{wrong} {'answer' if wrong == 1 else 'answers'} went"
         return [f"Worse: {went} from right to wrong, and {_count(right)} from wrong to right.",
                 (f"That is about {_points(g['change'])} points lower (between "
-                 f"{_points(g['high'])} and {_points(g['low'])}).")]
+                 f"{_points(g['high'])} and {_worst(g['low'])}).")]
     if g["verdict"] == "not_sure":
         return [(f"Not sure: {_count(wrong)} went from right to wrong, and {_count(right)} from "
-                 f"wrong to right. It could be up to {_points(g['low'])} points worse.")]
+                 f"wrong to right. It could be up to {_worst(g['low'])} points worse.")]
     if g["verdict"] == "better":
         went = f"{_count(wrong)} went from right to wrong, and {_count(right)} from wrong to right."
         return [BETTER_LINE, went]
@@ -771,7 +780,9 @@ def paired_lines(g: dict) -> list[str]:
              f"{_count(right)} from wrong to right.")
     if g["low"] >= 0:
         return [first, "None of its range is a drop."]
-    return [first, f"These marks can't rule out a drop of up to {_points(g['low'])} points."]
+    if not _worst(g["low"]):
+        return [first]
+    return [first, f"These marks can't rule out a drop of up to {_worst(g['low'])} points."]
 
 
 def _group_lines(key: str, g: dict) -> list[str]:
