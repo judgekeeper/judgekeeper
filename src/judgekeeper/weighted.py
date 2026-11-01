@@ -8,15 +8,14 @@ a check moves the marks to a new LLM-as-a-judge they stay the saved grades, sinc
 the answers were picked.
 
 Ranges are Jeffreys draws per group (DRAWS, a fixed SEED), cut at the middle LEVEL. LEVEL was
-picked by scripts/coverage_check.py, not assumed. The numbers are about the answers in the
-pool, so only its unmarked answers are unknown: a group with every answer marked has no range.
-A range is widened to hold the number itself, and an unknown rate is None, never an error. The
-formulas, in plain words, are in docs/reference.md under "How the numbers are worked out".
+picked by scripts/coverage_check.py, not assumed. A group with every answer marked has no
+range: its share is known. A range is widened to hold the number itself, and an unknown rate is
+None, never an error. The formulas, in plain words, are in docs/reference.md under "How the
+numbers are worked out".
 """
 
 from __future__ import annotations
 
-import math
 import random
 
 # The middle share of the Jeffreys draws a range spans. Chosen by scripts/coverage_check.py,
@@ -25,7 +24,6 @@ import random
 LEVEL = 0.96  # 0.95 held the true value only 91.6 times in 100 in its lowest cell
 DRAWS = 20_000  # enough that another seed moves no range by more than about 0.01
 SEED = 20261008
-EXACT_MEAN = 30  # a binomial draw with a smaller mean (of the rarer kind) is drawn exactly
 
 
 def _div(top: float, bottom: float) -> float | None:
@@ -148,7 +146,7 @@ def strata_samples(strata: list[tuple[int, str, int, int, int]], draws: int = DR
     """Sorted draws of a, b, TPR, TNR, the real pass rate and kappa from strata (see
     `stratified`); a key is missing when unknown.
 
-    Each stratum's share Correct is drawn over its whole pool (`_pool_shares`), stratum by
+    Each stratum's share Correct is drawn by `_pool_shares`, stratum by
     stratum in the order given, with one random generator seeded with `seed`; a and b are those
     draws weighed by the strata's pools. A grade the pool does not hold has the rate 0 in every
     draw."""
@@ -186,34 +184,12 @@ def strata_samples(strata: list[tuple[int, str, int, int, int]], draws: int = DR
 
 
 def _pool_shares(rng: random.Random, pool: int, n: int, c: int, draws: int) -> list[float]:
-    """Draws of a stratum's share Correct over all `pool` of its answers, c of the n marked
-    Correct: the marked ones as they are, the unmarked ones' count Correct drawn from
-    Beta-binomial(pool - n, c + 0.5, n - c + 0.5). Every answer marked: exactly c / n. A large
-    pool gives the plain Jeffreys draws, Beta(c + 0.5, n - c + 0.5), to within the draws'
-    noise."""
-    rest = pool - n
-    if rest <= 0:
+    """Draws of a stratum's share Correct, c of the n marked Correct: Beta(c + 0.5, n - c + 0.5),
+    whatever the pool's size (a range too wide is safe; one too narrow is a wrong number). Every
+    answer of the stratum marked: its share is known, c / n, with no range."""
+    if n >= pool:
         return [c / n] * draws
-    return [(c + _binomial(rng, rest, rng.betavariate(c + 0.5, n - c + 0.5))) / pool
-            for _ in range(draws)]
-
-
-def _binomial(rng: random.Random, n: int, p: float) -> int:
-    """A Binomial(n, p) draw: exact (by its chances, from 0 up) while the rarer kind's mean is
-    under EXACT_MEAN, else the normal curve's, rounded and kept in 0..n. Then it is almost the
-    same, and the Beta draw it comes with is far wider."""
-    rare = min(p, 1 - p)
-    if n * rare < EXACT_MEAN:
-        u, k, chance = rng.random(), 0, (1 - rare) ** n
-        total, odds = chance, rare / (1 - rare)
-        while total < u and k < n:
-            chance *= (n - k) / (k + 1) * odds
-            k += 1
-            total += chance
-    else:
-        spread = math.sqrt(n * rare * (1 - rare))
-        k = min(n, max(0, round(n * rare + spread * rng.gauss(0.0, 1.0))))
-    return k if rare == p else n - k
+    return [rng.betavariate(c + 0.5, n - c + 0.5) for _ in range(draws)]
 
 
 def middle(values: list[float] | None, level: float, point: float | None) -> list:

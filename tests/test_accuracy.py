@@ -432,7 +432,7 @@ def test_the_readme_names_kappas_range():
 
     readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
     means = readme[readme.index("## The numbers"):readme.index("## Checked on")]
-    assert "**Kappa:**" in means and "Each comes with a range" in means
+    assert "**Kappa:**" in means and "TPR and TNR each come with a range" in means
 
 
 def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):

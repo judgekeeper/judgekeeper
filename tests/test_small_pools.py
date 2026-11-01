@@ -1,12 +1,11 @@
-"""Small pools: the numbers are about the answers in the results file, so the answers not yet
-marked are what is unknown (weighted.strata_samples).
+"""Small pools (weighted.strata_samples).
 
-- With every answer of a group marked, its share is known exactly: no range.
-- With most of a small pool marked, the ranges are narrower than with an endless pool, and
-  still hold the truth.
-- In a large pool, the ranges are as before, to within the draws' noise.
-- An LLM-as-a-judge that gave every answer one grade: its TPR and TNR on those answers are
-  exact, with no range.
+- With every answer of a group marked, its share is known: no range.
+- Otherwise each group's share is drawn from Beta(c + 0.5, n - c + 0.5), whatever the pool's
+  size: a range too wide is safe, one too narrow is a wrong number. With most of a small pool
+  marked the ranges still hold the truth.
+- An LLM-as-a-judge that gave every answer one grade: its TPR and TNR on those answers have no
+  range.
 No test calls an AI API.
 """
 
@@ -50,17 +49,11 @@ def test_with_several_batches_every_answer_marked_gives_no_width():
         assert _width(out[f"{key}_interval"]) == pytest.approx(0.0), key
 
 
-def test_most_of_a_small_pool_marked_narrows_the_range():
-    small = weighted.corrected(60, 40, 50, 42, 32, 8)
-    endless = weighted.corrected(60_000, 40_000, 50, 42, 32, 8)
-    for key in ("tpr", "tnr"):
-        assert _width(small[f"{key}_interval"]) < 0.7 * _width(endless[f"{key}_interval"]), key
-
-
-@pytest.mark.parametrize("counts", [(9000, 1000, 25, 20, 25, 10), (60_000, 40_000, 30, 24, 30, 5)])
-def test_a_large_pool_keeps_its_ranges(counts):
-    """The unmarked answers' draws add almost nothing when they are most of the pool: the
-    ranges are the plain Jeffreys ones, Beta(c + 0.5, n - c + 0.5) per group."""
+@pytest.mark.parametrize("counts", [(9000, 1000, 25, 20, 25, 10), (60_000, 40_000, 30, 24, 30, 5),
+                                    (60, 40, 50, 42, 32, 8), (60, 40, 30, 24, 10, 3)])
+def test_a_group_not_fully_marked_has_the_plain_jeffreys_range(counts):
+    """However small the pool, a group with answers still unmarked is drawn as an endless one:
+    the ranges are the plain Jeffreys ones, Beta(c + 0.5, n - c + 0.5) per group."""
     n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f = counts
     out = weighted.corrected(*counts)
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
@@ -70,24 +63,6 @@ def test_a_large_pool_keeps_its_ranges(counts):
     tnr = sorted((1 - pi) * (1 - y) / ((1 - pi) * (1 - y) + pi * (1 - x)) for x, y in zip(a, b))
     want = tnr[int(n * (1 - weighted.LEVEL) / 2)], tnr[int(n * (1 + weighted.LEVEL) / 2)]
     assert out["tnr_interval"] == pytest.approx(want, abs=0.012)
-
-
-def test_a_small_pool_draws_its_unmarked_answers_from_the_beta_binomial():
-    """Each group's share over its pool: the c Correct of the n marked, plus the unmarked
-    answers' count Correct, Binomial(N - n, p) with p ~ Beta(c + 0.5, n - c + 0.5). Checked
-    with draws of our own (another seed, many more of them)."""
-    out = weighted.corrected(60, 40, 30, 24, 10, 3)
-    rng, n = random.Random(1), 60_000
-
-    def share(pool, marked, correct):
-        p = rng.betavariate(correct + 0.5, marked - correct + 0.5)
-        return (correct + sum(rng.random() < p for _ in range(pool - marked))) / pool
-
-    a = [share(60, 30, 24) for _ in range(n)]
-    b = [share(40, 10, 3) for _ in range(n)]
-    tnr = sorted(0.4 * (1 - y) / (0.4 * (1 - y) + 0.6 * (1 - x)) for x, y in zip(a, b))
-    want = tnr[int(n * (1 - weighted.LEVEL) / 2)], tnr[int(n * (1 + weighted.LEVEL) / 2)]
-    assert out["tnr_interval"] == pytest.approx(want, abs=0.01)
 
 
 def _finite_pool_coverage(n_pass, n_fail, k_pass, k_fail, marks, runs, seed):

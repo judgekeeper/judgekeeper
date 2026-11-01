@@ -360,8 +360,8 @@ def test_site_example_report_is_the_measure_step():
     for gone in ("Last check", "old LLM-as-a-judge", "new LLM-as-a-judge"):
         assert gone not in text, gone
     for number in ("16 of 30 answers", "You passed 15 answers. It passed 7 and failed 8",
-                   "You failed 15 answers. It passed 8 and failed 7", "about 54% 44% and 62%",
-                   "about 39% 32% and 47%", "−0.07"):
+                   "You failed 15 answers. It passed 8 and failed 7", "about 54% 35% and 72%",
+                   "about 39% 23% and 58%", "−0.07"):
         assert number in text, number
     readme = (SITE_EXAMPLE / "README.md").read_text(encoding="utf-8")
     assert "Measure step" in readme
