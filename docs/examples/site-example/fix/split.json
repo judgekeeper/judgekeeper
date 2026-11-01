@@ -1,7 +1,7 @@
 {
   "set": 1,
   "seed": 7,
-  "made_at": "2026-10-31T00:11:03Z",
+  "made_at": "2026-11-01T01:28:10Z",
   "visible": [
     "05b81752ba3d4a6d",
     "0cf06d4681565c46",
@@ -39,7 +39,7 @@
   "tests": [
     {
       "kind": "rule",
-      "time": "2026-10-31T00:11:03Z",
+      "time": "2026-11-01T01:28:10Z",
       "rule_hash": "sha256:102261537cf975dc2f3cd03a28f9c47a868103a6e80dc3846f84b2d08b3e52d6",
       "setup_hash": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
       "key": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
@@ -53,9 +53,23 @@
       "broke": 0,
       "verdict": "better",
       "test": 1,
+      "strata": [
+        [
+          17,
+          4,
+          0,
+          8
+        ],
+        [
+          23,
+          4,
+          0,
+          8
+        ]
+      ],
       "file": "new-rule.json"
     }
   ],
   "pass_mark": null,
-  "sha256": "662685f8569a7c18933df35d54113e60adaa398ef7f90d4e11370dbd33ee3b2c"
+  "sha256": "8ec3f13c5405eca5f5916dfc49a0b253a74b0bc111278855d136ca9821a09eee"
 }

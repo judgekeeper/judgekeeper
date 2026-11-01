@@ -128,48 +128,21 @@ def test_a_judge_column_of_model_names_is_not_a_grade(here, capsys, models):
 
 # A judge that gives every answer the same grade ----------------------------------------------
 
-def plain_jeffreys(k: int, n: int, level: float) -> tuple[float, float]:
-    """The plain Jeffreys interval for k of n, from Beta(k + 0.5, n - k + 0.5): 0 at the low
-    end when k is 0, 1 at the high end when k is n."""
-    import random
-
-    rng = random.Random(7)
-    draws = sorted(rng.betavariate(k + 0.5, n - k + 0.5) for _ in range(40_000))
-    lo, hi = draws[int((1 - level) / 2 * len(draws))], draws[int((1 + level) / 2 * len(draws))]
-    return (0.0 if k == 0 else lo), (1.0 if k == n else hi)
-
-
-@pytest.mark.parametrize("marks", [(23, 17), (12, 8), (30, 10)])
-def test_a_judge_that_passes_every_answer_gets_ranges_of_some_width(marks):
+@pytest.mark.parametrize(("pool", "marks"), [((40, 0), (23, 17)), ((0, 40), (17, 23))])
+def test_a_judge_that_gives_every_answer_one_grade_has_exact_rates(pool, marks):
+    """Its TPR and TNR on the answers are known exactly (100% and 0%, or 0% and 100%), so they
+    have no range (tests/test_small_pools.py has more)."""
     from judgekeeper import targets, weighted
 
     said_pass, said_fail = marks
-    # the judge passed all 40 answers in the pool; the person marked some Pass, some Fail
-    out = weighted.corrected(40, 0, said_pass + said_fail, said_pass, 0, 0)
-    tpr, tnr = out["tpr_interval"], out["tnr_interval"]
-    assert out["tpr"] == 1.0 and out["tnr"] == 0.0
-    assert tpr[1] - tpr[0] > 0.01 and tnr[1] - tnr[0] > 0.01
-    lo, _ = plain_jeffreys(said_pass, said_pass, weighted.LEVEL)
-    _, hi = plain_jeffreys(0, said_fail, weighted.LEVEL)
-    assert tpr[0] <= lo + 0.01 and tpr[1] == 1.0
-    assert tnr[0] == 0.0 and tnr[1] >= hi - 0.01
-    assert targets.level(tpr, tnr) == "not_gate"
-
-
-@pytest.mark.parametrize("marks", [(17, 23), (8, 12), (10, 30)])
-def test_a_judge_that_fails_every_answer_gets_ranges_of_some_width(marks):
-    from judgekeeper import targets, weighted
-
-    said_pass, said_fail = marks
-    out = weighted.corrected(0, 40, 0, 0, said_pass + said_fail, said_pass)
-    tpr, tnr = out["tpr_interval"], out["tnr_interval"]
-    assert out["tpr"] == 0.0 and out["tnr"] == 1.0
-    assert tpr[1] - tpr[0] > 0.01 and tnr[1] - tnr[0] > 0.01
-    _, hi = plain_jeffreys(0, said_pass, weighted.LEVEL)
-    lo, _ = plain_jeffreys(said_fail, said_fail, weighted.LEVEL)
-    assert tpr[0] == 0.0 and tpr[1] >= hi - 0.01
-    assert tnr[0] <= lo + 0.01 and tnr[1] == 1.0
-    assert targets.level(tpr, tnr) == "not_gate"
+    n_pass, n_fail = pool
+    labeled = said_pass + said_fail
+    out = weighted.corrected(n_pass, n_fail, labeled if n_pass else 0, said_pass if n_pass else 0,
+                             labeled if n_fail else 0, said_pass if n_fail else 0)
+    for key in ("tpr", "tnr"):
+        assert out[f"{key}_interval"] == [out[key], out[key]], key
+    assert {out["tpr"], out["tnr"]} == {0.0, 1.0}
+    assert targets.level(out["tpr_interval"], out["tnr_interval"]) == "not_gate"
 
 
 
@@ -195,7 +168,7 @@ def test_report_after_worse_says_the_last_check_at_the_top(here, capsys):
     assert "points lower (between" in top
     said = flat(re.sub("<[^>]+>", " ", top))
     for side in ("Pass", "Fail"):  # the new judge's two numbers, each with its range
-        assert re.search(rf"When you say {side}, it also says {side}: about \d+% "
+        assert re.search(rf"When you say {side}, it also says {side}: (about )?\d+% "
                          rf"\(between \d+% and \d+%\)", said), said
     said_top = re.sub('<span class="term">(.*?)</span>', r"\1", top)
     assert "Go back to your old LLM-as-a-judge" in said_top

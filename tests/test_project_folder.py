@@ -299,22 +299,19 @@ def test_the_page_says_it_on_its_end_card(here, capsys):
 
 
 def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
-    """Every answer marked, enough of each kind, too early to tell: the same words, never
-    "the page is still open" or "mark more"."""
+    """Every answer marked, enough of each kind: the numbers are exact, so there is a result,
+    never "the page is still open", "mark more" or "too wide to tell"."""
     promptfoo_project(here, split(20, 20))
     assert run(capsys)[0] == 0
     person = {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)}
     _mark(Workspace(here), person)
     code, out, _ = run(capsys)
     assert "Step 3 of 5: Measure" in out
-    assert "Result: too early to tell." in out
+    assert "Result: your LLM-as-a-judge is good enough to use." in out
     assert "still open" not in out and "To mark more answers" not in out
     assert "How often your LLM-as-a-judge agrees with you (estimates):" in out  # the numbers too
-    assert ("You've marked every answer: 20 Pass, 20 Fail. The ranges are still too wide to "
-            "tell.") in flat(out)
-    assert "too few" not in flat(out)  # 20 of each is enough for a result: the ranges are wide
-    assert _next(out) == NEXT_ALL_MARKED
-    assert code == 3
+    assert "too wide" not in flat(out) and "too few" not in flat(out)
+    assert code == 0
 
 
 # Re-checks ---------------------------------------------------------------------------------

@@ -6,12 +6,13 @@ A "95%" range should hold the true value about 95 times in 100. This script chec
 simulation, for the ranges `judgekeeper` shows (weighted.corrected) and the ranges after
 grading again (weighted.general: `check` on new results from your eval tool).
 
-One simulated check: the pool holds POOL answers, a share `pi` of them passed by the judge. An
-answer the judge passed is Correct with chance `a`; an answer it failed is Wrong with chance
-`w` (Correct with chance b = 1 - w). `n` answers are labeled in each group, each Correct with
-that chance. The true TPR, TNR and real pass rate follow from pi, a and b with weighted.py's
-formulas. For general(), the judge grading again gives the same verdicts as the saved ones (a
-steady judge). Kappa has no range, so it is not measured.
+One simulated check: the pool holds POOL answers, a share `pi` of them passed by the judge. Of
+the answers the judge passed, round(a * N) are Correct; of those it failed, round(w * N) are
+Wrong (b = 1 - w Correct). `n` answers are labeled in each group, drawn from it without putting
+back. The true TPR, TNR and real pass rate are the pool's own, from its shares with weighted.py's
+formulas: the numbers are about the answers in the pool. For general(), the judge grading
+again gives the same verdicts as the saved ones (a steady judge). Kappa has no range, so it
+is not measured.
 
 The grid: pi in SHARES, a in CORRECT_IF_PASS, w in WRONG_IF_FAIL, n in LABELS; CHECKS checks
 per cell, each cell with its own fixed seed. For each cell and each range, how often it holds
@@ -37,8 +38,8 @@ reached RELIABLE Correct and Wrong labels has both ranges no wider than each can
 The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
 word is said at the first result; how often the verdict is green when the lower of the true
-TPR and TNR is 75% and 80%; weighted.general when the judge, grading the same answers
-twice, changes its mind, with and without the wobble it showed; and how often `check` says
+TPR and TNR is 75% and 80%; weighted.general when the judge, grading again, turns some of
+its grades round at random (it is asked once, as `check` asks); and how often `check` says
 "Worse", and how often it exits 1, when nothing changed, with and without the judge's own
 wobble when it grades again.
 
@@ -72,6 +73,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from judgekeeper import targets, weighted
+from judgekeeper.metrics import wilson_interval
 
 OUT = ROOT / "docs" / "examples" / "coverage"
 SEED = 20261008
@@ -122,9 +124,36 @@ BATCH_CHECKS = 1500
 ONE_GRADE_AGREE = (0.6, 0.8, 0.95)  # the chance a mark is the judge's own grade
 ONE_GRADE_MARKS = (20, 25, 30, 40)
 ONE_GRADE_CHECKS = 2000
+POOL_AGAIN = 10_000  # the pool when the judge turns grades round (see _changes_mind)
 GENERAL_DRAWS = 4000  # after grading again, as the other re-check rows
 BOOT_SEED = 20261005
 RESAMPLES = 2000
+
+
+def real(share: float, size: int) -> float:
+    """The share of a group of `size` answers that holds round(share * size) of a kind."""
+    return round(share * size) / size if size else share
+
+
+def _draw(rng: random.Random, size: int, share: float, n: int) -> int:
+    """How many of n answers drawn without putting back, from `size` answers of which
+    round(share * size) are Correct, are Correct."""
+    left, got = round(share * size), 0
+    for i in range(min(n, size)):
+        if rng.random() * (size - i) < left - got:
+            got += 1
+    return got
+
+
+def _hyper(size: int, share: float, n: int) -> list[float]:
+    """The chances of 0..n Correct among n drawn as `_draw` draws."""
+    k, total = round(share * size), math.comb(size, n)
+    return [math.comb(k, c) * math.comb(size - k, n - c) / total for c in range(n + 1)]
+
+
+def wilson(k: int, n: int) -> tuple[float | None, float | None]:
+    """The Wilson interval for k of n at 97.5% (the earlier ranges'); (None, None) when n is 0."""
+    return (None, None) if n <= 0 else wilson_interval(k / n, n, 2.2414)
 
 
 def truth(pi: float, a: float, b: float) -> dict:
@@ -142,7 +171,7 @@ def pool_counts(pi: float) -> tuple[int, int]:
 def corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f) -> dict:
     """Wilson at 97.5% per group, the ends put into the formulas (the earlier weighted.corrected)."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
-    (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
+    (a_lo, a_hi), (b_lo, b_hi) = wilson(c_p, n_p), wilson(c_f, n_f)
     a, b = c_p / n_p, c_f / n_f
     out = {}
     for key, f, low, high in (("tpr", weighted._tpr, (a_lo, b_hi), (a_hi, b_lo)),
@@ -173,7 +202,7 @@ def wilson_corners(items, n_pool_pass, n_pool_fail) -> dict:
             if not marked or pool[g] <= 0:
                 continue
             weight = pool[g] / len(xs) * len(marked)
-            lo, hi = weighted.wilson(sum(x[2] == label for x in marked), len(marked))
+            lo, hi = wilson(sum(x[2] == label for x in marked), len(marked))
             total, low, high = total + weight, low + weight * lo, high + weight * hi
         out[key] = [low / total, high / total] if total > 0 else None
     return out
@@ -246,10 +275,6 @@ def ranges(args: tuple) -> tuple:
     }
 
 
-def _binomial(rng: random.Random, n: int, p: float) -> int:
-    return sum(rng.random() < p for _ in range(n))
-
-
 def cells(shares=SHARES, correct=CORRECT_IF_PASS, wrong=WRONG_IF_FAIL, labels=LABELS):
     return [(pi, a, w, n) for pi in shares for a in correct for w in wrong for n in labels]
 
@@ -259,7 +284,8 @@ def outcomes(grid: list[tuple], checks: int, seed: int = SEED) -> dict:
     out = {}
     for index, (pi, a, w, n) in enumerate(grid):
         rng = random.Random(seed + index)
-        out[(pi, a, w, n)] = [(_binomial(rng, n, a), _binomial(rng, n, 1 - w))
+        n_pass, n_fail = pool_counts(pi)
+        out[(pi, a, w, n)] = [(_draw(rng, n_pass, a, n), _draw(rng, n_fail, 1 - w, n))
                               for _ in range(checks)]
     return out
 
@@ -297,7 +323,7 @@ def run_grid(grid: list[tuple], checks: int, workers: int | None = None,
     rows = []
     for (pi, a, w, n), pairs in sims.items():
         n_pass, n_fail = pool_counts(pi)
-        true = truth(n_pass / POOL, a, 1 - w)
+        true = truth(n_pass / POOL, real(a, n_pass), real(1 - w, n_fail))
         hits: dict[str, dict] = {}
         for c_p, c_f in pairs:
             r = computed[(n_pass, n_fail, n, c_p, c_f)]
@@ -315,21 +341,17 @@ def run_grid(grid: list[tuple], checks: int, workers: int | None = None,
     return rows
 
 
-def _pmf(n: int, p: float) -> list[float]:
-    return [math.comb(n, k) * p ** k * (1 - p) ** (n - k) for k in range(n + 1)]
-
-
 def exact_grid(grid: list[tuple], smallest: float = 1e-5) -> list[dict]:
     """Coverage with no simulation noise, for the ranges shown now: every outcome (c_p, c_f)
-    weighed by its binomial chance. Outcomes less likely than `smallest` are left out and
+    weighed by its chance (drawn without putting back). Outcomes less likely than `smallest` are left out and
     counted as misses, so each coverage is a lower bound. For the test suite."""
     rows = []
     for pi, a, w, n in grid:
         n_pass, n_fail = pool_counts(pi)
-        true = truth(n_pass / POOL, a, 1 - w)
+        true = truth(n_pass / POOL, real(a, n_pass), real(1 - w, n_fail))
         held: dict[str, float] = {}
-        for c_p, p_p in enumerate(_pmf(n, a)):
-            for c_f, p_f in enumerate(_pmf(n, 1 - w)):
+        for c_p, p_p in enumerate(_hyper(n_pass, a, n)):
+            for c_f, p_f in enumerate(_hyper(n_fail, 1 - w, n)):
                 if p_p * p_f < smallest:
                     continue
                 _, r = quick_ranges((n_pass, n_fail, n, c_p, c_f))
@@ -398,17 +420,8 @@ def _labeling(args: tuple) -> list[float | None]:
     pi, a, w, run = args
     rng = random.Random(SEED + run)
     n_pass, n_fail = pool_counts(pi)
-    n = {"pass": 0, "fail": 0}
-    c = {"pass": 0, "fail": 0}
-    while True:
-        correct, wrong = c["pass"] + c["fail"], n["pass"] + n["fail"] - c["pass"] - c["fail"]
-        if min(correct, wrong) >= RELIABLE:
-            break
-        for group, chance in (("pass", a), ("fail", 1 - w)):
-            for _ in range(5):
-                n[group] += 1
-                c[group] += rng.random() < chance
-    r = weighted.corrected(n_pass, n_fail, n["pass"], c["pass"], n["fail"], c["fail"])
+    g = _marked_until(rng, (n_pass, a), (n_fail, 1 - w), RELIABLE)
+    r = weighted.corrected(n_pass, n_fail, *g["pass"], *g["fail"])
     return [None if r[f"{k}_interval"][0] is None
             else r[f"{k}_interval"][1] - r[f"{k}_interval"][0] for k in ("tpr", "tnr")]
 
@@ -436,11 +449,11 @@ def _kappa_cell(args: tuple) -> dict:
     pi, a, w, n = args
     rng = random.Random(SEED + int(pi * 1000) + int(a * 100) + int(w * 10) + n)
     n_pass, n_fail = pool_counts(pi)
-    true = weighted._kappa(pi, a, 1 - w)
+    true = weighted._kappa(n_pass / POOL, real(a, n_pass), real(1 - w, n_fail))
     hits = tried = 0
     width = 0.0
     for _ in range(KAPPA_CHECKS):
-        c_p, c_f = _binomial(rng, n, a), _binomial(rng, n, 1 - w)
+        c_p, c_f = _draw(rng, n_pass, a, n), _draw(rng, n_fail, 1 - w, n)
         r = weighted.corrected(n_pass, n_fail, n, c_p, n, c_f)
         lo, hi = r["kappa_interval"]
         if lo is None:
@@ -453,18 +466,27 @@ def _kappa_cell(args: tuple) -> dict:
             "width": width / tried if tried else None}
 
 
-def _marked_until(rng: random.Random, a: float, b: float, each: int) -> dict:
-    """Marks in blocks of 5 from each of the judge's groups until `each` Pass and Fail: per
-    group [marked, marked Pass]."""
+def _marked_until(rng: random.Random, passed: tuple, failed: tuple, each: int) -> dict:
+    """Marks in blocks of 5 from each of the judge's groups, (answers, share Correct) each,
+    drawn without putting back, until `each` Pass and Fail (or every answer marked): per group
+    [marked, marked Pass]."""
     g = {"pass": [0, 0], "fail": [0, 0]}
+    left = {name: [size, round(share * size)] for name, (size, share) in
+            (("pass", passed), ("fail", failed))}
     while True:
-        passed = g["pass"][1] + g["fail"][1]
-        if min(passed, g["pass"][0] + g["fail"][0] - passed) >= each:
+        said_pass = g["pass"][1] + g["fail"][1]
+        if min(said_pass, g["pass"][0] + g["fail"][0] - said_pass) >= each or \
+                not any(size for size, _ in left.values()):
             return g
-        for group, share in (("pass", a), ("fail", b)):
+        for group in ("pass", "fail"):
             for _ in range(5):
+                size, correct = left[group]
+                if not size:
+                    break
+                hit = rng.random() * size < correct
+                left[group] = [size - 1, correct - hit]
                 g[group][0] += 1
-                g[group][1] += rng.random() < share
+                g[group][1] += hit
 
 
 def _stopping(args: tuple) -> dict:
@@ -473,11 +495,11 @@ def _stopping(args: tuple) -> dict:
     pi, a, w, each = args
     rng = random.Random(SEED + int(pi * 100) + int(a * 1000) + int(w * 10000) + each)
     n_pass, n_fail = pool_counts(pi)
-    true = truth(pi, a, 1 - w)
+    true = truth(n_pass / POOL, real(a, n_pass), real(1 - w, n_fail))
     hits = {"tpr": 0, "tnr": 0}
     words = {"tpr": {}, "tnr": {}}
     for _ in range(ACCURACY_RUNS):
-        g = _marked_until(rng, a, 1 - w, each)
+        g = _marked_until(rng, (n_pass, a), (n_fail, 1 - w), each)
         r = weighted.corrected(n_pass, n_fail, *g["pass"], *g["fail"], draws=4000)
         for k in ("tpr", "tnr"):
             lo, hi = r[f"{k}_interval"]
@@ -500,7 +522,7 @@ def _green(args: tuple) -> dict:
     n_pass = round(judge * POOL)
     green = 0
     for _ in range(ACCURACY_RUNS):
-        g = _marked_until(rng, a, b, each)
+        g = _marked_until(rng, (n_pass, a), (POOL - n_pass, b), each)
         r = start_label.describe(weighted.corrected(n_pass, POOL - n_pass, *g["pass"],
                                                     *g["fail"], draws=4000))
         green += r["verdict_level"] == "gate"
@@ -509,49 +531,41 @@ def _green(args: tuple) -> dict:
 
 
 def _changes_mind(args: tuple) -> dict:
-    """weighted.general when the judge, grading the same answers twice, turns round a share
-    `flip` of its grades at random each time (and, `changed`, now passes that share of the
-    answers it failed that should fail): how often its TPR and TNR ranges hold the regrading
-    judge's true rates, with the wobble the two gradings showed (`coverage`) and without it
-    (`without`)."""
+    """weighted.general when the judge, grading again, turns round a share `flip` of its
+    grades at random (and, `changed`, now passes that share of the answers it failed that
+    should fail): how often its TPR and TNR ranges hold the regrading judge's true rates. It
+    is asked once, as `check` asks, so its wobble is never seen. The true rates are the ones
+    the turned grades give on average: with POOL_AGAIN answers, the pool's own differ from
+    them by far less than the ranges' width."""
     pi, a, w, n, flip, changed = args
     rng = random.Random(SEED + int(flip * 1000) + n + int(pi * 10) + int(changed * 100))
-    n_pass, n_fail = pool_counts(pi)
-    old = truth(pi, a, 1 - w)
+    n_pass = round(pi * POOL_AGAIN)
+    n_fail = POOL_AGAIN - n_pass
+    old = truth(pi, real(a, n_pass), real(1 - w, n_fail))
     tnr = old["tnr"] * (1 - changed)
     true = {"tpr": old["tpr"] * (1 - flip) + (1 - old["tpr"]) * flip,
             "tnr": tnr * (1 - flip) + (1 - tnr) * flip}
-    hits = {f"{how}/{k}": 0 for how in ("with", "without") for k in ("tpr", "tnr")}
+    hits = dict.fromkeys(("tpr", "tnr"), 0)
     tried = dict.fromkeys(hits, 0)
-    wobble_seen = 0.0
     for _ in range(ACCURACY_RUNS):
-        items, differ = [], 0
-        for group, share in (("pass", a), ("fail", 1 - w)):
-            for _ in range(n):
-                label = "pass" if rng.random() < share else "fail"
+        items = []
+        for group, size, share in (("pass", n_pass, a), ("fail", n_fail, 1 - w)):
+            correct = _draw(rng, size, share, n)
+            for i in range(n):
+                label = "pass" if i < correct else "fail"
                 base = "pass" if group == "fail" and label == "fail" and \
                     rng.random() < changed else group
                 other = "fail" if base == "pass" else "pass"
-                first = other if rng.random() < flip else base
-                second = other if rng.random() < flip else base
-                differ += first != second
-                items.append((group, label, first))  # the first grade counts, as in check
-        wobble = differ / len(items)
-        wobble_seen += wobble
-        for how, r in (("with", weighted.general(items, n_pass, n_fail, draws=4000,
-                                                 wobble=wobble)),
-                       ("without", weighted.general(items, n_pass, n_fail, draws=4000))):
-            for k in ("tpr", "tnr"):
-                lo, hi = r[f"{k}_interval"]
-                if lo is None:
-                    continue
-                tried[f"{how}/{k}"] += 1
-                hits[f"{how}/{k}"] += lo - 1e-12 <= true[k] <= hi + 1e-12
-    share = {key: hits[key] / tried[key] if tried[key] else None for key in hits}
+                items.append((group, label, other if rng.random() < flip else base))
+        r = weighted.general(items, n_pass, n_fail, draws=4000)
+        for k in ("tpr", "tnr"):
+            lo, hi = r[f"{k}_interval"]
+            if lo is None:
+                continue
+            tried[k] += 1
+            hits[k] += lo - 1e-12 <= true[k] <= hi + 1e-12
     return {"pi": pi, "a": a, "w": w, "n": n, "flip": flip, "changed": changed,
-            "wobble": wobble_seen / ACCURACY_RUNS,
-            "coverage": {k: share[f"with/{k}"] for k in ("tpr", "tnr")},
-            "without": {k: share[f"without/{k}"] for k in ("tpr", "tnr")}}
+            "coverage": {k: hits[k] / tried[k] if tried[k] else None for k in hits}}
 
 
 def exits_1(v: dict) -> bool:
@@ -639,23 +653,18 @@ def accuracy_markdown(acc: dict) -> list[str]:
     mind = acc["changes_mind"]
     low = min(row["coverage"][k] for row in mind for k in ("tpr", "tnr")
               if row["coverage"][k] is not None)
-    lines += ["", "### After grading again, an LLM-as-a-judge that changes its mind", "",
-              (f"{ACCURACY_RUNS:,} simulated re-checks per row. weighted.general when the "
-               "LLM-as-a-judge, grading the same answers twice, turns round a share of "
-               "its grades at random each time (a = 0.9, w = 0.85); in the lower half it also "
-               "changed, and now passes 30% of the answers it failed that should fail. The first "
-               "grade counts. How often the ranges hold the regrading LLM-as-a-judge's true TPR "
-               "and TNR, with the wobble the two gradings showed (the share of answers whose two "
-               "grades differ, averaged) and, before, without it. In percent; lowest with the "
-               "wobble: "
-               f"{_pct(low)}."), "",
-              ("| pi | n | turned | also changed | wobble seen | TPR | TNR | TPR before | "
-               "TNR before |"), "|---|---|---|---|---|---|---|---|---|"]
+    lines += ["", "### After grading again, an LLM-as-a-judge that turns grades round", "",
+              (f"{ACCURACY_RUNS:,} simulated re-checks per row, pool of {POOL_AGAIN:,}. "
+               "weighted.general when the LLM-as-a-judge, grading again, turns round a share of "
+               "its grades at random (a = 0.9, w = 0.85); in the lower half it also changed, "
+               "and now passes 30% of the answers it failed that should fail. It is asked once, "
+               "as `check` asks, so the ranges are the ones `check` shows. How often they hold "
+               f"the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: {_pct(low)}."),
+              "", "| pi | n | turned | also changed | TPR | TNR |", "|---|---|---|---|---|---|"]
     for row in mind:
         lines.append(f"| {row['pi']:.0%} | {row['n']} | {row['flip']:.0%} | "
-                     f"{row['changed']:.0%} | {row['wobble']:.0%} | "
-                     f"{_pct(row['coverage']['tpr'])} | {_pct(row['coverage']['tnr'])} | "
-                     f"{_pct(row['without']['tpr'])} | {_pct(row['without']['tnr'])} |")
+                     f"{row['changed']:.0%} | {_pct(row['coverage']['tpr'])} | "
+                     f"{_pct(row['coverage']['tnr'])} |")
     lines += ["", "### `check` when nothing changed", "",
               ("Worked out exactly for one group of marks: the same LLM-as-a-judge grading again, "
                "a share of the answers getting another grade (the wobble), half turning wrong and "
@@ -676,11 +685,13 @@ def batch_cells() -> list[tuple]:
 
 
 def _batch_strata(shape: tuple, judge: tuple) -> list[tuple[int, str, int, float]]:
-    """(batch, grade, answers, chance an answer is Correct) per stratum."""
+    """(batch, grade, answers, share of them Correct) per stratum: round(chance * answers) of
+    them Correct."""
     out = []
     for b, (size, (pi, a, w)) in enumerate(zip(shape, judge), 1):
         n_pass = round(pi * size)
-        out += [(b, "pass", n_pass, a), (b, "fail", size - n_pass, 1 - w)]
+        out += [(b, "pass", n_pass, real(a, n_pass)),
+                (b, "fail", size - n_pass, real(1 - w, size - n_pass))]
     return out
 
 
@@ -697,7 +708,7 @@ def batch_truth(strata: list[tuple]) -> dict:
 
 def _batch_cell(args: tuple) -> dict:
     """One cell of the batch grid: BATCH_CHECKS simulated checks, each stratum marked
-    min(marks, its answers) times, each mark Correct with the stratum's chance."""
+    min(marks, its answers) times, drawn without putting back."""
     index, (shape, judge, marks) = args
     rng = random.Random(SEED + 7919 * (index + 1))
     strata = _batch_strata(shape, judge)
@@ -708,7 +719,7 @@ def _batch_cell(args: tuple) -> dict:
         rows, items = [], []
         for b, g, n_pool, p in strata:
             n = min(marks[min(b, len(marks)) - 1], n_pool)
-            c = _binomial(rng, n, p)
+            c = _draw(rng, n_pool, p, n)
             rows.append((b, g, n_pool, n, c))
             items += [((b, g), "pass", g)] * c + [((b, g), "fail", g)] * (n - c)
         start = weighted.stratified(rows)
@@ -800,16 +811,16 @@ def one_grade_grid(workers: int | None = None) -> dict:
     sims = {}
     for index, (grade, p, n) in enumerate(one_grade_cells()):
         rng = random.Random(SEED + 104729 * (index + 1))
-        agree = [_binomial(rng, n, p) for _ in range(ONE_GRADE_CHECKS)]
+        agree = [_draw(rng, POOL, p, n) for _ in range(ONE_GRADE_CHECKS)]
         sims[(grade, p, n)] = agree if grade == "pass" else [n - k for k in agree]
     needed = sorted({(grade, n, c) for (grade, _, n), cs in sims.items() for c in cs})
     with ProcessPoolExecutor(max_workers=workers) as ex:
         computed = dict(ex.map(_one_grade_ranges, needed, chunksize=4))
     rows = []
     for (grade, p, n), cs in sims.items():
-        pi = 1.0 if grade == "pass" else 0.0
-        true = truth(pi, *((p, 0.0) if grade == "pass" else (0.0, 1 - p)))
-        true["real_pass_rate"] = p if grade == "pass" else 1 - p
+        pi, share = (1.0 if grade == "pass" else 0.0), real(p, POOL)
+        true = truth(pi, *((share, 0.0) if grade == "pass" else (0.0, 1 - share)))
+        true["real_pass_rate"] = share if grade == "pass" else 1 - share
         hits: dict[str, dict] = {}
         for c in cs:
             for k, interval in computed[(grade, n, c)].items():
@@ -825,9 +836,9 @@ def one_grade_markdown(g: dict) -> list[str]:
     s = g["start"]
     lines = ["", "## An LLM-as-a-judge that gives every answer one grade", "",
              ("The LLM-as-a-judge passed (or failed) every answer of a pool of "
-              f"{POOL:,}; that many marks, each one the same way as the LLM-as-a-judge with the "
-              "chance given (agree). Its TPR and TNR are then 100% and 0% (or 0% and 100%), and "
-              "their ranges are the plain Jeffreys ranges of the marks. "
+              f"{POOL:,}, of which the share given (agree) should get the LLM-as-a-judge's grade; "
+              "that many marks, drawn without putting back. Its TPR and TNR are then exactly "
+              "100% and 0% (or 0% and 100%), shown with no range. "
               f"{g['checks_per_cell']:,} simulated checks per cell, fixed seed "
               f"{g['grid_seed']}, level {g['level']:.0%}, {g['draws']:,} draws. Checks where "
               "a number is unknown (TNR when every mark agrees, say) are left out and counted."),

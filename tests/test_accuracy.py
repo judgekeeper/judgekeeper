@@ -162,9 +162,9 @@ def project(tmp_path, monkeypatch):
 def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
-    promptfoo_project(project, split(30, 30))
+    promptfoo_project(project, split(300, 300))  # most answers left unmarked: a range
     out = _measured(project, capsys, lambda g, n: g if n > 2 else ("fail" if g == "pass"
-                                                                    else "pass"))
+                                                                    else "pass"), limit=60)
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")

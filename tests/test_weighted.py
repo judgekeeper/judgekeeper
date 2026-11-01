@@ -9,14 +9,13 @@ group n_f are labeled, c_f Correct: b = c_f / n_f.
 from __future__ import annotations
 
 import json
-import math
 import random
 from pathlib import Path
 
 import pytest
 
 from judgekeeper import weighted
-from judgekeeper.metrics import cohen_kappa
+from judgekeeper.metrics import cohen_kappa, wilson_interval
 
 COVERAGE = Path(__file__).resolve().parent.parent / "docs" / "examples" / "coverage"
 
@@ -26,10 +25,6 @@ def test_the_level_is_the_one_the_coverage_grid_chose():
     assert weighted.LEVEL == chosen["corrected"]["chosen_level"]
     assert weighted.LEVEL in (0.95, 0.96, 0.97)
     assert weighted.DRAWS == chosen["draws"] and weighted.SEED == chosen["seed"]
-
-
-def test_steadiness_and_corner_intervals_use_z_at_97_5():
-    assert weighted.Z == 2.2414
 
 
 def test_the_worked_example():
@@ -132,8 +127,9 @@ def _middle(values, level):
 def test_the_ranges_are_the_middle_of_jeffreys_draws():
     # Each group's share of Correct answers is Beta(correct + 0.5, labeled - correct + 0.5);
     # TPR, TNR and the real pass rate come from pairs of draws, and the range is their middle
-    # LEVEL. Checked here with draws of our own (another seed, many more of them).
-    r = weighted.corrected(900, 100, 25, 20, 25, 10)
+    # LEVEL. Checked here with draws of our own (another seed, many more of them), in a pool so
+    # large that its unmarked answers add nothing (tests/test_small_pools.py: small pools).
+    r = weighted.corrected(900_000, 100_000, 25, 20, 25, 10)
     rng, pi, n = random.Random(1), 0.9, 200_000
     a = [rng.betavariate(20.5, 5.5) for _ in range(n)]
     b = [rng.betavariate(10.5, 15.5) for _ in range(n)]
@@ -160,7 +156,8 @@ def test_ranges_do_not_depend_on_the_seed():
 def _corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f):
     """The TNR range the simple way: Wilson at 97.5% per group, joined at the corners."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
-    (a_lo, a_hi), (b_lo, b_hi) = weighted.wilson(c_p, n_p), weighted.wilson(c_f, n_f)
+    (a_lo, a_hi), (b_lo, b_hi) = (wilson_interval(c / n, n, 2.2414)
+                                  for c, n in ((c_p, n_p), (c_f, n_f)))
 
     def tnr(a, b):
         return (1 - pi) * (1 - b) / ((1 - pi) * (1 - b) + pi * (1 - a))
@@ -174,17 +171,6 @@ def test_the_ranges_are_narrower_than_the_corners_were(counts):
     lo, hi = weighted.corrected(*counts)["tnr_interval"]
     old_lo, old_hi = _corners(*counts)
     assert hi - lo < 0.9 * (old_hi - old_lo)
-
-
-def test_the_wilson_interval_at_97_5_percent():
-    # k = 20, n = 25, z = 2.2414: centre (0.8 + z^2/50) / (1 + z^2/25),
-    # half z*sqrt(0.8*0.2/25 + z^2/2500) / (1 + z^2/25)
-    z = 2.2414
-    denom = 1 + z * z / 25
-    centre = (0.8 + z * z / 50) / denom
-    half = z * math.sqrt(0.16 / 25 + z * z / 2500) / denom
-    assert weighted.wilson(20, 25) == pytest.approx((centre - half, centre + half))
-    assert weighted.wilson(0, 0) == (None, None)
 
 
 def test_the_counts_are_kept_with_the_numbers():

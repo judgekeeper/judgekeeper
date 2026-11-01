@@ -113,7 +113,7 @@ DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
 # with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
-NUMBERS_VERSION = 2
+NUMBERS_VERSION = 3
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
 

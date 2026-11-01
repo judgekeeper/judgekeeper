@@ -8,28 +8,28 @@
   "kappa": -0.06506906307205851,
   "real_pass_rate": 0.495,
   "a_interval": [
-    0.2263247078548836,
-    0.7157841958794264
+    0.34782608695652173,
+    0.6086956521739131
   ],
   "b_interval": [
-    0.28401344918805693,
-    0.773212792148093
+    0.47058823529411764,
+    0.5882352941176471
   ],
   "tpr_interval": [
-    0.34696405677093467,
-    0.716402918552619
+    0.44444444444444436,
+    0.6190476190476191
   ],
   "tnr_interval": [
-    0.22509033515364646,
-    0.5793159007011429
+    0.3181818181818182,
+    0.4736842105263158
   ],
   "real_pass_rate_interval": [
-    0.3197039370258491,
-    0.6719031610796483
+    0.4,
+    0.575
   ],
   "kappa_interval": [
-    -0.3944633633596104,
-    0.2808426127063152
+    -0.23152709359605922,
+    0.09319899244332497
   ],
   "groups": {
     "pass": {
@@ -51,17 +51,14 @@
     "correct": 15,
     "wrong": 15
   },
-  "check": "rough",
-  "wide": {
-    "tpr": 0.3694388617816843,
-    "tnr": 0.35422556554749646
-  },
+  "check": "reliable",
+  "wide": {},
   "verdict_level": "not_gate",
   "verdict": "Your LLM-as-a-judge needs work.",
   "skipped": 0,
   "disagreements": 16,
   "left": 10,
-  "made_at": "2026-10-31T08:51:57Z",
+  "made_at": "2026-11-01T01:28:10Z",
   "numbers_version": 2,
   "judgekeeper_version": "1.0.2",
   "fingerprint": {
@@ -71,7 +68,7 @@
     "prompt_hash": "375fe5de8e06fe4e3bc138cd08e438d49083693e4ae3a78420dcaaae87d02a67",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-10-31T08:51:57Z",
+    "created_at": "2026-11-01T01:28:10Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -122,5 +119,5 @@
     "path": ".",
     "port": 8765
   },
-  "marks_sha256": "de0df07329de9a9cd7906916a0c58a2387c37fa341f9a82cbace333560a1e3a5"
+  "marks_sha256": "3a6b6c55ec3463c21dc9593da09eb8b699290391455c2886018b5df82f70dae6"
 }
