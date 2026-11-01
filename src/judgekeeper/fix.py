@@ -364,6 +364,15 @@ def _ints(t: dict, *keys: str) -> bool:
     return all(type(t.get(k)) is int and t[k] >= 0 for k in keys)
 
 
+def _fits(strata, t: dict) -> bool:
+    """Whether a test's groups ([pool, fixed, broke, kept aside] each) add up to its counts."""
+    if not isinstance(strata, list) or not all(
+            isinstance(s, list) and len(s) == 4 and all(type(x) is int and x >= 0 for x in s)
+            and s[1] + s[2] <= s[3] for s in strata):
+        return False
+    return [sum(s[k] for s in strata) for k in (1, 2, 3)] == [t["fixed"], t["broke"], t["n"]]
+
+
 SET = "set"  # history.jsonl's kind for a set retired (its `fresh`) or begun (its `earlier`)
 
 
@@ -451,9 +460,12 @@ def _split_problem(ws: Workspace, d) -> str | None:
                 not _ints(t, "n", "fixed", "broke") or t["fixed"] + t["broke"] > t["n"] or \
                 t["n"] > total:
             return "a test in it has counts that don't fit its marks"
+        strata = t.get("strata")
+        if strata is not None and not _fits(strata, t):
+            return "a test in it has counts that don't fit its marks"
         if t["kind"] == "rule" and (not _ints(t, "test") or t["test"] < 1 or t.get("verdict") !=
                                     targets.fix_verdict(t["fixed"], t["broke"], t["n"],
-                                                        test=t["test"]).kind):
+                                                        test=t["test"], strata=strata).kind):
             return "a test in it has a result its counts don't give"
     if "sha256" in d and d["sha256"] != _sum(d):  # a swap, a new seed, a mark taken out
         return "it was changed by hand"
@@ -863,6 +875,21 @@ def _follows(m: Marks, pm: dict | None) -> bool:
         isinstance(m.scores.get(i), int | float) for i in m.person)
 
 
+def by_stratum(m: Marks, ids: list[str], old: dict, new: dict) -> list[list[int]]:
+    """[pool, fixed, broke, kept aside] for each group the marks kept aside (`ids`) were
+    picked from, (batch, the LLM-as-a-judge's grade then), in order: what targets.fix_verdict
+    weighs them by. Fixed: `old` grade wrong, `new` right; broke: the other way."""
+    where, sizes = batches.strata(m.data)
+    out: dict = {}
+    for i in ids:
+        s = where.get(i, (m.batch.get(i, 1), m.judge[i]))
+        row = out.setdefault(s, [int(sizes.get(s, 0)), 0, 0, 0])
+        row[1] += old[i] != m.person[i] and new[i] == m.person[i]
+        row[2] += old[i] == m.person[i] and new[i] != m.person[i]
+        row[3] += 1
+    return [out[s] for s in sorted(out)]
+
+
 def test_pass_mark(m: Marks, split: Split) -> dict | None:
     """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
     scores (no AI call), once per set of hidden marks: the test, also kept in split.json, or
@@ -890,14 +917,14 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     if new == current:
         split.pass_mark = {}
         return None
-    fixed = broke = 0
-    for i in split.hidden:
-        now = passes(m.scores[i], op, new)
-        fixed += m.judge[i] != m.person[i] and now == m.person[i]
-        broke += m.judge[i] == m.person[i] and now != m.person[i]
-    v = targets.fix_verdict(fixed, broke, len(split.hidden), test=len(split.tests) + 1)
+    now = {i: passes(m.scores[i], op, new) for i in split.hidden}
+    strata = by_stratum(m, split.hidden, m.judge, now)
+    fixed, broke = sum(s[1] for s in strata), sum(s[2] for s in strata)
+    v = targets.fix_verdict(fixed, broke, len(split.hidden), test=len(split.tests) + 1,
+                            strata=strata)
     test = {"kind": "pass mark", "time": utc_now(), "old": current, "new": new, "op": op,
-            "n": len(split.hidden), "fixed": fixed, "broke": broke, "verdict": v.kind}
+            "n": len(split.hidden), "fixed": fixed, "broke": broke, "verdict": v.kind,
+            "strata": strata}
     split.tests.append(test)
     split.pass_mark = test
     return test
@@ -1651,9 +1678,9 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         talk.para(COUNTED.format(k=k, n=len(ids), them="it as its mistake" if k == 1 else
                                  "them as its mistakes"))
         talk.say()
-    fixed = sum(old[i] != m.person[i] and new[i] == m.person[i] for i in ids)
-    broke = sum(old[i] == m.person[i] and new[i] != m.person[i] for i in ids)
-    v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split))
+    strata = by_stratum(m, ids, old, new)
+    fixed, broke = sum(s[1] for s in strata), sum(s[2] for s in strata)
+    v = targets.fix_verdict(fixed, broke, len(ids), test=next_test(split), strata=strata)
     talk.say(f"Your LLM-as-a-judge, tested on the {len(ids)} marks kept aside:")
     for name, grades in (("Old", old), ("New", new)):
         talk.say(f"  {name} rule:")
@@ -1774,7 +1801,7 @@ def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key:
         write_replacing(path, scrub(found.rule))
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "setup_hash": setup_hash,
             "key": key, "from": was, "n": v.n, "hidden": len(split.hidden), "fixed": v.fixed, "broke": v.broke,
-            "verdict": v.kind, "test": len(split.tests) + 1,
+            "verdict": v.kind, "test": len(split.tests) + 1, "strata": [list(s) for s in v.strata],
             **({"file": scrub(file)} if file else {})}  # split.json only: history has no paths
     split.tests.append(test)
     save_split(ws, split)

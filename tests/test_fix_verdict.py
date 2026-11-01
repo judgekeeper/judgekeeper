@@ -7,6 +7,8 @@
 - else can't tell yet: leaning better, the same, or leaning worse.
 Each extra test on the same hidden marks is stricter: test k uses the level divided by k.
 The cases are a lookup table of the first test worked out by hand; the error check is exact.
+With the groups the marks were picked from (`strata`), each hidden mark weighs its group's
+pool over the marks kept aside in it, so the verdict is about the whole set of answers.
 """
 
 from __future__ import annotations
@@ -69,7 +71,38 @@ def test_safe_to_try_rarely_clears_a_rule_10_points_worse(n, pf):
     assert round(100 * error, 1) == ERROR[n][pf]
 
 
-def test_the_top_up_size():
-    assert targets.top_up(10) == 7
-    assert targets.top_up(15) == 9
-    assert targets.top_up(8) == 7 and targets.top_up(20) == 9
+# Weighted to the whole set of answers ----------------------------------------------------------
+
+def test_equal_weights_give_the_plain_counts():
+    strata = [(500, 4, 1, 10), (500, 3, 0, 10)]  # each mark weighs 50
+    assert targets.weighted_counts(strata) == pytest.approx((7, 1, 20))
+    for kind_of in ((7, 1, 20), (2, 2, 20), (0, 6, 20)):
+        f, b, n = kind_of
+        plain = V(f, b, n).kind
+        assert V(f, b, n, strata=[(100, f, 0, n // 2), (100, 0, b, n - n // 2)]).kind == plain
+
+
+def test_the_effective_counts_by_hand():
+    # pool 900 / 100; kept aside 10 / 10: weights 90 and 10, scaled to 20 marks: 1.8 and 0.2.
+    # fixed 5 in the fail group: 1.0; broke 2 in the pass group: 3.6.
+    # Kish: (900 + 100)^2 / (900^2 / 10 + 100^2 / 10) = 1e6 / 82,000 = 12.195 marks.
+    f, b, n = targets.weighted_counts([(900, 0, 2, 10), (100, 5, 0, 10)])
+    scale = 1e6 / 82_000 / 20
+    assert (f, b, n) == pytest.approx((1.0 * scale, 3.6 * scale, 1e6 / 82_000))
+
+
+def test_a_rule_that_is_safe_on_the_marks_but_not_on_the_whole_set():
+    """The judge passed 900 of 1,000 answers, so its passes weigh 9 times its fails. Kept
+    aside: 20 of each. The rule fixes 6 mistakes among its fails and breaks 2 right answers
+    among its passes. Counted plainly, +4 of 40 is "safe to try"; weighted, it breaks 18 for
+    each 6 it fixes, and is not."""
+    assert V(6, 2, 40).kind == "safe"
+    v = V(6, 2, 40, strata=[(900, 0, 2, 20), (100, 6, 0, 20)])
+    assert v.kind not in ("safe", "better")
+    assert (v.fixed, v.broke, v.n) == (6, 2, 40)  # what the person is shown: plain counts
+    assert v.strata == ((900, 0, 2, 20), (100, 6, 0, 20))
+
+
+def test_a_group_with_no_mark_kept_aside_weighs_nothing():
+    assert targets.weighted_counts([(900, 0, 0, 0), (100, 3, 0, 10)]) == pytest.approx((3, 0, 10))
+    assert targets.weighted_counts([]) == (0.0, 0.0, 0.0)
