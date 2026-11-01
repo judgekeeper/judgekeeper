@@ -89,6 +89,8 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
+
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
 ```
@@ -185,9 +187,11 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 **What it says.** One result line, from the ranges:
 
-- "Your LLM-as-a-judge is good enough to use." when the low end of both ranges is at least 80%;
-- "Your LLM-as-a-judge needs work." when a range stays below 80%;
+- "Your LLM-as-a-judge is good enough to use." when the low end of both wider ranges (99%) is at least 80%;
+- "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
 - "Too early to tell. Mark more answers to get a result." otherwise.
+
+The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark and a lucky streak should not count.
 
 ## What it reads
 
