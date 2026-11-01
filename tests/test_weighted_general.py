@@ -74,11 +74,12 @@ def _middle(values, level):
     return values[int(k * (1 - level) / 2)], values[int(k * (1 + level) / 2) - 1]
 
 
-def test_the_ranges_are_the_middle_of_jeffreys_draws_per_group():
+def test_the_ranges_are_the_middle_of_the_draws_per_group():
     # In each saved group, the share marked Correct (p) is drawn over the group's pool, as in
     # corrected(): the c Correct marks plus Binomial(N - n, Beta(c + 0.5, n - c + 0.5)) of the
     # unmarked ones. Of the answers marked Correct, the share the judge passed again (q), and
-    # of those marked Wrong the share it failed again (r), are Beta(k + 0.5, m - k + 0.5), also
+    # of those marked Wrong the share it failed again (r), are drawn one time in three from
+    # Beta(k, m - k) (1 when all agree), else from Beta(k + 0.5, m - k + 0.5), which stays open
     # when all agree: asked again, a grade can turn round. Each group weighs its pool. Checked
     # with draws of our own (another seed, many more).
     #   pass group (pool 20): 3 of 4 Correct; 2 of 3 passed again; 1 of 1 failed again
@@ -92,14 +93,21 @@ def test_the_ranges_are_the_middle_of_jeffreys_draws_per_group():
                 (20, (4, 3), (2, 3), (1, 1)), (16, (4, 1), (1, 1), (2, 3))):
             share = rng.betavariate(correct + 0.5, labeled - correct + 0.5)
             p = (correct + sum(rng.random() < share for _ in range(pool - labeled))) / pool
-            q = rng.betavariate(passed + 0.5, of_correct - passed + 0.5)
-            w = rng.betavariate(failed + 0.5, of_wrong - failed + 0.5)
+            q, w = (_again(rng, passed, of_correct), _again(rng, failed, of_wrong))
             tp, fn = tp + pool * p * q, fn + pool * p * (1 - q)
             tn, fp = tn + pool * (1 - p) * w, fp + pool * (1 - p) * (1 - w)
         tpr.append(tp / (tp + fn))
         tnr.append(tn / (tn + fp))
     for key, values in (("tpr", tpr), ("tnr", tnr)):
         assert r[f"{key}_interval"] == pytest.approx(_middle(values, weighted.LEVEL), abs=0.01)
+
+
+def _again(rng, k, m):
+    """One draw of a share graded right again: Beta(k, m - k) one time in three, else
+    Jeffreys."""
+    if rng.random() < 1 / 3:
+        return 1.0 if k == m else 0.0 if k == 0 else rng.betavariate(k, m - k)
+    return rng.betavariate(k + 0.5, m - k + 0.5)
 
 
 def test_intervals_are_inside_zero_to_one_and_hold_the_value():

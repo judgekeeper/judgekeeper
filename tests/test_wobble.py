@@ -2,9 +2,10 @@
 
 A judge asked twice about the same answer does not always give the same grade (its wobble).
 judgekeeper asks once, so it can't see the wobble: after `check`, the share of marks the new
-LLM-as-a-judge got right again is drawn per group from Jeffreys, Beta(k + 0.5, m - k + 0.5),
-even when every mark agreed. Then the ranges hold the true rates of a judge that turns some
-grades round, without asking twice. A group that holds no answer of a kind keeps the saved
+LLM-as-a-judge got right again is drawn per group, one draw in three from Beta(k, m - k) and
+the rest from Jeffreys, Beta(k + 0.5, m - k + 0.5), which stays open even when every mark
+agreed. Then the ranges hold the true rates of a judge that turns some grades round, without
+asking twice, and of one that doesn't. A group that holds no answer of a kind keeps the saved
 grade.
 """
 

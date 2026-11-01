@@ -234,17 +234,31 @@ def _percentile(values: list[float], q: float) -> float:
     return values[low] + (values[high] - values[low]) * (k - low)
 
 
+# After check, the share of draws of the share graded right again taken from Beta(k, m - k)
+# (see _verdict_shares); the rest are Jeffreys draws
+STEADY_SHARE = 1 / 3
+
+
+def _steady(rng: random.Random, k: int, m: int) -> float:
+    """One draw from Beta(k, m - k): 1 when all k of the m agree, 0 when none does."""
+    return 1.0 if k == m else 0.0 if k == 0 else rng.betavariate(k, m - k)
+
+
 def _verdict_shares(rng: random.Random, k: int, m: int, saved: float, draws: int,
                     exact: bool) -> list[float]:
     """Draws of the share the judge got right again among the stratum's answers of one kind,
-    k of the m marked: Beta(k + 0.5, m - k + 0.5), even when none or all did, since a judge's
-    grade can turn round when it is asked again; the saved verdict (`saved`: 1 or 0) when none
-    is marked; exactly k / m when every answer of the stratum is marked (`exact`)."""
+    k of the m marked: each draw, with chance STEADY_SHARE, from Beta(k, m - k), which holds
+    the rates of a judge that grades the same when asked again; else from Jeffreys, Beta(k +
+    0.5, m - k + 0.5), which keeps a range when none or all did, for a judge that turns some
+    grades round when asked again. The saved
+    verdict (`saved`: 1 or 0) when none is marked; k / m when every answer of the stratum is
+    marked (`exact`)."""
     if m == 0:
         return [saved] * draws
     if exact:
         return [k / m] * draws
-    return [rng.betavariate(k + 0.5, m - k + 0.5) for _ in range(draws)]
+    return [_steady(rng, k, m) if rng.random() < STEADY_SHARE
+            else rng.betavariate(k + 0.5, m - k + 0.5) for _ in range(draws)]
 
 
 def _general_draws(by_group: dict, pool: dict, draws: int, seed: int) -> dict[str, list[float]]:

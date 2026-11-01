@@ -181,7 +181,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 - **`fix`:** each kept-aside mark weighs N_s / h_s (its group's answers over its kept-aside marks), and the fixed and broke counts are scaled to the effective number of marks, (sum of weights)² / (sum of squared weights) (Kish's), before the sign test and Tango's test.
 - **Batches:** the groups become (batch, grade) strata, each marked answer weighs N_s / n_s, and the draws are per stratum.
-- **After `check`:** TPR and TNR use the new grades, with the shares passed or failed again drawn from Beta(k + 0.5, m - k + 0.5), so a range stays open even when every answer agrees. With none of a kind marked, the old grade stands; with every answer of a group marked, the shares have no range.
+- **After `check`:** TPR and TNR use the new grades. The shares passed or failed again are drawn one time in three from Beta(k, m - k), which is 0 or 1 when every answer agrees, and two times in three from Beta(k + 0.5, m - k + 0.5), which keeps a range open then. The first suits an LLM-as-a-judge that gives the same grade when asked again; the second, one that turns some grades round. With none of a kind marked, the old grade stands; with every answer of a group marked, the shares have no range.
 
 **What it says.** One result line, from the ranges:
 
