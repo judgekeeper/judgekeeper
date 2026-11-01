@@ -245,8 +245,8 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
 # What a result needs, said up front -----------------------------------------------------------
 
 NEEDS = ("A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks on "
-         "answers your LLM-as-a-judge passed and 20 on answers it failed. If your LLM-as-a-judge "
-         "fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.")
+         "answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer). If your "
+         "LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.")
 
 
 def test_the_reference_says_what_a_result_needs_near_its_top():

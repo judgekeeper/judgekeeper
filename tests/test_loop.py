@@ -135,7 +135,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed.",
+        "on answers it failed (or all of them, when there are fewer).",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",

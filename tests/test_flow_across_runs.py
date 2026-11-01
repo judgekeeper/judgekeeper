@@ -890,3 +890,54 @@ def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(her
     code, out = _check(capsys, "new.json")  # a change again: compared with the rule marked on
     assert code == 0 and "Your LLM-as-a-judge changed: rule changed." in flat(out), out
     assert "Result: worse" not in out
+
+
+def test_measure_says_right_under_the_result_how_many_got_no_grade(here, capsys):
+    """report.html's line on answers with no Pass or Fail, in the terminal too, right under
+    the result line."""
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, [*split(20, 20), None, None, None])
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here))
+    _, out = _jk(capsys)
+    line = "Your LLM-as-a-judge gave no Pass or Fail on 3 answers. They are left out."
+    assert re.search(r"Result: [^.]*\. " + re.escape(line), flat(out)), out
+    html = Workspace(here).report_html.read_text(encoding="utf-8")
+    assert "gave no Pass or Fail on 3 answers" in html
+
+
+def test_new_after_a_result_moves_the_marks_and_results(here, capsys):
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, split(20, 20))
+    assert _jk(capsys)[0] == 0
+    _mark(Workspace(here))
+    _jk(capsys)
+    assert Workspace(here).result_json.is_file()
+    _, out = _jk(capsys, "--new", "--yes")
+    assert re.search(r"Moved your marks and results to \.judgekeeper/previous-[^/]+/\. Nothing "
+                     r"was deleted\.", flat(out)), out
+    assert "last check" not in out
+
+
+def test_a_group_of_15_needs_all_15_not_20(here, capsys):
+    """The LLM-as-a-judge passed only 15 answers: Find says a result needs all of them when
+    there are fewer than 20, and marking those 15 and 20 of the 40 it failed gives a result."""
+    from tests.start_projects import promptfoo_project
+
+    promptfoo_project(here, split(15, 40))
+    _, out = _jk(capsys)
+    assert ("20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or "
+            "all of them, when there are fewer).") in flat(out)
+    ws = Workspace(here)
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    passed = [i for i in session.by_id if groups.get(i) == "pass"]
+    failed = [i for i in session.by_id if groups.get(i) == "fail"]
+    assert len(passed) == 15
+    for i in passed + failed[:20]:
+        session.update({"id": i, "label": groups[i], "seconds": 6})
+    _jk(capsys)
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert r["check"] != "too_few" and r["verdict_level"] is not None, r["check"]

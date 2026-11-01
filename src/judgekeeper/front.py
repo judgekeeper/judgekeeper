@@ -100,7 +100,7 @@ FREE_CHECK = "Checked: "  # every free-check line starts with it
 # Said where marking starts, before the page opens (and in the README and the reference)
 NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail, and "
                    "{g} marks on answers your LLM-as-a-judge passed and {g} on answers it "
-                   "failed.")
+                   "failed (or all of them, when there are fewer).")
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
@@ -1938,6 +1938,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
+    no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
+    if no_grade:
+        talk.para(no_grade)
     gate = labels_mod.gate_line(r.get("import_gate"), r.get("imported"))
     if gate:  # imported marks not yet checked against page marks
         talk.para(gate)

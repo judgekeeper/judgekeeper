@@ -724,7 +724,7 @@ def expect_lines(g: dict) -> list[str]:
             and g[key]["new_right"] > g[key]["old_right"]]
     if dropped and rose:  # "worse" next to a group that improved: say what decides
         out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
-                   f"{dropped[0]}, and one big drop in either group makes the result worse.")
+                   f"{dropped[0]}, and a clear drop in either group makes the result worse.")
     return out
 
 

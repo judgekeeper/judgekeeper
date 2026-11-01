@@ -859,10 +859,11 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
 
 
 def _saved_line(ws: Workspace, n: int) -> str:
-    """Where the mistakes went and what the file is for; the line above already says how many
-    mistakes the LLM-as-a-judge made."""
-    made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 1
-            else "The 1 mistake your LLM-as-a-judge made is")
+    """Where the `n` mistakes went and what the file is for. With 3 or more, the clues above
+    came from them ("All {n}"); with 1 or 2 there are no clues, so the words say how many."""
+    made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 2
+            else "Both mistakes your LLM-as-a-judge made are" if n == 2
+            else "The one mistake your LLM-as-a-judge made is")
     return (f"{made} saved in {_file(ws, MISTAKES)}. Use it to write a better "
             "rule, or hand it to a coding agent to help you write one.")
 
