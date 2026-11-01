@@ -266,29 +266,47 @@ def test_results_in_one_folder_below_or_a_project_are_read_as_before(here, capsy
 
 # A git repository is one project ---------------------------------------------------------
 
-def _repo_with_sessions(root, capsys, monkeypatch, names=("a", "b")):
-    """A git repository in `root` whose results are only in folders below that each hold a
-    session of their own."""
-    (root / ".git").mkdir(parents=True)
+MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+
+
+def _marker(folder, marker) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    if marker == ".git":
+        (folder / ".git").mkdir()
+    elif marker is not None:
+        (folder / marker).write_text("", encoding="utf-8")
+
+
+def _repo_with_sessions(root, capsys, monkeypatch, names=("a", "b"), marker=".git"):
+    """A folder `root` (a project of its own by `marker`, or none) whose results are only in
+    folders below that each hold a session of their own."""
+    _marker(root, marker)
     for i, name in enumerate(names):
         _session_in(root / name, capsys, monkeypatch, 2 + i)
     monkeypatch.chdir(root)
 
 
-@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
-def test_a_git_repo_never_reads_the_project_above_it(here, capsys, monkeypatch, names):
+def _outer_with_marks(here, capsys) -> bytes:
     (here / "pyproject.toml").write_text("", encoding="utf-8")
     table_project(here, split(20, 16), name="outer.csv", tag="outer")
     assert run(capsys, "--no-browser")[0] == 0
     _mark(Workspace(here), only=range(8))
-    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
-    _repo_with_sessions(here / "inner", capsys, monkeypatch, names)
+    return (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+
+
+@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
+@pytest.mark.parametrize("marker", MARKERS)
+def test_a_project_folder_never_reads_the_project_above_it(here, capsys, monkeypatch, names,
+                                                           marker):
+    before = _outer_with_marks(here, capsys)
+    _repo_with_sessions(here / "inner", capsys, monkeypatch, names, marker)
     code, out, err = run(capsys, "--no-browser")
     assert code == 3, out + err
     assert "Reading the project folder above" not in out
     assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
     assert not (here / "inner" / ".judgekeeper").exists()
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    assert "--stop" not in out and run(capsys, "--stop")[1].count("No marking page is open.")
 
 
 def test_results_in_one_folder_of_a_git_repo_are_read_as_before(here, capsys, monkeypatch):
