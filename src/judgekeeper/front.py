@@ -2015,6 +2015,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     talk.say(f"Full report: {report} (open it in your browser)")
     talk.say()
     opened = None
+    ranges = report_page.shows_range(r)
     if start_label.all_labeled(r):  # nothing left to mark: no page
         if step == "mark" and not check:
             labels = r["labels"]
@@ -2025,14 +2026,16 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(then)
             return EXIT_NEEDS_YOU
     elif is_open(ws.dir):
-        talk.para(STILL_OPEN)
+        if ranges:  # with no range shown, there is none to narrow
+            talk.para(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     elif not mark_next and not why:  # else the Next: line or "To say why" names it
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     # wait before is_open: --wait's own page answers only once it is served (page.serve)
-    if start_label.all_labeled(r) or wait or is_open(ws.dir) or not (mark_next or why):
+    if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges)
+            or not (is_open(ws.dir) or mark_next or why)):
         talk.say()
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)

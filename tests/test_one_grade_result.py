@@ -89,3 +89,11 @@ def test_measure_names_fix_only_once_fix_can_run(one_grade, capsys, pages):
     assert lines[-5:] == ["", "You have not marked enough answers yet to fix your",
                           "LLM-as-a-judge.", "",
                           "Next: run `judgekeeper mark` to mark more answers."], out
+
+
+def test_no_ranges_to_narrow_when_none_is_shown(one_grade, capsys, pages):
+    run(capsys, "--no-browser")
+    _mark(one_grade, ["pass"] * 4 + ["fail"])
+    _, out, _ = run(capsys)
+    assert "make these ranges narrower" not in flat(out)
+    assert "\n\n\n" not in out  # no empty line left in its place
