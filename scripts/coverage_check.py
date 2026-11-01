@@ -590,12 +590,14 @@ def false_worse(n: int, right: float, wobble: float) -> dict:
     the judge is right does not enter: unchanged, it is as often right as before.)"""
     turn_wrong = turn_right = wobble / 2
     worse = exits = 0.0
-    for k_wrong, p_wrong in enumerate(targets._pmf(n, turn_wrong)):
+    first, chances = targets._pmf(n, turn_wrong)
+    for k_wrong, p_wrong in enumerate(chances, start=first):
         if p_wrong < 1e-15:
             continue
         rest = n - k_wrong
         share = turn_right / (1 - turn_wrong) if turn_wrong < 1 else 0.0
-        for k_right, p_right in enumerate(targets._pmf(rest, share)):
+        start, rights = targets._pmf(rest, share)
+        for k_right, p_right in enumerate(rights, start=start):
             if p_right < 1e-15:
                 continue
             v = targets.paired_verdict(k_right, k_wrong, n)
