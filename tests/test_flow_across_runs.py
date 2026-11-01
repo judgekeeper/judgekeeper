@@ -159,20 +159,24 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
 
 
 def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
+    """Every answer marked: the numbers are about those answers, so they have no range (and
+    never say "exactly"), and the result is never "too early to tell"."""
     from tests.start_projects import promptfoo_project
 
     promptfoo_project(here, split(20, 20))
     assert _jk(capsys)[0] == 0
     _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
     code, out = _jk(capsys)
-    assert "Result: too early to tell." in out
+    assert "Result: your LLM-as-a-judge is good enough to use." in out  # 17 of 20 each side
+    assert "it also says Pass: 85% (you marked every answer)" in out
+    assert "about" not in out and "between" not in out and "exactly" not in out
+    html = Workspace(here).report_html.read_text(encoding="utf-8")
+    assert "85% (you marked every answer)" in html and "exactly" not in html
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
-    assert code == 3  # its Next: line asks for more questions: as the reference's table says
+    assert code == 0
     reference = (Path(__file__).parents[1] / "docs" / "reference.md").read_text(encoding="utf-8")
-    row = next(line for line in reference.splitlines()
-               if line.startswith("| Every answer marked, enough of each kind, too early"))
-    assert "(exit 3)" in row and "Run your eval on more questions" in row
+    assert "| Every answer marked, enough of each kind, too early" not in reference
 
 
 def test_the_page_line_never_says_mark_more_once_every_answer_is_marked(here, capsys):
@@ -247,7 +251,7 @@ def _own_jsonl(path, rule: str) -> None:
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
 
-def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, capsys):
+def test_report_after_a_check_says_how_many_you_disagreed_on(here, capsys):
     _own_jsonl(here / "judge.jsonl", "v1")
     assert _jk(capsys)[0] == 0
     _mark(Workspace(here), {k: "pass" if k % 3 else "fail" for k in range(60)})  # 40 and 20
@@ -256,7 +260,6 @@ def test_report_after_a_too_early_check_says_how_many_you_disagreed_on(here, cap
     code, out = _check(capsys)
     assert code == 0 and "grades changed on 12" in flat(out), out
     report = re.sub(r"<[^>]+>", "", _report(here))
-    assert "Too early to tell." in report
     assert "You and your LLM-as-a-judge disagreed on 6 of 60 answers." in report
     terminal = flat(_jk(capsys)[1])
     assert "You and your LLM-as-a-judge disagreed on 6 of 60 answers." in terminal

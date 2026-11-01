@@ -8,8 +8,9 @@ are each no wider than MAX_WIDTH. The words for a number follow its range's widt
 range for a paired difference (90%), which works with zero cells too; the worst drop the marks
 could hide is always said. `smallest_drop` is worked out exactly, with no random numbers.
 `fix_verdict` tests a new rule on the hidden marks: the exact sign test, then Tango's test for
-"safe to try"; each extra rule on the same marks divides the levels, so trying rule after
-rule does not turn a coincidence into "better".
+"safe to try", on counts weighted to the whole set of answers (`weighted_counts`); each extra
+rule on the same marks divides the levels, so trying rule after rule does not turn a
+coincidence into "better".
 
 The width cut-offs are a judgement, kept as names so they can change after real use.
 """
@@ -32,10 +33,6 @@ SHARP_WIDTH = 0.20  # this wide or less: sharp
 
 # The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
 RATE_GATE = 0.80
-# The thresholds of the committed LLMBar example report;
-# the verdict here uses neither (kappa moves with how many answers pass).
-KAPPA_GATE = 0.6
-RATE_CARE = 0.90
 
 # A re-check: the paired range and the margin a drop must stay within (see the top)
 PAIRED_LEVEL = 0.90
@@ -98,43 +95,6 @@ def level(tpr_interval, tnr_interval) -> str:
     if None in sides or "too_wide" in (width_word(tpr_interval), width_word(tnr_interval)):
         return "too_early"
     return "gate" if sides == ["yes", "yes"] else "check"
-
-
-# A range for a share that stays honest however often it is looked at while marks come in: a
-# message shown while the person is still marking that compares a number with the bar must use
-# it. Robbins' mixture: the chance of k of n under a uniform mix of shares, against the chance
-# under the share p; p is in the range while that ratio stays under 1/ANYTIME_ALPHA.
-ANYTIME_ALPHA = 0.05
-
-
-def _log_mixture(p: float, k: int, n: int) -> float:
-    """log of B(k + 1, n - k + 1) / (p^k (1 - p)^(n - k))."""
-    if p <= 0 or p >= 1:
-        return math.inf if (k if p <= 0 else n - k) else -math.inf
-    log_beta = math.lgamma(k + 1) + math.lgamma(n - k + 1) - math.lgamma(n + 2)
-    return log_beta - k * math.log(p) - (n - k) * math.log1p(-p)
-
-
-def anytime_holds(p: float, k: int, n: int, alpha: float = ANYTIME_ALPHA) -> bool:
-    """Whether the share p is in the anytime range for k of n."""
-    return _log_mixture(p, k, n) < math.log(1 / alpha)
-
-
-def anytime_range(k: int, n: int, alpha: float = ANYTIME_ALPHA) -> tuple[float, float]:
-    """The anytime range for k of n: each end found by halving, from the share k / n (always
-    in it) outwards."""
-    seen = k / n
-
-    def end(inside: float, outside: float) -> float:
-        for _ in range(60):
-            mid = (inside + outside) / 2
-            if anytime_holds(mid, k, n, alpha):
-                inside = mid
-            else:
-                outside = mid
-        return inside
-
-    return end(seen, 0.0), end(seen, 1.0)
 
 
 def slip_rate(changed: float) -> float:
@@ -332,6 +292,7 @@ class FixVerdict:
     fixed: int
     broke: int
     n: int
+    strata: tuple = ()  # (pool, fixed, broke, kept aside) per group, when weighted
 
 
 def sign_p(fixed: int, broke: int) -> float:
@@ -354,23 +315,39 @@ def tango_z(fixed: int, broke: int, n: int, delta0: float) -> float:
     return 0.0 if var <= 0 else (fixed - broke - n * delta0) / math.sqrt(var)
 
 
-def fix_verdict(fixed: int, broke: int, n: int, test: int = 1) -> FixVerdict:
+def weighted_counts(strata) -> tuple[float, float, float]:
+    """(fixed, broke, n) for the tests, weighted to the whole set of answers. `strata`: per
+    group the marks were picked from, (its pool N_s, fixed, broke, marks kept aside h_s). Each
+    kept-aside mark weighs N_s / h_s, as the numbers weigh it, scaled so the weights add up to
+    the effective number of marks, (sum w)^2 / sum w^2 (Kish): unequal weights hold less than
+    as many equal ones. Equal weights give the plain counts. A group with no mark kept aside
+    weighs nothing."""
+    live = [(N, f, b, h) for N, f, b, h in strata if N > 0 and h > 0]
+    total = sum(N for N, *_ in live)
+    if not total:
+        return 0.0, 0.0, 0.0
+    n_eff = total ** 2 / sum(N * N / h for N, _, _, h in live)
+    fixed = sum(N * f / h for N, f, _, h in live) * n_eff / total
+    broke = sum(N * b / h for N, _, b, h in live) * n_eff / total
+    return fixed, broke, n_eff
+
+
+def fix_verdict(fixed: int, broke: int, n: int, test: int = 1,
+                strata=None) -> FixVerdict:
     """The verdict on a new rule from `n` hidden marks; `test` is how many tests these marks
-    have now served, this one included."""
+    have now served, this one included. With `strata` (see weighted_counts) the tests run on
+    the weighted counts, the sign test on them rounded; the verdict keeps the plain counts,
+    which are what the person is shown."""
     k = max(1, test)
-    if sign_p(fixed, broke) < SIGN_LEVEL / k:
-        kind = "better" if fixed > broke else "worse"
-    elif n and tango_z(fixed, broke, n, -SAFE_MARGIN) > NormalDist().inv_cdf(1 - SAFE_LEVEL / k):
+    f, b, size = weighted_counts(strata) if strata else (fixed, broke, n)
+    if sign_p(round(f), round(b)) < SIGN_LEVEL / k:
+        kind = "better" if f > b else "worse"
+    elif size and tango_z(f, b, size, -SAFE_MARGIN) > NormalDist().inv_cdf(1 - SAFE_LEVEL / k):
         kind = "safe"
-    elif fixed > broke:
+    elif f > b:
         kind = "leans better"
-    elif fixed == broke:
+    elif f == b:
         kind = "same"
     else:
         kind = "leans worse"
-    return FixVerdict(kind, fixed, broke, n)
-
-
-def top_up(n: int) -> int:
-    """How many more marks most often settle a "can't tell yet" on `n` hidden marks."""
-    return 7 if n <= 12 else 9
+    return FixVerdict(kind, fixed, broke, n, tuple(tuple(s) for s in strata or ()))

@@ -680,6 +680,9 @@ LEVEL_WORDS = {"usable": "usable as a gate", "usable_with_care": "usable with ca
                "not_trustworthy": "not trustworthy as a gate"}
 
 
+LLMBAR_KAPPA, LLMBAR_CARE = 0.6, 0.90  # the report's own thresholds; the tool uses neither
+
+
 def _llmbar_report() -> dict:
     return json.loads(LLMBAR.read_text(encoding="utf-8"))
 
@@ -691,9 +694,9 @@ def test_llmbar_report_verdict_follows_the_current_thresholds():
     report = _llmbar_report()
     h = report["headline"]
     low = min(h["tpr_mean"], h["tnr_mean"])
-    if low < targets.RATE_GATE or h["kappa_mean"] < targets.KAPPA_GATE:
+    if low < targets.RATE_GATE or h["kappa_mean"] < LLMBAR_KAPPA:
         level = "not_trustworthy"
-    elif low < targets.RATE_CARE:
+    elif low < LLMBAR_CARE:
         level = "usable_with_care"
     else:
         level = "usable"

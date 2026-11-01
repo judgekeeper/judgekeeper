@@ -2,219 +2,616 @@
 
 Written by `scripts/kept_aside_check.py`; do not edit by hand.
 
-`judgekeeper fix` keeps half of each group of marks aside (rounded up, at least 5 Pass and 5 Fail) and tests a new rule on those only. Here, made-up cases go through judgekeeper's own split and its own verdict, with new rules whose true effect is known. How many marks a clear answer needs depends on how much better or worse the new rule is: small improvements need many more marks. 20,000 made-up cases per row, seed 20261027, commit `461272c`. No AI call.
+`judgekeeper fix` keeps half of each group of marks aside (rounded up, at least 5 Pass and 5 Fail) and tests a new rule on those only. Here, made-up cases go through judgekeeper's own split and its own verdict, with new rules whose true effect is known. How many marks a clear answer needs depends on how much better or worse the new rule is: small improvements need many more marks. Marks come as the marking page offers them: 15 the LLM-as-a-judge passed and 15 it failed first, then in the pool's own mix; the LLM-as-a-judge passes 50% or 80% of 10,000 answers. 20,000 made-up cases per row, seed 20261027, commit `d71d89c`. No AI call.
 
 ## The result
 
-A new rule that fixes almost all of the LLM-as-a-judge's mistakes (9 in 10) and breaks 2 in 100 of its right answers gets a clear answer (not "can't tell yet") most of the time from 50 marks; one that fixes a quarter needs 80; one that fixes 1 in 10 and breaks 5 in 100 needs more than 120. With 80 marks, the quarter rule reads "safe to try" in 58.5 to 83.0 cases in 100 and "better" in 0.0 to 4.6. A large fix of a clearly wrong rule (one that fixes about 9 in 10 of the mistakes of an LLM-as-a-judge agreeing 70% of the time, and breaks about 2 in 100 right answers) reads "better" in 95.2 cases in 100 with 80 marks, and "safe to try" in 4.8. A rule that is truly the same or worse is called "better" in at most 0.1 cases in 100, and one that is truly the same or better is called "worse" in at most 0.2: rare but not zero, and only for rules within 6.0 points of no change. A worse rule can still slip through: one that fixes nothing and breaks 1 in 10 right answers is caught ("worse") in only 24.8 to 46.7 cases in 100 with 120 marks, and reads "safe to try" (not more than 10 points worse) in 2.1 to 7.0.
+A new rule that fixes almost all of the LLM-as-a-judge's mistakes (9 in 10) and breaks 2 in 100 of its right answers gets a clear answer (not "can't tell yet") most of the time from 80 marks; one that fixes a quarter needs 80; one that fixes 1 in 10 and breaks 5 in 100 needs 160. With 80 marks, the quarter rule reads "safe to try" in 58.5 to 83.0 cases in 100 and "better" in 0.0 to 4.6. A large fix of a clearly wrong rule (one that fixes about 9 in 10 of the mistakes of an LLM-as-a-judge agreeing 70% of the time and passing 50% of the answers, and breaks about 2 in 100 right answers) reads "better" in 95.2 cases in 100 with 80 marks, and "safe to try" in 4.8. A rule that is truly the same or worse is called "better" in at most 0.6 cases in 100, and one that is truly the same or better is called "worse" in at most 0.5: rare but not zero, and only for rules within 6.8 points of no change. A rule that fixes 9 in 10 of the mistakes among the answers the LLM-as-a-judge failed, but breaks 1 in 4 right answers among those it passed, is 12.4 to 16.2 points worse on the whole set of answers where the LLM-as-a-judge passes most of them; there it reads "safe to try" or "better" in at most 0.8 cases in 100 at any marks tried. The marks hold many of its fails, so each one is weighted to the whole set. A worse rule can still slip through: one that fixes nothing and breaks 1 in 10 right answers is caught ("worse") in only 71.2 to 90.0 cases in 100 with 200 marks, and reads "safe to try" (not more than 10 points worse) in 3.5 to 15.8.
 
 ## Marks for a clear answer
 
-The fewest marks tried (30, 50, 80, 120) at which `fix` gives a clear answer most of the time, whether the LLM-as-a-judge agrees with the person 70%, 80% or 90% of the time, and there how often it says each, in 100 cases (low to high over the agreements). New rule: of the answers kept aside, the share of the LLM-as-a-judge's mistakes it fixes and the share of its right answers it breaks.
+The fewest marks tried (30, 50, 80, 120, 160, 200) at which `fix` gives a clear answer most of the time, whether the LLM-as-a-judge agrees with the person 70%, 80% or 90% of the time and whatever share it passes, and there how often it says each, in 100 cases (low to high over those). New rule: of the answers kept aside, the share of the LLM-as-a-judge's mistakes it fixes and the share of its right answers it breaks.
 
 | New rule | Marks | Better | Safe to try | Can't tell yet | Worse |
 |---|---|---|---|---|---|
 | fixes 10%, breaks 0% | 80 | 0.0 to 0.1 | 99.9 to 100.0 | 0.0 | 0.0 |
-| fixes 10%, breaks 2% | 80 | 0.0 to 0.1 | 50.7 to 67.9 | 32.0 to 49.3 | 0.0 |
-| fixes 10%, breaks 5% | more than 120 | | | | |
-| fixes 25%, breaks 0% | 80 | 0.0 to 7.5 | 92.5 to 100.0 | 0.0 | 0.0 |
-| fixes 25%, breaks 2% | 80 | 0.0 to 4.6 | 58.5 to 83.0 | 12.5 to 41.4 | 0.0 |
-| fixes 25%, breaks 5% | 120 | 0.0 to 6.0 | 49.3 to 81.2 | 12.7 to 49.5 | 0.0 to 1.2 |
-| fixes 50%, breaks 0% | 50 | 0.0 to 18.0 | 74.4 to 93.3 | 0.8 to 25.6 | 0.0 |
-| fixes 50%, breaks 2% | 50 | 0.0 to 13.2 | 50.9 to 77.9 | 8.9 to 49.0 | 0.0 |
-| fixes 50%, breaks 5% | 120 | 0.6 to 46.3 | 52.3 to 78.0 | 1.4 to 33.8 | 0.0 to 0.2 |
-| fixes 90%, breaks 0% | 50 | 1.0 to 84.2 | 15.8 to 89.6 | 0.0 to 9.4 | 0.0 |
-| fixes 90%, breaks 2% | 50 | 0.8 to 69.4 | 29.9 to 70.1 | 0.7 to 30.9 | 0.0 |
-| fixes 90%, breaks 5% | 80 | 2.6 to 81.9 | 17.7 to 62.6 | 0.4 to 34.8 | 0.0 |
-| fixes 0%, breaks 10% | more than 120 | | | | |
-| fixes 0%, breaks 25% | 80 | 0.0 | 0.0 | 8.3 to 25.8 | 74.1 to 91.7 |
-| no real change | 120 | 0.0 to 0.1 | 72.7 to 92.7 | 7.3 to 27.0 | 0.0 to 0.1 |
+| fixes 10%, breaks 2% | 80 | 0.0 to 0.1 | 50.7 to 68.2 | 31.7 to 49.3 | 0.0 |
+| fixes 10%, breaks 5% | 160 | 0.0 to 0.2 | 44.8 to 78.5 | 20.6 to 48.0 | 0.6 to 7.7 |
+| fixes 25%, breaks 0% | 80 | 0.0 to 7.8 | 92.2 to 100.0 | 0.0 | 0.0 |
+| fixes 25%, breaks 2% | 80 | 0.0 to 4.6 | 58.5 to 83.0 | 12.4 to 41.4 | 0.0 |
+| fixes 25%, breaks 5% | 160 | 0.0 to 10.1 | 60.1 to 85.1 | 4.8 to 37.6 | 0.0 to 2.5 |
+| fixes 50%, breaks 0% | 80 | 0.8 to 62.9 | 37.1 to 99.2 | 0.0 | 0.0 |
+| fixes 50%, breaks 2% | 80 | 0.4 to 44.1 | 54.2 to 79.8 | 1.6 to 27.9 | 0.0 |
+| fixes 50%, breaks 5% | 120 | 0.5 to 46.3 | 52.2 to 77.9 | 1.4 to 35.7 | 0.0 to 0.2 |
+| fixes 90%, breaks 0% | 50 | 0.2 to 84.2 | 15.8 to 82.7 | 0.0 to 32.4 | 0.0 |
+| fixes 90%, breaks 2% | 80 | 6.0 to 95.2 | 4.8 to 83.3 | 0.0 to 10.7 | 0.0 |
+| fixes 90%, breaks 5% | 80 | 2.1 to 81.9 | 17.7 to 62.0 | 0.4 to 37.2 | 0.0 |
+| fixes 0%, breaks 10% | 160 | 0.0 | 1.9 to 8.9 | 23.4 to 43.8 | 47.3 to 74.7 |
+| fixes 0%, breaks 25% | 80 | 0.0 | 0.0 | 8.3 to 28.2 | 71.8 to 91.7 |
+| no real change | 120 | 0.0 to 0.1 | 69.2 to 92.7 | 7.3 to 30.5 | 0.0 to 0.1 |
+| fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | more than 200 | | | | |
 
 ## How often `fix` says each, in 100 cases
 
-True change: the points of agreement with the person the new rule really gains or loses. Agrees: how often the LLM-as-a-judge agrees with the person. Kept aside: the marks kept aside, on average.
+True change: the points of agreement with the person the new rule really gains or loses on the whole pool. Agrees: how often the LLM-as-a-judge agrees with the person. Passes: the share of the pool it passed. Kept aside: the marks kept aside, on average.
 
-| Marks | Agrees | New rule | True change | Kept aside | Better | Safe to try | Can't tell yet | Worse |
-|---|---|---|---|---|---|---|---|---|
-| 30 | 70% | fixes 10%, breaks 0% | +3.0 | 16 | 0.0 | 8.4 | 91.6 | 0.0 |
-| 30 | 70% | fixes 10%, breaks 2% | +1.6 | 16 | 0.0 | 6.9 | 93.1 | 0.0 |
-| 30 | 70% | fixes 10%, breaks 5% | -0.5 | 16 | 0.0 | 4.6 | 95.4 | 0.0 |
-| 30 | 70% | fixes 25%, breaks 0% | +7.5 | 16 | 0.0 | 35.4 | 64.6 | 0.0 |
-| 30 | 70% | fixes 25%, breaks 2% | +6.1 | 16 | 0.0 | 28.8 | 71.2 | 0.0 |
-| 30 | 70% | fixes 25%, breaks 5% | +4.0 | 16 | 0.0 | 20.8 | 79.2 | 0.0 |
-| 30 | 70% | fixes 50%, breaks 0% | +15.0 | 16 | 1.5 | 74.4 | 24.0 | 0.0 |
-| 30 | 70% | fixes 50%, breaks 2% | +13.6 | 16 | 1.2 | 61.0 | 37.7 | 0.0 |
-| 30 | 70% | fixes 50%, breaks 5% | +11.5 | 16 | 0.8 | 45.5 | 53.7 | 0.0 |
-| 30 | 70% | fixes 90%, breaks 0% | +27.0 | 16 | 22.9 | 75.4 | 1.7 | 0.0 |
-| 30 | 70% | fixes 90%, breaks 2% | +25.6 | 16 | 18.3 | 68.5 | 13.2 | 0.0 |
-| 30 | 70% | fixes 90%, breaks 5% | +23.5 | 16 | 14.2 | 58.0 | 27.8 | 0.0 |
-| 30 | 70% | fixes 0%, breaks 10% | -7.0 | 16 | 0.0 | 0.0 | 100.0 | 0.0 |
-| 30 | 70% | fixes 0%, breaks 25% | -17.5 | 16 | 0.0 | 0.0 | 96.2 | 3.8 |
-| 30 | 70% | no real change | -0.0 | 16 | 0.0 | 5.2 | 94.8 | 0.0 |
-| 50 | 70% | fixes 10%, breaks 0% | +3.0 | 26 | 0.0 | 56.3 | 43.7 | 0.0 |
-| 50 | 70% | fixes 10%, breaks 2% | +1.6 | 26 | 0.0 | 40.7 | 59.3 | 0.0 |
-| 50 | 70% | fixes 10%, breaks 5% | -0.5 | 26 | 0.0 | 24.2 | 75.8 | 0.0 |
-| 50 | 70% | fixes 25%, breaks 0% | +7.5 | 26 | 0.8 | 87.5 | 11.6 | 0.0 |
-| 50 | 70% | fixes 25%, breaks 2% | +6.1 | 26 | 0.6 | 69.1 | 30.3 | 0.0 |
-| 50 | 70% | fixes 25%, breaks 5% | +4.0 | 26 | 0.4 | 47.9 | 51.7 | 0.0 |
-| 50 | 70% | fixes 50%, breaks 0% | +15.0 | 26 | 18.0 | 81.3 | 0.8 | 0.0 |
-| 50 | 70% | fixes 50%, breaks 2% | +13.6 | 26 | 13.2 | 77.9 | 8.9 | 0.0 |
-| 50 | 70% | fixes 50%, breaks 5% | +11.5 | 26 | 8.0 | 68.1 | 23.9 | 0.0 |
-| 50 | 70% | fixes 90%, breaks 0% | +27.0 | 26 | 84.2 | 15.8 | 0.0 | 0.0 |
-| 50 | 70% | fixes 90%, breaks 2% | +25.6 | 26 | 69.4 | 29.9 | 0.7 | 0.0 |
-| 50 | 70% | fixes 90%, breaks 5% | +23.5 | 26 | 51.3 | 44.8 | 3.9 | 0.0 |
-| 50 | 70% | fixes 0%, breaks 10% | -7.0 | 26 | 0.0 | 0.0 | 99.3 | 0.7 |
-| 50 | 70% | fixes 0%, breaks 25% | -17.5 | 26 | 0.0 | 0.0 | 71.4 | 28.6 |
-| 50 | 70% | no real change | -0.0 | 26 | 0.0 | 27.4 | 72.6 | 0.0 |
-| 80 | 70% | fixes 10%, breaks 0% | +3.0 | 41 | 0.1 | 99.9 | 0.0 | 0.0 |
-| 80 | 70% | fixes 10%, breaks 2% | +1.6 | 41 | 0.1 | 67.9 | 32.0 | 0.0 |
-| 80 | 70% | fixes 10%, breaks 5% | -0.5 | 41 | 0.0 | 36.6 | 63.3 | 0.1 |
-| 80 | 70% | fixes 25%, breaks 0% | +7.5 | 41 | 7.5 | 92.5 | 0.0 | 0.0 |
-| 80 | 70% | fixes 25%, breaks 2% | +6.1 | 41 | 4.6 | 83.0 | 12.5 | 0.0 |
-| 80 | 70% | fixes 25%, breaks 5% | +4.0 | 41 | 2.2 | 61.7 | 36.1 | 0.0 |
-| 80 | 70% | fixes 50%, breaks 0% | +15.0 | 41 | 62.9 | 37.1 | 0.0 | 0.0 |
-| 80 | 70% | fixes 50%, breaks 2% | +13.6 | 41 | 44.1 | 54.3 | 1.6 | 0.0 |
-| 80 | 70% | fixes 50%, breaks 5% | +11.5 | 41 | 26.3 | 64.8 | 8.8 | 0.0 |
-| 80 | 70% | fixes 90%, breaks 0% | +27.0 | 41 | 99.7 | 0.3 | 0.0 | 0.0 |
-| 80 | 70% | fixes 90%, breaks 2% | +25.6 | 41 | 95.2 | 4.8 | 0.0 | 0.0 |
-| 80 | 70% | fixes 90%, breaks 5% | +23.5 | 41 | 81.9 | 17.7 | 0.4 | 0.0 |
-| 80 | 70% | fixes 0%, breaks 10% | -7.0 | 41 | 0.0 | 5.2 | 88.6 | 6.2 |
-| 80 | 70% | fixes 0%, breaks 25% | -17.5 | 41 | 0.0 | 0.0 | 25.8 | 74.1 |
-| 80 | 70% | no real change | -0.0 | 41 | 0.0 | 42.5 | 57.4 | 0.1 |
-| 120 | 70% | fixes 10%, breaks 0% | +3.0 | 61 | 0.9 | 99.1 | 0.0 | 0.0 |
-| 120 | 70% | fixes 10%, breaks 2% | +1.6 | 61 | 0.4 | 93.0 | 6.6 | 0.0 |
-| 120 | 70% | fixes 10%, breaks 5% | -0.5 | 61 | 0.1 | 65.3 | 34.2 | 0.3 |
-| 120 | 70% | fixes 25%, breaks 0% | +7.5 | 61 | 31.6 | 68.5 | 0.0 | 0.0 |
-| 120 | 70% | fixes 25%, breaks 2% | +6.1 | 61 | 16.0 | 82.6 | 1.4 | 0.0 |
-| 120 | 70% | fixes 25%, breaks 5% | +4.0 | 61 | 6.0 | 81.2 | 12.7 | 0.0 |
-| 120 | 70% | fixes 50%, breaks 0% | +15.0 | 61 | 94.2 | 5.8 | 0.0 | 0.0 |
-| 120 | 70% | fixes 50%, breaks 2% | +13.6 | 61 | 74.9 | 25.0 | 0.0 | 0.0 |
-| 120 | 70% | fixes 50%, breaks 5% | +11.5 | 61 | 46.3 | 52.3 | 1.4 | 0.0 |
-| 120 | 70% | fixes 90%, breaks 0% | +27.0 | 61 | 100.0 | 0.0 | 0.0 | 0.0 |
-| 120 | 70% | fixes 90%, breaks 2% | +25.6 | 61 | 99.7 | 0.3 | 0.0 | 0.0 |
-| 120 | 70% | fixes 90%, breaks 5% | +23.5 | 61 | 96.8 | 3.2 | 0.0 | 0.0 |
-| 120 | 70% | fixes 0%, breaks 10% | -7.0 | 61 | 0.0 | 7.0 | 68.2 | 24.8 |
-| 120 | 70% | fixes 0%, breaks 25% | -17.5 | 61 | 0.0 | 0.0 | 3.3 | 96.7 |
-| 120 | 70% | no real change | -0.0 | 61 | 0.1 | 72.7 | 27.0 | 0.1 |
-| 30 | 80% | fixes 10%, breaks 0% | +2.0 | 16 | 0.0 | 3.8 | 96.2 | 0.0 |
-| 30 | 80% | fixes 10%, breaks 2% | +0.4 | 16 | 0.0 | 3.1 | 96.9 | 0.0 |
-| 30 | 80% | fixes 10%, breaks 5% | -2.0 | 16 | 0.0 | 2.2 | 97.8 | 0.0 |
-| 30 | 80% | fixes 25%, breaks 0% | +5.0 | 16 | 0.0 | 19.2 | 80.8 | 0.0 |
-| 30 | 80% | fixes 25%, breaks 2% | +3.4 | 16 | 0.0 | 15.0 | 85.0 | 0.0 |
-| 30 | 80% | fixes 25%, breaks 5% | +1.0 | 16 | 0.0 | 10.7 | 89.3 | 0.0 |
-| 30 | 80% | fixes 50%, breaks 0% | +10.0 | 16 | 0.1 | 50.5 | 49.4 | 0.0 |
-| 30 | 80% | fixes 50%, breaks 2% | +8.4 | 16 | 0.0 | 40.4 | 59.5 | 0.0 |
-| 30 | 80% | fixes 50%, breaks 5% | +6.0 | 16 | 0.1 | 28.0 | 71.9 | 0.0 |
-| 30 | 80% | fixes 90%, breaks 0% | +18.0 | 16 | 2.3 | 82.6 | 15.1 | 0.0 |
-| 30 | 80% | fixes 90%, breaks 2% | +16.4 | 16 | 2.2 | 66.3 | 31.5 | 0.0 |
-| 30 | 80% | fixes 90%, breaks 5% | +14.0 | 16 | 1.5 | 48.0 | 50.5 | 0.0 |
-| 30 | 80% | fixes 0%, breaks 10% | -8.0 | 16 | 0.0 | 0.0 | 99.9 | 0.1 |
-| 30 | 80% | fixes 0%, breaks 25% | -20.0 | 16 | 0.0 | 0.0 | 93.0 | 7.0 |
-| 30 | 80% | no real change | +0.0 | 16 | 0.0 | 2.8 | 97.2 | 0.0 |
-| 50 | 80% | fixes 10%, breaks 0% | +2.0 | 26 | 0.0 | 42.8 | 57.2 | 0.0 |
-| 50 | 80% | fixes 10%, breaks 2% | +0.4 | 26 | 0.0 | 29.3 | 70.7 | 0.0 |
-| 50 | 80% | fixes 10%, breaks 5% | -2.0 | 26 | 0.0 | 15.8 | 84.1 | 0.0 |
-| 50 | 80% | fixes 25%, breaks 0% | +5.0 | 26 | 0.1 | 77.3 | 22.6 | 0.0 |
-| 50 | 80% | fixes 25%, breaks 2% | +3.4 | 26 | 0.1 | 54.7 | 45.3 | 0.0 |
-| 50 | 80% | fixes 25%, breaks 5% | +1.0 | 26 | 0.0 | 32.8 | 67.2 | 0.0 |
-| 50 | 80% | fixes 50%, breaks 0% | +10.0 | 26 | 2.8 | 93.3 | 3.9 | 0.0 |
-| 50 | 80% | fixes 50%, breaks 2% | +8.4 | 26 | 2.0 | 76.3 | 21.7 | 0.0 |
-| 50 | 80% | fixes 50%, breaks 5% | +6.0 | 26 | 1.1 | 54.9 | 44.0 | 0.0 |
-| 50 | 80% | fixes 90%, breaks 0% | +18.0 | 26 | 34.8 | 65.1 | 0.1 | 0.0 |
-| 50 | 80% | fixes 90%, breaks 2% | +16.4 | 26 | 24.7 | 70.1 | 5.2 | 0.0 |
-| 50 | 80% | fixes 90%, breaks 5% | +14.0 | 26 | 14.1 | 67.9 | 18.0 | 0.0 |
-| 50 | 80% | fixes 0%, breaks 10% | -8.0 | 26 | 0.0 | 0.0 | 98.8 | 1.2 |
-| 50 | 80% | fixes 0%, breaks 25% | -20.0 | 26 | 0.0 | 0.0 | 59.7 | 40.3 |
-| 50 | 80% | no real change | +0.0 | 26 | 0.0 | 25.3 | 74.7 | 0.0 |
-| 80 | 80% | fixes 10%, breaks 0% | +2.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
-| 80 | 80% | fixes 10%, breaks 2% | +0.4 | 41 | 0.0 | 59.5 | 40.5 | 0.0 |
-| 80 | 80% | fixes 10%, breaks 5% | -2.0 | 41 | 0.0 | 26.3 | 73.4 | 0.2 |
-| 80 | 80% | fixes 25%, breaks 0% | +5.0 | 41 | 1.3 | 98.7 | 0.0 | 0.0 |
-| 80 | 80% | fixes 25%, breaks 2% | +3.4 | 41 | 0.8 | 75.2 | 24.1 | 0.0 |
-| 80 | 80% | fixes 25%, breaks 5% | +1.0 | 41 | 0.2 | 44.4 | 55.3 | 0.1 |
-| 80 | 80% | fixes 50%, breaks 0% | +10.0 | 41 | 22.4 | 77.6 | 0.0 | 0.0 |
-| 80 | 80% | fixes 50%, breaks 2% | +8.4 | 41 | 12.9 | 79.9 | 7.2 | 0.0 |
-| 80 | 80% | fixes 50%, breaks 5% | +6.0 | 41 | 6.0 | 67.2 | 26.7 | 0.0 |
-| 80 | 80% | fixes 90%, breaks 0% | +18.0 | 41 | 88.1 | 11.9 | 0.0 | 0.0 |
-| 80 | 80% | fixes 90%, breaks 2% | +16.4 | 41 | 66.1 | 33.5 | 0.4 | 0.0 |
-| 80 | 80% | fixes 90%, breaks 5% | +14.0 | 41 | 38.1 | 57.0 | 4.9 | 0.0 |
-| 80 | 80% | fixes 0%, breaks 10% | -8.0 | 41 | 0.0 | 3.5 | 86.5 | 10.0 |
-| 80 | 80% | fixes 0%, breaks 25% | -20.0 | 41 | 0.0 | 0.0 | 14.5 | 85.5 |
-| 80 | 80% | no real change | +0.0 | 41 | 0.0 | 51.7 | 48.3 | 0.0 |
-| 120 | 80% | fixes 10%, breaks 0% | +2.0 | 61 | 0.1 | 99.9 | 0.0 | 0.0 |
-| 120 | 80% | fixes 10%, breaks 2% | +0.4 | 61 | 0.1 | 88.2 | 11.8 | 0.0 |
-| 120 | 80% | fixes 10%, breaks 5% | -2.0 | 61 | 0.0 | 51.5 | 47.4 | 1.1 |
-| 120 | 80% | fixes 25%, breaks 0% | +5.0 | 61 | 7.8 | 92.2 | 0.0 | 0.0 |
-| 120 | 80% | fixes 25%, breaks 2% | +3.4 | 61 | 3.4 | 92.5 | 4.1 | 0.0 |
-| 120 | 80% | fixes 25%, breaks 5% | +1.0 | 61 | 1.0 | 70.1 | 28.8 | 0.1 |
-| 120 | 80% | fixes 50%, breaks 0% | +10.0 | 61 | 62.1 | 37.9 | 0.0 | 0.0 |
-| 120 | 80% | fixes 50%, breaks 2% | +8.4 | 61 | 34.5 | 64.9 | 0.6 | 0.0 |
-| 120 | 80% | fixes 50%, breaks 5% | +6.0 | 61 | 13.4 | 78.0 | 8.6 | 0.0 |
-| 120 | 80% | fixes 90%, breaks 0% | +18.0 | 61 | 99.6 | 0.4 | 0.0 | 0.0 |
-| 120 | 80% | fixes 90%, breaks 2% | +16.4 | 61 | 89.4 | 10.6 | 0.0 | 0.0 |
-| 120 | 80% | fixes 90%, breaks 5% | +14.0 | 61 | 62.6 | 36.9 | 0.5 | 0.0 |
-| 120 | 80% | fixes 0%, breaks 10% | -8.0 | 61 | 0.0 | 3.9 | 60.7 | 35.4 |
-| 120 | 80% | fixes 0%, breaks 25% | -20.0 | 61 | 0.0 | 0.0 | 0.9 | 99.1 |
-| 120 | 80% | no real change | +0.0 | 61 | 0.0 | 82.9 | 17.1 | 0.1 |
-| 30 | 90% | fixes 10%, breaks 0% | +1.0 | 15 | 0.0 | 0.8 | 99.2 | 0.0 |
-| 30 | 90% | fixes 10%, breaks 2% | -0.8 | 15 | 0.0 | 0.7 | 99.3 | 0.0 |
-| 30 | 90% | fixes 10%, breaks 5% | -3.5 | 15 | 0.0 | 0.5 | 99.5 | 0.0 |
-| 30 | 90% | fixes 25%, breaks 0% | +2.5 | 15 | 0.0 | 4.3 | 95.7 | 0.0 |
-| 30 | 90% | fixes 25%, breaks 2% | +0.7 | 15 | 0.0 | 3.4 | 96.7 | 0.0 |
-| 30 | 90% | fixes 25%, breaks 5% | -2.0 | 15 | 0.0 | 2.1 | 97.9 | 0.0 |
-| 30 | 90% | fixes 50%, breaks 0% | +5.0 | 15 | 0.0 | 14.7 | 85.3 | 0.0 |
-| 30 | 90% | fixes 50%, breaks 2% | +3.2 | 15 | 0.0 | 11.1 | 88.9 | 0.0 |
-| 30 | 90% | fixes 50%, breaks 5% | +0.5 | 15 | 0.0 | 7.6 | 92.4 | 0.0 |
-| 30 | 90% | fixes 90%, breaks 0% | +9.0 | 15 | 0.0 | 34.6 | 65.3 | 0.0 |
-| 30 | 90% | fixes 90%, breaks 2% | +7.2 | 15 | 0.0 | 27.2 | 72.8 | 0.0 |
-| 30 | 90% | fixes 90%, breaks 5% | +4.5 | 15 | 0.0 | 17.9 | 82.1 | 0.0 |
-| 30 | 90% | fixes 0%, breaks 10% | -9.0 | 15 | 0.0 | 0.0 | 99.8 | 0.2 |
-| 30 | 90% | fixes 0%, breaks 25% | -22.5 | 15 | 0.0 | 0.0 | 88.5 | 11.5 |
-| 30 | 90% | no real change | +0.0 | 15 | 0.0 | 0.7 | 99.3 | 0.0 |
-| 50 | 90% | fixes 10%, breaks 0% | +1.0 | 26 | 0.0 | 22.8 | 77.2 | 0.0 |
-| 50 | 90% | fixes 10%, breaks 2% | -0.8 | 26 | 0.0 | 14.8 | 85.2 | 0.0 |
-| 50 | 90% | fixes 10%, breaks 5% | -3.5 | 26 | 0.0 | 7.3 | 92.6 | 0.1 |
-| 50 | 90% | fixes 25%, breaks 0% | +2.5 | 26 | 0.0 | 48.6 | 51.4 | 0.0 |
-| 50 | 90% | fixes 25%, breaks 2% | +0.7 | 26 | 0.0 | 31.7 | 68.3 | 0.0 |
-| 50 | 90% | fixes 25%, breaks 5% | -2.0 | 26 | 0.0 | 17.0 | 83.0 | 0.1 |
-| 50 | 90% | fixes 50%, breaks 0% | +5.0 | 26 | 0.0 | 74.4 | 25.6 | 0.0 |
-| 50 | 90% | fixes 50%, breaks 2% | +3.2 | 26 | 0.0 | 50.9 | 49.0 | 0.0 |
-| 50 | 90% | fixes 50%, breaks 5% | +0.5 | 26 | 0.0 | 27.4 | 72.6 | 0.0 |
-| 50 | 90% | fixes 90%, breaks 0% | +9.0 | 26 | 1.0 | 89.6 | 9.4 | 0.0 |
-| 50 | 90% | fixes 90%, breaks 2% | +7.2 | 26 | 0.8 | 68.3 | 30.9 | 0.0 |
-| 50 | 90% | fixes 90%, breaks 5% | +4.5 | 26 | 0.3 | 44.5 | 55.2 | 0.0 |
-| 50 | 90% | fixes 0%, breaks 10% | -9.0 | 26 | 0.0 | 0.0 | 97.7 | 2.3 |
-| 50 | 90% | fixes 0%, breaks 25% | -22.5 | 26 | 0.0 | 0.0 | 47.5 | 52.5 |
-| 50 | 90% | no real change | +0.0 | 26 | 0.0 | 17.7 | 82.3 | 0.0 |
-| 80 | 90% | fixes 10%, breaks 0% | +1.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
-| 80 | 90% | fixes 10%, breaks 2% | -0.8 | 41 | 0.0 | 50.7 | 49.3 | 0.0 |
-| 80 | 90% | fixes 10%, breaks 5% | -3.5 | 41 | 0.0 | 17.5 | 81.8 | 0.7 |
-| 80 | 90% | fixes 25%, breaks 0% | +2.5 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
-| 80 | 90% | fixes 25%, breaks 2% | +0.7 | 41 | 0.0 | 58.5 | 41.4 | 0.0 |
-| 80 | 90% | fixes 25%, breaks 5% | -2.0 | 41 | 0.0 | 24.8 | 74.8 | 0.4 |
-| 80 | 90% | fixes 50%, breaks 0% | +5.0 | 41 | 0.9 | 99.1 | 0.0 | 0.0 |
-| 80 | 90% | fixes 50%, breaks 2% | +3.2 | 41 | 0.4 | 73.9 | 25.7 | 0.0 |
-| 80 | 90% | fixes 50%, breaks 5% | +0.5 | 41 | 0.1 | 40.0 | 59.8 | 0.1 |
-| 80 | 90% | fixes 90%, breaks 0% | +9.0 | 41 | 14.3 | 85.7 | 0.0 | 0.0 |
-| 80 | 90% | fixes 90%, breaks 2% | +7.2 | 41 | 7.7 | 82.5 | 9.7 | 0.0 |
-| 80 | 90% | fixes 90%, breaks 5% | +4.5 | 41 | 2.6 | 62.6 | 34.8 | 0.0 |
-| 80 | 90% | fixes 0%, breaks 10% | -9.0 | 41 | 0.0 | 2.2 | 82.8 | 15.1 |
-| 80 | 90% | fixes 0%, breaks 25% | -22.5 | 41 | 0.0 | 0.0 | 8.3 | 91.7 |
-| 80 | 90% | no real change | +0.0 | 41 | 0.0 | 68.6 | 31.4 | 0.0 |
-| 120 | 90% | fixes 10%, breaks 0% | +1.0 | 61 | 0.0 | 100.0 | 0.0 | 0.0 |
-| 120 | 90% | fixes 10%, breaks 2% | -0.8 | 61 | 0.0 | 80.0 | 19.9 | 0.1 |
-| 120 | 90% | fixes 10%, breaks 5% | -3.5 | 61 | 0.0 | 35.9 | 61.0 | 3.1 |
-| 120 | 90% | fixes 25%, breaks 0% | +2.5 | 61 | 0.4 | 99.6 | 0.0 | 0.0 |
-| 120 | 90% | fixes 25%, breaks 2% | +0.7 | 61 | 0.1 | 87.9 | 12.0 | 0.0 |
-| 120 | 90% | fixes 25%, breaks 5% | -2.0 | 61 | 0.0 | 49.3 | 49.5 | 1.2 |
-| 120 | 90% | fixes 50%, breaks 0% | +5.0 | 61 | 7.2 | 92.8 | 0.0 | 0.0 |
-| 120 | 90% | fixes 50%, breaks 2% | +3.2 | 61 | 2.9 | 92.3 | 4.7 | 0.0 |
-| 120 | 90% | fixes 50%, breaks 5% | +0.5 | 61 | 0.6 | 65.4 | 33.8 | 0.2 |
-| 120 | 90% | fixes 90%, breaks 0% | +9.0 | 61 | 56.8 | 43.2 | 0.0 | 0.0 |
-| 120 | 90% | fixes 90%, breaks 2% | +7.2 | 61 | 25.6 | 73.6 | 0.8 | 0.0 |
-| 120 | 90% | fixes 90%, breaks 5% | +4.5 | 61 | 7.0 | 80.1 | 12.9 | 0.0 |
-| 120 | 90% | fixes 0%, breaks 10% | -9.0 | 61 | 0.0 | 2.1 | 51.2 | 46.7 |
-| 120 | 90% | fixes 0%, breaks 25% | -22.5 | 61 | 0.0 | 0.0 | 0.2 | 99.8 |
-| 120 | 90% | no real change | +0.0 | 61 | 0.0 | 92.7 | 7.3 | 0.0 |
+| Marks | Agrees | Passes | New rule | True change | Kept aside | Better | Safe to try | Can't tell yet | Worse |
+|---|---|---|---|---|---|---|---|---|---|
+| 30 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 16 | 0.0 | 8.3 | 91.7 | 0.0 |
+| 30 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 16 | 0.0 | 6.8 | 93.2 | 0.0 |
+| 30 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 16 | 0.0 | 4.5 | 95.5 | 0.0 |
+| 30 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 16 | 0.0 | 34.8 | 65.1 | 0.0 |
+| 30 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 16 | 0.0 | 28.3 | 71.7 | 0.0 |
+| 30 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 16 | 0.0 | 20.5 | 79.5 | 0.0 |
+| 30 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 16 | 1.5 | 72.7 | 25.8 | 0.0 |
+| 30 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 16 | 1.2 | 59.7 | 39.1 | 0.0 |
+| 30 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 16 | 0.8 | 44.6 | 54.6 | 0.0 |
+| 30 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 16 | 22.9 | 72.9 | 4.2 | 0.0 |
+| 30 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 16 | 18.3 | 66.4 | 15.3 | 0.0 |
+| 30 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 16 | 14.2 | 56.7 | 29.1 | 0.0 |
+| 30 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 16 | 0.0 | 0.0 | 100.0 | 0.0 |
+| 30 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 16 | 0.0 | 0.0 | 96.2 | 3.8 |
+| 30 | 70% | 50% | no real change | -0.0 | 16 | 0.0 | 5.2 | 94.8 | 0.0 |
+| 30 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 16 | 0.0 | 16.6 | 83.4 | 0.0 |
+| 50 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 26 | 0.0 | 56.2 | 43.8 | 0.0 |
+| 50 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 26 | 0.0 | 40.6 | 59.4 | 0.0 |
+| 50 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 26 | 0.0 | 24.1 | 75.8 | 0.0 |
+| 50 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 26 | 0.8 | 87.4 | 11.7 | 0.0 |
+| 50 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 26 | 0.6 | 69.0 | 30.4 | 0.0 |
+| 50 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 26 | 0.4 | 47.8 | 51.7 | 0.0 |
+| 50 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 26 | 18.0 | 81.1 | 0.9 | 0.0 |
+| 50 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 26 | 13.2 | 77.9 | 9.0 | 0.0 |
+| 50 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 26 | 8.0 | 68.1 | 23.9 | 0.0 |
+| 50 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 26 | 84.2 | 15.8 | 0.0 | 0.0 |
+| 50 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 26 | 69.4 | 29.9 | 0.7 | 0.0 |
+| 50 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 26 | 51.3 | 44.8 | 3.9 | 0.0 |
+| 50 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 26 | 0.0 | 0.0 | 99.3 | 0.7 |
+| 50 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 26 | 0.0 | 0.0 | 71.4 | 28.6 |
+| 50 | 70% | 50% | no real change | -0.0 | 26 | 0.0 | 27.4 | 72.6 | 0.0 |
+| 50 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 26 | 0.4 | 33.0 | 66.6 | 0.0 |
+| 80 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 41 | 0.1 | 99.9 | 0.0 | 0.0 |
+| 80 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 41 | 0.1 | 67.9 | 32.0 | 0.0 |
+| 80 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 41 | 0.0 | 36.6 | 63.3 | 0.1 |
+| 80 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 41 | 7.5 | 92.5 | 0.0 | 0.0 |
+| 80 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 41 | 4.6 | 83.0 | 12.4 | 0.0 |
+| 80 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 41 | 2.2 | 61.6 | 36.2 | 0.0 |
+| 80 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 41 | 62.9 | 37.1 | 0.0 | 0.0 |
+| 80 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 41 | 44.1 | 54.2 | 1.6 | 0.0 |
+| 80 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 41 | 26.3 | 64.4 | 9.2 | 0.0 |
+| 80 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 41 | 99.7 | 0.3 | 0.0 | 0.0 |
+| 80 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 41 | 95.2 | 4.8 | 0.0 | 0.0 |
+| 80 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 41 | 81.9 | 17.7 | 0.4 | 0.0 |
+| 80 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 41 | 0.0 | 5.2 | 88.6 | 6.2 |
+| 80 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 41 | 0.0 | 0.0 | 25.8 | 74.1 |
+| 80 | 70% | 50% | no real change | -0.0 | 41 | 0.0 | 42.5 | 57.4 | 0.1 |
+| 80 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 41 | 1.9 | 46.6 | 51.5 | 0.0 |
+| 120 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 61 | 0.9 | 99.1 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 61 | 0.4 | 93.0 | 6.6 | 0.0 |
+| 120 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 61 | 0.1 | 65.3 | 34.2 | 0.3 |
+| 120 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 61 | 31.6 | 68.5 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 61 | 16.0 | 82.6 | 1.4 | 0.0 |
+| 120 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 61 | 6.0 | 81.1 | 12.8 | 0.0 |
+| 120 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 61 | 94.2 | 5.8 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 61 | 74.9 | 25.0 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 61 | 46.3 | 52.2 | 1.4 | 0.0 |
+| 120 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 61 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 61 | 99.7 | 0.3 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 61 | 96.8 | 3.2 | 0.0 | 0.0 |
+| 120 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 61 | 0.0 | 7.0 | 68.2 | 24.8 |
+| 120 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 61 | 0.0 | 0.0 | 3.3 | 96.7 |
+| 120 | 70% | 50% | no real change | -0.0 | 61 | 0.1 | 72.7 | 27.0 | 0.1 |
+| 120 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 61 | 3.5 | 67.1 | 29.4 | 0.0 |
+| 160 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 81 | 3.3 | 96.7 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 81 | 1.2 | 96.9 | 1.9 | 0.0 |
+| 160 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 81 | 0.2 | 78.5 | 20.6 | 0.7 |
+| 160 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 81 | 58.7 | 41.3 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 81 | 30.5 | 69.3 | 0.2 | 0.0 |
+| 160 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 81 | 10.1 | 85.1 | 4.8 | 0.0 |
+| 160 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 81 | 99.4 | 0.6 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 81 | 89.7 | 10.3 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 81 | 64.3 | 35.5 | 0.2 | 0.0 |
+| 160 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 81 | 99.4 | 0.6 | 0.0 | 0.0 |
+| 160 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 81 | 0.0 | 7.1 | 42.9 | 50.0 |
+| 160 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 81 | 0.0 | 0.0 | 0.3 | 99.7 |
+| 160 | 70% | 50% | no real change | -0.0 | 81 | 0.3 | 84.9 | 14.5 | 0.3 |
+| 160 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 81 | 5.6 | 78.5 | 15.9 | 0.0 |
+| 200 | 70% | 50% | fixes 10%, breaks 0% | +3.0 | 101 | 8.4 | 91.6 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 10%, breaks 2% | +1.6 | 101 | 2.3 | 97.3 | 0.3 | 0.0 |
+| 200 | 70% | 50% | fixes 10%, breaks 5% | -0.5 | 101 | 0.4 | 88.5 | 10.1 | 1.0 |
+| 200 | 70% | 50% | fixes 25%, breaks 0% | +7.5 | 101 | 79.5 | 20.5 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 25%, breaks 2% | +6.1 | 101 | 43.1 | 56.9 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 25%, breaks 5% | +4.0 | 101 | 14.4 | 84.0 | 1.6 | 0.0 |
+| 200 | 70% | 50% | fixes 50%, breaks 0% | +15.0 | 101 | 99.9 | 0.1 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 50%, breaks 2% | +13.6 | 101 | 96.1 | 3.9 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 50%, breaks 5% | +11.5 | 101 | 76.3 | 23.7 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 90%, breaks 0% | +27.0 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 90%, breaks 2% | +25.6 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 90%, breaks 5% | +23.5 | 101 | 99.9 | 0.1 | 0.0 | 0.0 |
+| 200 | 70% | 50% | fixes 0%, breaks 10% | -7.0 | 101 | 0.0 | 15.8 | 12.8 | 71.3 |
+| 200 | 70% | 50% | fixes 0%, breaks 25% | -17.5 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 70% | 50% | no real change | -0.0 | 101 | 0.6 | 92.8 | 6.1 | 0.5 |
+| 200 | 70% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | +4.8 | 101 | 7.1 | 84.8 | 8.0 | 0.0 |
+| 30 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 16 | 0.0 | 3.6 | 96.4 | 0.0 |
+| 30 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 16 | 0.0 | 3.0 | 97.0 | 0.0 |
+| 30 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 16 | 0.0 | 2.1 | 97.9 | 0.0 |
+| 30 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 16 | 0.0 | 17.9 | 82.1 | 0.0 |
+| 30 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 16 | 0.0 | 14.1 | 85.9 | 0.0 |
+| 30 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 16 | 0.0 | 10.0 | 90.0 | 0.0 |
+| 30 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 16 | 0.1 | 46.1 | 53.8 | 0.0 |
+| 30 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 16 | 0.0 | 37.0 | 63.0 | 0.0 |
+| 30 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 16 | 0.1 | 25.6 | 74.3 | 0.0 |
+| 30 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 16 | 2.3 | 72.4 | 25.3 | 0.0 |
+| 30 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 16 | 2.2 | 58.6 | 39.2 | 0.0 |
+| 30 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 16 | 1.5 | 42.5 | 56.0 | 0.0 |
+| 30 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 16 | 0.0 | 0.0 | 99.9 | 0.1 |
+| 30 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 16 | 0.0 | 0.0 | 93.0 | 7.0 |
+| 30 | 80% | 50% | no real change | +0.0 | 16 | 0.0 | 2.7 | 97.3 | 0.0 |
+| 30 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 16 | 0.0 | 8.3 | 91.7 | 0.0 |
+| 50 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 26 | 0.0 | 41.9 | 58.1 | 0.0 |
+| 50 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 26 | 0.0 | 28.6 | 71.4 | 0.0 |
+| 50 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 26 | 0.0 | 15.5 | 84.5 | 0.0 |
+| 50 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 26 | 0.1 | 75.3 | 24.6 | 0.0 |
+| 50 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 26 | 0.1 | 53.5 | 46.4 | 0.0 |
+| 50 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 26 | 0.0 | 32.2 | 67.8 | 0.0 |
+| 50 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 26 | 2.8 | 91.4 | 5.8 | 0.0 |
+| 50 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 26 | 2.0 | 75.3 | 22.7 | 0.0 |
+| 50 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 26 | 1.1 | 54.3 | 44.5 | 0.0 |
+| 50 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 26 | 34.8 | 64.5 | 0.7 | 0.0 |
+| 50 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 26 | 24.7 | 69.7 | 5.6 | 0.0 |
+| 50 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 26 | 14.1 | 67.7 | 18.2 | 0.0 |
+| 50 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 26 | 0.0 | 0.0 | 98.8 | 1.2 |
+| 50 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 26 | 0.0 | 0.0 | 59.7 | 40.3 |
+| 50 | 80% | 50% | no real change | +0.0 | 26 | 0.0 | 24.7 | 75.3 | 0.0 |
+| 50 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 26 | 0.0 | 14.3 | 85.6 | 0.1 |
+| 80 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 41 | 0.0 | 59.5 | 40.5 | 0.0 |
+| 80 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 41 | 0.0 | 26.3 | 73.4 | 0.2 |
+| 80 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 41 | 1.3 | 98.7 | 0.0 | 0.0 |
+| 80 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 41 | 0.8 | 75.2 | 24.0 | 0.0 |
+| 80 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 41 | 0.2 | 44.3 | 55.4 | 0.1 |
+| 80 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 41 | 22.4 | 77.6 | 0.0 | 0.0 |
+| 80 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 41 | 12.9 | 79.8 | 7.3 | 0.0 |
+| 80 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 41 | 6.0 | 66.8 | 27.2 | 0.0 |
+| 80 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 41 | 88.1 | 11.9 | 0.0 | 0.0 |
+| 80 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 41 | 66.1 | 33.5 | 0.4 | 0.0 |
+| 80 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 41 | 38.1 | 56.8 | 5.1 | 0.0 |
+| 80 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 41 | 0.0 | 3.5 | 86.5 | 10.0 |
+| 80 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 41 | 0.0 | 0.0 | 14.5 | 85.5 |
+| 80 | 80% | 50% | no real change | +0.0 | 41 | 0.0 | 51.7 | 48.3 | 0.0 |
+| 80 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 41 | 0.2 | 19.4 | 80.3 | 0.1 |
+| 120 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 61 | 0.1 | 99.9 | 0.0 | 0.0 |
+| 120 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 61 | 0.1 | 88.2 | 11.8 | 0.0 |
+| 120 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 61 | 0.0 | 51.5 | 47.4 | 1.1 |
+| 120 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 61 | 7.8 | 92.2 | 0.0 | 0.0 |
+| 120 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 61 | 3.4 | 92.5 | 4.1 | 0.0 |
+| 120 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 61 | 1.0 | 70.0 | 28.8 | 0.1 |
+| 120 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 61 | 62.1 | 37.9 | 0.0 | 0.0 |
+| 120 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 61 | 34.5 | 64.9 | 0.7 | 0.0 |
+| 120 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 61 | 13.4 | 77.9 | 8.7 | 0.0 |
+| 120 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 61 | 99.6 | 0.4 | 0.0 | 0.0 |
+| 120 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 61 | 89.4 | 10.6 | 0.0 | 0.0 |
+| 120 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 61 | 62.6 | 36.9 | 0.5 | 0.0 |
+| 120 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 61 | 0.0 | 3.9 | 60.7 | 35.4 |
+| 120 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 61 | 0.0 | 0.0 | 0.9 | 99.1 |
+| 120 | 80% | 50% | no real change | +0.0 | 61 | 0.0 | 82.9 | 17.1 | 0.1 |
+| 120 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 61 | 0.1 | 30.6 | 69.0 | 0.3 |
+| 160 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 81 | 0.5 | 99.5 | 0.0 | 0.0 |
+| 160 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 81 | 0.1 | 95.2 | 4.6 | 0.0 |
+| 160 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 81 | 0.0 | 63.3 | 34.1 | 2.5 |
+| 160 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 81 | 22.5 | 77.5 | 0.0 | 0.0 |
+| 160 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 81 | 7.7 | 91.3 | 0.9 | 0.0 |
+| 160 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 81 | 1.7 | 81.9 | 16.1 | 0.2 |
+| 160 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 81 | 87.6 | 12.4 | 0.0 | 0.0 |
+| 160 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 81 | 53.9 | 46.1 | 0.1 | 0.0 |
+| 160 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 81 | 20.4 | 76.7 | 2.9 | 0.0 |
+| 160 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 81 | 97.3 | 2.7 | 0.0 | 0.0 |
+| 160 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 81 | 79.7 | 20.3 | 0.1 | 0.0 |
+| 160 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 81 | 0.0 | 3.9 | 33.0 | 63.2 |
+| 160 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 81 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 160 | 80% | 50% | no real change | +0.0 | 81 | 0.1 | 91.6 | 8.2 | 0.2 |
+| 160 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 81 | 0.2 | 41.7 | 57.6 | 0.4 |
+| 200 | 80% | 50% | fixes 10%, breaks 0% | +2.0 | 101 | 1.3 | 98.7 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 10%, breaks 2% | +0.4 | 101 | 0.3 | 98.6 | 1.1 | 0.1 |
+| 200 | 80% | 50% | fixes 10%, breaks 5% | -2.0 | 101 | 0.0 | 75.9 | 19.8 | 4.3 |
+| 200 | 80% | 50% | fixes 25%, breaks 0% | +5.0 | 101 | 40.9 | 59.1 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 25%, breaks 2% | +3.4 | 101 | 12.8 | 87.0 | 0.2 | 0.0 |
+| 200 | 80% | 50% | fixes 25%, breaks 5% | +1.0 | 101 | 2.1 | 90.2 | 7.4 | 0.3 |
+| 200 | 80% | 50% | fixes 50%, breaks 0% | +10.0 | 101 | 96.9 | 3.1 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 50%, breaks 2% | +8.4 | 101 | 67.5 | 32.5 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 50%, breaks 5% | +6.0 | 101 | 27.3 | 72.0 | 0.8 | 0.0 |
+| 200 | 80% | 50% | fixes 90%, breaks 0% | +18.0 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 90%, breaks 2% | +16.4 | 101 | 99.4 | 0.6 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 90%, breaks 5% | +14.0 | 101 | 89.3 | 10.7 | 0.0 | 0.0 |
+| 200 | 80% | 50% | fixes 0%, breaks 10% | -8.0 | 101 | 0.0 | 8.7 | 9.0 | 82.3 |
+| 200 | 80% | 50% | fixes 0%, breaks 25% | -20.0 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 80% | 50% | no real change | +0.0 | 101 | 0.3 | 97.2 | 2.3 | 0.3 |
+| 200 | 80% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -1.0 | 101 | 0.2 | 52.2 | 47.1 | 0.5 |
+| 30 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 15 | 0.0 | 0.7 | 99.3 | 0.0 |
+| 30 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 15 | 0.0 | 0.5 | 99.5 | 0.0 |
+| 30 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 15 | 0.0 | 0.4 | 99.6 | 0.0 |
+| 30 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 15 | 0.0 | 3.5 | 96.5 | 0.0 |
+| 30 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 15 | 0.0 | 2.7 | 97.3 | 0.0 |
+| 30 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 15 | 0.0 | 1.7 | 98.3 | 0.0 |
+| 30 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 15 | 0.0 | 11.4 | 88.6 | 0.0 |
+| 30 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 15 | 0.0 | 8.7 | 91.3 | 0.0 |
+| 30 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 15 | 0.0 | 5.8 | 94.2 | 0.0 |
+| 30 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 15 | 0.0 | 24.9 | 75.1 | 0.0 |
+| 30 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 15 | 0.0 | 19.7 | 80.2 | 0.0 |
+| 30 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 15 | 0.0 | 13.1 | 86.9 | 0.0 |
+| 30 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 15 | 0.0 | 0.0 | 99.8 | 0.2 |
+| 30 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 15 | 0.0 | 0.0 | 88.5 | 11.5 |
+| 30 | 90% | 50% | no real change | +0.0 | 15 | 0.0 | 0.6 | 99.4 | 0.0 |
+| 30 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 15 | 0.0 | 1.5 | 98.4 | 0.1 |
+| 50 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 26 | 0.0 | 18.1 | 81.9 | 0.0 |
+| 50 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 26 | 0.0 | 11.8 | 88.2 | 0.0 |
+| 50 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 26 | 0.0 | 5.9 | 94.0 | 0.1 |
+| 50 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 26 | 0.0 | 38.9 | 61.1 | 0.0 |
+| 50 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 26 | 0.0 | 25.8 | 74.2 | 0.0 |
+| 50 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 26 | 0.0 | 14.0 | 86.0 | 0.1 |
+| 50 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 26 | 0.0 | 60.5 | 39.5 | 0.0 |
+| 50 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 26 | 0.0 | 42.4 | 57.5 | 0.0 |
+| 50 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 26 | 0.0 | 23.2 | 76.7 | 0.0 |
+| 50 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 26 | 1.0 | 77.3 | 21.6 | 0.0 |
+| 50 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 26 | 0.8 | 60.7 | 38.6 | 0.0 |
+| 50 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 26 | 0.3 | 40.9 | 58.8 | 0.0 |
+| 50 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 26 | 0.0 | 0.0 | 97.7 | 2.3 |
+| 50 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 26 | 0.0 | 0.0 | 47.5 | 52.5 |
+| 50 | 90% | 50% | no real change | +0.0 | 26 | 0.0 | 14.0 | 86.0 | 0.0 |
+| 50 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 26 | 0.0 | 3.4 | 95.3 | 1.3 |
+| 80 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 41 | 0.0 | 50.7 | 49.3 | 0.0 |
+| 80 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 41 | 0.0 | 17.5 | 81.8 | 0.7 |
+| 80 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 41 | 0.0 | 58.5 | 41.4 | 0.0 |
+| 80 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 41 | 0.0 | 24.8 | 74.8 | 0.4 |
+| 80 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 41 | 0.9 | 99.1 | 0.0 | 0.0 |
+| 80 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 41 | 0.4 | 73.9 | 25.7 | 0.0 |
+| 80 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 41 | 0.1 | 39.9 | 59.8 | 0.1 |
+| 80 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 41 | 14.3 | 85.7 | 0.0 | 0.0 |
+| 80 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 41 | 7.7 | 82.4 | 9.8 | 0.0 |
+| 80 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 41 | 2.6 | 62.0 | 35.4 | 0.0 |
+| 80 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 41 | 0.0 | 2.2 | 82.8 | 15.1 |
+| 80 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 41 | 0.0 | 0.0 | 8.3 | 91.7 |
+| 80 | 90% | 50% | no real change | +0.0 | 41 | 0.0 | 68.6 | 31.4 | 0.0 |
+| 80 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 41 | 0.0 | 3.9 | 91.5 | 4.6 |
+| 120 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 61 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 120 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 61 | 0.0 | 80.0 | 19.9 | 0.1 |
+| 120 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 61 | 0.0 | 35.9 | 61.0 | 3.1 |
+| 120 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 61 | 0.4 | 99.6 | 0.0 | 0.0 |
+| 120 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 61 | 0.1 | 87.9 | 12.0 | 0.0 |
+| 120 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 61 | 0.0 | 49.3 | 49.5 | 1.2 |
+| 120 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 61 | 7.2 | 92.8 | 0.0 | 0.0 |
+| 120 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 61 | 2.9 | 92.3 | 4.7 | 0.0 |
+| 120 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 61 | 0.6 | 65.3 | 33.8 | 0.2 |
+| 120 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 61 | 56.8 | 43.2 | 0.0 | 0.0 |
+| 120 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 61 | 25.6 | 73.6 | 0.8 | 0.0 |
+| 120 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 61 | 7.0 | 79.8 | 13.2 | 0.0 |
+| 120 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 61 | 0.0 | 2.1 | 51.2 | 46.7 |
+| 120 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 61 | 0.0 | 0.0 | 0.2 | 99.8 |
+| 120 | 90% | 50% | no real change | +0.0 | 61 | 0.0 | 92.7 | 7.3 | 0.0 |
+| 120 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 61 | 0.0 | 5.8 | 85.1 | 9.0 |
+| 160 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 81 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 160 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 81 | 0.0 | 89.8 | 10.1 | 0.1 |
+| 160 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 81 | 0.0 | 44.8 | 47.5 | 7.7 |
+| 160 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 81 | 1.2 | 98.8 | 0.0 | 0.0 |
+| 160 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 81 | 0.3 | 95.1 | 4.6 | 0.0 |
+| 160 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 81 | 0.1 | 61.1 | 36.4 | 2.5 |
+| 160 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 81 | 22.8 | 77.2 | 0.0 | 0.0 |
+| 160 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 81 | 6.9 | 91.8 | 1.2 | 0.0 |
+| 160 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 81 | 1.3 | 78.4 | 20.1 | 0.2 |
+| 160 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 81 | 86.9 | 13.1 | 0.0 | 0.0 |
+| 160 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 81 | 42.5 | 57.4 | 0.1 | 0.0 |
+| 160 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 81 | 11.2 | 83.8 | 4.9 | 0.0 |
+| 160 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 81 | 0.0 | 1.9 | 23.4 | 74.7 |
+| 160 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 81 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 160 | 90% | 50% | no real change | +0.0 | 81 | 0.0 | 97.7 | 2.3 | 0.0 |
+| 160 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 81 | 0.0 | 7.2 | 76.8 | 16.0 |
+| 200 | 90% | 50% | fixes 10%, breaks 0% | +1.0 | 101 | 0.1 | 99.9 | 0.0 | 0.0 |
+| 200 | 90% | 50% | fixes 10%, breaks 2% | -0.8 | 101 | 0.0 | 97.2 | 2.4 | 0.4 |
+| 200 | 90% | 50% | fixes 10%, breaks 5% | -3.5 | 101 | 0.0 | 58.6 | 27.1 | 14.3 |
+| 200 | 90% | 50% | fixes 25%, breaks 0% | +2.5 | 101 | 3.8 | 96.2 | 0.0 | 0.0 |
+| 200 | 90% | 50% | fixes 25%, breaks 2% | +0.7 | 101 | 0.8 | 98.0 | 1.1 | 0.1 |
+| 200 | 90% | 50% | fixes 25%, breaks 5% | -2.0 | 101 | 0.0 | 73.3 | 22.8 | 3.9 |
+| 200 | 90% | 50% | fixes 50%, breaks 0% | +5.0 | 101 | 43.3 | 56.7 | 0.0 | 0.0 |
+| 200 | 90% | 50% | fixes 50%, breaks 2% | +3.2 | 101 | 11.5 | 88.2 | 0.2 | 0.0 |
+| 200 | 90% | 50% | fixes 50%, breaks 5% | +0.5 | 101 | 1.2 | 87.2 | 11.2 | 0.3 |
+| 200 | 90% | 50% | fixes 90%, breaks 0% | +9.0 | 101 | 97.2 | 2.8 | 0.0 | 0.0 |
+| 200 | 90% | 50% | fixes 90%, breaks 2% | +7.2 | 101 | 55.9 | 44.1 | 0.0 | 0.0 |
+| 200 | 90% | 50% | fixes 90%, breaks 5% | +4.5 | 101 | 15.1 | 83.2 | 1.7 | 0.0 |
+| 200 | 90% | 50% | fixes 0%, breaks 10% | -9.0 | 101 | 0.0 | 4.5 | 5.5 | 90.0 |
+| 200 | 90% | 50% | fixes 0%, breaks 25% | -22.5 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 90% | 50% | no real change | +0.0 | 101 | 0.0 | 99.7 | 0.3 | 0.0 |
+| 200 | 90% | 50% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -6.8 | 101 | 0.0 | 9.1 | 67.0 | 24.0 |
+| 30 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 16 | 0.0 | 2.1 | 97.9 | 0.0 |
+| 30 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 16 | 0.0 | 1.8 | 98.2 | 0.0 |
+| 30 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 16 | 0.0 | 1.3 | 98.7 | 0.0 |
+| 30 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 16 | 0.0 | 11.8 | 88.2 | 0.0 |
+| 30 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 16 | 0.0 | 9.8 | 90.2 | 0.0 |
+| 30 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 16 | 0.0 | 7.2 | 92.8 | 0.0 |
+| 30 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 16 | 0.1 | 37.5 | 62.4 | 0.0 |
+| 30 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 16 | 0.1 | 30.9 | 69.0 | 0.0 |
+| 30 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 16 | 0.1 | 23.8 | 76.1 | 0.0 |
+| 30 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 16 | 4.2 | 76.7 | 19.1 | 0.0 |
+| 30 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 16 | 3.8 | 66.3 | 29.9 | 0.0 |
+| 30 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 16 | 3.3 | 54.0 | 42.7 | 0.0 |
+| 30 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 16 | 0.0 | 0.0 | 100.0 | 0.0 |
+| 30 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 16 | 0.0 | 0.0 | 99.3 | 0.7 |
+| 30 | 70% | 80% | no real change | -0.0 | 16 | 0.0 | 1.3 | 98.7 | 0.0 |
+| 30 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 16 | 0.0 | 0.0 | 99.9 | 0.1 |
+| 50 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 26 | 0.0 | 16.9 | 83.1 | 0.0 |
+| 50 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 26 | 0.0 | 12.8 | 87.1 | 0.0 |
+| 50 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 26 | 0.0 | 8.2 | 91.8 | 0.0 |
+| 50 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 26 | 0.4 | 57.3 | 42.3 | 0.0 |
+| 50 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 26 | 0.3 | 45.5 | 54.2 | 0.0 |
+| 50 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 26 | 0.1 | 30.9 | 68.9 | 0.0 |
+| 50 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 26 | 8.4 | 84.3 | 7.2 | 0.0 |
+| 50 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 26 | 7.1 | 73.8 | 19.1 | 0.0 |
+| 50 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 26 | 5.3 | 58.9 | 35.8 | 0.0 |
+| 50 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 26 | 64.5 | 35.5 | 0.0 | 0.0 |
+| 50 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 26 | 55.5 | 42.2 | 2.3 | 0.0 |
+| 50 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 26 | 42.9 | 48.5 | 8.6 | 0.0 |
+| 50 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 26 | 0.0 | 0.0 | 99.6 | 0.4 |
+| 50 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 26 | 0.0 | 0.0 | 83.3 | 16.7 |
+| 50 | 70% | 80% | no real change | -0.0 | 26 | 0.0 | 9.5 | 90.5 | 0.0 |
+| 50 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 26 | 0.0 | 2.6 | 95.3 | 2.1 |
+| 80 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 41 | 0.1 | 99.9 | 0.0 | 0.0 |
+| 80 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 41 | 0.1 | 68.2 | 31.7 | 0.0 |
+| 80 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 41 | 0.0 | 37.4 | 62.5 | 0.1 |
+| 80 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 41 | 7.8 | 92.2 | 0.0 | 0.0 |
+| 80 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 41 | 4.4 | 80.8 | 14.8 | 0.0 |
+| 80 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 41 | 2.2 | 59.7 | 38.1 | 0.0 |
+| 80 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 41 | 59.4 | 40.6 | 0.0 | 0.0 |
+| 80 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 41 | 40.5 | 57.5 | 2.1 | 0.0 |
+| 80 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 41 | 22.9 | 66.6 | 10.5 | 0.0 |
+| 80 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 41 | 99.6 | 0.4 | 0.0 | 0.0 |
+| 80 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 41 | 92.6 | 7.3 | 0.0 | 0.0 |
+| 80 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 41 | 78.0 | 21.4 | 0.6 | 0.0 |
+| 80 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 41 | 0.0 | 4.9 | 89.1 | 6.0 |
+| 80 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 41 | 0.0 | 0.0 | 28.2 | 71.8 |
+| 80 | 70% | 80% | no real change | -0.0 | 41 | 0.1 | 42.7 | 57.2 | 0.1 |
+| 80 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 41 | 0.0 | 2.5 | 91.4 | 6.1 |
+| 120 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 61 | 0.8 | 99.2 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 61 | 0.4 | 91.2 | 8.4 | 0.0 |
+| 120 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 61 | 0.1 | 62.0 | 37.6 | 0.2 |
+| 120 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 61 | 27.8 | 72.2 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 61 | 14.9 | 83.3 | 1.9 | 0.0 |
+| 120 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 61 | 5.7 | 79.8 | 14.5 | 0.0 |
+| 120 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 61 | 92.4 | 7.6 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 61 | 72.4 | 27.5 | 0.1 | 0.0 |
+| 120 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 61 | 45.2 | 53.2 | 1.6 | 0.0 |
+| 120 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 61 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 61 | 99.6 | 0.4 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 61 | 96.0 | 4.0 | 0.0 | 0.0 |
+| 120 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 61 | 0.0 | 7.5 | 69.8 | 22.6 |
+| 120 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 61 | 0.0 | 0.0 | 3.8 | 96.2 |
+| 120 | 70% | 80% | no real change | -0.0 | 61 | 0.1 | 69.2 | 30.5 | 0.1 |
+| 120 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 61 | 0.0 | 2.5 | 81.5 | 16.1 |
+| 160 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 81 | 3.1 | 96.9 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 81 | 1.1 | 96.7 | 2.2 | 0.0 |
+| 160 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 81 | 0.2 | 77.8 | 21.4 | 0.6 |
+| 160 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 81 | 55.6 | 44.4 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 81 | 28.7 | 71.1 | 0.2 | 0.0 |
+| 160 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 81 | 9.7 | 84.9 | 5.4 | 0.0 |
+| 160 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 81 | 99.2 | 0.8 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 81 | 89.0 | 11.0 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 81 | 63.1 | 36.7 | 0.2 | 0.0 |
+| 160 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 81 | 99.2 | 0.8 | 0.0 | 0.0 |
+| 160 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 81 | 0.0 | 8.9 | 43.8 | 47.3 |
+| 160 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 81 | 0.0 | 0.0 | 0.3 | 99.7 |
+| 160 | 70% | 80% | no real change | -0.0 | 81 | 0.4 | 84.0 | 15.3 | 0.4 |
+| 160 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 81 | 0.0 | 2.8 | 70.5 | 26.7 |
+| 200 | 70% | 80% | fixes 10%, breaks 0% | +3.0 | 101 | 8.1 | 91.9 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 10%, breaks 2% | +1.6 | 101 | 2.3 | 97.2 | 0.5 | 0.0 |
+| 200 | 70% | 80% | fixes 10%, breaks 5% | -0.5 | 101 | 0.3 | 88.1 | 10.5 | 1.1 |
+| 200 | 70% | 80% | fixes 25%, breaks 0% | +7.5 | 101 | 79.1 | 20.9 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 25%, breaks 2% | +6.1 | 101 | 41.6 | 58.4 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 25%, breaks 5% | +4.0 | 101 | 13.3 | 84.9 | 1.7 | 0.0 |
+| 200 | 70% | 80% | fixes 50%, breaks 0% | +15.0 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 50%, breaks 2% | +13.6 | 101 | 95.7 | 4.3 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 50%, breaks 5% | +11.5 | 101 | 75.5 | 24.5 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 90%, breaks 0% | +27.0 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 90%, breaks 2% | +25.6 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 90%, breaks 5% | +23.5 | 101 | 99.9 | 0.1 | 0.0 | 0.0 |
+| 200 | 70% | 80% | fixes 0%, breaks 10% | -7.0 | 101 | 0.0 | 13.2 | 15.6 | 71.2 |
+| 200 | 70% | 80% | fixes 0%, breaks 25% | -17.5 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 70% | 80% | no real change | -0.0 | 101 | 0.5 | 92.6 | 6.4 | 0.5 |
+| 200 | 70% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -8.6 | 101 | 0.0 | 2.9 | 59.0 | 38.1 |
+| 30 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 16 | 0.0 | 1.0 | 99.0 | 0.0 |
+| 30 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 16 | 0.0 | 0.7 | 99.3 | 0.0 |
+| 30 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 16 | 0.0 | 0.6 | 99.4 | 0.0 |
+| 30 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 16 | 0.0 | 5.2 | 94.8 | 0.0 |
+| 30 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 16 | 0.0 | 4.4 | 95.6 | 0.0 |
+| 30 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 16 | 0.0 | 3.0 | 97.0 | 0.0 |
+| 30 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 16 | 0.0 | 20.0 | 80.0 | 0.0 |
+| 30 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 16 | 0.0 | 15.7 | 84.3 | 0.0 |
+| 30 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 16 | 0.0 | 11.5 | 88.5 | 0.0 |
+| 30 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 16 | 0.2 | 52.0 | 47.7 | 0.0 |
+| 30 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 16 | 0.1 | 42.3 | 57.6 | 0.0 |
+| 30 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 16 | 0.2 | 31.5 | 68.3 | 0.0 |
+| 30 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 16 | 0.0 | 0.0 | 100.0 | 0.0 |
+| 30 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 16 | 0.0 | 0.0 | 98.5 | 1.5 |
+| 30 | 80% | 80% | no real change | +0.0 | 16 | 0.0 | 0.7 | 99.3 | 0.0 |
+| 30 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 16 | 0.0 | 0.0 | 99.6 | 0.4 |
+| 50 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 26 | 0.0 | 8.5 | 91.5 | 0.0 |
+| 50 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 26 | 0.0 | 6.1 | 93.9 | 0.0 |
+| 50 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 26 | 0.0 | 3.9 | 96.1 | 0.0 |
+| 50 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 26 | 0.0 | 36.9 | 63.1 | 0.0 |
+| 50 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 26 | 0.0 | 27.4 | 72.6 | 0.0 |
+| 50 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 26 | 0.0 | 16.9 | 83.1 | 0.0 |
+| 50 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 26 | 1.1 | 76.4 | 22.5 | 0.0 |
+| 50 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 26 | 0.8 | 59.4 | 39.8 | 0.0 |
+| 50 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 26 | 0.6 | 40.5 | 58.8 | 0.0 |
+| 50 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 26 | 15.3 | 82.7 | 2.0 | 0.0 |
+| 50 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 26 | 12.2 | 75.7 | 12.1 | 0.0 |
+| 50 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 26 | 8.6 | 62.1 | 29.3 | 0.0 |
+| 50 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 26 | 0.0 | 0.0 | 99.2 | 0.8 |
+| 50 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 26 | 0.0 | 0.0 | 74.3 | 25.7 |
+| 50 | 80% | 80% | no real change | +0.0 | 26 | 0.0 | 5.8 | 94.2 | 0.0 |
+| 50 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 26 | 0.0 | 0.6 | 91.6 | 7.8 |
+| 80 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 41 | 0.0 | 60.1 | 39.9 | 0.0 |
+| 80 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 41 | 0.0 | 27.1 | 72.6 | 0.3 |
+| 80 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 41 | 1.3 | 98.7 | 0.0 | 0.0 |
+| 80 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 41 | 0.7 | 73.8 | 25.6 | 0.0 |
+| 80 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 41 | 0.3 | 43.2 | 56.4 | 0.1 |
+| 80 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 41 | 21.0 | 79.0 | 0.0 | 0.0 |
+| 80 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 41 | 11.6 | 79.6 | 8.8 | 0.0 |
+| 80 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 41 | 5.3 | 65.5 | 29.2 | 0.0 |
+| 80 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 41 | 84.2 | 15.8 | 0.0 | 0.0 |
+| 80 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 41 | 58.7 | 40.6 | 0.7 | 0.0 |
+| 80 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 41 | 32.7 | 60.8 | 6.5 | 0.0 |
+| 80 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 41 | 0.0 | 3.3 | 87.0 | 9.7 |
+| 80 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 41 | 0.0 | 0.0 | 17.5 | 82.5 |
+| 80 | 80% | 80% | no real change | +0.0 | 41 | 0.0 | 52.8 | 47.1 | 0.0 |
+| 80 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 41 | 0.0 | 0.8 | 78.2 | 21.0 |
+| 120 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 61 | 0.1 | 99.9 | 0.0 | 0.0 |
+| 120 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 61 | 0.0 | 85.1 | 14.9 | 0.0 |
+| 120 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 61 | 0.0 | 47.2 | 51.9 | 0.8 |
+| 120 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 61 | 6.8 | 93.2 | 0.0 | 0.0 |
+| 120 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 61 | 2.8 | 91.3 | 6.0 | 0.0 |
+| 120 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 61 | 0.9 | 68.1 | 30.8 | 0.2 |
+| 120 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 61 | 58.7 | 41.3 | 0.0 | 0.0 |
+| 120 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 61 | 31.9 | 67.3 | 0.8 | 0.0 |
+| 120 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 61 | 12.3 | 77.7 | 10.1 | 0.0 |
+| 120 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 61 | 99.4 | 0.6 | 0.0 | 0.0 |
+| 120 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 61 | 87.8 | 12.2 | 0.0 | 0.0 |
+| 120 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 61 | 60.9 | 38.4 | 0.7 | 0.0 |
+| 120 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 61 | 0.0 | 4.4 | 62.9 | 32.7 |
+| 120 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 61 | 0.0 | 0.0 | 1.3 | 98.7 |
+| 120 | 80% | 80% | no real change | +0.0 | 61 | 0.0 | 78.4 | 21.5 | 0.0 |
+| 120 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 61 | 0.0 | 0.5 | 50.0 | 49.5 |
+| 160 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 81 | 0.4 | 99.6 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 81 | 0.1 | 95.3 | 4.5 | 0.0 |
+| 160 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 81 | 0.0 | 62.7 | 35.0 | 2.3 |
+| 160 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 81 | 19.8 | 80.2 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 81 | 7.0 | 91.9 | 1.1 | 0.0 |
+| 160 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 81 | 1.5 | 81.9 | 16.4 | 0.2 |
+| 160 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 81 | 85.6 | 14.4 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 81 | 51.4 | 48.5 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 81 | 19.1 | 77.9 | 3.0 | 0.0 |
+| 160 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 81 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 81 | 97.2 | 2.8 | 0.0 | 0.0 |
+| 160 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 81 | 79.5 | 20.4 | 0.1 | 0.0 |
+| 160 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 81 | 0.0 | 4.9 | 34.4 | 60.7 |
+| 160 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 81 | 0.0 | 0.0 | 0.1 | 99.9 |
+| 160 | 80% | 80% | no real change | +0.0 | 81 | 0.1 | 91.6 | 8.2 | 0.1 |
+| 160 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 81 | 0.0 | 0.4 | 31.3 | 68.3 |
+| 200 | 80% | 80% | fixes 10%, breaks 0% | +2.0 | 101 | 1.3 | 98.7 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 10%, breaks 2% | +0.4 | 101 | 0.3 | 98.2 | 1.4 | 0.1 |
+| 200 | 80% | 80% | fixes 10%, breaks 5% | -2.0 | 101 | 0.0 | 75.7 | 20.1 | 4.2 |
+| 200 | 80% | 80% | fixes 25%, breaks 0% | +5.0 | 101 | 40.2 | 59.8 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 25%, breaks 2% | +3.4 | 101 | 12.5 | 87.3 | 0.1 | 0.0 |
+| 200 | 80% | 80% | fixes 25%, breaks 5% | +1.0 | 101 | 2.0 | 89.8 | 7.9 | 0.3 |
+| 200 | 80% | 80% | fixes 50%, breaks 0% | +10.0 | 101 | 96.9 | 3.1 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 50%, breaks 2% | +8.4 | 101 | 66.3 | 33.7 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 50%, breaks 5% | +6.0 | 101 | 26.8 | 72.3 | 0.9 | 0.0 |
+| 200 | 80% | 80% | fixes 90%, breaks 0% | +18.0 | 101 | 100.0 | 0.0 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 90%, breaks 2% | +16.4 | 101 | 99.4 | 0.6 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 90%, breaks 5% | +14.0 | 101 | 88.5 | 11.5 | 0.0 | 0.0 |
+| 200 | 80% | 80% | fixes 0%, breaks 10% | -8.0 | 101 | 0.0 | 7.1 | 10.9 | 82.0 |
+| 200 | 80% | 80% | fixes 0%, breaks 25% | -20.0 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 80% | 80% | no real change | +0.0 | 101 | 0.2 | 97.1 | 2.5 | 0.2 |
+| 200 | 80% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -12.4 | 101 | 0.0 | 0.3 | 16.9 | 82.8 |
+| 30 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 15 | 0.0 | 0.2 | 99.8 | 0.0 |
+| 30 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 15 | 0.0 | 0.1 | 99.9 | 0.0 |
+| 30 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 15 | 0.0 | 0.1 | 99.9 | 0.0 |
+| 30 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 15 | 0.0 | 1.3 | 98.7 | 0.0 |
+| 30 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 15 | 0.0 | 0.9 | 99.1 | 0.0 |
+| 30 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 15 | 0.0 | 0.7 | 99.3 | 0.0 |
+| 30 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 15 | 0.0 | 5.1 | 94.9 | 0.0 |
+| 30 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 15 | 0.0 | 3.9 | 96.1 | 0.0 |
+| 30 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 15 | 0.0 | 2.5 | 97.5 | 0.0 |
+| 30 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 15 | 0.0 | 15.1 | 84.9 | 0.0 |
+| 30 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 15 | 0.0 | 11.7 | 88.3 | 0.0 |
+| 30 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 15 | 0.0 | 8.1 | 91.9 | 0.0 |
+| 30 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 15 | 0.0 | 0.0 | 100.0 | 0.0 |
+| 30 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 15 | 0.0 | 0.0 | 97.2 | 2.9 |
+| 30 | 90% | 80% | no real change | +0.0 | 15 | 0.0 | 0.2 | 99.8 | 0.0 |
+| 30 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 15 | 0.0 | 0.0 | 98.8 | 1.2 |
+| 50 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 26 | 0.0 | 2.2 | 97.8 | 0.0 |
+| 50 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 26 | 0.0 | 1.5 | 98.5 | 0.0 |
+| 50 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 26 | 0.0 | 1.0 | 99.0 | 0.0 |
+| 50 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 26 | 0.0 | 12.2 | 87.8 | 0.0 |
+| 50 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 26 | 0.0 | 8.3 | 91.7 | 0.0 |
+| 50 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 26 | 0.0 | 4.4 | 95.6 | 0.1 |
+| 50 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 26 | 0.0 | 35.3 | 64.7 | 0.0 |
+| 50 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 26 | 0.0 | 24.4 | 75.6 | 0.0 |
+| 50 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 26 | 0.0 | 14.2 | 85.8 | 0.0 |
+| 50 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 26 | 0.2 | 67.4 | 32.4 | 0.0 |
+| 50 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 26 | 0.1 | 49.8 | 50.0 | 0.0 |
+| 50 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 26 | 0.1 | 30.7 | 69.2 | 0.0 |
+| 50 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 26 | 0.0 | 0.0 | 98.7 | 1.3 |
+| 50 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 26 | 0.0 | 0.0 | 61.7 | 38.3 |
+| 50 | 90% | 80% | no real change | +0.0 | 26 | 0.0 | 1.9 | 98.1 | 0.0 |
+| 50 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 26 | 0.0 | 0.1 | 78.9 | 21.0 |
+| 80 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 41 | 0.0 | 51.6 | 48.4 | 0.0 |
+| 80 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 41 | 0.0 | 18.9 | 80.5 | 0.6 |
+| 80 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 41 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 80 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 41 | 0.0 | 59.3 | 40.7 | 0.0 |
+| 80 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 41 | 0.0 | 25.6 | 74.0 | 0.3 |
+| 80 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 41 | 0.8 | 99.2 | 0.0 | 0.0 |
+| 80 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 41 | 0.4 | 71.7 | 27.9 | 0.0 |
+| 80 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 41 | 0.1 | 39.5 | 60.3 | 0.1 |
+| 80 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 41 | 12.1 | 87.9 | 0.0 | 0.0 |
+| 80 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 41 | 6.0 | 83.3 | 10.7 | 0.0 |
+| 80 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 41 | 2.1 | 60.6 | 37.2 | 0.0 |
+| 80 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 41 | 0.0 | 2.1 | 83.5 | 14.4 |
+| 80 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 41 | 0.0 | 0.0 | 9.9 | 90.1 |
+| 80 | 90% | 80% | no real change | +0.0 | 41 | 0.0 | 69.6 | 30.4 | 0.0 |
+| 80 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 41 | 0.0 | 0.1 | 51.0 | 48.9 |
+| 120 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 61 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 120 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 61 | 0.0 | 77.0 | 23.0 | 0.1 |
+| 120 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 61 | 0.0 | 32.5 | 64.8 | 2.7 |
+| 120 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 61 | 0.2 | 99.8 | 0.0 | 0.0 |
+| 120 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 61 | 0.1 | 84.3 | 15.6 | 0.0 |
+| 120 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 61 | 0.0 | 44.4 | 54.4 | 1.2 |
+| 120 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 61 | 6.4 | 93.6 | 0.0 | 0.0 |
+| 120 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 61 | 2.4 | 91.0 | 6.7 | 0.0 |
+| 120 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 61 | 0.5 | 63.6 | 35.7 | 0.2 |
+| 120 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 61 | 51.0 | 49.0 | 0.0 | 0.0 |
+| 120 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 61 | 22.5 | 76.3 | 1.3 | 0.0 |
+| 120 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 61 | 6.0 | 79.0 | 14.9 | 0.0 |
+| 120 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 61 | 0.0 | 3.0 | 53.7 | 43.3 |
+| 120 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 61 | 0.0 | 0.0 | 0.6 | 99.4 |
+| 120 | 90% | 80% | no real change | +0.0 | 61 | 0.0 | 91.2 | 8.8 | 0.0 |
+| 120 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 61 | 0.0 | 0.1 | 14.1 | 85.8 |
+| 160 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 81 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 160 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 81 | 0.0 | 90.5 | 9.4 | 0.1 |
+| 160 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 81 | 0.0 | 45.2 | 48.0 | 6.8 |
+| 160 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 81 | 1.1 | 98.9 | 0.0 | 0.0 |
+| 160 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 81 | 0.3 | 94.5 | 5.1 | 0.1 |
+| 160 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 81 | 0.0 | 60.1 | 37.6 | 2.3 |
+| 160 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 81 | 20.7 | 79.3 | 0.0 | 0.0 |
+| 160 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 81 | 6.3 | 92.2 | 1.5 | 0.0 |
+| 160 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 81 | 1.0 | 77.8 | 20.9 | 0.3 |
+| 160 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 81 | 83.8 | 16.2 | 0.0 | 0.0 |
+| 160 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 81 | 41.0 | 58.9 | 0.1 | 0.0 |
+| 160 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 81 | 10.6 | 83.9 | 5.5 | 0.0 |
+| 160 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 81 | 0.0 | 2.5 | 25.3 | 72.3 |
+| 160 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 81 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 160 | 90% | 80% | no real change | +0.0 | 81 | 0.0 | 97.7 | 2.2 | 0.0 |
+| 160 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 81 | 0.0 | 0.0 | 5.3 | 94.7 |
+| 200 | 90% | 80% | fixes 10%, breaks 0% | +1.0 | 101 | 0.0 | 100.0 | 0.0 | 0.0 |
+| 200 | 90% | 80% | fixes 10%, breaks 2% | -0.8 | 101 | 0.0 | 96.7 | 2.9 | 0.4 |
+| 200 | 90% | 80% | fixes 10%, breaks 5% | -3.5 | 101 | 0.0 | 58.1 | 28.8 | 13.2 |
+| 200 | 90% | 80% | fixes 25%, breaks 0% | +2.5 | 101 | 3.7 | 96.3 | 0.0 | 0.0 |
+| 200 | 90% | 80% | fixes 25%, breaks 2% | +0.7 | 101 | 0.7 | 97.9 | 1.3 | 0.0 |
+| 200 | 90% | 80% | fixes 25%, breaks 5% | -2.0 | 101 | 0.1 | 72.6 | 23.8 | 3.5 |
+| 200 | 90% | 80% | fixes 50%, breaks 0% | +5.0 | 101 | 42.8 | 57.2 | 0.0 | 0.0 |
+| 200 | 90% | 80% | fixes 50%, breaks 2% | +3.2 | 101 | 11.3 | 88.5 | 0.2 | 0.0 |
+| 200 | 90% | 80% | fixes 50%, breaks 5% | +0.5 | 101 | 1.3 | 87.3 | 11.2 | 0.3 |
+| 200 | 90% | 80% | fixes 90%, breaks 0% | +9.0 | 101 | 96.8 | 3.2 | 0.0 | 0.0 |
+| 200 | 90% | 80% | fixes 90%, breaks 2% | +7.2 | 101 | 54.2 | 45.8 | 0.0 | 0.0 |
+| 200 | 90% | 80% | fixes 90%, breaks 5% | +4.5 | 101 | 14.3 | 84.0 | 1.7 | 0.0 |
+| 200 | 90% | 80% | fixes 0%, breaks 10% | -9.0 | 101 | 0.0 | 3.5 | 6.8 | 89.7 |
+| 200 | 90% | 80% | fixes 0%, breaks 25% | -22.5 | 101 | 0.0 | 0.0 | 0.0 | 100.0 |
+| 200 | 90% | 80% | no real change | +0.0 | 101 | 0.0 | 99.6 | 0.4 | 0.0 |
+| 200 | 90% | 80% | fixes 90% of its fails' mistakes, breaks 25% of its passes' right answers | -16.2 | 101 | 0.0 | 0.0 | 1.5 | 98.5 |
 
 Can't tell yet counts all three of its kinds (leans better, looks the same, leans worse). Each row is one first test on a new set of marks kept aside; later tests on the same marks are stricter.

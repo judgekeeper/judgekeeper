@@ -897,15 +897,14 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
-             "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes is "
-             "clear from about 50 marks, one that fixes a quarter from about 80, and one that "
-             "fixes 1 in 10 and breaks 5 in 100 right answers needs more than 120 "
-             "(simulation).")],
+             "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes or a "
+             "quarter of them is clear from about 80 marks, and one that fixes 1 in 10 and "
+             "breaks 5 in 100 right answers needs about 160 (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
              "(.judgekeeper/fix/marked-answers.csv) the same way as in step 4, then:"),
-            ("judgekeeper finds the answers you marked in your new results by their exact text "
-             "and question, compares the new grades with your marks, and tells you if your "
+            ("judgekeeper finds the answers you marked in your new results by the same text, "
+             "word for word, and the same question, compares the new grades with your marks, and tells you if your "
              "LLM-as-a-judge "
              "still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]

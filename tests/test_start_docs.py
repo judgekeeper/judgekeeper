@@ -36,7 +36,7 @@ def test_the_readme_shows_pip_and_uv_as_equals_pip_first():
     # the README leaves the regrade and the marks `fix` needs to the reference
     fix = " ".join(REFERENCE.read_text(encoding="utf-8").split())
     assert "marked-answers.csv" in fix and "judgekeeper fix <new results file>" in fix
-    assert "from about 80" in fix and "more than 120" in fix
+    assert "from about 80" in fix and "from about 160" in fix
     assert "examples/kept-aside/report.md" in fix
 
 

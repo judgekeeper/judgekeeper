@@ -1830,15 +1830,18 @@ def agreement_lines(r: dict) -> list[str]:
              f"{c['easy']} and failed {c['failed'] - c['easy']}.")]
 
 
-def estimate_lines(r: dict) -> list[str]:
+def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None) -> list[str]:
     """How often the judge agrees with you, estimated, as the result page's More details
     (report_page.estimate): "about 57% (between 37% and 74%)", also while it is too early to
-    tell; too early to tell only with no number yet."""
-    from judgekeeper.report_page import estimate
+    tell; "78% (you marked every answer)" with no width; too early to tell only with no number
+    yet. `every` (every answer is marked) and `pool` (how many the judge passed and failed):
+    as `r` says, by default."""
+    from judgekeeper.report_page import estimate, why_for, why_no_range
 
     out = [AGREES]
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
-        shown, between = estimate(r.get(key), r.get(f"{key}_interval"))
+        why = why_for(r, key) if every is None else why_no_range(key, every, pool)
+        shown, between = estimate(r.get(key), r.get(f"{key}_interval"), why)
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
     return out

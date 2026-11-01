@@ -288,8 +288,21 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     cell = min(level["per_metric"][k] for k in ("tpr", "tnr"))
     first = min(r["coverage"][k] for r in grid["accuracy"]["stopping"] if r["each"] == 15
                 for k in ("tpr", "tnr"))
-    assert first == lowest_tpr_tnr_coverage(grid)  # the lowest anywhere is at the first result
-    assert cell >= first  # so "the lowest" is the first result's
+    # the lowest anywhere is after grading again in batches, with 10 marks in each group
+    lowest = lowest_tpr_tnr_coverage(grid)
+    assert lowest == min(grid["batches"]["general"]["per_metric"].values())
+    low = [r["marks"] for r in grid["batches"]["rows"] for k in ("tpr", "tnr")
+           if r["ranges"][f"general/{k}"]["coverage"] == lowest]
+    assert low and all(m == [10] for m in low)
+    # before grading again, the lowest is at the first result
+    before = [s["per_metric"][k] for s in (level, grid["batches"]["start"],
+                                           grid["one_grade"]["start"]) for k in ("tpr", "tnr")]
+    assert first == min(before + [r["coverage"][k] for r in grid["accuracy"]["stopping"]
+                                  for k in ("tpr", "tnr")])
+    assert cell >= first  # so "the lowest" before grading again is the first result's
+    assert (f'The lowest, {pct(lowest)}, is after grading again with 10 marks in each group, in '
+            f'batches (table "Batches"). Before grading again, the lowest is {pct(first)}, when '
+            'marking stops at 15 Pass and 15 Fail') in _flat(ROOT / "docs" / "reference.md")
     simulated = f"the ranges held the true value {pct(level['mean'])} times in 100 on average"
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links

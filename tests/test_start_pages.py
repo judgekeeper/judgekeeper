@@ -95,7 +95,7 @@ BOTH_WIDE = "Marking more answers narrows the range for the answers you marked P
 @pytest.mark.parametrize("counts, text, ready", [
     ((100, 100, 0, 0, 0, 0), FEW, False),
     ((100, 100, 22, 14, 22, 0), FEW, False),  # 14 marked Pass
-    ((100, 100, 15, 12, 15, 3), BOTH_WIDE, True),  # both ranges still over 30 points wide
+    ((1000, 1000, 15, 12, 15, 3), BOTH_WIDE, True),  # both ranges still over 30 points wide
     ((100, 100, 15, 14, 15, 1), "Your result is ready.", True),  # narrow enough already
     ((100, 100, 50, 48, 50, 2), "Your result is ready.", True),
 ])

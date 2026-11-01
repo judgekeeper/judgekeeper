@@ -8,8 +8,9 @@ batch is added.
 
 The numbers are stratified by batch (`strata`): a stratum is (batch, the judge's grade it was
 picked from), and each marked answer weighs N_stratum / n_stratum. The first batch always
-counts; a later one counts only once each of its non-empty strata has MIN_MARKS marks or is
-fully marked (`counting`). Until then it is left out, and the result says so in one line
+counts; a later one counts only once each of its non-empty strata has marks in proportion to
+its size, against the first batch's stratum of the same grade (`need`), or is fully marked
+(`counting`), so a large new batch does not widen the ranges after a few marks. Until then it is left out, and the result says so in one line
 (`line`). With one batch, every number is the same as with no batches.
 """
 
@@ -17,12 +18,14 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import secrets
 from collections import Counter
 
 from judgekeeper.textio import loads, plural
 
-MIN_MARKS = 5  # marks in each stratum of a batch before it counts (or every answer in it)
+MIN_MARKS = 5  # marks a stratum as big as the first batch's needs before its batch counts
+MOST_MARKS = 15  # the most a stratum of a later batch needs, however big
 ADDED = "Your newest results have {n} you haven't seen. {they} added for marking."
 
 
@@ -77,15 +80,25 @@ def _first(sizes: dict) -> int:
     return min((b for b, _ in sizes), default=1)
 
 
+def need(size: int, first: int) -> int:
+    """The marks a stratum of `size` answers of a later batch needs before its batch counts:
+    MIN_MARKS times its size over the first batch's stratum of the same grade (`first`),
+    rounded up, at least 1 and at most MOST_MARKS (MOST_MARKS when the first has none), and
+    never more than the stratum holds."""
+    want = MOST_MARKS if first <= 0 else min(math.ceil(MIN_MARKS * size / first), MOST_MARKS)
+    return min(max(want, 1), size)
+
+
 def counting(data: dict, labels: dict[str, str], known: tuple | None = None) -> list[int]:
     """The batches that count toward the result, from the marks (`labels`: {id: "pass" or
-    "fail"}): the first always; a later one when each of its non-empty strata has MIN_MARKS
-    marks or every answer in it marked. `known`: strata(data), when the caller has it."""
+    "fail"}): the first always; a later one when each of its non-empty strata has the marks
+    `need` asks for. `known`: strata(data), when the caller has it."""
     where, sizes = known or strata(data)
     marked = Counter(where[i] for i in labels if i in where)
+    first = _first(sizes)
     out = []
     for b in sorted({b for b, _ in sizes}):
-        ready = all(marked[(b, g)] >= min(MIN_MARKS, sizes[(b, g)])
+        ready = all(marked[(b, g)] >= need(sizes[(b, g)], sizes.get((first, g), 0))
                     for g in ("pass", "fail") if sizes[(b, g)] > 0)
         if b == _first(sizes) or ready:
             out.append(b)

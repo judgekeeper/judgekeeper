@@ -162,9 +162,9 @@ def project(tmp_path, monkeypatch):
 def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
-    promptfoo_project(project, split(30, 30))
+    promptfoo_project(project, split(300, 300))  # most answers left unmarked: a range
     out = _measured(project, capsys, lambda g, n: g if n > 2 else ("fail" if g == "pass"
-                                                                    else "pass"))
+                                                                    else "pass"), limit=60)
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
@@ -432,7 +432,7 @@ def test_the_readme_names_kappas_range():
 
     readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
     means = readme[readme.index("## The numbers"):readme.index("## Checked on")]
-    assert "**Kappa:**" in means and "Each comes with a range" in means
+    assert "**Kappa:**" in means and "TPR and TNR each come with a range" in means
 
 
 def test_check_shows_counts_only(tmp_path, monkeypatch, capsys):

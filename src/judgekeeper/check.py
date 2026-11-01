@@ -96,8 +96,8 @@ NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be chance."
-NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by its "
-           "exact text and question.")
+NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by "
+           "the same text, word for word, and the same question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
               "it in your project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
@@ -111,7 +111,7 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
 NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
 SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
 NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by its exact text and question.")
+          "It finds a marked answer by the same text, word for word, and the same question.")
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
@@ -649,6 +649,7 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     """The new judge on the marks made after the change: none yet, how many so far, or (with
     AFTER_NUMBERS of each) its numbers with their ranges. `every`: every answer is marked, so
     none is left to mark."""
+    from judgekeeper.report_page import why_no_range
     from judgekeeper.start_label import side_sentence
 
     kinds = list(fresh.values())
@@ -659,7 +660,8 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general_strata(items, pool)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
-            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'])}" for k in ("tpr", "tnr"))]
+            *(f"  {side_sentence(k, out[k], out[f'{k}_interval'], why_no_range(k, every, _sizes(pool)))}"
+              for k in ("tpr", "tnr"))]
 
 
 def outcome(g: dict) -> str | None:
@@ -1800,7 +1802,13 @@ def _new_rates(marked: dict[str, str], tested: dict[str, str], picked: dict[str,
     result's are worked out (weighted.general_strata): for report.html's Last check block."""
     items = [(picked[i], marked[i], v) for i, v in tested.items() if i in marked and i in picked]
     out = weighted.general_strata(items, pool)
-    return {k: out[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval")}
+    return {**{k: out[k] for k in ("tpr", "tpr_interval", "tnr", "tnr_interval")},
+            "pool": _sizes(pool)}
+
+
+def _sizes(pool: dict) -> dict[str, int]:
+    """How many answers the judge passed and failed, from the strata's sizes."""
+    return {g: sum(n for (_, k), n in pool.items() if k == g) for g in ("pass", "fail")}
 
 
 def worse_step(old: dict, new: dict, command: str, ws: Workspace) -> str:
@@ -1841,7 +1849,8 @@ def last_check(ws: Workspace) -> dict | None:
     if rates:
         from judgekeeper.front import estimate_lines
 
-        lines += [x.strip() for x in estimate_lines(rates)[1:]]
+        pool = rates.get("pool") if isinstance(rates.get("pool"), dict) else None
+        lines += [x.strip() for x in estimate_lines(rates, every_marked(ws), pool)[1:]]
     return {"judge": ", ".join(names) or None, "lines": lines}
 
 

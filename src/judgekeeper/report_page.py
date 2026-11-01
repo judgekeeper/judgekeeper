@@ -436,7 +436,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .tbl td ul { margin: 6px 0; padding-left: 1.3em; white-space: normal; }
 .tbl td li { margin: 2px 0; }
 .tbl td strong { font-weight: 700; }
-/* the command box with Copy: the website's, exactly; the "$" is drawn, never copied */
+/* the command box with Copy: the same as the website's; the "$" is drawn, never copied */
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
   min-width: min(380px, 100%); background: #07080a; }
@@ -1016,20 +1016,47 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     return "".join(out)
 
 
-def estimate(value, interval) -> tuple[str, str]:
+def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
     range is too wide for a result (the headline says it is too early to tell). Too early to
-    tell when there is no number yet. A range of no width (a judge that passes or fails every
-    answer) is exact, with no "about". Ends that round to the same percent are shown with one
-    decimal, never as one point."""
+    tell when there is no number yet. A range of no width is not shown: the number says why
+    in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
+    to the same percent are shown with one decimal, never as one point."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return _pct(value), f"{_pct(lo)} and {_pct(hi)}"
+        return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
     if _pct(lo) == _pct(hi):
         return f"about {_pct(value)}", f"{lo:.1%} and {hi:.1%}"
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
+
+
+# Why a number has no range, said in brackets after it: "78% (you marked every answer)"
+EVERY_MARKED = "you marked every answer"
+SAME_GRADE = "it gave every answer the same grade"
+EVERY_OF = "you marked every answer it {did}"
+
+
+def why_no_range(key: str, every: bool, pool: dict | None = None) -> str:
+    """Why `key`'s range has no width. Every answer marked; or the judge gave every answer one
+    grade (`pool`: how many it passed and failed); or, for TPR, every answer it failed is
+    marked and none should pass (so it failed none that should), and for TNR the same with
+    the answers it passed. Kappa has no range only with every answer marked."""
+    if every:
+        return EVERY_MARKED
+    if pool and (not pool.get("pass") or not pool.get("fail")):
+        return SAME_GRADE
+    if key in ("tpr", "tnr"):
+        return EVERY_OF.format(did="failed" if key == "tpr" else "passed")
+    return EVERY_MARKED
+
+
+def why_for(r: dict, key: str) -> str:
+    """why_no_range for a result: its count left to mark and its groups' sizes."""
+    g = r.get("groups") or {}
+    pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
+    return why_no_range(key, r.get("left") == 0, pool)
 
 
 def _caption(r: dict) -> str:
@@ -1049,7 +1076,7 @@ def _main_lines(r: dict) -> str:
     say Pass and when they say Fail, estimated (weighted, with their ranges)."""
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
-        est, between = estimate(r.get(key), r.get(f"{key}_interval"))
+        est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'
@@ -1062,14 +1089,17 @@ def _main_lines(r: dict) -> str:
 
 
 def _details(r: dict) -> str:
-    """More details, folded: kappa and its range."""
+    """More details, folded: kappa and its range (none when it has no width, and why)."""
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
+    shown = _two(kappa) if kappa is not None else "n/a"
+    if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
+        shown, lo = f"{shown} ({why_for(r, 'kappa')})", None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-            f'{_two(kappa) if kappa is not None else "n/a"}</td><td data-label="Between">'
+            f'{shown}</td><td data-label="Between">'
             f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
             '</summary><table class="panel">'

@@ -417,4 +417,4 @@ def said(added: Added, plan: Plan, source: str) -> list[str]:
 
 def nothing_matched(source: str) -> LabelsStop:
     return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that the "
-                        "answer text is exactly the same.")])
+                        "answer text is the same, word for word.")])

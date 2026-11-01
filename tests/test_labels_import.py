@@ -456,8 +456,8 @@ def test_nothing_matching_stops(here, capsys):
     write_labels(here / "mine.csv", [{"answer": "Nothing like it.", "label": "pass"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    assert ("No labels in mine.csv match your results. Check that the answer text is exactly "
-            "the same.") in flat(out)
+    assert ("No labels in mine.csv match your results. Check that the answer text is the same, "
+            "word for word.") in flat(out)
     _nothing_written(Workspace(here))
 
 

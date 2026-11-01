@@ -388,46 +388,12 @@ def test_the_slip_rate_from_repeats():
     assert 2 * e * (1 - e) == pytest.approx(0.1)
 
 
-# A range that stays honest while the person is still marking ---------------------------------------
-
-def _misses_at_some_look(rng, p: float, first: int = 15, last: int = 200) -> bool:
-    """Whether the anytime range misses the true rate p at some look, marking one answer at
-    a time and looking after each from the `first`-th to the `last`-th."""
-    k = 0
-    for n in range(1, last + 1):
-        k += rng.random() < p
-        if n >= first and not targets.anytime_holds(p, k, n):
-            return True
-    return False
-
-
-@pytest.mark.parametrize("p", [0.70, 0.80, 0.90, 0.95])
-def test_the_anytime_range_misses_at_most_5_in_100_however_often_one_looks(p):
-    import random
-
-    rng = random.Random(int(p * 100))
-    runs = 1000
-    assert sum(_misses_at_some_look(rng, p) for _ in range(runs)) / runs <= 0.05
-
-
-def test_the_anytime_range_holds_the_share_and_is_wider_than_the_fixed_one():
-    from judgekeeper import weighted
-
-    lo, hi = targets.anytime_range(40, 50)
-    assert lo < 0.8 < hi
-    assert targets.anytime_holds(0.8, 40, 50) and not targets.anytime_holds(0.3, 40, 50)
-    import random
-
-    rng = random.Random(1)
-    draws = sorted(rng.betavariate(40.5, 10.5) for _ in range(20000))
-    fixed = weighted.middle(draws, weighted.LEVEL, 0.8)
-    ratio = (hi - lo) / (fixed[1] - fixed[0])
-    assert 1.4 <= ratio <= 1.7  # about 1.4 to 1.6 times the fixed range
-
+# While marking -----------------------------------------------------------------------------
 
 def test_no_message_while_marking_compares_a_number_with_the_bar():
     """The line under the page's meters says how far along the marks are, by the widths of
-    the ranges, never "good enough" or a bar: such a line would need the anytime range."""
+    the ranges, never "good enough" or a bar: such a line would need a range made for
+    looking after every mark."""
     from judgekeeper import start_label
 
     texts = {start_label.progress_status(900, 100, n_p, c_p, n_f, c_f)["text"]

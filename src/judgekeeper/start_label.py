@@ -113,7 +113,7 @@ DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
 # with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
-NUMBERS_VERSION = 2
+NUMBERS_VERSION = 3
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
 
@@ -945,7 +945,9 @@ def sentences(r: dict) -> list[str]:
             return all_marked_lines(r["labels"],
                                     mark_command(command_from(r.get("flags"), kept=True)))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
-    return [side_sentence(key, r[key], r[f"{key}_interval"]) for key in SAID]
+    from judgekeeper.report_page import why_for
+
+    return [side_sentence(key, r[key], r[f"{key}_interval"], why_for(r, key)) for key in SAID]
 
 
 def too_early(value, interval) -> bool:
@@ -955,14 +957,16 @@ def too_early(value, interval) -> bool:
     return not known or targets.width_word(interval) == "too_wide"
 
 
-def side_sentence(key: str, value, interval) -> str:
+def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     """One side of the result, as the terminal says it: "You passed: your judge also passed
     about 61% (between 42% and 78%)."; too early to tell while its range is too wide."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
     if targets.width_word(interval) == "exact":
-        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} (exactly)."
+        from judgekeeper.report_page import EVERY_MARKED
+
+        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} ({why or EVERY_MARKED})."
     return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
             f"{_pct(interval[0])} and {_pct(interval[1])}).")
 
