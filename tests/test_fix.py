@@ -931,3 +931,23 @@ def test_the_long_answer_clue_reads_plainly():
     assert ("When it said Fail and you said Pass, the answers are long (about 12 words, "
             "against 3).") in lines
     assert not any("where you said" in x and x.startswith("Where") for x in lines)
+
+
+@pytest.mark.parametrize("n,lead", [
+    (1, "The one mistake your LLM-as-a-judge made is saved in "),
+    (2, "Both mistakes your LLM-as-a-judge made are saved in "),
+    (3, "All 3 mistakes your LLM-as-a-judge made are saved in "),  # under their count
+])
+def test_the_saved_line_says_how_many_mistakes_in_words(tmp_path, monkeypatch, n, lead):
+    monkeypatch.chdir(tmp_path)
+    line = fix._saved_line(Workspace(tmp_path), n)
+    assert line.startswith(lead + ".judgekeeper/fix/mistakes.md. Use it"), line
+
+
+def test_new_results_given_in_full_are_named_from_here(here, capsys):
+    project(here)
+    run(capsys)
+    new = regraded(here)
+    _, out = run(capsys, str(new))
+    assert "New results: regraded.json" in out.splitlines(), out
+    assert str(here) not in out and str(here.resolve()) not in out

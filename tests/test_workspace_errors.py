@@ -199,14 +199,17 @@ def test_a_next_line_repeats_a_full_path_from_here(here, tmp_path_factory):
 
 
 def test_a_labels_file_on_another_drive_is_named_as_a_file(here, monkeypatch):
-    from judgekeeper import cli
+    from judgekeeper import cli, textio
 
     def other_drive(path, start=None):
         raise ValueError("path is on mount 'D:', start on mount 'C:'")
 
-    monkeypatch.setattr(cli.os.path, "relpath", other_drive)
+    monkeypatch.setattr(textio.os.path, "relpath", other_drive)
     assert (cli.again(["--labels", "/elsewhere/labels.csv", "--port", "9605"])
             == "judgekeeper --labels <file> --port 9605")
+    # the --labels stops' Next lines: the same rule
+    assert textio.runnable("/elsewhere/labels.csv", labels=True) == "<file>"
+    assert textio.runnable("/elsewhere/evals", labels=False) == "PATH"
 
 
 def test_a_value_that_is_no_path_is_repeated_as_given(here):

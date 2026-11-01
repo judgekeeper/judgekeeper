@@ -328,6 +328,31 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     return decode_utf8(data, path, error).removeprefix(BOM)
 
 
+def utf8_lines(path: str | Path, error: type[Exception], newline: str = ""):
+    """The lines of a file the user supplied, one at a time, as read_utf8 reads it (UTF-8, no
+    byte order mark, the same `error`s) but never held whole: split as open() splits them
+    with `newline`. Close it (contextlib.closing) when not read to the end."""
+    import io
+
+    global last_read
+    last_read = Path(path).name
+    _reading.update(since=_clock(), said=None)
+    try:
+        raw = open_regular(path)
+    except NotAFile as e:
+        raise error(not_a_file_message(path, e.kind)) from None
+    with io.TextIOWrapper(raw, encoding="utf-8", newline=newline) as text:
+        first = True
+        try:
+            for line in text:
+                if "\x00" in line:  # UTF-16 without a byte order mark (decode_utf8)
+                    raise ValueError("NUL byte")
+                yield line.removeprefix(BOM) if first else line
+                first = False
+        except ValueError:  # UnicodeDecodeError is one
+            raise error(not_utf8_message(path)) from None
+
+
 NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
 NOT_TEXT = ("{file} holds a character that isn't text (a lone surrogate such as \\ud800), so "
             "judgekeeper can't read it.")
@@ -556,6 +581,35 @@ def is_link(path: Path) -> bool:
 
 
 _is_link = is_link
+
+
+ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
+
+
+def from_here(value: str, labels: bool) -> str:
+    """A path given in full, as a Next: line repeats it: from the folder the command runs in;
+    on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
+    if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
+        return value
+    try:
+        rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))
+    except ValueError:  # another drive (Windows)
+        return ANOTHER_DRIVE[0 if labels else 1]
+    return rel.replace(os.sep, "/")
+
+
+def shown_from_here(value) -> str:
+    """A path as a line names it (not a command): from the folder the command runs in, else
+    (another drive) its base name. Never the whole path."""
+    text = os.fsdecode(value)
+    shown = from_here(text, labels=False)
+    return Path(text).name if shown in ANOTHER_DRIVE else shown
+
+
+def runnable(value: str, labels: bool) -> str:
+    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE)."""
+    shown = from_here(value, labels)
+    return shown if shown in ANOTHER_DRIVE else quote_arg(shown)
 
 
 # File-system errors --------------------------------------------------------------------------

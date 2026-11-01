@@ -53,7 +53,9 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    runnable,
     said_next,
+    shown_from_here,
     wrap,
     write_replacing,
 )
@@ -520,7 +522,8 @@ def _change_lines(old: dict, new: dict, changed: list[str], full: bool) -> list[
 
 def _command(state_or_path) -> str:
     path = state_or_path.path if isinstance(state_or_path, State) else state_or_path
-    return " ".join((program("check"), *([] if str(path) == "." else [quote_arg(path)])))
+    return " ".join((program("check"),
+                     *([] if str(path) == "." else [runnable(str(path), labels=False)])))
 
 
 # The paired test --------------------------------------------------------------------------------
@@ -724,7 +727,7 @@ def expect_lines(g: dict) -> list[str]:
             and g[key]["new_right"] > g[key]["old_right"]]
     if dropped and rose:  # "worse" next to a group that improved: say what decides
         out.append(f"Agreement rose on answers you {rose[0]} but dropped on answers you "
-                   f"{dropped[0]}, and one big drop in either group makes the result worse.")
+                   f"{dropped[0]}, and a clear drop in either group makes the result worse.")
     return out
 
 
@@ -1616,7 +1619,7 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     """The line that names the results the check reads: the file given, else the newest
     file read (for MLflow, the newest run in its store)."""
     if given_results(path):
-        return f"New results: {Path(path).as_posix()}"
+        return f"New results: {Path(shown_from_here(path)).as_posix()}"
     if now is None or now.newest is None:
         return None
     if state.data.get("tool") == "mlflow":
@@ -1626,7 +1629,8 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
         return f"New results: the newest run in {store}" if store else None
     root = Path(state.ws.root).resolve()
     newest = Path(now.newest).resolve()
-    shown = newest.relative_to(root).as_posix() if newest.is_relative_to(root) else str(newest)
+    shown = (newest.relative_to(root).as_posix() if newest.is_relative_to(root)
+             else Path(shown_from_here(newest)).as_posix())
     return f"New results: {shown}"
 
 

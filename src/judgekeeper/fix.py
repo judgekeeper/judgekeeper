@@ -50,7 +50,9 @@ from judgekeeper.textio import (
     program,
     quote_arg,
     read_cached,
+    runnable,
     said_next,
+    shown_from_here,
     wrap,
     write_replacing,
 )
@@ -859,10 +861,11 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
 
 
 def _saved_line(ws: Workspace, n: int) -> str:
-    """Where the mistakes went and what the file is for; the line above already says how many
-    mistakes the LLM-as-a-judge made."""
-    made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 1
-            else "The 1 mistake your LLM-as-a-judge made is")
+    """Where the `n` mistakes went and what the file is for. With 3 or more, the clues above
+    came from them ("All {n}"); with 1 or 2 there are no clues, so the words say how many."""
+    made = (f"All {n} mistakes your LLM-as-a-judge made are" if n > 2
+            else "Both mistakes your LLM-as-a-judge made are" if n == 2
+            else "The one mistake your LLM-as-a-judge made is")
     return (f"{made} saved in {_file(ws, MISTAKES)}. Use it to write a better "
             "rule, or hand it to a coding agent to help you write one.")
 
@@ -1623,8 +1626,9 @@ def next_test(split: Split) -> int:
 
 
 def _shown_path(path: Path) -> str:
-    """A results file as the person gave it, a link they can click in a terminal."""
-    return link(path, path.as_posix())
+    """A results file from here (textio.shown_from_here), a link they can click in a
+    terminal."""
+    return link(path, Path(shown_from_here(path)).as_posix())
 
 
 def _better_needs(n: int, k: int) -> int:
@@ -1652,7 +1656,7 @@ def _given(talk: Talk, state, m: Marks, path: Path):
         elif isinstance(problem, OtherName):
             talk.next(f"grade {_file(state.ws, ANSWERS)} again with your new rule under the "
                       f"name {scrub(m.data.get('metric') or '')!r}, the one your marks test, "
-                      f"then run `{talk.command()} {quote_arg(str(path))}`.")
+                      f"then run `{talk.command()} {runnable(str(path), labels=False)}`.")
         elif tool == "records":
             again = RECORD_AGAIN.format(command=talk.command())
             talk.next(again[0].lower() + again[1:])
@@ -1685,7 +1689,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     unknown = unknown_grades(found, path)
     if unknown:
         talk.para(unknown)
-        talk.next(NEXT_UNKNOWN.format(command=f"{talk.command()} {quote_arg(str(path))}"))
+        talk.next(NEXT_UNKNOWN.format(command=f"{talk.command()} {runnable(str(path), labels=False)}"))
         return EXIT_NEEDS_YOU
     setup = judge_setup.of(found)
     setup_hash = judge_setup.hash_of(setup)
@@ -1812,7 +1816,7 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
     would make new answers, which judgekeeper can't compare."""
     if kind in ("better", "safe"):
         return (f"keep your new rule, then run `{talk.command('check')} "
-                f"{quote_arg(path.as_posix())}` to re-check it on all your marks.")
+                f"{runnable(str(path), labels=False)}` to re-check it on all your marks.")
     if kind == "worse":
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "

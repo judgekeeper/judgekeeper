@@ -932,3 +932,145 @@ def test_step_2_after_an_import_says_marks_not_marked(here, capsys):
     text = flat(out)
     assert "You have 10 marks so far: 10 Pass, 0 Fail." in text
     assert "You marked" not in text
+
+
+# A labels FILE given in full: never a full path in what is said -------------------------------
+
+def _apart(tmp_path, monkeypatch) -> tuple[Path, Path]:
+    """A project in proj/ (run from there) and a labels folder lf/ beside it."""
+    proj, lf = tmp_path / "proj", tmp_path / "lf"
+    table(proj)
+    lf.mkdir()
+    monkeypatch.chdir(proj)
+    return proj, lf
+
+
+def _no_full_path(out: str, tmp_path: Path) -> None:
+    for full in {str(tmp_path), str(tmp_path.resolve()), str(Path.home())}:
+        assert full not in out, full
+
+
+def test_an_excel_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    (lf / "labels.xlsx").write_bytes(b"PK\x03\x04")
+    code, out = run(capsys, "--labels", str(lf / "labels.xlsx"))
+    assert code == 3
+    assert ("judgekeeper can't read Excel files. Save labels.xlsx as CSV, then run: "
+            f"{CMD} --labels ../lf/labels.csv") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_a_missing_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    code, out = run(capsys, "--labels", str(lf / "nothere.csv"))
+    assert code == 3
+    assert ("Can't find nothere.csv. Check the name and folder, then run: "
+            f"{CMD} --labels <file>") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_a_link_given_in_full_names_it_by_its_name(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    write_labels(lf / "real.csv", labelled(range(3)))
+    try:
+        os.symlink(lf / "real.csv", lf / "link.csv")
+    except (OSError, NotImplementedError):
+        pytest.skip("no symlinks here")
+    code, out = run(capsys, "mark", "--labels", str(lf / "link.csv"))
+    assert code == 3
+    assert ("link.csv is a link to another file. judgekeeper does not read labels through "
+            "links. Give the file itself.") in flat(out)
+    _no_full_path(out, tmp_path)
+
+
+def test_unknown_words_in_a_file_given_in_full(tmp_path, monkeypatch, capsys):
+    _, lf = _apart(tmp_path, monkeypatch)
+    write_labels(lf / "words.csv", [{"answer": answer(0), "label": "meh"}])
+    code, out = run(capsys, "--labels", str(lf / "words.csv"))
+    assert code == 3
+    text = flat(out)
+    assert "Some labels in words.csv aren't Pass or Fail: meh." in text
+    assert (f'then run: {CMD} --labels ../lf/words.csv --label-map "WORD=pass,WORD=fail"'
+            in text)
+    _no_full_path(out, tmp_path)
+
+
+def _printed_command(out: str, lead: str) -> list[str]:
+    import shlex
+
+    line = flat(out).split(lead, 1)[1]
+    words = shlex.split(line.split(" Next:")[0].rstrip("."))
+    assert words[0] == "judgekeeper"
+    return words[1:]
+
+
+@pytest.mark.parametrize("sub", [(), ("mark",)])
+def test_a_folder_given_in_full_runs_as_printed(tmp_path, monkeypatch, capsys, sub):
+    """The folder-as-FILE stop names the folder from here, and its "put it first" line runs
+    as printed (with `mark`, the folder goes after it): exit 0 or 3, never 2."""
+    _, lf = _apart(tmp_path, monkeypatch)
+    table(tmp_path / "other")
+    write_labels(lf / "labels.csv", labelled(range(3)))
+    code, out = run(capsys, *sub, "--labels", str(tmp_path / "other"))
+    assert code == 3
+    text = flat(out)
+    assert "../other is a folder. Give the labels file instead:" in text
+    _no_full_path(out, tmp_path)
+    words = _printed_command(out, "To check that folder, put it first: ")
+    assert words[:len(sub) + 1] == [*sub, "../other"], words
+    words = [str(lf / "labels.csv") if w == "<file>" else w for w in words]
+    try:
+        again = main(words)
+    except SystemExit as e:  # argparse refused the line
+        again = e.code
+    assert again in (0, 3), again
+
+
+# A big labels file: read row by row, keeping only the cells used -----------------------------
+
+@pytest.mark.parametrize("suffix", [".csv", ".jsonl"])
+def test_a_big_labels_file_is_never_held_whole(here, suffix):
+    """Only the id, question, answer and label cells are kept, one row at a time: reading a
+    10 MB file with a 4,000-character notes cell holds a small part of it at most."""
+    import tracemalloc
+
+    path = here / f"big{suffix}"
+    note = "n" * 4000
+    rows = [{"id": f"r{i}", "answer": f"answer {i}", "label": "pass", "notes": note}
+            for i in range(2500)]
+    if suffix == ".csv":
+        write_labels(path, rows)
+    else:
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert path.stat().st_size > 10_000_000
+    tracemalloc.start()
+    try:
+        read = labels.read_file(path, path.name)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert [(x.id, x.output, x.mark) for x in read[:2]] == [("r0", "answer 0", "pass"),
+                                                            ("r1", "answer 1", "pass")]
+    assert len(read) == 2500
+    assert peak < 3_000_000, peak  # the whole file is over 10 MB
+
+
+def test_a_labels_file_keeps_only_the_columns_it_uses(here):
+    """The rows read_table reads, with only the columns kept, named as read_table names them."""
+    from judgekeeper.table import read_kept, read_table
+
+    rows = [{"ID": "a", " Answer ": "x", "label": "pass", "notes": "n", "Question": "q"},
+            {"ID": "", " Answer ": "", "label": "", "notes": "", "Question": ""},  # no row
+            {"ID": "b", " Answer ": "y", "label": "fail", "notes": "", "Question": ""}]
+    write_labels(here / "mine.csv", rows)
+    (here / "mine.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                     encoding="utf-8")
+    wanted = {"id", "answer", "label", "question"}
+
+    def keep(c):
+        return str(c).strip().lower() in wanted
+    for name in ("mine.csv", "mine.jsonl"):
+        kept = read_kept(here / name, keep)
+        assert kept == [{k: v for k, v in r.items() if keep(k)}
+                        for r in read_table(here / name, cap=False)], name
+        assert all("notes" not in r for r in kept)

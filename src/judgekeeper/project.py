@@ -40,7 +40,7 @@ def move_to_previous(ws: Workspace, say) -> Path | None:
         target = ws.dir / f"{PREVIOUS}{_stamp()}-{n}"
         n += 1
     target.mkdir(mode=PRIVATE_FOLDER)
-    what = ("your last check" if ws.result_json.is_file()  # a result was made
+    what = ("your marks and results" if ws.result_json.is_file()  # a result was made
             else "your marks" if ws.marks.is_file() and marks.read(ws.marks).counted()
             else "your saved answers")
     for p in entries:

@@ -56,8 +56,13 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
     # in every place a number is shown
     assert report_page.estimate(0.78, [0.78, 0.78], "you marked every answer") == (
         "78% (you marked every answer)", "–")
-    assert front.estimate_lines({"tpr": 1.0, "tpr_interval": [1.0, 1.0], "tnr": 0.78,
-                                 "tnr_interval": [0.78, 0.78], "left": 0})[1:] == [
+    every = {"tpr": 1.0, "tpr_interval": [1.0, 1.0], "tnr": 0.78, "tnr_interval": [0.78, 0.78],
+             "left": 0}
+    assert front.estimate_lines(every)[0] == (
+        "How often your LLM-as-a-judge agrees with you:")  # no range: not "(estimates)"
+    assert front.estimate_lines({**every, "tnr_interval": [0.6, 0.9], "left": 3})[0] == (
+        "How often your LLM-as-a-judge agrees with you (estimates):")
+    assert front.estimate_lines(every)[1:] == [
         "  When you say Pass, it also says Pass: 100% (you marked every answer)",
         "  When you say Fail, it also says Fail: 78% (you marked every answer)"]
     page = report_page._details({"kappa": 0.62, "kappa_interval": [0.62, 0.62], "left": 0})

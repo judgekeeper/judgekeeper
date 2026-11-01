@@ -100,7 +100,7 @@ FREE_CHECK = "Checked: "  # every free-check line starts with it
 # Said where marking starts, before the page opens (and in the README and the reference)
 NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail, and "
                    "{g} marks on answers your LLM-as-a-judge passed and {g} on answers it "
-                   "failed.")
+                   "failed (or all of them, when there are fewer).")
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
@@ -188,6 +188,9 @@ class FrontTalk(start.Talk):
 
     def command_at(self, where: str | Path, *extra: str) -> str:
         return super().command_at(where, *_with_given_map(self.options.get("label_map"), extra))
+
+    def command_in(self, folder: str, *extra: str) -> str:
+        return super().command_in(folder, *_with_given_map(self.options.get("label_map"), extra))
 
     def looking(self, root: Path) -> None:
         """Said only when nothing is found."""
@@ -365,7 +368,7 @@ def _labels_file(talk: FrontTalk) -> Path | None:
     if talk.labels is None or talk.labels == labels_mod.IN_RESULTS:
         return None
     try:
-        return labels_mod.check_file(talk.labels, talk.command)
+        return labels_mod.check_file(talk.labels, talk.command, talk.command_in)
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
 
@@ -1852,13 +1855,15 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
     as `r` says, by default."""
     from judgekeeper.report_page import estimate, why_for, why_no_range
 
-    out = [AGREES]
+    out, ranged = [], False
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         why = why_for(r, key) if every is None else why_no_range(key, every, pool)
         shown, between = estimate(r.get(key), r.get(f"{key}_interval"), why)
+        ranged = ranged or between != "–"
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
-    return out
+    # with no range (every answer marked) the numbers are no estimates
+    return [AGREES if ranged else AGREES.replace(" (estimates)", ""), *out]
 
 
 def verdict_line(r: dict) -> str | None:
@@ -1935,6 +1940,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
+    no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
+    if no_grade:
+        talk.para(no_grade)
     gate = labels_mod.gate_line(r.get("import_gate"), r.get("imported"))
     if gate:  # imported marks not yet checked against page marks
         talk.para(gate)

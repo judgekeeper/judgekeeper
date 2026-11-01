@@ -31,7 +31,7 @@ from types import SimpleNamespace
 from judgekeeper import marks
 from judgekeeper.normalise import Normaliser, UnmappedValue, _numeric
 from judgekeeper.redact import scrub
-from judgekeeper.textio import is_link, plural, quote_arg
+from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
@@ -116,12 +116,16 @@ def found_line(n: int, command: str) -> str:
 
 # The file ----------------------------------------------------------------------------------
 
-def check_file(given: str, command: Callable[..., str] | None = None) -> Path:
+def check_file(given: str, command: Callable[..., str] | None = None,
+               command_in: Callable[..., str] | None = None) -> Path:
     """The labels file named `given`, before anything is found or written: a LabelsStop for a
-    folder, an Excel file, a missing file, a link, or something that is not a file."""
+    folder, an Excel file, a missing file, a link, or something that is not a file. The file
+    is named by its base name, a folder from here; a Next line gives the path from here
+    (textio.from_here). `command_in(folder, *extra)`: the command run on that folder."""
     from judgekeeper import find
 
     command = _plain(command)
+    name = Path(given).name or given
     if not given.strip():
         raise LabelsStop([f"Give the labels file: {command('--labels', '<file>')}"])
     path = Path(given)
@@ -130,23 +134,24 @@ def check_file(given: str, command: Callable[..., str] | None = None) -> Path:
     except OSError:
         folder = False
     if folder:
-        lines = [(f"{given} is a folder. Give the labels file instead: "
-                  f"{command('--labels', '<file>')}")]
+        where = from_here(given, labels=False)
+        lines = [(f"{name if where in ANOTHER_DRIVE else where} is a folder. Give the labels "
+                  f"file instead: {command('--labels', '<file>')}")]
         if find.is_project(path) or _has_results(path):
             lines.append(f"To check that folder, put it first: "
-                         f"{command_at(command, given)}")
+                         f"{command_at(command, where, command_in)}")
         raise LabelsStop(lines)
     if path.suffix.lower() in EXCEL:
-        csv_name = quote_arg(str(path.with_suffix(".csv")) if str(path.parent) != "."
-                             else f"{path.stem}.csv")
-        raise LabelsStop([(f"judgekeeper can't read Excel files. Save {given} as CSV, then run: "
+        csv_name = runnable(str(path.with_suffix(".csv")) if str(path.parent) != "."
+                            else f"{path.stem}.csv", labels=True)
+        raise LabelsStop([(f"judgekeeper can't read Excel files. Save {name} as CSV, then run: "
                            f"{command('--labels', csv_name)}")])
     if is_link(path):
         kind = "folder" if os.path.isdir(path) else "file"
-        raise LabelsStop([(f"{given} is a link to another {kind}. judgekeeper does not read "
+        raise LabelsStop([(f"{name} is a link to another {kind}. judgekeeper does not read "
                            "labels through links. Give the file itself.")])
     if not path.exists():
-        raise LabelsStop([(f"Can't find {given}. Check the name and folder, then run: "
+        raise LabelsStop([(f"Can't find {name}. Check the name and folder, then run: "
                            f"{command('--labels', '<file>')}")])
     if not path.is_file():
         from judgekeeper.textio import not_a_file_message
@@ -155,10 +160,15 @@ def check_file(given: str, command: Callable[..., str] | None = None) -> Path:
     return path
 
 
-def command_at(command: Callable[..., str], folder: str) -> str:
-    """`judgekeeper FOLDER --labels <file>`: the folder as the project, first."""
+def command_at(command: Callable[..., str], folder: str,
+               command_in: Callable[..., str] | None = None) -> str:
+    """`judgekeeper [mark] FOLDER --labels <file>`: the folder as the project, where the
+    command takes its path (`command_in`; without it, after the first word)."""
+    folder = folder if folder in ANOTHER_DRIVE else quote_arg(folder)
+    if command_in:
+        return command_in(folder, "--labels", "<file>")
     words = command("--labels", "<file>").split(" ")
-    return " ".join((words[0], quote_arg(folder), *words[1:]))
+    return " ".join((words[0], folder, *words[1:]))
 
 
 def _has_results(folder: Path) -> bool:
@@ -168,6 +178,12 @@ def _has_results(folder: Path) -> bool:
         return any(find.search(folder).results.values())
     except (OSError, ValueError):
         return False
+
+
+def _used(column) -> bool:
+    """A column read_file may use: an id, question, answer or label."""
+    return str(column).strip().lower() in (*ANSWER_COLUMNS, *QUESTION_COLUMNS, *LABEL_COLUMNS,
+                                           "id")
 
 
 def _column(columns, wanted: tuple[str, ...]) -> str | None:
@@ -182,7 +198,7 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
     it can't be read as labels, lacks the columns, or holds a number or a word that isn't Pass
     or Fail. A blank label is left out without a word."""
     from judgekeeper import find
-    from judgekeeper.table import TableError, open_quote, read_table
+    from judgekeeper.table import TableError, open_quote, read_kept
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
@@ -193,7 +209,8 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
         if line is not None:
             raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
                                "then run judgekeeper again.")])
-        rows = read_table(path, cap=False)  # every row: the size question guards
+        rows = read_kept(path, _used)  # every row (the size question guards), its cells
+        # used only: a big notes column is never held
     except TableError as e:
         raise LabelsStop([scrub(str(e))]) from None
     if not rows:
@@ -259,7 +276,7 @@ def read_marks(values: list, label_map: dict | None, name: str, given: str | Non
     if words:
         shown = sorted({_word(w) for w in words})[:WORDS_SHOWN]
         command = _plain(command)
-        where = (("--labels",) if given is None else ("--labels", quote_arg(given)))
+        where = (("--labels",) if given is None else ("--labels", runnable(given, labels=True)))
         raise LabelsStop([(f"Some labels in {shown_name(name) if given is None else name} aren't "
                            f"Pass or Fail: {', '.join(shown)}.")],
                          "say what each one means, then run: "

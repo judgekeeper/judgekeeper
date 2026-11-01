@@ -676,11 +676,22 @@ def own_line(did: str, n: int) -> str:
     return f'You {did} <span class="mono">{n}</span> {"answer" if n == 1 else "answers"}.'
 
 
+def no_grade_line(r: dict) -> str | None:
+    """How many answers the judge gave no Pass or Fail on, left out; None when it graded
+    every one. Under the counts here, and under the result line in the terminal."""
+    from judgekeeper.judge_check import NO_DECISION
+
+    block = r.get("judge_check") or {}
+    none = sum(int(block.get(k) or 0) for k in NO_DECISION)
+    if not none:
+        return None
+    return (f"Your LLM-as-a-judge gave no Pass or Fail on {_plural(none, 'answer', 'answers')}. "
+            f"{'It is' if none == 1 else 'They are'} left out.")
+
+
 def _counts(r: dict, c: dict) -> str:
     """The two counts (before a result, the person's own only), and the answers the judge gave
     no Pass or Fail on (left out), if any."""
-    from judgekeeper.judge_check import NO_DECISION
-
     if r["check"] == "too_few":
         lines = [own_line("passed", c["passed"]), own_line("failed", c["failed"])]
     else:
@@ -690,12 +701,9 @@ def _counts(r: dict, c: dict) -> str:
     left = batches.line(r.get("batches"))
     if left:
         row += f'<p class="left-out band">{_term(left)}</p>'
-    block = r.get("judge_check") or {}
-    none = sum(int(block.get(k) or 0) for k in NO_DECISION)
+    none = no_grade_line(r)
     if none:
-        row += (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on '
-                f'{_plural(none, "answer", "answers")}. {"It is" if none == 1 else "They are"} '
-                'left out.</p>')
+        row += f'<p class="left-out band">{_term(none)}</p>'
     from judgekeeper.labels import assumes_line, looks_off_line
     from judgekeeper.start_label import second_thoughts
 

@@ -84,7 +84,7 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed.",
+        "on answers it failed (or all of them, when there are fewer).",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -293,7 +293,7 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
         "Step 2 of 5: Mark",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
         "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed.",
+        "on answers it failed (or all of them, when there are fewer).",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 
