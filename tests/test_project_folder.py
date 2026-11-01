@@ -23,7 +23,7 @@ import time
 
 import pytest
 
-from judgekeeper import check, fix, judge_setup, page, start, start_label, textio
+from judgekeeper import __version__, check, fix, judge_setup, page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project
@@ -307,6 +307,20 @@ def test_a_project_folder_never_reads_the_project_above_it(here, capsys, monkeyp
     assert not (here / "inner" / ".judgekeeper").exists()
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
     assert "--stop" not in out and run(capsys, "--stop")[1].count("No marking page is open.")
+
+
+@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
+def test_a_folder_inside_a_project_never_starts_marks_on_another_folders_answers(
+        here, capsys, monkeypatch, names):
+    before = _outer_with_marks(here, capsys)
+    _repo_with_sessions(here / "inner", capsys, monkeypatch, names, marker=None)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 3, out + err
+    assert out.splitlines()[:3] == [f"judgekeeper {__version__}", "", "Step 1 of 5: Find"], out
+    assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
+    assert "To check it, run" not in flat(out)
+    assert not (here / "inner" / ".judgekeeper").exists()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
 
 
 def test_results_in_one_folder_of_a_git_repo_are_read_as_before(here, capsys, monkeypatch):

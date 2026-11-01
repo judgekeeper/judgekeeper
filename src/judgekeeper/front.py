@@ -415,8 +415,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if not path.exists():
         raise not_found(path)
     path = _remembered(talk, path)
-    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
-            sessions := _sessions_below(path)):  # never a second session above one
+    if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
+            sessions := _sessions_below(path)):  # never a second session above one, nor
+        # one above's for them: results in a folder with its own session belong to it
         raise _go_to(talk, sessions)
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
