@@ -598,6 +598,14 @@ def from_here(value: str, labels: bool) -> str:
     return rel.replace(os.sep, "/")
 
 
+def shown_from_here(value) -> str:
+    """A path as a line names it (not a command): from the folder the command runs in, else
+    (another drive) its base name. Never the whole path."""
+    text = os.fsdecode(value)
+    shown = from_here(text, labels=False)
+    return Path(text).name if shown in ANOTHER_DRIVE else shown
+
+
 def runnable(value: str, labels: bool) -> str:
     """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE)."""
     shown = from_here(value, labels)

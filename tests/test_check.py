@@ -593,3 +593,22 @@ def test_a_bound_that_rounds_to_no_drop_is_left_out():
     assert not any("rule out" in line for line in check.expect_lines(g))
     assert check.paired_lines(g["failed"]) == [
         "No drop bigger than 20 points: 5 went from right to wrong, 2 from wrong to right."]
+
+
+def test_new_results_given_in_full_are_named_from_here(here, capsys):
+    _marked(here)
+    _results(here, MARKED, model=HAIKU)
+    _, out = run(capsys, str(here / "results.json"))
+    assert "New results: results.json" in out.splitlines(), out
+    assert str(here) not in out and str(here.resolve()) not in out
+
+
+def test_a_path_on_another_drive_is_shown_by_its_name(here, monkeypatch):
+    from judgekeeper import textio
+
+    def other_drive(path, start=None):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(textio.os.path, "relpath", other_drive)
+    assert textio.shown_from_here("/elsewhere/runs/new.json") == "new.json"
+    assert textio.shown_from_here("runs/new.json") == "runs/new.json"  # typed relative: as is

@@ -942,3 +942,12 @@ def test_the_saved_line_says_how_many_mistakes_in_words(tmp_path, monkeypatch, n
     monkeypatch.chdir(tmp_path)
     line = fix._saved_line(Workspace(tmp_path), n)
     assert line.startswith(lead + ".judgekeeper/fix/mistakes.md. Use it"), line
+
+
+def test_new_results_given_in_full_are_named_from_here(here, capsys):
+    project(here)
+    run(capsys)
+    new = regraded(here)
+    _, out = run(capsys, str(new))
+    assert "New results: regraded.json" in out.splitlines(), out
+    assert str(here) not in out and str(here.resolve()) not in out
