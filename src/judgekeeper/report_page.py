@@ -1016,30 +1016,47 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     return "".join(out)
 
 
-def estimate(value, interval, every: bool = False) -> tuple[str, str]:
+def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
     range is too wide for a result (the headline says it is too early to tell). Too early to
-    tell when there is no number yet. A range of no width has no range, and says why: "78%
-    (you marked every answer)" when `every` answer is marked, else (a judge that passes or
-    fails every answer) "100% (with no range)". Ends that round to the same percent are shown
-    with one decimal, never as one point."""
+    tell when there is no number yet. A range of no width is not shown: the number says why
+    in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
+    to the same percent are shown with one decimal, never as one point."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return no_range(_pct(value), every), "–"
+        return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
     if _pct(lo) == _pct(hi):
         return f"about {_pct(value)}", f"{lo:.1%} and {hi:.1%}"
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
 
 
+# Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
-NO_RANGE = "with no range"
+SAME_GRADE = "it gave every answer the same grade"
+EVERY_OF = "you marked every answer it {did}"
 
 
-def no_range(shown: str, every: bool) -> str:
-    """A number whose range has no width, and why: "78% (you marked every answer)"."""
-    return f"{shown} ({EVERY_MARKED if every else NO_RANGE})"
+def why_no_range(key: str, every: bool, pool: dict | None = None) -> str:
+    """Why `key`'s range has no width. Every answer marked; or the judge gave every answer one
+    grade (`pool`: how many it passed and failed); or, for TPR, every answer it failed is
+    marked and none should pass (so it failed none that should), and for TNR the same with
+    the answers it passed. Kappa has no range only with every answer marked."""
+    if every:
+        return EVERY_MARKED
+    if pool and (not pool.get("pass") or not pool.get("fail")):
+        return SAME_GRADE
+    if key in ("tpr", "tnr"):
+        return EVERY_OF.format(did="failed" if key == "tpr" else "passed")
+    return EVERY_MARKED
+
+
+def why_for(r: dict, key: str) -> str:
+    """why_no_range for a result: its count left to mark and its groups' sizes."""
+    g = r.get("groups") or {}
+    pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
+    return why_no_range(key, r.get("left") == 0, pool)
 
 
 def _caption(r: dict) -> str:
@@ -1059,7 +1076,7 @@ def _main_lines(r: dict) -> str:
     say Pass and when they say Fail, estimated (weighted, with their ranges)."""
     rows = []
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
-        est, between = estimate(r.get(key), r.get(f"{key}_interval"), r.get("left") == 0)
+        est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
                    f'<td data-label="Between">{_e(between)}</td></tr>'
@@ -1076,7 +1093,7 @@ def _details(r: dict) -> str:
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        shown, lo = no_range(shown, r.get("left") == 0), None
+        shown, lo = f"{shown} ({why_for(r, 'kappa')})", None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '

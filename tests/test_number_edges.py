@@ -8,7 +8,7 @@ import ast
 import re
 from pathlib import Path
 
-from judgekeeper import front, report_page, start_label, targets
+from judgekeeper import front, report_page, start_label, targets, weighted
 
 SRC = Path(__file__).parents[1] / "src" / "judgekeeper"
 
@@ -22,26 +22,46 @@ def test_a_range_ending_exactly_on_the_bar_reaches_it():
     assert targets.side([0.7999, 0.95]) == "cant_tell"
 
 
+def _r(pool, marked, out, left):
+    """A result with these groups (judge passed, failed), numbers and count left to mark."""
+    groups = {g: {"pool": n, "labeled": m} for g, n, m in zip(("pass", "fail"), pool, marked)}
+    return {**out, "groups": groups, "left": left}
+
+
 def test_a_number_with_no_range_says_why_and_never_exactly():
-    """Every answer marked: "78% (you marked every answer)". A judge that passes (or fails)
-    every answer, with answers still unmarked: "100% (with no range)". Never "exactly"."""
-    assert report_page.estimate(1.0, [1.0, 1.0]) == ("100% (with no range)", "–")
-    assert report_page.estimate(0.0, [0.0, 0.0]) == ("0% (with no range)", "–")
-    assert report_page.estimate(0.78, [0.78, 0.78], every=True) == (
+    """A range of no width is not shown: the number says why in brackets. Four ways."""
+    # 1. every answer marked
+    r = _r((40, 20), (40, 20), weighted.corrected(40, 20, 40, 31, 20, 4), left=0)
+    assert report_page.why_for(r, "tpr") == report_page.why_for(r, "tnr") == \
+        "you marked every answer"
+    # 2. the judge gave every answer the same grade, some still unmarked
+    r = _r((400, 0), (40, 0), weighted.corrected(400, 0, 40, 23, 0, 0), left=360)
+    assert report_page.why_for(r, "tpr") == "it gave every answer the same grade"
+    assert start_label.sentences({**r, "check": "rough"})[0] == (
+        "You passed: your LLM-as-a-judge also passed 100% (it gave every answer the same grade).")
+    # 3. every answer it failed marked, all of them Fail: TPR 100%, TNR keeps a range
+    out = weighted.corrected(900, 30, 25, 20, 30, 0)
+    assert out["tpr_interval"] == [1.0, 1.0] and out["tnr_interval"][0] < out["tnr_interval"][1]
+    r = _r((900, 30), (25, 30), out, left=875)
+    assert front.estimate_lines(r)[1] == (
+        "  When you say Pass, it also says Pass: 100% (you marked every answer it failed)")
+    # 4. every answer it passed marked, all of them Pass: TNR 100%
+    out = weighted.corrected(30, 900, 30, 30, 25, 5)
+    assert out["tnr_interval"] == [1.0, 1.0]
+    r = _r((30, 900), (30, 25), out, left=875)
+    page = report_page._main_lines(r)
+    assert "100% (you marked every answer it passed)" in page
+    assert start_label.side_sentence("tnr", 1.0, [1.0, 1.0], report_page.why_for(r, "tnr")) == (
+        "You failed: your LLM-as-a-judge also failed 100% (you marked every answer it passed).")
+    # in every place a number is shown
+    assert report_page.estimate(0.78, [0.78, 0.78], "you marked every answer") == (
         "78% (you marked every answer)", "–")
-    assert start_label.side_sentence("tnr", 0.78, [0.78, 0.78], every=True) == (
-        "You failed: your LLM-as-a-judge also failed 78% (you marked every answer).")
-    assert start_label.side_sentence("tpr", 1.0, [1.0, 1.0]) == (
-        "You passed: your LLM-as-a-judge also passed 100% (with no range).")
     assert front.estimate_lines({"tpr": 1.0, "tpr_interval": [1.0, 1.0], "tnr": 0.78,
                                  "tnr_interval": [0.78, 0.78], "left": 0})[1:] == [
         "  When you say Pass, it also says Pass: 100% (you marked every answer)",
         "  When you say Fail, it also says Fail: 78% (you marked every answer)"]
     page = report_page._details({"kappa": 0.62, "kappa_interval": [0.62, 0.62], "left": 0})
     assert "0.62 (you marked every answer)" in page and "0.62 and 0.62" not in page
-    page = report_page._main_lines({"tpr": 0.78, "tpr_interval": [0.78, 0.78], "tnr": 0.5,
-                                    "tnr_interval": [0.5, 0.5], "left": 0})
-    assert "78% (you marked every answer)" in page and "exact" not in page.lower()
     check = targets.check(25, 25, [1.0, 1.0], [0.0, 0.0])
     assert check == {"check": "rough", "wide": {}}  # never "reliable" from no width at all
     r = {"check": "rough", "wide": {}, "tpr_interval": [1.0, 1.0], "tnr_interval": [0.0, 0.0]}
