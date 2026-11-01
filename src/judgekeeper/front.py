@@ -159,6 +159,7 @@ class FrontTalk(start.Talk):
         self.labels: str | None = None
         self.labels_read: list | None = None
         self.labels_from: str | None = None
+        self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
         self.refresh()
 
     def refresh(self) -> None:
@@ -328,8 +329,12 @@ def _started(path: Path) -> bool:
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     given = _labels_file(talk)  # a folder, an Excel file, no file: said before any search
+    talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
+    for note in talk.held or ():
+        talk.para(note)
+    talk.held = None
     talk.step = None
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
@@ -366,7 +371,7 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
             talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command)
             talk.labels_from = marks.FROM_RESULTS
         else:
-            start._read_anyway(talk, path)
+            start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, talk.labels, found.pool.label_map,
                                                     talk.command)
             talk.labels_from = path.name
@@ -1549,6 +1554,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
+        if talk.labels is None and (n := _new_labels(ws, found)):  # later runs say no Find
+            head.append(labels_mod.found_line(n, talk.command("--labels")))
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
     elif not first and _ran_again(ws, found):
@@ -1568,6 +1575,14 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if every and not enough:  # nothing left to mark, and no result yet
         return _all_marked(talk, ws, counts, saved, head, then)
     return _page(talk, ws, counts, wait, saved, enough, head, marking, first, then)
+
+
+def _new_labels(ws: Workspace, found: start.Found) -> int:
+    """How many human labels in the results (Pool.humans) are for the newest batch's answers."""
+    of = batches.of(ws.data())
+    last = max(of.values(), default=1)
+    new = {labels_mod._base(i) for i, batch in of.items() if batch == last}
+    return sum(key in new for key, _, _ in found.pool.humans)
 
 
 def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str],

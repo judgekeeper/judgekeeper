@@ -784,7 +784,8 @@ class StartSession(LabelSession):
     def state(self) -> dict:
         """What the page needs: the answers up to the furthest one marked or skipped and the
         next AHEAD after it (never the whole pool: it can hold 100,000 answers), and `total`.
-        Past them the page asks again."""
+        Past them the page asks again. Marks written since (an import) are read first."""
+        self._reread()
         touched = max((n for n, i in enumerate(self.items) if i["label"] or i["deferred"]),
                       default=-1)
         shown = self.items[:touched + 1 + AHEAD]
