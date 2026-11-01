@@ -1848,7 +1848,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
                                  redraw=True)
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
-    for line in made_lines(made, marks.imported(m, ids=set(session.by_id)))[1:]:
+    for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
+                           r.get("real_pass_rate"))[1:]:
         # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()

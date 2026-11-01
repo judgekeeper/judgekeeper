@@ -67,6 +67,8 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
 
 Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
 
+After your first 10 marks, about 1 in 20 answers comes back a second time, so judgekeeper can see how often your own marks change. Only your first mark counts. It adds about 5% more marks.
+
 ## Bring labels you already have
 
 If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.

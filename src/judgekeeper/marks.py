@@ -102,6 +102,15 @@ def stamp(item_id: str, mark: str | None, group: str | None, seconds, sitting: s
     return line
 
 
+def repeat_line(item_id: str, mark: str | None, group: str | None, seconds, sitting: str,
+                slot: int, link: str | None = None) -> dict:
+    """A mark on an answer the page showed a second time (start_label.REPEAT_EVERY): a page
+    line that never counts as a mark; `slot` is when it was shown (how many page marks
+    there were), so it is shown once."""
+    return {**stamp(item_id, mark, group, seconds, sitting, link=link), "repeat": True,
+            "slot": slot}
+
+
 def imported_line(item_id: str, mark: str, group: str | None, sitting: str, source: str) -> dict:
     """One label brought with --labels as a line of marks.jsonl: no seconds, `source` the
     file's base name (never a path) or FROM_RESULTS."""
@@ -196,6 +205,8 @@ class Marks:
     after_result: set[str] = field(default_factory=set)  # changed after the grades were shown
     gap: dict[str, float] = field(default_factory=dict)  # answer id -> seconds since the mark
     # before it in the same sitting, by `at`: the timing when the page sent no `seconds`
+    repeats: dict[str, dict] = field(default_factory=dict)  # answer id -> its last repeat line
+    slots: set[int] = field(default_factory=set)  # the repeats' slots: each is shown once
 
     def counted(self) -> dict[str, str]:
         """{answer id: "pass" or "fail"}: the marks that count."""
@@ -243,6 +254,11 @@ def read(path: str | Path) -> Marks:
             continue
         if n == 0 and isinstance(x, dict) and x.get("marks") == VERSION:
             out.header = x
+        elif _stamped(x) and x.get("repeat") is True:
+            out.repeats[x["id"]] = x
+            if type(x.get("slot")) is int:
+                out.slots.add(x["slot"])
+            _timed(out, x, last_at, own=False)
         elif _stamped(x):
             before = out.last.get(x["id"])
             if x.get("after_result") is True and x["id"] not in was:
@@ -257,14 +273,16 @@ def read(path: str | Path) -> Marks:
     return out
 
 
-def _timed(out: Marks, x: dict, last_at: dict) -> None:
+def _timed(out: Marks, x: dict, last_at: dict, own: bool = True) -> None:
+    """The time since the mark before in the same sitting; `own` False (a repeat): only the
+    time the next mark is timed from."""
     try:
         at = datetime.strptime(x["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError:
         return
-    if x["sitting"] in last_at and at >= last_at[x["sitting"]]:
+    if own and x["sitting"] in last_at and at >= last_at[x["sitting"]]:
         out.gap[x["id"]] = (at - last_at[x["sitting"]]).total_seconds()
-    else:
+    elif own:
         out.gap.pop(x["id"], None)
     last_at[x["sitting"]] = at
 
@@ -275,8 +293,10 @@ def made(m: Marks, ids=None) -> dict:
     (None when no mark has one), how many took under a second (by `seconds`, else by the time
     since the mark before), the lines not counted, how many were made through a printed link
     or a page the program named in BROWSER opened, how many the person wasn't sure about
-    (reasons.UNSURE), and how many were changed after the judge's grades were shown. Marks
-    brought with --labels count in the totals only: they have no sitting and no time."""
+    (reasons.UNSURE), how many were changed after the judge's grades were shown, and, when the
+    page showed some answers a second time, how many of those (marked Pass or Fail both times
+    on the page) were marked differently (`repeats`). Marks brought with --labels count in the
+    totals only: they have no sitting and no time."""
     from judgekeeper.reasons import UNSURE
 
     lines = [m.last[i] for i in m.counted() if ids is None or i in ids]
@@ -294,7 +314,19 @@ def made(m: Marks, ids=None) -> dict:
             "unsure": sum(UNSURE in (x.get("reasons") or []) for x in lines),
             "after_result": sum(x["id"] in m.after_result for x in lines),
             # only when there are some: result.json stays as it was for everyone else
-            **({"asked": asked} if (asked := sum(x.get("link") == ASKED for x in lines)) else {})}
+            **({"asked": asked} if (asked := sum(x.get("link") == ASKED for x in lines)) else {}),
+            **({"repeats": repeats} if (repeats := _repeats(m, ids)) else {})}
+
+
+def _repeats(m: Marks, ids=None) -> dict | None:
+    """{"seen", "changed"}: the answers marked Pass or Fail on the page and again, as a
+    repeat, and how many of them the second time differently; None when there are none."""
+    pairs = [(m.last[i]["mark"], x["mark"]) for i, x in m.repeats.items()
+             if (ids is None or i in ids) and x["mark"] in ("pass", "fail")
+             and i in m.last and m.last[i]["mark"] in ("pass", "fail") and m.last[i]["by"] == BY]
+    if not pairs:
+        return None
+    return {"seen": len(pairs), "changed": sum(a != b for a, b in pairs)}
 
 
 def imported(m: Marks, ids=None) -> dict | None:
