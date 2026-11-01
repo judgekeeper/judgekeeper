@@ -390,6 +390,38 @@ def test_new_yes_leaves_a_blank_line_after_moving_the_marks(here, capsys, pages)
     assert code == 0, out
     assert re.search(r"Nothing was deleted\.\n\nStep 2 of 5: Mark\n", out), out
 
+
+def _scores_table(root):
+    """The results a person's CSV holds: a verdict column and the score it came from."""
+    import csv
+
+    with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict", "score", "model"])
+        for i in range(80):
+            score = round((i * 37 % 80) / 80, 3)
+            w.writerow([f"Question {i}?", f"Answer {i}.", "pass" if score >= 0.5 else "fail",
+                        score, "m1"])
+
+
+def test_a_new_pass_if_before_any_mark_starts_over_at_once(here, capsys, pages):
+    """Nothing is marked yet: a run with another --pass-if reads the results again with it,
+    asks nothing and says no change; the same flags again say nothing either."""
+    _scores_table(here)
+    assert run(capsys, "--no-browser")[0] == 0
+    ws = start_label.Workspace(here)
+    assert ws.data().get("pass_mark") is None
+    flags = ("--pass-if", "score>=0.5", "--no-browser")
+    code, out, _ = run(capsys, *flags)
+    assert code == 0, out
+    assert "Step 1 of 5: Find" in out and "Pass at 0.5 or more" in _flat(out), out
+    assert "changed since your marks" not in out and START_OVER not in _flat(out)
+    assert (ws.data().get("pass_mark") or {}).get("mark") == 0.5
+    code, again, _ = run(capsys, *flags)
+    assert code == 0 and "changed since your marks" not in again, again
+    assert "Step 1 of 5: Find" not in again and "Moved" not in again
+
+
 # A new eval run no longer asks to start over ----------------------------------------------
 
 def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages):

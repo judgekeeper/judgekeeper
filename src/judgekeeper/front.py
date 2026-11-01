@@ -353,7 +353,24 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
         return _say(talk, found, mapped, wait)
+    if not marking and _find_anew(talk, ws, found):
+        return _say(talk, found, mapped, wait)
     return _go_on(talk, found, mapped, wait, marking)
+
+
+def _find_anew(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
+    """Nothing is marked yet and the judge is set up otherwise (another --pass-if, say):
+    the saved answers move aside, asking nothing, and Find starts again with these flags.
+    Returns whether it did."""
+    if talk.new or _has_marks(ws) or _why_start_over(talk, ws, found) is None:
+        return False
+    if is_open(ws.dir):
+        background.stop(ws.dir)
+    if project.move_to_previous(ws, talk.say) is not None:
+        talk.say()
+    talk.say(STEP.format(n=1, name="Find"))
+    talk.say()
+    return True
 
 
 def _labels_stop(talk: FrontTalk, e: labels_mod.LabelsStop) -> Stop:
@@ -1604,7 +1621,8 @@ def _has_marks(ws: Workspace) -> bool:
 
 def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[str] | None:
     """Why the marks saved in .judgekeeper/ can't be used for this judge, in lines; [] for
-    --new on marks that could be; None when marking can go on. A new eval run is no reason:
+    --new on marks that could be, or for a judge set up otherwise (another --pass-if, say)
+    before anything is marked; None when marking can go on. A new eval run is no reason:
     the answers being marked are kept in pool.jsonl."""
     if ws.labels.is_file():
         return [OLD_MARKS]
@@ -1618,6 +1636,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
                  f"({tool}), and these results are of {found.judge}.")]
+    if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew
+        return []
     return [] if talk.new else None
 
 
