@@ -1270,6 +1270,18 @@ def why_count(ws: Workspace, r: dict) -> int:
     return len(section["mistakes"]) if section else 0
 
 
+def kept_count(ws: Workspace, r: dict) -> int:
+    """How many disagreements the result page says are hidden on purpose (kept aside to test
+    a new rule on), for the result `r`: none while it lists none."""
+    from judgekeeper import fix
+    from judgekeeper.report_page import counts, kept_count, shows_disagreements
+
+    if not shows_disagreements(r):
+        return 0
+    section = fix.prepared_section(ws)
+    return kept_count(counts(r), section["mistakes"]) if section else 0
+
+
 def _now(ws: Workspace, r: dict) -> dict:
     """`r` with how the marks were made counted again: reasons added after the result change
     what the pages say, not the result."""

@@ -1998,6 +1998,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(SAY_WHY_NEXT)
         else:  # the disagreements the result page lists: never those kept aside
             talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+            if kept := start_label.kept_count(ws, r):  # said on the result page too
+                talk.para(report_page.kept_line(kept))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates

@@ -976,10 +976,21 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
 REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 
+def kept_line(n: int) -> str:
+    """How many more disagreements are kept aside, in words (the terminal says them too)."""
+    return (f'{n} more {"is" if n == 1 else "are"} hidden on purpose, so a new rule can be '
+            "tested on answers you haven't looked at again.")
+
+
 def _kept(n: int) -> str:
     """How many more of a group are kept aside, or nothing."""
-    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} hidden on purpose, so a '
-            "new rule can be tested on answers you haven't looked at again.</p>" if n else "")
+    return f'<p class="kept">{kept_line(n)}</p>' if n else ""
+
+
+def kept_count(c: dict, mistakes: list[dict]) -> int:
+    """How many disagreements are kept aside: of each group, those past the ones listed."""
+    return sum(max(0, c[key] - sum(m.get("judge") == judge for m in mistakes))
+               for key, judge in (("easy", "pass"), ("strict", "fail")))
 
 
 # In place of the lists when split.json can't be used, around the fix command
