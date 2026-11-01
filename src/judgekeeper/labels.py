@@ -180,6 +180,12 @@ def _has_results(folder: Path) -> bool:
         return False
 
 
+def _used(column) -> bool:
+    """A column read_file may use: an id, question, answer or label."""
+    return str(column).strip().lower() in (*ANSWER_COLUMNS, *QUESTION_COLUMNS, *LABEL_COLUMNS,
+                                           "id")
+
+
 def _column(columns, wanted: tuple[str, ...]) -> str | None:
     """The first column named one of `wanted`, case and the space at both ends ignored."""
     plain = {str(c).strip().lower(): c for c in reversed(list(columns))}
@@ -192,7 +198,7 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
     it can't be read as labels, lacks the columns, or holds a number or a word that isn't Pass
     or Fail. A blank label is left out without a word."""
     from judgekeeper import find
-    from judgekeeper.table import TableError, open_quote, read_table
+    from judgekeeper.table import TableError, open_quote, read_kept
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
@@ -203,7 +209,8 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
         if line is not None:
             raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
                                "then run judgekeeper again.")])
-        rows = read_table(path, cap=False)  # every row: the size question guards
+        rows = read_kept(path, _used)  # every row (the size question guards), its cells
+        # used only: a big notes column is never held
     except TableError as e:
         raise LabelsStop([scrub(str(e))]) from None
     if not rows:

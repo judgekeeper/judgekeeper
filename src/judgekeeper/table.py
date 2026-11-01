@@ -24,6 +24,7 @@ from judgekeeper.textio import (
     make_private,
     read_utf8,
     shown_path,
+    utf8_lines,
     write_replacing,
 )
 
@@ -207,6 +208,56 @@ def read_table(path: str | Path, say: bool = True, cap: bool = True) -> list[dic
     raise TableError(f"{shown_path(path)}: expected a .csv, .tsv or .jsonl file")
 
 
+def read_kept(path: str | Path, keep) -> list[dict]:
+    """read_table(path, cap=False), one row at a time, each row holding only the columns
+    `keep(name)` is true for (written as judgekeeper knows them): a big file's other cells
+    are never held, nor the file's whole text."""
+    from contextlib import closing
+
+    path = Path(path)
+    if not path.is_file():
+        raise TableError(f"file not found: {shown_path(path)}")
+    suffix = path.suffix.lower()
+    rows = []
+    if suffix in (".csv", ".tsv"):
+        with closing(utf8_lines(path, TableError)) as lines:
+            first = next(lines, "")
+            delimiter = _delimiter(first, suffix)
+            reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
+                                delimiter=delimiter)
+            names = next(reader, [])
+            too_wide(names, path, TableError)
+            kept = [(i, name) for i, name in enumerate(names) if keep(name)]
+            for cells in reader:  # as csv_numbered: a row with every cell empty is no row
+                if not any(c.strip() for c in cells[:len(names)]):
+                    continue
+                row = {name: cells[i] if i < len(cells) else None for i, name in kept}
+                if delimiter == ";":
+                    row = {k: v.replace(",", ".") if isinstance(v, str)
+                           and _DECIMAL_COMMA.fullmatch(v) else v for k, v in row.items()}
+                rows.append(_known_names(row))
+        return rows
+    if suffix in (".jsonl", ".ndjson", ".json"):
+        with closing(utf8_lines(path, TableError, newline="\n")) as lines:
+            for n, line in enumerate(lines, 1):  # split at "\n" only, as _lines
+                line = line.removesuffix("\n").removesuffix("\r")
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    raise TableError(f"{path.name}: line {n}: invalid JSON") from None
+                if not isinstance(row, dict):
+                    raise TableError(f"{path.name}: line {n}: each line must be a JSON object")
+                if lone_surrogate(row):
+                    raise TableError(f"{path.name}: line {n} holds a character that isn't text "
+                                     "(a lone surrogate such as \\ud800), so it can't be read.")
+                too_wide(row, path, TableError)
+                rows.append(_known_names({k: v for k, v in row.items() if keep(k)}))
+        return rows
+    raise TableError(f"{shown_path(path)}: expected a .csv, .tsv or .jsonl file")
+
+
 def problem(path: str | Path) -> str | None:
     """Why a table found in a folder can't be read as one, in a few words, or None. Read as
     `judgekeeper` reads it (read_table, open_quote), nothing said; of a CSV or TSV only the
@@ -244,16 +295,24 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     suffix = path.suffix.lower()
     if suffix not in (".csv", ".tsv"):
         return None
-    text = read_utf8(path, TableError)
-    delimiter = _delimiter(text, suffix)
-    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True)
+    from contextlib import closing
+
+    with closing(utf8_lines(path, TableError)) as lines:  # never the whole text at once
+        return _open_quote(path, lines, suffix, loose, VERDICT_COLUMNS)
+
+
+def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) -> int | None:
+    first = next(lines, "")
+    delimiter = _delimiter(first, suffix)
+    reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
+                        delimiter=delimiter, strict=True)
     header, start, verdict = None, 1, None
     try:
         for row in itertools.islice(reader, MAX_ROWS + 1):  # the rows read_table reads
             if header is None:
                 header = row
                 verdict = next((i for i, c in enumerate(header)
-                                if column_name(c) in VERDICT_COLUMNS), None)
+                                if column_name(c) in verdict_columns), None)
                 if verdict is None:  # find.grade_columns: with no verdict column, the score
                     verdict = next((i for i, c in enumerate(header)
                                     if column_name(c) == "score"), None)
@@ -266,14 +325,17 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
         # loose: any quote out of place; else one that closes on a later line, on a line
         # that began as a row (a delimiter before the quote), swallowed the rows between
         if loose or "unexpected end of data" in str(e) or (
-                reader.line_num > start and delimiter in _line(text, reader.line_num).split('"')[0]):
+                reader.line_num > start and delimiter in _line(path, reader.line_num).split('"')[0]):
             return start
     return None
 
 
-def _line(text: str, number: int) -> str:
-    """Line `number` (from 1) of `text`, split as csv.reader splits lines."""
-    return io.StringIO(text, newline="").readlines()[number - 1]
+def _line(path: Path, number: int) -> str:
+    """Line `number` (from 1) of the file at `path`, split as csv.reader splits lines."""
+    from contextlib import closing
+
+    with closing(utf8_lines(path, TableError)) as lines:
+        return next(itertools.islice(lines, number - 1, None), "")
 
 
 def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int | None) -> int:

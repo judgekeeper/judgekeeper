@@ -1024,3 +1024,53 @@ def test_a_folder_given_in_full_runs_as_printed(tmp_path, monkeypatch, capsys, s
     except SystemExit as e:  # argparse refused the line
         again = e.code
     assert again in (0, 3), again
+
+
+# A big labels file: read row by row, keeping only the cells used -----------------------------
+
+@pytest.mark.parametrize("suffix", [".csv", ".jsonl"])
+def test_a_big_labels_file_is_never_held_whole(here, suffix):
+    """Only the id, question, answer and label cells are kept, one row at a time: reading a
+    10 MB file with a 4,000-character notes cell holds a small part of it at most."""
+    import tracemalloc
+
+    path = here / f"big{suffix}"
+    note = "n" * 4000
+    rows = [{"id": f"r{i}", "answer": f"answer {i}", "label": "pass", "notes": note}
+            for i in range(2500)]
+    if suffix == ".csv":
+        write_labels(path, rows)
+    else:
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert path.stat().st_size > 10_000_000
+    tracemalloc.start()
+    try:
+        read = labels.read_file(path, path.name)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert [(x.id, x.output, x.mark) for x in read[:2]] == [("r0", "answer 0", "pass"),
+                                                            ("r1", "answer 1", "pass")]
+    assert len(read) == 2500
+    assert peak < 3_000_000, peak  # the whole file is over 10 MB
+
+
+def test_a_labels_file_keeps_only_the_columns_it_uses(here):
+    """The rows read_table reads, with only the columns kept, named as read_table names them."""
+    from judgekeeper.table import read_kept, read_table
+
+    rows = [{"ID": "a", " Answer ": "x", "label": "pass", "notes": "n", "Question": "q"},
+            {"ID": "", " Answer ": "", "label": "", "notes": "", "Question": ""},  # no row
+            {"ID": "b", " Answer ": "y", "label": "fail", "notes": "", "Question": ""}]
+    write_labels(here / "mine.csv", rows)
+    (here / "mine.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                     encoding="utf-8")
+    wanted = {"id", "answer", "label", "question"}
+
+    def keep(c):
+        return str(c).strip().lower() in wanted
+    for name in ("mine.csv", "mine.jsonl"):
+        kept = read_kept(here / name, keep)
+        assert kept == [{k: v for k, v in r.items() if keep(k)}
+                        for r in read_table(here / name, cap=False)], name
+        assert all("notes" not in r for r in kept)

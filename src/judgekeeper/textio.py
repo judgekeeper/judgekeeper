@@ -328,6 +328,31 @@ def read_utf8(path: str | Path, error: type[Exception]) -> str:
     return decode_utf8(data, path, error).removeprefix(BOM)
 
 
+def utf8_lines(path: str | Path, error: type[Exception], newline: str = ""):
+    """The lines of a file the user supplied, one at a time, as read_utf8 reads it (UTF-8, no
+    byte order mark, the same `error`s) but never held whole: split as open() splits them
+    with `newline`. Close it (contextlib.closing) when not read to the end."""
+    import io
+
+    global last_read
+    last_read = Path(path).name
+    _reading.update(since=_clock(), said=None)
+    try:
+        raw = open_regular(path)
+    except NotAFile as e:
+        raise error(not_a_file_message(path, e.kind)) from None
+    with io.TextIOWrapper(raw, encoding="utf-8", newline=newline) as text:
+        first = True
+        try:
+            for line in text:
+                if "\x00" in line:  # UTF-16 without a byte order mark (decode_utf8)
+                    raise ValueError("NUL byte")
+                yield line.removeprefix(BOM) if first else line
+                first = False
+        except ValueError:  # UnicodeDecodeError is one
+            raise error(not_utf8_message(path)) from None
+
+
 NOT_JSON = "{file} isn't valid JSON that judgekeeper can read."
 NOT_TEXT = ("{file} holds a character that isn't text (a lone surrogate such as \\ud800), so "
             "judgekeeper can't read it.")
