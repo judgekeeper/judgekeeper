@@ -104,11 +104,11 @@ def test_the_repeat_line(seen, changed, said):
     assert start_label.second_thoughts(_made(seen, changed), real_pass=0.8) == [said]
 
 
-def test_from_10_repeats_with_a_change_it_says_what_a_perfect_judge_would_show():
-    best = targets.best_possible(0.8, targets.slip_rate(2 / 10))
-    lines = start_label.second_thoughts(_made(10, 2), real_pass=0.8)
+def test_from_20_repeats_with_a_change_it_says_what_a_perfect_judge_would_show():
+    best = targets.best_possible(0.8, targets.slip_rate(4 / 20))
+    lines = start_label.second_thoughts(_made(20, 4), real_pass=0.8, estimates=(0.6, 0.6))
     assert lines == [
-        ("You saw 10 answers twice and marked 2 differently the second time. Only your first "
+        ("You saw 20 answers twice and marked 4 differently the second time. Only your first "
         "mark counts."),
         (f"At this rate, even a perfect LLM-as-a-judge would agree with you only about "
         f"{round(best['tpr'] * 100)}% when you say Pass and {round(best['tnr'] * 100)}% when "
@@ -116,12 +116,32 @@ def test_from_10_repeats_with_a_change_it_says_what_a_perfect_judge_would_show()
 
 
 @pytest.mark.parametrize(("seen", "changed", "real_pass"), [
-    (9, 2, 0.8),    # too few repeats
-    (10, 0, 0.8),   # no change: nothing to say
-    (10, 2, None),  # no real pass rate yet
+    (19, 4, 0.8),   # too few repeats
+    (10, 2, 0.8),   # too few repeats: 2 of 10 is too rough a rate
+    (20, 0, 0.8),   # no change: nothing to say
+    (20, 4, None),  # no real pass rate yet
 ])
 def test_otherwise_no_perfect_judge_line(seen, changed, real_pass):
-    assert len(start_label.second_thoughts(_made(seen, changed), real_pass=real_pass)) == 1
+    lines = start_label.second_thoughts(_made(seen, changed), real_pass=real_pass,
+                                        estimates=(0.5, 0.5))
+    assert len(lines) == 1
+
+
+@pytest.mark.parametrize("estimates", [(0.92, 0.5), (0.5, 0.93), (0.92, 0.93)])
+def test_no_perfect_judge_line_under_a_number_shown(estimates):
+    """A ceiling under the estimate shown for the same number is never said: only the repeats line stays."""
+    best = targets.best_possible(0.5086, targets.slip_rate(4 / 20))
+    assert round(best["tpr"] * 100) < 92 and round(best["tnr"] * 100) < 93
+    lines = start_label.second_thoughts(_made(20, 4), real_pass=0.5086, estimates=estimates)
+    assert lines == [("You saw 20 answers twice and marked 4 differently the second time. Only "
+                      "your first mark counts.")]
+
+
+def test_the_perfect_judge_line_stays_when_the_ceiling_is_not_under_a_number_shown():
+    best = targets.best_possible(0.5086, targets.slip_rate(4 / 20))
+    lines = start_label.second_thoughts(_made(20, 4), real_pass=0.5086,
+                                        estimates=(best["tpr"], best["tnr"]))
+    assert len(lines) == 2 and lines[1].startswith("At this rate, even a perfect")
 
 
 def test_the_terminal_says_the_repeat_line_with_the_marks(tmp_path):
@@ -357,3 +377,58 @@ def test_once_the_next_answer_is_marked_a_missed_repeat_is_not_shown(tmp_path, m
     assert all(i["again"] != missed["slot"] for i in again)
     if seed is not None:  # a repeat whose own slot came due is shown, the missed one is not
         assert [i["again"] for i in again] == [missed["slot"] + 1]
+
+
+def _shown_made(seen=20, changed=4):
+    return {"marks": 214, "pass": 100, "fail": 114, "sittings": 1, "seconds": 4,
+            "under_second": 0, "not_counted": 0, "printed": 0, "browser_env": 0, "unsure": 0,
+            "after_result": 0, "repeats": {"seen": seen, "changed": changed}}
+
+
+def test_the_result_page_and_the_terminal_leave_out_a_ceiling_under_the_numbers_shown():
+    """The same marks, the same repeats: a result that shows 92% and 93% has no ceiling line
+    at 89% and 88%; one that shows 85% and 80% keeps it."""
+    from html import unescape
+
+    from tests.test_product_pages import CHECK, _result
+
+    for tpr, tnr, said in ((0.92, 0.93, False), (0.85, 0.80, True)):
+        r = _result(*CHECK, made=_shown_made(), real_pass_rate=0.5086, tpr=tpr, tnr=tnr)
+        page = unescape(start_label.result_html(r))
+        assert ("You saw 20 answers twice and marked 4 differently" in page) is True
+        assert ("even a perfect" in page) is said, (tpr, page)
+        lines = start_label.made_lines(r["made"], None, r["real_pass_rate"], (tpr, tnr))
+        assert any("even a perfect" in x for x in lines) is said
+
+
+# A repeat answered again and again --------------------------------------------------------------
+
+def _lines_of_repeats(ws):
+    return [x for x in _lines(ws.marks)[1:] if x.get("repeat")]
+
+
+def test_the_same_repeat_answer_posted_again_writes_nothing(ws):
+    session = start_label.StartSession(ws)
+    offers = _mark_all(session, 200, answer_repeats=False)
+    _, offer = offers[0]
+    flip = "fail" if session.by_id[offer["id"]]["label"] == "pass" else "pass"
+    body = {"id": offer["id"], "label": flip, "again": offer["slot"], "seconds": 3}
+    session.update(dict(body))
+    size = ws.marks.stat().st_size
+    before = marks.made(marks.read(ws.marks))["repeats"]
+    for _ in range(30):
+        session.update(dict(body))  # a client that loops
+    assert ws.marks.stat().st_size == size
+    assert len(_lines_of_repeats(ws)) == 1
+    assert marks.made(marks.read(ws.marks))["repeats"] == before
+
+
+def test_a_repeat_answer_changed_is_still_written(ws):
+    session = start_label.StartSession(ws)
+    offers = _mark_all(session, 200, answer_repeats=False)
+    _, offer = offers[0]
+    first = session.by_id[offer["id"]]["label"]
+    flip = "fail" if first == "pass" else "pass"
+    for label in (flip, first, first, first):
+        session.update({"id": offer["id"], "label": label, "again": offer["slot"]})
+    assert [x["mark"] for x in _lines_of_repeats(ws)] == [flip, first]

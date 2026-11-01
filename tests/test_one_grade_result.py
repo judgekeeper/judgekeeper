@@ -97,3 +97,26 @@ def test_no_ranges_to_narrow_when_none_is_shown(one_grade, capsys, pages):
     _, out, _ = run(capsys)
     assert "make these ranges narrower" not in flat(out)
     assert "\n\n\n" not in out  # no empty line left in its place
+
+
+def test_step_2_says_one_mark_the_other_way_is_enough(one_grade, capsys, pages):
+    _, out, _ = run(capsys, "--no-browser")
+    said = flat(out)
+    assert ("Your LLM-as-a-judge said Pass on every answer. Your result comes as soon as you "
+            "mark one answer Fail.") in said, said
+    assert "A result needs at least" not in said
+
+
+def test_the_result_page_does_not_ask_for_more_marks_under_exact_numbers(one_grade, capsys, pages):
+    run(capsys, "--no-browser")
+    ws = start_label.Workspace(one_grade)
+    page = _mark(one_grade, ["pass"] * 4 + ["fail"])
+    html = start_label.live_result(ws, page, back="/?token=t")
+    assert "Want more certain numbers" not in html and "Keep marking" not in html
+    assert "To mark more, run" in html  # the way back to marking stays, as a command
+
+
+def test_a_result_with_ranges_still_asks_for_more_marks():
+    from tests.test_product_pages import GATE, KEEP_MARKING, _html, _result
+
+    assert KEEP_MARKING in _html(_result(*GATE), "/?token=t")

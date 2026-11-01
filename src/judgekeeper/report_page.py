@@ -727,7 +727,8 @@ def _counts(r: dict, c: dict) -> str:
 
     assumes = assumes_line(r.get("imported"))  # marks brought with --labels
     off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
-    thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
+    thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"),
+                               (r.get("tpr"), r.get("tnr")))
     for line in [x for x in (assumes, off) if x] + thoughts:
         row += f'<p class="left-out band">{_files(_term(line), r)}</p>'
     return row
@@ -1052,14 +1053,15 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     range is too wide for a result (the headline says it is too early to tell). Too early to
     tell when there is no number yet. A range of no width is not shown: the number says why
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
-    to the same percent are shown with one decimal, never as one point."""
+    to the same percent are shown with one decimal, and so is the value, so it always sits
+    inside its range ("about 99.3% (between 99.1% and 99.3%)")."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
     if _pct(lo) == _pct(hi):
-        return f"about {_pct(value)}", f"{lo:.1%} and {hi:.1%}"
+        return f"about {value:.1%}", f"{lo:.1%} and {hi:.1%}"
     return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
 
 
@@ -1173,11 +1175,11 @@ def _next(r: dict, back: str | None) -> str:
                    f"you change your {TERM}.</p>")
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
     more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
-    if more and back is not None:
+    if more and back is not None and shows_range(r):  # exact numbers: no more marks to ask for
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
                    "<p>It closes by itself after 30 minutes without use. Closed? Run "
                    f"{mark} in your project folder: your marks are still there.</p>")
-    elif more:
+    elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'

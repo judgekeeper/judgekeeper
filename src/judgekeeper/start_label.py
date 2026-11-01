@@ -236,7 +236,7 @@ AHEAD = 100  # answers past the furthest one marked that the page gets at once
 REPEAT_FROM = 10
 REPEAT_EVERY = 20
 REPEAT_GAP = 5
-SLIP_FROM = 10  # repeats before the result says what a perfect judge would show at that rate
+SLIP_FROM = 20  # repeats before the result says what a perfect judge would show at that rate
 
 
 def build_queue(answers, seed: int) -> list[dict]:
@@ -733,6 +733,7 @@ class StartSession(LabelSession):
         self.page_marked = {i for i, x in m.last.items()
                             if x["by"] == marks.BY and x["mark"] in ("pass", "fail")}
         self.slots, self.repeated = set(m.slots), set(m.repeats)
+        self.slot_mark = dict(m.slot_mark)
         self.line_of = dict(m.line_of)  # answer id -> its last mark's place in marks.jsonl
         self.lines = max(self.line_of.values(), default=0)
         for item in self.items:
@@ -863,6 +864,8 @@ class StartSession(LabelSession):
         if label not in ("pass", "fail", None):
             raise ValueError("label must be pass, fail or null")
         mark = "skip" if body.get("deferred") is True and label is None else label
+        if self.slot_mark.get(slot) == mark:
+            return  # the slot already holds this answer: a post sent again adds nothing
         if not self.out.is_file():
             begin_marks(self.workspace)
         seen = file_stamp(self.out)
@@ -872,6 +875,7 @@ class StartSession(LabelSession):
         if seen == self._marks_seen:
             self._marks_seen = file_stamp(self.out)
         self.slots.add(slot)
+        self.slot_mark[slot] = mark
         self.repeated.add(item["id"])
 
     def add_reasons(self, item: dict, body: dict) -> None:
@@ -1118,12 +1122,12 @@ _plural = plural  # textio.plural
 
 
 def made_lines(made: dict | None, imported: dict | None = None,
-               real_pass: float | None = None) -> list[str]:
+               real_pass: float | None = None, estimates: tuple | None = None) -> list[str]:
     """How the marks were made (marks.made; `imported`: marks.imported, the marks brought with
     --labels), and a note when more than a quarter of the page's marks took under a second each
     (more than half: it looks like a program), when lines of marks.jsonl are not counted, or
     when marks came through a page another program could have used (link_lines); then
-    second_thoughts (`real_pass`: the result's real pass rate)."""
+    second_thoughts (`real_pass`: the result's real pass rate; `estimates`: its TPR and TNR)."""
     from judgekeeper.labels import names
 
     if not made or not made["marks"]:
@@ -1150,14 +1154,15 @@ def made_lines(made: dict | None, imported: dict | None = None,
                                       if quick * 2 > n else ""))
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     return (out + ([not_counted] if not_counted else []) + link_lines(made)
-            + second_thoughts(made, real_pass))
+            + second_thoughts(made, real_pass, estimates))
 
 
-def second_thoughts(made: dict | None, real_pass: float | None = None) -> list[str]:
+def second_thoughts(made: dict | None, real_pass: float | None = None,
+                    estimates: tuple | None = None) -> list[str]:
     """How many marks the person wasn't sure about, how many they changed after seeing the
     judge's grades, and how often they marked an answer shown again differently (marks.made;
-    `real_pass`: the result's real pass rate): the same in the terminal, on the result page and
-    report.html."""
+    `real_pass`: the result's real pass rate; `estimates`: the TPR and TNR it shows): the same
+    in the terminal, on the result page and report.html."""
     made = made or {}
     out = []
     if made.get("unsure"):
@@ -1165,13 +1170,16 @@ def second_thoughts(made: dict | None, real_pass: float | None = None) -> list[s
     if made.get("after_result"):
         out.append(f"You changed {_plural(made['after_result'], 'mark', 'marks')} after seeing "
                    "your LLM-as-a-judge's grades.")
-    return out + repeat_lines(made.get("repeats"), real_pass)
+    return out + repeat_lines(made.get("repeats"), real_pass, estimates)
 
 
-def repeat_lines(repeats: dict | None, real_pass: float | None = None) -> list[str]:
+def repeat_lines(repeats: dict | None, real_pass: float | None = None,
+                 estimates: tuple | None = None) -> list[str]:
     """The answers shown twice and how many were marked differently the second time; from
     SLIP_FROM of them, with some marked differently, what even a perfect LLM-as-a-judge would
-    show at that rate (targets.best_possible: the numbers stay as they are)."""
+    show at that rate (targets.best_possible: the numbers stay as they are). Never when either
+    ceiling is under the estimate shown for it (`estimates`: the TPR and TNR): that would put
+    the ceiling below the LLM-as-a-judge's own result."""
     if not repeats or not repeats.get("seen"):
         return []
     n, k = repeats["seen"], repeats["changed"]
@@ -1183,6 +1191,10 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None) -> list[s
            "time. Only your first mark counts.")]
     if n >= SLIP_FROM and real_pass is not None:
         best = targets.best_possible(real_pass, targets.slip_rate(k / n))
+        shown = dict(zip(("tpr", "tnr"), estimates or (), strict=False))
+        if any(shown[key] is not None and round(best[key] * 100) < round(shown[key] * 100)
+               for key in shown):
+            return out
         out.append(f"At this rate, even a perfect LLM-as-a-judge would agree with you only "
                    f"about {round(best['tpr'] * 100)}% when you say Pass and "
                    f"{round(best['tnr'] * 100)}% when you say Fail.")
