@@ -869,7 +869,7 @@ def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
     inside a project. None for "." and for anything it can read."""
-    from judgekeeper.project import project_of as _project
+    from judgekeeper.project import store_above
     from judgekeeper.textio import file_kind
 
     if path == "." or find.is_mlflow_folder(Path(path)):
@@ -882,7 +882,7 @@ def path_problem(path: str) -> str | None:
         kind = file_kind(given.stat().st_mode)
     except OSError:
         return f"There is no file or folder named {name} here."
-    if kind == "folder" and _project(given) != given.resolve():
+    if kind == "folder" and store_above(given.resolve()) not in (None, given.resolve()):
         return (f"{name} is a folder inside your project, not a results file or your project "
                 "folder.")
     if kind not in (None, "folder"):

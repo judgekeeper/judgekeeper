@@ -417,8 +417,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if not path.exists():
         raise not_found(path)
     path = _remembered(talk, path)
-    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
-            sessions := _sessions_below(path)):  # never a second session above one
+    if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
+            sessions := _sessions_below(path)):  # never a second session above one, nor
+        # one above's for them: results in a folder with its own session belong to it
         raise _go_to(talk, sessions)
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
@@ -1097,6 +1098,22 @@ def _outer_marks(found: start.Found) -> str | None:
     return None
 
 
+def _kept_apart(found: start.Found) -> str | None:
+    """A session above whose marks are for other results than these: these get their own
+    .judgekeeper/ here, said once, when marking starts here."""
+    root = Path(found.root)
+    apart = project.kept_apart(root, root / found.given if found.given else None)
+    if apart is None:
+        return None
+    above, files = apart
+    try:
+        rel = Path(os.path.relpath(above, Path.cwd().resolve())).as_posix()
+    except ValueError:  # another drive on Windows
+        rel = above.name
+    return ("These results get their own marks here. "
+            + (f"The marks in {rel}/ are for {', '.join(files)}." if files else "")).strip()
+
+
 def tool_version(found: start.Found) -> str | None:
     """The eval tool's version: from its results, else the project's lockfile."""
     return judge_setup.version_of(found)[0]
@@ -1413,7 +1430,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
     for others in (_other_files(found), _other_projects(found), _nested_here(found),
-                   _outer_marks(found)):
+                   _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
@@ -2037,6 +2054,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if not path.exists():
         raise not_found(path)
     ws = Workspace(project.project_of(path))
+    if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
+        ws = Workspace(start.reads_in(path))  # the folder a run from here reads
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
