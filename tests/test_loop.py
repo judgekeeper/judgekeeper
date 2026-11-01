@@ -216,8 +216,9 @@ def test_enough_marks_print_the_result(here, capsys, pages):
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
 
     def said(key):
-        estimate, between = report_page.estimate(r[key], r[f"{key}_interval"])
-        return f"{estimate} (between {between})"
+        estimate, between = report_page.estimate(r[key], r[f"{key}_interval"],
+                                                 report_page.why_for(r, key))
+        return estimate if between == "–" else f"{estimate} (between {between})"
     assert lines[2:18] == [
         "Step 3 of 5: Measure", "",
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
