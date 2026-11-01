@@ -76,7 +76,11 @@ def test_the_result_page_shows_while_the_folder_cant_be_written(ws):  # noqa: F8
     assert ws.result_json.is_file()
 
 
-def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path):
+@pytest.mark.parametrize("windows", [False, True])
+def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path, monkeypatch, windows):
+    """One full stop after each sentence, also with the line said only on Windows."""
+    monkeypatch.setattr(textio, "is_windows", lambda: windows)
+
     def result(session, back):
         raise PermissionError(13, "Permission denied", str(tmp_path / "marks.jsonl"))
 
@@ -85,7 +89,11 @@ def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path):
         resp, payload = client.request("GET", "/result")
         said = payload.decode()
         assert resp.status == 500 and said.startswith("Not saved: cannot write ")
-        assert ".." not in said and "permissions. Your marks are saved;" in said
+        last = ("If the file is open in Excel or another program, close it first."
+                if windows else "or change the folder's permissions.")
+        assert ".." not in said and f"{last} Your marks are saved; try again" in said
+        assert said.endswith("once the folder can be written.")
+        assert ("permissions. If the file is open" in said) is windows
     finally:
         server.stop()
         thread.join(timeout=5)
