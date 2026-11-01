@@ -112,8 +112,7 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = 'mark until "See your result" appears, then click it.'
-NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
+NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
@@ -1250,6 +1249,11 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     return out
 
 
+def _needs_each_kind(talk, session: StartSession) -> None:
+    groups = list(session.groups.values())  # every answer to mark, each batch's too
+    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+
+
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
     """The line that says how many page marks a coloured verdict still needs to check the
     marks brought with --labels (labels.gate_line); None when none are needed."""
@@ -1755,7 +1759,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
-        talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
+        some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
+        talk.say(f"You have {'marks on' if some_imported else 'marked'} all {_n(n, 'answer')}. "
+                 "There are no more to mark.")  # the page didn't mark the imported ones
         talk.say()
         for line in head:
             talk.para(line)
@@ -1794,15 +1800,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                       "yet.")
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
-        if not enough:
+        if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
+            _needs_each_kind(talk, session)
         elif gate := _import_gate(ws, session):  # as the result says it
             talk.para(gate)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
-        groups = list(session.groups.values())  # every answer to mark, each batch's too
-        talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+        _needs_each_kind(talk, session)
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
@@ -1817,7 +1823,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
-    next_step = (NEXT_MORE if enough else NEXT_KEEP_MARKING if n else NEXT_MARK)
+    next_step = NEXT_MORE if enough else NEXT_MARK
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para("Next: " + next_step.format(command=command))

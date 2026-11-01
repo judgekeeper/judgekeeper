@@ -21,8 +21,8 @@ from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer
 from tests.test_labels_import import flat, here, run, table, write_labels  # noqa: F401
 
-GATE = ("Mark {n} more answers on the page to check the marks from {name}. Until then, it's "
-        "too early to tell.")
+GATE = ("Mark at least {n} more answers on the page to check the marks from {name}. Until "
+        "then, it's too early to tell.")
 OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers your "
        "LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of those you "
        "marked on the page. The numbers may be off.")
@@ -184,3 +184,25 @@ def test_mark_says_how_many_page_marks_the_imported_marks_still_need(here, capsy
     _page(Workspace(here), {i: "pass" for i in range(20, 35)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys, "mark")
     assert "on the page to check the marks" not in flat(out)
+
+
+def test_an_import_first_with_too_few_says_what_a_result_needs(here, capsys):  # noqa: F811
+    table(here, 60, 60)  # nothing marked yet: the import comes first
+    rows = [{"answer": answer(i), "label": "pass"} for i in range(20)]
+    rows += [{"answer": answer(i), "label": "fail"} for i in range(60, 78)]  # 18 it failed
+    write_labels(here / "mine.csv", rows)
+    _, out = run(capsys, "--labels", "mine.csv")
+    said = flat(out)
+    assert ("You have 38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
+            "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+            "on answers your LLM-as-a-judge passed and 20 on answers it failed.") in said
+
+
+def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here, capsys, pages):  # noqa: F811
+    table(here, 20, 16)
+    write_labels(here / "mine.csv", [{"answer": answer(i), "label": "pass"} for i in range(10)])
+    run(capsys, "--labels", "mine.csv")
+    _page(Workspace(here), {i: ("pass" if i < 20 else "fail") for i in range(10, 36)})
+    _, out = run(capsys, "mark")
+    assert "You have marks on all 36 answers. There are no more to mark." in out
+    assert "You have marked all" not in out
