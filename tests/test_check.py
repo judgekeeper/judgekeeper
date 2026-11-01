@@ -195,7 +195,7 @@ SCENE_6 = [
     "On answers you pass, no drop, though these marks can't rule out",
     "one of up to 10 in every 100.",
     "On answers you fail, agreement drops by about 36 in every 100",
-    "(somewhere between 22 and 52).",
+    "(somewhere between 22 and 53).",
     "",
     check.ONE_RUN,
     "",
@@ -554,3 +554,42 @@ def test_no_internal_words_in_the_code():
     for path in Path(judgekeeper.__file__).parent.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not re.search(r"\bScene \d|walkthrough", text), path.name
+
+
+def _side(verdict: str, low: float, change: float = 0.0, high: float = 0.1) -> dict:
+    return {"n": 30, "verdict": verdict, "low": low, "high": high, "change": change,
+            "now_wrong": 5, "now_right": 2, "old_right": 20, "new_right": 20}
+
+
+@pytest.mark.parametrize("low,up_to", [(-0.201, 21), (-0.2, 20), (-0.07, 7), (-0.0009, 1)])
+def test_the_worst_end_of_a_range_is_rounded_up(low, up_to):
+    """A drop bound shown to the person rounds toward the bigger drop (−20.1 → 21), and a
+    bound that is already whole stays whole (float noise in −0.07 * 100 is not a point)."""
+    lines = check.paired_lines(_side("not_sure", low))
+    assert lines[0].endswith(f"It could be up to {up_to} points worse."), lines
+    lines = check.paired_lines(_side("no_drop", low))
+    assert lines[1] == f"These marks can't rule out a drop of up to {up_to} points.", lines
+    g = {"passed": _side("no_drop", 0.01), "failed": _side("no_drop", low)}
+    assert (f"On answers you fail, no drop, though these marks can't rule out one of up to "
+            f"{up_to} in every 100.") in check.expect_lines(g)
+    g["failed"] = _side("no_drop", low, change=-0.0001)
+    assert f"On answers you fail, agreement drops by no more than {up_to} in every 100." in (
+        check.expect_lines(g))
+
+
+def test_a_worse_range_rounds_only_its_far_end_up():
+    g = {"passed": _side("no_drop", 0.01),
+         "failed": _side("worse", -0.511, change=-0.364, high=-0.224)}
+    assert ("On answers you fail, agreement drops by about 36 in every 100 (somewhere between "
+            "22 and 52).") in check.expect_lines(g)
+    assert check.paired_lines(g["failed"])[1] == (
+        "That is about 36 points lower (between 22 and 52).")
+
+
+def test_a_bound_that_rounds_to_no_drop_is_left_out():
+    """A "can't rule out" bound that is 0 once rounded says nothing: only "no drop"."""
+    g = {"passed": _side("no_drop", 0.01), "failed": _side("no_drop", -1e-12)}
+    assert "On answers you fail, no drop." in check.expect_lines(g)
+    assert not any("rule out" in line for line in check.expect_lines(g))
+    assert check.paired_lines(g["failed"]) == [
+        "No drop bigger than 20 points: 5 went from right to wrong, 2 from wrong to right."]
