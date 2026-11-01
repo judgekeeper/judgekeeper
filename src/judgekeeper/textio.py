@@ -727,6 +727,23 @@ def from_here(value: str, labels: bool) -> str:
     return rel.replace(os.sep, "/")
 
 
+def kept_path(path, root) -> str:
+    """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` (`..`
+    allowed, `/` between folders), so the file names no folder outside the project; on
+    another drive, its base name."""
+    try:
+        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(root))
+    except ValueError:  # another drive (Windows)
+        return Path(os.fsdecode(path)).name
+    return rel.replace(os.sep, "/")
+
+
+def kept_at(kept: str, root) -> str:
+    """A path a file in .judgekeeper/ keeps (kept_path), as a path to read: from the project
+    folder `root`; an older file's whole path stays as it is."""
+    return os.path.normpath(os.path.join(root, kept))
+
+
 def shown_from_here(value) -> str:
     """A path as a line names it (not a command): from the folder the command runs in, else
     (another drive) its base name. Never the whole path."""

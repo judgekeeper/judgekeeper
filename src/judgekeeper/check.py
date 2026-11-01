@@ -48,6 +48,8 @@ from judgekeeper.start_label import Workspace, every_marked, next_marks
 from judgekeeper.textio import (
     flush_stdout,
     held_lines,
+    kept_at,
+    kept_path,
     loads,
     make_private,
     old_hook,
@@ -444,18 +446,8 @@ def _seen(ws: Workspace) -> dict:
     return data if ok else {}
 
 
-def _from_root(path, root: Path) -> str:
-    """`path` as results-seen.json keeps it: from the project folder (`..` allowed), so the
-    file names no folder outside it; on another drive, as it is."""
-    try:
-        return os.path.relpath(path, root)
-    except ValueError:
-        return str(path)
-
-
-def _at_root(path: str, root: Path) -> str:
-    """A path results-seen.json keeps, as a path to read (an older file's whole path stays)."""
-    return os.path.normpath(os.path.join(root, path))
+_from_root = kept_path  # results-seen.json's paths: from the project folder
+_at_root = kept_at  # read back (an older file's whole path stays)
 
 
 def _remember(state: State, found, setup: dict) -> None:

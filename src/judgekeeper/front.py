@@ -51,6 +51,7 @@ from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
+    kept_path,
     old_hook,
     plural,
     program,
@@ -1500,11 +1501,26 @@ def _command_of(talk: FrontTalk, saved: bool, subcommand: str = "") -> str:
     return " ".join((program(subcommand), *start.repeated_flags(path, **options)))
 
 
-def _flags_of(talk: FrontTalk, saved: bool) -> dict:
+def _flags_of(talk: FrontTalk, saved: bool, ws: Workspace) -> dict:
     """What result.json and the page keep of the command (start.run_flags): the flags
-    `_command_of` writes, as data."""
+    `_command_of` writes, as data, each path in them from the project folder (kept_path):
+    the commands they make run there, and a file names no folder outside it."""
     path, options = answered(talk, saved)
+    if path != ".":
+        path = kept_path(path, ws.root)
+    if options.get("tracking_uri"):
+        options["tracking_uri"] = _kept_uri(str(options["tracking_uri"]), ws.root)
     return start.run_flags(path, **options)
+
+
+def _kept_uri(uri: str, root: Path) -> str:
+    """An MLflow store as result.json keeps it: a whole path in it (as it is, or after
+    sqlite:///) from the project folder; any other store as given."""
+    sqlite = "sqlite:///"
+    rest = uri.removeprefix(sqlite)
+    if "://" in rest or not os.path.isabs(rest):
+        return uri
+    return (sqlite if uri.startswith(sqlite) else "") + kept_path(rest, root)
 
 
 def _to_save(talk: FrontTalk, found: start.Found,
@@ -1679,7 +1695,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
-        start_label.store_result(ws, session, _flags_of(talk, saved))
+        start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
         return _all_marked(talk, ws, counts, saved, head, then)
     return _page(talk, ws, counts, wait, saved, enough, head, marking, first, then)
@@ -1747,7 +1763,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     start_label.check_writable(ws)  # said here, never as "the page could not start"
     opened = None
     try:
-        opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved), here=wait,
+        opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
                                say=talk.say)
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
@@ -1966,7 +1982,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     was = checking.open_worse(ws, found) if check else None  # checking again says the same
     worse = was and checking.worse_step(was["before"], was["after"],
                                         _check_command(talk), ws)
-    r = start_label.store_result(ws, session, _flags_of(talk, saved), worse=worse or None,
+    r = start_label.store_result(ws, session, _flags_of(talk, saved, ws), worse=worse or None,
                                  redraw=True)
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since

@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 from html import escape
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -39,7 +40,7 @@ VALUES = ['a"b"&calc&', "x$\u2019;calc;\u2019", "50%off"]
 def test_a_kept_command_shows_name_never_posix_quotes_on_windows(windows, value):
     talk = SimpleNamespace(path=".", answers={}, store=None,
                            options={"port": 8765, "no_browser": False, "metric": value})
-    flags = front._flags_of(talk, True)
+    flags = front._flags_of(talk, True, SimpleNamespace(root=Path.cwd()))
     assert start.command_from(flags, "mark", kept=True) == "judgekeeper mark --metric NAME"
     assert start.held_values(flags) == [value]
     assert textio._held == {}  # never said under a terminal line it is not on

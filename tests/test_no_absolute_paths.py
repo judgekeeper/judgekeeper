@@ -100,3 +100,86 @@ def test_an_older_results_seen_with_whole_paths_still_reads(here, capsys, monkey
     monkeypatch.setattr(start, "find_judge", refuse)
     assert main(["check"]) == 0
     assert "Your LLM-as-a-judge has not changed" in capsys.readouterr().out
+
+
+def test_files_given_in_full_from_outside_the_project_are_kept_from_it(here, capsys,
+                                                                        tmp_path,
+                                                                        tmp_path_factory):
+    """Results, labels and fix/check files given by whole path from another folder (on
+    another temp root): every path kept under .judgekeeper/ is from the project folder."""
+    import shutil
+
+    from tests.test_labels_import import write_labels
+    from tests.test_regrade_files import breaking, project
+    from tests.test_regrade_files import write as write_rows
+
+    other = tmp_path_factory.mktemp("elsewhere")
+    ws = project(here)  # every answer marked, then `fix`: half kept aside
+    capsys.readouterr()
+    new = other / write_rows(other, "new.csv", breaking(ws, "wrong"))
+    said = []
+
+    def step(*argv):
+        code = main([str(a) for a in argv])
+        said.append((argv, code, capsys.readouterr().out))
+        return code
+
+    step("fix", new)
+    step("fix", new)  # tested before: read from split.json
+    step("check", new)
+    rows = [{"answer": r["output"], "label": r["verdict"]}
+            for r in breaking(ws, "wrong")[:10]]
+    labels = write_labels(other / "labels.csv", rows)
+    step("--labels", labels, *PAGE)
+    shutil.copy(here / "results.csv", other / "results.csv")
+    step("check", other / "results.csv")
+    (here / ".judgekeeper" / "result.json").unlink()  # Measure writes it again, as below
+    step(other / "results.csv", *PAGE)  # result.json keeps this command's flags
+    result = json.loads((here / ".judgekeeper" / "result.json").read_text(encoding="utf-8"))
+    assert (here / ".judgekeeper" / "fix" / "split.json").is_file(), said
+    assert result["flags"]["path"] != ".", (result["flags"], said[-1])
+    found = _whole_paths(here / ".judgekeeper", here, other, tmp_path, Path.home())
+    assert found == {}, (found, [s[:2] for s in said])
+
+
+def test_an_older_split_with_a_whole_path_still_reads(here, capsys, tmp_path_factory):
+    from judgekeeper import fix
+    from tests.test_regrade_files import breaking, project
+    from tests.test_regrade_files import write as write_rows
+
+    other = tmp_path_factory.mktemp("elsewhere")
+    ws = project(here)
+    new = other / write_rows(other, "new.csv", breaking(ws, "wrong"))
+    assert main(["fix", str(new)]) == 0
+    split = fix.read_split(ws)
+    assert split.tests[-1]["file"] == os.path.relpath(os.path.realpath(new),
+                                                      os.path.realpath(here))
+    split.tests[-1]["file"] = str(new)  # as an older judgekeeper kept it
+    fix.save_split(ws, split)
+    capsys.readouterr()
+    assert main(["fix", str(new)]) == 0
+    out = " ".join(capsys.readouterr().out.split())
+    assert "You tested this LLM-as-a-judge before" in out and "has the same" not in out, out
+
+
+def test_a_path_on_another_drive_is_kept_by_its_name(monkeypatch):
+    from judgekeeper import textio
+
+    def other_drive(path, start=None):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(os.path, "relpath", other_drive)
+    assert textio.kept_path(os.path.join(os.sep, "data", "new.json"), os.sep) == "new.json"
+
+
+def test_an_mlflow_store_given_in_full_is_kept_from_the_project(tmp_path):
+    from judgekeeper import front
+
+    root = tmp_path / "shop"
+    root.mkdir()
+    store = os.path.join(os.path.realpath(tmp_path), "stores", "mlflow.db")
+    up = os.path.join("..", "stores", "mlflow.db").replace(os.sep, "/")
+    assert front._kept_uri(store, root) == up
+    assert front._kept_uri("sqlite:///" + store, root) == "sqlite:///" + up
+    for given in ("sqlite:///mlflow.db", "http://127.0.0.1:5000", "databricks", "mlruns"):
+        assert front._kept_uri(given, root) == given
