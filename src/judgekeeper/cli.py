@@ -338,7 +338,7 @@ def _page_args(p: argparse.ArgumentParser) -> None:
     what = p.add_mutually_exclusive_group()
     what.add_argument("--new", action="store_true",
                       help="start over: your marks move to .judgekeeper/previous-<date>/ "
-                           "(asked first; nothing is deleted)")
+                           "(asked first when you have marks; nothing is deleted)")
     what.add_argument("--wait", action="store_true",
                       help="serve the page in this terminal until Ctrl-C, instead of in the "
                            "background")
