@@ -239,6 +239,82 @@ def test_results_in_one_folder_below_or_a_project_are_read_as_before(here, capsy
     assert code == 0, out + err
 
 
+# A git repository is one project ---------------------------------------------------------
+
+def _repo_with_sessions(root, capsys, monkeypatch, names=("a", "b")):
+    """A git repository in `root` whose results are only in folders below that each hold a
+    session of their own."""
+    (root / ".git").mkdir(parents=True)
+    for i, name in enumerate(names):
+        _session_in(root / name, capsys, monkeypatch, 2 + i)
+    monkeypatch.chdir(root)
+
+
+@pytest.mark.parametrize("names", [("a", "b"), ("a",)])
+def test_a_git_repo_never_reads_the_project_above_it(here, capsys, monkeypatch, names):
+    (here / "pyproject.toml").write_text("", encoding="utf-8")
+    table_project(here, split(20, 16), name="outer.csv", tag="outer")
+    assert run(capsys, "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(8))
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    _repo_with_sessions(here / "inner", capsys, monkeypatch, names)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 3, out + err
+    assert "Reading the project folder above" not in out
+    assert "already hold" in flat(out) and "your judgekeeper session" in flat(out), out
+    assert not (here / "inner" / ".judgekeeper").exists()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+
+
+def test_results_in_one_folder_of_a_git_repo_are_read_as_before(here, capsys, monkeypatch):
+    (here / "pyproject.toml").write_text("", encoding="utf-8")
+    table_project(here, split(20, 16), name="outer.csv", tag="outer")
+    (here / "inner" / ".git").mkdir(parents=True)
+    table_project(here / "inner" / "evals", split(20, 16))
+    monkeypatch.chdir(here / "inner")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert "File:            evals/results.csv" in out
+    assert (here / "inner" / ".judgekeeper" / "start.json").is_file()
+    assert not (here / ".judgekeeper").exists()
+
+
+def test_a_session_below_and_results_in_another_folder_are_two_projects(here, capsys,
+                                                                          monkeypatch):
+    (here / ".git").mkdir()
+    _session_in(here / "sub1", capsys, monkeypatch, 4)
+    table_project(here / "sub2", split(20, 16), tag="two")
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 3, out + err
+    assert "belong to" not in out
+    assert ("sub1/ and sub2/ hold eval results: judgekeeper keeps a project's marks in its "
+            "own folder, so it checks one at a time.") in flat(out), out
+    assert _next(out) == ("Next: go to one of those folders (`cd sub1`), then run "
+                          "`judgekeeper` there.")
+    assert not (here / ".judgekeeper").exists()
+
+
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_file_in_a_project_with_its_own_session_is_never_added_here(here, capsys,
+                                                                     monkeypatch, command):
+    (here / ".git").mkdir()
+    _session_in(here / "sub1", capsys, monkeypatch, 4)
+    table_project(here / "sub2", split(20, 16), tag="two")
+    monkeypatch.chdir(here)
+    assert run(capsys, "sub2/results.csv", "--no-browser")[0] == 0
+    _mark(Workspace(here), only=range(3))
+    start_json = (here / ".judgekeeper" / "start.json").read_bytes()
+    marks_before = (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes()
+    code, out, err = run(capsys, *command, "sub1/results.csv", "--no-browser")
+    assert code == 3, out + err
+    assert ("These results belong to the project in sub1/. To check them, run `judgekeeper` "
+            "in sub1/.") in flat(out), out
+    assert "haven't seen" not in out
+    assert (here / ".judgekeeper" / "start.json").read_bytes() == start_json
+    assert (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes() == marks_before
+
+
 # Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
