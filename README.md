@@ -47,7 +47,7 @@ judgekeeper only reads files. It makes no AI call and needs no API key. See [SEC
 - **TNR:** of the answers you failed, how many it failed too.
 - **Kappa:** how much you agree beyond what matching at random would give.
 
-Each comes with a range, such as "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both TPR and TNR is at least 80%. The numbers describe the answers you marked, not a promise about the next ones.
+TPR and TNR each come with a range, such as "about 90% (between 84% and 93%)". The result says "good enough to use" only when the low end of both TPR and TNR is at least 80%. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
 
 How the numbers are worked out: [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out).
 

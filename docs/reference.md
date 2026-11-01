@@ -25,7 +25,6 @@ Each run does the next step. A result needs at least 15 answers you mark Pass an
 | Not enough marks yet | Opens the marking page again. |
 | Every answer marked, too few of one kind | Says so (a result needs 15 of each). Run your eval on more questions, then `judgekeeper mark`. |
 | Enough marks of each kind | Measure: how often your LLM-as-a-judge agrees with you, saved as `.judgekeeper/report.html`. |
-| Every answer marked, enough of each kind, too early to tell | Measure, then says the ranges are still too wide (exit 3). Run your eval on more questions, then `judgekeeper mark`. |
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
@@ -128,9 +127,11 @@ judgekeeper fix [PATH] [--new]
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse. Unless it leans toward worse, it also says how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
+The fixed and broke counts are weighted to your whole set of answers: the marks kept aside hold more of your LLM-as-a-judge's fails than your results do, so each kept-aside mark counts for its share of its group.
+
 After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule and run `judgekeeper check <new results file>` on the same new results: they grade every answer you marked. Running your eval again would make new answers, which judgekeeper can't compare. Each extra test on the same marks is stricter (the levels divided by the number of tests): "Better" or "Worse" needs the 5% level for the first rule, 2.5% for the second and about 1.7% for the third. So over 3 rules, a coincidence says "Better" or "Worse" at least once in at most about 9 cases in 100 (5 + 2.5 + 1.7), not 5. After 3 rules, or once `check` takes on a rule tested on them (for results without a rule, only after 3 rules), your next marks become a new set kept aside. Mark [about 40 more answers for a clear answer](examples/kept-aside/report.md) (at least 10; with fewer than about 40, the result will often be "can't tell yet"). All of them are kept aside: as many as `fix` keeps aside from about 80 marks. Each rule tested is saved in `rules/`.
 
-**How many marks:** it depends on how big the change is. In a simulation through `fix`'s own split and test ([report](examples/kept-aside/report.md)), a new rule that fixes about a quarter of the mistakes and breaks few right answers gets a clear answer most of the time from about 80 marks, mostly "Safe to try"; one that fixes almost all of them, from about 50; one that fixes 1 in 10 and breaks 5 in 100 right answers, more than 120. These figures are for the first rule tested on a set; the second and third are tested more strictly, so they need more marks. Calling a rule "Better" or "Worse" by mistake is rare but not zero, and happens only for rules close to no change. A worse rule often reads "Can't tell yet", and now and then "Safe to try" (not more than 10 points worse), so with few marks "Can't tell yet" does not mean the new rule is as good.
+**How many marks:** it depends on how big the change is. In a simulation through `fix`'s own split and test ([report](examples/kept-aside/report.md)), a new rule that fixes about a quarter of the mistakes and breaks few right answers gets a clear answer most of the time from about 80 marks, mostly "Safe to try"; one that fixes almost all of them, also from about 80; one that fixes 1 in 10 and breaks 5 in 100 right answers, from about 160. These figures are for the first rule tested on a set; the second and third are tested more strictly, so they need more marks. Calling a rule "Better" or "Worse" by mistake is rare but not zero, and happens only for rules close to no change. A worse rule often reads "Can't tell yet", and now and then "Safe to try" (not more than 10 points worse), so with few marks "Can't tell yet" does not mean the new rule is as good.
 
 ## check: re-check your LLM-as-a-judge after a change
 
@@ -160,9 +161,9 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 - **The same grade for every answer.**
 - **The reason says the opposite** of the grade.
 
-**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once, in blocks of 5 your LLM-as-a-judge passed and 5 it failed. **Batches:** new answers join as the next batch, offered first. A batch counts once each of its groups has 5 marks.
+**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once, in blocks of 5 your LLM-as-a-judge passed and 5 it failed. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group.
 
-**The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result. When your LLM-as-a-judge gave every answer one grade, kappa is `null` in result.json and the page shows n/a.
+**The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json and the page shows n/a.
 
 **Labels you brought** with `--labels` count like marks made on the page, in the same groups with the same weights. The result then says once: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
@@ -176,10 +177,11 @@ TNR             = (1 - pi)(1 - b) / ((1 - pi)(1 - b) + pi (1 - a))
 real pass rate  = pi a + (1 - pi) b          (your LLM-as-a-judge's own is pi)
 ```
 
-This is the Begg-Greenes correction; kappa uses the same weighted table. For the ranges, each group's share Correct is drawn 20,000 times from Beta(c + 0.5, n - c + 0.5) with a fixed seed. A group with no marks makes a number that needs it unknown, never an error.
+This is the Begg-Greenes correction; kappa uses the same weighted table. For the ranges, each group's share Correct is drawn 20,000 times from Beta(c + 0.5, n - c + 0.5) with a fixed seed. With every answer of a group marked, its share is known, so it has no range. A group with no marks makes a number that needs it unknown, never an error.
 
+- **`fix`:** each kept-aside mark weighs N_s / h_s (its group's answers over its kept-aside marks), and the fixed and broke counts are scaled to the effective number of marks, (sum of weights)² / (sum of squared weights) (Kish's), before the sign test and Tango's test.
 - **Batches:** the groups become (batch, grade) strata, each marked answer weighs N_s / n_s, and the draws are per stratum.
-- **After `check`:** TPR and TNR use the new grades, with the shares passed or failed again drawn from Beta(k, m - k), exactly 0 or 1 when none or all agree. When that leaves a number's range a single point, its draws use Beta(k + 0.5, m - k + 0.5) instead.
+- **After `check`:** TPR and TNR use the new grades, with the shares passed or failed again drawn from Beta(k + 0.5, m - k + 0.5), so a range stays open even when every answer agrees. With none of a kind marked, the old grade stands; with every answer of a group marked, the shares have no range.
 
 **What it says.** One result line, from the ranges:
 
@@ -338,5 +340,5 @@ The tests run on Linux, Windows and macOS.
 | 0 | success: the step is done | all |
 | 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
-| 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, too early to tell with every answer marked, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
+| 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
 | 130 | stopped with Ctrl-C: it prints "Stopped." and what was saved stays saved | all |
