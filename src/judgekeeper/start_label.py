@@ -715,6 +715,7 @@ class StartSession(LabelSession):
         self.not_counted = 0  # lines of marks.jsonl not made on the page
         self.changes = 0  # counts every change to the marks in memory
         self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
+        self.before: str | None = None  # marks.jsonl's version before the last change (version)
         self._status: tuple | None = None  # (changes, start.json's stamp, the status)
         super().__init__(ws.pool, ws.marks)
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
@@ -760,11 +761,19 @@ class StartSession(LabelSession):
             self._status = (key, self.status(self))
         return self._status[1]
 
+    def version(self) -> str:
+        """marks.jsonl's version (its size and time), as the page holds it: when the version
+        before a change is not the page's, someone else wrote marks (an import, another page)
+        and the page takes its list and counts again (/state) before the next answer."""
+        stamp = file_stamp(self.out)
+        return f"{stamp[0]}-{stamp[1]}" if stamp else ""
+
     def update(self, body: dict) -> None:
         """Apply one change ({"id", "label"?, "deferred"?, "note"?, "seconds"?}) and add its
         stamped line. The marks on disk are read again first, so marks another page wrote are
         kept. A change with reasons and no mark (the result page) is a reason line
         (add_reasons). A mark changed after the judge's grades were shown is stamped so."""
+        self.before = self.version()
         self._reread()
         self.offer = None
         item = self.by_id[body["id"]]
@@ -885,7 +894,9 @@ class StartSession(LabelSession):
         counts = self.counts()
         return {"n_items": len(self.items), "n_labeled": counts["correct"] + counts["wrong"],
                 "counts": counts, "done": all(i["label"] or i["deferred"] for i in self.items),
-                "status": self.current_status(), **({"again": self.offer} if self.offer else {})}
+                "status": self.current_status(), "version": self.version(),
+                **({"before": self.before} if self.before is not None else {}),
+                **({"again": self.offer} if self.offer else {})}
 
     def _shown(self, i: dict) -> dict:
         """One answer as the page shows it."""
@@ -914,7 +925,7 @@ class StartSession(LabelSession):
         status = self.current_status()
         self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": status}
+                "counts": self.counts(), "status": status, "version": self.version()}
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the

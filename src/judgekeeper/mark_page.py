@@ -337,6 +337,9 @@ __TOP__
   var data = JSON.parse(document.getElementById("data").textContent);
   var items = data.items, counts = data.counts, pos = data.start, busy = false, history = [];
   var total = data.total || items.length;  // the page holds the next answers, not all of them
+  // marks.jsonl's version as this page last saw it: another writer (an import, another
+  // page) changes it, and the page takes its list again before the next answer
+  var version = data.version;
   var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
@@ -808,7 +811,22 @@ __TOP__
     items.splice(pos + 1, 0, it); total += 1;
   }
 
-  function send(change, then) {
+  // The list and counts again (/state), as a reload gives them, when someone else wrote marks
+  // since this page last looked: the next answer is then one still to mark.
+  function refresh(heard, popup) {
+    queued = [];
+    fetch(url("/state"), {referrerPolicy: "same-origin"}).then(function (r) {
+      return r.json();
+    }).then(function (s) {
+      items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
+      version = s.version; history = []; walkingSkipped = false;
+      hear(heard);
+      if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
+      if (popup && !readyShown && !ended) { showReady(); }
+    }).catch(function () { window.location.reload(); });
+  }
+
+  function send(change, then, heard) {
     if (busy) { return false; }
     busy = true; $("pass").disabled = true; $("fail").disabled = true;
     change.id = items[pos].id;
@@ -826,6 +844,9 @@ __TOP__
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
+      var stale = res.body.summary.before != null && res.body.summary.before !== version;
+      if (res.body.summary.version != null) { version = res.body.summary.version; }
+      if (stale) { refresh(heard, res.body.summary.popup); return; }
       showAgain(res.body.summary.again);
       then();
       if (res.body.summary.popup && !readyShown && !ended) { showReady(); }
@@ -863,9 +884,10 @@ __TOP__
   function mark(value, key) {
     if (ended || locked(key)) { return; }
     var it = items[pos];
+    var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
-      hear(value === "pass" ? "Marked Pass." : "Marked Fail."); next(); focusCard(); });
+      hear(heard); next(); focusCard(); }, heard);
   }
 
   function skip(key) {
@@ -873,7 +895,7 @@ __TOP__
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
-      hear("Skipped."); next(); focusCard(); });
+      hear("Skipped."); next(); focusCard(); }, "Skipped.");
   }
 
   function undo(key) {
@@ -883,7 +905,7 @@ __TOP__
     walkingSkipped = false; open(back);
     var it = items[pos];
     send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); });
+      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); }, "Undone.");
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
