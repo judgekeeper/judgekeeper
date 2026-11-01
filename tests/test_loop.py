@@ -220,7 +220,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         estimate, between = report_page.estimate(r[key], r[f"{key}_interval"],
                                                  report_page.why_for(r, key))
         return estimate if between == "–" else f"{estimate} (between {between})"
-    assert lines[2:20] == [
+    assert lines[2:18] == [
         "Step 3 of 5: Measure", "",
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
         "You and your LLM-as-a-judge agreed on all 36 answers.", "",
@@ -230,9 +230,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         "  and failed 16.", "",
         "How often your LLM-as-a-judge agrees with you (estimates):",
         f"  When you say Pass, it also says Pass: {said('tpr')}",
-        f"  When you say Fail, it also says Fail: {said('tnr')}",
-        "The result line uses wider ranges than these, so a lucky streak",
-        "can't decide it. You can look after every mark.", "",
+        f"  When you say Fail, it also says Fail: {said('tnr')}", "",  # no range: no note
         "Full report: .judgekeeper/report.html (open it in your browser)", ""]
     for gone in ("Your marks:", "Kappa", "can see a drop", "Your LLM-as-a-judge vs your marks",
                  "These are estimates", "could be", "Where it goes wrong"):

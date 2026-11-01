@@ -172,6 +172,7 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     assert "about" not in out and "between" not in out and "exactly" not in out
     html = Workspace(here).report_html.read_text(encoding="utf-8")
     assert "85% (you marked every answer)" in html and "exactly" not in html
+    assert "lucky streak" not in out and "lucky streak" not in html  # no range to be wider
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
     assert code == 0

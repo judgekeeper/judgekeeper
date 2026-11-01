@@ -1075,6 +1075,13 @@ def _caption(r: dict) -> str:
             f"(you marked {marked}).")
 
 
+def shows_range(r: dict) -> bool:
+    """Whether either main line shows a range: with none (every answer marked), the note
+    that the result line uses wider ranges has nothing to compare with."""
+    return any(estimate(r.get(k), r.get(f"{k}_interval"), why_for(r, k))[1] != "–"
+               for k in ("tpr", "tnr"))
+
+
 def _main_lines(r: dict) -> str:
     """Under the headline result, open: how often the judge agrees with the person when they
     say Pass and when they say Fail, estimated (weighted, with their ranges)."""
@@ -1090,7 +1097,8 @@ def _main_lines(r: dict) -> str:
             '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
             '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
             f"</tr></thead><tbody>{body}</tbody></table>"
-            f'<p class="note wider">{_e(WIDER)}</p></section>')
+            + (f'<p class="note wider">{_e(WIDER)}</p>' if shows_range(r) else "")
+            + "</section>")
 
 
 def _details(r: dict) -> str:

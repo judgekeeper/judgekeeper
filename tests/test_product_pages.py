@@ -1121,3 +1121,13 @@ def test_a_row_with_a_reason_box_keeps_its_answer_as_text_because_the_box_counts
 def test_an_answer_with_no_marks_is_escaped_text_as_before():
     cell = _cell(_page_with({"answer": "a < b & c\n\nd -e **"}), "Answer")
     assert cell == "a &lt; b &amp; c\n\nd -e **"
+
+
+def test_the_wider_ranges_note_shows_only_with_a_range_on_screen():
+    """The note is about the ranges shown: with every answer marked there are none, so the
+    result page and report.html leave it out; one range on screen keeps it."""
+    every = _result(30, 30, 30, 27, 30, 3, left=0)  # no range on either line
+    one = _result(30, 900, 30, 30, 25, 5, left=875)  # TNR exact, TPR with a range
+    for back in ("/?token=t", None):  # the result page, report.html
+        assert '<p class="note wider">' not in start_label.result_html(every, back=back)
+        assert '<p class="note wider">' in start_label.result_html(one, back=back)
