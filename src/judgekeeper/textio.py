@@ -493,17 +493,29 @@ def write_replacing(path: str | Path, text: str, newline: str | None = None) -> 
     A link at `path` is replaced by the new file, never written through, and a reader never
     sees half a file. `newline` is `open()`'s: None writes "\n" as the system's line ending.
     The temporary file's name holds this process's id, so two processes never share one.
+    An error names `path`, never the temporary file: that is the file the person knows.
     """
     path = Path(path)
-    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.{os.getpid()}.", suffix=".tmp",
-                               dir=path.parent)
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.{os.getpid()}.", suffix=".tmp",
+                                   dir=path.parent)
+    except OSError as e:
+        _named(e, path)
+        raise
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as f:
             f.write(text)
         _replace(tmp, path)
-    except BaseException:
+    except BaseException as e:
         Path(tmp).unlink(missing_ok=True)
+        if isinstance(e, OSError) and e.filename == tmp:
+            _named(e, path)
         raise
+
+
+def _named(e: OSError, path: Path) -> None:
+    """`e` said of `path` alone (not of a temporary file next to it)."""
+    e.filename, e.filename2 = str(path), None
 
 
 def _replace(tmp: str, path: Path) -> None:
