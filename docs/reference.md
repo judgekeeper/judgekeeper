@@ -12,8 +12,9 @@ In your project folder, in its virtual environment, `pip install judgekeeper`, t
 
 ```
 judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
-            [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-            [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop] [--version] [--debug]
+            [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--labels [FILE]]
+            [--judge-model NAME] [--yes] [--port PORT] [--no-browser]
+            [--new | --wait | --stop] [--version] [--debug]
 ```
 
 Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail. If almost every answer passes, that can take many answers.
@@ -39,6 +40,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--tracking-uri URI` | MLflow: the local store to read (`mlflow.db`, `sqlite:///...`, an `mlruns/` folder or `file:...`) |
 | `--pass-if RULE` | When your LLM-as-a-judge's grades are scores: which pass, e.g. `'score>=0.5'` |
 | `--label-map MAP` | More spellings of your LLM-as-a-judge's grades, e.g. `'good=pass,bad=fail'` (added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0); `=error` for a value that is no decision. Kept with your marks: later runs read the same way without it |
+| `--labels [FILE]` | Use Pass/Fail labels you already have as your marks: from FILE (CSV, TSV or JSONL with an answer and a label column), or with no FILE the human labels already in your results. See [Bring labels you already have](#bring-labels-you-already-have). Not kept: give it each time you want labels brought in |
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
 | `--yes` | Without a terminal: yes to the questions judgekeeper printed. Never to a choice of tool, LLM-as-a-judge or pass mark |
 | `--port PORT` | Port on 127.0.0.1 for the page (default 8765). `0` means any open port |
@@ -59,11 +61,32 @@ On your result page, say why you disagree on an answer. `fix` counts your reason
 
 ```
 judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
-                 [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--judge-model NAME]
-                 [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
+                 [--tracking-uri URI] [--pass-if RULE] [--label-map MAP] [--labels [FILE]]
+                 [--judge-model NAME] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
 Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
+
+## Bring labels you already have
+
+If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.
+
+- `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file.
+- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your results table, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is.
+
+`judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
+
+**The file's columns** (any case): the answer, `output` or `answer`; the label, `label` or `human_label`; and, if you have them, the question, `input` or `question`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
+
+**How a label finds its answer:** by `id` when the answer text is the same too, else by the exact answer text. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
+
+**The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number (other than 1 or 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
+
+**What is left out, and said:** a label for an answer not in your results, for one your LLM-as-a-judge didn't grade Pass or Fail, for an answer that matches more than one answer, or for an answer labelled both Pass and Fail. When none match, it stops (exit 3).
+
+**Running it again** adds only what is new. An answer you already marked keeps your mark, from the page or an earlier import; judgekeeper says how many it kept. You can change an imported mark on the page.
+
+**In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
@@ -139,6 +162,8 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 **The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result. When your LLM-as-a-judge gave every answer one grade, kappa is `null` in result.json and the page shows n/a.
 
+**Labels you brought** with `--labels` count like marks made on the page, in the same groups with the same weights. The result then says once: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
+
 ### The maths (you can skip this)
 
 **The formulas.** The pool (the answers you mark from, kept in `pool.jsonl`) holds N_pass answers your LLM-as-a-judge passed and N_fail it failed; pi = N_pass / (N_pass + N_fail). Of the n_p answers you marked in its pass group, c_p are the answers you marked Pass, so a = c_p / n_p. In its fail group, c_f of the n_f you marked are the answers you marked Pass, so b = c_f / n_f. Skipped answers don't count.
@@ -201,7 +226,7 @@ judgekeeper's own format: one judged answer per JSONL line, written by you or by
 | `schema_version` | `2` now. Without it, version 1 (no `metadata`, `rule`, `trajectory`, `outcome`, `app_version`) |
 | `target_id` | the answer's id; else made from `input` and `output` (and `trajectory`) |
 | `name` | the LLM-as-a-judge or criterion (default `judge`) |
-| `annotator_kind` | `LLM` (a grade, the default; `LLM_JUDGE` too), `HUMAN` (a label) or `CODE` (ignored) |
+| `annotator_kind` | `LLM` (a grade, the default; `LLM_JUDGE` too), `HUMAN` (a label, used as a mark with `--labels`) or `CODE` (ignored) |
 | `label` | the grade, as in [How grades are read](#how-grades-are-read) |
 | `score` | a number; the grade with `--pass-if`, or when `label` is empty |
 | `explanation` | the LLM-as-a-judge's reason |
@@ -259,7 +284,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `start.json` | The results files, the LLM-as-a-judge's fingerprint, counts, the seed, the answers' order and batches |
 | `pool.jsonl` | Each answer to mark: id, input, output, batch |
 | `pool-judge.jsonl` | Your LLM-as-a-judge's grade on every answer, with the fingerprint |
-| `marks.jsonl` | One line per click (id, mark, time; no answer text), and your reasons |
+| `marks.jsonl` | One line per click on the page, or per label brought with `--labels` (id, mark, time, and for a label the file's name; no answer text), and your reasons |
 | `reasons.json` | Your own reason buttons (at most 8) |
 | `server.json`, `page.json` | The open page: port, process, token, and a secret that only closes it. Removed when it stops |
 | `page.log` | What the page wrote in the background |
