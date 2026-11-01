@@ -170,3 +170,17 @@ def test_alike_marks_get_no_warning(here, capsys):  # noqa: F811
     _, out = run(capsys)
     assert "don't look like your marks" not in flat(out)
     assert "imports_off" not in _result(ws)
+
+
+def test_mark_says_how_many_page_marks_the_imported_marks_still_need(here, capsys, pages):  # noqa: F811
+    table(here, 60, 60)
+    rows = [{"answer": answer(i), "label": "pass"} for i in range(20)]
+    rows += [{"answer": answer(i), "label": "fail"} for i in range(60, 80)]
+    write_labels(here / "mine.csv", rows)
+    run(capsys, "--labels", "mine.csv")
+    _, out = run(capsys, "mark")
+    assert "You marked 40 answers so far: 20 Pass, 20 Fail." in out
+    assert GATE.format(n=30, name="mine.csv") in flat(out)
+    _page(Workspace(here), {i: "pass" for i in range(20, 35)} | {i: "fail" for i in range(80, 95)})
+    _, out = run(capsys, "mark")
+    assert "on the page to check the marks" not in flat(out)

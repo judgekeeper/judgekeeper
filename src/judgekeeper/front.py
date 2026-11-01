@@ -1247,6 +1247,17 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     return out
 
 
+def _import_gate(ws: Workspace, session: StartSession) -> str | None:
+    """The line that says how many page marks a coloured verdict still needs to check the
+    marks brought with --labels (labels.gate_line); None when none are needed."""
+    if not ws.marks.is_file():
+        return None
+    data = ws.data()
+    ids = set(batches.counted_labels(data, session.marked()))
+    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
+    return labels_mod.gate_line(needed, imported)
+
+
 def passed_failed(n_pass: int, n_fail: int) -> str:
     return f"Your LLM-as-a-judge passed {_n(n_pass, 'answer')} and failed {n_fail}."
 
@@ -1782,6 +1793,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:
             talk.say(NOT_ENOUGH)
+        elif gate := _import_gate(ws, session):  # as the result says it
+            talk.para(gate)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
