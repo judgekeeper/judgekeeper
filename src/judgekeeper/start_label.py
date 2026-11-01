@@ -142,6 +142,7 @@ class Workspace:
         self.result_html = self.dir / "result.html"  # the result page's name before 1.0
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
+        self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
         self.judge_check_json = self.dir / judge_check.JSON_FILE
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
@@ -910,8 +911,23 @@ class StartSession(LabelSession):
         if due is not None:
             self.offered[due[0]] = due[1]
             items.insert(start, {**self._again(due[1]), "again": due[0]})
+        status = self.current_status()
+        self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": self.current_status()}
+                "counts": self.counts(), "status": status}
+
+    def pop_up(self, status: dict) -> bool:
+        """True the first time a marking page gets a coloured verdict (`status` ready): the
+        page shows the pop-up then. Kept on disk (ready_seen), so a reload or a new page
+        never shows it again, even when the verdict goes back to too early and returns."""
+        seen = self.workspace.ready_seen
+        if not status.get("ready") or seen.is_file():
+            return False
+        try:
+            _write_json(seen, {"at": utc_now()})
+        except OSError:  # the mark is saved; the pop-up still shows on this page
+            pass
+        return True
 
 
 # The result ------------------------------------------------------------------------------

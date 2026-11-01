@@ -819,12 +819,11 @@ __TOP__
     }).then(function (res) {
       clearTimeout(waited);
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
-      var wasReady = status.ready;
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
       showAgain(res.body.summary.again);
       then();
-      if (status.ready && !wasReady && !readyShown && !ended) { showReady(); }
+      if (res.body.summary.popup && !readyShown && !ended) { showReady(); }
       while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
       clearTimeout(waited); queued = [];
@@ -928,8 +927,8 @@ __TOP__
     else if (e.key === "Tab") { e.preventDefault(); $("intro-ok").focus(); }
   });
 
-  // The result-ready box: once, when the result turns ready while this page is open (not when
-  // it opens already ready). The page behind it is inert. Esc is "Keep marking"; Tab stays
+  // The result-ready box: once, when the result first turns ready (the server says so with
+  // `popup`; not when the page opens already ready, nor after a reload or on another page). The page behind it is inert. Esc is "Keep marking"; Tab stays
   // between its two buttons.
   var readyShown = false, readyBox = $("ready-box");
   $("ready-see").setAttribute("href", url("/result"));

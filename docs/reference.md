@@ -299,6 +299,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `server.json`, `page.json` | The open page: port, process, token, and a secret that only closes it. Removed when it stops |
 | `page.log` | What the page wrote in the background |
 | `opening` | Empty: a run is opening the page |
+| `ready-seen.json` | When the marking page first showed a result, so the "Your result is ready." box opens only once |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
 | `history/` | Earlier results, with the same fields as `result.json` |
 | `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |

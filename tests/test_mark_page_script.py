@@ -100,6 +100,7 @@ var window = {
   innerHeight: 800, innerWidth: 1400
 };
 var counts = {correct: 0, wrong: 0, skipped: 0}, status = {text: "Keep going.", ready: false};
+var popped = !!(DATA.status && DATA.status.ready);  // as the server keeps it on disk
 function fetch(url, opts) {
   var body = JSON.parse(opts.body);
   sent.push({url: url, body: body});
@@ -107,8 +108,10 @@ function fetch(url, opts) {
   if (body.label === "fail") { counts.wrong += 1; }
   if (body.deferred) { counts.skipped += 1; }
   return Promise.resolve({ok: true, json: function () {
+    var popup = status.ready && !popped;
+    popped = popped || popup;
     return Promise.resolve({summary: {counts: Object.assign({}, counts),
-      status: Object.assign({}, status)}}); }});
+      status: Object.assign({}, status), popup: popup}}); }});
 }
 function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }

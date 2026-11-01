@@ -195,3 +195,32 @@ def test_repeats_graded_differently_say_their_run_and_never_the_grade(tmp_path):
         assert set(item) <= {"id", "input", "output", "label", "skipped", "run"}, item
     kept = ws.data()["runs"]  # in start.json: the run and the count only
     assert sorted(kept.values()) == runs
+
+
+def test_the_pop_up_comes_with_the_first_verdict_only(ws, served):
+    """The label answer carries `popup` once: when the first coloured verdict appears."""
+    _, _, client = served
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    popups, ready = [], []
+    for item in client.state()["items"]:
+        _, body = client.label(id=item["id"], label=groups[item["id"]], seconds=5)
+        popups.append(body["summary"].get("popup", False))
+        ready.append(body["summary"]["status"]["ready"])
+    assert popups.count(True) == 1 and ready[popups.index(True)]
+    assert not any(ready[:popups.index(True)]) and ws.ready_seen.is_file()
+
+
+def test_the_pop_up_never_comes_again_after_a_reload_or_a_new_page(ws):
+    """Shown once, kept on disk: a verdict that goes back to too early and returns, on a
+    reloaded page or one opened again by `judgekeeper mark`, brings no pop-up."""
+    session = start_label.StartSession(ws)
+    assert not session.pop_up({"ready": False})
+    assert session.pop_up({"ready": True})
+    assert not session.pop_up({"ready": False}) and not session.pop_up({"ready": True})
+    assert not start_label.StartSession(ws).pop_up({"ready": True})
+
+
+def test_a_page_that_opens_with_a_verdict_brings_no_pop_up_later(ws):
+    session = start_label.StartSession(ws, status=lambda s: {"text": "x", "ready": True})
+    session.state()
+    assert ws.ready_seen.is_file() and not session.pop_up({"ready": True})
