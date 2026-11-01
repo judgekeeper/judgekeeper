@@ -300,9 +300,9 @@ def test_the_real_data_figures_in_the_docs_come_from_the_committed_report(report
     assert first == min(before + [r["coverage"][k] for r in grid["accuracy"]["stopping"]
                                   for k in ("tpr", "tnr")])
     assert cell >= first  # so "the lowest" before grading again is the first result's
-    assert ('The lowest is after grading again with 10 marks in each group, in batches (the '
-            'table "Batches"); before grading again, it is when marking stops at 15 Pass and 15 '
-            'Fail') in _flat(ROOT / "docs" / "reference.md")
+    assert (f'The lowest, {pct(lowest)}, is after grading again with 10 marks in each group, in '
+            f'batches (table "Batches"). Before grading again, the lowest is {pct(first)}, when '
+            'marking stops at 15 Pass and 15 Fail') in _flat(ROOT / "docs" / "reference.md")
     simulated = f"the ranges held the true value {pct(level['mean'])} times in 100 on average"
     assert simulated in _flat(ROOT / "README.md")
     # the figures are said once, in the report the reference links

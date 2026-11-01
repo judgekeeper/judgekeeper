@@ -129,10 +129,12 @@ def test_the_readme_says_where_its_coverage_figures_are():
     # the reference says where the average and the lowest are (and, by test_coverage, repeats
     # neither figure)
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
-    assert ("The average is the chosen level's Average, in the report's first table. The lowest "
-            "is after grading again with 10 marks in each group, in batches (the table "
-            "\"Batches\"); before grading again, it is when marking stops at 15 Pass and 15 "
-            "Fail (the table \"The real stopping rule\").") in reference
+    again = min(grid["batches"]["general"]["per_metric"].values())
+    assert ("The average is the chosen level's Average, in the report's first table. The lowest, "
+            f"{again * 100:.1f}, is after grading again with 10 marks in each group, in batches "
+            "(table \"Batches\"). Before grading again, the lowest is "
+            f"{lowest}, when marking stops at 15 Pass and 15 Fail (table \"The real stopping "
+            "rule\").") in reference
 
 
 def test_the_readme_keeps_to_the_agreed_words():
