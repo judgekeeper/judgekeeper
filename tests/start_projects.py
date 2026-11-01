@@ -325,3 +325,11 @@ def save_result(ws, session, say=None, flags: dict | None = None) -> dict:
     from judgekeeper import start_label
 
     return start_label.store_result(ws, session, flags)
+
+
+def unwrapped(html: str) -> str:
+    """`html` with each command word's no-wrap span taken off (look.command), so a test can
+    look for `<code>judgekeeper fix</code>` as the command reads."""
+    import re
+
+    return re.sub(r'<span class="cw">([^<]*)</span>', r"\1", html)
