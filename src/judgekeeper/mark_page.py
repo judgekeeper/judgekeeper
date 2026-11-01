@@ -871,8 +871,7 @@ __TOP__
     }).catch(function () {
       clearTimeout(waited); queued = [];
       render();
-      say("Not saved: this page lost its link to judgekeeper. Is it still " +
-        "running in your terminal? Your earlier marks are saved.");
+      say(WORDS.noAnswer);
     });
     return true;
   }
@@ -1033,13 +1032,19 @@ def _progress() -> str:
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
+          "{command} in your project folder. Your marks are kept.")  # gone, or no answer
+
+
 def _words() -> str:
     """The link's and the line's words, as the page's script reads them: before the first
-    numbers, from them until a coloured verdict, and with one."""
+    numbers, from them until a coloured verdict, and with one; and the line said when a mark
+    can't be saved."""
     from judgekeeper.start_label import FIRST_NUMBERS
+    from judgekeeper.textio import program
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY}
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark")))}
     return json.dumps(words).replace("<", "\\u003c")
 
 
@@ -1114,6 +1119,20 @@ OLD_LINK = ("Each time judgekeeper opens its page, it makes a new private link, 
             "stop working. Your marks are saved.")
 OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'none'; "
                 "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+WRONG_HOST = ("Open the link just as judgekeeper printed it. It starts with "
+              "http://127.0.0.1:{port}/.")
+
+
+def wrong_host_page(port: int) -> str:
+    """What a browser gets for the page under another host name (`localhost`): how to open
+    it. Nothing else: the Host check guards the marks against DNS rebinding."""
+    return (look.head("judgekeeper: open the printed link", OLD_LINK_STYLE)
+            + look.top("", "")
+            + '<main class="old"><div class="box"><h1>Open the printed link.</h1>'
+            + f"<p>{escape(WRONG_HOST.format(port=int(port)))}</p>"
+            + "</div></main>\n</body>\n</html>\n")
 
 
 def old_link_page() -> str:

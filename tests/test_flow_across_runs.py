@@ -325,7 +325,7 @@ def test_fix_for_a_table_judge_keeps_marks_aside(here, capsys):
     code, out = _jk(capsys, "fix")
     assert code == 0, out
     kept = len(fix.read_split(Workspace(here)).hidden)
-    assert f"{kept} of your marks are kept aside to test your new rule fairly." in flat(out)
+    assert f"The other {kept} are kept aside to test a new rule." in flat(out)
     assert _next(out).endswith("then run `judgekeeper fix <new results file>`.")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert "found it worse" not in mistakes  # no check: the mistakes of the LLM-as-a-judge marked
