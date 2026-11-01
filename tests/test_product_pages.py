@@ -698,8 +698,11 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
 NEXT_OPEN = '<section class="next band" aria-labelledby="next-h">'
 SAVED = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
          "folder. You can close this page.</p>")
-KEEP_MARKING = ("<p>Want more certain numbers? Keep marking on the marking page. It closes by "
-                "itself after 30 minutes without use.</p>")
+KEEP_MARKING = '<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>.</p>'
+CLOSED = ("<p>It closes by itself after 30 minutes without use. Closed? Run "
+          "<code>{mark}</code> in your project folder: your marks are still there.</p>")
+TO_MARK_MORE = ("<p>To mark more, run <code>{mark}</code> in your project folder: your marks "
+                "are still there.</p>")
 
 
 def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
@@ -726,12 +729,35 @@ def test_what_next_says_there_is_nothing_more_when_the_judge_is_good_enough():
     assert 'class="cmd"' not in part and "Next, in your terminal" not in part
 
 
-def test_what_next_asks_to_keep_marking_only_on_the_page_the_marking_server_serves():
+def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_serves():
+    mark = program("mark")
     for counts in (GATE, NOT_GATE_TNR):
         live = _part(start_label.result_html(_result(*counts), "/?token=t"), NEXT_OPEN)
-        saved = _part(start_label.result_html(_result(*counts)), NEXT_OPEN)
-        assert KEEP_MARKING in live and KEEP_MARKING not in saved, counts
+        saved_html = start_label.result_html(_result(*counts))
+        saved = _part(saved_html, NEXT_OPEN)
+        assert KEEP_MARKING in live and CLOSED.format(mark=mark) in live, counts
+        assert live.index(KEEP_MARKING) < live.index("Closed?")
+        assert TO_MARK_MORE.format(mark=mark) not in live
         assert SAVED in live and SAVED in saved
+        assert TO_MARK_MORE.format(mark=mark) in saved, counts
+        assert "Keep marking" not in saved and "Closed?" not in saved
+        assert "<a " not in saved and "token" not in saved_html
+
+
+def test_the_mark_line_comes_after_the_next_step():
+    mark = program("mark")
+    fix = _part(start_label.result_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
+    assert fix.index('class="cmd"') < fix.index(TO_MARK_MORE.format(mark=mark))
+    good = _part(start_label.result_html(_result(*GATE)), NEXT_OPEN)
+    assert good.index("Nothing more to do") < good.index(TO_MARK_MORE.format(mark=mark))
+
+
+def test_the_mark_command_keeps_the_flags_of_the_run():
+    r = _result(*GATE, flags={"path": "evals/app", "port": 9000})
+    mark = report_page.commands(r)["mark"]
+    assert mark == f"{program('mark')} evals/app"
+    assert TO_MARK_MORE.format(mark=mark) in start_label.result_html(r)
+    assert CLOSED.format(mark=mark) in start_label.result_html(r, "/?token=t")
 
 
 def test_what_next_is_the_same_one_command_for_a_table_of_grades():

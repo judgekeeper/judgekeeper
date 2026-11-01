@@ -4,7 +4,9 @@ hours idle."""
 
 from __future__ import annotations
 
+import html
 import json
+import re
 import threading
 import time
 
@@ -109,6 +111,31 @@ def test_it_stays_open_after_the_result_also_once_every_answer_is_marked(ws, ser
     assert client.request("GET", "/result")[0].status == 200
     thread.join(timeout=0.5)
     assert thread.is_alive() and client.state()  # the result page may still ask it
+
+
+def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, served,
+                                                                       monkeypatch):
+    monkeypatch.setattr(label_mod, "RESULT_WAIT", 0)
+    server, _, client = served
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    items = client.state()["items"]
+    for item in items[:30]:
+        client.label(id=item["id"], label=groups[item["id"]], seconds=5)
+    resp, body = client.request("GET", "/result")
+    text = body.decode("utf-8")
+    assert resp.status == 200 and 'aria-labelledby="next-h"' in text
+    [href] = re.findall(r'<a href="([^"]*)">Keep marking</a>', text)
+    href = html.unescape(href)
+    assert href == f"/?token={server.token}"
+    resp, body = client.request("GET", href, token=False)  # as a click on it, same tab
+    assert resp.status == 200
+    [data] = re.findall(r'<script type="application/json" id="data">(.*?)</script>',
+                        body.decode("utf-8"), re.DOTALL)
+    shown = {i["id"]: i["label"] for i in json.loads(data)["items"]}
+    assert all(shown[i["id"]] == groups[i["id"]] for i in items[:30])
+    saved = (ws.dir / "report.html").read_text(encoding="utf-8")
+    assert server.token not in saved and "Keep marking</a>" not in saved
+    assert "To mark more, run <code>" in saved
 
 
 def test_the_stop_secret_closes_the_page_and_does_nothing_else(ws, served):
