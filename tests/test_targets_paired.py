@@ -23,3 +23,29 @@ def test_the_weaker_kind_of_mark_sets_the_drop():
 
 def test_none_under_fifteen_of_each():
     assert targets.smallest_drop(14, 30, 0.9, 0.9) is None
+
+
+def test_the_drop_is_worked_out_as_before_on_a_grid():
+    """Every (marks, rate) of the grid gives the drop that the full search gave."""
+    import json
+    from pathlib import Path
+
+    grid = json.loads((Path(__file__).parent / "fixtures" / "smallest_drop_grid.json")
+                      .read_text(encoding="utf-8"))
+    for key, drop in grid.items():
+        n, rate = key.split(",")
+        assert targets._smallest(int(n), max(float(rate), 0.01)) == drop, key
+
+
+def test_many_marks_need_few_steps(monkeypatch):
+    """Thousands of imported marks: only the counts that can happen are worked out."""
+    calls = []
+    score = targets._score
+
+    def counted(*args):
+        calls.append(1)
+        return score(*args)
+
+    monkeypatch.setattr(targets, "_score", counted)
+    assert targets.smallest_drop(3000, 3000, 0.85, 0.85) == 5
+    assert len(calls) < 500_000
