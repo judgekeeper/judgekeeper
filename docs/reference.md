@@ -89,7 +89,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
-Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (unless every answer in that group already has a mark), so judgekeeper can check the imported marks against yours.
 
 Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
@@ -165,7 +165,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 - **The same grade for every answer.**
 - **The reason says the opposite** of the grade.
 
-**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once, in blocks of 5 your LLM-as-a-judge passed and 5 it failed. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group.
+**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once, in blocks of 5 your LLM-as-a-judge passed and 5 it failed. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group. When a new batch is much bigger than the earlier ones, the ranges can get wider once it counts: they now speak for many more answers. Marking more of the new batch narrows them.
 
 **The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is only in the report's More details and never decides the result. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json and the page shows n/a.
 

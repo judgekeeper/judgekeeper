@@ -71,6 +71,29 @@ def test_a_results_file_elsewhere_names_where_it_saved(tmp_path, capsys, monkeyp
     assert start_label.shown_folder(ws) == ".judgekeeper"
 
 
+
+def test_a_folder_far_away_is_named_from_here_never_in_full(tmp_path, monkeypatch):
+    table_project(tmp_path / "evals", split(16, 16))
+    ws = start_label.prepare(start.find_judge(tmp_path / "evals" / "results.csv"), say=print)
+    deep = tmp_path / "a" / "b" / "c" / "d"
+    deep.mkdir(parents=True)
+    monkeypatch.chdir(deep)
+    shown = start_label.shown_folder(ws)
+    assert shown == "../../../../evals/.judgekeeper"
+    assert str(tmp_path) not in shown and tmp_path.as_posix() not in shown
+
+
+def test_a_folder_on_another_drive_is_named_by_its_name(tmp_path, monkeypatch):
+    table_project(tmp_path / "evals", split(16, 16))
+    ws = start_label.prepare(start.find_judge(tmp_path / "evals" / "results.csv"), say=print)
+    monkeypatch.chdir(tmp_path)
+
+    def other_drive(path, start=None):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+
+    monkeypatch.setattr(start_label.os.path, "relpath", other_drive)
+    assert start_label.shown_folder(ws) == ".judgekeeper"
+
 @pytest.mark.parametrize("eval_part", ["x", None, [1, 2]])
 def test_an_inspect_log_with_a_damaged_eval_part_is_named_as_inspect(tmp_path, capsys,
                                                                       eval_part):
