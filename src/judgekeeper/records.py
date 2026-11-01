@@ -60,9 +60,18 @@ ALL_FIELDS = ("schema_version", *FIELDS, *OPTIONAL_FIELDS)
 EVALUATOR_KEYS = ("provider", "model", "prompt", "temperature", "version", "prompt_hash",
                   "snapshot", "endpoint", "rule")
 JSON_CELLS = ("metadata", "trajectory", "outcome")  # JSON text in a CSV cell
-DEFAULT_NAME = "judge"
+DEFAULT_NAME = "LLM-as-a-judge"
+OLD_DEFAULT_NAME = "judge"  # record()'s default before 1.1: read as DEFAULT_NAME
 BIG = 1_000_000  # bytes: a record larger than this is kept, with a warning
 _NUMBER = re.compile(r"\A([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\Z")  # after strip()
+
+
+def _name(value) -> str:
+    """The record's name: DEFAULT_NAME when it has none or the old default (never a lone
+    "judge" on screen)."""
+    if _blank(value) or str(value) == OLD_DEFAULT_NAME:
+        return DEFAULT_NAME
+    return str(value)
 
 
 class RecordsError(TableError):
@@ -326,7 +335,7 @@ class ScoreRecord:
         version = d.get("schema_version")
         return cls(
             target_id=None if _blank(d.get("target_id")) else str(d["target_id"]).strip(),
-            name=DEFAULT_NAME if _blank(d.get("name")) else str(d["name"]),
+            name=_name(d.get("name")),
             annotator_kind=_kind(d.get("annotator_kind")),
             label=None if _blank(d.get("label")) else d["label"],
             score=_number(d.get("score")),

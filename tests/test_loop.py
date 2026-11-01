@@ -340,6 +340,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     records_project(here, split(16, 16), name="helpfulness")
     records_project(here, split(16, 16), name="safety", pid=4102)
     assert run(capsys, "--metric", "helpfulness")[0] == 0
+    _click(start_label.Workspace(here), 1)  # a mark to move
     code, out, err = run(capsys, "--metric", "safety")
     assert code == 3
     assert "Your marks are for other results" in _flat(out) and "helpfulness" in out
