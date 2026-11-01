@@ -178,13 +178,28 @@ def test_the_arrow_keys_mark_pass_and_fail_and_the_next_answer_comes():
 def test_a_second_key_soon_after_a_saved_mark_marks_the_next_answer():
     got = _run("""
       key("ArrowRight"); await settle();
-      later(100); key("ArrowLeft"); await settle();
+      later(300); key("ArrowLeft"); await settle();
       console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
         at: ids["q-text"].textContent}));""")
     assert got == {"sent": [["a0", "pass"], ["a1", "fail"]], "at": "Question 2?"}
 
 
-def test_keys_pressed_while_a_mark_is_saved_act_once_it_is_saved():
+def test_two_presses_1_ms_apart_mark_one_answer():
+    """The second press comes before anyone could read the next answer: it does nothing, so
+    an answer is never marked unseen. A press 250 ms after it shows marks it."""
+    got = _run("""
+      key("ArrowRight"); await settle();
+      later(1); key("ArrowLeft"); await settle();
+      later(1); key("s"); await settle();
+      var first = [sent.length, ids["q-text"].textContent];
+      later(250); key("ArrowLeft"); await settle();
+      console.log(JSON.stringify({first: first, at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
+    assert got["first"] == [1, "Question 1?"]
+    assert got["sent"] == [["a0", "pass"], ["a1", "fail"]] and got["at"] == "Question 2?"
+
+
+def test_keys_pressed_while_a_mark_is_saved_never_mark_the_next_answer():
     got = _run("""
       var answer = [], real = fetch;
       fetch = function (url, opts) { var r = real(url, opts);
@@ -195,8 +210,21 @@ def test_keys_pressed_while_a_mark_is_saved_act_once_it_is_saved():
       console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
         sent: sent.map(function (s) { return [s.body.id, s.body.label || "skip"]; })}));""")
     assert got["waiting"] == [1, "Question 0?"]  # one save at a time
-    assert got["sent"] == [["a0", "pass"], ["a1", "fail"], ["a2", "skip"]]  # each once, in order
-    assert got["at"] == "Question 3?"
+    assert got["sent"] == [["a0", "pass"]]  # the next answer was not on screen yet
+    assert got["at"] == "Question 1?"
+
+
+def test_an_answer_behind_the_ready_box_counts_its_seconds_from_when_the_box_closed():
+    """The seconds a mark sends are the time its answer was on screen: not the time the
+    "Your result is ready" box covered it."""
+    got = _run("""
+      status = {text: "Ready.", ready: true, headline: "Good enough"};
+      key("ArrowRight"); await settle();
+      var box = !ids["ready"].hidden;
+      later(14000); ids["ready-box"].fire("keydown", {key: "Escape"}); await settle();
+      later(2000); key("ArrowLeft"); await settle();
+      console.log(JSON.stringify({box: box, seconds: sent[1].body.seconds}));""")
+    assert got == {"box": True, "seconds": 2}
 
 
 def test_a_double_click_marks_one_answer():
@@ -343,7 +371,7 @@ def test_the_bar_follows_the_marks_toward_a_result_and_the_count_the_marks():
                  ids["progress"].getAttribute("aria-valuetext"), ids["see"].hidden,
                  ids["count"].textContent];
       status.first = true;
-      key("ArrowLeft"); await settle();
+      key("ArrowLeft"); await settle(); later(500);
       var first = [ids["progress"].getAttribute("aria-valuenow"), ids["see"].hidden,
                    ids["see"].textContent];
       status.ready = true;

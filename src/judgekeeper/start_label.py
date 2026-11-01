@@ -774,7 +774,8 @@ class StartSession(LabelSession):
         (add_reasons). A mark changed after the judge's grades were shown is stamped so.
         A change that changes nothing (the page's own mark again) writes no line. A first
         mark changed drops a repeat card still due for that answer (`dropped`): it would be
-        compared with a mark the person no longer gives."""
+        compared with a mark the person no longer gives. The last answer marked drops a
+        repeat card still waiting, so the result shows at once."""
         self.before = self.version()
         self._reread()
         self.offer = self.dropped = None
@@ -814,9 +815,10 @@ class StartSession(LabelSession):
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
-        if changed:  # a repeat card due for it would compare with the mark it had
+        done = self._all_marked()  # the result is there now: no repeat card in front of it
+        if changed or done:  # a repeat card due for it would compare with the mark it had
             for slot, i in list(self.offered.items()):
-                if i == item["id"] and slot not in self.slots:
+                if (done or i == item["id"]) and slot not in self.slots:
                     del self.offered[slot]
                     self.dropped = slot
         if mark in ("pass", "fail") and before["label"] not in ("pass", "fail"):
@@ -839,6 +841,8 @@ class StartSession(LabelSession):
         answers marked Pass or Fail on the page, each slot once. The answer: one marked on the
         page, not one of the last REPEAT_GAP marked (by marks.jsonl) and never shown again
         before; the same whichever page asks."""
+        if self._all_marked():
+            return None  # every answer is marked: the result comes next, not a repeat
         page = sorted(i for i in self.page_marked if i in self.by_id)
         n = len(page)
         block = random.Random(f"{self.seed}:{n // REPEAT_EVERY}").randrange(REPEAT_EVERY)
@@ -850,6 +854,10 @@ class StartSession(LabelSession):
         shown = self.repeated | set(self.offered.values()) | set(recent)
         left = [i for i in page if i not in shown]
         return (n, random.Random(f"{self.seed}:{n}").choice(left)) if left else None
+
+    def _all_marked(self) -> bool:
+        """Whether every answer is marked Pass or Fail."""
+        return all(i["label"] in ("pass", "fail") for i in self.items)
 
     def _again(self, item_id: str) -> dict:
         """An answer shown again, as the page shows any answer still to mark."""
