@@ -304,19 +304,30 @@ def test_a_program_under_home_run_from_a_folder_outside_it_is_named_from_home(mo
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
-def test_on_windows_a_program_under_home_is_named_from_userprofile(monkeypatch, tmp_path):
-    """cmd reads %USERPROFILE% inside double quotes too: the user name is never shown."""
+def test_on_windows_a_program_runs_as_printed_in_cmd_and_powershell(monkeypatch, tmp_path):
+    """A program is unquoted and never %USERPROFILE% (PowerShell reads neither as cmd does):
+    from here or as it is, the shorter; else its own python runs judgekeeper; only when no
+    form runs in both, from here in double quotes (cmd's form)."""
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.delenv("UV", raising=False)
     monkeypatch.setenv("HOME", "/Users/someone")  # Path.home() on this (faked) Windows
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
-    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/Scripts/judgekeeper.exe"])
-    assert textio.program("mark") == (
-        '"%USERPROFILE%\\My Tools\\venv\\Scripts\\judgekeeper.exe" mark')
     monkeypatch.setattr(sys, "argv", ["/Users/someone/venv/Scripts/judgekeeper.exe"])
-    assert textio.program() == "%USERPROFILE%\\venv\\Scripts\\judgekeeper.exe"
+    assert textio.program() == "/Users/someone/venv/Scripts/judgekeeper.exe"  # the shorter
+    (tmp_path / "a").mkdir()
+    monkeypatch.chdir(tmp_path / "a")
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "venv" / "Scripts" / "judgekeeper.exe")])
+    assert textio.program() == "../venv/Scripts/judgekeeper.exe"  # from here
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/Scripts/judgekeeper.exe"])
+    monkeypatch.setattr(sys, "executable", "/Users/someone/py/python.exe")
+    assert textio.program("mark") == "/Users/someone/py/python.exe -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", "/Users/someone/My Tools/venv/Scripts/python.exe")
+    up = os.path.relpath("/Users/someone/My Tools/venv/Scripts/judgekeeper.exe",
+                         os.path.realpath(tmp_path))
+    assert textio.program("mark") == f'"{up}" mark'  # none runs in both: from here, quoted
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
@@ -336,11 +347,16 @@ def test_a_path_typed_in_home_from_a_folder_outside_it_is_repeated_from_home(mon
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
-def test_on_windows_a_path_in_home_is_repeated_from_userprofile(monkeypatch, tmp_path):
+def test_on_windows_a_path_in_home_is_repeated_from_here_and_named_from_userprofile(
+        monkeypatch, tmp_path):
+    """A command repeats it from here (PowerShell doesn't read %USERPROFILE%); a line that
+    only names it still says %USERPROFILE%."""
     monkeypatch.setenv("HOME", "/Users/someone")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "win32")
+    up = os.path.relpath("/Users/someone", os.path.realpath(tmp_path))
     assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
-        '"%USERPROFILE%\\My Labels\\l.csv"')
-    assert textio.runnable("/Users/someone/labels.csv", labels=False) == (
-        "%USERPROFILE%\\labels.csv")
+        f'"{up}/My Labels/l.csv"')
+    assert textio.runnable("/Users/someone/labels.csv", labels=False) == f"{up}/labels.csv"
+    assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == (
+        "%USERPROFILE%\\My Labels\\l.csv")

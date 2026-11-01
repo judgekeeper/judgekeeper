@@ -139,20 +139,38 @@ def _started_as_judgekeeper() -> bool:
 def command_path(path: str) -> str:
     """`path` as a program to run from this folder, quoted: relative when the two share a
     folder below the top, with a folder in it so the shell never looks it up on the PATH;
-    else under the home folder as `~/...` (`%USERPROFILE%\\...` on Windows, which cmd reads
-    inside quotes too): never the user name; else, or on another drive, the path as it is."""
+    else under the home folder as `~/...`: never the user name; else, or on another drive,
+    the path as it is. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it): the
+    shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path as
+    it is; else from here, quoted (else the path as it is)."""
     try:
         here = os.getcwd()
-        shared = os.path.commonpath([here, path])
         shown = os.path.relpath(path, here)
+        shared = os.path.commonpath([here, path])
     except (OSError, ValueError):
+        shown = shared = None
+    if shown is not None and os.sep not in shown and "/" not in shown:
+        shown = os.path.join(os.curdir, shown)
+    if is_windows():  # never %USERPROFILE%: PowerShell doesn't read it
+        runs = [quote_arg(f) for f in (shown, path) if f is not None
+                and in_both_shells(quote_arg(f))]
+        if runs:
+            return min(runs, key=len)  # from here unless the whole path is shorter
+        return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
+    if shared is None:
         return quote_arg(path)
     if os.path.dirname(shared) != shared:  # more than the top in common: from here
-        if os.sep not in shown and "/" not in shown:
-            shown = os.path.join(os.curdir, shown)
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
+
+
+def in_both_shells(program: str) -> bool:
+    """Whether a program, as command_path gives it, runs as printed in cmd.exe and in
+    PowerShell: unquoted (PowerShell runs a quoted program only after `&`, which cmd.exe
+    doesn't know) and without %USERPROFILE% (PowerShell doesn't read it)."""
+    return (not program.startswith(('"', "'")) and HOME_FORMS[1] not in program
+            and program != PLACEHOLDER)
 
 
 HOME_FORMS = ("~/", "%USERPROFILE%\\")  # a path in the home folder, as a shell reads it
@@ -210,9 +228,13 @@ def off_path(any_start: bool = False) -> str | None:
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
+    python = f"{command_path(sys.executable)} -P -m judgekeeper"
     if script:
-        return command_path(os.path.abspath(typed))
-    return f"{command_path(sys.executable)} -P -m judgekeeper"
+        shown = command_path(os.path.abspath(typed))
+        if is_windows() and not in_both_shells(shown) and in_both_shells(python):
+            return python  # its own python runs it, and in either shell
+        return shown
+    return python
 
 
 def program(subcommand: str = "") -> str:
@@ -709,11 +731,12 @@ _is_link = is_link
 ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 
-def from_here(value: str, labels: bool) -> str:
+def from_here(value: str, labels: bool, command: bool = False) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in;
     when the two share only the top folder and the path is in the home folder, `~/...`
     (_home_shown); on another drive, `<file>` for --labels and PATH for the rest. Never the
-    whole path, nor the user name."""
+    whole path, nor (but in a Windows `command`) the user name: a command on Windows runs in
+    cmd.exe and PowerShell, and PowerShell doesn't read %USERPROFILE%, so it is from here."""
     if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return value
     try:
@@ -722,7 +745,8 @@ def from_here(value: str, labels: bool) -> str:
         shared = os.path.commonpath([real, here])
     except ValueError:  # another drive (Windows)
         return ANOTHER_DRIVE[0 if labels else 1]
-    if os.path.dirname(shared) == shared and (inside := _in_home(real)) is not None:
+    if (os.path.dirname(shared) == shared and not (command and is_windows())
+            and (inside := _in_home(real)) is not None):
         return _home_shown(inside)
     return rel.replace(os.sep, "/")
 
@@ -755,7 +779,7 @@ def shown_from_here(value) -> str:
 def runnable(value: str, labels: bool) -> str:
     """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE); a path in
     the home folder keeps its `~/` outside the quotes."""
-    shown = from_here(value, labels)
+    shown = from_here(value, labels, command=True)
     if shown in ANOTHER_DRIVE:
         return shown
     for form in HOME_FORMS:

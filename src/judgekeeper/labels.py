@@ -138,8 +138,9 @@ def check_file(given: str, command: Callable[..., str] | None = None,
         lines = [(f"{name if where in ANOTHER_DRIVE else where} is a folder. Give the labels "
                   f"file instead: {command('--labels', '<file>')}")]
         if find.is_project(path) or _has_results(path):
+            at = from_here(given, labels=False, command=True)  # never %USERPROFILE% in it
             lines.append(f"To check that folder, put it first: "
-                         f"{command_at(command, where, command_in)}")
+                         f"{command_at(command, at, command_in)}")
         raise LabelsStop(lines)
     if path.suffix.lower() in EXCEL:
         csv_name = runnable(str(path.with_suffix(".csv")) if str(path.parent) != "."
