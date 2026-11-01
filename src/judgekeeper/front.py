@@ -895,7 +895,13 @@ def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str
 
 
 def _go_step(names: list[str], command: str) -> str:
+    """Go to the first folder of `names` and run `command` (it starts with program()) there:
+    the program as it is typed in that folder (textio.run_from)."""
     folder = "that folder" if len(names) == 1 else "one of those folders"
+    here = program()
+    if command.startswith(here):
+        with textio.run_from(names[0]):
+            command = program() + command[len(here):]
     return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
 
 
@@ -1221,8 +1227,7 @@ def _judge_value(found: start.Found) -> str:
 def _rule_file(found: start.Found) -> str | None:
     """The file the judge's rule comes from, when judgekeeper knows it."""
     if found.tool == "promptfoo":
-        return next((n for n in find.PROMPTFOO_CONFIGS if (Path(found.root) / n).is_file()),
-                    None)
+        return start_fix_rule.rule_config(Path(found.root), found.tool, {})
     if found.tool == "inspect" and found.task_file and found.rule:
         return start_fix_rule.opened_rule_file(Path(found.root), found.task_file, found.rule,
                                                found.tool)
@@ -1790,8 +1795,10 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
                                                                           "port": 0})))
             if is_page(tried):  # another project's page (its name needs its token): close it
                 talk.para(PORT_PAGE.format(port=tried))
-                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
-                    stop=program("--stop"), command=command))
+                with textio.run_from(textio.ANYWHERE):  # its folder can't be named
+                    stop = program("--stop")
+                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop,
+                                                                      command=command))
             talk.say(PORT_TAKEN.format(port=tried))
             raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "

@@ -504,6 +504,6 @@ def test_check_on_logs_in_two_folders_says_to_choose_in_its_next_line(tmp_path, 
     capsys.readouterr()
     code = main(["check"])
     out = " ".join(capsys.readouterr().out.split())
-    assert code == 3 and "they need a choice first" in out, out
-    assert out.endswith("Next: run `judgekeeper` to make that choice, then run `judgekeeper "
-                        "check` again.")
+    assert code == 3 and "Inspect logs in more than one folder" in out, out
+    assert out.endswith("Next: choose which Inspect logs to check (new.json, logs), then run "
+                        "`judgekeeper check new.json` or `judgekeeper check logs/a.json`."), out

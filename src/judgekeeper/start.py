@@ -262,10 +262,21 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
 
 
 def kept_check(path, root) -> str:
-    """`judgekeeper check` as report.html keeps it: with `path` from the project folder `root`
-    (textio.kept_path) when it is not the project folder itself."""
+    """`judgekeeper check` as report.html keeps it: the program named plainly
+    (textio.plainly), with `path` from the project folder `root` (textio.kept_path) when it
+    is not the project folder itself."""
     kept = "." if str(path) == "." else textio.kept_path(path, root)
-    return " ".join((textio.program("check"), *([] if kept == "." else [path_word(kept, True)])))
+    with textio.plainly():
+        shown = textio.program("check")
+    return " ".join((shown, *([] if kept == "." else [path_word(kept, True)])))
+
+
+def kept_command(flags, subcommand: str = "") -> str:
+    """command_from for a file in .judgekeeper/ or report.html: the program named plainly
+    (textio.plainly), never by its path; the flags' path is from the project folder already
+    (front._flags_of)."""
+    with textio.plainly():
+        return command_from(flags, subcommand, kept=True)
 
 
 def held_values(flags) -> list[str]:

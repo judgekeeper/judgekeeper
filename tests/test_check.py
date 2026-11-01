@@ -628,3 +628,37 @@ def test_a_path_on_another_drive_is_shown_by_its_name(here, monkeypatch):
     monkeypatch.setattr(textio.os.path, "relpath", other_drive)
     assert textio.shown_from_here("/elsewhere/runs/new.json") == "new.json"
     assert textio.shown_from_here("runs/new.json") == "runs/new.json"  # typed relative: as is
+
+
+# The newest results need a choice of folder ----------------------------------------------
+
+def test_check_names_the_folders_when_the_newest_results_need_a_choice(here, capsys):
+    from tests.start_projects import deepeval_project
+
+    first = deepeval_project(here, split(25, 25),
+                             name="deepeval-results/test_run_20261101_152935.json")
+    found = start.find_judge(here)
+    ws = Workspace(here)
+    judge_setup.save(ws, judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=_quiet)
+    session = StartSession(ws)
+    for q in ws.data()["queue"]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    other = deepeval_project(here, split(25, 25),
+                             name="deepeval-results-rule/test_run_20261101_155333.json")
+    again = deepeval_project(here, split(25, 25),
+                             name="deepeval-results/test_run_20261101_155341.json")
+    os.utime(first, (other.stat().st_mtime - 120,) * 2)
+    os.utime(other, (again.stat().st_mtime - 60,) * 2)
+    code, out = run(capsys)
+    text = " ".join(out.split())
+    assert "can't read" not in text and "need a choice" not in text, out
+    assert ("DeepEval results in more than one folder: deepeval-results/ "
+            "(deepeval-results/test_run_20261101_155341.json, saved") in text, out
+    assert "deepeval-results-rule/ (deepeval-results-rule/test_run_20261101_155333.json, saved" \
+        in text
+    assert ("Next: choose which DeepEval results to check (deepeval-results, "
+            "deepeval-results-rule), then run `judgekeeper check "
+            "deepeval-results/test_run_20261101_155341.json` or `judgekeeper check "
+            "deepeval-results-rule/test_run_20261101_155333.json`.") in text, out
+    assert code == 3

@@ -76,7 +76,8 @@ def promptfoo_project(root: Path, verdicts, name: str = "results.json", config: 
     if config:
         (root / "promptfooconfig.yaml").parent.mkdir(parents=True, exist_ok=True)
         (root / "promptfooconfig.yaml").write_text(
-            "description: support bot\nprompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+            "description: support bot\nprompts:\n  - 'Answer: {{question}}'\ndefaultTest:\n"
+            "  assert:\n    - type: llm-rubric\n      value: file://rubric.txt\n", encoding="utf-8")
     return _write_json(root / name, promptfoo_data(verdicts, **kwargs))
 
 
