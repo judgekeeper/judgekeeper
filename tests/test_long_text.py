@@ -10,6 +10,7 @@ import re
 import pytest
 
 from judgekeeper import mark_page, reasons, report_page, start_label
+from tests.start_projects import unwrapped
 from tests.test_mark_page_script import _data, _run
 from tests.test_product_pages import NOT_GATE_TNR, _mistakes, _result, _text
 
@@ -398,8 +399,8 @@ def test_each_heading_has_its_own_kept_aside_line_under_it():
 def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
     r = _result(*NOT_GATE_TNR)
     for live in (False, True):
-        html = (report_page.page(r, back="/?token=t" if live else None,
-                                 fixing={"mistakes": [], "split_unknown": True}))
+        html = unwrapped(report_page.page(r, back="/?token=t" if live else None,
+                                          fixing={"mistakes": [], "split_unknown": True}))
         assert "kept aside to test" not in html and 'class="group' not in html
         assert ('<p class="add-why">judgekeeper can\'t tell which answers are kept aside: run '
                 '<code>judgekeeper fix</code> to see why.</p>') in html.replace("&#x27;", "'")
