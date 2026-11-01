@@ -33,7 +33,7 @@ SCHEMA_VERSION = 2  # records.SCHEMA_VERSION, kept here so nothing else is impor
 FOLDER = Path(".judgekeeper") / "records"
 MARKERS = ("judgekeeper.toml", "pyproject.toml", "setup.py", ".git")
 OFF = frozenset({"0", "false", "off", "no"})
-DEFAULT_NAME = "judge"
+DEFAULT_NAME = "LLM-as-a-judge"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._]+")
 
 logger = logging.getLogger("judgekeeper")

@@ -235,7 +235,7 @@ judgekeeper's own format: one judged answer per JSONL line, written by you or by
 |---|---|
 | `schema_version` | `2` now. Without it, version 1 (no `metadata`, `rule`, `trajectory`, `outcome`, `app_version`) |
 | `target_id` | the answer's id; else made from `input` and `output` (and `trajectory`) |
-| `name` | the LLM-as-a-judge or criterion (default `judge`) |
+| `name` | the LLM-as-a-judge or criterion (default `LLM-as-a-judge`) |
 | `annotator_kind` | `LLM` (a grade, the default; `LLM_JUDGE` too), `HUMAN` (a label, used as a mark with `--labels`) or `CODE` (ignored) |
 | `label` | the grade, as in [How grades are read](#how-grades-are-read) |
 | `score` | a number; the grade with `--pass-if`, or when `label` is empty |
@@ -269,7 +269,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 | `reason` | The LLM-as-a-judge's reason |
 | `judge` | The LLM-as-a-judge's model |
 | `rule` | The LLM-as-a-judge's rule, for `fix`; the marking page shows it behind "Show the rule" |
-| `name` | Which LLM-as-a-judge or criterion (default `judge`) |
+| `name` | Which LLM-as-a-judge or criterion (default `LLM-as-a-judge`) |
 | `temperature`, `id`, `metadata` | The temperature, the answer's id (else one is made), and a dict of anything else |
 
 Each call adds a line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` in your project root (the nearest folder up with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or `requirements*.txt`). It never writes in your home folder: there it saves nothing and logs that once. An answer saved twice counts once, with the newest grade. Errors inside it are logged to the `judgekeeper` logger, never raised. The file holds your inputs and outputs, so use it in eval code, not in code that serves users. `JUDGEKEEPER_RECORD=0` turns it off.
