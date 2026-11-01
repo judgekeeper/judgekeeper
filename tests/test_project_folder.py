@@ -410,7 +410,7 @@ def test_measure_with_every_answer_marked_does_not_offer_the_page(here, capsys):
     assert "Step 3 of 5: Measure" in out
     assert "Result: your LLM-as-a-judge is good enough to use." in out
     assert "still open" not in out and "To mark more answers" not in out
-    assert "How often your LLM-as-a-judge agrees with you (estimates):" in out  # the numbers too
+    assert "How often your LLM-as-a-judge agrees with you:" in out  # the numbers too
     assert "too wide" not in flat(out) and "too few" not in flat(out)
     assert code == 0
 

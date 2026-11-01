@@ -1855,13 +1855,15 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
     as `r` says, by default."""
     from judgekeeper.report_page import estimate, why_for, why_no_range
 
-    out = [AGREES]
+    out, ranged = [], False
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         why = why_for(r, key) if every is None else why_no_range(key, every, pool)
         shown, between = estimate(r.get(key), r.get(f"{key}_interval"), why)
+        ranged = ranged or between != "–"
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
-    return out
+    # with no range (every answer marked) the numbers are no estimates
+    return [AGREES if ranged else AGREES.replace(" (estimates)", ""), *out]
 
 
 def verdict_line(r: dict) -> str | None:

@@ -228,7 +228,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         "  and failed 0.",
         "  You failed 16 answers. Of those, your LLM-as-a-judge passed 0",
         "  and failed 16.", "",
-        "How often your LLM-as-a-judge agrees with you (estimates):",
+        "How often your LLM-as-a-judge agrees with you:",  # no range: no estimates
         f"  When you say Pass, it also says Pass: {said('tpr')}",
         f"  When you say Fail, it also says Fail: {said('tnr')}", "",  # no range: no note
         "Full report: .judgekeeper/report.html (open it in your browser)", ""]
@@ -270,7 +270,7 @@ def test_a_judge_that_fails_few_of_the_answers_you_failed_is_measured(here, caps
     assert "You and your LLM-as-a-judge disagreed on 5 of 36 answers." in out
     assert ("  You failed 21 answers. Of those, your LLM-as-a-judge passed 5\n"
             "  and failed 16.") in out  # wrapped as the lines around it
-    at = out.index("How often your LLM-as-a-judge agrees with you (estimates):")
+    at = out.index("How often your LLM-as-a-judge agrees with you:")
     assert at > out.index("Result: your LLM-as-a-judge needs work.")  # TNR 16 of 21
     assert "  When you say Pass, it also says Pass: " in out[at:]
     assert "  When you say Fail, it also says Fail: " in out[at:]
@@ -403,7 +403,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(ADDED) == 1
-    assert "How often your LLM-as-a-judge agrees with you (estimates):" in out
+    assert "How often your LLM-as-a-judge agrees with you:" in out
     assert ("This result is on 1 of 2 batches (36 answers). 36 newer answers need a few marks "
             "first.") in _flat(out)
     assert _check(out) == NEXT_RESULT
