@@ -89,7 +89,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
-Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (unless every answer in that group already has a mark), so judgekeeper can check the imported marks against yours.
 
 Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
