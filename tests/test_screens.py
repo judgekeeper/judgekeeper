@@ -108,10 +108,10 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     code, lines = screen(capsys, "--no-browser")
     assert code == 0
     at = lines.index("Step 2 of 5: Mark")
-    assert lines[at + 2:at + 7] == NEEDS
-    assert lines[at + 7] == "Open this link in your browser to mark answers:"
-    assert lines[at + 8].startswith("http://127.0.0.1:") and "?token=" in lines[at + 8]
-    assert lines[at + 9:at + 12] == [
+    assert lines[at + 2:at + 6] == NEEDS
+    assert lines[at + 6] == "Open this link in your browser to mark answers:"
+    assert lines[at + 7].startswith("http://127.0.0.1:") and "?token=" in lines[at + 7]
+    assert lines[at + 8:at + 11] == [
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]

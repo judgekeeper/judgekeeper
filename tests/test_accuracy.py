@@ -1,7 +1,7 @@
 """Every number on screen says only what the marks show.
 
-The words for each number follow the width of its range; the verdict follows the ranges,
-never the point numbers or kappa; kappa has a range; a re-check keeps the groups the marks
+No rule follows a range's width; the verdict follows the 99% ranges, never the point numbers
+or kappa; kappa has a range; a re-check keeps the groups the marks
 were picked by; `check` decides from a range on the paired change.
 
 The cases: the LLM-as-a-judge passes a share of a pool of 1,000 answers; marks in its pass group and
@@ -26,47 +26,40 @@ def result(judge_passes: float, pass_group: tuple[int, int], fail_group: tuple[i
                                                    *fail_group))
 
 
-# Words for each number follow its width ------------------------------------------------------
-
-@pytest.mark.parametrize("points,word", [(41, "too_wide"), (40, "rough"), (31, "rough"),
-                                         (30, None), (21, None), (20, "sharp")])
-def test_width_words_at_the_cut_offs(points, word):
-    assert targets.width_word([0.5, 0.5 + points / 100]) == word
-
+# A range has no width word but "exact" ----------------------------------------------------------
 
 def test_a_range_of_no_width_is_exact():
     assert targets.width_word([1.0, 1.0]) == "exact"
     assert targets.width_word([None, None]) is None
+    assert targets.width_word([0.5, 0.91]) is None  # no rule follows a range's width
 
 
-# The verdict uses the ranges -----------------------------------------------------------------
+# The verdict uses the 99% ranges -------------------------------------------------------------
 
-def test_a_judge_that_passes_most_answers_is_not_green_at_15_each():
-    """Judge passes 90%; the pass group 15 of 15 marked Pass, the fail group 0 of 15."""
-    r = result(0.9, (15, 15), (15, 0))
-    assert r["verdict_level"] == "too_early"
-    assert targets.width_word(r["tpr_interval"]) == "sharp"
-    assert targets.width_word(r["tnr_interval"]) == "too_wide"
+def test_a_judge_that_passes_most_answers_is_not_green_at_20_each():
+    """Judge passes 90%; the pass group 20 of 20 marked Pass, the fail group 0 of 20: the TNR's
+    99% range still reaches far below 80%, so it can't tell yet."""
+    r = result(0.9, (20, 20), (20, 0))
+    assert r["verdict_level"] == "check"
+    assert r["tnr_verdict_interval"][0] < 0.5
 
 
 def test_one_mark_does_not_flip_it_to_red():
-    r = result(0.9, (16, 15), (15, 0))
-    assert r["verdict_level"] == "too_early"
-    assert targets.width_word(r["tnr_interval"]) == "too_wide"
+    assert result(0.9, (21, 20), (20, 0))["verdict_level"] == "check"
 
 
-@pytest.mark.parametrize("case", [(0.5, (15, 13), (15, 2)), (0.5, (15, 14), (16, 1))],
-                         ids=["87-each-side", "94-each-side"])
+@pytest.mark.parametrize("case", [(0.5, (20, 17), (20, 3)), (0.5, (20, 19), (21, 1))],
+                         ids=["85-each-side", "95-each-side"])
 def test_good_numbers_on_few_marks_can_not_tell_yet(case):
     assert result(*case)["verdict_level"] == "check"
 
 
 @pytest.mark.parametrize("case", [(0.9, (20, 18), (20, 4)), (0.9, (25, 25), (25, 0))],
                          ids=["some-disagree", "25-each"])
-def test_the_fail_side_is_too_early_when_most_answers_pass(case):
+def test_the_fail_side_can_not_tell_yet_when_most_answers_pass(case):
     r = result(*case)
-    assert targets.width_word(r["tnr_interval"]) == "too_wide"
-    assert r["verdict_level"] == "too_early"
+    assert r["tnr_verdict_interval"][0] < targets.RATE_GATE <= r["tnr_verdict_interval"][1]
+    assert r["verdict_level"] == "check"
 
 
 def test_green_is_reachable():
@@ -91,7 +84,8 @@ def test_kappa_is_not_in_the_verdict():
 
 def _simulate_first_result(rng: random.Random, a: float, b: float, n_pass: int,
                            n_fail: int) -> str:
-    """Mark in blocks of 5 from each group until 15 Pass and 15 Fail: the verdict then. `a`
+    """Mark in blocks of 5 from each group until 15 Pass and 15 Fail and 20 marks in each
+    group: the verdict then. `a`
     and `b`: the chance the person marks Pass an answer of the LLM-as-a-judge's pass and fail group."""
     groups = {"pass": [0, 0], "fail": [0, 0]}
     while True:
@@ -101,7 +95,8 @@ def _simulate_first_result(rng: random.Random, a: float, b: float, n_pass: int,
                 groups[g][1] += rng.random() < share
         marked_pass = groups["pass"][1] + groups["fail"][1]
         marked_fail = groups["pass"][0] + groups["fail"][0] - marked_pass
-        if min(marked_pass, marked_fail) >= targets.ROUGH:
+        if min(marked_pass, marked_fail) >= targets.ROUGH and \
+                min(groups["pass"][0], groups["fail"][0]) >= targets.FIRST_GROUP:
             r = start_label.describe(weighted.corrected(n_pass, n_fail, *groups["pass"],
                                                         *groups["fail"], draws=4000))
             return r["verdict_level"]
@@ -121,22 +116,24 @@ def test_false_green_is_rare():
 # The first result and "your result is ready" -------------------------------------------------
 
 def test_the_first_result_is_a_count_rule():
-    assert result(0.5, (14, 13), (15, 1))["check"] == "too_few"
-    assert result(0.5, (15, 14), (15, 1))["check"] != "too_few"
+    """15 marked Pass and 15 Fail, and 20 marks in each of the LLM-as-a-judge's groups."""
+    assert result(0.5, (19, 18), (20, 1))["check"] == "too_few"
+    assert result(0.5, (20, 18), (20, 1))["check"] == "result"
+    assert result(0.5, (20, 14), (20, 1))["check"] == "result"  # 15 marked Pass in all
 
 
-def test_ready_follows_the_widths_only():
-    assert result(0.5, (50, 50), (50, 0))["check"] == "reliable"
-    assert result(0.9, (25, 25), (25, 0))["check"] == "rough"  # TNR still wide
+def test_ready_follows_the_verdict_only():
+    assert result(0.5, (50, 50), (50, 0))["check"] == "result"
+    assert result(0.9, (25, 25), (25, 0))["check"] == "result"  # TNR still wide: no width rule
     assert not hasattr(targets, "line")
 
 
 # The result in the terminal (Step 3 of 5: Measure) -------------------------------------------
 
-def _measured(project, capsys, marks, limit: int | None = None) -> str:
+def _measured(project, capsys, marks, limit: int | None = None, each: int | None = None) -> str:
     """`judgekeeper` once to start marking, the marks (`marks(group, n)`: what the person
     says to the n-th answer of the LLM-as-a-judge's group; the first `limit` answers of the page
-    only), then `judgekeeper` for the result."""
+    only; `each`: the first `each` of each group only), then `judgekeeper` for the result."""
     from judgekeeper.cli import main
 
     main(["--no-browser"])
@@ -146,6 +143,8 @@ def _measured(project, capsys, marks, limit: int | None = None) -> str:
     seen = {"pass": 0, "fail": 0}
     for item in session.items[:limit]:
         g = groups[item["id"]]
+        if each is not None and seen[g] >= each:
+            continue
         seen[g] += 1
         session.update({"id": item["id"], "label": marks(g, seen[g]), "seconds": 5})
     capsys.readouterr()
@@ -179,11 +178,11 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
         assert gone not in out, gone
 
 
-def test_a_side_too_wide_is_too_early_to_tell_with_both_numbers(project, capsys):
+def test_a_side_that_can_not_tell_yet_is_too_early_with_both_numbers(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
     promptfoo_project(project, split(360, 40))  # the judge passes 90%: few answers fail
-    out = _measured(project, capsys, lambda g, n: g, limit=30)  # 15 + 15, all agreed
+    out = _measured(project, capsys, lambda g, n: g, each=20)  # 20 + 20, all agreed
     lines = out.splitlines()
     assert "Result: too early to tell. Mark more answers to get a result." in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
@@ -246,7 +245,7 @@ def test_kappa_after_asking_again_has_a_range():
 def test_kappa_is_in_more_details_with_its_range_and_no_bar():
     from html import unescape
 
-    r = result(0.5, (15, 13), (15, 2))
+    r = result(0.5, (20, 17), (20, 3))
     html = " ".join(unescape(re.sub(r"<[^>]+>", " ", start_label.result_html(r))).split())
     lo, hi = r["kappa_interval"]
     kappa = f"{r['kappa']:.2f} {lo:.2f} and {hi:.2f}".replace("-", "\u2212")

@@ -83,7 +83,8 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "Step 2 of 5: Mark",
         "",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail.",
+        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed.",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -162,14 +163,14 @@ def test_a_closed_page_is_started_again(here, capsys, pages):
 
 
 def test_enough_marks_open_the_page_and_leave_the_result_to_judgekeeper(here, capsys, pages):
-    promptfoo_project(here, split(20, 16), tag=TAG)
+    promptfoo_project(here, split(21, 21), tag=TAG)
     run(capsys, "mark")
     ws = start_label.Workspace(here)
-    _click(ws, 35)  # enough, with 1 answer left to mark
+    _click(ws, 41)  # enough (20 in each group), with 1 answer left to mark
     code, out, err = run(capsys, "mark")
     assert code == 0, out
     assert "Step 2 of 5: Mark (more answers)" in out
-    assert "You marked 35 answers so far: " in out and "not enough" not in out
+    assert "You marked 41 answers so far: " in out and "not enough" not in out
     assert "Each new mark makes your numbers more precise." in _flat(out)
     assert "Your marks:" not in out and "Kappa" not in out
     assert _check(out, err) == NEXT_MORE
@@ -291,7 +292,8 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail.",
+        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed.",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 

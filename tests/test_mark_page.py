@@ -22,7 +22,7 @@ from tests.test_label_server import Client
 def ws(tmp_path, request, monkeypatch):
     if hasattr(request, "param"):  # the marking seed, which picks the answers shown again
         monkeypatch.setattr(start_label.secrets, "randbelow", lambda n: request.param)
-    promptfoo_project(tmp_path, split(16, 16))
+    promptfoo_project(tmp_path, split(21, 21))
     return start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
 
 
@@ -115,14 +115,16 @@ def test_it_stays_open_after_the_result_also_once_every_answer_is_marked(ws, ser
     assert thread.is_alive() and client.state()  # the result page may still ask it
 
 
-@pytest.mark.parametrize("ws, again", [(0, False), (45, True)], indirect=["ws"])  # 45: at 30
+@pytest.mark.parametrize("ws, again", [(0, False), (64, True)], indirect=["ws"])  # 64: at 40
 def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, again, served,
                                                                        monkeypatch):
     monkeypatch.setattr(label_mod, "RESULT_WAIT", 0)
     server, _, client = served
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     items = client.state()["items"]
-    for item in items[:30]:
+    items = ([i for i in items if groups[i["id"]] == "pass"][:20]
+             + [i for i in items if groups[i["id"]] == "fail"][:20])  # a first result
+    for item in items:
         client.label(id=item["id"], label=groups[item["id"]], seconds=5)
     resp, body = client.request("GET", "/result")
     text = body.decode("utf-8")
@@ -136,7 +138,7 @@ def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, again
                         body.decode("utf-8"), re.DOTALL)
     data = json.loads(data)["items"]
     shown = {i["id"]: i["label"] for i in data if "again" not in i}
-    assert all(shown[i["id"]] == groups[i["id"]] for i in items[:30])
+    assert all(shown[i["id"]] == groups[i["id"]] for i in items)
     back = [i for i in data if "again" in i]  # shown again, not marked again yet
     assert len(back) == again and all(i["label"] is None and i["id"] in shown for i in back)
     saved = (ws.dir / "report.html").read_text(encoding="utf-8")

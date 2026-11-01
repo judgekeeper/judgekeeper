@@ -233,9 +233,9 @@ def test_a_labels_file_outside_the_project_and_its_folder_never_written(here, tm
                                                                          capsys):
     table(here)
     away = tmp_path_factory.mktemp("away") / "mine.csv"
-    write_labels(away, labelled(range(5, 40)))
+    write_labels(away, labelled(range(40)))
     _, out = run(capsys, "--labels", str(away))
-    assert "Added 35 marks from mine.csv (15 Pass, 20 Fail)." in flat(out)
+    assert "Added 40 marks from mine.csv (20 Pass, 20 Fail)." in flat(out)
     ws = Workspace(here)
     for text in (ws.marks.read_text(encoding="utf-8"), ws.result_json.read_text(encoding="utf-8"),
                  ws.report_html.read_text(encoding="utf-8"), out):
@@ -542,10 +542,11 @@ def test_without_the_flag_no_pool_row_marks_an_answer(here, capsys):
 # The numbers -------------------------------------------------------------------------------
 
 def _marked_like_this(root: Path, how: str, capsys) -> dict:
-    """A 60-answer table, 18 Pass and 16 Fail marks with 4 disagreements, made through the
-    import or through the page (StartSession.update), and its result.json."""
+    """A 60-answer table, 20 Pass and 20 Fail marks with 4 disagreements (20 in each of the
+    LLM-as-a-judge's groups), made through the import or through the page
+    (StartSession.update), and its result.json."""
     table(root, 30, 30)
-    marks_wanted = {i: "pass" for i in range(18)} | {i: "fail" for i in range(30, 46)}
+    marks_wanted = {i: "pass" for i in range(20)} | {i: "fail" for i in range(30, 50)}
     marks_wanted |= {1: "fail", 2: "fail", 31: "pass", 32: "pass"}
     if how == "file":
         write_labels(root / "mine.csv", [{"answer": answer(i), "label": m}
@@ -573,10 +574,10 @@ def test_imported_marks_give_the_same_numbers_as_page_marks(tmp_path, capsys, mo
     by_page = _marked_like_this(tmp_path / "page", "page", capsys)
     for key in NUMBERS:
         assert by_file.get(key) == by_page.get(key), key
-    assert by_file["imported"] == {"marks": 34, "pass": 18, "fail": 16, "from": ["mine.csv"]}
+    assert by_file["imported"] == {"marks": 40, "pass": 20, "fail": 20, "from": ["mine.csv"]}
     assert "imported" not in by_page
     # the same numbers; the colour waits for page marks that check the imported ones
-    assert by_file["verdict_level"] == "too_early" and by_file["import_gate"] == 12 + 14
+    assert by_file["verdict_level"] == "too_early" and by_file["import_gate"] == 10 + 10
 
 
 # How the marks were made ------------------------------------------------------------------
@@ -654,9 +655,9 @@ def test_the_assumption_is_said_wherever_the_result_is(here, capsys):
 def test_the_assumption_names_your_results_and_two_files(here, capsys):
     table(here, extra={"human_label": ["pass"] * 15 + [""] * 25})
     run(capsys, "--labels")
-    write_labels(here / "a.csv", labelled(range(20, 40)))
+    write_labels(here / "a.csv", labelled(range(15, 40)))
     _, out = run(capsys, "--labels", "a.csv")
-    assert ASSUMES.format(k=35, name="your results and a.csv") in flat(out)
+    assert ASSUMES.format(k=40, name="your results and a.csv") in flat(out)
 
 
 def test_no_assumption_line_without_imported_marks(here, capsys):

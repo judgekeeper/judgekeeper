@@ -104,12 +104,17 @@ def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsy
         shutil.copytree(request.getfixturevalue("mlruns"), tmp_path / "mlruns")
         request.addfinalizer(mlflow_store.remove_copies)
     else:
-        table_project(tmp_path, split(20, 20))
+        table_project(tmp_path, split(23, 23))
     found = start.find_judge(tmp_path)
     judge_setup.save(start_label.Workspace(tmp_path), judge_setup.of(found), found.metric)
     ws = start_label.prepare(found, say=lambda line="": None)
     session = StartSession(ws)
-    for q in ws.data()["queue"][:34]:  # 6 left to mark
+    queue = ws.data()["queue"]
+    if tool == "mlflow":
+        picked = queue[:34]  # 6 left to mark
+    else:  # 20 in each group, 6 left to mark
+        picked = [q for g in ("pass", "fail") for q in [x for x in queue if x["group"] == g][:20]]
+    for q in picked:
         session.update({"id": q["id"], "label": q["group"], "seconds": 5})
     real = label.LabelServer.serve
 
