@@ -43,6 +43,7 @@ from judgekeeper.textio import (
     plural,
     read_utf8,
     reading,
+    shown_path,
     too_deep,
 )
 
@@ -553,7 +554,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
     path = Path(path)
     most = table.MAX_ROWS
     if not path.is_file():
-        raise RecordsError(f"file not found: {path}")
+        raise RecordsError(f"file not found: {shown_path(path)}")
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, RecordsError)
@@ -588,7 +589,7 @@ def source_rows(path: str | Path) -> tuple[list[tuple[int, dict | str, int]], bo
                 continue
             rows.append((n, row, utf8_size(line)))
         return table.capped(rows, path), False
-    raise RecordsError(f"{path}: expected a .csv, .tsv or .jsonl file")
+    raise RecordsError(f"{shown_path(path)}: expected a .csv, .tsv or .jsonl file")
 
 
 def check_map(mapping: dict, rows: list, path: Path) -> None:

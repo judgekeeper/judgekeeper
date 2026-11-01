@@ -74,6 +74,7 @@ from judgekeeper.textio import (
     quote_arg,
     quoted_name,
     read_utf8,
+    shown_path,
     tick,
 )
 
@@ -1184,7 +1185,7 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {root}. judgekeeper looked "
+    talk.say(f"No saved eval results found in {shown_path(root)}. judgekeeper looked "
              f"{find.looked(root).replace(' from ' + root.name, '')}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
@@ -1280,7 +1281,7 @@ def _misshapen(root: Path) -> None:
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
     """(project folder, tool, its readable results newest first, tool signs)."""
     if not path.exists():
-        raise StartError(f"file or folder not found: {path}")
+        raise StartError(f"file or folder not found: {shown_path(path)}")
     if find.is_mlflow_folder(path) and tool in (None, "mlflow"):  # a store, like a file
         path = path.resolve()
         return path.parent, "mlflow", [find.Result("mlflow", path, path.name)], {}
@@ -1338,7 +1339,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {find.NAMES[tool]} results found in {root}.")
+            raise StartError(f"No saved {find.NAMES[tool]} results found in {shown_path(root)}.")
         available = [tool]
     if not available:
         if found.too_big():  # said above, with how to read them anyway

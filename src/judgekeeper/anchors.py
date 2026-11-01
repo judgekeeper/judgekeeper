@@ -17,7 +17,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from judgekeeper.textio import jsonl_lines, read_utf8, write_replacing
+from judgekeeper.textio import jsonl_lines, read_utf8, shown_path, write_replacing
 
 PAIRWISE = "pairwise"
 SINGLE = "single"
@@ -76,7 +76,7 @@ def validate_items(items: list[dict]) -> str:
 def load_anchors(path: str | Path) -> list[dict]:
     path = Path(path)
     if not path.is_file():
-        raise AnchorError(f"anchor file not found: {path}")
+        raise AnchorError(f"anchor file not found: {shown_path(path)}")
     items = []
     for n, line in enumerate(jsonl_lines(read_utf8(path, AnchorError)), 1):
         if not line.strip():
@@ -84,7 +84,7 @@ def load_anchors(path: str | Path) -> list[dict]:
         try:
             items.append(json.loads(line))
         except json.JSONDecodeError as e:
-            raise AnchorError(f"{path}: line {n}: invalid JSON ({e.msg})") from None
+            raise AnchorError(f"{shown_path(path)}: line {n}: invalid JSON ({e.msg})") from None
     validate_items(items)
     return items
 

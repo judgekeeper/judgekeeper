@@ -19,7 +19,13 @@ from pathlib import Path
 from judgekeeper.anchors import PAIRWISE, SINGLE, canonical_json, freeze
 from judgekeeper.fingerprint import ENDPOINT_UNKNOWN, JudgeFingerprint, utc_now
 from judgekeeper.redact import one_line, printable, scrub
-from judgekeeper.textio import lone_surrogate, make_private, read_utf8, write_replacing
+from judgekeeper.textio import (
+    lone_surrogate,
+    make_private,
+    read_utf8,
+    shown_path,
+    write_replacing,
+)
 
 ID_LENGTH = 16
 # Answers read from one table at most: a small file of tiny rows makes one answer per row,
@@ -172,7 +178,7 @@ def read_table(path: str | Path, say: bool = True, cap: bool = True) -> list[dic
     """
     path = Path(path)
     if not path.is_file():
-        raise TableError(f"file not found: {path}")
+        raise TableError(f"file not found: {shown_path(path)}")
     suffix = path.suffix.lower()
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
@@ -198,7 +204,7 @@ def read_table(path: str | Path, say: bool = True, cap: bool = True) -> list[dic
             if cap and len(rows) > MAX_ROWS:
                 break
         return capped(rows, path, say) if cap else rows
-    raise TableError(f"{path}: expected a .csv, .tsv or .jsonl file")
+    raise TableError(f"{shown_path(path)}: expected a .csv, .tsv or .jsonl file")
 
 
 def problem(path: str | Path) -> str | None:

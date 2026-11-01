@@ -55,6 +55,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    shown_path,
     wrap,
 )
 
@@ -535,7 +536,7 @@ def not_found(path: Path) -> StartError:
         return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
                           f"named {word} here.", f"run `{program()}`, or "
                                                  f"`{program()} --help` to see the commands.")
-    return StartError(f"file or folder not found: {path}",
+    return StartError(f"file or folder not found: {shown_path(path)}",
                       "check the path, then run `{command}`.")
 
 
