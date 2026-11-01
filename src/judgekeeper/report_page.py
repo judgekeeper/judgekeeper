@@ -697,7 +697,8 @@ def _counts(r: dict, c: dict) -> str:
     from judgekeeper.start_label import second_thoughts
 
     assumes = assumes_line(r.get("imported"))  # marks brought with --labels
-    for line in ([assumes] if assumes else []) + second_thoughts(r.get("made")):
+    thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
+    for line in ([assumes] if assumes else []) + thoughts:
         row += f'<p class="left-out band">{_term(line)}</p>'
     return row
 

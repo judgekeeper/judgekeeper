@@ -506,8 +506,9 @@ def test_a_mark_made_on_the_page_is_kept(here, capsys):
                     "seconds": 6})
     row = json.loads(next(x for x in ws.pool.read_text(encoding="utf-8").splitlines()
                           if json.loads(x)["id"] == first["id"]))
+    other = next(answer(k) for k in (10, 11) if answer(k) != row["output"])  # not the first
     write_labels(here / "mine.csv", [{"answer": row["output"], "label": first["group"]},
-                                     {"answer": answer(10), "label": "pass"}])
+                                     {"answer": other, "label": "pass"}])
     _, out = run(capsys, "--labels", "mine.csv")
     text = flat(out)
     assert "Added 1 mark from mine.csv (1 Pass, 0 Fail)." in text

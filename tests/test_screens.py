@@ -76,7 +76,7 @@ FIRST = [
 ]
 NEEDS = [
     "A result needs at least 15 answers you mark Pass and 15 you mark",
-    "Fail. If almost every answer passes, that can take many answers.",
+    "Fail.",
     "",
 ]
 MARK_TEXT = [

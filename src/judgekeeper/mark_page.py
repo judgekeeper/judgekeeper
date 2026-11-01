@@ -648,17 +648,20 @@ __TOP__
       .replace(LABEL, "");
   }
 
-  // The answers list: the person's own marks only.
+  // The answers list: the person's own marks only, each answer once (never one shown again).
   var DOT = {none: '__DOT_NONE__', pass: '__DOT_PASS__', fail: '__DOT_FAIL__'};
   var SAID = {pass: "marked Pass", fail: "marked Fail"};
   function renderQueue() {
     var list = $("queue");
     list.textContent = "";
+    var shown = 0;
     items.forEach(function (it, k) {
+      if (it.again != null) { return; }
       var li = el("li"), a = el("a", "item");
+      shown += 1;
       a.href = "#"; a.setAttribute("data-k", String(k));
       if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
-      a.appendChild(el("span", "num", k < 99 ? ("0" + (k + 1)).slice(-2) : String(k + 1)));
+      a.appendChild(el("span", "num", shown < 100 ? ("0" + shown).slice(-2) : String(shown)));
       var title = el("span", "q", firstLine(it));
       title.setAttribute("dir", "auto");
       a.appendChild(title);
@@ -730,10 +733,12 @@ __TOP__
   function open(index) { ended = false; pos = index; render(); }
 
   // The next answer still to mark (or, walking the skipped ones, still skipped), from `from`.
+  // An answer shown again and skipped is not shown a third time.
   function nextIndex(from) {
     for (var n = 0; n < items.length; n++) {
       var i = (from + n) % items.length, it = items[i];
-      if (walkingSkipped ? it.skipped : (!it.label && !it.skipped)) { return i; }
+      if (walkingSkipped ? it.skipped && it.again == null : (!it.label && !it.skipped)) {
+        return i; }
     }
     return null;
   }
@@ -757,7 +762,7 @@ __TOP__
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
-    var skipped = items.filter(function (it) { return it.skipped; }).length;
+    var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
@@ -782,10 +787,21 @@ __TOP__
       e.preventDefault(); lookAgain(); }
   });
 
+  // An answer the server asks to show again, next, as any answer looks (never said); its
+  // mark is sent with its slot and never counts as a mark.
+  function showAgain(again) {
+    if (!again) { return; }
+    var it = {id: again.id, input: again.input, output: again.output, label: null,
+              skipped: false, again: again.slot};
+    if (again.run) { it.run = again.run; }
+    items.splice(pos + 1, 0, it); total += 1;
+  }
+
   function send(change, then) {
     if (busy) { return false; }
     busy = true; $("pass").disabled = true; $("fail").disabled = true;
     change.id = items[pos].id;
+    if (items[pos].again != null) { change.again = items[pos].again; }  // shown again: its slot
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
     // No answer in SAVE_MS (judgekeeper stopped, or the computer slept): not saved, as below.
     var stop = new AbortController(), waited = setTimeout(function () { stop.abort(); }, SAVE_MS);
@@ -800,6 +816,7 @@ __TOP__
       var wasReady = status.ready;
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
+      showAgain(res.body.summary.again);
       then();
       if (status.ready && !wasReady && !readyShown && !ended) { showReady(); }
       while (queued.length && !busy) { queued.shift()(); }

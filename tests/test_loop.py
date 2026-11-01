@@ -134,7 +134,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "Step 2 of 5: Mark",
         "",
         "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail. If almost every answer passes, that can take many answers.",
+        "Fail.",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
