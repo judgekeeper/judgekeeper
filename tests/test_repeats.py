@@ -357,3 +357,21 @@ def test_once_the_next_answer_is_marked_a_missed_repeat_is_not_shown(tmp_path, m
     assert all(i["again"] != missed["slot"] for i in again)
     if seed is not None:  # a repeat whose own slot came due is shown, the missed one is not
         assert [i["again"] for i in again] == [missed["slot"] + 1]
+
+
+def test_the_last_first_mark_offers_no_repeat_and_drops_one_still_waiting(ws, monkeypatch):
+    """Every answer has a mark: the result is there at once, never behind a repeat card. A
+    repeat still waiting on the page is dropped (the page takes it out), and no new one comes,
+    also on a new page."""
+    monkeypatch.setattr(start_label, "REPEAT_EVERY", 1)  # a repeat due at every mark
+    session = start_label.StartSession(ws)
+    items = list(session.items)
+    for k, item in enumerate(items[:-1]):
+        session.update({"id": item["id"], "label": "pass" if k % 2 else "fail", "seconds": 3})
+    waiting = session.offer  # offered after the mark before the last, not marked
+    assert waiting is not None
+    session.update({"id": items[-1]["id"], "label": "pass", "seconds": 3})
+    said = session.summary()
+    assert "again" not in said and said["dropped"] == waiting["slot"]
+    assert not any("again" in x for x in session.state()["items"])
+    assert not any("again" in x for x in start_label.StartSession(ws).state()["items"])
