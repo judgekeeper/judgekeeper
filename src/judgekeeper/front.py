@@ -1757,7 +1757,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
-        talk.say(f"You have marked all {_n(n, 'answer')}. There are no more to mark.")
+        some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
+        talk.say(f"You have {'marks on' if some_imported else 'marked'} all {_n(n, 'answer')}. "
+                 "There are no more to mark.")  # the page didn't mark the imported ones
         talk.say()
         for line in head:
             talk.para(line)

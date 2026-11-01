@@ -196,3 +196,13 @@ def test_an_import_first_with_too_few_says_what_a_result_needs(here, capsys):  #
     assert ("You have 38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
             "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
             "on answers your LLM-as-a-judge passed and 20 on answers it failed.") in said
+
+
+def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here, capsys, pages):  # noqa: F811
+    table(here, 20, 16)
+    write_labels(here / "mine.csv", [{"answer": answer(i), "label": "pass"} for i in range(10)])
+    run(capsys, "--labels", "mine.csv")
+    _page(Workspace(here), {i: ("pass" if i < 20 else "fail") for i in range(10, 36)})
+    _, out = run(capsys, "mark")
+    assert "You have marks on all 36 answers. There are no more to mark." in out
+    assert "You have marked all" not in out
