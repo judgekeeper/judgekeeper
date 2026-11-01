@@ -21,8 +21,8 @@ from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer
 from tests.test_labels_import import flat, here, run, table, write_labels  # noqa: F401
 
-GATE = ("Mark {n} more answers on the page to check the marks from {name}. Until then, it's "
-        "too early to tell.")
+GATE = ("Mark at least {n} more answers on the page to check the marks from {name}. Until "
+        "then, it's too early to tell.")
 OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers your "
        "LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of those you "
        "marked on the page. The numbers may be off.")
