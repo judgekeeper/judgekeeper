@@ -1247,6 +1247,11 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     return out
 
 
+def _needs_each_kind(talk, session: StartSession) -> None:
+    groups = list(session.groups.values())  # every answer to mark, each batch's too
+    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+
+
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
     """The line that says how many page marks a coloured verdict still needs to check the
     marks brought with --labels (labels.gate_line); None when none are needed."""
@@ -1791,15 +1796,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                       "yet.")
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
-        if not enough:
+        if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
+            _needs_each_kind(talk, session)
         elif gate := _import_gate(ws, session):  # as the result says it
             talk.para(gate)
         talk.say()
     after = PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
-        groups = list(session.groups.values())  # every answer to mark, each batch's too
-        talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+        _needs_each_kind(talk, session)
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
