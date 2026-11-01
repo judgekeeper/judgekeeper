@@ -946,3 +946,32 @@ def test_the_pool_is_prepared_while_the_opening_mark_is_held(here, capsys, no_br
     code, out, _ = run(capsys, "mark")
     assert code == 0, out
     assert held == [True]
+
+
+def test_marks_under_a_second_are_said_on_the_result_page_and_report_too(here, capsys,
+                                                                         no_browser):
+    """What the terminal says about marks made too fast is said beside the result on the
+    pages too, in the same words."""
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    ws = start_label.Workspace(here)
+    _click(ws, seconds=0.2)
+    code, out, _ = run(capsys)
+    assert code == 0, out
+    line = ("36 of your marks took under a second each. A result is only as good as the marks. "
+            "This looks like a program, not a person.")
+    assert line in _flat(out)
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert report.count(line) == 1
+    live = start_label.live_result(ws, start_label.StartSession(ws), back="/?token=t")
+    assert live.count(line) == 1
+    assert report.index('class="counts"') < report.index(line)  # beside the result
+
+
+def test_marks_at_a_person_s_pace_add_no_line_to_the_pages(here, capsys, no_browser):
+    promptfoo_project(here, split(20, 16))
+    run(capsys)
+    ws = start_label.Workspace(here)
+    _click(ws, seconds=7)
+    run(capsys)
+    assert "under a second" not in ws.report_html.read_text(encoding="utf-8")

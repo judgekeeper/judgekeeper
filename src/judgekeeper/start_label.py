@@ -1097,7 +1097,7 @@ def made_lines(made: dict | None, imported: dict | None = None,
 
     if not made or not made["marks"]:
         return []
-    n, quick = made["marks"], made["under_second"]
+    n = made["marks"]
     k = (imported or {}).get("marks") or 0
     counts = f"Your marks: {n} ({made['pass']} Pass, {made['fail']} Fail)"
     if k and k >= n:
@@ -1111,15 +1111,24 @@ def made_lines(made: dict | None, imported: dict | None = None,
         if seconds is not None:
             line += (", under a second each" if seconds == 0
                      else f", about {_plural(seconds, 'second', 'seconds')} each")
-    out = [line + "."]
-    n -= k  # the page's marks: an import has no time
-    if quick and quick * 4 > n:
-        out.append(f"{quick} of your marks took under a second each. A result is only as good "
-                   "as the marks." + (" This looks like a program, not a person."
-                                      if quick * 2 > n else ""))
+    out = [line + ".", *quick_lines(made, imported)]
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     return (out + ([not_counted] if not_counted else []) + link_lines(made)
             + second_thoughts(made, real_pass))
+
+
+def quick_lines(made: dict | None, imported: dict | None = None) -> list[str]:
+    """The line on page marks made under a second each, when more than a quarter were (and
+    "This looks like a program" past half): the same in the terminal, on the result page and
+    report.html."""
+    if not made or not made.get("marks"):
+        return []
+    quick = made.get("under_second") or 0
+    n = made["marks"] - ((imported or {}).get("marks") or 0)  # the page's: an import has no time
+    if not (quick and quick * 4 > n):
+        return []
+    return [f"{quick} of your marks took under a second each. A result is only as good as the "
+            "marks." + (" This looks like a program, not a person." if quick * 2 > n else "")]
 
 
 def second_thoughts(made: dict | None, real_pass: float | None = None) -> list[str]:
