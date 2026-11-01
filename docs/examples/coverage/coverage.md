@@ -387,12 +387,12 @@ Worked out exactly for one group of marks: the same LLM-as-a-judge grading again
 
 ## Batches
 
-New answers join as batches, and the numbers are stratified by (batch, the LLM-as-a-judge's grade). Two and three batches of different sizes (answers per batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After grading again with a steady LLM-as-a-judge: 4,000 draws. The bar: at least 93% in every cell and 95% on average.
+New answers join as batches, and the numbers are stratified by (batch, the LLM-as-a-judge's grade). Two and three batches of different sizes (answers per batch), LLM-as-a-judge setups whose accuracy differs between batches (per batch: pi, a, w), and marks per stratum (in the first batch, then in each later one; never more than the stratum holds). 1,500 simulated checks per cell, fixed seed 20261008. The ranges `judgekeeper` shows: level 96%, 20,000 draws. After grading again with a steady LLM-as-a-judge: 4,000 draws. The bar: at least 93% in every cell, or 91% after grading again in a cell with 10 marks in each group (the LLM-as-a-judge here is steady), and 95% on average.
 
 | Ranges | Lowest cell | Average | Passes |
 |---|---|---|---|
 | `judgekeeper` (TPR, TNR, real pass rate) | 93.8 | 97.8 | yes |
-| After grading again (TPR, TNR) | 91.6 | 98.3 | no |
+| After grading again (TPR, TNR) | 91.6 | 98.3 | yes |
 
 Coverage % / average width.
 

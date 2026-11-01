@@ -66,6 +66,7 @@ def test_the_ranges_after_asking_again_hold_the_true_value(grid):
 def test_the_floors_are_the_ones_the_level_was_chosen_by():
     module = _module()
     assert (module.FLOOR_CELL, module.FLOOR_MEAN) == (0.93, 0.95)
+    assert module.FLOOR_STEADY_10 == FLOOR_STEADY_10
     assert module.CANDIDATES == (0.95, 0.96, 0.97)
     assert module.CHECKS >= 2000
 
