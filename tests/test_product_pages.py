@@ -21,8 +21,8 @@ from judgekeeper.textio import program
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_FONTS = ROOT / "src" / "judgekeeper" / "fonts"
 
-GATE = (100, 100, 20, 19, 20, 1)
-CHECK = (100, 100, 15, 12, 15, 3)          # both ranges reach below 80%, and are wide
+GATE = (100, 100, 30, 29, 30, 1)           # both 99% ranges start at 80% or more
+CHECK = (100, 100, 20, 16, 20, 4)          # both ranges reach below 80%, and are wide
 NOT_GATE_TNR = (100, 100, 40, 22, 40, 2)   # the TNR range stays below 80%
 NOT_GATE_TPR = (100, 100, 40, 38, 40, 18)  # the TPR range stays below 80%
 TOO_FEW = (100, 100, 10, 9, 10, 1)
@@ -439,7 +439,7 @@ def test_text_from_results_can_never_hold_a_server_name():
 
 # The result page ---------------------------------------------------------------------------
 
-TOO_EARLY = (900, 100, 25, 24, 25, 1)  # one range too wide: too early to tell
+TOO_EARLY = (900, 100, 25, 24, 25, 1)  # one 99% range reaches far below 80%: too early
 MISTAKE = {"judge": "pass", "final": "fail", "question": "q", "answer": "a", "reason": "r"}
 
 
@@ -480,14 +480,14 @@ def test_each_result_level_shows_its_state(counts, state, headline):
 
 
 def test_good_and_needs_work_lead_with_the_disagreements():
-    for counts, d, n in ((GATE, 2, 40), (NOT_GATE_TNR, 20, 80)):
+    for counts, d, n in ((GATE, 2, 60), (NOT_GATE_TNR, 20, 80)):
         html = start_label.result_html(_result(*counts))
         assert (f'<p class="lead">You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> '
                 "answers.</p>") in html
 
 
 @pytest.mark.parametrize("counts, said", [
-    (CHECK, "You and your LLM-as-a-judge disagreed on <b>6</b> of <b>30</b> answers. "),
+    (CHECK, "You and your LLM-as-a-judge disagreed on <b>8</b> of <b>40</b> answers. "),
     (TOO_EARLY, "You and your LLM-as-a-judge disagreed on <b>2</b> of <b>50</b> answers. "),
     (TOO_FEW, "")])  # no result yet: no count
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
@@ -502,7 +502,7 @@ def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
 
 
 @pytest.mark.parametrize("counts, level", [(GATE, "gate"), (NOT_GATE_TNR, "not_gate"),
-                                           (CHECK, "check"), (TOO_EARLY, "too_early")])
+                                           (CHECK, "check"), (TOO_EARLY, "check")])
 def test_every_result_level_says_how_many_answers_you_disagreed_on(counts, level):
     """The terminal's line ("You and your LLM-as-a-judge disagreed on 6 of 60 answers."), on the
     report for every level of result."""
@@ -611,7 +611,7 @@ def test_each_group_says_under_its_heading_how_many_are_kept_aside():
     assert 'id="g-strict"' not in hidden_only
     assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more are {HIDDEN}</p>'
             '</div>') in hidden_only
-    early = start_label.result_html(_result(*TOO_EARLY), fixing={"mistakes": []})
+    early = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": []})
     assert "hidden on purpose" not in early and 'class="group' not in early
 
 
@@ -661,7 +661,9 @@ def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
             "10% and 90%") in _text(part)
 
 
-def test_too_early_to_tell_shows_the_counts_and_the_estimates():
+def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements():
+    """A result that can't tell yet: everything but what to do next, and the note that the
+    result line uses wider ranges."""
     r = _result(*TOO_EARLY)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(3, 3)})
     assert 'class="counts"' in html
@@ -673,8 +675,8 @@ def test_too_early_to_tell_shows_the_counts_and_the_estimates():
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
             f"{flo:.0%} and {fhi:.0%}") in text
     assert "too early to tell" not in text
-    for gone in ('class="group', 'class="next', 'class="note"'):
-        assert gone not in html, gone
+    assert 'class="group' in html and 'class="next' not in html
+    assert '<p class="note wider">' in html
 
 
 def test_before_a_result_the_page_shows_the_counts_only():

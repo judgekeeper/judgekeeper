@@ -91,7 +91,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed, so judgekeeper can check the imported marks against yours.
 
-Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ more than chance would explain (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
+Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
@@ -193,7 +193,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 - "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
 - "Too early to tell. Mark more answers to get a result." otherwise.
 
-The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark and a lucky streak should not count.
+The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it.
 
 ## What it reads
 

@@ -76,7 +76,8 @@ FIRST = [
 ]
 NEEDS = [
     "A result needs at least 15 answers you mark Pass and 15 you mark",
-    "Fail.",
+    "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
+    "on answers it failed.",
     "",
 ]
 MARK_TEXT = [
@@ -107,10 +108,10 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
     code, lines = screen(capsys, "--no-browser")
     assert code == 0
     at = lines.index("Step 2 of 5: Mark")
-    assert lines[at + 2:at + 5] == NEEDS
-    assert lines[at + 5] == "Open this link in your browser to mark answers:"
-    assert lines[at + 6].startswith("http://127.0.0.1:") and "?token=" in lines[at + 6]
-    assert lines[at + 7:at + 10] == [
+    assert lines[at + 2:at + 7] == NEEDS
+    assert lines[at + 7] == "Open this link in your browser to mark answers:"
+    assert lines[at + 8].startswith("http://127.0.0.1:") and "?token=" in lines[at + 8]
+    assert lines[at + 9:at + 12] == [
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]
@@ -169,14 +170,14 @@ def test_screen_2_reopens_a_closed_page(here, capsys, pages):
 def test_screen_4_mark_more(here, capsys):
     promptfoo_project(here, split(23, 17), rubric=RULE)
     screen(capsys)
-    _mark(here, 15, 15)
+    _mark(here, 20, 17)  # a first result: 20 in the passed group, all 17 of the failed one
     code, lines = screen(capsys, "mark")
     assert code == 0
     assert lines == [
         *HEAD,
         "Step 2 of 5: Mark (more answers)",
         "",
-        "You marked 30 answers so far: 15 Pass, 15 Fail.",
+        "You marked 37 answers so far: 20 Pass, 17 Fail.",
         "",
         "The marking page is already running. Each new mark makes your",
         "numbers more precise.",
@@ -342,7 +343,7 @@ def test_screen_9_with_no_page_open(here, capsys):
 def test_the_result_is_step_3_and_speaks_to_the_person(here, capsys):
     promptfoo_project(here, split(23, 17), rubric=RULE)
     screen(capsys)
-    _mark(here, 15, 15)
+    _mark(here, 20, 17)
     code, lines = screen(capsys)
     assert code == 0
     assert lines[2:4] == ["Step 3 of 5: Measure", ""]

@@ -100,7 +100,6 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
-TOO_FEW_TO_TELL = " It's still too early to tell."  # enough of each: not a count
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # The marking page, once there is a coloured verdict (good enough or needs work) and, from the
 # first numbers (ROUGH of each kind) until then, the line under its bar
@@ -121,7 +120,7 @@ DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
 # with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
-NUMBERS_VERSION = 3
+NUMBERS_VERSION = 4
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
 
@@ -1025,13 +1024,11 @@ def mark_command(run: str | None = None) -> str:
 
 def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
     """Every answer is marked, so there is none left to mark: the line that says so (what a
-    result needs while a kind is under ROUGH, else that it is still too early to tell), and the
+    result needs: with every answer marked, only a kind under ROUGH can stop one), and the
     Next: line. New answers join the marks as a batch (batches.py): `command` (mark_command)
     adds them once the eval ran on more questions."""
     command = command or mark_command()
-    short = min(labels["correct"], labels["wrong"]) < ROUGH
-    first = ALL_MARKED.format(marks=marks_words(labels)) + (NEEDS_EACH.format(n=ROUGH)
-                                                             if short else TOO_FEW_TO_TELL)
+    first = ALL_MARKED.format(marks=marks_words(labels)) + NEEDS_EACH.format(n=ROUGH)
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 
