@@ -43,6 +43,7 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     NO_MARK,
+    WHOLE_ANSWER,
     Damaged,
     Mark,
     RecordList,
@@ -417,8 +418,9 @@ class Pool:
     n_results: int = 0  # grades read for the chosen judge, repeats counted each
     repeat_sizes: set = field(default_factory=set)  # how many times each answer was graded
     n_human: int = 0
-    # the human labels in the results that --labels uses: (answer id, value, name), and the
-    # words that read them (the judge's own label map). Never Inspect AI's edited scores: it
+    # the human labels in the results that --labels uses: (answer id, value, name), named like
+    # the judge or for the whole answer (records.WHOLE_ANSWER), and the words that read them
+    # (the judge's own label map). Never Inspect AI's edited scores: it
     # keeps a person's label only when they change a score, so they are almost all disagreements
     humans: list = field(default_factory=list)
     label_map: dict = field(default_factory=dict)
@@ -493,7 +495,7 @@ def build_pool(files: list[tuple[str, RecordList]], metric: str, norm: Normalise
         for r in records:
             if r.annotator_kind == HUMAN:
                 pool.n_human += 1
-                if human_labels:
+                if human_labels and r.name in (metric, WHOLE_ANSWER):  # not another question's
                     pool.humans.append((key_of(r), _verdict_value(r, None), r.name))
                 continue
             if r.annotator_kind != LLM or r.name != metric:
@@ -616,7 +618,7 @@ def read_results_table(path: Path) -> RecordList:
                 app_version=None if _blank(row.get("app_version")) else str(row["app_version"]),
                 **content))
         if human and not _blank(row.get(human)):
-            records.append(ScoreRecord(name=verdicts[0], annotator_kind=HUMAN,
+            records.append(ScoreRecord(name=WHOLE_ANSWER, annotator_kind=HUMAN,
                                        label=row[human], **content))
     return records
 
@@ -1311,6 +1313,9 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     available = [t for t in find.TOOLS if found.readable(t)]
     if found.unreadable and (available or found.too_big()):
         for rel, how in found.unreadable:
+            if how == find.EXCEL_FOUND and getattr(talk, "held", None) is not None:
+                talk.held.append(f"{rel} {how}.")  # said once the labels file is read
+                continue
             _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
                   else f"{rel} {how}, so it was left out.")
     if "records" not in available and (tool == "records" or tool is None and not available):
@@ -1492,15 +1497,16 @@ def _too_big(talk: Talk, found: find.Search) -> Stop:
                                  f"`{talk.command_at(big.rel, '--yes')}`.")
 
 
-def _read_anyway(talk: Talk, path: Path) -> None:
+def _read_anyway(talk: Talk, path: Path, given: tuple[str, ...] = ()) -> None:
     """A file named on the command line over find.MAX_BYTES: read only after a yes (at a
     terminal, or --yes without one), as a found one is. Asked before anything is read. A
-    quiet talk (check and fix reading the marked results again) asks nothing."""
+    quiet talk (check and fix reading the marked results again) asks nothing. `given`: the
+    words that name the file in the command, when the person's flags don't (--labels FILE)."""
     size = path.stat().st_size
     if size <= find.MAX_BYTES or talk.quiet:
         return
     said = f"{path.name} is {find.megabytes(size)}."
-    anyway = f"to read {path.name} anyway, run `{talk.command('--yes')}`."
+    anyway = f"to read {path.name} anyway, run `{talk.command(*given, '--yes')}`."
     if getattr(talk, "screens", False) and not _interactive() and not talk.yes:
         raise _stop_with(talk, said, anyway)
     if talk.confirm(f"{said} Read it anyway?", default=False, with_yes=True,

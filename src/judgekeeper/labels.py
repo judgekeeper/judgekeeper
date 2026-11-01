@@ -107,6 +107,8 @@ def check_file(given: str, command: Callable[..., str] | None = None) -> Path:
     from judgekeeper import find
 
     command = _plain(command)
+    if not given.strip():
+        raise LabelsStop([f"Give the labels file: {command('--labels', '<file>')}"])
     path = Path(given)
     try:
         folder = path.is_dir() and not is_link(path)
@@ -176,9 +178,11 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
         if line is not None:
             raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
                                "then run judgekeeper again.")])
-        rows = read_table(path)
+        rows = read_table(path, cap=False)  # every row: the size question guards
     except TableError as e:
         raise LabelsStop([scrub(str(e))]) from None
+    if not rows:
+        raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
     out_col, label_col = _column(columns, ANSWER_COLUMNS), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
@@ -330,7 +334,7 @@ def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                 from judgekeeper.table import sheet_id
 
                 hits = [a for a in by_base.get(sheet_id(label.id), [])
-                        if _text(a.output) == text]
+                        if not text or _text(a.output) == text]  # an empty cell: not given
             if not hits and not _blank(label.input):
                 hits = _candidates(index, {"input": label.input, "output": label.output})
             elif not hits:
@@ -362,6 +366,7 @@ class Added:
     passed: int = 0
     failed: int = 0
     kept: int = 0  # answers whose earlier, different mark was kept
+    same: int = 0  # answers already marked as the label says
 
 
 def add(ws, plan: Plan, source: str) -> Added:
@@ -378,6 +383,7 @@ def add(ws, plan: Plan, source: str) -> Added:
     for answer_id, mark in plan.marks.items():
         if answer_id in have:
             out.kept += have[answer_id] != mark
+            out.same += have[answer_id] == mark
             continue
         lines.append(marks.imported_line(answer_id, mark, groups.get(answer_id), sitting,
                                          source))
@@ -394,6 +400,8 @@ def said(added: Added, plan: Plan, source: str) -> list[str]:
     name = shown_name(source)
     out = [(f"Added {plural(added.marks, 'mark', 'marks')} from {name} ({added.passed} Pass, "
             f"{added.failed} Fail).")]
+    if not added.marks and not added.kept and added.same:
+        out.append(f"Nothing new: the labels in {name} are already your marks.")
     n = sum(plan.skipped.values())
     if n:
         out.append(f"Skipped {plural(n, 'label', 'labels')}:")

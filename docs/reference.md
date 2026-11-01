@@ -74,13 +74,13 @@ After your first 10 marks, about 1 in 20 answers comes back a second time, so ju
 If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.
 
 - `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file.
-- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your results table, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is.
+- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your results table, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used.
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
 
 **The file's columns** (any case): the answer, `output` or `answer`; the label, `label` or `human_label`; and, if you have them, the question, `input` or `question`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
-**How a label finds its answer:** by `id` when the answer text is the same too, else by the exact answer text. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
+**How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the exact answer text. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 
 **The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number (other than 1 or 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
 

@@ -163,9 +163,9 @@ def capped(rows: list, path: str | Path, say: bool = True) -> list:
     return rows[:MAX_ROWS]
 
 
-def read_table(path: str | Path, say: bool = True) -> list[dict]:
+def read_table(path: str | Path, say: bool = True, cap: bool = True) -> list[dict]:
     """Rows of a CSV, TSV or JSONL file as dicts, MAX_ROWS at most (`capped`: said once,
-    unless `say` is False). CSV values stay strings.
+    unless `say` is False), or every row without `cap`. CSV values stay strings.
 
     The file must be UTF-8 (a byte order mark is fine); anything else is a TableError that
     says how to save it. A JSONL line holding a lone surrogate (\\ud800) is one too.
@@ -177,8 +177,8 @@ def read_table(path: str | Path, say: bool = True) -> list[dict]:
     if suffix in (".csv", ".tsv"):
         text = read_utf8(path, TableError)
         too_wide(header(text, suffix), path, TableError)
-        rows = [r for _, r in csv_numbered(text, suffix, MAX_ROWS)]
-        return [_known_names(r) for r in capped(rows, path, say)]
+        rows = [r for _, r in csv_numbered(text, suffix, MAX_ROWS if cap else None)]
+        return [_known_names(r) for r in (capped(rows, path, say) if cap else rows)]
     if suffix in (".jsonl", ".ndjson", ".json"):
         rows = []
         for n, line in _lines(read_utf8(path, TableError)):
@@ -186,18 +186,18 @@ def read_table(path: str | Path, say: bool = True) -> list[dict]:
                 continue
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError as e:
-                raise TableError(f"{path}: line {n}: invalid JSON ({e.msg})") from None
+            except json.JSONDecodeError:
+                raise TableError(f"{path.name}: line {n}: invalid JSON") from None
             if not isinstance(row, dict):
-                raise TableError(f"{path}: line {n}: each line must be a JSON object")
+                raise TableError(f"{path.name}: line {n}: each line must be a JSON object")
             if lone_surrogate(row):
                 raise TableError(f"{path.name}: line {n} holds a character that isn't text (a "
                                  "lone surrogate such as \\ud800), so it can't be read.")
             too_wide(row, path, TableError)
             rows.append(_known_names(row))
-            if len(rows) > MAX_ROWS:
+            if cap and len(rows) > MAX_ROWS:
                 break
-        return capped(rows, path, say)
+        return capped(rows, path, say) if cap else rows
     raise TableError(f"{path}: expected a .csv, .tsv or .jsonl file")
 
 

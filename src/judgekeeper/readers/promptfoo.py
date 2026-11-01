@@ -30,6 +30,7 @@ from judgekeeper.records import (
     HUMAN,
     LLM,
     ROW_DAMAGE,
+    WHOLE_ANSWER,
     Damaged,
     Mark,
     RecordList,
@@ -469,7 +470,7 @@ def read_promptfoo(path: str | Path, id_var: str | None = None) -> RecordList:
                 "pass" if c["pass"] else "fail")
             if kind == "human":
                 records.append(ScoreRecord(
-                    target_id=item_id, name="human", annotator_kind=HUMAN, label=label,
+                    target_id=item_id, name=WHOLE_ANSWER, annotator_kind=HUMAN, label=label,
                     score=c.get("score"), explanation=c.get("comment") or None, **content,
                     created_at=created_at))
                 continue

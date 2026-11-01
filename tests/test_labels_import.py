@@ -729,3 +729,150 @@ def test_the_flag_is_never_repeated_in_a_command(here, capsys):
     _, out = run(capsys, "--labels", "mine.csv")
     assert "Next:" in out and "--labels" not in out.split("Next:")[-1]
 
+
+
+# Found in the first round of end-to-end tests ----------------------------------------------
+
+def test_an_id_with_an_empty_answer_cell_matches_by_id(here, capsys):
+    ids = [f"case-{i}" for i in range(40)]
+    table(here, extra={"id": ids})
+    rows = [{"id": "case-10", "answer": "", "label": "pass"},
+            {"id": "case-30", "answer": "", "label": "fail"},
+            {"id": "case-99", "answer": "", "label": "pass"}]  # no such id
+    write_labels(here / "mine.csv", rows)
+    _, out = run(capsys, "--labels", "mine.csv")
+    text = flat(out)
+    assert "Added 2 marks from mine.csv (1 Pass, 1 Fail)." in text
+    assert imported(Workspace(here)) == {"case-10": "pass", "case-30": "fail"}
+    assert "Skipped 1 label: 1 doesn't match any answer in your results" in text
+
+
+def test_a_big_labels_file_keeps_the_flag_in_its_next_line(here, capsys, monkeypatch):
+    from judgekeeper import find
+
+    results = table(here)
+    rows = labelled(range(5)) + [{"answer": f"filler {n}", "label": "pass", "notes": "x" * 400}
+                                 for n in range(20)]
+    write_labels(here / "mine.csv", rows, ["answer", "label", "notes"])
+    monkeypatch.setattr(find, "MAX_BYTES", results.stat().st_size + 1)  # the labels file only
+    code = main(["--labels", "mine.csv", "--no-browser", "--port", "0"])  # no --yes
+    out = flat("".join(capsys.readouterr()))
+    assert code in (0, 3) and "mine.csv is " in out  # asked, or no terminal
+    command = f"{CMD} --labels mine.csv --yes"
+    assert f"Next: to read mine.csv anyway, run `{command}`." in out
+    assert main(command.split()[1:]) in (0, 3)  # run as printed: the labels come in
+    assert "Added 5 marks from mine.csv" in flat("".join(capsys.readouterr()))
+
+
+def test_an_open_page_shows_marks_imported_since_it_opened(here, capsys):
+    table(here, extra={"human_label": ["pass"] * 10 + [""] * 20 + ["fail"] * 10})
+    run(capsys)
+    ws = Workspace(here)
+    page = StartSession(ws)  # the page, open before the import
+    assert page.state()["counts"] == {"correct": 0, "wrong": 0, "skipped": 0}
+    run(capsys, "--labels")
+    state = page.state()
+    assert state["counts"]["correct"] + state["counts"]["wrong"] == 20
+    first = state["items"][state["start"]]
+    assert first["label"] is None and first["id"] not in imported(ws)
+
+
+def test_a_labels_file_over_the_row_limit_is_read_whole(here, capsys, monkeypatch):
+    from judgekeeper import table as table_mod
+
+    table(here)
+    monkeypatch.setattr(table_mod, "MAX_ROWS", 50)
+    rows = [{"answer": f"filler {n}", "label": "pass"} for n in range(60)]
+    write_labels(here / "mine.csv", rows + labelled(range(5)))
+    _, out = run(capsys, "--labels", "mine.csv")
+    text = flat(out)
+    assert "Added 5 marks from mine.csv (5 Pass, 0 Fail)." in text
+    assert "60 don't match any answer" in text
+
+
+@pytest.mark.parametrize("content", ["output,label\n", ""])
+def test_a_labels_file_with_no_rows(here, capsys, content):
+    table(here)
+    (here / "mine.csv").write_text(content, encoding="utf-8")
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3
+    assert "mine.csv has no labels." in flat(out)
+    assert "needs an answer column" not in out
+    _nothing_written(Workspace(here))
+
+
+def test_an_empty_labels_name(here, capsys):
+    table(here)
+    code, out = run(capsys, "--labels", "")
+    text = flat(out)
+    assert code == 3
+    assert f"Give the labels file: {CMD} --labels <file>" in text
+    assert "is a folder" not in text and "put it first" not in text
+    _nothing_written(Workspace(here))
+
+
+@pytest.mark.parametrize(("second", "said"), [
+    ("{bad json", "bad.jsonl: line 2: invalid JSON"),
+    ("[1, 2]", "bad.jsonl: line 2: each line must be a JSON object")])
+def test_jsonl_label_errors_name_the_file_alone(here, capsys, second, said):
+    table(here)
+    path = here / "bad.jsonl"
+    path.write_text(json.dumps({"answer": answer(0), "label": "pass"}) + "\n" + second + "\n",
+                    encoding="utf-8")
+    code, out = run(capsys, "--labels", str(path))
+    assert code == 3
+    assert said in flat(out)
+    assert str(here) not in out and "Expecting" not in out and "(" not in flat(out).split(said)[1][:2]
+    _nothing_written(Workspace(here))
+
+
+def test_the_same_import_twice_says_nothing_is_new(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(10)))
+    run(capsys, "--labels", "mine.csv")
+    _, out = run(capsys, "--labels", "mine.csv")
+    assert ("Added 0 marks from mine.csv (0 Pass, 0 Fail). Nothing new: the labels in mine.csv "
+            "are already your marks.") in flat(out)
+    write_labels(here / "more.csv", labelled(range(10, 12)))
+    _, out = run(capsys, "--labels", "more.csv")
+    assert "Nothing new" not in out
+
+
+def test_a_labels_stop_has_no_excel_note_about_another_file(here, capsys):
+    table(here)
+    (here / "labels.xlsx").write_bytes(b"PK\x03\x04")
+    write_labels(here / "nolabel.csv", [{"text": answer(0), "label": "pass"}])
+    code, out = run(capsys, "--labels", "nolabel.csv")
+    assert code == 3 and "nolabel.csv needs an answer column" in flat(out)
+    assert "Excel" not in out
+    write_labels(here / "mine.csv", labelled(range(3)))
+    _, out = run(capsys, "--labels", "mine.csv")  # read: the note is said as before
+    assert "labels.xlsx is an Excel file: save it as CSV UTF-8 to use it." in flat(out)
+
+
+def test_new_answers_with_labels_get_the_find_line(here, capsys):
+    table(here)
+    run(capsys)
+    table_project(here, split(20, 20) + split(5, 5),  # 10 new answers, each labelled
+                  extra={"human_label": [""] * 40 + ["pass"] * 5 + ["fail"] * 5})
+    _, out = run(capsys)
+    text = flat(out)
+    assert "Your newest results have 10 answers you haven't seen." in text
+    assert ("Found 10 Pass/Fail labels in your results. To use them as your marks, run: "
+            f"{CMD} --labels") in text
+
+
+def test_labels_for_another_question_are_not_used(here, capsys):
+    path = records_project(here, split(20, 20))
+    with path.open("a", encoding="utf-8") as f:
+        for i, name in ((1, "Tone"), (2, "Tone"), (30, "Safe wording")):
+            f.write(json.dumps({"schema_version": 2, "target_id": None, "name": name,
+                                "annotator_kind": "HUMAN", "label": "fail",
+                                "score": None, "explanation": None, "run": None,
+                                "input": question(i), "output": answer(i), "evaluator": {},
+                                "created_at": "2026-10-05T11:00:00Z"}) + "\n")
+    _, out = run(capsys)
+    assert "Found 1 Pass/Fail label in your results." in flat(out)
+    _, out = run(capsys, "--labels")
+    assert "Added 1 mark from your results (0 Pass, 1 Fail)." in flat(out)
+    assert by_output(Workspace(here)) == {answer(30): "fail"}

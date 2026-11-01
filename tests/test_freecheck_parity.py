@@ -212,3 +212,20 @@ def test_human_labels_in_a_table_are_said_as_the_tool_says_them(tmp_path):
     assert said == [("Found 6 Pass/Fail labels in your results. To use them as your marks, run: "
                      "judgekeeper --labels")]
     assert said[0] in judge["lines"]
+
+
+def test_table_labels_are_for_every_judge_in_the_table(tmp_path):
+    """A table's label column is for the whole answer, whichever verdict column is chosen."""
+    from judgekeeper import front
+
+    path = tmp_path / "table.csv"
+    rows = ["input,output,verdict,judge_verdict,human_label"]
+    rows += [f"q{i},a{i},{'pass' if i < 8 else 'fail'},{'pass' if i % 2 else 'fail'},"
+             f"{'pass' if i < 5 else ''}" for i in range(12)]
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    for judge in browser(path)["judges"]:
+        said = [x for x in front._notes(start.find_judge(path, metric=judge["key"]),
+                                        "judgekeeper --labels") if x.startswith("Found")]
+        assert said == [("Found 5 Pass/Fail labels in your results. To use them as your "
+                         "marks, run: judgekeeper --labels")], judge["key"]
+        assert said[0] in judge["lines"]

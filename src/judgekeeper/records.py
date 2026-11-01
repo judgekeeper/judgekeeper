@@ -48,6 +48,7 @@ from judgekeeper.textio import (
 
 SCHEMA_VERSION = 2
 LLM, HUMAN, CODE = "LLM", "HUMAN", "CODE"
+WHOLE_ANSWER = "human"  # the name of a person's label on the whole answer, for no one question
 KINDS = (LLM, HUMAN, CODE)
 _KIND_ALIASES = {"LLM_JUDGE": LLM, "JUDGE": LLM, "HUMAN_ANNOTATION": HUMAN, "HEURISTIC": CODE}
 FIELDS = ("target_id", "name", "annotator_kind", "label", "score", "explanation", "run",

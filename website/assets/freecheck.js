@@ -740,7 +740,7 @@
         .forEach(function (x) { if (x[1]) said.push([x[0], 'the ' + x[1] + ' column']); });
       readRows[verdict] = said;
     });
-    return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, humanFor: verdicts[0], perMetric: {},
+    return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, perMetric: {},
       scoreJudge: false, order: verdicts, readRows: readRows };
   }
   // mapper.guess by the columns' names: a file with one question, one answer and one grade
@@ -1213,7 +1213,7 @@
       answers: block.answers,
       pass: scores ? 0 : pool.nPass, fail: scores ? 0 : pool.nFail,
       merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
-      human: r.humanFor === undefined || r.humanFor === metric ? r.nHuman : 0, unmapped: pool.unmapped,
+      human: r.nHuman, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
