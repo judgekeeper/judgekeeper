@@ -112,8 +112,7 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = 'mark until "See your result" appears, then click it.'
-NEXT_KEEP_MARKING = 'keep marking until "See your result" appears, then click it.'
+NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
@@ -1821,7 +1820,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
-    next_step = (NEXT_MORE if enough else NEXT_KEEP_MARKING if n else NEXT_MARK)
+    next_step = NEXT_MORE if enough else NEXT_MARK
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para("Next: " + next_step.format(command=command))

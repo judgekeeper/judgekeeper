@@ -647,7 +647,7 @@ def test_a_judge_model_given_once_is_remembered(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "changed" not in out
-    assert _next(out) == 'Next: keep marking until "See your result" appears, then click it.'
+    assert _next(out) == 'Next: mark answers until the link at the top shows your numbers, then click it.'
 
 
 def test_check_then_judgekeeper_keeps_the_given_model(here, capsys):

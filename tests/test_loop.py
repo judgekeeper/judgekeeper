@@ -22,9 +22,9 @@ from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
-NEXT_OPEN = 'Next: mark until "See your result" appears, then click it.'
+NEXT_OPEN = 'Next: mark answers until the link at the top shows your numbers, then click it.'
 NEXT_LINK = NEXT_OPEN
-NEXT_KEEP = 'Next: keep marking until "See your result" appears, then click it.'
+NEXT_KEEP = NEXT_OPEN
 NEXT_RESULT = ("Next: nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
                "`judgekeeper check`.")
 RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, so your marks "
@@ -143,7 +143,8 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
         "hidden.",
         "",
-        'Next: mark until "See your result" appears, then click it.']
+        "Next: mark answers until the link at the top shows your numbers,",
+        "then click it."]
     assert len(pages[0]) == 1 and len(no_browser) == 1
     assert label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
@@ -200,8 +201,8 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
         "",
-        'Next: keep marking until "See your result" appears, then click',
-        "it."]
+        "Next: mark answers until the link at the top shows your numbers,",
+        "then click it."]
     assert "Step 1 of 5" not in out and "Checked:" not in out
     assert len(pages[0]) == 1  # the open page stays: its tab still works
 
@@ -311,9 +312,9 @@ def test_the_result_keeps_the_command_for_its_next_steps(here, capsys, pages):
 
 def test_promptfoo_project_one_run_then_clicks(here, capsys,
                                                                               pages):
-    """The person runs `judgekeeper` and does what the Next: line says: mark until "See your
-    result" appears, then click it. One command and one click from the first run to the
-    result; `judgekeeper` again shows the same result in the terminal."""
+    """The person runs `judgekeeper` and does what the Next: line says: mark answers until the
+    link at the top shows your numbers, then click it. One command and one click from the first
+    run to the result; `judgekeeper` again shows the same result in the terminal."""
     promptfoo_project(here, split(20, 16), tag=TAG)
     code, out, err = run(capsys)
     assert code == 0, out + err
