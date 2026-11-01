@@ -1017,14 +1017,31 @@ def from_fix(ws: Workspace, old: dict, new: dict) -> bool:
                     for t in split.tests))
 
 
-def picks(ws: Workspace, now: bool = False) -> dict:
-    """{"n": picks, "new_marks": marks made after the last, "ask": whether to ask for
-    PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start). `now`: this run
-    is a pick too."""
+def _choice(line: dict, n: int) -> str:
+    """What a pick chose: the LLM-as-a-judge setup it leads to (a fix test's setup, a check's
+    "after"), so a fix test and the checks of that setup are one choice. A line without one
+    (older history) is a choice of its own."""
+    if line.get("kind") == "fix" and isinstance(line.get("setup_hash"), str):
+        return line["setup_hash"]
+    if line.get("kind") == "check" and isinstance(line.get("after"), dict):
+        return judge_setup.hash_of(line["after"])
+    return f"line {n}"
+
+
+def picks(ws: Workspace, now: bool = False, setup: str | None = None) -> dict:
+    """{"n": the distinct choices picked, "new_marks": marks made after the last, "ask":
+    whether to ask for PICK_MARKS new marks}: counted from these marks on (marks.jsonl's start).
+    `now`: this run is a pick too, of `setup` (its setup's hash) when given."""
     read = marks.read(ws.marks)
     since = str((read.header or {}).get("created_at") or "")
-    times = [str(x.get("time") or "") for x in _history_all(ws) if is_pick(x)]
-    times = [t for t in times if t >= since] + ([utc_now()] if now else [])
+    first: dict[str, str] = {}  # each choice -> when it was first made
+    for n, x in enumerate(_history_all(ws)):
+        t = str(x.get("time") or "")
+        if is_pick(x) and t >= since:
+            first.setdefault(_choice(x, n), t)
+    if now:
+        first.setdefault(setup or "now", utc_now())
+    times = list(first.values())
     last = max(times) if times else None
     made = sum(str(x.get("at") or "") > last for i, x in read.last.items()
                if i in read.counted()) if last else 0
@@ -1533,8 +1550,7 @@ def full(path: str, said: Said) -> int:
                                  g["failed"]["old"])
     worse = [k for k in ("failed", "passed") if g[k]["verdict"] == "worse"]
     unsure = [k for k in ("failed", "passed") if g[k]["verdict"] == "not_sure"]
-    picked = picks(state.ws, now=pick  # a pick, unless checked before
-                   and not _checked_before(state, old, new))
+    picked = picks(state.ws, now=pick, setup=judge_setup.hash_of(new))  # once per setup
     every = every_marked(state.ws)
     for line in picks_lines(picked, every):
         said.say(line)

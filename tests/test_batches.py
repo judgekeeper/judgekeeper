@@ -301,7 +301,7 @@ def test_the_page_offers_the_new_batch_first(here, monkeypatch, seed, again):
     _more_questions(here)
     batches.add(ws, start.find_judge(here))
     state = StartSession(ws).state()
-    items = [x for x in state["items"] if "again" not in x]  # an answer shown twice
+    items = [x for x in state["items"] if "again" not in x]  # an answer shown again may lead
     assert any("again" in x for x in state["items"]) == again
     first = [_index(x["input"]) for x in items[:10]]
     assert set(first) == set(range(36, 46))
