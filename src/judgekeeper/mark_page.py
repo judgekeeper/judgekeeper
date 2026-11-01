@@ -69,11 +69,12 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .seg { display: flex; gap: 3px; }
 .seg i { display: block; width: 6px; height: 10px; background: var(--line); }
 .seg i.on { background: var(--text); }
-.count { font-family: var(--mono); font-size: 13px; }
+.count { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
 .progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
   white-space: normal; text-align: right; }
-.see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none; }
+.see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none;
+  white-space: nowrap; }
 .see:hover { text-decoration: underline; }
 .wrap { flex: 1; display: grid; grid-template-columns: 400px 1fr; min-height: 0;
   height: calc(100vh - 72px); }
@@ -278,6 +279,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .intro { padding: 32px 24px 28px; }
   .intro h2 { font-size: 24px; }
   .progress-box { width: 100%; align-items: flex-end; }
+  /* the link drops under the bar when the three don't fit on one line */
+  .status-1 { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
 }
 """
 
