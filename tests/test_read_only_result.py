@@ -10,8 +10,9 @@ import sys
 
 import pytest
 
-from judgekeeper import textio
+from judgekeeper import start_label, textio
 from tests.test_label_server import _serve_until_done
+from tests.test_repeats import ws  # noqa: F401
 
 posix = pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
                            reason="file permissions: POSIX, not as root")
@@ -45,6 +46,34 @@ def test_a_refused_rename_names_the_file_not_the_temporary_one(tmp_path, monkeyp
     assert e.value.filename == str(path) and e.value.filename2 is None
     assert ".tmp" not in textio.describe_os_error(e.value)
     assert list(tmp_path.iterdir()) == []  # no temporary file left
+
+
+def _marked(ws) -> start_label.StartSession:  # noqa: F811
+    """25 marks in each of the judge's groups, each the judge's own grade: a first result."""
+    page = start_label.StartSession(ws)
+    n = {"pass": 0, "fail": 0}
+    for item in page.items:
+        group = page.groups[item["id"]]
+        if n[group] < 25:
+            page.update({"id": item["id"], "label": group, "seconds": 3})
+            n[group] += 1
+    return page
+
+
+@posix
+def test_the_result_page_shows_while_the_folder_cant_be_written(ws):  # noqa: F811
+    page = _marked(ws)
+    before = sorted(p.name for p in ws.dir.iterdir())
+    ws.dir.chmod(0o555)
+    try:
+        html = start_label.live_result(ws, page, back="/?token=t")
+    finally:
+        ws.dir.chmod(0o755)
+    assert 'class="verdict' in html and "50</b> answers" in html
+    assert sorted(p.name for p in ws.dir.iterdir()) == before  # nothing written, no .tmp left
+    page.update({"id": page.items[-1]["id"], "label": "pass"})  # writable again: as before
+    assert "50</b> answers" not in start_label.live_result(ws, page, back="/?token=t")
+    assert ws.result_json.is_file()
 
 
 def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path):
