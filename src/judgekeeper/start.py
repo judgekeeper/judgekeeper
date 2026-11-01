@@ -307,6 +307,7 @@ class Talk:
     def say(self, text: str = "") -> None:
         if self.quiet or (not text and self._blank):
             return
+        textio.said_next(text)
         try:  # stdout closed by the program reading it: the exit code stays the command's
             print(said(text))
             for line in held_lines(text):  # a name left out of the command above, as data

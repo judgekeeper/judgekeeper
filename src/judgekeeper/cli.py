@@ -173,6 +173,7 @@ def _say(text: str, file=None, end: str = "\n") -> None:
     """Print text that may quote an input file as one line: control characters are dropped,
     line breaks become spaces. A stream that can't take it (stderr closed by the program
     reading it) goes to the null device: the exit code stays the command's."""
+    textio.said_next(text)
     try:
         print(one_line(text), file=file, end=end)
         for line in held_lines(text):  # a name left out of the command above, as data
@@ -474,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _stopped(args_list: list[str]) -> int:
+    if textio.next_said:  # the run was done: no second Next: line
+        return EXIT_STOPPED
     _say("")
     _say("Stopped.")  # stdout can't take it: still stopped (130)
     _next(_step(NEXT_STOPPED, args_list), file=sys.stdout)
@@ -482,6 +485,7 @@ def _stopped(args_list: list[str]) -> int:
 
 def _main(argv: list[str] | None) -> int:
     textio._held.clear()  # a value an earlier command in this process held back is not said
+    textio.next_said = False
     args_list = command_first(sys.argv[1:] if argv is None else argv)
     lenient_streams()  # a terminal that cannot show a character prints "?", never a crash
     try:
@@ -498,7 +502,7 @@ def _main(argv: list[str] | None) -> int:
         with trash_removed_at_end():  # MLflow's .trash, once the whole command is done
             return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved
-        return _stopped(args_list)
+        return _stopped(args_list)  # after the last Next: line, nothing more (_stopped)
     except BrokenPipeError:
         raise  # said by main: nothing went wrong
     except PageBusy as e:  # its page may be busy: never a second page for the project

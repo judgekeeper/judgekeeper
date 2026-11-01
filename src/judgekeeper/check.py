@@ -52,6 +52,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    said_next,
     wrap,
     write_replacing,
 )
@@ -1994,6 +1995,7 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
 # The command ------------------------------------------------------------------------------------
 
 def _print(text: str = "") -> None:
+    said_next(text)
     print(one_line(scrub(text)))
     flush_stdout()
 

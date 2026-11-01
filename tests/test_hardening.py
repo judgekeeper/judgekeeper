@@ -163,6 +163,22 @@ def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
     assert "Next: run `judgekeeper --no-browser` to carry on." in flat(text)
 
 
+def test_ctrl_c_after_the_last_next_line_says_nothing_more(project, capsys, monkeypatch):
+    """The run is done: a Ctrl-C while Python tidies up adds no second Next: line."""
+    from judgekeeper import front
+
+    def finished(talk, *args, **kwargs):
+        talk.para("Next: nothing to do. When you change your LLM-as-a-judge, run "
+                  "`judgekeeper check`.")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(front, "_run", finished)
+    code, text = run(capsys, "--no-browser")
+    assert code == 130
+    assert "Stopped." not in text and "carry on" not in text
+    assert flat(text).endswith("run `judgekeeper check`.")
+
+
 @pytest.mark.skipif(__import__("os").name == "nt", reason="chmod does not stop writes there")
 def test_a_folder_judgekeeper_cannot_write_in(project, capsys):
     import os

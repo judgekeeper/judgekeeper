@@ -276,6 +276,14 @@ def not_a_file_message(path: str | Path, kind: str) -> str:
 
 
 last_read: str | None = None  # the name of the last file read_utf8 read, for an error
+next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
+
+
+def said_next(text: str) -> None:
+    """Note a line about to be printed: a Next: line ends what the command says."""
+    global next_said
+    if text.startswith("Next:"):
+        next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
 PROGRESS_EVERY = 5  # seconds between those lines
 _reading = {"since": 0.0, "said": None}
