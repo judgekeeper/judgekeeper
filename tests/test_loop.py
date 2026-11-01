@@ -35,8 +35,6 @@ PRINTED_LINE = ("{n} of your marks came through a link printed with no terminal,
                 "program on this computer could have made them. If you marked them yourself, "
                 "nothing to do.")
 OPENING_BROWSER = "Opening the marking page in your browser…"
-ASKED_LINE = ("You opened the page from a printed link. If you marked these yourself, "
-              "nothing to do.")
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
 
@@ -493,8 +491,9 @@ def test_the_result_counts_marks_made_through_a_printed_link(here, capsys, pages
     assert _flat(out).count(PRINTED_LINE.format(n=2)) == 1  # once per Measure
 
 
-def test_at_a_terminal_a_link_asked_for_is_stamped_as_asked_for(here, capsys, pages,
-                                                                monkeypatch):
+def test_at_a_terminal_a_link_asked_for_is_not_stamped(here, capsys, pages, monkeypatch):
+    """`--no-browser` at the person's own terminal: they read the link there, so its marks
+    are not stamped and no line is said about them (as the reference says)."""
     monkeypatch.setattr(page, "terminal", lambda: True)
     promptfoo_project(here, split(20, 16))
     code, out, _ = run(capsys, "--no-browser")
@@ -502,11 +501,14 @@ def test_at_a_terminal_a_link_asked_for_is_stamped_as_asked_for(here, capsys, pa
     ws = start_label.Workspace(here)
     _post_marks(_link(out), ws, 3)
     lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
-    assert len(lines) == 3 and all(x["link"] == "asked" for x in lines)
+    assert len(lines) == 3 and not any("link" in x for x in lines)
     made = marks.made(marks.read(ws.marks))
-    assert (made["asked"], made["printed"]) == (3, 0)
-    # the note is the soft one: the person asked for the link, so nothing alarming
-    assert _flat(" ".join(start_label.link_lines(made))) == ASKED_LINE
+    assert ("asked" not in made, made["printed"]) == (True, 0)
+    assert start_label.link_lines(made) == []
+
+
+def test_marks_stamped_asked_before_1_1_need_no_line():
+    assert start_label.link_lines({"marks": 3, "asked": 3, "printed": 0}) == []
 
 
 def test_at_a_terminal_a_link_printed_because_no_browser_opened_is_not_stamped(

@@ -5,8 +5,8 @@ The page's link holds its token. The command makes the token, hands it to the pa
 on its stdin (`main`) and opens the link in the browser itself (`show`), so the output prints
 no link unless no browser opens (or with --no-browser). Marks made through a link printed with
 no terminal (`terminal`: another program reads the output) are stamped "link": "printed", and
-with BROWSER set "link": "browser-env". A link asked for with --no-browser at a terminal is
-stamped "asked". A link printed at a terminal because no browser opened is not stamped.
+with BROWSER set "link": "browser-env". A link printed at a terminal (with --no-browser or
+because no browser opened) is not stamped: the person reads it there.
 
 The token is kept in server.json (owner-only, removed when the page stops), so a second run
 prints the same link and the open tab keeps working: a page already showing the same thing
@@ -312,7 +312,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
         return BROWSER
     if page.kept and not no_browser and not at_terminal:
         return KEPT
-    how = PRINTED if not at_terminal else marks.ASKED if no_browser else None
+    how = None if at_terminal else PRINTED
     if how and not _stamp(page, how):
         return None
     say(RESULT_LINK if result else LINK)

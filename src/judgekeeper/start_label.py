@@ -1172,7 +1172,6 @@ PRINTED_NOTE = ("a link printed with no terminal, so another program on this com
 BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
                     "made {them}")
 LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
-ASKED_NOTE = "You opened the page from a printed link. If you marked {them} yourself, nothing to do."
 
 
 def link_lines(made: dict | None) -> list[str]:
@@ -1187,10 +1186,7 @@ def link_lines(made: dict | None) -> list[str]:
             them = "it" if n == 1 else "them"
             out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
                        f"{them} yourself, nothing to do.")
-    n = (made or {}).get("asked") or 0
-    if n:  # the person asked for the link at a terminal: nothing another program did
-        out.append(ASKED_NOTE.format(them="it" if n == 1 else "these"))
-    return out
+    return out  # a link printed at a terminal ("asked" before 1.1) needs no note
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
