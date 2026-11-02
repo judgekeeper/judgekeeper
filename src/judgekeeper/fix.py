@@ -852,8 +852,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
-    own = reasons.own_numbers(wrong)  # named by number, as the clues name them
-    grouped = reasons.groups(wrong, own) if reasons.has_any(wrong) else [(None, wrong)]
+    grouped = reasons.groups(wrong, True) if reasons.has_any(wrong) else [(None, wrong)]
     n = 0
     for title, group in grouped:
         if title:
@@ -865,7 +864,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
             answer = reasons.canonical(r["output"])
             parts += [fenced("QUESTION", r["input"]),
                       fenced("ANSWER", reasons.bold(answer, r.get("spans")))]
-            said = reasons.said_line(r, own)
+            said = reasons.said_line(r)
             if said:
                 parts.append(said)
             if r.get("why"):

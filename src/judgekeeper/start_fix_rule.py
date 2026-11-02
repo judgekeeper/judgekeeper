@@ -86,6 +86,11 @@ def _cut(text) -> str:
 _OPEN, _CLOSE = re.compile(r"<(?=<<)"), re.compile(r">(?=>>)")
 
 
+def unmarked(text: str) -> str:
+    """`text` with every <<< or >>> broken up, so it can neither open nor close a fence."""
+    return _CLOSE.sub("> ", _OPEN.sub("< ", text))
+
+
 def fenced(name: str, text, cut: bool = True) -> str:
     """`text` (cut, unless `cut` is False) between a <<<NAME line and a NAME>>> line. The
     text is cleaned as the whole file is (reasons.cleaned, keys hidden) first, so no hidden
@@ -94,8 +99,7 @@ def fenced(name: str, text, cut: bool = True) -> str:
     from judgekeeper.reasons import cleaned
 
     text = _cut(text) if cut else ("" if text is None else str(text))
-    text = _CLOSE.sub("> ", _OPEN.sub("< ", scrub(cleaned(text))))
-    return f"<<<{name}\n{text}\n{name}>>>"
+    return f"<<<{name}\n{unmarked(scrub(cleaned(text)))}\n{name}>>>"
 
 
 # Text from the project's files -------------------------------------------------------------
