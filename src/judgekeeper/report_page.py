@@ -929,11 +929,11 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
 
 
 def _made(r: dict) -> str:
-    """The notes on marks another program could have made (start_label.link_lines), as in the
-    terminal."""
-    from judgekeeper.start_label import link_lines
+    """The notes on marks made too fast (start_label.quick_lines) or another program could
+    have made (start_label.link_lines), as in the terminal."""
+    from judgekeeper.start_label import link_lines, quick_lines
 
-    said = link_lines(r.get("made"))
+    said = quick_lines(r.get("made"), r.get("imported")) + link_lines(r.get("made"))
     return ('<div class="band">' + "".join(f'<p class="note">{_term(x)}</p>' for x in said)
             + "</div>") if said else ""
 
@@ -1011,6 +1011,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     to show is left out), each with how many more of it are kept aside; those of a group
     with none to show after the lists. In report.html, which can't save a reason, a line
     last: to say why, run `mark` (`mark`: the command)."""
+    from judgekeeper.fix import without_why
     from judgekeeper.start_label import say_why_run
 
     mistakes = (fixing or {}).get("mistakes") or []
@@ -1042,8 +1043,9 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
             left += kept
     if left:
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
-    if mistakes and not live and mark:
-        tell = say_why_run(len(mistakes), mark)  # the ones listed: never those kept aside
+    asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
+    if asked and not live and mark:
+        tell = say_why_run(asked, mark)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 

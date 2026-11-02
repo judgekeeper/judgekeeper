@@ -105,23 +105,134 @@ def started_with_python_m() -> bool:
     return _python_m or getattr(spec, "name", None) == "judgekeeper.__main__"
 
 
+# The marking page's own process: the program the run that started it names (page.main)
+_typed: str | None = None
+SCRIPT_NAMES = ("judgekeeper", "judgekeeper.exe", "judgekeeper-script.py")
+_imports: dict[str, bool] = {}
+
+
+def imports_judgekeeper(python: str) -> bool:
+    """Whether `python` on the PATH can import judgekeeper (asked once per program found)."""
+    import shutil
+
+    found = shutil.which(python)
+    if found is None:
+        return False
+    if found not in _imports:
+        try:
+            done = subprocess.run([found, "-P", "-c", "import judgekeeper"], timeout=30,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, check=False)
+            _imports[found] = done.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            _imports[found] = False
+    return _imports[found]
+
+
+def _started_as_judgekeeper() -> bool:
+    """Whether this process is `python -m judgekeeper` or the `judgekeeper` command itself
+    (not, say, a test runner that imported it)."""
+    typed = sys.argv[0] if sys.argv else ""
+    return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
+
+
+def command_path(path: str) -> str:
+    """`path` as a program to run from this folder, quoted: relative when the two share a
+    folder below the top, with a folder in it so the shell never looks it up on the PATH;
+    else under the home folder as `~/...` (`%USERPROFILE%\\...` on Windows, which cmd reads
+    inside quotes too): never the user name; else, or on another drive, the path as it is."""
+    try:
+        here = os.getcwd()
+        shared = os.path.commonpath([here, path])
+        shown = os.path.relpath(path, here)
+    except (OSError, ValueError):
+        return quote_arg(path)
+    if os.path.dirname(shared) != shared:  # more than the top in common: from here
+        if os.sep not in shown and "/" not in shown:
+            shown = os.path.join(os.curdir, shown)
+        return quote_arg(shown)
+    inside = _in_home(path)
+    return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
+
+
+HOME_FORMS = ("~/", "%USERPROFILE%\\")  # a path in the home folder, as a shell reads it
+
+
+def _in_home(path: str) -> str | None:
+    """`path` from the home folder when it is inside it, else None."""
+    try:
+        home = os.path.realpath(Path.home())
+        inside = os.path.relpath(path, home)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    first = inside.replace("\\", "/").split("/")[0]
+    return None if inside == os.curdir or first == os.pardir else inside
+
+
+def _home_shown(inside: str) -> str:
+    """A path in the home folder as a line shows it: `~/...` (`%USERPROFILE%\\...` on
+    Windows), never the user name."""
+    if is_windows():
+        return HOME_FORMS[1] + inside.replace("/", "\\")
+    return HOME_FORMS[0] + inside.replace(os.sep, "/")
+
+
+def _home_command(inside: str) -> str | None:
+    """`_home_shown`, quoted for a shell with the home part left outside the quotes (the
+    shell reads it there; cmd reads %USERPROFILE% inside double quotes too). None when the
+    rest can't be in a command (Windows: held back)."""
+    if is_windows():
+        rest = quote_arg(inside.replace("/", "\\"))
+        if rest == PLACEHOLDER or "%" in inside:
+            return None
+        if rest.startswith('"'):
+            return '"' + HOME_FORMS[1] + rest[1:]
+        return HOME_FORMS[1] + rest
+    return HOME_FORMS[0] + quote_arg(inside.replace(os.sep, "/"))
+
+
+def off_path(any_start: bool = False) -> str | None:
+    """judgekeeper as it runs again when no `judgekeeper` command is on the PATH: the program
+    as typed when that was a path from here (`venv/bin/judgekeeper`); else `python3 -P -m
+    judgekeeper` when that python can import it (-P: a project's json.py never runs); else
+    the program's path from here. None when judgekeeper can't tell how it was started (and
+    not `any_start`)."""
+    if _typed is not None:
+        return _typed
+    typed = sys.argv[0] if sys.argv else ""
+    python_m = started_with_python_m()
+    script = not python_m and _started_as_judgekeeper()
+    if not (python_m or script or any_start):
+        return None
+    if script and not os.path.isabs(typed) and (os.path.isfile(typed)
+                                                 or os.path.isfile(typed + ".exe")):
+        return quote_arg(typed)
+    python = "py" if is_windows() else "python3"
+    if imports_judgekeeper(python):
+        return f"{python} -P -m judgekeeper"
+    if script:
+        return command_path(os.path.abspath(typed))
+    return f"{command_path(sys.executable)} -P -m judgekeeper"
+
+
 def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper` when uvx started it (uvx
     puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
     betas unless the version is named), with the extras it was started with (uvx_with);
-    `python3 -P -m judgekeeper` (`py` on Windows) when `python -m` started it and the
-    `judgekeeper` command is not on the PATH (-P: a project's json.py never runs); else
+    when the `judgekeeper` command is not on the PATH, the form that runs (off_path); else
     `judgekeeper`; then the subcommand."""
     import shutil
 
     from judgekeeper import __version__
 
     name = "judgekeeper"
-    if started_by_uvx():
+    if _typed is not None:
+        name = _typed
+    elif started_by_uvx():
         pin = f"@{__version__}" if is_prerelease() else ""
         name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
-    elif started_with_python_m() and not shutil.which("judgekeeper"):
-        name = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
+    elif _started_as_judgekeeper() and not shutil.which("judgekeeper"):
+        name = off_path() or name
     return f"{name} {subcommand}" if subcommand else name
 
 
@@ -600,13 +711,19 @@ ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 def from_here(value: str, labels: bool) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in;
-    on another drive, `<file>` for --labels and PATH for the rest. Never the whole path."""
+    when the two share only the top folder and the path is in the home folder, `~/...`
+    (_home_shown); on another drive, `<file>` for --labels and PATH for the rest. Never the
+    whole path, nor the user name."""
     if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return value
     try:
-        rel = os.path.relpath(os.path.realpath(value), os.path.realpath(os.getcwd()))
+        real, here = os.path.realpath(value), os.path.realpath(os.getcwd())
+        rel = os.path.relpath(real, here)
+        shared = os.path.commonpath([real, here])
     except ValueError:  # another drive (Windows)
         return ANOTHER_DRIVE[0 if labels else 1]
+    if os.path.dirname(shared) == shared and (inside := _in_home(real)) is not None:
+        return _home_shown(inside)
     return rel.replace(os.sep, "/")
 
 
@@ -619,9 +736,15 @@ def shown_from_here(value) -> str:
 
 
 def runnable(value: str, labels: bool) -> str:
-    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE)."""
+    """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE); a path in
+    the home folder keeps its `~/` outside the quotes."""
     shown = from_here(value, labels)
-    return shown if shown in ANOTHER_DRIVE else quote_arg(shown)
+    if shown in ANOTHER_DRIVE:
+        return shown
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return _home_command(shown[len(form):]) or ANOTHER_DRIVE[0 if labels else 1]
+    return quote_arg(shown)
 
 
 # File-system errors --------------------------------------------------------------------------

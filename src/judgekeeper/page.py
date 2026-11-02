@@ -5,8 +5,8 @@ The page's link holds its token. The command makes the token, hands it to the pa
 on its stdin (`main`) and opens the link in the browser itself (`show`), so the output prints
 no link unless no browser opens (or with --no-browser). Marks made through a link printed with
 no terminal (`terminal`: another program reads the output) are stamped "link": "printed", and
-with BROWSER set "link": "browser-env". A link asked for with --no-browser at a terminal is
-stamped "asked". A link printed at a terminal because no browser opened is not stamped.
+with BROWSER set "link": "browser-env". A link printed at a terminal (with --no-browser or
+because no browser opened) is not stamped: the person reads it there.
 
 The token is kept in server.json (owner-only, removed when the page stops), so a second run
 prints the same link and the open tab keeps working: a page already showing the same thing
@@ -117,6 +117,12 @@ def page_key(ws: Workspace, flags: dict | None) -> dict:
     return {"flags": flags, "start": about}
 
 
+def _same_flags(old: dict | None, key: dict) -> bool:
+    """Whether the open page (its lock, `old`) was started with the flags of `key`."""
+    settings = old.get("settings") if isinstance(old, dict) else None
+    return isinstance(settings, dict) and settings.get("flags") == key["flags"]
+
+
 def page_server(ws: Workspace, port: int, flags: dict | None = None,
                 token: str | None = None, stamp: str | None = None):
     """The marking page: marking, and the result. Every click is a stamped
@@ -173,7 +179,8 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                 and old["settings"] == page_key(ws, flags)):
             return Page(link(old["port"], token), old["port"], token, kept=True)
         if is_open(ws.dir):
-            say(STARTS_AGAIN)
+            if not _same_flags(old, page_key(ws, flags)):  # else only start.json changed
+                say(STARTS_AGAIN)
             background.stop(ws.dir)
         stamp = old["link"] if old is not None else None
         picked = port == DEFAULT_PORT  # judgekeeper's choice, not the person's
@@ -187,7 +194,8 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                     server = page_server(ws, port, flags, token=token, stamp=stamp)
                     return Page(server.url, server.port, server.token, server)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
-                            "link": stamp, "python_m": textio.started_with_python_m()}
+                            "link": stamp, "python_m": textio.started_with_python_m(),
+                            "program": textio.program()}
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None
@@ -312,7 +320,7 @@ def show(say, page: Page, no_browser: bool, wait: bool, result: bool = False) ->
         return BROWSER
     if page.kept and not no_browser and not at_terminal:
         return KEPT
-    how = PRINTED if not at_terminal else marks.ASKED if no_browser else None
+    how = None if at_terminal else PRINTED
     if how and not _stamp(page, how):
         return None
     say(RESULT_LINK if result else LINK)
@@ -362,6 +370,9 @@ def main() -> int:
         settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
                     "link": given.get("link")}
         textio._python_m = given.get("python_m") is True  # its commands say `python3 -P -m`
+        program = given.get("program")  # the run's own name for judgekeeper: the page says it
+        if isinstance(program, str) and program.isprintable() and 0 < len(program) < 4096:
+            textio._typed = program
     except (ValueError, KeyError, TypeError):
         faulthandler.cancel_dump_traceback_later()
         print("judgekeeper: the page got no token on its input, so it did not start.",

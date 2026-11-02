@@ -2,8 +2,8 @@
 
 It goes through `judgekeeper`'s state table (front.py). When something must be asked (several
 tools or judges, a pass mark, an own format), it asks the same question, exit 3. When the
-marks are for another LLM-as-a-judge, it asks "Start over with these results?"; a yes moves
-the old marks to previous-<date>/ and goes on. Otherwise it prepares the pool if needed, opens
+marks are for another LLM-as-a-judge, it asks "Start over with these results?" (not when
+nothing is marked yet); a yes moves the old marks to previous-<date>/ and goes on. Otherwise it prepares the pool if needed, opens
 the page and prints the count so far (exit 0), unless every answer is marked with under 15 of
 one kind (exit 3, no page).
 

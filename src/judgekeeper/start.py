@@ -40,9 +40,11 @@ from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
     CODE,
     CUT_END,
+    DEFAULT_NAME,
     HUMAN,
     LLM,
     NO_MARK,
+    OLD_DEFAULT_NAME,
     WHOLE_ANSWER,
     Damaged,
     Mark,
@@ -1797,6 +1799,8 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
         return prefer
+    if metric == OLD_DEFAULT_NAME and metric not in counts:  # saved before 1.1
+        metric = DEFAULT_NAME
     if metric is not None and metric not in counts:  # a name start.json keeps with its keys
         # hidden: the one it stands for
         cleaned = [n for n in counts if scrub(n) == metric]
@@ -1940,7 +1944,7 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     if tool == "promptfoo":
         return "promptfoo's default grader (no model written in your config)"
     if tool == "records":
-        return f"{metric}{quoted} (your records do not say which model: pass judge= to record())"
+        return f"{metric}{quoted} (your records do not say which model: pass `judge=` to record())"
     return f"{metric}{quoted} (the results file does not say which model)"
 
 

@@ -88,7 +88,13 @@ def test_the_file_is_named_after_the_judge_the_date_and_the_process(project):
     assert name.startswith("Safe-wording-tone-")
     assert len(name.rsplit("-", 3)[-3]) == 4  # the year of YYYY-MM-DD
     judgekeeper.record("q", "a", verdict="pass")
-    assert any(p.name.startswith("judge-") for p in files(project))
+    assert any(p.name.startswith("LLM-as-a-judge-") for p in files(project))
+
+
+def test_with_no_name_the_record_is_named_llm_as_a_judge(project):
+    """Never a lone "judge" in what judgekeeper shows: that is the default name."""
+    judgekeeper.record("q", "a", verdict="pass")
+    assert only_record(project)["name"] == "LLM-as-a-judge"
 
 
 def test_the_records_read_back_with_no_problem(project):
