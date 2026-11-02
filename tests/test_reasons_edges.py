@@ -180,3 +180,43 @@ def test_ctrl_c_while_the_commands_load_exits_130_under_python_m(tmp_path):
     assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
     assert "Traceback" not in done.stdout + done.stderr
 
+
+
+def test_a_ctrl_c_during_a_slow_import_stops_the_run_after_it(tmp_path):
+    """A press while the commands load is only recorded (a KeyboardInterrupt inside Python's
+    import machinery can be swallowed, and the run would carry on): once they are loaded it
+    stops the usual way, "Stopped." and 130, and the command never runs."""
+    (tmp_path / "jk_slow_import.py").write_text(
+        "import importlib.abc, importlib.util, signal, sys\n"
+        "class Slow(importlib.abc.MetaPathFinder, importlib.abc.Loader):\n"
+        "    def find_spec(self, name, path, target=None):\n"
+        "        if name == 'judgekeeper.cli':\n"
+        "            return importlib.util.spec_from_loader(name, self)\n"
+        "    def create_module(self, spec):\n"
+        "        return None\n"
+        "    def exec_module(self, module):\n"
+        "        try:  # Python swallows a KeyboardInterrupt raised inside its import machinery\n"
+        "            signal.raise_signal(signal.SIGINT)  # the press, in the middle of the import\n"
+        "        except KeyboardInterrupt:\n"
+        "            pass\n"
+        "        module.main = lambda argv=None: print('RAN') or 0\n"
+        "sys.meta_path.insert(0, Slow())\n"
+        "from judgekeeper.__main__ import main\n"
+        "sys.exit(main(['--no-browser']))\n", encoding="utf-8")
+    done = subprocess.run([sys.executable, "-m", "jk_slow_import"], capture_output=True,
+                          check=False, text=True, timeout=60, stdin=subprocess.DEVNULL,
+                          cwd=tmp_path)
+    assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert "RAN" not in done.stdout
+    assert "Traceback" not in done.stdout + done.stderr
+
+
+def test_the_entry_leaves_ctrl_c_as_it_found_it():
+    import signal
+
+    from judgekeeper import __main__ as entry
+
+    before = signal.getsignal(signal.SIGINT)
+    entry.main(["--version"])
+    assert signal.getsignal(signal.SIGINT) is before
