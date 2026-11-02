@@ -271,3 +271,28 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
     assert states and states[0] == "card", states
     assert 1 <= states.count("card") <= 4 and set(states) <= {"card", "clean"}, states
     assert states == sorted(states, key=lambda state: state != "card"), states  # card, then none
+
+
+# Lines the README and the Guide keep -----------------------------------------------------------
+
+def _step(n: int) -> str:
+    return next(x for x in _sections(_readme())["The 5 steps"].splitlines()
+                if x.startswith(f"{n}. "))
+
+
+def _guide(wanted: str) -> str:
+    from tests.website_pages import WEBSITE, parse
+
+    root = parse(WEBSITE / "start.html")
+    (el,) = [e for e in root.iter() if e.attrs.get("id") == wanted]
+    return " ".join(el.text().replace("’", "'").split())
+
+
+STEADY = ("Once in a while an answer you marked comes back a second time, to see how steady "
+          "your marks are. Mark it as you see it.")
+
+
+def test_the_mark_step_says_a_marked_answer_comes_back():
+    """About 1 in 20 answers comes back once, so the person's own steadiness can be seen."""
+    assert STEADY in _step(2)
+    assert STEADY in _guide("step-mark")

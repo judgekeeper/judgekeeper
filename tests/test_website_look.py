@@ -882,7 +882,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
                        "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
-                       "so you can stop at any time and come back later."),
+                       "so you can stop at any time and come back later. Once in a while an "
+                       "answer you marked comes back a second time, to see how steady your marks "
+                       "are. Mark it as you see it."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
                        "(or judgekeeper --labels for labels already in your results), then mark "
                        "more if needed.")],

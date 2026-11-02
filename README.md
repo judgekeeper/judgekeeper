@@ -34,7 +34,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
 ## The 5 steps
 
 1. **Find:** `judgekeeper` finds your eval results.
-2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
+2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Once in a while an answer you marked comes back a second time, to see how steady your marks are. Mark it as you see it. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer).
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
 5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`; with promptfoo, `.judgekeeper/fix/regrade.yaml`), then run `judgekeeper check <new results file>`.
