@@ -501,14 +501,33 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     return args
 
 
+def _forget_ctrl_c() -> None:
+    """No Ctrl-C noted by an earlier run in this process reaches this one, or the next."""
+    textio.ctrl_c.clear()
+    reader = sys.modules.get("judgekeeper.readers.inspect_logs")
+    if reader is not None:
+        reader._stopping.clear()
+
+
+def _ours(handler) -> bool:
+    """A Ctrl-C handler judgekeeper puts in (textio.note_ctrl_c, the Inspect AI reader's)."""
+    return handler is textio.note_ctrl_c or \
+        getattr(handler, "__module__", None) == "judgekeeper.readers.inspect_logs"
+
+
 def _note_ctrl_c():
     """Put textio.note_ctrl_c in for the run in place of Python's own Ctrl-C handler; the
-    handler it replaced, or None (not the main thread, or a handler of someone else's)."""
-    textio.ctrl_c.clear()
-    if threading.current_thread() is not threading.main_thread() or \
-            signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+    handler to put back afterwards, or None (not the main thread, or a handler of someone
+    else's). One of judgekeeper's own left from before (a reader closed late) is Python's
+    own again afterwards."""
+    _forget_ctrl_c()
+    if threading.current_thread() is not threading.main_thread():
         return None
-    return signal.signal(signal.SIGINT, textio.note_ctrl_c)
+    found = signal.getsignal(signal.SIGINT)
+    if found is not signal.default_int_handler and not _ours(found):
+        return None
+    signal.signal(signal.SIGINT, textio.note_ctrl_c)
+    return signal.default_int_handler
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -516,19 +535,22 @@ def main(argv: list[str] | None = None) -> int:
     held = _note_ctrl_c()
     try:
         try:
-            code = _main(argv)
-        finally:
-            if held is not None:
-                signal.signal(signal.SIGINT, held)
-        if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
-            raise KeyboardInterrupt
-    except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
-        code = EXIT_OK
-    except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
-        try:
-            code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
-        except OSError:  # stdout can't take "Stopped.": still stopped
-            code = EXIT_STOPPED
+            try:
+                code = _main(argv)
+            finally:
+                if held is not None:
+                    signal.signal(signal.SIGINT, held)
+            if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
+                raise KeyboardInterrupt
+        except BrokenPipeError:  # piped into a program that stopped reading (`| head`)
+            code = EXIT_OK
+        except KeyboardInterrupt:  # before a command started (the flags): as _main says it
+            try:
+                code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
+            except OSError:  # stdout can't take "Stopped.": still stopped
+                code = EXIT_STOPPED
+    finally:
+        _forget_ctrl_c()  # a note never outlives its run
     # A closed or broken stream shows here, not in Python's own flush at exit (exit 120): the
     # code stays
     flush_stdout()

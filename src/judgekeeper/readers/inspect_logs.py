@@ -110,7 +110,8 @@ def quiet() -> Iterator[None]:
         raise
     finally:
         if handler is not None:
-            signal.signal(signal.SIGINT, handler)
+            if signal.getsignal(signal.SIGINT) is _noted:  # closed late (a samples generator):
+                signal.signal(signal.SIGINT, handler)  # the run's own put back, never an old one
             _stopping.clear()
         for logger, level in zip(loggers, levels, strict=True):
             logger.setLevel(level)

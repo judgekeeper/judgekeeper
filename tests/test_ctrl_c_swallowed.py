@@ -111,3 +111,44 @@ def test_stopped_exits_at_once_with_a_thread_left_running(tmp_path):
                        capture_output=True, text=True, timeout=20)
     assert p.returncode == 130, p.stdout + p.stderr
     assert p.stdout == "Stopped.\n"
+
+
+@pytest.mark.parametrize("left", ["run", "reading"])
+def test_a_handler_or_note_left_from_before_never_reaches_the_next_run(project, capsys,  # noqa: F811
+                                                                         left):
+    """A Ctrl-C handler of judgekeeper's own left in place (a samples generator closed late)
+    and its notes: the run still notes a Ctrl-C a library swallows, and puts Python's own
+    handler back, with no note left, whatever it found."""
+    stale = textio.note_ctrl_c if left == "run" else inspect_logs._noted
+    signal.signal(signal.SIGINT, stale)
+    inspect_logs._stopping.append(True)
+    textio.ctrl_c.append(True)
+    try:
+        code, text = run(capsys, "--no-browser")
+        assert code != 130 and "Stopped." not in text, text  # no note from before
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        assert not textio.ctrl_c and not inspect_logs._stopping
+    finally:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        inspect_logs._stopping.clear()
+
+
+def test_samples_closed_after_the_run_put_back_no_old_handler():
+    """The samples generator's quiet() ends when the generator is closed, maybe after the run
+    put its handler back: it never puts back a handler from before."""
+    def samples():
+        with inspect_logs.quiet():
+            yield 1
+            yield 2
+
+    signal.signal(signal.SIGINT, textio.note_ctrl_c)  # as cli.main has it while it runs
+    try:
+        reading = samples()
+        assert next(reading) == 1
+        assert signal.getsignal(signal.SIGINT) is inspect_logs._noted
+        signal.signal(signal.SIGINT, signal.default_int_handler)  # the run ended
+        reading.close()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        assert not inspect_logs._stopping
+    finally:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
