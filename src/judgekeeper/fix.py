@@ -828,8 +828,21 @@ WORSE_JUDGE = ("These are the mistakes of your new LLM-as-a-judge, whose grades 
                "`{check}` found it worse than the one you marked against.")
 
 
+MARKED_WITH = "The rule you marked with"
+SAME_RULE = "The same as the rule now."
+
+
+def marked_rule(data: dict) -> str | None:
+    """The rule the marks were made with: start.json's marked_rule (kept when check took on
+    a new rule), else its rule; None when the answers were graded by more than one rule."""
+    if not data.get("one_rule", True):
+        return None
+    rule = data.get("marked_rule") or data.get("rule")
+    return rule if isinstance(rule, str) else None
+
+
 def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
-                worse_from: str | None = None) -> str:
+                worse_from: str | None = None, marked: str | None = None) -> str:
     """The clue file, ready for a person or a coding agent: the task, the clues (the person's
     reasons and the pattern sentences the terminal prints; `mark` is the pass mark when the
     grades follow the scores), the judge's rule now, then each mistake on the seen marks,
@@ -848,6 +861,9 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
     parts += [f"## {WHERE_WRONG.rstrip(':')}", "", *clues, ""]
     if rule:
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
+    if marked:  # a copy to go back to, after "Worse" too
+        parts += [f"## {MARKED_WITH}", "", SAME_RULE if marked == rule
+                  else fenced("MARKED RULE", marked, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
     own = reasons.own_numbers(wrong)  # named by number, as the clues name them
@@ -905,7 +921,7 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
     marks._refuse_links(path)
     make_private(path.parent)
     write_replacing(path, mistakes_md(rule, rows, pm["mark"] if pm and pm.get("follows")
-                                      else None))
+                                      else None, marked=marked_rule(m.data)))
     write_suggestions(ws, rows)
     return len(mistakes(rows))
 
@@ -1658,7 +1674,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval "
                       f"tool, run `{talk.command('check')}`.")
             return EXIT_OK
-        _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)  # both fit the set kept aside
+        _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))  # both fit the set kept aside
         n = write_answers(ws, m)
         talk.say()
         talk.para(_answers_line(ws, split, n))
@@ -1682,7 +1698,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     fresh = split.pass_mark is None  # no pass mark tested on these marks yet
     tested = test_pass_mark(m, split)
     save_split(ws, split)
-    _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)
+    _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
@@ -1705,11 +1721,12 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
 
 
 def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
-                    mark: float | None, worse_from: str | None = None) -> None:
+                    mark: float | None, worse_from: str | None = None,
+                    marked: str | None = None) -> None:
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, mistakes_md(rule, rows, mark, worse_from))
+    write_replacing(path, mistakes_md(rule, rows, mark, worse_from, marked))
 
 
 def _answers_line(ws: Workspace, split: Split, n: int, said: bool = False) -> str:

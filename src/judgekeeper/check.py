@@ -1517,6 +1517,7 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     data.pop("earlier_grades", None)
     if earlier:
         data["earlier_grades"] = earlier
+    _marked_rule_kept(data)
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
                 judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
                 pass_mark=found.pass_mark, results_files=list(found.used),
@@ -2269,3 +2270,11 @@ def run(path: str = ".") -> int:
 
 
 __all__ = ["full", "groups", "run"]
+
+
+def _marked_rule_kept(data: dict) -> None:
+    """start.json's rule as the one the marks were made with (fix.marked_rule), before a check
+    puts the new judge's rule in its place: kept from the first such check on."""
+    if "marked_rule" not in data and data.get("one_rule", True) and isinstance(
+            data.get("rule"), str):
+        data["marked_rule"] = data["rule"]
