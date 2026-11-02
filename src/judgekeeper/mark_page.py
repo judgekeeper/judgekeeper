@@ -1031,7 +1031,7 @@ __TOP__
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }
-  if (!seenIntro()) {
+  if (left && !seenIntro()) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }

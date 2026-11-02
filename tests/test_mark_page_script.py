@@ -475,6 +475,23 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
     assert got == {"kept": True, "onButton": True, "closed": True}
 
 
+def test_no_welcome_box_when_every_answer_is_marked():
+    """A first visit (the box never seen) to a page with every answer marked: no "Start
+    marking" box over "You have marked all N answers"; it still shows once answers are left."""
+    data = _data(3)
+    for item in data["items"]:
+        item["label"] = "pass"
+    data["counts"] = {"correct": 3, "wrong": 0, "skipped": 0}
+    got = _run("""
+      console.log(JSON.stringify({box: !ids["intro"].hidden, end: !ids["end"].hidden,
+        title: ids["end-title"].textContent, inert: document.getElementById("app").getAttribute("inert") !== null,
+        seen: stored["judgekeeper-intro-seen"] || null}));""", data=data, seen_intro=False)
+    assert got == {"box": False, "end": True, "title": "You have marked all 3 answers.",
+                   "inert": False, "seen": None}  # not seen yet: it shows when there is marking
+    got = _run('console.log(JSON.stringify({box: !ids["intro"].hidden}));', seen_intro=False)
+    assert got == {"box": True}
+
+
 def test_a_blocked_storage_still_shows_the_page_and_the_box():
     got = _run("""
       console.log(JSON.stringify({open: !ids["intro"].hidden,
