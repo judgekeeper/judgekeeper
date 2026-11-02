@@ -283,3 +283,10 @@ def test_the_docs_say_the_marking_page_leaves_out_the_documents():
             "faithfulness check, keep those documents open while you mark.") in marking
     reader = ROOT / "src" / "judgekeeper" / "readers" / "deepeval.py"
     assert "retrieval" not in reader.read_text(encoding="utf-8").lower()  # never read
+
+
+def test_the_reference_says_where_kappa_is_and_that_it_never_decides():
+    numbers = _flat(_sections()["How the numbers are worked out"])
+    assert ('so it is shown under "More details" on the result page and in report.html, and '
+            "never decides the result: TPR and TNR do.") in numbers
+    assert "only in the report's More details" not in numbers
