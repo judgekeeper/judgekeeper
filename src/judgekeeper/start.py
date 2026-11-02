@@ -1724,13 +1724,13 @@ def _promptfoo_configs(root: Path) -> dict[str, str | None]:
             continue
         for entry in entries:
             path = Path(entry.path)
-            if entry.is_symlink():
-                continue
-            if entry.is_dir(follow_symlinks=False):
+            what = find.kind(entry)  # a device, a pipe or a link: skipped
+            if what == find.DIR:
                 if find._walked(entry.name) and len(path.relative_to(root).parts) < \
                         find.TABLE_DEPTH:
                     queue.append(path)
-            elif path.suffix.lower() in CONFIG_SUFFIXES and looked < MAX_CONFIGS:
+            elif what == find.FILE and path.suffix.lower() in CONFIG_SUFFIXES and \
+                    looked < MAX_CONFIGS:
                 looked += 1
                 config, description = _promptfoo_config(path)
                 if config:

@@ -768,6 +768,17 @@ ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 
 def from_here(value: str, labels: bool, command: bool = False) -> str:
+    """_from_here, kept whole where a line wraps (_spaced)."""
+    shown = _from_here(value, labels, command)
+    if " " in shown:
+        _spaced.pop(shown, None)
+        _spaced[shown] = None
+        while len(_spaced) > SPACED_KEPT:
+            _spaced.pop(next(iter(_spaced)))
+    return shown
+
+
+def _from_here(value: str, labels: bool, command: bool = False) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in
     when the two share a folder below the home folder's parents (shares_below_home); else in
     the home folder, `~/...` (_home_shown); else, or on another drive, `<file>` for --labels
@@ -991,7 +1002,11 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
     if WORKSPACE not in parts:
         return None
     folder = Path(*parts[:parts.index(WORKSPACE) + 1])
-    if folder.is_file():
+    try:
+        is_file, is_dir = folder.is_file(), folder.is_dir()
+    except OSError:  # in a folder that can't be read (/lost+found): not judgekeeper's own
+        return None
+    if is_file:
         return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
     if isinstance(e, NotAFile):
         shown = "/".join(parts[parts.index(WORKSPACE):]).replace("{", "(").replace("}", ")")
@@ -999,7 +1014,7 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
                 NOT_A_FILE_NEXT.replace("{path}", shown))
     if isinstance(e, FileBusyError):
         return WORKSPACE_BUSY, WORKSPACE_BUSY_NEXT
-    if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
+    if isinstance(e, PermissionError) and is_dir:  # else the project folder's
         return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
     return None
 
@@ -1129,13 +1144,15 @@ def held_lines(text: str) -> list[str]:
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split
+_spaced: dict[str, None] = {}  # the paths with spaces from_here named: never split either
+SPACED_KEPT = 256
 WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words a line that
 # leaves a file out is found by
 
 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
-    """`text` as lines of at most `width` characters (a longer command stays whole on its
-    own line), each starting with `indent`. Each line break in `text` (\\n) starts a new line;
+    """`text` as lines of at most `width` characters (a longer command, or a path with
+    spaces judgekeeper named, stays whole on its own line), each starting with `indent`. Each line break in `text` (\\n) starts a new line;
     every other one (\\r, U+2028...) is a space. A value read from a file goes in as one line
     (redact.one_line: a name, a model id, a held value), so only judgekeeper's own text breaks
     a line. Only a text that starts with "Next:" gives a line that starts with it: a name read
@@ -1152,7 +1169,8 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     text, links_back = stand_ins(keep_links(
         text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
     text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
-    keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
+    keep = (re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
+            + sorted((p for p in _spaced if p in text), key=len, reverse=True))
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))
     lines = []
