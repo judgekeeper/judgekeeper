@@ -43,6 +43,8 @@ from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
     held_lines,
     jsonl_lines,
+    kept_at,
+    kept_path,
     loads,
     make_private,
     old_hook,
@@ -1012,8 +1014,10 @@ class Talk:
             self.say(line)
 
     def command(self, subcommand: str = "fix") -> str:
+        from judgekeeper.start import path_word
+
         return " ".join((program(subcommand), *([] if self.path == "." else
-                                                [quote_arg(self.path)])))
+                                                [path_word(self.path)])))
 
     def next(self, text: str) -> None:
         self.say()
@@ -1808,7 +1812,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     talk.para(RESULT[v.kind])
     k = next_test(split)
-    _keep(ws, split, found, setup, setup_hash, key, v, Path(path).as_posix())
+    _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root))
     wrong = sum(old[i] != m.person[i] for i in ids)
     if v.kind in ("leans better", "same") and wrong:  # never for a rule that leans worse
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
@@ -1871,12 +1875,14 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
               f"{went_line(int(test.get('fixed') or 0), int(test.get('broke') or 0))}")
     talk.say()
     talk.para(RESULT.get(test.get("verdict"), ""))
-    file = test.get("file") if isinstance(test.get("file"), str) else None
+    kept = test.get("file") if isinstance(test.get("file"), str) else None
+    file = Path(shown_from_here(kept_at(kept, ws.root))).as_posix() if kept else None
     source = (f"the result above is from {file or 'an earlier file'}"
               f"{f' on {day}' if day else ''}.")
     if blank:
         talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}")
-    elif file and file != scrub(path.as_posix()):  # another file: say which one is given now
+    elif kept and Path(kept_at(kept, ws.root)).resolve() != Path(path).resolve():
+        # another file: say which one is given now
         same = "rule" if test.get("rule_hash") else "grades"
         talk.para(f"{path.name} has the same {same} as {file}{f' ({day})' if day else ''}, so "
                   f"the result above is the same.")

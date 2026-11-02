@@ -182,7 +182,7 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
     that was given, then --port (unless the default) and --no-browser. A value that starts
     with "-" goes after its flag's "=" (`--metric=--yes`): argparse would read it as a flag.
     `kept`: for a command kept in a file or on the page (quote_arg)."""
-    words = [] if str(path) == "." else [quote_arg(path, kept)]
+    words = [] if str(path) == "." else [path_word(path, kept)]
     for name, flag in REPEATED:
         if values.get(name) is not None:
             value = quote_arg(str(values[name]), kept)
@@ -193,6 +193,15 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
     if no_browser:
         words.append("--no-browser")
     return tuple(words)
+
+
+def path_word(path: str | Path, kept: bool = False) -> str:
+    """The path a command is given, as a printed command repeats it: one typed in full is
+    said from here in a terminal (textio.runnable), never the whole path; one kept in a file
+    or on the page (`kept`) is from the project folder already (front._flags_of)."""
+    if not kept and os.path.isabs(str(path)):
+        return textio.runnable(str(path), labels=False)
+    return quote_arg(path, kept)
 
 
 def flag_word(flag: str, value: str) -> str:
@@ -252,6 +261,13 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
                      *repeated_flags(kept=kept, **saved_flags(flags))))
 
 
+def kept_check(path, root) -> str:
+    """`judgekeeper check` as report.html keeps it: with `path` from the project folder `root`
+    (textio.kept_path) when it is not the project folder itself."""
+    kept = "." if str(path) == "." else textio.kept_path(path, root)
+    return " ".join((textio.program("check"), *([] if kept == "." else [path_word(kept, True)])))
+
+
 def held_values(flags) -> list[str]:
     """The values a kept command made from `flags` shows as NAME (quote_arg), in order: on
     Windows, each is said beside it as data."""
@@ -289,7 +305,7 @@ class Talk:
         """`command`, with `where` (a path inside the folder the person gave) as the path,
         written with forward slashes on every system, as the lines that name it write it."""
         flags = self._flags_for(extra)
-        given = flags[:1] == (quote_arg(self.path),) and self.path != "."
+        given = flags[:1] == (path_word(self.path),) and self.path != "."
         flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
@@ -298,14 +314,14 @@ class Talk:
         """`command` run on `folder` (written as it goes on the line, from the folder the
         command runs in) in place of the person's path, where the command takes its path."""
         flags = self._flags_for(extra)
-        given = flags[:1] == (quote_arg(self.path),) and self.path != "."
+        given = flags[:1] == (path_word(self.path),) and self.path != "."
         return " ".join((self.program, folder, *(flags[1:] if given else flags), *extra))
 
     def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
         """The person's flags without those `extra` gives again (`--flag value` or
         `--flag=value`): argparse keeps only the last, so theirs would be lost anyway."""
         again = {w.split("=", 1)[0] for w in extra} & {flag for _, flag in REPEATED}
-        path = 1 if self.flags[:1] == (quote_arg(self.path),) and self.path != "." else 0
+        path = 1 if self.flags[:1] == (path_word(self.path),) and self.path != "." else 0
         kept, words = list(self.flags[:path]), iter(self.flags[path:])
         for word in words:
             if word in again:
@@ -1075,7 +1091,9 @@ def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
 
     def rel(path: Path) -> str:
         path = path.resolve()
-        return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+        if path.is_relative_to(root):
+            return path.relative_to(root).as_posix()
+        return textio.kept_path(path, root)  # never the whole path: start.json keeps it
 
     results = [replace(r, rel=rel(r.path)) for r in found.results]
     given = rel(folder or found.results[0].path) if found.tool != "mapped" else None
@@ -1087,7 +1105,7 @@ def results_path(root: Path, data: dict) -> Path:
     path when marking started, while it is there; else the project folder."""
     given = data.get("given") if isinstance(data, dict) else None
     if isinstance(given, str) and given:
-        path = Path(root) / given
+        path = Path(textio.kept_at(given, root))
         if path.exists():
             return path
     return Path(root)
@@ -1204,7 +1222,7 @@ def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     how = (f"turn it into a table with input, output and verdict columns (see "
            f"{own_format.OWN_FORMAT_URL}), or ask your coding agent with the prompt below.")
     if own is not None:
-        setup = textio.program() + ("" if talk.path == "." else f" {quote_arg(talk.path)}")
+        setup = textio.program() + ("" if talk.path == "." else f" {path_word(talk.path)}")
         talk.say(f"{own.rel} looks like saved LLM-as-a-judge results in your own format.")
         talk.say(f"To use it as it is, run {setup}: it asks how to read it and saves that in "
                  "judgekeeper.toml.")

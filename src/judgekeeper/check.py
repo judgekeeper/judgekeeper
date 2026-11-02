@@ -44,10 +44,12 @@ from judgekeeper import (
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
-from judgekeeper.start_label import Workspace, every_marked, next_marks
+from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks
 from judgekeeper.textio import (
     flush_stdout,
     held_lines,
+    kept_at,
+    kept_path,
     loads,
     make_private,
     old_hook,
@@ -444,18 +446,8 @@ def _seen(ws: Workspace) -> dict:
     return data if ok else {}
 
 
-def _from_root(path, root: Path) -> str:
-    """`path` as results-seen.json keeps it: from the project folder (`..` allowed), so the
-    file names no folder outside it; on another drive, as it is."""
-    try:
-        return os.path.relpath(path, root)
-    except ValueError:
-        return str(path)
-
-
-def _at_root(path: str, root: Path) -> str:
-    """A path results-seen.json keeps, as a path to read (an older file's whole path stays)."""
-    return os.path.normpath(os.path.join(root, path))
+_from_root = kept_path  # results-seen.json's paths: from the project folder
+_at_root = kept_at  # read back (an older file's whole path stays)
 
 
 def _remember(state: State, found, setup: dict) -> None:
@@ -1657,8 +1649,9 @@ def full(path: str, said: Said) -> int:
         with page.one_at_a_time(state.ws.dir, said.say):  # two runs at once: one writes
             _adopt(state.ws, found, tested)
         _refresh_mistakes(state.ws)
-    _report(state.ws, adopted=not held,
-            worse=worse_step(old, new, _command(state), state.ws) if worse else None)
+    _report(state.ws, adopted=not held, worse=worse_step(
+        old, new, start.kept_check(state.path, state.ws.root), state.ws, kept=True)
+            if worse else None)
     if not given_results(path):
         _covered(state.ws)
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
@@ -1875,11 +1868,12 @@ def _sizes(pool: dict) -> dict[str, int]:
     return {g: sum(n for (_, k), n in pool.items() if k == g) for g in ("pass", "fail")}
 
 
-def worse_step(old: dict, new: dict, command: str, ws: Workspace) -> str:
+def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = False) -> str:
     """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
     report.html: go back to the old judge (or tool version), or change the judge. A judge
     whose results hold no rule then grades the same marked answers again: running the eval
-    again would make new answers, which can't be compared."""
+    again would make new answers, which can't be compared. `kept`: for report.html, which
+    names marked-answers.csv from the project folder, as `command` (start.kept_check) does."""
     if judge_setup.tool_only(old, new):
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
@@ -1887,7 +1881,8 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace) -> str:
     if new.get("rule_hash") is None:
         from judgekeeper import fix
 
-        answers = f"{fix.shown_folder(ws)}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
+        folder = FOLDER if kept else fix.shown_folder(ws)
+        answers = f"{folder}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
         return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it"))
     return NEXT_WORSE.format(back="your old LLM-as-a-judge", command=command)
 

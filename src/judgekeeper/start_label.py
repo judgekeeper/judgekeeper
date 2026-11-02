@@ -48,6 +48,7 @@ from judgekeeper.textio import (
     plural,
     program,
     read_cached,
+    shown_from_here,
     write_replacing,
 )
 
@@ -68,16 +69,14 @@ SAVED_NOTE = ("Saved in {folder}/. It holds your answers' text: commit it only i
 
 def shown_folder(ws: Workspace) -> str:
     """The workspace folder as the person finds it from where they ran start: .judgekeeper
-    here, else its path from here, however many `..` (next to a results file given from
-    elsewhere, or a link's target); on another drive, its name. Never the whole path."""
+    here, else as a line names a path (textio.shown_from_here): from here when the two share
+    a folder below the home folder's parents, else `~/...`, else its name. Never the whole
+    path nor the user name."""
     here = Path.cwd().resolve() / FOLDER
     folder = ws.dir.resolve()
     if folder == here:
         return FOLDER
-    try:
-        return Path(os.path.relpath(folder, Path.cwd().resolve())).as_posix()
-    except ValueError:  # another drive on Windows
-        return folder.name
+    return shown_from_here(folder)
 
 
 # The three headlines, the same in the terminal and on the result page (report_page.STATES)

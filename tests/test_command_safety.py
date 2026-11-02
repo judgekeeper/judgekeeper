@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 from html import escape
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -39,7 +40,7 @@ VALUES = ['a"b"&calc&', "x$\u2019;calc;\u2019", "50%off"]
 def test_a_kept_command_shows_name_never_posix_quotes_on_windows(windows, value):
     talk = SimpleNamespace(path=".", answers={}, store=None,
                            options={"port": 8765, "no_browser": False, "metric": value})
-    flags = front._flags_of(talk, True)
+    flags = front._flags_of(talk, True, SimpleNamespace(root=Path.cwd()))
     assert start.command_from(flags, "mark", kept=True) == "judgekeeper mark --metric NAME"
     assert start.held_values(flags) == [value]
     assert textio._held == {}  # never said under a terminal line it is not on
@@ -303,19 +304,30 @@ def test_a_program_under_home_run_from_a_folder_outside_it_is_named_from_home(mo
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
-def test_on_windows_a_program_under_home_is_named_from_userprofile(monkeypatch, tmp_path):
-    """cmd reads %USERPROFILE% inside double quotes too: the user name is never shown."""
+def test_on_windows_a_program_runs_as_printed_in_cmd_and_powershell(monkeypatch, tmp_path):
+    """A program is unquoted and never %USERPROFILE% (PowerShell reads neither as cmd does):
+    from here or as it is, the shorter; else its own python runs judgekeeper; only when no
+    form runs in both, from here in double quotes (cmd's form)."""
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.delenv("UV", raising=False)
     monkeypatch.setenv("HOME", "/Users/someone")  # Path.home() on this (faked) Windows
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
-    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/Scripts/judgekeeper.exe"])
-    assert textio.program("mark") == (
-        '"%USERPROFILE%\\My Tools\\venv\\Scripts\\judgekeeper.exe" mark')
     monkeypatch.setattr(sys, "argv", ["/Users/someone/venv/Scripts/judgekeeper.exe"])
-    assert textio.program() == "%USERPROFILE%\\venv\\Scripts\\judgekeeper.exe"
+    assert textio.program() == "/Users/someone/venv/Scripts/judgekeeper.exe"  # the shorter
+    (tmp_path / "a").mkdir()
+    monkeypatch.chdir(tmp_path / "a")
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "venv" / "Scripts" / "judgekeeper.exe")])
+    assert textio.program() == "../venv/Scripts/judgekeeper.exe"  # from here
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/Scripts/judgekeeper.exe"])
+    monkeypatch.setattr(sys, "executable", "/Users/someone/py/python.exe")
+    assert textio.program("mark") == "/Users/someone/py/python.exe -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", "/Users/someone/My Tools/venv/Scripts/python.exe")
+    up = os.path.relpath("/Users/someone/My Tools/venv/Scripts/judgekeeper.exe",
+                         os.path.realpath(tmp_path))
+    assert textio.program("mark") == f'"{up}" mark'  # none runs in both: from here, quoted
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
@@ -331,15 +343,29 @@ def test_a_path_typed_in_home_from_a_folder_outside_it_is_repeated_from_home(mon
     assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == "~/My Labels/l.csv"
     inside = tmp_path / "data" / "l.csv"  # sharing more than the top: from here, as before
     assert textio.from_here(str(inside), labels=True) == "data/l.csv"
-    assert textio.from_here("/opt/data/l.csv", labels=True).endswith("opt/data/l.csv")
+    assert textio.from_here("/opt/data/l.csv", labels=True) == "<file>"  # climbs to the top
+    assert textio.shown_from_here("/opt/data/l.csv") == "l.csv"
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
-def test_on_windows_a_path_in_home_is_repeated_from_userprofile(monkeypatch, tmp_path):
+def test_on_windows_a_path_in_home_is_repeated_from_here_and_named_from_userprofile(
+        monkeypatch, tmp_path):
+    """A command repeats it from here when the two share a folder in the home folder, else
+    in full, double-quoted (PowerShell doesn't read %USERPROFILE%, and from here would climb
+    to the top): never a stand-in for a file that is there. A line that only names it still
+    says %USERPROFILE%."""
     monkeypatch.setenv("HOME", "/Users/someone")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "win32")
     assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
-        '"%USERPROFILE%\\My Labels\\l.csv"')
+        '"/Users/someone/My Labels/l.csv"')
     assert textio.runnable("/Users/someone/labels.csv", labels=False) == (
-        "%USERPROFILE%\\labels.csv")
+        "/Users/someone/labels.csv")
+    assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == (
+        "%USERPROFILE%\\My Labels\\l.csv")
+    home = os.path.realpath(tmp_path)
+    monkeypatch.setenv("HOME", home)
+    (tmp_path / "proj").mkdir()
+    monkeypatch.chdir(tmp_path / "proj")
+    assert textio.runnable(os.path.join(home, "My Labels", "l.csv"), labels=True) == (
+        '"../My Labels/l.csv"')

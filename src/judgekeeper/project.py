@@ -13,7 +13,7 @@ from judgekeeper.start_label import (
     FOLDER,
     Workspace,
 )
-from judgekeeper.textio import PRIVATE_FOLDER
+from judgekeeper.textio import PRIVATE_FOLDER, kept_at
 
 # Not part of a check: .gitignore, baseline.json (set by `baseline set`), records/
 # (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl and
@@ -145,7 +145,7 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
         mine = {r.path.resolve() for results in found.results.values() for r in results}
     if not mine:
         return False
-    theirs = [(store / f).resolve() for f in _read_by(store)]
+    theirs = [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
     return not all(any(m == t or m.is_relative_to(t) for t in theirs) for m in mine)
 
 

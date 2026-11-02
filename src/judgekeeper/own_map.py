@@ -22,7 +22,7 @@ from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import scrub
 from judgekeeper.start import EXIT_QUESTION, EXIT_USAGE, StartError, Talk
-from judgekeeper.textio import plural, quote_arg, quoted_name
+from judgekeeper.textio import plural, quoted_name
 
 MAX_PATHS = 24
 RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one judgekeeper.record() "
@@ -60,7 +60,7 @@ def cannot(talk: Talk, rel: str, why: str):
 def csv_command(talk: Talk) -> str:
     """`judgekeeper PATH` with the person's flags, PATH standing for the CSV to read: the
     file they gave, when they gave one, is what PATH replaces."""
-    given = talk.flags[:1] == (quote_arg(talk.path),) and talk.path != "."
+    given = talk.flags[:1] == (start.path_word(talk.path),) and talk.path != "."
     return " ".join((talk.program, "PATH", *(talk.flags[1:] if given else talk.flags)))
 
 
