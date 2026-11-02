@@ -275,6 +275,13 @@ def run_from(folder: str | Path):
         _from = was
 
 
+def program_in(folder: str | Path, subcommand: str = "") -> str:
+    """program() for a line that says to run it in `folder` (the project folder), or in a
+    folder it can't name (ANYWHERE): every path in it from there."""
+    with run_from(folder):
+        return program(subcommand)
+
+
 @contextmanager
 def plainly():
     """Within it, program() names judgekeeper plainly (`judgekeeper`, or uvx's form): for a

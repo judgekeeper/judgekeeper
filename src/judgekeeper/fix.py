@@ -41,6 +41,7 @@ from judgekeeper.redact import one_line, scrub
 from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
+    ANYWHERE,
     held_lines,
     jsonl_lines,
     kept_at,
@@ -50,6 +51,7 @@ from judgekeeper.textio import (
     old_hook,
     plural,
     program,
+    program_in,
     quote_arg,
     read_cached,
     runnable,
@@ -1038,7 +1040,11 @@ class Talk:
         "in your project folder, run ..." when it was given one from elsewhere (FILE is
         named from there)."""
         where = "in your project folder, " if self.away() else ""
-        return f"{where}run `{program(subcommand)} {file}`"
+        return f"{where}run `{self.program(subcommand)} {file}`"
+
+    def program(self, subcommand: str = "fix") -> str:
+        """program(), from the project folder when it was given one from elsewhere."""
+        return program_in(self.path, subcommand) if self.away() else program(subcommand)
 
     def next(self, text: str) -> None:
         self.say()
@@ -1114,8 +1120,8 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.say(STEP)
         talk.say()
         talk.para(problem)
-        talk.next(f"give `{program('fix')}` the results of grading {ANSWERS} again with your "
-                  "new rule, or run it in your project folder.")
+        talk.next(f"give `{program_in(ANYWHERE, 'fix')}` the results of grading {ANSWERS} "
+                  "again with your new rule, or run it in your project folder.")
         return EXIT_USAGE
     state = _state(talk.path)
     ws = state.ws if state is not None else None
@@ -1579,7 +1585,7 @@ def new_log(ws: Workspace) -> str:
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
-    steps = (regrade_steps(ws, program("fix"), away=talk.away()) if tool == "promptfoo"
+    steps = (regrade_steps(ws, talk.program("fix"), away=talk.away()) if tool == "promptfoo"
              else None)
     talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws)))
     if steps:  # a ready config: the steps above are the whole way

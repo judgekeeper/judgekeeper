@@ -46,6 +46,7 @@ from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
 from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks
 from judgekeeper.textio import (
+    ANYWHERE,
     flush_stdout,
     held_lines,
     kept_at,
@@ -55,6 +56,7 @@ from judgekeeper.textio import (
     old_hook,
     plural,
     program,
+    program_in,
     quote_arg,
     runnable,
     said_next,
@@ -958,7 +960,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if not given.exists():
         said.say(f"There is no file or folder named {given.name or path} here.")
         said.say()
-        said.say(f"Next: run `{program('check')}` in your project folder.")
+        said.say(f"Next: run `{program_in(ANYWHERE, 'check')}` in your project folder.")
         return EXIT_USAGE
     if state is not None:
         said.say(NOT_SET_UP)
@@ -1484,8 +1486,8 @@ def full(path: str, said: Said) -> int:
     if problem:
         said.say(problem)
         said.say()
-        said.say(f"Next: give `{program('check')}` your new results file, or run it in your "
-                 "project folder.")
+        said.say(f"Next: give `{program_in(ANYWHERE, 'check')}` your new results file, or run it "
+                 "in your project folder.")
         return EXIT_USAGE
     state = _state(path)
     if state is None or not state.enough:
@@ -1506,7 +1508,7 @@ def full(path: str, said: Said) -> int:
                 return EXIT_USAGE
             said.say(NEXT_STORE.format(command=program("check"), store=store) if store else
                      NEXT_GIVEN.format(results=_new_results(state.data.get("tool")),
-                                       command=program("check")))
+                                       command=program_in(ANYWHERE, "check")))
             return EXIT_USAGE
         now = Now(judge_setup.of(found), None, found, found.results[0].path)
     else:
