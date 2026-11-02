@@ -982,7 +982,7 @@ REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 def kept_line(n: int) -> str:
     """How many more disagreements are kept aside, in words (the terminal says them too)."""
-    return (f'{n} more {"is" if n == 1 else "are"} hidden on purpose, so a new rule can be '
+    return (f'{n} more {"is" if n == 1 else "are"} kept aside on purpose, so a new rule can be '
             "tested on answers you haven't looked at again.")
 
 

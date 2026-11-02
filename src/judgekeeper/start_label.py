@@ -103,8 +103,8 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
-         "You can look after every mark.")
+WIDER = ("The result line uses wider ranges than these, so a few marks that agree by "
+         "coincidence can't decide it. You can look at the result after every mark.")
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
@@ -1303,7 +1303,7 @@ def why_count(ws: Workspace, r: dict) -> int:
 
 
 def kept_count(ws: Workspace, r: dict) -> int:
-    """How many disagreements the result page says are hidden on purpose (kept aside to test
+    """How many disagreements the result page says are kept aside on purpose (kept aside to test
     a new rule on), for the result `r`: none while it lists none."""
     from judgekeeper import fix
     from judgekeeper.report_page import counts, kept_count, shows_disagreements

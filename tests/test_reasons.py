@@ -1077,7 +1077,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     assert lines[end + 1].startswith("Tell judgekeeper why"), lines[end:end + 2]
     flat = " ".join(out.split())
     k = len(hidden)  # as the result page says it, so none look lost
-    kept = (f"{k} more {'is' if k == 1 else 'are'} hidden on purpose, so a new rule can be "
+    kept = (f"{k} more {'is' if k == 1 else 'are'} kept aside on purpose, so a new rule can be "
             "tested on answers you haven't looked at again.")
     assert f"{tell} {kept} {uses}" in flat and flat.index("You failed") < flat.index(tell)
     assert out.count("Tell judgekeeper why") == 1
