@@ -100,9 +100,9 @@ def test_each_walk_skips_what_it_cant_look_at(tmp_path, broken):
 @posix
 @pytest.mark.parametrize("folder", ["/dev", "/"])
 def test_judgekeeper_from_a_system_folder_never_stops_on_an_entry(monkeypatch, capsys, folder):
-    """`cd / && judgekeeper` and `cd /dev && judgekeeper`: the walk skips devices and
-    /dev/fd's entries; from / it says what it found, or that there is none, with no error
-    about an entry."""
+    """`cd / && judgekeeper` and `cd /dev && judgekeeper`: from /dev the walk skips devices and
+    /dev/fd's entries and says there are no results; from / it searches nothing and says to
+    go to the project folder. No error about an entry."""
     if not Path(folder).is_dir():
         pytest.skip(f"no {folder} here")
     monkeypatch.chdir(folder)
@@ -111,6 +111,8 @@ def test_judgekeeper_from_a_system_folder_never_stops_on_an_entry(monkeypatch, c
     assert "Traceback" not in out
     if folder == "/dev":
         assert code == 3 and NO_RESULTS in out, out
+    else:
+        assert code == 3 and "Go to it (`cd <your project folder>`)" in " ".join(out.split()), out
 
 
 @posix
