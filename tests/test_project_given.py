@@ -51,6 +51,12 @@ def given(home, monkeypatch):
     background.stop(ws.dir)
 
 
+def _named(out: str) -> str:
+    """The lines that name paths: on Windows not a command, which has a path in full when
+    nothing shorter runs (printed only)."""
+    return "\n".join(line for line in out.splitlines() if not (os.name == "nt" and "`" in line))
+
+
 def _run(capsys, *argv) -> tuple[int, str]:
     code = main([str(a) for a in argv])
     out, err = capsys.readouterr()
@@ -69,7 +75,7 @@ def test_a_project_given_from_another_folder_is_the_project(given, home, tmp_pat
         assert code == 0, (cwd, out)
         assert sorted(os.listdir(cwd)) == before, (cwd, out)  # nothing new where it ran
         assert "You marked 10 answers so far" in " ".join(out.split()), (cwd, out)
-        assert USER not in out, (cwd, out)
+        assert USER not in _named(out), (cwd, out)
 
 
 def test_the_file_line_for_a_project_given_from_the_top_folder_names_no_user(
@@ -87,7 +93,7 @@ def test_the_file_line_for_a_project_given_from_the_top_folder_names_no_user(
     assert code == 0, out
     file = next(line for line in out.splitlines() if line.startswith("File:"))
     assert file.split(None, 1)[1] == textio._home_shown("Desktop/proj/results.csv"), file
-    assert USER not in out, out
+    assert USER not in _named(out), out
 
 
 def test_check_with_no_marks_from_the_top_folder_names_this_folder(home, monkeypatch, capsys):
