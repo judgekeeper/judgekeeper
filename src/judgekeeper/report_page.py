@@ -187,12 +187,18 @@ REASONS_SCRIPT = """
         if (open && row && !row.hidden && row.getAttribute("aria-expanded") !== "true") {
           row.click(); }
       });
-      function send() {
+      // A reason picked, or typed and Enter pressed: the box closes, the line shows it.
+      function shut() {
+        add.setAttribute("aria-expanded", "false");
+        document.getElementById(add.getAttribute("aria-controls")).hidden = true;
+        add.focus();
+      }
+      function send(close) {
         clearTimeout(timer); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; line(); return; }
+            if (r.ok) { saved.textContent = "Saved"; line(); if (close) { shut(); } return; }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
@@ -213,7 +219,7 @@ REASONS_SCRIPT = """
       }
       each(box.querySelectorAll("[aria-pressed]"), function (b) {
         b.addEventListener("click", function () {
-          b.setAttribute("aria-pressed", String(!on(b))); send(); });
+          b.setAttribute("aria-pressed", String(!on(b))); send(true); });
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";
@@ -226,7 +232,10 @@ REASONS_SCRIPT = """
         clearTimeout(timer); timer = setTimeout(send, PAUSE);
       });
       input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); if (input.value !== sent) { send(); } }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (input.value !== sent) { send(true); } else { shut(); }
+        }
       });
       input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
       document.addEventListener("selectionchange", function () {
