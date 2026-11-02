@@ -635,7 +635,11 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     coloured verdict, whose words are `headline`."""
     if not has_result(strata):
         return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
-    r = describe(weighted.stratified(strata))
+    return status_of(describe(weighted.stratified(strata)))
+
+
+def status_of(r: dict) -> dict:
+    """strata_status from a result's numbers (result_numbers)."""
     ready = coloured(r)
     return {"text": status_line(r), "first": r["check"] != "too_few", "ready": ready,
             "headline": r["verdict"] if ready else None}
@@ -669,7 +673,11 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     ws = session.workspace
     data = ws.cached_data()
     graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
-    status = strata_status(batches.counted_strata(data, graded, ws.cached_strata()))
+    known = ws.cached_strata()
+    if has_result(batches.counted_strata(data, graded, known)):  # as the result counts them
+        status = status_of(result_numbers(data, batches.counted_labels(data, graded), known))
+    else:
+        status = strata_status([])
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
         ids = set(batches.counted_labels(data, graded))
         if import_check(marks.read(ws.marks), data, ids)[1]:
@@ -1450,22 +1458,29 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
     return out
 
 
+def result_numbers(data: dict, labels: dict[str, str], known: tuple | None = None) -> dict:
+    """The result's numbers (describe) from `labels`, the marks it counts
+    (batches.counted_labels); the marking page's status comes from them too. `known`:
+    batches.strata(data), when the caller has it."""
+    if not data.get("picked"):
+        return describe(weighted.stratified(batches.counted_strata(data, labels, known)))
+    # a re-check: the marks keep the groups they were picked by
+    groups = {q["id"]: q["group"] for q in data["queue"]}
+    r = describe(picked_numbers(data["picked"], labels, groups, data["pool"], batches.of(data)))
+    r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the LLM-as-a-judge's grades
+                       "labeled": sum(groups[i] == g for i in labels),
+                       "correct": sum(groups[i] == g and m == "pass" for i, m in labels.items())}
+                   for g in ("pass", "fail")}
+    return r
+
+
 def compute(ws: Workspace, session: StartSession) -> dict:
     """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
     labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
-    if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
-        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
-                                     batches.of(data)))
-        r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the judge's grades now
-                           "labeled": sum(groups[i] == g for i in labels),
-                           "correct": sum(groups[i] == g and m == "pass"
-                                          for i, m in labels.items())}
-                       for g in ("pass", "fail")}
-    else:
-        r = describe(weighted.stratified(batches.counted_strata(data, labels)))
+    r = result_numbers(data, labels)
     about = batches.about(data, session.marked())
     if about is not None:
         r["batches"] = about

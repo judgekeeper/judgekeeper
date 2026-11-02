@@ -81,6 +81,18 @@ def test_the_marking_page_says_it_once_in_its_status(adopted):
                                  "file>`.")
 
 
+def test_the_marking_page_status_counts_as_the_result_does(adopted):
+    """After `check` takes on a new rule, the page's ready box and headline come from the new
+    LLM-as-a-judge's grades, as the result page's verdict does, never the old rule's."""
+    ws, _ = adopted
+    r = _result(ws)
+    assert start_label.coloured(r), r["verdict"]
+    status = StartSession(ws).state()["status"]
+    assert (status["ready"], status["headline"]) == (True, r["verdict"]), status
+    assert status["text"] == start_label.EVERY_MARKED and "done" not in status
+    assert r["verdict"] in _text(start_label.live_result(ws, StartSession(ws)))
+
+
 def test_with_no_mark_waiting_nothing_is_said(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
