@@ -73,6 +73,8 @@ FRESH = 10  # new marks that make a new set of hidden marks
 CLEAR = 40  # new marks that most often give a new set a clear answer
 CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}; with fewer "
               f"than about {CLEAR}, the result will often be \"can't tell yet\").")
+ONLY_LEFT = "Only {n} left to mark. Mark them, or add more answers to your results."
+NONE_LEFT = "No answers are left to mark. Add more answers to your results."
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
 STEP = "Step 4 of 5: Fix"
 STEP_TEST = "Step 4 of 5: Fix (testing your new rule)"
@@ -1205,12 +1207,25 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     talk.say()
     if split.pending:
         talk.para(f"You have marked {len(split.pending)} of the {want} more answers.")
-    talk.para(CLEAR_LINE)
+    talk.para(more_marks_line(ws))
     then = (": they become a new set of marks kept aside, and your new results are tested on "
             "them" if tested else ": they become a new set of marks kept aside")
     talk.next(next_marks(ws, f"mark more answers with `{program('mark')}` (at least {left} "
-                             f"more), then run `{talk.command()}` again{then}."))
+                             f"more), then run `{talk.command()}` again{then}.", need=left))
     return EXIT_NEEDS_YOU
+
+
+def more_marks_line(ws: Workspace) -> str:
+    """How many more marks a new set kept aside wants (CLEAR_LINE), never more than the
+    answers left to mark: with fewer left, those."""
+    from judgekeeper.start_label import _left_to_mark
+
+    left = _left_to_mark(ws)
+    if left >= CLEAR:
+        return CLEAR_LINE
+    if not left:
+        return NONE_LEFT
+    return ONLY_LEFT.format(n=f"{left} answer is" if left == 1 else f"{left} answers are")
 
 
 def write_answers(ws: Workspace, m: Marks) -> int:
@@ -1859,7 +1874,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if len(split.rules()) >= MAX_RULES and v.kind not in ("better", "safe"):
         talk.say()
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
-                  f"aside. Your next marks become a new set kept aside. {CLEAR_LINE}")
+                  f"aside. Your next marks become a new set kept aside. "
+                  f"{more_marks_line(ws)}")
     talk.next(_after_step(talk, ws, m, v.kind, path))
     return EXIT_OK
 

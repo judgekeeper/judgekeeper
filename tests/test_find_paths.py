@@ -26,6 +26,6 @@ def test_records_at_the_project_root_are_named_from_here(tmp_path, monkeypatch, 
     finally:
         main(["--stop"])
     out = capsys.readouterr().out
-    up = "/".join([".."] * depth)
+    up = "the folder above" if depth == 1 else f"{depth} folders above"
     assert f"at the project root: reading them in {up}." in out, out
     assert str(tmp_path) not in out and str(tmp_path.resolve()) not in out

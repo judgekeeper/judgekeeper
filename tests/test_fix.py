@@ -659,8 +659,8 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     flat = " ".join(out.split())
     assert code == 3 and len(_split(ws)["tests"]) == 3  # the set is retired: no 4th test
     assert "You have tested 3 rules on these marks kept aside." in flat
-    assert ("Mark about 40 more answers for a clear answer (at least 10; with fewer than about "
-            "40, the result will often be \"can't tell yet\").") in flat  # how many, plainly
+    assert ("Only 20 answers are left to mark. Mark them, or add more answers to your "
+            "results.") in flat  # never more than are left (80 answers, 60 marked)
     assert flat.endswith("Next: mark more answers with `judgekeeper mark` (at least 10 more), "
                          "then run `judgekeeper fix` again: they become a new set of marks kept "
                          "aside, and your new results are tested on them.")

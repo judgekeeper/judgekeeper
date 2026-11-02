@@ -850,6 +850,17 @@ def shown_from_here(value) -> str:
     return Path(text).name if shown in ANOTHER_DRIVE else shown
 
 
+def folder_words(shown: str) -> str:
+    """A folder from here as a sentence says it: never only dots before its full stop. "."
+    is "this folder", ".." "the folder above", "../.." "2 folders above"; else as it is."""
+    if shown in (".", "./"):
+        return "this folder"
+    parts = shown.replace("\\", "/").rstrip("/").split("/")
+    if parts and all(p == ".." for p in parts):
+        return "the folder above" if len(parts) == 1 else f"{len(parts)} folders above"
+    return shown
+
+
 def runnable(value: str, labels: bool) -> str:
     """from_here, quoted for a shell unless it stands for a path (ANOTHER_DRIVE); a path in
     the home folder keeps its `~/` outside the quotes."""

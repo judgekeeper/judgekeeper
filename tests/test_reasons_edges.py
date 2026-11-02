@@ -6,6 +6,7 @@ fixture here is made up.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 
@@ -89,8 +90,8 @@ def test_the_same_note_is_written_once_with_its_count_in_suggestions_md():
 
 # With the page closed, Measure names the mark command once ------------------------------
 
-def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, pages,  # noqa: F811
-                                                                  no_browser):
+def test_measure_with_the_page_closed_asks_why_with_the_mark_command(here, capsys,  # noqa: F811
+                                                                    pages, no_browser):
     ws = project(here, marked=0)  # a result with disagreements, answers left, the page closed
     session = start_label.StartSession(ws)
     labels = {i["id"]: "pass" if _person(question(_index(ws, i["id"])), N // 2) else "fail"
@@ -102,7 +103,9 @@ def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, 
         code, out = _run(capsys)
         assert code == 0, out
         assert "You and your LLM-as-a-judge disagreed on" in out, out
-        assert " ".join(out.split()).count("`judgekeeper mark`") == 1, out
+        assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+                         r"`judgekeeper mark`\.", " ".join(out.split())), out
+        assert "The Next step below" not in out, out
         assert_one_next_at_the_end(out)
 
 
