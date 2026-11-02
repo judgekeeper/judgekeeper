@@ -1176,7 +1176,11 @@ def _next(r: dict, back: str | None) -> str:
     saved = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
              "folder. You can close this page.</p>")
     out = [saved]
-    if step == "fix":
+    if step == "fix" and r.get("fix_ready") is False:  # `fix` would say this: mark more
+        from judgekeeper.fix import NOT_ENOUGH
+
+        out.append(f"<p>{_e(NOT_ENOUGH)}</p>")
+    elif step == "fix":
         out.append("<p>Next, in your terminal, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '

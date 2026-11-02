@@ -1450,6 +1450,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
+    from judgekeeper import fix
+
+    r["fix_ready"] = fix.can_run(ws)  # "What next" asks for marks until `fix` can run
     imported, needed, off = import_check(m, data, set(labels))  # only the marks it counts
     if imported:
         r["imported"] = imported

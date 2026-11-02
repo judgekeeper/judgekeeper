@@ -43,3 +43,28 @@ def test_the_result_page_with_a_result_saves_it(ws):
     start_label.live_result(ws, session)
     assert set(_written(ws)) == {ws.history_jsonl.name, ws.result_json.name,
                                  ws.report_html.name}
+
+
+def test_what_next_asks_for_more_marks_until_fix_can_run(tmp_path, monkeypatch):
+    """A judge that passes every answer, 11 Pass and 1 Fail: a result, but `fix` needs more
+    marks first; the result page and report.html say so, as the terminal does."""
+    import html as html_mod
+    import re
+
+    from judgekeeper import fix
+
+    monkeypatch.chdir(tmp_path)
+    table_project(tmp_path, [True] * 120)
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    session = StartSession(ws)
+    for n, item in enumerate(session.items[:12]):
+        session.update({"id": item["id"], "label": "fail" if n == 0 else "pass", "seconds": 4})
+    assert not fix.can_run(ws)
+    page = start_label.live_result(ws, session)
+    assert ws.report_html.is_file()
+    for text in (page, ws.report_html.read_text(encoding="utf-8")):
+        words = " ".join(html_mod.unescape(re.sub(r"<[^>]+>", " ", text)).split())
+        nxt = words[words.rindex("What next"):words.rindex("(function")]
+        assert fix.NOT_ENOUGH in nxt, nxt
+        assert "judgekeeper fix" not in nxt, nxt
+        assert "judgekeeper mark" in nxt, nxt
