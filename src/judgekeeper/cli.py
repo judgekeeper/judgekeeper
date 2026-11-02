@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import signal
 import sys
 import textwrap
+import threading
 import traceback
 from pathlib import Path
 
@@ -499,10 +501,27 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     return args
 
 
+def _note_ctrl_c():
+    """Put textio.note_ctrl_c in for the run in place of Python's own Ctrl-C handler; the
+    handler it replaced, or None (not the main thread, or a handler of someone else's)."""
+    textio.ctrl_c.clear()
+    if threading.current_thread() is not threading.main_thread() or \
+            signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+        return None
+    return signal.signal(signal.SIGINT, textio.note_ctrl_c)
+
+
 def main(argv: list[str] | None = None) -> int:
     project.forget()  # a test or a long session may run many commands in one process
+    held = _note_ctrl_c()
     try:
-        code = _main(argv)
+        try:
+            code = _main(argv)
+        finally:
+            if held is not None:
+                signal.signal(signal.SIGINT, held)
+        if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
+            raise KeyboardInterrupt
     except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
         code = EXIT_OK
     except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
@@ -518,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _stopped(args_list: list[str]) -> int:
+    textio.ctrl_c.clear()  # said here: the Next: line below is the run's own
     if textio.next_said:  # the run was done: no second Next: line
         return EXIT_STOPPED
     _say("")

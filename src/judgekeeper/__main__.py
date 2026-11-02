@@ -55,7 +55,32 @@ def main(argv: list[str] | None = None) -> int:
         # classes so while modules load) leaves Python's "end by the signal" flag set, even
         # caught, and `python -m` obeys it. Running a string again clears the flag.
         exec("")  # noqa: S102 - an empty string, only to clear the flag
+        _end_now(code)
     return code
+
+
+def _end_now(code: int) -> None:
+    """After "Stopped.", end at once: a thread a library left running (a reader that a Ctrl-C
+    stopped half way) would hold Python open while it waits for it. What judgekeeper tidies at
+    exit (atexit) is done first. Only as the program itself, never inside another one."""
+    import threading
+
+    from judgekeeper import textio
+
+    if not textio._started_as_judgekeeper() or not any(
+            t.is_alive() and not t.daemon for t in threading.enumerate()
+            if t is not threading.main_thread()):
+        return
+    import atexit
+    import os
+
+    atexit._run_exitfuncs()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except (OSError, ValueError):
+            pass
+    os._exit(code)
 
 
 def _stopped() -> int:

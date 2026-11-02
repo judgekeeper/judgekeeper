@@ -772,14 +772,16 @@ __TOP__
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
     if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
-    finish();
+    finish(changing);
   }
 
   // Nothing left to mark: the end card in the answer card's place. Every answer marked: the
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
-  // result, to leave them out).
-  function finish(opening) {
+  // result, to leave them out). `stay`: every answer was marked already (the page opened so,
+  // or a mark was changed): the card says how to change a mark, and Z undoes as usual.
+  var changing = false;
+  function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
@@ -792,7 +794,8 @@ __TOP__
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
       }
-      if (opening) {  // opened with every answer marked: a mark can still be changed
+      if (stay) {  // a mark can still be changed; the bar links to the result
+        changing = true;
         var n = counts.correct + counts.wrong;
         setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
         setText("end-note", WORDS.change);
@@ -915,6 +918,7 @@ __TOP__
     if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
+    if (it.label) { changing = true; }  // a mark changed: the result doesn't open by itself
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push(pos);
       hear(heard); next(); focusCard(); }, heard);

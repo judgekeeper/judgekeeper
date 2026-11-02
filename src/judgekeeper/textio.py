@@ -145,20 +145,24 @@ def _started_as_judgekeeper() -> bool:
     return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
 
 
-def command_path(path: str) -> str:
+def command_path(path: str, climb: bool = True) -> str:
     """`path` as a program to run from this folder (or run_from's), quoted: relative when the
     two share a folder below the top and the home folder's parents (shares_below_home), with
     a folder in it so the shell never looks it up on the PATH; else under the home folder as
     `~/...`: never the user name; else, or on another drive, the path as it is. From
     ANYWHERE: never relative. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it):
     the shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path
-    as it is; else from here, quoted (else the path as it is)."""
+    as it is; else from here, quoted (else the path as it is). Without `climb`, never a
+    path from here that climbs with `..` (a python run so warns, Python 3.14 with the home
+    path in it)."""
     try:
         here = os.getcwd() if _from is None else _from
         shown = os.path.relpath(path, here) if here != ANYWHERE else None
         shared = os.path.commonpath([here, path]) if here != ANYWHERE else os.sep
     except (OSError, ValueError):
         shown = shared = None
+    if not climb and shown is not None and shown.replace("\\", "/").split("/")[0] == os.pardir:
+        shown = None
     if shown is not None and os.sep not in shown and "/" not in shown:
         shown = os.path.join(os.curdir, shown)
     if is_windows():  # never %USERPROFILE%: PowerShell doesn't read it
@@ -169,7 +173,7 @@ def command_path(path: str) -> str:
         return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
     if shared is None:
         return quote_arg(path)
-    if shares_below_home(shared):  # more than the top in common: from here
+    if shown is not None and shares_below_home(shared):  # more than the top in common
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
@@ -238,7 +242,7 @@ def off_path(any_start: bool = False) -> str | None:
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
-    python = f"{command_path(sys.executable)} -P -m judgekeeper"
+    python = f"{command_path(sys.executable, climb=False)} -P -m judgekeeper"
     if script:
         shown = command_path(os.path.abspath(typed))
         if is_windows() and not in_both_shells(shown) and in_both_shells(python):
@@ -493,10 +497,25 @@ last_read: str | None = None  # the name of the last file read_utf8 read, for an
 next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
 
 
+ctrl_c: list[bool] = []  # holds True once this run noted a Ctrl-C (note_ctrl_c)
+
+
+def note_ctrl_c(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first (cli.main puts it in for the run):
+    a library that swallows the KeyboardInterrupt (raised inside its import, Python says
+    "Exception ignored" and goes on) can't make the run carry on to its Next: line."""
+    ctrl_c.append(True)
+    raise KeyboardInterrupt
+
+
 def said_next(text: str) -> None:
-    """Note a line about to be printed: a Next: line ends what the command says."""
+    """Note a line about to be printed: a Next: line ends what the command says. After a
+    Ctrl-C a library swallowed, the run stops instead, before that line (cli._stopped)."""
     global next_said
     if text.startswith("Next:"):
+        if ctrl_c and not next_said:
+            ctrl_c.clear()
+            raise KeyboardInterrupt
         next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
 PROGRESS_EVERY = 5  # seconds between those lines

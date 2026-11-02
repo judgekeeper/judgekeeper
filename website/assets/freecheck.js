@@ -560,6 +560,24 @@
     var t = v.trim().toLowerCase();
     return /[0-9\/:]/.test(t) || namedFor(t, MODEL_WORDS);
   }
+  // mapper.model_name: in a column named for the model, one word (acme, judge-model-x) or a value
+  // that reads as a model's name; never a grade, a number or a rule's name (string_match)
+  var RULE_NAME_WORDS = ['keyword', 'keywords', 'regex', 'exact', 'contains', 'match', 'string'];
+  function modelName(v) {
+    if (!isStr(v) || !v.trim() || verdictValue(v)) return false;
+    var t = v.trim();
+    if (/^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/.test(t) || namedFor(t, RULE_NAME_WORDS)) return false;
+    return /^[A-Za-z0-9][A-Za-z0-9._:\/@-]*$/.test(t) || modelLike(t);
+  }
+  // start.model_column: judge_model, else model (with a value), and whether it names a model
+  function modelColumn(rows, columns) {
+    var col = ['judge_model', 'model'].find(function (c) {
+      return columns.indexOf(c) >= 0 && rows.some(function (row) { return !blank(row[c]); });
+    });
+    if (!col) return { col: null, named: false };
+    var seen = rows.filter(function (row) { return !blank(row[col]); });
+    return { col: col, named: seen.every(function (row) { return modelName(row[col]); }) };
+  }
   // start._models_named: every value in the column (empty ones aside) names a model, none a grade
   function modelsNamed(rows, col) {
     var seen = rows.filter(function (row) { return !blank(row[col]); });
@@ -580,12 +598,15 @@
   }
 
   // Python's csv reader (excel dialect, not strict): quotes only at the start of a field
-  function parseCsv(text, d) {
-    var rows = [], row = [], field = '', state = 'record', i = 0, c;
+  // `starts`, when given, gets the line each row starts on (as Python's csv reader counts lines)
+  function parseCsv(text, d, starts) {
+    var rows = [], row = [], field = '', state = 'record', i = 0, c, line = 1;
     function save() { row.push(field); field = ''; }
     function end() { rows.push(row); row = []; state = 'record'; if (c === '\r' && text[i] === '\n') i++; }
     while (i < text.length) {
       c = text[i++];
+      if (state === 'record' && starts) starts.push(line);
+      if (c === '\r' || (c === '\n' && text[i - 2] !== '\r')) line++;
       if (state === 'record') {
         if (c === '\n' || c === '\r') { end(); continue; }  // an empty line: []
         state = 'field';
@@ -659,6 +680,18 @@
       start = k + 1;
     }
   }
+  // table.wide_row: the line a row starts on that has more cells with text than its header has
+  // columns (a stray quote that a later quote closes reads two rows as one), or null
+  var WIDE = 'has more cells than its header: a quote may be closed in the wrong place.';
+  function wideRow(text, d) {
+    var starts = [], rows = parseCsv(text, d, starts);
+    if (!rows.length) return null;
+    var n = rows[0].length;
+    for (var r = 1; r < rows.length; r++) {
+      if (rows[r].slice(n).some(function (cell) { return cell.trim(); })) return starts[r];
+    }
+    return null;
+  }
   // table._rows_inside: how many lines of a cell read as a whole row, with a grade at `verdict`
   function rowsInside(cell, d, columns, verdict) {
     return cell.split('\n').filter(function (line) {
@@ -715,9 +748,9 @@
     }
     var human = HUMAN_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
     var judged = [], nHuman = 0;
+    var mc = modelColumn(rows, columns);  // "string_match": a rule's name, not a model's
     rows.forEach(function (row) {
-      var model = !blank(row.model) ? row.model : row.judge_model;
-      if (!modelLike(model)) model = null;  // "string_match": a rule's name, not a model's
+      var model = mc.named && !blank(row[mc.col]) ? row[mc.col] : null;
       verdicts.forEach(function (verdict) {
         judged.push({
           name: verdict, input: row.input === undefined ? null : row.input, output: row.output === undefined ? null : row.output,
@@ -730,7 +763,7 @@
     });
     // front.read_rows: which columns were read (never the rows); the grade from the judge's own
     var headVerdict = VERDICT_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
-    var modelCol = ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; });
+    var modelCol = mc.named ? ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; }) : null;
     var labelCol = HUMAN_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
     var readRows = {};
     verdicts.forEach(function (verdict) {
@@ -742,7 +775,7 @@
       readRows[verdict] = said;
     });
     return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, perMetric: {},
-      scoreJudge: false, order: verdicts, readRows: readRows };
+      scoreJudge: false, order: verdicts, readRows: readRows, modelRefused: mc.col && !mc.named ? mc.col : null };
   }
   // mapper.guess by the columns' names: a file with one question, one answer and one grade
   // column under another common name (question, answer, grade) is read as the tool reads it,
@@ -1116,11 +1149,15 @@
       if (isTable(header)) {
         var open = openQuote(fileText, d);
         if (open !== null) return fail('open-quote', 'Line ' + open + " of this file has a quote that never closes, so the rows after it can't be read.");
+        var wide = wideRow(fileText, d);
+        if (wide !== null) return fail('wide-row', 'Line ' + wide + ' of this file ' + WIDE);
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
       if (/^\s*[\[{]/.test(fileText)) return fail('not-json', NOT_JSON);
       if (header.length >= 2 && openQuote(fileText, d) === null) {
+        var wide2 = wideRow(fileText, d);
+        if (wide2 !== null) return fail('wide-row', 'Line ' + wide2 + ' of this file ' + WIDE);
         var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
         if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
         return fail('not-recognised', NOT_COLUMNS(t2.header));
@@ -1216,6 +1253,7 @@
       merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
       human: r.nHuman, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
+      modelRefused: r.modelRefused || null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
       scores: scores,
@@ -1255,6 +1293,7 @@
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
     var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
     L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });
+    if (j.modelRefused && !j.models.length) L.push({ k: pad, text: 'The ' + j.modelRefused + " column holds no model's name.", tone: 'dim' });
     if (!j.rule) {
       L.push({ k: 'Rule:            ', text: 'not in your results' });
     } else if (j.rule.length <= RULE_SHOWN) {

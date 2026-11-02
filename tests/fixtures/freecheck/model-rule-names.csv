@@ -1,0 +1,13 @@
+input,output,verdict,model
+Question 0?,Answer 0.,fail,string_match
+Question 1?,Answer 1.,pass,string_match
+Question 2?,Answer 2.,fail,string_match
+Question 3?,Answer 3.,pass,string_match
+Question 4?,Answer 4.,fail,string_match
+Question 5?,Answer 5.,pass,string_match
+Question 6?,Answer 6.,fail,checks+judge
+Question 7?,Answer 7.,pass,checks+judge
+Question 8?,Answer 8.,fail,checks+judge
+Question 9?,Answer 9.,pass,checks+judge
+Question 10?,Answer 10.,fail,checks+judge
+Question 11?,Answer 11.,pass,checks+judge

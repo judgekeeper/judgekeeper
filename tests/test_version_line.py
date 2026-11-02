@@ -77,7 +77,7 @@ def test_a_python_that_cannot_import_it_is_never_named(monkeypatch, plain_env, t
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
     monkeypatch.chdir(tmp_path)
     line = _version(monkeypatch, Terminal(), which=None)[1]
-    assert line == f"Next: run {textio.command_path(sys.executable)} -P -m judgekeeper"
+    assert line == f"Next: run {textio.command_path(sys.executable, climb=False)} -P -m judgekeeper"
 
 
 def test_a_relative_judgekeeper_off_the_path_is_named_as_typed(monkeypatch, plain_env, tmp_path):

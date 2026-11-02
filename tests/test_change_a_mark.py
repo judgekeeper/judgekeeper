@@ -65,3 +65,50 @@ def test_every_answer_marked_mark_opens_the_list_and_a_changed_mark_counts(
     assert _result(ws)["disagreements"] == 1
     assert "Change a mark</a>: click it in the list and mark it again." in page
     main(["--stop"])
+
+
+CHANGE_NO_BROWSER = "To change a mark, click it in the list."  # under the link printed
+CHANGE_ON_RESULT = 'To change a mark, open the page and click "Change a mark".'
+
+
+def _all_marked(here, disagree: int = 0):
+    promptfoo_project(here, split(20, 16))
+    assert main(["mark", "--port", "0"]) == 0
+    main(["--stop"])
+    ws = start_label.Workspace(here)
+    _click(ws)  # every answer, as the LLM-as-a-judge did; then `disagree` turned
+    session = start_label.StartSession(ws)
+    turned = []  # as many Pass marks turned as Fail ones: each kind keeps enough for a result
+    for kind in ("pass", "fail"):
+        turned += [i for i in session.items if i["label"] == kind][:disagree // 2]
+    for item in turned:
+        other = "fail" if item["label"] == "pass" else "pass"
+        session.update({"id": item["id"], "label": other, "seconds": 7})
+    return ws
+
+
+def test_mark_with_no_browser_and_every_answer_marked_says_how_to_change_one(
+        here, capsys, pages, no_browser):
+    _all_marked(here)
+    capsys.readouterr()
+    code = main(["mark", "--port", "0", "--no-browser"])
+    out = capsys.readouterr().out
+    main(["--stop"])
+    assert code == 0, out
+    assert CHANGE_NO_BROWSER in " ".join(out.split()), out
+
+
+@pytest.mark.parametrize("flags", [[], ["--no-browser"]])
+def test_mark_at_the_result_page_says_how_to_change_a_mark(here, capsys, pages, no_browser,
+                                                           flags):
+    """With disagreements to say why on, `mark` opens the result page: it says how to change
+    a mark there too, with a browser or without."""
+    _all_marked(here, disagree=2)
+    capsys.readouterr()
+    code = main(["mark", "--port", "0", *flags])
+    out = capsys.readouterr().out
+    main(["--stop"])
+    assert code == 0, out
+    flat = " ".join(out.split())
+    assert "Say why on the answers" in flat, out
+    assert CHANGE_ON_RESULT in flat, out

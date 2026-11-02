@@ -379,6 +379,7 @@ class RecordList(list):
         self.left_out: list = []
         self.unit = unit
         self.source: str | None = None
+        self.model_refused: str | None = None  # a model column that names no model
 
 
 # One damaged row ------------------------------------------------------------------------

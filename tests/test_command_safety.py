@@ -609,3 +609,42 @@ def test_result_json_names_the_program_plainly_after_a_run_from_another_folder(s
         if kept.is_file():
             data = kept.read_text(encoding="utf-8", errors="replace")
             assert "venv" not in data and str(tmp_path) not in data, kept.name
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_python_path_never_climbs_with_dot_dot(monkeypatch, tmp_path):
+    """Python 3.14 warns, with the whole home path, when its own path climbs with `..`
+    (sys.prefix then differs): a printed `python -P -m judgekeeper` names its python from
+    the home folder (`~/...`) or as it is, never `../...`; a path below here stays."""
+    home = tmp_path / "home"
+    (home / "work" / "p" / "t0").mkdir(parents=True)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    monkeypatch.setattr(sys, "executable", str(home / "kit" / ".venv314" / "bin" / "python"))
+    monkeypatch.chdir(home / "work" / "p" / "t0")
+    assert textio.program("mark") == "~/kit/.venv314/bin/python -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", str(home / "work" / "p" / "t0" / ".venv" / "bin"
+                                               / "python"))
+    assert textio.program("mark") == ".venv/bin/python -P -m judgekeeper mark"  # below here
+    outside = tmp_path / "opt" / "py" / "bin" / "python"
+    monkeypatch.setattr(sys, "executable", str(outside))
+    monkeypatch.chdir(home / "work")  # outside home, and above here: as it is
+    assert textio.program("mark") == f"{outside} -P -m judgekeeper mark"
+
+
+def test_a_python_path_never_climbs_on_windows_either(monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "a" / "b")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "venv" / "Scripts" / "python.exe"))
+    shown = textio.program("mark")
+    assert ".." not in shown and shown.endswith(" -P -m judgekeeper mark"), shown

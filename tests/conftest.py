@@ -18,6 +18,15 @@ def no_browser(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_ctrl_c_left():
+    """A Ctrl-C a test noted (textio.ctrl_c) never stops a later test's run."""
+    yield
+    from judgekeeper import textio
+
+    textio.ctrl_c.clear()
+
+
+@pytest.fixture(autouse=True)
 def repo_stays_clean():
     """No test leaves judgekeeper's own files in the repo it runs from."""
     root = Path(__file__).parent.parent

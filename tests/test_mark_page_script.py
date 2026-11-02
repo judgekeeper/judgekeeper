@@ -297,7 +297,8 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
 
 def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
     """`mark` with every answer marked: the page opens on a card that says how to change a
-    mark, not on the result; a mark changed from the list then opens the result."""
+    mark, not on the result; a mark changed from the list keeps that card (the bar links to
+    the result), so Z can undo it."""
     data = _data(3)
     for item in data["items"]:
         item["label"] = "pass"
@@ -309,14 +310,23 @@ def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
       var link = new El("a"); link.setAttribute("data-k", "2");
       ids["queue"].fire("click", {target: link}); await settle();
       var picked = ids["ans-status"].textContent;
+      counts.correct = 2;  // the server's counts: the 3 marks, one of them now changed
       key("ArrowLeft"); await settle(); later(500);
-      console.log(JSON.stringify({opened: opened, picked: picked, sent: sent.map(function (s) {
-        return [s.body.id, s.body.label]; }), href: window.location.href}));""", data=data)
-    assert got == {"opened": {"end": False, "title": "You have marked all 3 answers.",
-                              "note": "To change a mark, click it in the list.", "shown": True,
-                              "href": ""},
-                   "picked": "Marked Pass", "sent": [["a2", "fail"]],
-                   "href": "/result?token=t0k"}
+      var changed = {end: ids["end"].hidden, title: ids["end-title"].textContent,
+        note: ids["end-note"].textContent, href: window.location.href};
+      key("z"); await settle(); later(500);
+      var undone = {card: ids["answer-card"].hidden, status: ids["ans-status"].textContent};
+      key("ArrowRight"); await settle(); later(500);
+      console.log(JSON.stringify({opened: opened, picked: picked, changed: changed,
+        undone: undone, sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
+        end: ids["end"].hidden, href: window.location.href}));""", data=data)
+    marked_all = {"end": False, "title": "You have marked all 3 answers.",
+                  "note": "To change a mark, click it in the list."}
+    assert got == {"opened": {**marked_all, "shown": True, "href": ""},
+                   "picked": "Marked Pass", "changed": {**marked_all, "href": ""},
+                   "undone": {"card": False, "status": ""},
+                   "sent": [["a2", "fail"], ["a2", None], ["a2", "pass"]],
+                   "end": False, "href": ""}
 
 
 def test_end_card_with_no_result_says_what_comes_next():

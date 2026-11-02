@@ -135,6 +135,7 @@ MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
 CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
+CHANGE_ON_RESULT = 'To change a mark, open the page and click "Change a mark".'  # its link
 IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
 # --no-browser opened none, so "in your browser" could be false
 CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
@@ -1413,7 +1414,10 @@ def found_block(found: start.Found, pass_if: str | None = None,
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
         lines.append(INDENT + repeats_note(answers, pool))
-    lines += [f"LLM-as-a-judge:  {_judge_value(found)}", *_rule_lines(found)]
+    lines.append(f"LLM-as-a-judge:  {_judge_value(found)}")
+    if found.model_refused and not found.models:  # so the column is not shown as read
+        lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
+    lines += _rule_lines(found)
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
@@ -1460,6 +1464,8 @@ def read_rows(found: start.Found, pass_if: str | None = None,
         rows = [("question", "the input column"), ("answer", "the output column"),
                 ("grade", grade)]
         model = next((c for c in ("judge_model", "model") if c in columns), None)
+        if not found.models or found.model_source:  # the column was not what was read
+            model = None
         labels = next((c for c in start.HUMAN_COLUMNS if c in columns), None)
         for what, column in (("reason", "reason" if "reason" in columns else None),
                              ("model", model),
@@ -1948,8 +1954,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
-            if _kept(talk, opened, shown, SAY_WHY) is None:
-                talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            why = f"{SAY_WHY} {CHANGE_ON_RESULT}"
+            if _kept(talk, opened, shown, why) is None:
+                talk.para(f"{RESULT_OPEN} {why}" if shown == page.BROWSER else why)
         else:
             opened, shown = _open(talk, ws, wait, saved)
             if _kept(talk, opened, shown, CHANGE_MARK) is None:

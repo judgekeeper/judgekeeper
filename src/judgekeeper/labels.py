@@ -224,6 +224,8 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
 
 NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
          "human_label).")
+NEEDS_ANSWER = "{file} needs an answer column ({answers})."  # it has a label column
+NEEDS_LABEL = "{file} needs a label column (label or human_label)."  # it has an answer column
 
 
 def _or(words) -> str:
@@ -252,7 +254,7 @@ def read_file(path: Path, label_map: dict | None = None,
     (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
     word."""
     from judgekeeper import find
-    from judgekeeper.table import TableError, open_quote, read_kept
+    from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
@@ -263,6 +265,10 @@ def read_file(path: Path, label_map: dict | None = None,
         if line is not None:
             raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
                                "then run judgekeeper again.")])
+        line = wide_row(path)
+        if line is not None:  # the second row's answer and label would be lost
+            raise LabelsStop([(f"{name} {MORE_CELLS} (line {line}): a quote may be closed in the "
+                               "wrong place. Fix it, then run judgekeeper again.")])
         rows = read_kept(path, _used)  # every row (the size question guards), its cells
         # used only: a big notes column is never held
     except TableError as e:
@@ -272,9 +278,10 @@ def read_file(path: Path, label_map: dict | None = None,
     columns = list(dict.fromkeys(c for row in rows for c in row))
     _twice(path, columns, _plain(command))
     out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
-    if out_col is None or label_col is None:
-        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))
-                          + _has(path)])
+    if out_col is None or label_col is None:  # only what is missing is asked for
+        needs = (NEEDS if out_col is None and label_col is None
+                 else NEEDS_ANSWER if out_col is None else NEEDS_LABEL)
+        raise LabelsStop([needs.format(file=name, answers=_or(ANSWER_NAMES)) + _has(path)])
     in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)

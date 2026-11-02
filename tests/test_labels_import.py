@@ -419,8 +419,19 @@ def test_a_file_without_the_columns_is_refused(here, capsys):
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
     assert ("mine.csv needs an answer column (output, outputs, answer, answers, response, "
-            "responses, completion, reply or generation) and a label column (label or "
-            "human_label). It has: text, label.") in flat(out)
+            "responses, completion, reply or generation). It has: text, label.") in flat(out)
+    _nothing_written(Workspace(here))
+
+
+def test_a_file_with_an_answer_column_is_asked_only_for_the_label_column(here, capsys):
+    table(here)
+    write_labels(here / "gold.csv", [{"question": question(0), "response": answer(0),
+                                      "judge_passed": "true", "gold": "pass"}])
+    code, out = run(capsys, "--labels", "gold.csv")
+    assert code == 3
+    assert ("gold.csv needs a label column (label or human_label). It has: question, "
+            "response, judge_passed, gold.") in flat(out), out
+    assert "answer column" not in out
     _nothing_written(Workspace(here))
 
 
