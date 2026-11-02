@@ -70,3 +70,21 @@ def test_a_project_given_from_another_folder_is_the_project(given, home, tmp_pat
         assert sorted(os.listdir(cwd)) == before, (cwd, out)  # nothing new where it ran
         assert "You marked 10 answers so far" in " ".join(out.split()), (cwd, out)
         assert USER not in out, (cwd, out)
+
+
+def test_the_file_line_for_a_project_given_from_the_top_folder_names_no_user(
+        home, monkeypatch, capsys):
+    """The first run, from `/`, of a project holding its results: File: is named as
+    shown_folder names a folder (`~/...`), never Users/<name>/..."""
+    from judgekeeper import textio
+
+    proj = home / "Desktop" / "proj"
+    proj.mkdir()
+    _write(proj / "results.csv", [_row(i, 5) for i in range(60)], COLUMNS)
+    monkeypatch.chdir(Path(proj.anchor))
+    code, out = _run(capsys, proj, *PAGE)
+    background.stop(proj / ".judgekeeper")
+    assert code == 0, out
+    file = next(line for line in out.splitlines() if line.startswith("File:"))
+    assert file.split(None, 1)[1] == textio._home_shown("Desktop/proj/results.csv"), file
+    assert USER not in out, out

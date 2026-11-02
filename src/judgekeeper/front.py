@@ -1193,8 +1193,9 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    inside = Path(newest.path).resolve().is_relative_to(Path(found.root).resolve())
-    shown = link(newest.path, newest.rel if inside else shown_from_here(newest.path))
+    root = Path(found.root).resolve()
+    here = Path(newest.path).resolve().is_relative_to(root) and Path.cwd().resolve() == root
+    shown = link(newest.path, newest.rel if here else shown_from_here(newest.path))  # from here
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:

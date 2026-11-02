@@ -45,7 +45,7 @@ def test_two_deepeval_folders_are_asked_about_not_merged(two_apps, capsys):
 def test_the_folder_named_is_read_alone_in_its_own_project(two_apps, capsys):
     code, out, _ = run(capsys, "app1/.deepeval")
     assert "Eval tool:       DeepEval" in out and "Answers:         20 answers" in out
-    assert "File:            .deepeval/.latest_run_full.json" in out
+    assert "File:            app1/.deepeval/.latest_run_full.json" in out  # from here
     assert (two_apps / "app1" / ".judgekeeper" / "judge.json").is_file()
     assert not (two_apps / "app1" / ".deepeval" / ".judgekeeper").exists()
     assert code == 3  # 20 answers: fewer than a first result needs
