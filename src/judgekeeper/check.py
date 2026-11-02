@@ -103,7 +103,7 @@ NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your resul
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
-ONE_RUN = "One run, so a small change may be chance."
+ONE_RUN = "One run, so a small change may be a coincidence."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by "
            "the same text, word for word, and the same question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "
@@ -798,12 +798,38 @@ def written_from_lines(ws: Workspace) -> list[str]:
                     judge_setup.hash_of(x.get("after") or {})) == pair)
     data = ws.data()
     m = marks.read(ws.marks)
-    marked = {i: v for i, v in m.counted().items() if v in ("pass", "fail")}
+    every = {i: v for i, v in m.counted().items() if v in ("pass", "fail")}
+    marked = batches.graded(data, every)  # never a mark on an answer it has not graded
     tested = {q["id"]: q["group"] for q in data.get("queue") or [] if q["id"] in marked}
     fresh = {i: marked[i] for i in tested
              if str((m.last.get(i) or {}).get("at") or "") > since}
     picked, pool = batches.strata(data)
-    return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool, every=every_marked(ws))]
+    return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool,
+                                        every=every_marked(ws) and len(marked) == len(every))]
+
+
+# Marks on answers the judge now has never graded (batches.graded) ----------------------------
+
+WAIT = "{k} of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet."
+WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then run `{command}`."
+WAIT_COUNT = "To count them, " + WAIT_NEXT
+
+
+def wait_command(ws: Workspace) -> str:
+    """The `check` that counts the marks that wait: on the new results file (record()'s new
+    file, as `fix` names it); on the store for MLflow (it reads the newest run)."""
+    from judgekeeper import fix
+
+    tool, command = ws.data().get("tool"), program("check")
+    if tool == "records":
+        return f"{command} {fix.NEW_RECORDS}"
+    store = fix.mlflow_store(ws) if tool == "mlflow" else None
+    return f"{command} {store or fix.NEW_RESULTS}"
+
+
+def wait_lines(ws: Workspace, k: int) -> list[str]:
+    """What the marking page says while `k` marks wait: WAIT, then how to count them."""
+    return [WAIT.format(k=k), WAIT_COUNT.format(command=wait_command(ws))] if k else []
 
 
 def outcome(g: dict) -> str | None:

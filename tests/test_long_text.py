@@ -276,7 +276,7 @@ def test_the_opened_question_fades_while_there_is_more_below():
 CONTEXT = ("Context:\n" + "Pets in the cabin cost $125 each way. " * 30
            + "\n\nA missing bag must be reported within 24 hours.\n\n"
            + "Question: How long do I have to report a missing bag?")
-HIDDEN = "hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
+HIDDEN = "kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
 
 
 HEAD_TAIL = """

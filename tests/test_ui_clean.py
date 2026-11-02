@@ -19,7 +19,7 @@ from tests.test_product_pages import (
     _text,
 )
 
-KEPT = " hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
+KEPT = " kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
 
 
 def _page(result=NOT_GATE_TNR, mistakes=(1, 0), live=False, **fixing) -> str:
@@ -75,7 +75,7 @@ def test_the_kept_aside_count_is_under_its_own_group():
     easy, strict = _part(html, 'id="g-easy"'), _part(html, 'id="g-strict"')
     assert '<p class="kept">15 more are' + KEPT + "</p>" in easy
     assert '<p class="kept">1 more is' + KEPT + "</p>" in strict
-    assert easy.index("hidden on purpose") < easy.index("<table")
+    assert easy.index("kept aside on purpose") < easy.index("<table")
     assert "*" not in _text(html) and "a new rule fairly" not in html
 
 

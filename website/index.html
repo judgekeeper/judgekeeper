@@ -176,7 +176,7 @@ You and your LLM-as-a-judge disagreed on 16 of 37 answers.
 
 Tell judgekeeper why you disagree on these 8: run
 `judgekeeper mark`.
-8 more are hidden on purpose, so a new rule can be tested on
+8 more are kept aside on purpose, so a new rule can be tested on
 answers you haven't looked at again.
 `judgekeeper fix` uses your reasons to find where your
 LLM-as-a-judge goes wrong.
@@ -184,8 +184,9 @@ LLM-as-a-judge goes wrong.
 How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 63% (between 52% and 70%)
   When you say Fail, it also says Fail: about 49% (between 38% and 66%)
-The result line uses wider ranges than these, so a lucky streak
-can't decide it. You can look after every mark.
+The result line uses wider ranges than these, so a few marks
+that agree by coincidence can't decide it. You can look at the
+result after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
@@ -272,7 +273,7 @@ On answers you pass, agreement drops by about 30 in every 100
 On answers you fail, no drop, though these marks can't rule out
 one of up to 19 in every 100.
 
-One run, so a small change may be chance.
+One run, so a small change may be a coincidence.
 
 Next: go back to your old LLM-as-a-judge, or try another change
 and run `judgekeeper check` again.</template>
