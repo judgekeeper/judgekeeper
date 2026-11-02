@@ -830,8 +830,8 @@ def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
 def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
     """Marks on answers the new LLM-as-a-judge never graded count for nothing in the bar; the
     line under it says how many wait and how to count them, with the command as code."""
-    line = ("20 of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet. "
-            "To count them, grade all your answers with your new LLM-as-a-judge, then run "
+    line = ("20 of your marks wait: your new LLM-as-a-judge has no Pass or Fail grade on those "
+            "answers yet. To count them, grade all your answers with your new LLM-as-a-judge, then run "
             "`judgekeeper check <new results file>`.")
     counts = {"correct": 15, "wrong": 15, "skipped": 0, "toward": {"correct": 15, "wrong": 0}}
     got = _run("""

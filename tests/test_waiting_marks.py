@@ -238,3 +238,9 @@ def test_a_plain_run_back_on_the_first_judge_counts_every_mark(adopted):
     assert "waiting" not in r and "earlier_grades" not in ws.data()
     assert r["labels"]["correct"] + r["labels"]["wrong"] == N
     assert r["disagreements"] == len(WRONG)  # the first judge's own mistakes, all counted
+
+
+def test_the_wait_line_says_there_is_no_pass_or_fail_grade_yet():
+    """An answer the new results hold with an error has a grade, but no Pass or Fail one."""
+    assert check.WAIT.format(k=5) == ("5 of your marks wait: your new LLM-as-a-judge has no "
+                                      "Pass or Fail grade on those answers yet.")

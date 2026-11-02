@@ -810,7 +810,8 @@ def written_from_lines(ws: Workspace) -> list[str]:
 
 # Marks on answers the judge now has never graded (batches.graded) ----------------------------
 
-WAIT = "{k} of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet."
+WAIT = ("{k} of your marks wait: your new LLM-as-a-judge has no Pass or Fail grade on those "
+        "answers yet.")
 WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
 
