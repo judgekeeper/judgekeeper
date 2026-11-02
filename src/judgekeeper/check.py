@@ -1892,7 +1892,7 @@ def full(path: str, said: Said) -> int:
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
         said.say(RESULT_NOW.format(verdict=_verdict_words(after)))
-        if after.get("written_from"):
+        if after.get("written_from") and fresh is None:  # else said with the numbers above
             said.say(WRITTEN_FROM)
         said.say()
     if then is None and level in ("check", "too_early"):  # nothing to do is not so
