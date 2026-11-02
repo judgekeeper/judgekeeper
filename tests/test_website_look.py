@@ -913,7 +913,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "breaks 5 in 100 right answers needs about 160 (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, .judgekeeper/fix/regrade.yaml), "
+             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
+             ".judgekeeper/fix/regrade.yaml), "
              "then run:"),
             ("judgekeeper finds the answers you marked in your new results by the same text, "
              "word for word, and the same question, compares the new grades with your marks, and tells you if your "

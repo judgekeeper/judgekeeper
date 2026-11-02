@@ -2,10 +2,11 @@
 
 A first result needs ROUGH marks of each kind, and FIRST_GROUP marks in each of the
 LLM-as-a-judge's groups (or every answer of a smaller one): a count fixed in advance, so an
-early result is not just a lucky one where the judge passes most answers. The verdict follows the ranges, never a number
-alone (level), and is given the wider verdict ranges (weighted.VERDICT_LEVEL), since the person
-can look after every mark. No rule shows or hides a number by its range's width: a narrow
-early range is often a lucky one.
+early result is not just a few marks that agree by coincidence when the LLM-as-a-judge passes
+most answers. The verdict follows the ranges, never a number alone (level), and is given the
+wider verdict ranges (weighted.VERDICT_LEVEL), since the person can look at the result after
+every mark. No rule shows or hides a number by its range's width: a narrow early range is
+often a coincidence.
 
 `paired_verdict` compares the old and new LLM-as-a-judge on the same marks with Tango's score
 range for a paired difference (90%), which works with zero cells too; the worst drop the marks

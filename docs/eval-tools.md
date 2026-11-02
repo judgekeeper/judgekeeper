@@ -13,7 +13,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 judgekeeper never runs your eval tool and never asks your LLM-as-a-judge itself. To test a new rule, `judgekeeper fix` writes every answer you marked in `.judgekeeper/fix/marked-answers.csv`, with two columns, `question` and `answer`. You grade those answers again with your new rule in your eval tool, keeping your LLM-as-a-judge's name the same, save the results, and run `judgekeeper fix <new results file>`. Each tool's part below says how. `fix` and `check` read the new results with the choices you made at the start (`--metric`, `--experiment`), so you don't give them again.
 
-To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by the same text, word for word, and the same question, and running your eval again usually makes new answers, which it can't compare.
+To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by their exact text and question. Running your eval again usually makes new answers, which it can't compare.
 
 ## How failed calls are spotted
 
@@ -37,12 +37,12 @@ judgekeeper
 
 Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`. When results are only in promptfoo's database, it prints how to save them: `promptfoo eval -o promptfoo-results.json`, or `promptfoo list evals` and `promptfoo export eval <id> -o promptfoo-results.json`. It runs neither. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` shows is the assertion's `value`, unless it differs per test. An assertion's `threshold` is its pass mark: `check` notices when it changes, and `fix` may test a better one. The question is the test's vars; a test with no vars (questions written in `prompts:`) is asked by its prompt. Ids are the test's `description` when each is unique, else a hash of its vars.
 
-To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.csv` as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
+To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.yaml` (the same answers, exactly as marked) as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
 
 ```yaml
 prompts: ['{{answer}}']
 providers: [echo]
-tests: file://.judgekeeper/fix/marked-answers.csv
+tests: file://marked-answers.yaml
 defaultTest:
   options:
     provider: <your grader model>  # your grader and its config, as before
@@ -52,11 +52,13 @@ defaultTest:
       value: Your new rule. The question was {{question}}.
 ```
 
+Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and run promptfoo from your project folder.
+
 Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
 
 For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
 
-The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json`, then `judgekeeper fix new.json`.
+The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json` (from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`.
 
 **Traps.**
 
