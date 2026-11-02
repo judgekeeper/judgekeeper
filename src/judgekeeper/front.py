@@ -1272,8 +1272,10 @@ def _read_from(found: start.Found) -> str:
     newest = found.results[0]
     if found.tool == "mlflow":
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
-    if found.tool == "records":
-        return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
+    if found.tool == "records":  # from here, as every other path line (textio.shown_in)
+        shown = textio.shown_in(newest.path, found.root)
+        folder = Path(shown).parent.as_posix()
+        return f"{shown if folder == '.' else folder + '/'}, {_n(len(found.used), 'file')}"
     shown = _newest(found)
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
@@ -1890,7 +1892,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
-                               say=talk.say)
+                               say=talk.para)
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
