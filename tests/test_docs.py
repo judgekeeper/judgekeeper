@@ -341,3 +341,12 @@ def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
             "`judgekeeper fix <new results file>`.") in step
     assert "With few marks, \"can't tell yet\" is a normal answer." in step
     assert "Result: can't tell yet." in fix.RESULT["same"]
+
+
+def test_the_readme_says_marking_every_answer_leaves_no_range():
+    """With every answer of a group marked its share is known (the reference's maths)."""
+    numbers = _flat(_sections(_readme())["The numbers"])
+    assert ('TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" '
+            "(when you mark every answer, the numbers are exact and have no range).") in numbers
+    reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
+    assert "With every answer of a group marked, its share is known, so it has no range." in reference
