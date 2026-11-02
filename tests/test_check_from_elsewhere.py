@@ -240,3 +240,20 @@ def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, m
     assert code == 3 and "To check them, run `" in out, out
     for line in _commands(out[out.index("To check them"):]):
         assert _program_in(line, proj, home) == tool, (line, out)
+
+
+@pytest.mark.parametrize(("given", "said"), [
+    ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
+     "There is no file named missing.csv in ../c2-new/."),
+    ("sub/missing.csv", "There is no file named missing.csv in sub/."),
+    ("missing.csv", "There is no file or folder named missing.csv here."),
+    ("../c9", "There is no file or folder named c9 in the folder above."),
+])
+@pytest.mark.parametrize("command", ["check", "fix"])
+def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch, capsys, given,
+                                                              said, command):
+    proj = home / "Desktop" / "Testing Judge" / "c2"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    code, out = _run(capsys, command, given.format(home=home))
+    assert code != 0 and said in out and USER not in out, out

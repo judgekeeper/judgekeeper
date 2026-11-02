@@ -1062,6 +1062,25 @@ def given_results(path: str) -> bool:
     return Path(path).is_file() or find.is_mlflow_folder(Path(path))
 
 
+def no_such(path: str) -> str:
+    """Nothing at the PATH given: by its name, in the folder it was looked for in, as a line
+    names a path (shown_from_here, folder_words), else "here". A name with an extension is a
+    file."""
+    from judgekeeper.textio import folder_words, shown_from_here
+
+    given = Path(path)
+    name = given.name or path
+    what = "file" if given.suffix else "file or folder"
+    if not given.name or str(given.parent) in ("", "."):
+        return f"There is no file or folder named {name} here."
+    shown = shown_from_here(given.parent)
+    folder = folder_words(shown)
+    if folder == shown:  # a folder's name: with its separator, as the other lines end it
+        sep = "\\" if "\\" in shown else "/"
+        folder = shown.rstrip("/\\") + sep
+    return f"There is no {what} named {name} in {folder}."
+
+
 def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
@@ -1074,11 +1093,11 @@ def path_problem(path: str) -> str | None:
     given = Path(path)
     name = given.name or path
     if not given.exists():
-        return f"There is no file or folder named {name} here."
+        return no_such(path)
     try:
         kind = file_kind(given.stat().st_mode)
     except OSError:
-        return f"There is no file or folder named {name} here."
+        return no_such(path)
     if kind == "folder" and store_above(given.resolve()) not in (None, given.resolve()):
         return (f"{name} is a folder inside your project, not a results file or your project "
                 "folder.")
@@ -1094,7 +1113,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
 
     given = Path(path)
     if not given.exists():
-        said.say(f"There is no file or folder named {given.name or path} here.")
+        said.say(no_such(path))
         said.say()
         said.say(f"Next: run `{program_in(ANYWHERE, 'check')}` in your project folder.")
         return EXIT_USAGE
