@@ -711,8 +711,9 @@ __TOP__
     var marked = counts.correct + counts.wrong;
     var looked = marked + (counts.skipped || 0);
     // the bar follows how close the result is: Pass and Fail marks, each up to ROUGH
-    var share = status.first ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
-      Math.min(counts.wrong, ROUGH)) / (2 * ROUGH), 0.9);
+    var toward = counts.toward || counts;  // a mark that waits counts for nothing
+    var share = status.first ? 1 : Math.min((Math.min(toward.correct, ROUGH) +
+      Math.min(toward.wrong, ROUGH)) / (2 * ROUGH), 0.9);
     var bar = $("progress"), on = Math.round(share * SEGMENTS);
     Array.prototype.forEach.call(bar.children, function (cell, i) {
       cell.classList.toggle("on", i < on); });
@@ -725,6 +726,8 @@ __TOP__
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
     keep.hidden = status.ready || (!status.first && looked < FIRST);
     keep.textContent = status.first ? WORDS.first : WORDS.wait;
+    $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
+    if (status.waiting) { setLine("waiting", status.waiting); }
   }
 
   function render() {
@@ -1040,7 +1043,8 @@ def _progress() -> str:
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
             f'<a class="see" id="see" href="#" hidden>{escape(SEE_READY)}</a></div>'
-            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
+            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p>'
+            '<p class="keep" id="waiting" hidden></p></div>')
 
 
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
