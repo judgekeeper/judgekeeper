@@ -1073,7 +1073,7 @@ def no_such(path: str) -> str:
     name = given.name or path
     what = "file" if given.suffix else "file or folder"
     if not given.name or str(given.parent) in ("", "."):
-        return f"There is no file or folder named {name} here."
+        return f"There is no {what} named {name} here."
     shown = shown_from_here(given.parent)
     folder = folder_words(shown)
     if folder == shown:  # a folder's name: with its separator, as the other lines end it

@@ -488,8 +488,8 @@ def _odd_path(root, kind: str) -> str:
 @pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="no named pipes")
 @pytest.mark.parametrize("command", ["fix", "check"])
 @pytest.mark.parametrize("kind, said", [
-    ("missing", "There is no file or folder named new.csv here."),
-    ("dangling link", "There is no file or folder named new.csv here."),
+    ("missing", "There is no file named new.csv here."),
+    ("dangling link", "There is no file named new.csv here."),
     ("named pipe", "new.csv isn't a regular file: it is a named pipe."),
     ("device", "null isn't a regular file: it is a special file."),
     ("folder", ("new is a folder inside your project, not a results file or your project "

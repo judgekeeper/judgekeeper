@@ -246,7 +246,8 @@ def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, m
     ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
      "There is no file named missing.csv in ../c2-new/."),
     ("sub/missing.csv", "There is no file named missing.csv in sub/."),
-    ("missing.csv", "There is no file or folder named missing.csv here."),
+    ("missing.csv", "There is no file named missing.csv here."),
+    ("missing", "There is no file or folder named missing here."),
     ("../c9", "There is no file or folder named c9 in the folder above."),
 ])
 @pytest.mark.parametrize("command", ["check", "fix"])
