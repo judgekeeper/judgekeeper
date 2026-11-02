@@ -1496,10 +1496,11 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
         saved.get("numbers_version") == NUMBERS_VERSION else None
 
 
-def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
+def recompute_old(ws: Workspace, worse: str | None = None, flags: dict | None = None) -> bool:
     """When result.json was worked out another way (NUMBERS_VERSION): the result made again
     from start.json and the marks, with no AI call, the old one copied to history/. Whether it
-    was. A result that can't be made again is left as it was saved."""
+    was. A result that can't be made again is left as it was saved. `flags`: those of the run
+    that makes it again (start.run_flags), kept in it; else the old result's."""
     try:
         saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1508,7 +1509,8 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
             saved.get("numbers_version") == NUMBERS_VERSION:
         return False
     try:
-        store_result(ws, StartSession(ws), saved.get("flags"), worse=worse)
+        store_result(ws, StartSession(ws), saved.get("flags") if flags is None else flags,
+                     worse=worse)
     except (OSError, ValueError, KeyError, TypeError, marks.MarksError):
         return False
     return True

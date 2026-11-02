@@ -1748,8 +1748,10 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
             if not ws.start.is_file():
                 start_label.prepare(found, say=lambda line: None)
+    # first: repair would make it again too, with the old run's flags and without a word
+    again = start_label.recompute_old(ws, flags=_flags_of(talk, saved, ws))  # this run's
     start_label.repair(ws)  # a result whose saving was stopped half way
-    head = [start_label.WORKED_OUT_AGAIN] if start_label.recompute_old(ws) else []
+    head = [start_label.WORKED_OUT_AGAIN] if again else []
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on

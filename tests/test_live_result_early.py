@@ -68,3 +68,27 @@ def test_what_next_asks_for_more_marks_until_fix_can_run(tmp_path, monkeypatch):
         assert fix.NOT_ENOUGH in nxt, nxt
         assert "judgekeeper fix" not in nxt, nxt
         assert "judgekeeper mark" in nxt, nxt
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_numbers_worked_out_again_keep_this_runs_flags(ws, capsys, stale):
+    """A result.json from an older way of working out the numbers: made again, with the
+    command of the run that made it again, never the old run's port."""
+    import json
+    import os
+
+    from judgekeeper.cli import main
+
+    _mark(ws, 36)
+    assert main(["--no-browser", "--port", "9763"]) == 0
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    saved["numbers_version"] = 0
+    ws.result_json.write_text(json.dumps(saved), encoding="utf-8")
+    at = ws.result_json.stat().st_mtime_ns - (10 ** 9 if stale else 0)  # stale: drawn before
+    os.utime(ws.report_html, ns=(at, at))
+    capsys.readouterr()
+    assert main(["--no-browser", "--port", "9596"]) == 0
+    assert start_label.WORKED_OUT_AGAIN in " ".join(capsys.readouterr().out.split())
+    again = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert again["numbers_version"] == start_label.NUMBERS_VERSION
+    assert "9596" in again["command"] and "9763" not in again["command"], again["command"]
