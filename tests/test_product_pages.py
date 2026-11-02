@@ -642,10 +642,11 @@ def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
                                           r["kappa_interval"])
     text = _text(main)
-    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} {plo:.0%} and "
-            f"{phi:.0%}") in text
-    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} {flo:.0%} and "
-            f"{fhi:.0%}") in text
+    share = report_page.share  # an end is never 100% or 0% unless it is exactly that
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
+            f"{share(plo)} and {share(phi)}") in text
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+            f"{share(flo)} and {share(fhi)}") in text
     assert "Kappa" not in text and "When you say" not in _text(part)
     text = _text(part)
     kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
@@ -686,9 +687,9 @@ def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements(
     text = _text(part)
     share = report_page.share  # never 100% for a value under 1
     assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {share(r['tpr'])} "
-            f"{plo:.0%} and {phi:.0%}") in text
+            f"{share(plo)} and {share(phi)}") in text
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {share(r['tnr'])} "
-            f"{flo:.0%} and {fhi:.0%}") in text
+            f"{share(flo)} and {share(fhi)}") in text
     assert "too early to tell" not in text
     assert 'class="group' in html and 'class="next' not in html
     assert '<p class="note wider">' in html

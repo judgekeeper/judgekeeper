@@ -76,6 +76,16 @@ def test_an_estimate_is_never_rounded_to_100_or_0(value, interval, shown, betwee
     assert report_page.estimate(value, interval) == (shown, between)
 
 
+@pytest.mark.parametrize(("value", "interval", "between"), [
+    (0.996, [0.986, 0.9996], "99% and 99.96%"),
+    (0.999, [0.995, 0.99995], "99.5% and over 99.99%"),
+    (0.004, [0.0004, 0.014], "0.04% and 1%"),
+    (0.5, [0.00004, 0.9], "under 0.01% and 90%"),
+])
+def test_a_range_end_is_never_rounded_to_100_or_0(value, interval, between):
+    assert report_page.estimate(value, interval)[1] == between
+
+
 def test_the_terminal_range_uses_the_same_decimals_as_the_page():
     """Never "about 99% (between 99% and 99%)" in the terminal."""
     assert side_sentence("tnr", 0.99251, [0.99122, 0.99292]) == (

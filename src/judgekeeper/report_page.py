@@ -1111,17 +1111,17 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
     to the same percent are shown with one decimal, then two, and so is the value, so it
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
-    with two decimals too are no range to show: "about 99.3% (almost exact)". The value is
-    never shown as 100% or 0% unless it is exactly that (share)."""
+    with two decimals too are no range to show: "about 99.3% (almost exact)". Neither the
+    value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
+    99.96%"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{share(value)} ({why or EVERY_MARKED})", "–"
     for places in range(3):
-        ends = f"{lo:.{places}%}", f"{hi:.{places}%}"
-        if ends[0] != ends[1]:
-            return _about(share(value, places)), " and ".join(ends)
+        if f"{lo:.{places}%}" != f"{hi:.{places}%}":
+            return _about(share(value, places)), f"{share(lo, places)} and {share(hi, places)}"
     return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
 
 
