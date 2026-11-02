@@ -761,10 +761,10 @@ def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, s
 
 
 def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
-                 pool: dict[str, int], every: bool = False) -> list[str]:
+                 pool: dict[str, int], every: bool = False, more: bool | None = None) -> list[str]:
     """The new judge on the marks made after the change: none yet, how many so far, or (with
     AFTER_NUMBERS of each) its numbers with their ranges. `every`: every answer is marked, so
-    none is left to mark."""
+    none is left to mark; `more`: a mark would count (default: not `every`)."""
     from judgekeeper.report_page import why_no_range
     from judgekeeper.start_label import side_sentence
 
@@ -772,7 +772,8 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
     if min(n_pass, n_fail) < AFTER_NUMBERS:
         said = f"{len(fresh)} so far" if fresh else "none" if every else "none yet"
-        return [AFTER_NONE.format(said=said) + ("" if every else AFTER_MORE)]
+        return [AFTER_NONE.format(said=said) + (AFTER_MORE if (not every if more is None
+                                                               else more) else "")]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general_strata(items, pool)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
@@ -804,8 +805,11 @@ def written_from_lines(ws: Workspace) -> list[str]:
     fresh = {i: marked[i] for i in tested
              if str((m.last.get(i) or {}).get("at") or "") > since}
     picked, pool = batches.strata(data)
+    never = set(data.get("earlier_grades") or ())  # a mark there only waits
+    more = any(q["id"] not in every and q["id"] not in never for q in data.get("queue") or [])
     return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool,
-                                        every=every_marked(ws) and len(marked) == len(every))]
+                                        every=every_marked(ws) and len(marked) == len(every),
+                                        more=more)]
 
 
 # Marks on answers the judge now has never graded (batches.graded) ----------------------------

@@ -724,7 +724,7 @@ __TOP__
     var see = $("see"), keep = $("keep");
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
-    keep.hidden = status.ready || (!status.first && looked < FIRST);
+    keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST);
     keep.textContent = status.first ? WORDS.first : WORDS.wait;
     $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
     if (status.waiting) { setLine("waiting", status.waiting); }

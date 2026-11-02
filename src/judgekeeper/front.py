@@ -1376,7 +1376,8 @@ def _import_gate(ws: Workspace, session: StartSession) -> str | None:
         return None
     data = ws.data()
     ids = set(batches.counted_labels(data, batches.graded(data, session.marked())))
-    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
+    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids,
+                                                   markable=True)
     return labels_mod.gate_line(needed, imported)
 
 
@@ -2063,7 +2064,7 @@ def verdict_line(r: dict) -> str | None:
     if r["verdict_level"] is None:
         return None
     verdict = r["verdict"]
-    if start_label.all_labeled(r):  # nothing left to mark
+    if start_label.all_labeled(r) or r.get("only_wait"):  # nothing left to mark that counts
         verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
     return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 

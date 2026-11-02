@@ -645,11 +645,14 @@ def status_of(r: dict) -> dict:
             "headline": r["verdict"] if ready else None}
 
 
-def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
+def import_check(m: marks.Marks, data: dict, ids: set,
+                 markable: bool = False) -> tuple[dict | None, int, dict | None]:
     """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
     verdict still needs to check them (labels.still_needed: from the answers left in the
     batches the result is on), and the group where they don't
-    look like the page marks (labels.looks_off): (None, 0, None) without any."""
+    look like the page marks (labels.looks_off): (None, 0, None) without any. An answer whose
+    mark waits (batches.graded) is still left, so the check holds while marks wait;
+    `markable`: only the answers a page mark can count on now (the gate line's number)."""
     from judgekeeper import labels as labels_mod
 
     imported = marks.imported(m, ids=ids)
@@ -658,9 +661,16 @@ def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
-    batch = batches.of(data)  # left to mark: only in the batches the result is on
+    batch = batches.of(data)  # left: only in the batches the result is on
     on = set(batches.counting(data, {i: counted[i] for i in ids if i in counted}))
-    left = {g: sum(q["group"] == g and q["id"] not in counted and batch.get(q["id"], 1) in on
+    never = set(data.get("earlier_grades") or ())  # not graded by the LLM-as-a-judge now
+
+    def left_in(q: dict) -> bool:
+        if markable:
+            return q["id"] not in counted and q["id"] not in never
+        return q["id"] not in counted or q["id"] in never
+
+    left = {g: sum(q["group"] == g and batch.get(q["id"], 1) in on and left_in(q)
                    for q in data["queue"]) for g in ("pass", "fail")}
     needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
     return imported, needed, labels_mod.looks_off(counts)
@@ -695,6 +705,12 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     wait = check.wait_lines(ws, len(session.marked()) - len(graded))
     if wait:  # said once, in the status area: else the result never moves, with no word why
         status["waiting"] = " ".join(wait)
+        never = set(data.get("earlier_grades") or ())
+        if not any(not i["label"] and i["id"] not in never for i in session.items):
+            status["only_wait"] = True  # no mark can move the result: the wait line is the step
+            if not status["ready"]:
+                status.pop("done", None)
+                status["text"] = EARLY
     return status
 
 
@@ -1510,8 +1526,12 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if imported:
         r["imported"] = imported
     if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
-        r.update(import_gate=needed, verdict_level="too_early")
+        shown = import_check(m, data, set(labels), markable=True)[1] if k else needed
+        r.update(import_gate=shown, verdict_level="too_early")  # 0: no page mark counts now
         r["verdict"] = _verdict(r)
+    never = set(data.get("earlier_grades") or ())
+    if k and not any(not i["label"] and i["id"] not in never for i in session.items):
+        r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
         r["imports_off"] = off
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],

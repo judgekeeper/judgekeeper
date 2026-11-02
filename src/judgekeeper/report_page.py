@@ -658,6 +658,8 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
+    elif r.get("only_wait"):  # no mark counts now: the wait line below says the step
+        then = ""
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
