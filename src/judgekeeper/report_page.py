@@ -655,8 +655,11 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
     gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
     gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
+    written = "".join(f'<p class="lead">{_term(x.strip())}</p>'  # as `check` said it
+                      for x in r.get("written_from") or [])
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-            f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
+            f'class="{cls}">{_term(headline)}</h1>{written}{gate}<p class="lead">{lead}</p>'
+            "</section>")
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'

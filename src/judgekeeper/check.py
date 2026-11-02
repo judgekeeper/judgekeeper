@@ -729,6 +729,32 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
               for k in ("tpr", "tnr"))]
 
 
+def written_from_lines(ws: Workspace) -> list[str]:
+    """What `check` says under its result after it took on a rule (or pass mark) `fix` tested
+    on these marks: WRITTEN_FROM, then the new judge on the marks made since (_after_lines),
+    worked out from the marks as they are now. [] when the judge now is not one such check
+    took on. The result page, report.html and Measure say it under the verdict."""
+    saved = judge_setup.read(ws)
+    now = saved.get("setup_hash") if isinstance(saved, dict) else None
+    checks = _history(ws)
+    took = [x for x in checks if x.get("from_fix") and isinstance(x.get("after"), dict)
+            and judge_setup.hash_of(x["after"]) == now]
+    if now is None or not took:
+        return []
+    pair = (judge_setup.hash_of(took[-1].get("before") or {}), now)
+    since = min(str(x.get("time") or "") for x in checks
+                if (judge_setup.hash_of(x.get("before") or {}),
+                    judge_setup.hash_of(x.get("after") or {})) == pair)
+    data = ws.data()
+    m = marks.read(ws.marks)
+    marked = {i: v for i, v in m.counted().items() if v in ("pass", "fail")}
+    tested = {q["id"]: q["group"] for q in data.get("queue") or [] if q["id"] in marked}
+    fresh = {i: marked[i] for i in tested
+             if str((m.last.get(i) or {}).get("at") or "") > since}
+    picked, pool = batches.strata(data)
+    return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool, every=every_marked(ws))]
+
+
 def outcome(g: dict) -> str | None:
     """The check's one result from the groups' verdicts: worse if either group is, else not
     sure if either is, else no drop bigger than NO_DROP; None when no group could be tested."""

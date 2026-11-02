@@ -2083,6 +2083,11 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
+    for line in r.get("written_from") or []:  # as check says it, and the page under its headline
+        if line.startswith("  "):
+            talk.para(line[2:], indent="  ")
+        else:
+            talk.para(line)
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)

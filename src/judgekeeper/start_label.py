@@ -1466,6 +1466,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     from judgekeeper import check
 
     r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
+    written = check.written_from_lines(ws)  # a rule check took on was written from these marks
+    if written:
+        r["written_from"] = written
     return r
 
 
