@@ -138,6 +138,9 @@ NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LL
 NEXT_SAME_FILE = ("Next: nothing to do. After you change your LLM-as-a-judge again, run "
                   "`{command}`.")
 NEW_RESULTS = "<new results file>"
+# After a check took on the new judge and the overall result changed (start_label.VERDICTS)
+RESULT_NOW = "Your result is now: {verdict}"
+NEXT_EARLY = "the result after this change is too early to tell. Mark more answers with `{mark}`."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
@@ -1766,20 +1769,20 @@ def full(path: str, said: Said) -> int:
         said.say(line)
     if picks_lines(picked):
         said.say()
+    then: str | None = None  # the Next line, said once the result is made again below
     if worse:
-        said.say("Next: " + worse_step(old, new, _next_change(state), state.ws))
+        then = "Next: " + worse_step(old, new, _next_change(state), state.ws)
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
-        said.say("Next: " + regrade_marked(state, every=True))
+        then = "Next: " + regrade_marked(state, every=True)
     elif picked["ask"]:
         need = PICK_MARKS - picked["new_marks"]
-        said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=_here(state.ws, "mark"), n=need, command=_command(state)), need=need))
+        then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
+            mark=_here(state.ws, "mark"), n=need, command=_command(state)), need=need)
     elif unsure:
-        said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
-            mark=_here(state.ws, "mark"), command=_command(state))))
-    else:
-        said.say(_next_same(state))
+        then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
+            mark=_here(state.ws, "mark"), command=_command(state)))
+    before = _saved_result(state.ws)
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
     new_rates = _new_rates(state.marks, tested, *_picks(state)) if worse else None
@@ -1807,7 +1810,36 @@ def full(path: str, said: Said) -> int:
             if worse else None)
     if not given_results(path):
         _covered(state.ws)
+    after = _saved_result(state.ws) if not held else None
+    level = (after or {}).get("verdict_level")
+    if after and level and level != (before or {}).get("verdict_level"):
+        said.say(RESULT_NOW.format(verdict=_verdict_words(after)))
+        if after.get("written_from"):
+            said.say(WRITTEN_FROM)
+        said.say()
+    if then is None and level in ("check", "too_early"):  # nothing to do is not so
+        then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=_here(state.ws, "mark")))
+    said.say(then or _next_same(state))
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
+
+
+def _saved_result(ws: Workspace) -> dict | None:
+    """result.json as saved, or None."""
+    try:
+        saved = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return saved if isinstance(saved, dict) else None
+
+
+def _verdict_words(r: dict) -> str:
+    """The result's verdict as one line goes on with it: "too early to tell.", "your
+    LLM-as-a-judge needs work." (the Next line says how to mark more)."""
+    from judgekeeper.start_label import MARK_MORE, VERDICTS
+
+    words = str(r.get("verdict") or VERDICTS.get(r.get("verdict_level")) or "")
+    words = words.replace(f" {MARK_MORE}", "")
+    return words[:1].lower() + words[1:]
 
 
 def _read_line(state: State, path: str, now: Now | None) -> str | None:
