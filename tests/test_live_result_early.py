@@ -45,6 +45,20 @@ def test_the_result_page_with_a_result_saves_it(ws):
                                  ws.report_html.name}
 
 
+def test_the_result_page_after_a_mark_taken_back_saves_no_result(ws):
+    """A saved result, then a mark taken back below it: /result writes the saved result
+    again with no result, as the terminal does, so no file keeps the old one."""
+    import json
+
+    session = _mark(ws, 36)
+    start_label.live_result(ws, session)
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["check"] != "too_few"
+    session.update({"id": next(iter(session.marked())), "label": None, "seconds": 1})
+    start_label.live_result(ws, session)
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["check"] == "too_few"
+    assert start_label.VERDICTS[None] in ws.report_html.read_text(encoding="utf-8")
+
+
 def test_what_next_asks_for_more_marks_until_fix_can_run(tmp_path, monkeypatch):
     """A judge that passes every answer, 11 Pass and 1 Fail: a result, but `fix` needs more
     marks first; the result page and report.html say so, as the terminal does."""

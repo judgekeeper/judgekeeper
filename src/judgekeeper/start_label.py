@@ -1352,8 +1352,10 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     with the reason boxes. `flags`: start.run_flags of the run that opened the page.
     While .judgekeeper/ can't be written, the result from the marks, not saved, and no
     disagreement listed: the hidden marks can't be set aside first. Before there is a result,
-    nothing is written: the page shows the numbers so far."""
-    ready = has_result(batches.counted_strata(ws.data(), session.marked()))
+    nothing is written, as in the terminal: the page shows the numbers so far. A saved result
+    is written again (a mark taken back since), so no file keeps the old one."""
+    ready = (has_result(batches.counted_strata(ws.data(), session.marked()))
+             or ws.result_json.is_file())
     try:
         r = store_result(ws, session, flags) if ready else _made(ws, session, flags)
     except OSError:
