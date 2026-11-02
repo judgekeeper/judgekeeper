@@ -258,9 +258,18 @@ class FrontTalk(start.Talk):
         for n, question in enumerate(self.noted, 1):
             for i, line in enumerate(wrap(question, indent="     ")):
                 self.say(f"  {n}. {line.lstrip()}" if i == 0 else line)
-        yes, again = f"`{self.command('--yes')}`", f"`{self.command()}`"
+        keep = self.labels_flags()  # the answer reads the same labels
+        yes, again = f"`{self.command(*keep, '--yes')}`", f"`{self.command(*keep)}`"
         raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
                                        f"yes{'' if one else ' to all'}.")
+
+    def labels_flags(self) -> tuple[str, ...]:
+        """--labels as it was given, for a command that answers a question about this run."""
+        if self.labels is None:
+            return ()
+        if self.labels == labels_mod.IN_RESULTS:
+            return ("--labels",)
+        return ("--labels", start.path_word(self.labels))
 
     def say(self, text: str = "") -> None:
         if text:  # Find says something: under its step label

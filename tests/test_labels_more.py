@@ -74,3 +74,35 @@ def test_two_columns_for_the_same_thing_stop_before_anything_is_written(here, ca
     command = text[text.index("Keep one, then run: ") + len("Keep one, then run: "):]
     assert "--labels mine.csv" in command, command
     _nothing_written(Workspace(here))
+
+
+# Starting over with --labels -------------------------------------------------------------------
+
+@pytest.mark.parametrize("given", ["new labels.csv", "in results"])
+def test_the_start_over_question_keeps_the_labels_flag(here, capsys, given):
+    import shlex
+
+    from judgekeeper.cli import main
+    from tests.test_front import next_lines
+    from tests.test_labels_import import labelled
+
+    table(here, extra={"human_label": ["pass"] * 20 + ["fail"] * 20})
+    write_labels(here / "old.csv", labelled(range(40)))
+    assert main(["--labels", "old.csv", "--no-browser", "--port", "0"]) == 0
+    capsys.readouterr()
+    write_labels(here / "new labels.csv", labelled(range(20, 40)))
+    flags = ["--labels", "new labels.csv"] if given != "in results" else ["--labels"]
+    code = main(["--new", *flags, "--no-browser", "--port", "9522"])
+    out = capsys.readouterr().out
+    assert code == 3, out
+    (nxt,) = next_lines(out)
+    again, yes = nxt.split("`")[1::2]
+    for command in (again, yes):
+        words = shlex.split(command)[1:]
+        assert words[words.index("--labels"):][:len(flags)] == flags, command
+        assert "--new" in words and "--no-browser" in words and "9522" in words, command
+    assert yes.endswith("--yes")
+    code = main(shlex.split(yes)[1:])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "Added " in out, out
