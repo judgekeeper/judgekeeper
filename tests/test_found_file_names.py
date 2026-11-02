@@ -5,12 +5,17 @@ folder."""
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
+
+import pytest
 
 from tests.test_project_folder_commands import USER, home
 from tests.test_top_folder import _run, _written, top
 
 __all__ = ["home", "top"]  # the fixtures, used by name
+pytestmark = pytest.mark.skipif(sys.platform == "win32",
+                                reason="home is %USERPROFILE% there, and ~ is a shell's word")
 
 
 def test_a_found_file_is_named_as_the_file_line_names_it(top, home, monkeypatch, capsys):
