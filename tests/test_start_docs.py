@@ -68,3 +68,16 @@ def test_the_reference_names_both_links_the_page_shows():
             "result.")
     for doc in (REFERENCE, ROOT / "README.md"):
         assert line in " ".join(doc.read_text(encoding="utf-8").split()), doc.name
+
+
+UV_PIP = "(in a uv virtual environment, `uv pip install judgekeeper`)"
+
+
+def test_the_install_lines_name_uv_pip_for_a_uv_virtual_environment():
+    """A uv virtual environment has no pip of its own: `uv pip install` puts judgekeeper in it."""
+    assert UV_PIP in _sections(README)["Install"]
+    from tests.website_pages import WEBSITE, parse
+
+    (install,) = [e for e in parse(WEBSITE / "start.html").iter()
+                  if e.attrs.get("id") == "install"]
+    assert UV_PIP.replace("`", "") in " ".join(install.text().split())

@@ -47,15 +47,14 @@ def _width(interval) -> float | None:
     return interval[1] - interval[0]
 
 
-def _points(width: float) -> float:
-    """A width rounded to a hundredth of a point, so 0.4 worked out in floating point is 40."""
-    return round(width * 100, 2)
+NO_WIDTH = 1e-9  # a width under this is float noise: the range has no width
 
 
 def width_word(interval) -> str | None:
-    """"exact" for a range of no width; else None (also when it is unknown)."""
+    """"exact" for a range of no width; else None (also when it is unknown). Only for what is
+    shown: a range a few thousandths of a point wide is still a range."""
     width = _width(interval)
-    return "exact" if width is not None and _points(width) <= 0 else None
+    return "exact" if width is not None and abs(width) < NO_WIDTH else None
 
 
 def side(interval) -> str | None:

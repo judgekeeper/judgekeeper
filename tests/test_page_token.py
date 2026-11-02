@@ -266,7 +266,10 @@ def test_a_page_started_again_keeps_the_token_and_the_printed_stamp(here, capsys
     monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
     code, out, _ = _run(capsys, "--tool", "promptfoo", "--port", "0")  # another command
     assert code == 0, out
-    assert page.STARTS_AGAIN in out
+    assert page.STARTS_AGAIN in " ".join(out.split()), out
+    from judgekeeper.textio import WIDTH
+
+    assert all(len(line) <= WIDTH for line in out.splitlines() if "marking page starts" in line)
     assert opened == [first]  # the same link
     assert label.read_lock(ws.dir)["pid"] != old_pid  # a new page
     assert _mark(base, token, start_label.StartSession(ws).items[0]["id"]) == 200
