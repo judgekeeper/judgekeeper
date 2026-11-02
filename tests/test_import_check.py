@@ -21,7 +21,7 @@ from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer
 from tests.test_labels_import import flat, here, run, table, write_labels  # noqa: F401
 
-GATE = "Mark {n} more answers on the page to check the marks from {name}."
+GATE = "Mark at least {n} more answers on the page to check the marks from {name}."
 OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers your "
        "LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of those you "
        "marked on the page. The numbers may be off.")
@@ -106,6 +106,7 @@ def test_imported_marks_alone_show_numbers_and_say_too_early(here, capsys):  # n
     assert r["verdict_level"] == "too_early" and r["import_gate"] == 30
     line = GATE.format(n=30, name="mine.csv")
     assert line in flat(out)
+    assert "Until then" not in out  # the Result line above says it is too early to tell
     assert line in _text(ws.report_html.read_text(encoding="utf-8"))
     status = start_label.start_status(StartSession(ws))
     assert status["first"] and not status["ready"]  # the marking page: no "ready" either
