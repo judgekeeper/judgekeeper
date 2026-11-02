@@ -806,6 +806,15 @@ def shares_below_home(shared: str) -> bool:
         return True
 
 
+def above_projects(folder) -> bool:
+    """Whether `folder` is a top folder (_is_top) or a folder above the home folder: no
+    project's folder, and a search below it would walk into home folders."""
+    try:
+        return not shares_below_home(os.path.realpath(folder))
+    except (OSError, ValueError):
+        return False
+
+
 def _from_below_home(real: str, start) -> str | None:
     """`real` from the folder `start` (`..` allowed, `/` between folders) when they share a
     folder below the home folder's parents (shares_below_home), else None."""

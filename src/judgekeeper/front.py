@@ -71,6 +71,8 @@ VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
+GO_TO_PROJECT = ("judgekeeper reads eval results in your project folder. Go to it (`cd <your "
+                 "project folder>`), then run `{command}` there.")
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
 QUESTIONS = "judgekeeper needs your answer to {which}:"
@@ -351,6 +353,9 @@ def _started(path: Path) -> bool:
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     given = _labels_file(talk)  # a folder, an Excel file, no file: said before any search
+    if path.is_dir() and textio.above_projects(path):  # a search would walk home folders
+        talk.para(GO_TO_PROJECT.format(command=program()))
+        return EXIT_NEEDS_YOU
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
