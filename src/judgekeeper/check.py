@@ -594,16 +594,22 @@ def _command(state_or_path) -> str:
                      *([] if str(path) == "." else [runnable(str(path), labels=False)])))
 
 
+def _new_file(state: State) -> bool:
+    """Whether the next change comes in a new results file: a results file was given, not
+    an MLflow store (mlruns/, mlflow.db), which takes the next run itself."""
+    return given_results(state.path) and state.data.get("tool") != "mlflow"
+
+
 def _next_change(state: State) -> str:
-    """`check` for the next change: the same folder, or new results for a given file."""
-    if given_results(state.path):
+    """`check` for the next change: the same folder or store, or a new results file."""
+    if _new_file(state):
         return f"{program('check')} {NEW_RESULTS}"
     return _command(state)
 
 
 def _next_same(state: State) -> str:
     """The Next line when nothing is to do until the LLM-as-a-judge changes again."""
-    then = NEXT_SAME_FILE if given_results(state.path) else NEXT_SAME
+    then = NEXT_SAME_FILE if _new_file(state) else NEXT_SAME
     return then.format(command=_next_change(state))
 
 
