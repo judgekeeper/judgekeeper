@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from html import escape
@@ -204,11 +205,12 @@ def test_a_venv_not_activated_says_its_program_as_typed(tmp_path):
     env = _not_on_path(project)
     done = subprocess.run([typed, "fix"], check=False, cwd=project, env=env,
                           capture_output=True, text=True, timeout=120)
-    assert f"Next: run `{typed} mark` to mark more answers." in _flat(done.stdout), (
+    shown = shlex.quote(typed)  # a folder with a space in its name is quoted
+    assert f"Next: run `{shown} mark` to mark more answers." in _flat(done.stdout), (
         done.stdout + done.stderr)
     assert not typed.startswith("/")  # from here: no home folder in it
-    again = subprocess.run([*typed.split(), "--version"], check=False, cwd=project, env=env,
-                           capture_output=True, text=True, timeout=60)
+    again = subprocess.run([*shlex.split(shown), "--version"], check=False, cwd=project,
+                           env=env, capture_output=True, text=True, timeout=60)
     assert again.returncode == 0, again.stderr
 
 
