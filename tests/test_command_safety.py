@@ -21,7 +21,7 @@ import pytest
 from judgekeeper import front, report_page, start, start_label, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, split, unwrapped
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_result_json_and_report_keep_the_value_as_data_on_windows(windows, value
     saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert saved["flags"]["metric"] == value
     assert "'" not in saved["command"] and "NAME" in saved["command"]
-    html = ws.report_html.read_text(encoding="utf-8")
+    html = unwrapped(ws.report_html.read_text(encoding="utf-8"))
     assert "--metric NAME" in html
     assert f"NAME: {escape(value)}" in " ".join(html.split())
     assert value not in html or escape(value) == value
@@ -150,9 +150,80 @@ def test_python_p_m_is_kept_in_the_next_line(tmp_path):
     done = subprocess.run([sys.executable, "-P", "-m", "judgekeeper", "fix"],
                           check=False, cwd=project,
                           env=env, capture_output=True, text=True, timeout=120)
-    python = "py" if sys.platform == "win32" else "python3"
-    assert f"Next: run `{python} -P -m judgekeeper mark` to mark more answers." in done.stdout, (
+    python = _from(project, sys.executable)  # no python3 on that PATH
+    assert f"Next: run `{python} -P -m judgekeeper mark` to mark more answers." in _flat(
+        done.stdout), done.stdout + done.stderr
+
+
+def _from(folder, path) -> str:
+    """`path` as a program run from `folder`, quoted: relative when they share a folder below
+    the top; else `~/...` under the home folder (not on Windows); else as it is."""
+    folder, path = os.path.realpath(folder), str(path)
+    try:
+        shared = os.path.commonpath([folder, path])
+    except ValueError:  # another drive
+        return textio.quote_arg(path)
+    if os.path.dirname(shared) != shared:
+        return textio.quote_arg(os.path.relpath(path, folder))
+    home = os.path.realpath(os.path.expanduser("~"))
+    if sys.platform != "win32" and path.startswith(home + os.sep):
+        return "~/" + textio.quote_arg(path[len(home) + 1:])
+    return textio.quote_arg(path)
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _not_on_path(project):
+    empty = project.parent / "empty"
+    empty.mkdir(exist_ok=True)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+    env["PATH"] = str(empty)
+    return env
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a venv's scripts are .exe files there")
+def test_a_venv_not_activated_says_its_program_as_typed(tmp_path):
+    """`venv/bin/judgekeeper fix` with the venv not activated: the Next line names the program
+    the same way, and it runs as printed."""
+    from tests.start_projects import table_project
+
+    script = os.path.join(os.path.dirname(sys.executable), "judgekeeper")
+    if not os.path.isfile(script):
+        pytest.skip("no judgekeeper script beside this Python")
+    project = tmp_path / "p"
+    table_project(project, split(20, 16))
+    typed = os.path.relpath(script, project)  # as the person typed it
+    env = _not_on_path(project)
+    done = subprocess.run([typed, "fix"], check=False, cwd=project, env=env,
+                          capture_output=True, text=True, timeout=120)
+    assert f"Next: run `{typed} mark` to mark more answers." in _flat(done.stdout), (
         done.stdout + done.stderr)
+    assert not typed.startswith("/")  # from here: no home folder in it
+    again = subprocess.run([*typed.split(), "--version"], check=False, cwd=project, env=env,
+                           capture_output=True, text=True, timeout=60)
+    assert again.returncode == 0, again.stderr
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_off_the_path_python_m_is_named_only_when_that_python_can_import_it(monkeypatch,
+                                                                            tmp_path, windows):
+    if sys.platform == "win32" and not windows:
+        pytest.skip("a Windows path can't be faked into a POSIX one")
+    monkeypatch.setattr(sys, "platform", "win32" if windows else "darwin")
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.chdir(tmp_path)
+    program = os.path.join(os.path.abspath(os.sep), "opt", "tools", "bin", "judgekeeper")
+    monkeypatch.setattr(sys, "argv", [program])  # typed in full
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: True)
+    python = "py" if windows else "python3"
+    assert textio.program("mark") == f"{python} -P -m judgekeeper mark"
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    assert textio.program("mark") == f"{program} mark"  # outside home: as it is, no quotes
+    monkeypatch.setattr(sys, "argv", [os.path.join(os.path.dirname(program), "pytest")])
+    assert textio.program("mark") == "judgekeeper mark"  # not judgekeeper's own: as before
 
 
 def test_program_names_python_p_m_only_when_started_so(monkeypatch):
@@ -161,6 +232,7 @@ def test_program_names_python_p_m_only_when_started_so(monkeypatch):
     monkeypatch.delenv("UV", raising=False)
     monkeypatch.setitem(sys.modules, "__main__",
                         SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: True)
     assert textio.program("mark") == "python3 -P -m judgekeeper mark"
     monkeypatch.setattr(sys, "platform", "win32")
     assert textio.program("--stop") == "py -P -m judgekeeper --stop"
@@ -211,3 +283,63 @@ def test_a_held_back_metric_in_the_choose_line_is_said_as_data_on_windows(window
     assert 'choose which LLM-as-a-judge to check (NAME, "plain")' in said, said
     assert "'a'&calc" not in said.replace(f"NAME: {evil}", "")
     assert f"  NAME: {evil}" in lines, lines
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_program_under_home_run_from_a_folder_outside_it_is_named_from_home(monkeypatch,
+                                                                              tmp_path):
+    """A project outside the home folder (here /tmp-like), the program inside it: `~/...`,
+    never the home folder's own path (it holds the user name)."""
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", "/Users/someone")
+    monkeypatch.chdir(tmp_path)  # shares only the top folder with /Users/someone
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/bin/judgekeeper"])
+    assert textio.program("mark") == "~/'My Tools/venv/bin/judgekeeper' mark"
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/venv/bin/judgekeeper"])
+    assert textio.program() == "~/venv/bin/judgekeeper"
+    assert "someone" not in textio.program()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
+def test_on_windows_a_program_under_home_is_named_from_userprofile(monkeypatch, tmp_path):
+    """cmd reads %USERPROFILE% inside double quotes too: the user name is never shown."""
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", "/Users/someone")  # Path.home() on this (faked) Windows
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/My Tools/venv/Scripts/judgekeeper.exe"])
+    assert textio.program("mark") == (
+        '"%USERPROFILE%\\My Tools\\venv\\Scripts\\judgekeeper.exe" mark')
+    monkeypatch.setattr(sys, "argv", ["/Users/someone/venv/Scripts/judgekeeper.exe"])
+    assert textio.program() == "%USERPROFILE%\\venv\\Scripts\\judgekeeper.exe"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_path_typed_in_home_from_a_folder_outside_it_is_repeated_from_home(monkeypatch,
+                                                                             tmp_path):
+    """A Next: line repeats a whole path from here; sharing only the top folder, a path in
+    the home folder is `~/...`, never `../../Users/<name>/...`."""
+    monkeypatch.setenv("HOME", "/Users/someone")
+    monkeypatch.chdir(tmp_path)
+    assert textio.from_here("/Users/someone/labels.csv", labels=True) == "~/labels.csv"
+    assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
+        "~/'My Labels/l.csv'")
+    assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == "~/My Labels/l.csv"
+    inside = tmp_path / "data" / "l.csv"  # sharing more than the top: from here, as before
+    assert textio.from_here(str(inside), labels=True) == "data/l.csv"
+    assert textio.from_here("/opt/data/l.csv", labels=True).endswith("opt/data/l.csv")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
+def test_on_windows_a_path_in_home_is_repeated_from_userprofile(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", "/Users/someone")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
+        '"%USERPROFILE%\\My Labels\\l.csv"')
+    assert textio.runnable("/Users/someone/labels.csv", labels=False) == (
+        "%USERPROFILE%\\labels.csv")

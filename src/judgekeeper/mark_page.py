@@ -345,6 +345,9 @@ __TOP__
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Look at them": going through the skipped answers
   var lockUntil = 0;         // clicks are ignored until then, after each mark
+  // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
+  // nobody reads an answer that fast, so it was a second press meant for the one before.
+  var FRESH_MS = 250, freshUntil = 0;
   var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
@@ -763,7 +766,7 @@ __TOP__
       window.location.reload(); return; }
     var i = nextIndex(pos + 1);
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
-    if (i !== null) { open(i); return; }
+    if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
     finish();
   }
@@ -875,8 +878,9 @@ __TOP__
   }
 
   // Each click waits LOCK_MS after the action before: a double click never marks an answer not
-  // yet on screen. A key is never ignored (`key`): one pressed while a mark is saved waits for
-  // it (act); a key held down does nothing.
+  // yet on screen. A key (`key`) is not locked: one pressed while a mark is saved waits for it
+  // (act), then does nothing within FRESH_MS of the next answer showing; a key held down does
+  // nothing.
   function locked(key) {
     var t = Date.now();
     if (t < lockUntil && !key) { return true; }
@@ -895,8 +899,10 @@ __TOP__
 
   function act(f) { if (busy) { queued.push(f); } else { f(); } }
 
+  function fresh() { return Date.now() < freshUntil; }
+
   function mark(value, key) {
-    if (ended || locked(key)) { return; }
+    if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
     send({label: value}, function () {
@@ -905,7 +911,7 @@ __TOP__
   }
 
   function skip(key) {
-    if (ended || locked(key)) { return; }
+    if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push(pos);
@@ -959,6 +965,7 @@ __TOP__
   }
   function startMarking() {
     $("intro").hidden = true; $("app").removeAttribute("inert");
+    shownAt = Date.now();  // the answer is on screen from now
     try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
@@ -981,6 +988,7 @@ __TOP__
   }
   function keepMarking() {
     $("ready").hidden = true; $("app").removeAttribute("inert");
+    shownAt = Date.now();  // the box covered the answer until now: its time starts here
     focusCard();
   }
   $("ready-keep").addEventListener("click", keepMarking);
@@ -1016,7 +1024,7 @@ def _progress() -> str:
     the link to the result (hidden until one is ready); under them, hidden until it is
     wanted, the line that says to keep going."""
     return ('<div class="progress-box" id="progress-box"><div class="status-1"><div class="seg" id="progress" '
-            'role="progressbar" aria-label="How close your result is" aria-valuemin="0" '
+            'role="progressbar" aria-label="How close your first numbers are" aria-valuemin="0" '
             'aria-valuemax="100" '
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
@@ -1078,7 +1086,7 @@ def label_page(description: str | None, command: str | None = None,
                      _text(visible(tool)) if tool else None)
     body = (BODY.replace("__TOP__", look.top(left, _progress()))
             .replace("__GRADED__", _graded(metric, rule))
-            .replace("__COMMAND__", _shown(command))
+            .replace("__COMMAND__", look.command(_shown(command)))
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
@@ -1116,5 +1124,6 @@ def old_link_page() -> str:
             + look.top("", "")
             + '<main class="old"><div class="box"><h1>This link no longer works.</h1>'
             + f"<p>{escape(OLD_LINK)}</p>"
-            + f"<p>To open the page again, run <code>{escape(program('mark'))}</code>.</p>"
+            + f"<p>To open the page again, run <code>{look.command(escape(program('mark')))}"
+            "</code>.</p>"
             + "</div></main>\n</body>\n</html>\n")

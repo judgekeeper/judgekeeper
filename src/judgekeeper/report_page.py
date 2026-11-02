@@ -296,6 +296,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));
   padding-right: max(0px, calc((100% - 1376px) / 2 - var(--gutter))); }
 .left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
+.file { overflow-wrap: anywhere; }  /* a file name with no break in it wraps, also on a phone */
 .group { padding-top: 64px; }
 .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
 .gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
@@ -591,8 +592,13 @@ def next_step(r: dict) -> str | None:
 
 def shows_disagreements(r: dict) -> bool:
     """Whether the page lists the disagreements (and the estimates): whenever there is a
-    result, too early to tell too."""
-    return r["check"] != "too_few"
+    result, too early to tell too, from ROUGH marks of each kind (when the hidden marks are
+    set aside, fix.prepare_split: a judge of one grade has a result before that)."""
+    from judgekeeper.targets import ROUGH
+
+    labels = r.get("labels") or {}
+    return r["check"] != "too_few" and min(labels.get("correct", ROUGH),
+                                           labels.get("wrong", ROUGH)) >= ROUGH
 
 
 def _all_marked(r: dict) -> str:
@@ -606,7 +612,8 @@ def _all_marked(r: dict) -> str:
 def _code_line(text: str) -> str:
     """A next step as a sentence: its first letter in capitals, each `command` as code."""
     parts = text.split("`")
-    out = "".join(f"<code>{_e(x)}</code>" if i % 2 else _term(x) for i, x in enumerate(parts))
+    out = "".join(f"<code>{look.command(_e(x))}</code>" if i % 2 else _term(x)
+                  for i, x in enumerate(parts))
     return out[:1].upper() + out[1:]
 
 
@@ -642,12 +649,12 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
-        then = f"Run <code>{_e(commands(r)['mark'])}</code> to mark more answers."
+        then = f"Run <code>{look.command(_e(commands(r)['mark']))}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)
     from judgekeeper.labels import gate_line
 
     gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
-    gate = f'<p class="lead">{_term(gate)}</p>' if gate else ""
+    gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
 
@@ -658,6 +665,17 @@ TERM = '<span class="term">LLM-as-a-judge</span>'
 def _term(text: str) -> str:
     """`text` escaped, "LLM-as-a-judge" kept on one line wherever it is."""
     return _e(text).replace("LLM-as-a-judge", TERM)
+
+
+def _files(html: str, r: dict) -> str:
+    """`html` with each file the marks were imported from in a span that may wrap anywhere,
+    so a long name with no break in it stays on the page."""
+    names = sorted({_e(x) for x in (r.get("imported") or {}).get("from") or []
+                    if isinstance(x, str) and x}, key=len, reverse=True)
+    if not names:
+        return html
+    return re.sub("|".join(map(re.escape, names)),
+                  lambda m: f'<span class="file">{m.group(0)}</span>', html)
 
 
 def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
@@ -711,7 +729,7 @@ def _counts(r: dict, c: dict) -> str:
     off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
     thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"))
     for line in [x for x in (assumes, off) if x] + thoughts:
-        row += f'<p class="left-out band">{_term(line)}</p>'
+        row += f'<p class="left-out band">{_files(_term(line), r)}</p>'
     return row
 
 
@@ -1000,7 +1018,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     out = []
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
         return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
-                f'{_e(fix_command or "judgekeeper fix")}</code>{_e(SPLIT_UNKNOWN[1])}</p></div>')
+                f'{look.command(_e(fix_command or "judgekeeper fix"))}</code>'
+                f'{_e(SPLIT_UNKNOWN[1])}</p></div>')
     same = _same(mistakes)
     out += [f'<div class="band"><details class="same"><summary><span class="fname">{_e(k)}'
             f'</span>{SAME}</summary><p>{_e(v)}</p></details></div>' for k, v in same]
@@ -1014,8 +1033,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         if rows:
             if first and live:  # where a reason can be added; report.html says it once, below
                 out.append(f'<div class="band"><p class="add-why">{_e(WHY_OPTIONAL)} <code>'
-                           f'{_e(fix_command or "judgekeeper fix")}</code> {_e(WHY_USES)}</p>'
-                           "</div>")
+                           f'{look.command(_e(fix_command or "judgekeeper fix"))}</code> '
+                           f'{_e(WHY_USES)}</p></div>')
             first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
                               (fixing or {}).get("left_out", 0), names))
@@ -1146,13 +1165,15 @@ def _next(r: dict, back: str | None) -> str:
     out = [saved]
     if step == "fix":
         out.append("<p>Next, in your terminal, in your project folder:</p>"
-                   f'<div class="cmd"><code>{_e(commands(r)["fix"])}</code><button type="button" '
+                   f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
+                   '<button type="button" '
                    f'class="copy" data-copy aria-label="Copy the command">{COPY_ICONS}</button>'
                    "</div>")
     else:
-        out.append(f'<p>Nothing more to do. Run <code>{_e(commands(r)["check"])}</code> after '
+        out.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
+                   '</code> after '
                    f"you change your {TERM}.</p>")
-    mark = f"<code>{_e(commands(r)['mark'])}</code>"
+    mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
     more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
     if more and back is not None:
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'

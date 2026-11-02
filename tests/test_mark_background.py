@@ -6,6 +6,7 @@ and `mark --stop` closes it with no process left behind."""
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -20,7 +21,8 @@ import pytest
 
 from judgekeeper import background, label
 from tests.page_http import retried
-from tests.start_projects import promptfoo_project, split
+from tests.start_projects import promptfoo_project, split, unwrapped
+from tests.test_command_safety import _from
 
 LINK = re.compile(r"^Open this link in your browser to mark answers:\n"
                   r"(http://127\.0\.0\.1:(\d+)/\?token=([\w-]+))$", re.MULTILINE)
@@ -259,7 +261,8 @@ def test_the_page_says_python_m_when_started_that_way(project):
 
     first = py_m("mark", "--port", "0", "--no-browser")
     assert first.returncode == 0, first.stdout + first.stderr + page_log(project)
-    command = f"{'py' if os.name == 'nt' else 'python3'} -P -m judgekeeper mark"
+    python = _from(project, sys.executable)  # no python3 on that PATH
+    command = f"{python} -P -m judgekeeper mark"
     m = LINK.search(first.stdout)
     base = f"http://127.0.0.1:{m[2]}"
 
@@ -267,5 +270,7 @@ def test_the_page_says_python_m_when_started_that_way(project):
         with urllib.request.urlopen(f"{base}/?token={m[3]}", timeout=10) as r:
             return r.read().decode("utf-8")
 
-    assert command in retried(send)
+    shown = html.unescape(unwrapped(retried(send)))  # as the browser shows it: the page writes _ as &#95;
+    said = sorted(set(re.findall(r"[^<>\n]{0,60}-m judgekeeper[^<>\n]{0,30}", shown)))
+    assert command in shown, (command, said)
     assert py_m("mark", "--stop").returncode == 0

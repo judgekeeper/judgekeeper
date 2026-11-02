@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import deepeval_data, promptfoo_data, split
+from tests.start_projects import deepeval_data, promptfoo_data, split, unwrapped
 from tests.test_check import HAIKU, MODEL, TAG, _marked
 from tests.test_front import flat, next_lines
 
@@ -294,7 +294,7 @@ def test_after_worse_a_table_judge_gets_one_way_out(here, capsys):
     assert _next(out) == NEXT_WORSE_TABLE, out
     assert "re-check your changed LLM-as-a-judge" not in out
     assert _next(_check(capsys)[1]) == NEXT_WORSE_TABLE
-    report = _report(here)
+    report = unwrapped(_report(here))
     assert ('Go back to your old <span class="term">LLM-as-a-judge</span> or change its rule, '
             "run <code>judgekeeper fix"
             "</code> to write the answers you marked to .judgekeeper/fix/marked-answers.csv, "

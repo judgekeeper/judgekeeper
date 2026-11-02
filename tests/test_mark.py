@@ -233,6 +233,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     records_project(here, split(16, 16), name="helpfulness")
     records_project(here, split(16, 16), name="safety", pid=4102)
     assert run(capsys, "mark", "--metric", "helpfulness")[0] == 0
+    _click(start_label.Workspace(here), 1)  # a mark to move
     code, out, err = run(capsys, "mark", "--metric", "safety")
     assert code == 3
     assert "Your marks are for other results" in _flat(out) and "helpfulness" in out
@@ -246,6 +247,19 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     previous = [p for p in ws.dir.iterdir() if p.name.startswith("previous-")]
     assert len(previous) == 1 and (previous[0] / "marks.jsonl").is_file()
     assert "You marked" not in out and "It shows the answers one at a time." in _flat(out)
+
+
+def test_another_judge_with_no_marks_starts_over_without_asking(here, capsys, pages):
+    """Nothing marked yet: nothing to lose, so no question (and no "your marks" line)."""
+    records_project(here, split(16, 16), name="helpfulness")
+    records_project(here, split(16, 16), name="safety", pid=4102)
+    assert run(capsys, "mark", "--metric", "helpfulness")[0] == 0
+    code, out, _ = run(capsys, "mark", "--metric", "safety")
+    assert code == 0, out
+    assert START_OVER not in _flat(out) and "Your marks are for other results" not in out
+    ws = start_label.Workspace(here)
+    assert ws.data()["metric"] == "safety"
+    assert len([p for p in ws.dir.iterdir() if p.name.startswith("previous-")]) == 1
 
 
 def test_marks_from_0_2_are_never_used(here, capsys, pages):

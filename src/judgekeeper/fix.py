@@ -97,6 +97,7 @@ REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then 
                 f"`{{command}} {NEW_RESULTS}`.")
 REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
            "answers kept aside your new results lack.")
+NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
 SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
                "change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
@@ -512,6 +513,15 @@ def save_split(ws: Workspace, split: Split) -> None:
     make_private(path.parent)
     d = split.to_json()
     write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
+
+
+def can_run(ws: Workspace) -> bool:
+    """Whether `fix` has the marks it needs (Marks.enough): until then it says NOT_ENOUGH. A
+    file it can't read is said by `fix` itself."""
+    try:
+        return Marks(ws).enough()
+    except (OSError, ValueError, KeyError):
+        return True
 
 
 def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
@@ -1105,7 +1115,7 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.next(f"run your eval once from this folder, then run `{program()}`.")
         return EXIT_NEEDS_YOU
     if split is None:
-        talk.para("You have not marked enough answers yet to fix your LLM-as-a-judge.")
+        talk.para(NOT_ENOUGH)
         step = f"run `{program('mark')}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU

@@ -32,7 +32,7 @@ from judgekeeper import (
 from judgekeeper.cli import main
 from judgekeeper.project import move_to_previous
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import promptfoo_data
+from tests.start_projects import promptfoo_data, unwrapped
 from tests.test_fix import TAG, N, _outputs, project
 from tests.test_fix import run as run_fix
 from tests.test_front import assert_one_next_at_the_end
@@ -1078,7 +1078,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     flat = " ".join(out.split())
     assert f"{tell} {uses}" in flat and flat.index("You failed") < flat.index(tell)
     assert out.count("Tell judgekeeper why") == 1
-    report = _report(ws)
+    report = unwrapped(_report(ws))
     assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
     assert "uses your reasons" not in report  # report.html: the one line only
     assert report.index('id="g-easy"') < report.index("Tell judgekeeper")
