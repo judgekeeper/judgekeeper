@@ -57,7 +57,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    shown_from_here,
     shown_path,
     wrap,
 )
@@ -71,6 +70,8 @@ VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
+GO_TO_PROJECT = ("judgekeeper reads eval results in your project folder. Go to it (`cd <your "
+                 "project folder>`), then run `{command}` there.")
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
 QUESTIONS = "judgekeeper needs your answer to {which}:"
@@ -361,6 +362,9 @@ def _started(path: Path) -> bool:
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     given = _labels_file(talk)  # a folder, an Excel file, no file: said before any search
+    if path.is_dir() and textio.above_projects(path):  # a search would walk home folders
+        talk.para(GO_TO_PROJECT.format(command=program()))
+        return EXIT_NEEDS_YOU
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
@@ -1250,9 +1254,7 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    root = Path(found.root).resolve()
-    here = Path(newest.path).resolve().is_relative_to(root) and Path.cwd().resolve() == root
-    shown = link(newest.path, newest.rel if here else shown_from_here(newest.path))  # from here
+    shown = link(newest.path, textio.shown_in(newest.path, found.root))  # from here
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
@@ -1597,7 +1599,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
     if mapped is None and not talk.answers:
         return None
     if mapped is not None:
-        new, question = mapped, SAVE_MAP.format(file=mapped.file)
+        new, question = mapped, SAVE_MAP.format(  # named as File: names it
+            file=textio.shown_in(Path(found.root) / mapped.file, found.root))
     else:
         try:
             new = settings.load(found.root) or settings.StartSettings(source=found.tool)
@@ -1617,7 +1620,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
         if mapped is None:
             return None
         _write(found)
-        talk.para(f"Nothing was saved: judgekeeper reads {mapped.file} only once "
+        talk.para(f"Nothing was saved: judgekeeper reads "
+                  f"{textio.shown_in(Path(found.root) / mapped.file, found.root)} only once "
                   "judgekeeper.toml says how.")
         raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
     return new

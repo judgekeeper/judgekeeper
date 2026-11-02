@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from judgekeeper import mapper, own_format, settings, start
+from judgekeeper import mapper, own_format, settings, start, textio
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import scrub
@@ -247,6 +247,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     from judgekeeper.readers.mapped import read_mapped
 
     rel = path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+    file, rel = rel, textio.shown_in(path, root)  # kept in judgekeeper.toml; said as File: is
     try:
         units = [u for _, u in mapper.load_numbered(path)]
         g = mapper.guess(units)
@@ -306,7 +307,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
             hint=""):
         m["leave_out"] = True
     op = g.pass_op if mark is not None and g.pass_op != ">=" else None
-    saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark,
+    saved = settings.StartSettings(source="map", file=file, judge=judge, pass_mark=mark,
                                    pass_op=op, model=kept, map=m)
     try:
         records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark": mark,
