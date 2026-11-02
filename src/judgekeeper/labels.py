@@ -43,6 +43,7 @@ ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant 
 QUESTION_COLUMNS = ("input", "question")
 ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
 QUESTION_NAMES = (*QUESTION_WORDS, *(w for w in INPUT_WORDS if w not in QUESTION_WORDS))
+COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 10
@@ -228,6 +229,19 @@ def _or(words) -> str:
     return ", ".join(words[:-1]) + f" or {words[-1]}"
 
 
+def _has(path: Path) -> str:
+    """" It has: <its columns>.", the first COLUMNS_SHOWN of them, or "" when none is read."""
+    from judgekeeper.redact import one_line
+    from judgekeeper.table import columns
+
+    names = [one_line(str(c).strip()) for c in columns(path) if str(c).strip()]
+    if not names:
+        return ""
+    more = len(names) - COLUMNS_SHOWN
+    shown = ", ".join(names[:COLUMNS_SHOWN]) + (f" and {more} more" if more > 0 else "")
+    return f" It has: {scrub(shown)}."
+
+
 def read_file(path: Path, label_map: dict | None = None,
               mine: str | dict | None = None,
               command: Callable[..., str] | None = None) -> list[Label]:
@@ -258,7 +272,8 @@ def read_file(path: Path, label_map: dict | None = None,
     _twice(path, columns, _plain(command))
     out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
-        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))])
+        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))
+                          + _has(path)])
     in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)

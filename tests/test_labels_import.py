@@ -420,7 +420,7 @@ def test_a_file_without_the_columns_is_refused(here, capsys):
     assert code == 3
     assert ("mine.csv needs an answer column (output, outputs, answer, answers, response, "
             "responses, completion, reply or generation) and a label column (label or "
-            "human_label).") in flat(out)
+            "human_label). It has: text, label.") in flat(out)
     _nothing_written(Workspace(here))
 
 
