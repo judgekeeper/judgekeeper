@@ -1619,6 +1619,7 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
                 judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
                 pass_mark=found.pass_mark, results_files=list(found.used),
+                results_read=found.results[0].rel,  # from the project folder: where it was
                 pool={**(data.get("pool") or {}), "pass": kinds.count("pass"),
                       "fail": kinds.count("fail")},
                 checked_at=utc_now())

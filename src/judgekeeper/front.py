@@ -1284,13 +1284,21 @@ def _newest_line(ws: Workspace, found: start.Found) -> str | None:
 
 def _older(ws: Workspace, data: dict, files: list[str], found: start.Found) -> bool:
     """Whether the newest file `found` read is older than one of `files`, the files read last
-    (start.json's, from the folder its results were read in)."""
+    (start.json's, from the folder its results were read in), or than `results_read`, the
+    newest one a check read, wherever it was (in .judgekeeper/fix/, or outside the project)."""
     base = start.results_path(ws.root, data)
     base = base if base.is_dir() else base.parent
     try:
         now = found.results[0].path.stat().st_mtime
     except OSError:
         return False
+    read = data.get("results_read")
+    if isinstance(read, str) and read:
+        try:
+            if Path(textio.kept_at(read, ws.root)).stat().st_mtime > now:
+                return True
+        except OSError:
+            pass
     for f in files:
         try:
             if (base / f).stat().st_mtime > now:

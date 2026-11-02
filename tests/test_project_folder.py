@@ -553,6 +553,15 @@ def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     assert "changed since your marks" not in out
 
 
+def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
+        here, capsys, no_calls):
+    """The check read a newer file outside the project: a plain run on the project's file
+    says "Reading evals/support-evals.csv.", never "the newest results here"."""
+    _checked_outside(here, capsys, worse=False)
+    out = flat(run(capsys)[1])
+    assert "Reading evals/support-evals.csv." in out and "the newest" not in out, out
+
+
 def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rule_project(here, split(25, 25), RULE_A)
