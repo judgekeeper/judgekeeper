@@ -111,3 +111,25 @@ def test_judgekeeper_from_a_system_folder_never_stops_on_an_entry(monkeypatch, c
     assert "Traceback" not in out
     if folder == "/dev":
         assert code == 3 and NO_RESULTS in out, out
+
+
+@posix
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads any folder")
+def test_a_folder_that_cant_be_read_below_is_skipped(tmp_path, monkeypatch, capsys):
+    """A folder right below that can't be read (as /lost+found from `/`): the run never stops
+    on it, and an error about it is never said as one about .judgekeeper/."""
+    from judgekeeper import front, textio
+
+    locked = tmp_path / "lost+found"
+    locked.mkdir()
+    locked.chmod(0)
+    try:
+        assert front._sessions_below(tmp_path) == []
+        e = PermissionError(13, "Permission denied", "lost+found/.judgekeeper/start.json")
+        monkeypatch.chdir(tmp_path)
+        assert textio.workspace_problem(e) is None
+        code, out = _run(capsys, "--no-browser")
+        assert "Traceback" not in out and "Permission denied" not in out, out
+        assert code == 3 and NO_RESULTS in out, out
+    finally:
+        locked.chmod(0o700)

@@ -971,7 +971,11 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
     if WORKSPACE not in parts:
         return None
     folder = Path(*parts[:parts.index(WORKSPACE) + 1])
-    if folder.is_file():
+    try:
+        is_file, is_dir = folder.is_file(), folder.is_dir()
+    except OSError:  # in a folder that can't be read (/lost+found): not judgekeeper's own
+        return None
+    if is_file:
         return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
     if isinstance(e, NotAFile):
         shown = "/".join(parts[parts.index(WORKSPACE):]).replace("{", "(").replace("}", ")")
@@ -979,7 +983,7 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
                 NOT_A_FILE_NEXT.replace("{path}", shown))
     if isinstance(e, FileBusyError):
         return WORKSPACE_BUSY, WORKSPACE_BUSY_NEXT
-    if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
+    if isinstance(e, PermissionError) and is_dir:  # else the project folder's
         return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
     return None
 

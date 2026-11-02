@@ -910,7 +910,11 @@ def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[
     out = []
     for name in names:
         ws = Workspace(folder / name)
-        if ws.start.is_file() or ws.labels.is_file():
+        try:
+            held = ws.start.is_file() or ws.labels.is_file()
+        except OSError:  # a folder that can't be read (/lost+found): no session to name
+            continue
+        if held:
             out.append((name, _marks_in(ws)))
     return out
 
