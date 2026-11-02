@@ -187,12 +187,18 @@ REASONS_SCRIPT = """
         if (open && row && !row.hidden && row.getAttribute("aria-expanded") !== "true") {
           row.click(); }
       });
-      function send() {
+      // A reason picked, or typed and Enter pressed: the box closes, the line shows it.
+      function shut() {
+        add.setAttribute("aria-expanded", "false");
+        document.getElementById(add.getAttribute("aria-controls")).hidden = true;
+        add.focus();
+      }
+      function send(close) {
         clearTimeout(timer); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; line(); return; }
+            if (r.ok) { saved.textContent = "Saved"; line(); if (close) { shut(); } return; }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
@@ -213,7 +219,7 @@ REASONS_SCRIPT = """
       }
       each(box.querySelectorAll("[aria-pressed]"), function (b) {
         b.addEventListener("click", function () {
-          b.setAttribute("aria-pressed", String(!on(b))); send(); });
+          b.setAttribute("aria-pressed", String(!on(b))); send(true); });
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";
@@ -226,7 +232,10 @@ REASONS_SCRIPT = """
         clearTimeout(timer); timer = setTimeout(send, PAUSE);
       });
       input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); if (input.value !== sent) { send(); } }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (input.value !== sent) { send(true); } else { shut(); }
+        }
       });
       input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
       document.addEventListener("selectionchange", function () {
@@ -313,6 +322,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .more:hover { color: var(--text); background: var(--hover); }
 .tbl { margin-top: 28px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
+.tbl.no-reason col.c2 { width: 72%; }
 /* the small labels: the marking page's .label */
 .tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
@@ -461,6 +471,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl colgroup { display: none; }
   .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
     border-bottom: 1px solid var(--line); }
+  .tbl.no-reason tr { grid-template-columns: 28fr 72fr; }
   .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
   .tbl thead th { padding-bottom: 14px; }
   .tbl tbody tr { padding: 22px 0; }
@@ -943,14 +954,17 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           left_out: int = 0, same: tuple = ()) -> str:
+           left_out: int = 0, same: tuple = (), reasons_given: bool = True) -> str:
     """One group of disagreements: its title, how many more are kept aside (`kept`), the
-    table, then "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
+    table (its REASON column only when an answer marked has a reason: `reasons_given`), then
+    "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show all" (SCRIPT) at the right; in report.html the person's
     reasons, read-only."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
+    third = (('<col class="c3">', f'<th scope="col">{REASON}</th>') if reasons_given
+             else ("", ""))  # the REASON column's col and heading
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -964,16 +978,17 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
-                    f'<td colspan="3" class="why-cell">{foot}</td></tr>')
+                    + (f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
+                       if reasons_given else "")
+                    + f'<td colspan="{3 if reasons_given else 2}" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
             f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
-            f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
-            '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
-            f'<th scope="col">Answer</th><th scope="col">{REASON}</th></tr></thead>'
+            f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
+            f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
+            f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table>{more}</section>')
 
 
@@ -1052,7 +1067,8 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
                            f'{_e(WHY_USES)}</p></div>')
             first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
-                              (fixing or {}).get("left_out", 0), names))
+                              (fixing or {}).get("left_out", 0), names,
+                              (fixing or {}).get("reasons_given", True)))
         else:
             left += kept
     if left:

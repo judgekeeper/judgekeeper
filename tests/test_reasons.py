@@ -836,9 +836,10 @@ def test_the_same_words_in_other_on_several_answers_are_one_reason(here, capsys,
             "Fee is wrong twice\nYOUR REASON>>>") in suggested
     assert "wrong twice" not in once.casefold() and "Your own words" not in md
     mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert f"Your reason: your own reason 1 ({n})" in mistakes
-    assert "said: your own reason" not in mistakes  # the note is fenced, not said again
-    assert "; your own reason" not in mistakes
+    assert f"Your reason: “Fee is wrong twice” ({n})" in mistakes
+    assert "your own reason" not in mistakes
+    assert "said: “Fee" not in mistakes  # the note is fenced, not said again
+    assert "; “Fee" not in mistakes
 
 
 def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
