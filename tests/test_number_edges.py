@@ -8,6 +8,8 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 from judgekeeper import front, report_page, start_label, targets, weighted
 
 SRC = Path(__file__).parents[1] / "src" / "judgekeeper"
@@ -95,5 +97,17 @@ def test_no_output_says_exactly():
 
 
 def test_a_range_never_shows_as_one_point():
-    assert report_page.estimate(0.999, [0.997, 1.0]) == ("about 100%", "99.7% and 100.0%")
+    assert report_page.estimate(0.999, [0.997, 1.0]) == ("about 99.9%", "99.7% and 100.0%")
     assert report_page.estimate(0.8, [0.66, 0.93]) == ("about 80%", "66% and 93%")
+
+
+@pytest.mark.parametrize(("value", "interval", "shown", "between"), [
+    (0.99251, [0.99122, 0.99292], "about 99.3%", "99.1% and 99.3%"),
+    (0.5, [0.496, 0.503], "about 50.0%", "49.6% and 50.3%"),
+    (0.9964, [0.9961, 0.9968], "about 99.6%", "99.6% and 99.7%"),
+])
+def test_when_the_ends_need_a_decimal_the_value_has_one_too(value, interval, shown, between):
+    """The value always sits inside its range: never "about 99% (between 99.1% and 99.3%)"."""
+    assert report_page.estimate(value, interval) == (shown, between)
+    lo, hi = (float(x.strip("%")) for x in between.split(" and "))
+    assert lo <= float(shown.removeprefix("about ").strip("%")) <= hi

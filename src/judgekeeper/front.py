@@ -104,6 +104,9 @@ NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} yo
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
+# ...and when it gave every answer the same grade: one mark the other way is the result
+ONE_GRADE = ("Your LLM-as-a-judge said {said} on every answer. Your result comes as soon as you "
+             "mark one answer {other}.")
 FINDING = "finding {n} answers you mark Fail can take many marks."
 FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
 FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
@@ -1261,6 +1264,9 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
     (`said`: Find said how few it failed in this run, so only that)."""
+    if answers and fails in (0, answers):  # one grade for every answer: exact numbers
+        said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
+        return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
@@ -1971,7 +1977,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
     for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
-                           r.get("real_pass_rate"))[1:]:
+                           r.get("real_pass_rate"), (r.get("tpr"), r.get("tnr")))[1:]:
         # the notes on how they were made; the count is below
         talk.para(line)
         talk.say()
@@ -2058,7 +2064,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
         talk.para(fix.NOT_ENOUGH)
         talk.say()
-        next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
+        # with exact numbers (one grade), marking more would not make them more certain
+        next_step = (NEXT_MARK_MORE if ranges else NEXT_CONTINUE).format(
+            command=_command_of(talk, saved, "mark"))
     elif step == "fix":
         next_step = NEXT_FIX.format(command=_fix_command(talk))
     else:

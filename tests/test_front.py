@@ -762,12 +762,25 @@ def test_few_fails_says_finding_fail_marks_can_take_many_marks():
         "take many marks.")
 
 
-@pytest.mark.parametrize(("fails", "answers"), [(10, 100), (50, 100), (0, 0), (0, 40)])
+@pytest.mark.parametrize(("fails", "answers"), [(10, 100), (50, 100), (0, 0)])
 def test_otherwise_only_what_a_result_needs(fails, answers):
     assert front.needs_each_kind(fails=fails, answers=answers) == (
         "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
         "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
         "when there are fewer).")
+
+
+@pytest.mark.parametrize(("fails", "answers", "said", "other"), [
+    (0, 40, "Pass", "Fail"),   # it passed every answer
+    (40, 40, "Fail", "Pass"),  # it failed every answer
+    (0, 1, "Pass", "Fail"),
+])
+def test_a_judge_that_gave_every_answer_one_grade_needs_one_mark_the_other_way(
+        fails, answers, said, other):
+    for few in (False, True):
+        assert front.needs_each_kind(fails=fails, answers=answers, said=few) == (
+            f"Your LLM-as-a-judge said {said} on every answer. Your result comes as soon as you "
+            f"mark one answer {other}.")
 
 
 def test_after_finds_few_fails_line_only_the_second_half():

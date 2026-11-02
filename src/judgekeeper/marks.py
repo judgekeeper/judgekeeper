@@ -210,6 +210,7 @@ class Marks:
     # before it in the same sitting, by `at`: the timing when the page sent no `seconds`
     repeats: dict[str, dict] = field(default_factory=dict)  # answer id -> its last repeat line
     slots: set[int] = field(default_factory=set)  # the repeats' slots: each is shown once
+    slot_mark: dict[int, str | None] = field(default_factory=dict)  # slot -> its last repeat mark
     line_of: dict[str, int] = field(default_factory=dict)  # answer id -> its last mark's line
 
     def counted(self) -> dict[str, str]:
@@ -264,7 +265,8 @@ def read(path: str | Path) -> Marks:
     m = hit[1]
     return replace(m, header=dict(m.header) if m.header is not None else None,
                    last=dict(m.last), after_result=set(m.after_result), gap=dict(m.gap),
-                   repeats=dict(m.repeats), slots=set(m.slots), line_of=dict(m.line_of))
+                   repeats=dict(m.repeats), slots=set(m.slots), slot_mark=dict(m.slot_mark),
+                   line_of=dict(m.line_of))
 
 
 def _parse(text: str) -> Marks:
@@ -285,6 +287,7 @@ def _parse(text: str) -> Marks:
             out.repeats[x["id"]] = x
             if type(x.get("slot")) is int:
                 out.slots.add(x["slot"])
+                out.slot_mark[x["slot"]] = x["mark"]
             _timed(out, x, last_at, own=False)
         elif _stamped(x):
             before = out.last.get(x["id"])
