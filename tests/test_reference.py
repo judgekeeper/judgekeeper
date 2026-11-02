@@ -290,3 +290,18 @@ def test_the_reference_says_where_kappa_is_and_that_it_never_decides():
     assert ('so it is shown under "More details" on the result page and in report.html, and '
             "never decides the result: TPR and TNR do.") in numbers
     assert "only in the report's More details" not in numbers
+
+
+def test_the_reference_says_when_a_kept_mark_is_counted():
+    """The kept count is only for labels that differ from the mark; the same labels again say
+    "Nothing new" (labels.said)."""
+    from judgekeeper.labels import Added, Plan, said
+
+    assert said(Added(same=3), Plan(), "a.csv") == [
+        "Nothing new: the labels in a.csv are already your marks."]
+    assert said(Added(kept=2, same=1), Plan(), "a.csv") == [
+        "Kept your earlier mark on 2 answers that a.csv labels differently."]
+    again = _flat(_sections()["Bring labels you already have"])
+    assert ("An answer you already marked keeps your mark, from the page or an earlier import; "
+            "when a label differs from your mark, judgekeeper says how many it kept. The same "
+            'labels again say "Nothing new".') in again

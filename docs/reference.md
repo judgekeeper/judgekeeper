@@ -85,7 +85,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **What is left out, and said:** a label for an answer not in your results, for one your LLM-as-a-judge didn't grade Pass or Fail, for an answer that matches more than one answer, or for an answer labelled both Pass and Fail. When none match, it stops (exit 3).
 
-**Running it again** adds only what is new. An answer you already marked keeps your mark, from the page or an earlier import; judgekeeper says how many it kept. You can change an imported mark on the page.
+**Running it again** adds only what is new. An answer you already marked keeps your mark, from the page or an earlier import; when a label differs from your mark, judgekeeper says how many it kept. The same labels again say "Nothing new". You can change an imported mark on the page.
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
