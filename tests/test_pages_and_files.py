@@ -93,7 +93,7 @@ def test_at_phone_width_the_page_scrolls_as_one():
 
 
 def test_a_not_saved_line_is_brought_into_view():
-    from tests.test_mark_page_script import _run
+    from tests.test_mark_page_script import NO_ANSWER, _run
 
     got = _run("""
       fetch = function () { return Promise.reject(new Error("gone")); };
@@ -101,7 +101,7 @@ def test_a_not_saved_line_is_brought_into_view():
       key("ArrowRight"); await settle(); await settle();
       console.log(JSON.stringify({status: ids["status"].textContent, shown: shown}));""",
                before="var shown = [];\n")
-    assert got["status"].startswith("Not saved: this page lost its link to judgekeeper.")
+    assert got["status"] == NO_ANSWER
     assert got["shown"] == [{"block": "nearest"}]
 
 
@@ -444,3 +444,11 @@ def test_every_answer_marked_names_judgekeeper_mark_without_the_page_flags(run, 
                 "ones you marked.") in text, name
         assert "--port" not in text and "--no-browser" not in text, name
     assert f"`{new}`" in start_label.sentences(r)[1]
+
+
+def test_the_not_saved_line_names_how_to_open_the_page_again():
+    from judgekeeper import mark_page
+    from tests.test_mark_page_script import NO_ANSWER
+
+    assert NO_ANSWER in mark_page.label_page(None)
+    assert "terminal" not in mark_page.label_page(None).split("Not saved")[1][:200]

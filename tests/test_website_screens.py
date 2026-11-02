@@ -390,12 +390,12 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
     screen = _site_screen("fix")
     shown = re.search(r"made (\d+) mistakes\. In (\d+), it said Pass where you said Fail\. In "
                       r"the other (\d+)", " ".join(mistakes.split()))
-    assert shown and f"made {shown[1]} mistakes. In {shown[2]}," in screen
+    hidden, used = len(split_["hidden"]), len(split_["visible"])
+    assert shown and (f"made {shown[1]} mistakes on the {used} marks used here. The other "
+                      f"{hidden} are kept aside to test a new rule. In {shown[2]},") in screen
     assert f"In the other {shown[3]}, it said Fail" in screen
     words = re.search(r"\(about \d+ words, against \d+\)", mistakes)
     assert words and words[0] in screen
-    hidden = len(split_["hidden"])
-    assert f"{hidden} of your marks are kept aside" in screen
     marks = measured["marks"]
     assert len(split_["hidden"]) + len(split_["visible"]) == marks == len(marked.splitlines()) - 1
     assert f"holds all {marks} marked answers" in screen
