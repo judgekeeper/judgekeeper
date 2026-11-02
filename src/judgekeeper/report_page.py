@@ -1087,16 +1087,33 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
     to the same percent are shown with one decimal, then two, and so is the value, so it
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
-    with two decimals too are no range to show: "about 99.3% (almost exact)"."""
+    with two decimals too are no range to show: "about 99.3% (almost exact)". The value is
+    never shown as 100% or 0% unless it is exactly that (share)."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
-    for shown in (_pct, "{:.1%}".format, "{:.2%}".format):
-        if shown(lo) != shown(hi):
-            return f"about {shown(value)}", f"{shown(lo)} and {shown(hi)}"
-    return f"about {value:.1%} ({ALMOST_EXACT})", "–"
+        return f"{share(value)} ({why or EVERY_MARKED})", "–"
+    for places in range(3):
+        ends = f"{lo:.{places}%}", f"{hi:.{places}%}"
+        if ends[0] != ends[1]:
+            return _about(share(value, places)), " and ".join(ends)
+    return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+
+
+def share(x: float, places: int = 0) -> str:
+    """`x` as a percent with `places` decimals, or one or two more when fewer would read 100%
+    or 0% though it is not exactly 1 or 0 ("99.6%", never "100%" for 499 of 501); past two
+    decimals, "over 99.99%" or "under 0.01%"."""
+    for n in range(places, 3):
+        text = f"{x:.{n}%}"
+        if x in (0, 1) or float(text[:-1]) not in (0, 100):
+            return text
+    return "over 99.99%" if x > 0.5 else "under 0.01%"
+
+
+def _about(shown: str) -> str:
+    return shown if shown.startswith(("over ", "under ")) else f"about {shown}"
 
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
@@ -1120,11 +1137,20 @@ def why_no_range(key: str, every: bool, pool: dict | None = None) -> str:
     return EVERY_MARKED
 
 
+ON_ANSWERS = " in the {n} answers this result is on"  # a newer batch is not counted yet
+
+
 def why_for(r: dict, key: str) -> str:
-    """why_no_range for a result: its count left to mark and its groups' sizes."""
+    """why_no_range for a result: its count left to mark and its groups' sizes. When the
+    result is on fewer batches than the results hold, the bracket names the answers it is on
+    (ON_ANSWERS): the newer ones are not all marked."""
     g = r.get("groups") or {}
     pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
-    return why_no_range(key, r.get("left") == 0, pool)
+    why = why_no_range(key, r.get("left") == 0, pool)
+    on = r.get("batches") or {}
+    if why != SAME_GRADE and on.get("waiting") and len(on.get("counted") or []) < (on.get("of") or 0):
+        why += ON_ANSWERS.format(n=on["answers"])
+    return why
 
 
 def _caption(r: dict) -> str:
@@ -1170,7 +1196,8 @@ def _details(r: dict) -> str:
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        shown, lo = f"{shown} ({why_for(r, 'kappa')})", None
+        why = why_for(r, "kappa") if targets.width_word([lo, hi]) == "exact" else ALMOST_EXACT
+        shown, lo = f"{shown} ({why})", None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '

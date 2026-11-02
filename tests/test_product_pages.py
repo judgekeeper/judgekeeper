@@ -678,9 +678,10 @@ def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements(
     part = _part(html, '<section class="main-lines band"')
     (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
     text = _text(part)
-    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
+    share = report_page.share  # never 100% for a value under 1
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {share(r['tpr'])} "
             f"{plo:.0%} and {phi:.0%}") in text
-    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {share(r['tnr'])} "
             f"{flo:.0%} and {fhi:.0%}") in text
     assert "too early to tell" not in text
     assert 'class="group' in html and 'class="next' not in html

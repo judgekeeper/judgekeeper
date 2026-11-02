@@ -1055,12 +1055,11 @@ def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
-    if targets.width_word(interval) == "exact":
-        from judgekeeper.report_page import EVERY_MARKED
+    from judgekeeper.report_page import estimate
 
-        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} ({why or EVERY_MARKED})."
-    return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
-            f"{_pct(interval[0])} and {_pct(interval[1])}).")
+    shown, between = estimate(value, interval, why)  # the page's words and decimals
+    said = shown if between == "–" else f"{shown} (between {between})"
+    return f"You {did}: your LLM-as-a-judge also {did} {said}."
 
 
 def all_labeled(r: dict) -> bool:
