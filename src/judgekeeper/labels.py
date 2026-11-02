@@ -31,7 +31,7 @@ from types import SimpleNamespace
 from judgekeeper import marks
 from judgekeeper.normalise import Normaliser, UnmappedValue, _numeric
 from judgekeeper.redact import scrub
-from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
+from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
@@ -138,7 +138,7 @@ def check_file(given: str, command: Callable[..., str] | None = None,
         lines = [(f"{name if where in ANOTHER_DRIVE else where} is a folder. Give the labels "
                   f"file instead: {command('--labels', '<file>')}")]
         if find.is_project(path) or _has_results(path):
-            at = from_here(given, labels=False, command=True)  # never %USERPROFILE% in it
+            at = runnable(given, labels=False)  # `~/` outside the quotes; never %USERPROFILE%
             lines.append(f"To check that folder, put it first: "
                          f"{command_at(command, at, command_in)}")
         raise LabelsStop(lines)
@@ -164,8 +164,8 @@ def check_file(given: str, command: Callable[..., str] | None = None,
 def command_at(command: Callable[..., str], folder: str,
                command_in: Callable[..., str] | None = None) -> str:
     """`judgekeeper [mark] FOLDER --labels <file>`: the folder as the project, where the
-    command takes its path (`command_in`; without it, after the first word)."""
-    folder = folder if folder in ANOTHER_DRIVE else quote_arg(folder)
+    command takes its path (`command_in`; without it, after the first word). `folder` is
+    ready for the shell (textio.runnable)."""
     if command_in:
         return command_in(folder, "--labels", "<file>")
     words = command("--labels", "<file>").split(" ")

@@ -316,6 +316,40 @@ def test_a_loop_given_whole_paths_from_anywhere_names_no_folder_above_the_projec
     assert printed == [], printed
 
 
+@pytest.mark.skipif(os.name == "nt", reason="sh reads ~/; on Windows no command says it")
+def test_a_printed_command_with_a_home_path_runs_as_pasted_from_the_top_folder(
+        tmp_path, monkeypatch, capsys):
+    """From a folder that shares only `/` with it, a path in the home folder holding a space
+    is `~/'...'` in each printed command: pasted into sh, it finds the file."""
+    import subprocess
+
+    from judgekeeper import cli, textio
+    from tests.start_projects import promptfoo_project
+
+    home = Path(os.path.realpath(tmp_path)) / "Users" / USER
+    proj = home / "Desktop" / "My Proj"
+    proj.mkdir(parents=True)
+    promptfoo_project(proj, split(20, 16))
+    monkeypatch.setenv("HOME", str(home))  # Path.home(), and the shell's ~
+    monkeypatch.chdir("/")
+
+    def found(line: str, word: str) -> str:
+        """The path the shell reads from `word` in `line`, a printed command."""
+        assert word in line, line
+        return subprocess.run(["sh", "-c", f"printf '%s' {word}"], capture_output=True,
+                              text=True, check=True, cwd="/").stdout
+
+    again = cli.again([str(proj / "promptfooconfig.yaml"), "--no-browser"])
+    word = textio.runnable(str(proj / "promptfooconfig.yaml"), labels=False)
+    assert word.startswith("~/'") and USER not in again
+    assert found(again, word) == str(proj / "promptfooconfig.yaml")
+    assert main(["--labels", str(proj)]) != 0
+    out = " ".join(capsys.readouterr().out.split())
+    folder = textio.runnable(str(proj), labels=False)
+    assert f"To check that folder, put it first: judgekeeper {folder} --labels <file>" in out
+    assert found(out, folder) == str(proj) and USER not in out
+
+
 def test_the_file_line_from_the_top_folder_names_no_user(home, tmp_path, monkeypatch):
     """Screen 1's File: line for results outside the project, run from `/`: `~/...`, never
     Users/<name>/..."""

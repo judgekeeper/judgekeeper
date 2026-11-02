@@ -208,8 +208,8 @@ def again(args_list: list[str], drop: str | None = None) -> str:
         before = words[-1] if words else ""
         labels = "--labels" in (flag, before)
         path = labels or not (flag or arg.startswith("-") or _takes_value(before))
-        shown = textio.from_here(value, labels, command=True) if path else value
-        words.append(flag + eq + (shown if shown in ANOTHER_DRIVE else quote_arg(shown)))
+        # a path as it runs from here: `~/` outside the quotes, so the shell reads it
+        words.append(flag + eq + (textio.runnable(value, labels) if path else quote_arg(value)))
     return " ".join((program(), *words))
 
 
