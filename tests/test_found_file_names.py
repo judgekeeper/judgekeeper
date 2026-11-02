@@ -14,8 +14,6 @@ from tests.test_project_folder_commands import USER, home
 from tests.test_top_folder import _run, _written, top
 
 __all__ = ["home", "top"]  # the fixtures, used by name
-pytestmark = pytest.mark.skipif(sys.platform == "win32",
-                                reason="home is %USERPROFILE% there, and ~ is a shell's word")
 
 
 def test_a_found_file_is_named_as_the_file_line_names_it(top, home, monkeypatch, capsys):
@@ -25,7 +23,8 @@ def test_a_found_file_is_named_as_the_file_line_names_it(top, home, monkeypatch,
     monkeypatch.chdir(top)
     code, out = _run(capsys, Path("Users") / USER / "jk-try", "--no-browser", "--port", "0")
     assert code == 3, out
-    shown = "~/jk-try/anchors.jsonl"
+    shown = ("%USERPROFILE%\\jk-try\\anchors.jsonl" if sys.platform == "win32"
+             else "~/jk-try/anchors.jsonl")  # the home folder as each names it
     assert f"{shown} looks like your LLM-as-a-judge's results" in out, out
     assert f"File: {shown}" in out, out
     assert f"Save how to read {shown} in judgekeeper.toml?" in out, out
@@ -34,6 +33,7 @@ def test_a_found_file_is_named_as_the_file_line_names_it(top, home, monkeypatch,
     assert _written(top) == []
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="~ is a POSIX shell's word")
 def test_a_folder_given_from_a_top_folder_is_repeated_from_home(top, home, monkeypatch,
                                                                  capsys):
     """`judgekeeper Users/<name>/jk-try` from the top folder: each printed command repeats the

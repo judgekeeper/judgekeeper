@@ -89,3 +89,16 @@ def test_from_dev_it_says_there_are_no_results(monkeypatch, capsys):
     assert code == 3, out
     assert "No eval results found in this folder" in out and GO_TO not in out, out
     assert "Traceback" not in out
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="a drive's top folder is Windows'")
+def test_from_a_drive_top_nothing_is_searched(tmp_path, monkeypatch, capsys):
+    """From the top of a real drive (C:\\): the go-to-project line, exit 3, nothing written."""
+    drive = Path(tmp_path.anchor)
+    monkeypatch.setattr("judgekeeper.start._interactive", lambda: False)
+    made = (".judgekeeper", "judgekeeper.toml")
+    before = [(drive / name).exists() for name in made]
+    monkeypatch.chdir(drive)
+    code, out = _run(capsys, "--no-browser", "--port", "0")
+    assert code == 3 and GO_TO in out, out
+    assert [(drive / name).exists() for name in made] == before
