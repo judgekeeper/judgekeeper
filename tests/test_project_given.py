@@ -96,6 +96,26 @@ def test_the_file_line_for_a_project_given_from_the_top_folder_names_no_user(
     assert USER not in _named(out), out
 
 
+@pytest.mark.parametrize("platform, shown", [
+    ("darwin", "~/AppData/shop.csv/shop.csv"),
+    ("win32", "%USERPROFILE%\\AppData\\shop.csv\\shop.csv")])
+def test_the_file_line_for_a_file_under_home_from_outside_it_names_no_user(
+        home, tmp_path_factory, monkeypatch, platform, shown):
+    """A file in a folder of its own name under the home folder (a Windows runner's temporary
+    folder), named from a folder outside it: once, in the home form."""
+    import sys
+
+    from judgekeeper import front, start
+
+    path = home / "AppData" / "shop.csv" / "shop.csv"
+    path.parent.mkdir(parents=True)
+    _write(path, [_row(i, 5) for i in range(60)], COLUMNS)
+    monkeypatch.chdir(os.path.realpath(tmp_path_factory.mktemp("elsewhere")))
+    monkeypatch.setattr(sys, "platform", platform)
+    file = next(x for x in front.found_block(start.find_judge(path)) if x.startswith("File:"))
+    assert file == f"File:            {shown}"
+
+
 def test_check_with_no_marks_from_the_top_folder_names_this_folder(home, monkeypatch, capsys):
     results = home / "ext" / "results.csv"
     results.parent.mkdir()
