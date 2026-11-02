@@ -942,6 +942,13 @@ class Said:
         for line in held_lines(text):  # a name left out of the command above, as data
             self._say(one_line(line))
 
+    def as_is(self, text: str) -> None:
+        """A line said as plain `judgekeeper` says it: never wrapped."""
+        text = one_line(text)
+        self._say(text)
+        for line in held_lines(text):
+            self._say(one_line(line))
+
     def _say(self, line: str) -> None:
         self.lines.append(line)
 
@@ -1561,7 +1568,7 @@ def full(path: str, said: Said) -> int:
         return EXIT_NEEDS_YOU
     if isinstance(problem, FolderChoice):  # as plain `judgekeeper` says it, with check's commands
         for line in problem.lines:
-            said.say(line)
+            said.as_is(line)
         said.say()
         said.say(problem.next_step)
         return EXIT_NEEDS_YOU

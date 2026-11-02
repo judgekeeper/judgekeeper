@@ -662,3 +662,12 @@ def test_check_names_the_folders_when_the_newest_results_need_a_choice(here, cap
             "deepeval-results/test_run_20261101_155341.json` or `judgekeeper check "
             "deepeval-results-rule/test_run_20261101_155333.json`.") in text, out
     assert code == 3
+    title = "DeepEval results in more than one folder:"
+    lines = out.splitlines()
+    checked = lines[lines.index(title):lines.index(title) + 3]
+    assert all(len(x) > 66 for x in checked[1:]), checked  # long: unwrapped, one per folder
+    from judgekeeper.cli import main
+
+    assert main(["--no-browser"]) == 3  # plain judgekeeper says the same lines
+    plain = capsys.readouterr().out.splitlines()
+    assert plain[plain.index(title):plain.index(title) + 3] == checked
