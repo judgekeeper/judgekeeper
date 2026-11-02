@@ -137,3 +137,30 @@ def test_a_folder_below_that_cant_be_told_apart_is_skipped(below, tmp_path, monk
     assert "cannot use" not in out
     code, out = _run(capsys, *PAGE)
     assert "cannot use" not in out and "error" not in out.lower(), out
+
+
+def test_fix_given_the_project_names_only_the_new_results_file(tmp_path, monkeypatch, capsys):
+    """`fix <project>` takes one path: its Next: line names only the new results file, said
+    to run in the project folder when it ran from another; filled in, it runs."""
+    import shlex
+
+    from judgekeeper import fix
+    from tests.test_regrade_files import project, regraded
+    from tests.test_regrade_files import write as write_rows
+
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    monkeypatch.chdir(proj)
+    ws = project(proj)
+    write_rows(proj, "new.csv", regraded(ws))
+    capsys.readouterr()
+    for cwd, where in ((proj, ""), (tmp_path, "in your project folder, ")):
+        monkeypatch.chdir(cwd)
+        code, out = _run(capsys, "fix", proj)
+        nxt = " ".join(out[out.rindex("Next: "):].split())
+        assert f"{where}run `judgekeeper fix {fix.NEW_RESULTS}`" in nxt, (cwd, nxt)
+        line = nxt[nxt.index("`judgekeeper fix <"):].split("`")[1]
+        argv = shlex.split(line.replace(fix.NEW_RESULTS, "new.csv"))[1:]
+        monkeypatch.chdir(proj)  # where the line says it runs
+        code, out = _run(capsys, *argv)
+        assert code == 0 and "new.csv" in out, out
