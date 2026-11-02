@@ -114,33 +114,59 @@ def test_mark_at_the_result_page_says_how_to_change_a_mark(here, capsys, pages, 
     assert CHANGE_ON_RESULT in flat, out
 
 
-def test_z_after_a_changed_mark_puts_the_old_mark_back_and_every_step_stays(
-        here, capsys, pages, no_browser):
-    """Pass, changed to Fail, then Z: the page sends the earlier mark, an ordinary mark line
-    (older reads take it as any mark); the result counts Pass again, and marks.jsonl keeps
-    all three steps."""
-    from judgekeeper import marks
+def _z_flow(here, no_browser, seen: str):
+    """Every answer marked, then on the page: a Pass changed to Fail, then Z, which sends the
+    earlier mark. The grades are seen (reasons.saw_grades: a result page listing a
+    disagreement) `seen` "before" the change or "between" it and Z. The marks and the id."""
+    from judgekeeper import marks, reasons
 
     ws = _all_marked(here)
-    capsys.readouterr()
     no_browser.clear()
     assert main(["mark", "--port", "0"]) == 0
     url = no_browser[-1]
+    if seen == "before":
+        reasons.saw_grades(ws)
     state = json.loads(_get(url.replace("/?", "/state?")))
     item = next(i for i in state["items"] if i["label"] == "pass")
     assert _post(url, {"id": item["id"], "label": "fail", "seconds": 4}) == 200
     _get(url.replace("/?", "/result?"))
     assert _result(ws)["disagreements"] == 1
+    if seen == "between":
+        reasons.saw_grades(ws)
     assert _post(url, {"id": item["id"], "label": "pass", "deferred": False,
                        "seconds": 2}) == 200  # Z, as the page sends it
     _get(url.replace("/?", "/result?"))
-    assert _result(ws)["disagreements"] == 0
+    assert _result(ws)["disagreements"] == 0  # Pass counts again
     main(["--stop"])
     m = marks.read(ws.marks)
     assert m.last[item["id"]]["mark"] == "pass"
-    assert item["id"] not in m.after_result  # back to the mark it had: no change counted
     lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
     steps = [x for x in lines if x.get("id") == item["id"]]
-    assert [x["mark"] for x in steps] == ["pass", "fail", "pass"]
+    assert [x["mark"] for x in steps] == ["pass", "fail", "pass"]  # every step kept
+    assert [bool(x.get("after_result")) for x in steps] == [False, seen == "before", True]
     usual = set(steps[0])
     assert all(set(x) - {"after_result"} <= usual for x in steps), steps
+    return m, item["id"]
+
+
+def test_z_after_a_mark_changed_with_the_grades_seen_puts_it_back_uncounted(
+        here, capsys, pages, no_browser):
+    """The grades seen, Pass changed to Fail, then Z: back to the mark it had when the grades
+    were seen, an ordinary mark line (older reads take it as any mark); the result counts
+    Pass again and no change after the grades is counted."""
+    from judgekeeper import marks
+
+    m, i = _z_flow(here, no_browser, seen="before")
+    assert i not in m.after_result
+    assert marks.made(m)["after_result"] == 0
+
+
+def test_z_after_a_blind_change_counts_once_the_grades_were_seen_in_between(
+        here, capsys, pages, no_browser):
+    """Pass changed to Fail before any grade was seen, then the grades seen, then Z: the
+    answer held Fail when the grades were seen, so going back to Pass counts."""
+    from judgekeeper import marks
+
+    m, i = _z_flow(here, no_browser, seen="between")
+    assert i in m.after_result
+    assert marks.made(m)["after_result"] == 1
