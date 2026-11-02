@@ -152,6 +152,9 @@ CALLS = [
 ]
 
 
+NO_NAME = [{"input": "q6", "output": "a6", "verdict": "pass"}]  # record()'s default name
+
+
 def _lines(folder):
     files = sorted(folder.glob("*.jsonl"))
     assert len(files) == 1, files
@@ -161,12 +164,12 @@ def _lines(folder):
     return files[0].name.rsplit("-", 1)[0], rows
 
 
-def _by_record(tmp_path, monkeypatch):
+def _by_record(tmp_path, monkeypatch, calls=CALLS):
     here = tmp_path / "record"
     here.mkdir()
     monkeypatch.chdir(here)
     recorder._reset()
-    for call in CALLS:
+    for call in calls:
         recorder.record(**call)
     return _lines(here / ".judgekeeper" / "records")
 
@@ -180,12 +183,13 @@ def test_the_python_snippet_takes_the_arguments_of_record():
         inspect.signature(recorder.record).parameters)
 
 
-def test_the_python_snippet_writes_what_record_writes(tmp_path, monkeypatch):
-    expected = _by_record(tmp_path, monkeypatch)
+@pytest.mark.parametrize("calls", [CALLS, NO_NAME], ids=["named", "default name"])
+def test_the_python_snippet_writes_what_record_writes(tmp_path, monkeypatch, calls):
+    expected = _by_record(tmp_path, monkeypatch, calls)
     here = tmp_path / "snippet"
     here.mkdir()
     script = here / "eval.py"
-    script.write_text(SNIPPETS["python"] + "\n\nCALLS = " + repr(CALLS) +
+    script.write_text(SNIPPETS["python"] + "\n\nCALLS = " + repr(calls) +
                       "\nfor call in CALLS:\n    jk_record(**call)\n", encoding="utf-8")
     subprocess.run([sys.executable, "-I", str(script)], cwd=here, check=True)
     assert _lines(here / ".judgekeeper" / "records") == expected
@@ -193,15 +197,16 @@ def test_the_python_snippet_writes_what_record_writes(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(not _node_runs_typescript() and not os.environ.get("JUDGEKEEPER_NEEDS_NODE"),
                     reason="needs Node.js 22.18 or later")
-def test_the_typescript_snippet_writes_what_record_writes(tmp_path, monkeypatch):
-    expected = _by_record(tmp_path, monkeypatch)
+@pytest.mark.parametrize("calls", [CALLS, NO_NAME], ids=["named", "default name"])
+def test_the_typescript_snippet_writes_what_record_writes(tmp_path, monkeypatch, calls):
+    expected = _by_record(tmp_path, monkeypatch, calls)
     here = tmp_path / "snippet"
     here.mkdir()
-    calls = "\n".join(
+    lines = "\n".join(
         f"jkRecord({json.dumps(c['input'])}, {json.dumps(c['output'])}, "
         f"{json.dumps({k: v for k, v in c.items() if k not in ('input', 'output')})});"
-        for c in CALLS)
-    (here / "eval.ts").write_text(SNIPPETS["typescript"] + "\n\n" + calls + "\n",
+        for c in calls)
+    (here / "eval.ts").write_text(SNIPPETS["typescript"] + "\n\n" + lines + "\n",
                                   encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith("NODE_")}
     subprocess.run(["node", "eval.ts"], cwd=here, check=True, env=env, capture_output=True)

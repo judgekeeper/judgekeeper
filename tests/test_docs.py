@@ -14,7 +14,7 @@ from tests.website_pages import ROOT
 README = ROOT / "README.md"
 STEPS = (("Find", "`judgekeeper`"), ("Mark", "a page opens in your browser"),
          ("Measure", "`judgekeeper`"), ("Fix", "`judgekeeper fix`"),
-         ("Re-check", "`judgekeeper check`"))
+         ("Re-check", "`judgekeeper check <new results file>`"))
 
 
 def _readme() -> str:
