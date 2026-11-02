@@ -535,6 +535,24 @@ def test_grades_changed_after_a_check_of_another_file_is_said_once(here, capsys,
     assert line not in flat(run(capsys)[1])
 
 
+def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
+    """A check took on another model from a file outside the project; the project's own file,
+    graded by the model the marks were made with, is read again: "back", as for promptfoo."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # the other model differs on one answer: not worse
+    outside = table_project(here.parent / "outside", other, model="bike-grader-v2")
+    assert run(capsys, "check", str(outside))[0] == 0
+    out = flat(run(capsys)[1])
+    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
+            "marks' result still holds.") in out, out
+    assert "changed since your marks" not in out
+
+
 def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rule_project(here, split(25, 25), RULE_A)

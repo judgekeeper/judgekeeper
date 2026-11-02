@@ -2248,17 +2248,17 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
     last check was of another judge: the line that says so, else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
     they were made on (no AI call, _restore); after a "Worse", nothing was moved, and that
-    "Worse" no longer applies (open_worse). Only for a judge whose results hold its rule, and
-    that gives the marked answers the grades they were made on: a table's model name alone
-    is not that judge. With `again` (how many marks count now), the line also when the last
-    check was that "back", with as many marks: the same results get the same answer."""
+    "Worse" no longer applies (open_worse). Only for a judge that gives the marked answers the
+    grades they were made on, for every tool: a table's judge too. With `again` (how many
+    marks count now), the line also when the last check was that "back", with as many marks:
+    the same results get the same answer."""
     marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
     if marked is None or saved is None or not checks:
         return None
     now = judge_setup.of(found)
     last = checks[-1]
     to_now = judge_setup.hash_of(last.get("after") or {}) == judge_setup.hash_of(now)
-    if (not now.get("rule_hash") or judge_setup.hash_of(now) != judge_setup.hash_of(marked)
+    if (judge_setup.hash_of(now) != judge_setup.hash_of(marked)
             or to_now and not (again is not None and last.get("trigger") == "back"
                                and last.get("marks") == again)):
         return None
