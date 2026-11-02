@@ -1,0 +1,72 @@
+"""A project folder given as the path is the project, from any folder: its own results file
+(given in full when marking started) is read from there, nothing new is made where the
+command runs, and its lines name no user folder. A folder below that can't be told apart
+(/dev/fd/3 from /) is skipped."""
+
+from __future__ import annotations
+
+import errno
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from judgekeeper import background, find
+from judgekeeper.cli import main
+from judgekeeper.start_label import StartSession, Workspace
+from tests.test_regrade_files import COLUMNS, _row, _write, closed
+
+PAGE = ("--no-browser", "--port", "0", "--yes")
+USER = "ann-x"  # the user name in the home folder's path: no line may hold it
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    """A home folder at tmp/Users/ann-x."""
+    folder = Path(os.path.realpath(tmp_path)) / "Users" / USER
+    (folder / "Desktop").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: folder))
+    return folder
+
+
+@pytest.fixture
+def given(home, monkeypatch):
+    """A project whose results file was given in full when marking started (from outside
+    the project), with 10 answers marked."""
+    proj, ext = home / "Desktop" / "proj", home / "ext"
+    proj.mkdir()
+    ext.mkdir()
+    _write(ext / "results.csv", [_row(i, 5) for i in range(60)], COLUMNS)
+    monkeypatch.chdir(proj)
+    assert main([str(ext / "results.csv"), *PAGE]) == 0
+    ws = Workspace(proj)
+    background.stop(ws.dir)
+    closed(ws)
+    session = StartSession(ws)
+    for item in session.items[:10]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 5})
+    assert json.loads(ws.start.read_text(encoding="utf-8"))["given"] == "../../ext/results.csv"
+    yield proj
+    background.stop(ws.dir)
+
+
+def _run(capsys, *argv) -> tuple[int, str]:
+    code = main([str(a) for a in argv])
+    out, err = capsys.readouterr()
+    return code, out + err
+
+
+def test_a_project_given_from_another_folder_is_the_project(given, home, tmp_path_factory,
+                                                             monkeypatch, capsys):
+    other = Path(os.path.realpath(tmp_path_factory.mktemp("elsewhere")))
+    capsys.readouterr()
+    for cwd in (Path(given.anchor), home / "Desktop", other):
+        monkeypatch.chdir(cwd)
+        before = sorted(os.listdir(cwd))
+        code, out = _run(capsys, given, *PAGE)
+        background.stop(given / ".judgekeeper")
+        assert code == 0, (cwd, out)
+        assert sorted(os.listdir(cwd)) == before, (cwd, out)  # nothing new where it ran
+        assert "You marked 10 answers so far" in " ".join(out.split()), (cwd, out)
+        assert USER not in out, (cwd, out)

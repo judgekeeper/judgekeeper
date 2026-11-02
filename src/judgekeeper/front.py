@@ -425,7 +425,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise _tracking_server(talk, path, str(uri))
     if not path.exists():
         raise not_found(path)
-    path = _remembered(talk, path)
+    asked, path = path, _remembered(talk, path)  # a folder given stays the project
     if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
             sessions := _sessions_below(path)):  # never a second session above one, nor
         # one above's for them: results in a folder with its own session belong to it
@@ -441,7 +441,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
-    root = project.project_of(path)
+    root = project.project_of(asked)  # its remembered file is read from there
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
         found = start.rebased(found, root)
         _folder_chosen(talk, found, path.resolve().parent)
