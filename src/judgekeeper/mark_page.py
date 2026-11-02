@@ -34,6 +34,9 @@ FIRST = 2 * ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
+# under the headline: repeats are told, never shown (a repeat's card is not marked as one)
+REPEATS = ("Now and then an answer you marked comes back once, to see how steady your marks "
+           "are. Mark it as you see it.")
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
 SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
@@ -313,6 +316,7 @@ __TOP__
   <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
     __BRAND__
     <h2 id="intro-title">__TITLE__</h2>
+    <p class="note" id="intro-note">__REPEATS__</p>
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
@@ -1096,6 +1100,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
+            .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
