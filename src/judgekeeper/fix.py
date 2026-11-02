@@ -1063,6 +1063,8 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
         return f"{said} {home}"
     if home == start_fix_rule.OWN_CODE:
         return "Your LLM-as-a-judge's rule, where your code keeps it"
+    if tool == "promptfoo":  # no config here with the assert: never a file it can't point to
+        return f"{said} {home} in your promptfoo config"
     return f"{said} {home} in your eval's code"
 
 

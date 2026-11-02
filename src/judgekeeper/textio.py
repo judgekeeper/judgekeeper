@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 BOM = "\ufeff"
@@ -107,6 +108,9 @@ def started_with_python_m() -> bool:
 
 # The marking page's own process: the program the run that started it names (page.main)
 _typed: str | None = None
+_plain = False  # inside plainly()
+ANYWHERE = ""  # run_from(ANYWHERE): a line for a folder judgekeeper can't name
+_from: str | None = None  # inside run_from(): the folder a printed command is run in
 SCRIPT_NAMES = ("judgekeeper", "judgekeeper.exe", "judgekeeper-script.py")
 _imports: dict[str, bool] = {}
 
@@ -137,16 +141,17 @@ def _started_as_judgekeeper() -> bool:
 
 
 def command_path(path: str) -> str:
-    """`path` as a program to run from this folder, quoted: relative when the two share a
-    folder below the top, with a folder in it so the shell never looks it up on the PATH;
-    else under the home folder as `~/...`: never the user name; else, or on another drive,
-    the path as it is. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it): the
-    shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path as
-    it is; else from here, quoted (else the path as it is)."""
+    """`path` as a program to run from this folder (or run_from's), quoted: relative when the
+    two share a folder below the top, with a folder in it so the shell never looks it up on
+    the PATH; else under the home folder as `~/...`: never the user name; else, or on another
+    drive, the path as it is. From ANYWHERE: never relative. On Windows, never `%USERPROFILE%`
+    (PowerShell doesn't read it): the shorter form cmd.exe and PowerShell both run
+    (in_both_shells), from here or the path as it is; else from here, quoted (else the path
+    as it is)."""
     try:
-        here = os.getcwd()
-        shown = os.path.relpath(path, here)
-        shared = os.path.commonpath([here, path])
+        here = os.getcwd() if _from is None else _from
+        shown = os.path.relpath(path, here) if here != ANYWHERE else None
+        shared = os.path.commonpath([here, path]) if here != ANYWHERE else os.sep
     except (OSError, ValueError):
         shown = shared = None
     if shown is not None and os.sep not in shown and "/" not in shown:
@@ -224,7 +229,7 @@ def off_path(any_start: bool = False) -> str | None:
         return None
     if script and not os.path.isabs(typed) and (os.path.isfile(typed)
                                                  or os.path.isfile(typed + ".exe")):
-        return quote_arg(typed)
+        return quote_arg(typed) if _from is None else command_path(os.path.abspath(typed))
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
@@ -242,20 +247,44 @@ def program(subcommand: str = "") -> str:
     puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
     betas unless the version is named), with the extras it was started with (uvx_with);
     when the `judgekeeper` command is not on the PATH, the form that runs (off_path); else
-    `judgekeeper`; then the subcommand."""
+    `judgekeeper`; then the subcommand. Inside plainly(): never a path or a python."""
     import shutil
 
     from judgekeeper import __version__
 
     name = "judgekeeper"
-    if _typed is not None:
+    if _typed is not None and not _plain:
         name = _typed
     elif started_by_uvx():
         pin = f"@{__version__}" if is_prerelease() else ""
         name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
-    elif _started_as_judgekeeper() and not shutil.which("judgekeeper"):
+    elif not _plain and _started_as_judgekeeper() and not shutil.which("judgekeeper"):
         name = off_path() or name
     return f"{name} {subcommand}" if subcommand else name
+
+
+@contextmanager
+def run_from(folder: str | Path):
+    """Within it, program() names judgekeeper as it is typed in `folder` (a line that says
+    to go there and run it), or in any folder (ANYWHERE: a folder it can't name)."""
+    global _from
+    was, _from = _from, (ANYWHERE if folder == ANYWHERE else os.path.abspath(folder))
+    try:
+        yield
+    finally:
+        _from = was
+
+
+@contextmanager
+def plainly():
+    """Within it, program() names judgekeeper plainly (`judgekeeper`, or uvx's form): for a
+    file people share, such as report.html, where a path typed to start it means nothing."""
+    global _plain
+    was, _plain = _plain, True
+    try:
+        yield
+    finally:
+        _plain = was
 
 
 # judgekeeper's extras, and the module each one installs

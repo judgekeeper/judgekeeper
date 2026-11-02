@@ -218,12 +218,15 @@ def _newest(state: State):
             where = start.results_path(root, data)  # a file given by path: read there
         given = start.given_model(fp, root)
         try:
-            found = start.find_judge(where, judge_model=given, **options)
+            found = start.find_judge(where, judge_model=given, talk=_ChoosingTalk(), **options)
         except start.StartError:
             if given is None:
                 raise
-            found = start.find_judge(where, **options)  # the results name it now
+            found = start.find_judge(where, talk=_ChoosingTalk(), **options)  # the results
+            # name it now
         return (start.rebased(found, root) if where != root else found), None
+    except _Choose as e:
+        return None, _folder_choice(Path(root), data.get("tool"), e)
     except (start.StartError, start.Stop, RecordsError, OSError, ValueError) as e:
         tool = data.get("tool")
         if tool in find.TOOLS and not find.search(root).readable(tool):
@@ -232,6 +235,52 @@ def _newest(state: State):
         why = scrub(str(e)) if str(e) and not isinstance(e, start.Stop) else CHOOSE
         return None, (f"judgekeeper can't read your LLM-as-a-judge {data.get('metric')} in your "
                       f"newest results: {why}")
+
+
+class FolderChoice(str):
+    """_newest's why when the newest results are in more than one folder (start._choose_folder):
+    `lines`, said as plain `judgekeeper` says them, and the Next line with a `check <file>`
+    command for each folder's newest results."""
+
+    lines: list[str]
+    next_step: str
+
+
+class _ChoosingTalk(start.Talk):
+    """find_judge's talk for check: nothing said, nothing asked; a choice of folders is kept
+    (FolderChoice)."""
+
+    def __init__(self):
+        super().__init__(quiet=True)
+
+    def choose(self, title, options, flag_hint, ask="Which one?", flag=None, values=(),
+               what=None, keep=0) -> int:
+        if flag == "PATH":
+            raise _Choose(title, list(options), list(values), what)
+        return super().choose(title, options, flag_hint, ask, flag, values, what, keep)
+
+
+class _Choose(Exception):
+    def __init__(self, title: str, options: list[str], values: list[str], what: str | None):
+        super().__init__(title)
+        self.title, self.options, self.values, self.what = title, options, values, what
+
+
+def _folder_choice(root: Path, tool: str | None, e: _Choose) -> FolderChoice:
+    """The lines plain `judgekeeper` says for the choice `e`, with `check <file>` commands:
+    each folder's newest results file (the value itself when it is a file)."""
+    readable = sorted(find.search(root).readable(tool) if tool else [], key=lambda r: r.date(),
+                      reverse=True)  # newest first, as start._locate orders them
+    files = []
+    for value in e.values:
+        newest = next((r for r in readable if start._eval_folder(r) == value), None)
+        files.append(newest.rel if newest is not None else value)
+    commands = [f"`{program('check')} {runnable(f, labels=False)}`" for f in files]
+    names = ", ".join(quote_arg(str(v)) for v in e.values)
+    out = FolderChoice(e.title)
+    out.lines = [e.title, *(f"  {o}" for o in e.options)]
+    out.next_step = f"Next: choose {e.what} ({names}), then run {start.some(commands)}."
+    return out
 
 
 class OtherName(str):
@@ -1480,6 +1529,12 @@ def full(path: str, said: Said) -> int:
                                  old=names.get(old_tool, old_tool)))
         said.say()
         said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
+        return EXIT_NEEDS_YOU
+    if isinstance(problem, FolderChoice):  # as plain `judgekeeper` says it, with check's commands
+        for line in problem.lines:
+            said.say(line)
+        said.say()
+        said.say(problem.next_step)
         return EXIT_NEEDS_YOU
     if problem:
         said.say(problem if problem.endswith(".") else problem + ".")  # one stop
