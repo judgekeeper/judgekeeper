@@ -118,8 +118,9 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
                "decision from your LLM-as-a-judge{why}.")
 NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
 SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
-NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by the same text, word for word, and the same question.")
+LEFT_OUT = "{k} of your {n} had no grade in your new results, so judgekeeper left {them} out."
+BY_TEXT = "It finds a marked answer by the same text, word for word, and the same question."
+NOT_IN = f"{LEFT_OUT} {BY_TEXT}"  # BY_TEXT only when some of them were not found
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
@@ -1467,6 +1468,16 @@ def no_decision(found, ids, ws: Workspace) -> list[str]:
     return [i for i in ids if _candidates(index, rows.get(i) or {})]
 
 
+def _say_left_out(said, found, gone: list[str], ws: Workspace, total: int) -> None:
+    """The marked answers `gone` (of `total`) with no grade in the new results: left out, how
+    an answer is found when some of them were not, and how many are there with no decision."""
+    k, e = len(gone), len(no_decision(found, gone, ws))
+    line = LEFT_OUT.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1 else "them")
+    said.say(line if e == k else f"{line} {BY_TEXT}")
+    if e:
+        said.say(NO_DECISION.format(e=e, are=_are(e), why=no_decision_why(found, gone, ws)))
+
+
 def no_decision_why(found, ids, ws: Workspace) -> str:
     """" (such as an error)" when one of the marked answers `ids` has no decision because the
     judge's call failed or its grade is the word error; else nothing: an empty grade may be
@@ -1739,7 +1750,8 @@ def full(path: str, said: Said) -> int:
     if not changed and not grades:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
-        held = len(lookup(found, state.marks, state.ws)[0]) if found is not None else None
+        matched = lookup(found, state.marks, state.ws)[0] if found is not None else None
+        held = len(matched) if matched is not None else None
         if held == len(state.marks) and not given_results(path):
             _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
@@ -1750,9 +1762,8 @@ def full(path: str, said: Said) -> int:
             said.say(_no_change(state))
             said.say(SAME if new.get("rule_hash") else SAME_GRADES)
             if held is not None and held < len(state.marks):  # most were run again: new text
-                k = len(state.marks) - held
-                said.say(NOT_IN.format(k=k, n=_n(len(state.marks), "marked answer"),
-                                       them="it" if k == 1 else "them"))
+                _say_left_out(said, found, [i for i in state.marks if i not in matched],
+                              state.ws, len(state.marks))
                 said.say()
                 if batches.new_answers(state.ws, found):  # new answers came with them
                     said.say(NEXT_NEW_ANSWERS.format(program=_here(state.ws),
@@ -2015,12 +2026,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     if not few and looked is None:
         return False  # the check goes on, and says them there
     if n < total:
-        k = total - n
-        said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
-                               else "them"))
-        if e:
-            said.say(NO_DECISION.format(e=e, are=_are(e),
-                                        why=no_decision_why(found, gone, state.ws)))
+        _say_left_out(said, found, gone, state.ws, total)
     c = _asked_again(found, gone, state.ws) if gone else 0
     if c:
         said.say(CHANGED.format(c=c))
