@@ -414,6 +414,32 @@ def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, 
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
+@pytest.mark.parametrize("columns, named", [
+    ("input,output,verdict", "`input`, `output`, `verdict`"),
+    ("Input,Output,judge_verdict", "`Input`, `Output`, `judge_verdict`")])
+def test_own_code_is_told_the_first_files_column_names(here, capsys, monkeypatch, columns,
+                                                      named):
+    from tests.start_projects import table_project
+
+    path = table_project(here, [True] * 25 + [False] * 25)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(columns + text[text.index("\n"):], encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        main(["--stop"])
+    session = StartSession(Workspace(here))
+    for n, item in enumerate(session.items):
+        label = session.groups[item["id"]]
+        session.update({"id": item["id"], "seconds": 5,
+                        "label": ("fail" if label == "pass" else "pass") if n < 6 else label})
+    with only_reads(monkeypatch):
+        _, out = run(capsys)
+    flat = " ".join(out.split())
+    assert (f"{fix.OWN} Save the new grades in a file like your first one, with its column "
+            f"names ({named}).") in flat, flat
+    assert "as its input" not in flat
+
+
 def _marked_own(here, argv=()) -> Workspace:
     """Step 1 run on `here` and every answer marked, 6 it passed marked Fail: the same
     counts of Pass and Fail marks whatever order the queue is in."""
@@ -582,8 +608,10 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     kind = targets.fix_verdict(fixed, 0, n).kind
     assert kind in ("better", "safe")
     assert fix.RESULT[kind] in flat
-    assert flat.endswith(f"Next: keep your new rule, then run `judgekeeper check {new.name}` "
-                         "to re-check it on all your marks.")
+    assert flat.endswith(
+        "Next: copy your new rule from .judgekeeper/fix/regrade.yaml (line "
+        f"{_value_line(ws)}) into promptfooconfig.yaml (line 5), then run "
+        f"`judgekeeper check {new.name}` to re-check it on all your marks.")
 
 
 def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(

@@ -37,6 +37,14 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
+def now_part(mistakes: str) -> str:
+    """mistakes.md without its "The rule you marked with" section: what it says of the
+    LLM-as-a-judge now."""
+    from judgekeeper.fix import MARKED_WITH
+
+    return re.sub(rf"## {MARKED_WITH}\n.*?(?=\n## )", "", mistakes, flags=re.DOTALL)
+
+
 def _next(out: str) -> str:
     return next_lines(out)[-1]
 
@@ -155,7 +163,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
     assert "You took on a rule tested on these marks kept aside." in flat(said[4])
     assert "You have tested" not in flat(said[4]) + flat(said[5])  # taking one on is no test
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert RULE_B in mistakes and RULE_A not in mistakes  # the judge the marks test now
+    assert RULE_B in mistakes and RULE_A not in now_part(mistakes)  # the judge they test now
 
 
 def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
@@ -474,7 +482,7 @@ def test_after_an_adopted_rule_the_judge_is_not_called_the_same(here, capsys):
     _rubric(here, split(20, 20), RULE_B)
     assert _check(capsys)[0] == 0
     mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert RULE_B in mistakes and RULE_A not in mistakes
+    assert RULE_B in mistakes and RULE_A not in now_part(mistakes)
     _rubric(here, split(20, 20), RULE_B, name="results-2.json")  # the eval ran again
     out = _jk(capsys)[1]
     assert "Your LLM-as-a-judge is the same" not in out, out

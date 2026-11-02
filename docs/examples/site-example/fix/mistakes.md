@@ -15,6 +15,10 @@ When it said Pass and you said Fail, the answers are long (about 12 words, again
 The answer solves the customer's problem and is polite.
 RULE>>>
 
+## The rule you marked with
+
+The same as the rule now.
+
 ## Mistakes
 
 ## [M1] Your LLM-as-a-judge said PASS. You said FAIL.

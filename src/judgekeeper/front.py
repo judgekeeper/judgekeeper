@@ -57,7 +57,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    shown_from_here,
     shown_path,
     wrap,
 )
@@ -71,6 +70,8 @@ VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
+GO_TO_PROJECT = ("judgekeeper reads eval results in your project folder. Go to it (`cd <your "
+                 "project folder>`), then run `{command}` there.")
 SAVE_MAP = ("Save how to read {file} in judgekeeper.toml? judgekeeper reads it from there "
             "from now on.")
 QUESTIONS = "judgekeeper needs your answer to {which}:"
@@ -92,6 +93,7 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
+NEWEST = "Reading {file}, the newest results here."
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -132,6 +134,7 @@ NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
+CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
 IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
 # --no-browser opened none, so "in your browser" could be false
 CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
@@ -360,6 +363,9 @@ def _started(path: Path) -> bool:
 
 def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     given = _labels_file(talk)  # a folder, an Excel file, no file: said before any search
+    if path.is_dir() and textio.above_projects(path):  # a search would walk home folders
+        talk.para(GO_TO_PROJECT.format(command=program()))
+        return EXIT_NEEDS_YOU
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
@@ -452,7 +458,9 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     if talk.labels_read is None:
         return
     rows = start_label.StartSession(ws).raw
-    plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
+    data = ws.data()
+    plan = labels_mod.match(talk.labels_read, rows, data["queue"], found.pool.left,
+                            data.get("left"))
     if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
         raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from)
@@ -1240,6 +1248,28 @@ def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
     return TOOL_NAMES.get(tool, tool)
 
 
+def _newest(found: start.Found) -> str:
+    """The newest results file read, named from here (linked): `~/...` in the home folder,
+    never through a top folder (textio.shown_in)."""
+    newest = found.results[0]
+    return link(newest.path, textio.shown_in(newest.path, found.root))
+
+
+def _newest_line(ws: Workspace, found: start.Found) -> str | None:
+    """NEWEST when this run found other results files than the last one read (a newer one
+    saved in the folder), not given by path."""
+    if found.given or found.tool in ("mlflow", "records") or not found.results:
+        return None
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if not files or data.get("given") or _same_files(ws, data, files, found):
+        return None
+    return NEWEST.format(file=_newest(found))
+
+
 def _read_from(found: start.Found) -> str:
     """Where the answers were read, in the shape of found_line's brackets."""
     newest = found.results[0]
@@ -1247,9 +1277,7 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    root = Path(found.root).resolve()
-    here = Path(newest.path).resolve().is_relative_to(root) and Path.cwd().resolve() == root
-    shown = link(newest.path, newest.rel if here else shown_from_here(newest.path))  # from here
+    shown = _newest(found)
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
@@ -1594,7 +1622,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
     if mapped is None and not talk.answers:
         return None
     if mapped is not None:
-        new, question = mapped, SAVE_MAP.format(file=mapped.file)
+        new, question = mapped, SAVE_MAP.format(  # named as File: names it
+            file=textio.shown_in(Path(found.root) / mapped.file, found.root))
     else:
         try:
             new = settings.load(found.root) or settings.StartSettings(source=found.tool)
@@ -1614,7 +1643,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
         if mapped is None:
             return None
         _write(found)
-        talk.para(f"Nothing was saved: judgekeeper reads {mapped.file} only once "
+        talk.para(f"Nothing was saved: judgekeeper reads "
+                  f"{textio.shown_in(Path(found.root) / mapped.file, found.root)} only once "
                   "judgekeeper.toml says how.")
         raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
     return new
@@ -1756,6 +1786,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     again = start_label.recompute_old(ws, flags=_flags_of(talk, saved, ws))  # this run's
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = [start_label.WORKED_OUT_AGAIN] if again else []
+    if not first and (newest := _newest_line(ws, found)):
+        head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
@@ -1905,22 +1937,27 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
-        talk.say(f"You have {'marks on' if some_imported else 'marked'} all {_n(n, 'answer')}. "
-                 "There are no more to mark.")  # the page didn't mark the imported ones
+        talk.say(f"You have {'marks on' if some_imported else 'marked'} all "
+                 f"{_n(n, 'answer')}.")  # the page didn't mark the imported ones
         talk.say()
         for line in head:
             talk.para(line)
         if head:
             talk.say()
-        opened = None
-        # disagreements the person can see: the result page, with its reason boxes
+        # disagreements the person can see: the result page, with its reason boxes (and its
+        # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
             if _kept(talk, opened, shown, SAY_WHY) is None:
                 talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
-            if opened.server is not None:
-                talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-            talk.say()
+        else:
+            opened, shown = _open(talk, ws, wait, saved)
+            if _kept(talk, opened, shown, CHANGE_MARK) is None:
+                talk.para(f"The marking page is open in your browser. {CHANGE_MARK}"
+                          if shown == page.BROWSER else CHANGE_MARK)
+        if opened.server is not None:
+            talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
+        talk.say()
         talk.para("Next: " + then if then  # the new answers wait for a check
                   else _all_marked_lines(talk, ws, counts, saved)[1])  # they join later
         if opened is not None and opened.server is not None:
@@ -2113,10 +2150,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     step = report_page.next_step(r)  # the report's next step
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
     mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
-    why = not worse and start_label.why_count(ws, r)
+    why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
-        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
         if kept := start_label.kept_count(ws, r):  # said on the result page too
             talk.para(report_page.kept_line(kept))
         if step != "mark":  # fix is never a step while it is too early to tell

@@ -48,6 +48,8 @@
       </div>
       <p class="gx-way-h"><b>With <a href="https://docs.astral.sh/uv/">uv</a></b></p>
       <div class="gx-pair"><div class="cmd"><code>uvx judgekeeper</code><button type="button" class="copy" data-copy aria-label="Copy the uv command"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div></div>
+      <p class="gx-small">With uv, put <code>uvx</code> before each command below, for example <code>uvx judgekeeper fix</code>.</p>
+      <p class="gx-small">For MLflow or Inspect AI results: <code>pip install "judgekeeper[mlflow]"</code> or <code>"judgekeeper[inspect]"</code>.</p>
       <p class="gx-small">Works on macOS, Linux and Windows, with Python 3.11 to 3.14.</p>
       <p class="gx-small">Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.</p>
     </div>
@@ -68,7 +70,7 @@
       <p>Mark each answer Pass or Fail, the way you would grade it. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
       <figure class="gx-shot"><a href="assets/shots/label.webp"><img src="assets/shots/label.webp" width="2880" height="1800" loading="lazy" decoding="async" alt="The marking page: one question and its answer, with Fail and Pass buttons under them. On the left, the list of questions with the marks made so far; at the top, how many are marked."></a></figure>
       <p class="gx-tap">Tap to enlarge</p>
-      <p>Already have Pass/Fail labels? Run <code>judgekeeper --labels your-labels.csv</code> (or <code>judgekeeper --labels</code> for labels already in your results), then mark more if needed.</p>
+      <p>Already have Pass/Fail labels? Run <code>judgekeeper --labels your-labels.csv</code> for a file with an <code>output</code> (or <code>answer</code>) column and a <code>label</code> (or <code>human_label</code>) column, or <code>judgekeeper --labels</code> for a <code>human_label</code> or <code>label</code> field in your results. Then mark more if needed.</p>
       <p class="done">When the link at the top shows your numbers, click it.</p>
     </div></div></li>
     <li class="gl-step" id="step-measure"><span class="gl-n" aria-hidden="true">3</span><div class="sw"><div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Measure: see how often your LLM-as-a-judge agrees with you</span></div><div class="gl-body gx-text sw-body">
@@ -101,7 +103,7 @@
   <div class="gm-row" id="own-format">
     <div class="rt-bar sw-bar" aria-hidden="true"><span class="sw-t">Your own file or code</span></div><h3 class="sr">Your own file or code</h3>
     <div class="gx-text">
-      <p><b>No eval tool?</b> Save your results as a CSV, TSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Then run:</p>
+      <p><b>No eval tool?</b> Save your results as a CSV, TSV or JSONL file with three columns: <code>input</code> (the question), <code>output</code> (the answer) and <code>verdict</code> (Pass or Fail from your LLM-as-a-judge). Other names work too: judgekeeper asks how to read them. Then run:</p>
       <div class="cmd"><code>judgekeeper results.csv</code><button type="button" class="copy" data-copy aria-label="Copy"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
       <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper

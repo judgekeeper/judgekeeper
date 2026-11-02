@@ -67,6 +67,8 @@ NEXT_HELP = "run `{command}` to see the options."
 NEXT_REMOVED = "run `{command}` in your project."
 NEXT_STOPPED = "run `{command}` to carry on."
 NEXT_BUSY = "run `{command}` again."
+NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
+PAGE_FLAGS = ("--port", "--no-browser")
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
@@ -453,6 +455,23 @@ def _command(args_list: list[str]) -> str | None:
     return name if name in (*COMMANDS, *REMOVED) else None
 
 
+def _without_page_flags(args_list: list[str]) -> list[str]:
+    """The arguments with --port (and its value) and --no-browser left out."""
+    out, skip = [], False
+    for i, arg in enumerate(args_list):
+        if skip:
+            skip = False
+        elif arg == "--":  # what follows is a path, never a flag
+            return out + args_list[i:]
+        elif arg == "--port":
+            skip = True
+        elif arg == "--no-browser" or arg.startswith("--port="):
+            continue
+        else:
+            out.append(arg)
+    return out
+
+
 def parse_args(args_list: list[str]) -> argparse.Namespace:
     """The arguments as `main` reads them: a command's own, or those of `judgekeeper` with no
     command (`command` None). A removed command, or arguments that do not parse, raise
@@ -463,6 +482,10 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
         _next(NEXT_REMOVED.replace("{command}", program()))
+        raise SystemExit(EXIT_USAGE)
+    if command in ("fix", "check") and (kept := _without_page_flags(args_list)) != args_list:
+        print(NO_PAGE.format(command=command), file=sys.stderr)
+        _next(f"run `{program(' '.join(textio.quote_arg(a) for a in kept))}`.")
         raise SystemExit(EXIT_USAGE)
     parser = _parser() if command else _front_parser()
     if command:  # an unknown flag is said by the command itself, with its own usage
@@ -513,7 +536,7 @@ def _main(argv: list[str] | None) -> int:
     except SystemExit as e:
         if e.code in (0, None):
             return EXIT_OK
-        if _command(args_list) not in REMOVED:  # a removed command said its Next: line
+        if not textio.next_said:  # a removed command or a page flag said its Next: line
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:

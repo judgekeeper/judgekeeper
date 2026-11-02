@@ -407,34 +407,17 @@ def of_line(line: dict | None) -> dict:
 # note), "reasons" (ids, an own button's id on the answer it was typed for), "words" ({own id:
 # its words}), "parts" ([[n, words]]), "spans".
 
-def _words(row: dict, key: str, own: dict | None = None) -> str:
-    """A reason as a line says it: a button's name, the person's own words in quotes, or in a
-    file (`own`, own_numbers) "your own reason 1", its words fenced apart."""
+def _words(row: dict, key: str, in_file: bool = False) -> str:
+    """A reason as a line says it: a button's name, or the person's own words in quotes, on
+    one line (`in_file`, for mistakes.md: with every fence marker in them broken up)."""
     if key in REASONS:
         return lower(REASONS[key][0])
-    if own and key in own:
-        return f"your own reason {own[key]}"
-    return f"“{one_line(row.get('words', {}).get(key, key))}”"
+    words = one_line(row.get("words", {}).get(key, key))
+    if in_file:
+        from judgekeeper.start_fix_rule import unmarked
 
-
-OWN_FENCE = "YOUR REASON {n}"
-
-
-def own_numbers(rows: list[dict]) -> dict[str, int]:
-    """The person's own reasons, numbered 1.. most-tapped first: in mistakes.md each is named
-    by its number and its words sit in a fence (OWN_FENCE), never in a line."""
-    counts = tally(rows)
-    return {k: n for n, k in enumerate((k for k in _order(counts) if k.startswith(OWN)), 1)}
-
-
-def own_fences(rows: list[dict], own: dict[str, int], fence) -> list[str]:
-    """Each own reason's words in its fence (OWN_FENCE), in its number's order."""
-    words = {}
-    for r in rows:
-        for k in r.get("reasons") or []:
-            if k in own:
-                words.setdefault(k, one_line(r.get("words", {}).get(k, k)))
-    return [fence(OWN_FENCE.format(n=n), words[k]) for k, n in own.items()]
+        words = unmarked(words)
+    return f"“{words}”"
 
 
 def tally(rows: list[dict]) -> Counter:
@@ -447,11 +430,11 @@ def has_any(rows: list[dict]) -> bool:
                for r in rows)
 
 
-def _names(rows: list[dict], own: dict | None = None) -> dict[str, str]:
+def _names(rows: list[dict], in_file: bool = False) -> dict[str, str]:
     out: dict[str, str] = {}
     for r in rows:
         for k in r.get("reasons") or []:
-            out.setdefault(k, _words(r, k, own))
+            out.setdefault(k, _words(r, k, in_file))
     return out
 
 
@@ -488,15 +471,12 @@ def clue_lines(rows: list[dict], fence=None) -> list[str]:
     tapped TWICE or more, the rule parts tapped TWICE or more, the "missed it or allowed it"
     check on the answers with words marked, and how many marks the person wasn't sure
     about. `fence` (start_fix_rule.fenced, for mistakes.md) puts a rule part's words in a
-    fence below its line, and the person's own reasons by number, their words fenced below
-    the reasons counted."""
-    own = own_numbers(rows) if fence is not None else {}
-    counts, names = tally(rows), _names(rows, own)
+    fence below its line."""
+    counts, names = tally(rows), _names(rows, in_file=fence is not None)
     out = []
     if counts:
-        out.append("\n".join(["Your reasons for your LLM-as-a-judge's mistakes: "
-                              + ", ".join(f"{names[k]} ({counts[k]})" for k in _order(counts))
-                              + ".", *own_fences(rows, own, fence)]))
+        out.append("Your reasons for your LLM-as-a-judge's mistakes: "
+                   + ", ".join(f"{names[k]} ({counts[k]})" for k in _order(counts)) + ".")
     if counts["rule_silent"] >= TWICE:
         out.append("Your LLM-as-a-judge's rule may be missing something: write in it how to "
                    "judge these answers.")
@@ -547,12 +527,11 @@ def notes(rows: list[dict]) -> list[tuple[str, list[dict]]]:
     return sorted(out.items(), key=lambda x: -len(x[1]))
 
 
-def said_line(row: dict, own: dict | None = None) -> str | None:
-    """"You said: ..." for one mistake in mistakes.md: the reasons tapped (the person's own by
-    number, `own`), the rule parts by number, and the marked words (in bold in the answer).
-    The note is fenced, not here."""
-    said = [_words(row, k, own) for k in row.get("reasons") or [] if not k.startswith(OWN)]
-    said += [_words(row, k, own) for k in row.get("reasons") or [] if k.startswith(OWN)
+def said_line(row: dict) -> str | None:
+    """"You said: ..." for one mistake in mistakes.md: the reasons tapped, the rule parts by
+    number, and the marked words (in bold in the answer). The note is fenced, not here."""
+    said = [_words(row, k, True) for k in row.get("reasons") or [] if not k.startswith(OWN)]
+    said += [_words(row, k, True) for k in row.get("reasons") or [] if k.startswith(OWN)
              and not same_words(row.get("words", {}).get(k, ""), row.get("why") or "")]
     said += [f"rule part {n}" for n, _ in row.get("parts") or []]
     if row.get("spans"):
@@ -560,11 +539,11 @@ def said_line(row: dict, own: dict | None = None) -> str | None:
     return f"You said: {'; '.join(said)}." if said else None
 
 
-def groups(rows: list[dict], own: dict | None = None) -> list[tuple[str, list[dict]]]:
+def groups(rows: list[dict], in_file: bool = False) -> list[tuple[str, list[dict]]]:
     """The mistakes grouped by their most-tapped reason (the reason of theirs tapped most over
     all mistakes), most-tapped group first; then those with none, then those the person wasn't
-    sure about, last. `own`: the person's own reasons by number (own_numbers)."""
-    counts, names = tally(rows), _names(rows, own)
+    sure about, last. `in_file`: for mistakes.md (_words)."""
+    counts, names = tally(rows), _names(rows, in_file)
     keyed: dict[str, list[dict]] = {}
     for r in rows:
         if UNSURE in (r.get("reasons") or []):

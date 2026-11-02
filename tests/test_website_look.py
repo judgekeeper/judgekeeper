@@ -749,6 +749,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
         "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
+        "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
+        ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
+         '"judgekeeper[inspect]".'),
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
@@ -795,7 +798,8 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
     assert said == [
         ("p", ("No eval tool? Save your results as a CSV, TSV or JSONL file with three columns: "
               "input (the question), output (the answer) and verdict (Pass or Fail from your "
-              "LLM-as-a-judge). Then run:")),
+              "LLM-as-a-judge). Other names work too: judgekeeper asks how to read them. "
+              "Then run:")),
         ("div", "judgekeeper results.csv"),
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
         ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
@@ -884,8 +888,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                        "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
                        "so you can stop at any time and come back later."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
-                       "(or judgekeeper --labels for labels already in your results), then mark "
-                       "more if needed.")],
+                       "for a file with an output (or answer) column and a label (or "
+                       "human_label) column, or judgekeeper --labels for a human_label or label "
+                       "field in your results. Then mark more if needed.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
