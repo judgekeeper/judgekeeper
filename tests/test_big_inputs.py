@@ -91,6 +91,7 @@ def test_the_records_folder_is_read_to_the_cap_in_all(tmp_path, monkeypatch, cap
     third = records_project(tmp_path, [False, True], pid=0, day="2026-10-04", start=4)
     results = [find.Result("records", p, f".judgekeeper/records/{p.name}", 0)
                for p in (newer, older, third)]
+    monkeypatch.chdir(tmp_path)  # run in the project, as Find does
     loaded = start._read_records(start.Talk(), results)
     assert [len(x.records) for x in loaded] == [2, 1]
     out = " ".join(capsys.readouterr().out.split())
@@ -159,3 +160,29 @@ def test_find_checks_only_tables_within_its_byte_budget(tmp_path, monkeypatch):
     search = find.search(tmp_path)
     assert checked == ["small.csv"], checked
     assert sorted(r.rel for r in search.results["table"]) == ["big.csv", "small.csv"]
+
+
+def test_the_records_lines_name_files_from_where_you_run(tmp_path, monkeypatch, capsys):
+    """Run from a folder below the project: the cap line, a file that can't be read and a
+    last line cut short name the records from here (../.judgekeeper/records/...)."""
+    from judgekeeper import find, start
+    from tests.start_projects import records_project
+
+    monkeypatch.setattr(table, "MAX_ROWS", 3)
+    cut = records_project(tmp_path, [True, False], pid=2, day="2026-10-06")
+    with cut.open("a", encoding="utf-8") as f:
+        f.write('{"schema_version": 2, "label": "pa')  # the program stopped while writing
+    bad = records_project(tmp_path, [True], pid=1, day="2026-10-05")
+    bad.write_bytes(b'{"label": "\xff\xfe"}\n')  # not UTF-8
+    older = records_project(tmp_path, [True, True], pid=0, day="2026-10-04", start=4)
+    (tmp_path / "a").mkdir()
+    monkeypatch.chdir(tmp_path / "a")
+    results = [find.Result("records", p, f".judgekeeper/records/{p.name}", 0)
+               for p in (cut, bad, older)]
+    start._read_records(start.Talk(), results)
+    out = " ".join(capsys.readouterr().out.split())
+    here = "../.judgekeeper/records/"
+    assert f"the last line of {here}{cut.name} was cut short" in out, out
+    assert f"{here}{bad.name} could not be read" in out, out
+    assert f"Read the newest 3 records in {here}; the older ones are left out." in out, out
+    assert " .judgekeeper/records/" not in out, out

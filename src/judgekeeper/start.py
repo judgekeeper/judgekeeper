@@ -750,21 +750,28 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
         except RecordsError as e:
             text = str(e).removeprefix(f"{r.path.name} is damaged: ")
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
+            talk.say(f"  {_here(r)} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
         if len(records) > room:
             del records[room:]
             cut = True
         room -= len(records)
         if CUT_END in records.notes:
-            talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
+            talk.say(f"  Note: the last line of {_here(r)} was cut short (the program stopped while "
                      "writing it) and was left out.")
         for warning in records.warnings:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
     if cut:
-        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=_folder_of(results[0]))}")
+        here = Path(_here(results[0])).parent.as_posix()
+        folder = _here(results[0]) if here == "." else f"{here}/"
+        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=folder)}")
     return loaded
+
+
+def _here(result: find.Result) -> str:
+    """A records file as a line names it: from where the command runs (shown_from_here)."""
+    return textio.shown_from_here(result.path)
 
 
 def given_model(fp: dict, root) -> str | None:
