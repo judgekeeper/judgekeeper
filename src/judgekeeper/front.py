@@ -364,11 +364,19 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
 
 def _labels_stop(talk: FrontTalk, e: labels_mod.LabelsStop) -> Stop:
     """Why the labels can't be used (exit 3): nothing was written."""
-    for line in e.lines:
-        talk.para(line)
+    _say_lines(talk, e.lines)
     if e.next_step:
         talk.say()
     return talk.stop(EXIT_QUESTION, e.next_step)
+
+
+def _say_lines(talk: FrontTalk, lines: list[str]) -> None:
+    """Lines of labels.py, those that start with two spaces indented."""
+    for line in lines:
+        if line.startswith("  "):
+            talk.para(line[2:], indent="  ")
+        else:
+            talk.para(line)
 
 
 def _labels_file(talk: FrontTalk) -> Path | None:
@@ -386,14 +394,14 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
     written: a word that isn't Pass or Fail stops here."""
     if talk.labels is None:
         return
+    mine = talk.options["label_map"] or _kept_label_map(found.root)  # the person's own map
     try:
         if path is None:
-            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command)
+            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command, mine)
             talk.labels_from = marks.FROM_RESULTS
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
-            talk.labels_read = labels_mod.read_file(path, talk.labels, found.pool.label_map,
-                                                    talk.command)
+            talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -405,14 +413,10 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
         return
     rows = start_label.StartSession(ws).raw
     plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
-    if not plan.matched:
-        raise _labels_stop(talk, labels_mod.nothing_matched(talk.labels_from))
+    if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
+        raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from)
-    for line in labels_mod.said(added, plan, talk.labels_from):
-        if line.startswith("  "):
-            talk.para(line[2:], indent="  ")
-        else:
-            talk.para(line)
+    _say_lines(talk, labels_mod.said(added, plan, talk.labels_from))
     talk.say()
     talk.labels_read = None  # once
 

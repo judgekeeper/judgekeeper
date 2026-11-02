@@ -32,6 +32,8 @@ from tests.start_projects import (
 
 PAGE = ("--no-browser", "--port", "0", "--yes")
 CMD = "judgekeeper --port 0 --no-browser"  # a command as these runs print it
+NEXT_WORDS = ("Next: run the same command again with `--label-map`, giving each of these words "
+              "=pass, =fail or =error (no decision). An empty label cell skips that row.")
 
 
 @pytest.fixture
@@ -430,16 +432,17 @@ def test_unknown_words_stop_before_anything_is_written(here, capsys):
     assert code == 3
     text = flat(out)
     assert "Some labels in mine.csv aren't Pass or Fail: good, maybe, n/a." in text
-    assert (f'Next: say what each one means, then run: {CMD} --labels mine.csv --label-map '
-            '"WORD=pass,WORD=fail"') in text
+    assert (NEXT_WORDS) in text
+    assert "WORD=" not in text and "Your map so far" not in text
     _nothing_written(Workspace(here))
 
 
-def test_at_most_five_unknown_words_are_named(here, capsys):
+def test_at_most_ten_unknown_words_are_named_then_how_many_more(here, capsys):
     table(here)
-    write_labels(here / "mine.csv", [{"answer": answer(i), "label": f"w{i}"} for i in range(8)])
+    write_labels(here / "mine.csv", [{"answer": answer(i), "label": "abcdefghijklmn"[i]}
+                                     for i in range(14)])
     _, out = run(capsys, "--labels", "mine.csv")
-    assert "aren't Pass or Fail: w0, w1, w2, w3, w4." in flat(out)
+    assert "aren't Pass or Fail: a, b, c, d, e, f, g, h, i, j and 4 more." in flat(out)
 
 
 def test_numbers_are_refused(here, capsys):
@@ -990,8 +993,7 @@ def test_unknown_words_in_a_file_given_in_full(tmp_path, monkeypatch, capsys):
     assert code == 3
     text = flat(out)
     assert "Some labels in words.csv aren't Pass or Fail: meh." in text
-    assert (f'then run: {CMD} --labels ../lf/words.csv --label-map "WORD=pass,WORD=fail"'
-            in text)
+    assert NEXT_WORDS in text and "WORD=" not in text
     _no_full_path(out, tmp_path)
 
 
@@ -1045,7 +1047,7 @@ def test_a_big_labels_file_is_never_held_whole(here, suffix):
     assert path.stat().st_size > 10_000_000
     tracemalloc.start()
     try:
-        read = labels.read_file(path, path.name)
+        read = labels.read_file(path)
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()
@@ -1074,3 +1076,134 @@ def test_a_labels_file_keeps_only_the_columns_it_uses(here):
         assert kept == [{k: v for k, v in r.items() if keep(k)}
                         for r in read_table(here / name, cap=False)], name
         assert all("notes" not in r for r in kept)
+
+
+# Imports that add nothing, words that are no decision, and accents ---------------------------
+
+def _two_answers_alike(root: Path) -> None:
+    """A table of 40 graded answers where answers 0 and 1 have the same text."""
+    verdicts = split(20, 20)
+    with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        for i, v in enumerate(verdicts):
+            w.writerow([question(i), answer(0) if i == 1 else answer(i), "pass" if v else "fail"])
+
+
+def _nothing_added(out: str, *skipped: str) -> None:
+    assert flat("Nothing added from mine.csv.\n" + "\n".join(skipped)) in flat(out), out
+    assert "No labels in" not in out and "Added" not in out
+
+
+def test_labels_all_for_answers_alike_say_so_and_add_nothing(here, capsys):
+    _two_answers_alike(here)
+    write_labels(here / "mine.csv", [{"answer": answer(0), "label": "pass"}])
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3
+    _nothing_added(out, "Skipped 1 label:",
+                   "1 matches more than one answer (add a question column to tell them apart)")
+    _nothing_written(Workspace(here))
+
+
+def test_labels_all_for_answers_not_graded_say_so_and_add_nothing(here, capsys):
+    table_project(here, split(20, 19) + [None])
+    write_labels(here / "mine.csv", [{"answer": answer(39), "label": "pass"},
+                                     {"answer": "Not in the results.", "label": "fail"}])
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3
+    _nothing_added(out, "Skipped 2 labels:",
+                   "1 doesn't match any answer in your results (the answer text must be the same)",
+                   "1 is for an answer your LLM-as-a-judge didn't grade Pass or Fail")
+    _nothing_written(Workspace(here))
+
+
+def test_labels_all_labelled_both_ways_say_so_and_add_nothing(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", [{"answer": answer(6), "label": "pass"},
+                                     {"answer": answer(6), "label": "fail"}])
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3
+    _nothing_added(out, "Skipped 2 labels:", "2 are for answers labelled both Pass and Fail")
+    _nothing_written(Workspace(here))
+
+
+def test_a_file_where_every_label_cell_is_empty(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", [{"answer": answer(i), "label": ""} for i in range(3)])
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3
+    assert "Nothing added from mine.csv: every label cell is empty." in flat(out)
+    assert "No labels in" not in out and "has no labels" not in out
+    _nothing_written(Workspace(here))
+
+
+def test_an_import_that_only_keeps_earlier_marks_says_only_that(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(3)))
+    run(capsys, "--labels", "mine.csv")
+    ws = Workspace(here)
+    item = next(iter(imported(ws)))
+    StartSession(ws).update({"id": item, "label": "fail", "seconds": 4})
+    _, out = run(capsys, "--labels", "mine.csv")
+    assert "Kept your earlier mark on 1 answer that mine.csv labels differently." in flat(out)
+    assert "Added" not in out
+
+
+def test_words_mapped_to_error_are_skipped_as_no_decision(here, capsys):
+    table(here)
+    rows = labelled(range(3)) + [{"answer": answer(3), "label": "error"},
+                                 {"answer": answer(4), "label": "n/a"},
+                                 {"answer": answer(5), "label": "meh"}]
+    write_labels(here / "mine.csv", rows)
+    _, out = run(capsys, "--labels", "mine.csv", "--label-map", "error=error,n/a=error,meh=error")
+    text = flat(out)
+    assert ("Added 3 marks from mine.csv (3 Pass, 0 Fail). Skipped 3 labels: 3 labelled no "
+            "decision") in text, out
+    assert "aren't Pass or Fail" not in text
+    assert len(imported(Workspace(here))) == 3
+
+
+def test_one_word_mapped_to_error_is_said_in_the_singular(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(2)) + [{"answer": answer(2), "label": "n/a"}])
+    _, out = run(capsys, "--labels", "mine.csv", "--label-map", "n/a=error")
+    assert "Skipped 1 label: 1 labelled no decision" in flat(out)
+
+
+def test_without_a_map_a_no_decision_word_still_asks(here, capsys):
+    table(here)
+    write_labels(here / "mine.csv", labelled(range(2)) + [{"answer": answer(2), "label": "error"}])
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3 and "aren't Pass or Fail: error." in flat(out)
+    _nothing_written(Workspace(here))
+
+
+def test_the_words_left_name_the_map_so_far_and_never_a_guess(here, capsys):
+    table(here)
+    rows = [{"answer": answer(0), "label": "good"}, {"answer": answer(1), "label": "error"},
+            {"answer": answer(2), "label": "meh"}]
+    write_labels(here / "mine.csv", rows)
+    code, out = run(capsys, "--labels", "mine.csv", "--label-map", "good=pass,error=error")
+    assert code == 3
+    text = flat(out)
+    assert "Some labels in mine.csv aren't Pass or Fail: meh." in text
+    assert f"{NEXT_WORDS} Your map so far: `good=pass,error=error`." in text
+    assert "WORD=" not in text
+    _nothing_written(Workspace(here))
+
+
+@pytest.mark.parametrize("results_form,labels_form", [("NFC", "NFD"), ("NFD", "NFC")])
+def test_accents_match_however_they_are_written(here, capsys, results_form, labels_form):
+    import unicodedata
+
+    tag = " Café résumé naïve"
+    table_project(here, split(20, 20), tag=unicodedata.normalize(results_form, tag))
+    other = unicodedata.normalize(labels_form, tag)
+    write_labels(here / "mine.csv", [
+        {"input": question(0, other), "answer": answer(0, other), "label": "pass"},
+        {"answer": answer(25, other), "label": "fail"}])
+    _, out = run(capsys, "--labels", "mine.csv")
+    assert "Added 2 marks from mine.csv (1 Pass, 1 Fail)." in flat(out), out
+    assert "Skipped" not in out
+    rows = Workspace(here).pool.read_text(encoding="utf-8")
+    assert unicodedata.normalize(results_form, tag) in json.loads(rows.splitlines()[0])["output"]
