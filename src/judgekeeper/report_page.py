@@ -1066,20 +1066,23 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     range is too wide for a result (the headline says it is too early to tell). Too early to
     tell when there is no number yet. A range of no width is not shown: the number says why
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
-    to the same percent are shown with one decimal, and so is the value, so it always sits
-    inside its range ("about 99.3% (between 99.1% and 99.3%)")."""
+    to the same percent are shown with one decimal, then two, and so is the value, so it
+    always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
+    with two decimals too are no range to show: "about 99.3% (almost exact)"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
-    if _pct(lo) == _pct(hi):
-        return f"about {value:.1%}", f"{lo:.1%} and {hi:.1%}"
-    return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
+    for shown in (_pct, "{:.1%}".format, "{:.2%}".format):
+        if shown(lo) != shown(hi):
+            return f"about {shown(value)}", f"{shown(lo)} and {shown(hi)}"
+    return f"about {value:.1%} ({ALMOST_EXACT})", "–"
 
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 

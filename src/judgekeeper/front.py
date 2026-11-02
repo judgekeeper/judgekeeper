@@ -2002,7 +2002,7 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         why = why_for(r, key) if every is None else why_no_range(key, every, pool)
         shown, between = estimate(r.get(key), r.get(f"{key}_interval"), why)
-        ranged = ranged or between != "–"
+        ranged = ranged or between != "–" or shown.startswith("about ")  # almost exact too
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
     # with no range (every answer marked) the numbers are no estimates
