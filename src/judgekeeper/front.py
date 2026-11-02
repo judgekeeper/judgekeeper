@@ -94,6 +94,7 @@ RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the
                      "check re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
+READING = "Reading {file}."  # back to a file older than the last one read
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -1265,7 +1266,8 @@ def _newest(found: start.Found) -> str:
 
 def _newest_line(ws: Workspace, found: start.Found) -> str | None:
     """NEWEST when this run found other results files than the last one read (a newer one
-    saved in the folder), not given by path."""
+    saved in the folder), not given by path; READING when the one read is older than the
+    last one read (a run back on an earlier file)."""
     if found.given or found.tool in ("mlflow", "records") or not found.results:
         return None
     try:
@@ -1275,7 +1277,25 @@ def _newest_line(ws: Workspace, found: start.Found) -> str | None:
         return None
     if not files or data.get("given") or _same_files(ws, data, files, found):
         return None
-    return NEWEST.format(file=_newest(found))
+    return (READING if _older(ws, data, files, found) else NEWEST).format(file=_newest(found))
+
+
+def _older(ws: Workspace, data: dict, files: list[str], found: start.Found) -> bool:
+    """Whether the newest file `found` read is older than one of `files`, the files read last
+    (start.json's, from the folder its results were read in)."""
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    try:
+        now = found.results[0].path.stat().st_mtime
+    except OSError:
+        return False
+    for f in files:
+        try:
+            if (base / f).stat().st_mtime > now:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _read_from(found: start.Found) -> str:

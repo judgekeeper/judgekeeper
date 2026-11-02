@@ -326,3 +326,12 @@ def test_with_graded_answers_left_the_gate_counts_only_those(tmp_path, monkeypat
     assert r["verdict_level"] == "too_early" and not r.get("only_wait")
     status = StartSession(ws).state()["status"]
     assert not status.get("only_wait"), status
+
+
+def test_going_back_to_an_older_file_never_calls_it_the_newest(adopted):
+    """After `check v2.json`, a plain run reads results.json again: older than v2.json, so it
+    is not "the newest results here"."""
+    ws, capsys = adopted
+    said = flat(_jk(capsys, "--no-browser", "--port", "0")[1])
+    closed(ws)
+    assert "Reading results.json." in said and "the newest" not in said, said
