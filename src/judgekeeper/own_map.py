@@ -255,8 +255,9 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         raise cannot(talk, rel, str(e)) from None
     lines = "" if path.suffix.lower() == ".json" else \
         f" ({len(units)} {'line' if len(units) == 1 else 'lines'})"  # one JSON document: none
-    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
-             if found else f"{rel}{lines}:")
+    getattr(talk, "para", talk.say)(  # wrapped on `judgekeeper`'s screens; the path stays whole
+        f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
+        if found else f"{rel}{lines}:")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
     talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
     for p in listed[:MAX_PATHS]:

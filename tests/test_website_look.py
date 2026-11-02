@@ -747,7 +747,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        "With pip, in your project’s virtual environment", "With uv"]
+        ("With pip, in your project’s virtual environment (in a uv virtual environment, uv "
+         "pip install judgekeeper)"), "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
         ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
@@ -886,7 +887,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
                        "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
-                       "so you can stop at any time and come back later."),
+                       "so you can stop at any time and come back later. Once in a while an "
+                       "answer you marked comes back a second time, to see how steady your marks "
+                       "are. Mark it as you see it."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
                        "for a file with an output (or answer) column and a label (or "
                        "human_label) column, or judgekeeper --labels for a human_label or label "

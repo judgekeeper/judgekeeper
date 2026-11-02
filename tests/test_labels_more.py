@@ -76,6 +76,32 @@ def test_two_columns_for_the_same_thing_stop_before_anything_is_written(here, ca
     _nothing_written(Workspace(here))
 
 
+@pytest.mark.parametrize("header,kind,pair", [
+    ("output,label,label", "label", "label and label"),
+    ("output,output,label", "answer", "output and output"),
+    ("question,output,question,label", "question", "question and question"),
+    ("id,output,label,id", "id", "id and id"),
+])
+@pytest.mark.parametrize("suffix", [".csv", ".tsv"])
+def test_the_same_column_name_twice_stops_too(here, capsys, header, kind, pair, suffix):
+    """The same name twice is never read as its last column."""
+    from tests.test_labels_import import _nothing_written
+
+    table(here)
+    names = header.split(",")
+    cells = {"output": answer(0), "label": "pass", "question": "Question 0?", "id": "0"}
+    sep = "\t" if suffix == ".tsv" else ","
+    row = [cells[c] if names.index(c) == k else ("fail" if c == "label" else cells[c])
+           for k, c in enumerate(names)]
+    (here / f"mine{suffix}").write_text(sep.join(names) + "\n" + sep.join(row) + "\n",
+                                        encoding="utf-8")
+    code, out = run(capsys, "--labels", f"mine{suffix}")
+    assert code == 3, out
+    text = flat(out)
+    assert f"mine{suffix} has two {kind} columns ({pair}). Keep one, then run: " in text, text
+    _nothing_written(Workspace(here))
+
+
 # Starting over with --labels -------------------------------------------------------------------
 
 @pytest.mark.parametrize("given", ["new labels.csv", "in results"])

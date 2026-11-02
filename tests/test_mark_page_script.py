@@ -825,3 +825,23 @@ def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
       key("ArrowRight"); await settle();
       console.log(JSON.stringify({at: ids["q-text"].textContent, reloads: reloads}));""")
     assert got == {"at": "Question 1?", "reloads": 0}
+
+
+def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
+    """Marks on answers the new LLM-as-a-judge never graded count for nothing in the bar; the
+    line under it says how many wait and how to count them, with the command as code."""
+    line = ("20 of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet. "
+            "To count them, grade all your answers with your new LLM-as-a-judge, then run "
+            "`judgekeeper check <new results file>`.")
+    counts = {"correct": 15, "wrong": 15, "skipped": 0, "toward": {"correct": 15, "wrong": 0}}
+    got = _run("""
+      var w = ids["waiting"];
+      console.log(JSON.stringify([ids["progress"].getAttribute("aria-valuenow"), w.hidden,
+        w.textContent, tags(w).filter(function (t) { return t === "CODE"; }).length]));""",
+               data=_data(counts=counts, status={"text": "x", "first": False, "ready": False,
+                                                 "waiting": line}))
+    assert got == ["50", False, line.replace("`", ""), 1]
+    got = _run('console.log(JSON.stringify([ids["waiting"].hidden]));',
+               data=_data(counts={"correct": 1, "wrong": 1, "skipped": 0},
+                          status={"text": "x", "first": False, "ready": False}))
+    assert got == [True]

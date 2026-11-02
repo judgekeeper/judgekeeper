@@ -668,9 +668,10 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
     ws = session.workspace
     data = ws.cached_data()
-    status = strata_status(batches.counted_strata(data, session.marked(), ws.cached_strata()))
+    graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
+    status = strata_status(batches.counted_strata(data, graded, ws.cached_strata()))
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
-        ids = set(batches.counted_labels(data, session.marked()))
+        ids = set(batches.counted_labels(data, graded))
         if import_check(marks.read(ws.marks), data, ids)[1]:
             status.update(text=FIRST_NUMBERS, ready=False, headline=None)
     every = bool(session.items) and all(i["label"] for i in session.items)
@@ -681,6 +682,11 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=done[0], done=done)
     elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
+    from judgekeeper import check
+
+    wait = check.wait_lines(ws, len(session.marked()) - len(graded))
+    if wait:  # said once, in the status area: else the result never moves, with no word why
+        status["waiting"] = " ".join(wait)
     return status
 
 
@@ -964,8 +970,14 @@ class StartSession(LabelSession):
             items.insert(start, {**self._again(due[1]), "again": due[0]})
         status = self.current_status()
         self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
+        counts = self.counts()
+        marked = self.marked()
+        graded = batches.graded(self.workspace.cached_data(), marked)
+        if len(graded) < len(marked):  # the bar: only the marks that count (some wait)
+            kinds = list(graded.values())
+            counts["toward"] = {"correct": kinds.count("pass"), "wrong": kinds.count("fail")}
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": status, "version": self.version()}
+                "counts": counts, "status": status, "version": self.version()}
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
@@ -1061,12 +1073,11 @@ def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
-    if targets.width_word(interval) == "exact":
-        from judgekeeper.report_page import EVERY_MARKED
+    from judgekeeper.report_page import estimate
 
-        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} ({why or EVERY_MARKED})."
-    return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
-            f"{_pct(interval[0])} and {_pct(interval[1])}).")
+    shown, between = estimate(value, interval, why)  # the page's words and decimals
+    said = shown if between == "–" else f"{shown} (between {between})"
+    return f"You {did}: your LLM-as-a-judge also {did} {said}."
 
 
 def all_labeled(r: dict) -> bool:
@@ -1368,7 +1379,8 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     disagreement listed: the hidden marks can't be set aside first. Before there is a result,
     nothing is written, as in the terminal: the page shows the numbers so far. A saved result
     is written again (a mark taken back since), so no file keeps the old one."""
-    ready = (has_result(batches.counted_strata(ws.data(), session.marked()))
+    ready = (has_result(batches.counted_strata(ws.data(), batches.graded(ws.data(),
+                                                                           session.marked())))
              or ws.result_json.is_file())
     try:
         r = store_result(ws, session, flags) if ready else _made(ws, session, flags)
@@ -1442,7 +1454,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
-    labels = batches.counted_labels(data, session.marked())
+    labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
     if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
         r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
@@ -1468,6 +1480,11 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                     "results_date": data.get("results_date")})
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
+    k = batches.waiting(data, session.marked())
+    if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
+        from judgekeeper import check
+
+        r.update(waiting=k, waiting_check=check.wait_command(ws))
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix

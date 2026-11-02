@@ -344,7 +344,8 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.index('id="count"') < right.index('id="see"')
     assert right.index('id="see"') < right.index('id="keep"')
     assert right.endswith('<p class="keep" id="keep" hidden>Keep going: your result appears once '
-                          'there are enough Pass and Fail marks.</p></div></div>')
+                          'there are enough Pass and Fail marks.</p>'
+                          '<p class="keep" id="waiting" hidden></p></div></div>')  # marks that wait
     style = mark_page.STYLE
     assert ".seg { display: flex; gap: 3px; }" in style
     assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style
@@ -683,9 +684,10 @@ def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements(
     part = _part(html, '<section class="main-lines band"')
     (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
     text = _text(part)
-    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
+    share = report_page.share  # never 100% for a value under 1
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {share(r['tpr'])} "
             f"{plo:.0%} and {phi:.0%}") in text
-    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {share(r['tnr'])} "
             f"{flo:.0%} and {fhi:.0%}") in text
     assert "too early to tell" not in text
     assert 'class="group' in html and 'class="next' not in html

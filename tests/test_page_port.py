@@ -79,7 +79,7 @@ def test_a_page_of_another_project_on_the_port_is_named(tmp_path, here, taken, c
     assert code == 0, out
     started, _ = pages
     assert started[-1]["port"] in page.OTHER_PORTS
-    assert ANOTHER in out.splitlines()
+    assert ANOTHER in " ".join(out.split())  # wrapped, as every other line
 
 
 def test_a_free_port_is_chosen_quietly(taken):
