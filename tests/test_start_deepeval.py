@@ -91,7 +91,7 @@ def test_steps_written_for_each_answer_leave_the_prompt_hash_of_the_run_unknown(
     deepeval = docs.split("## DeepEval")[1].split("\n## ")[0]
     assert ("- **The prompt hash is kept per answer.** A GEval given only `criteria=` writes its "
             "evaluation steps with its model for each answer, so the prompt differs per answer: "
-            "each judgment keeps its own prompt hash, and the run and `judge.json` keep none. "
+            "each grade keeps its own prompt hash, and the run and `judge.json` keep none. "
             "Give `evaluation_steps=[...]` for one prompt."
             in deepeval)
 

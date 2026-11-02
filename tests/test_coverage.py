@@ -85,11 +85,14 @@ def test_the_coverage_figures_in_the_docs_come_from_the_committed_grid():
     now = grid["corrected"]["levels"][str(level)]
     reference = " ".join((root / "docs" / "reference.md").read_text(encoding="utf-8").split())
     assert f"middle {level:.0%}" in reference
-    # the figures are said once, in the coverage report the reference links
+    # the lowest cells are said only in the coverage report the reference links; the average
+    # is quoted from it
     md = (root / "docs" / "examples" / "coverage" / "coverage.md").read_text(encoding="utf-8")
-    for figure in (now["min_cell"], now["mean"], grid["corrected"]["levels"]["0.95"]["min_cell"]):
+    for figure in (now["min_cell"], grid["corrected"]["levels"]["0.95"]["min_cell"]):
         assert pct(figure) in md, figure
         assert pct(figure) not in reference, figure
+    assert pct(now["mean"]) in md
+    assert f"{pct(now['mean'])} times in 100 on average (the report's first table)" in reference
 
 
 def test_the_numbers_on_screen_are_in_the_committed_grid():

@@ -57,7 +57,7 @@ BLOCK = 10
 ROUGH = targets.ROUGH
 GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
-# The exact text an unreleased 0.2 build wrote, by its SHA-256 (its first line has older words)
+# The exact text of an earlier .gitignore, by its SHA-256 (its first line has older words)
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
@@ -103,8 +103,8 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
-         "You can look after every mark.")
+WIDER = ("The result line uses wider ranges than these, so a few marks that agree by "
+         "coincidence can't decide it. You can look at the result after every mark.")
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
@@ -116,7 +116,7 @@ SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
-# with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
+# with another (or none) is worked out again from the marks before it is shown.
 NUMBERS_VERSION = 4
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
@@ -132,11 +132,11 @@ class Workspace:
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
         self.marks = self.dir / marks.FILE
-        self.labels = self.dir / "labels.csv"  # an unreleased 0.2 build's marks: never read
+        self.labels = self.dir / "labels.csv"  # marks file of an earlier layout: never read
         self.anchors = self.dir / "anchors.jsonl"
         self.result_json = self.dir / "result.json"
         self.report_html = self.dir / "report.html"
-        self.result_html = self.dir / "result.html"  # the result page's name before 1.0
+        self.result_html = self.dir / "result.html"  # the old name: removed when a result is saved
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
         self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
@@ -199,8 +199,8 @@ def check_writable(ws: Workspace) -> None:
 
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
-    the project's own folder and it has none. One holding exactly the text an unreleased 0.2
-    build wrote is replaced; any other is left alone."""
+    the project's own folder and it has none. One holding exactly the text of
+    the earlier .gitignore (OLD_GITIGNORE_SHA256) is replaced; any other is left alone."""
     refuse_links(ws)
     make_private(ws.dir)
     gitignore = ws.dir / ".gitignore"
@@ -209,7 +209,7 @@ def make_folder(ws: Workspace) -> None:
     if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
-        try:  # an unreleased 0.2 build wrote it with the system's line endings
+        try:  # the earlier .gitignore was written with the system's line endings
             text = gitignore.read_text(encoding="utf-8")
             old = hashlib.sha256(text.encode("utf-8")).hexdigest() == OLD_GITIGNORE_SHA256
         except (OSError, ValueError):
@@ -668,9 +668,10 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
     ws = session.workspace
     data = ws.cached_data()
-    status = strata_status(batches.counted_strata(data, session.marked(), ws.cached_strata()))
+    graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
+    status = strata_status(batches.counted_strata(data, graded, ws.cached_strata()))
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
-        ids = set(batches.counted_labels(data, session.marked()))
+        ids = set(batches.counted_labels(data, graded))
         if import_check(marks.read(ws.marks), data, ids)[1]:
             status.update(text=FIRST_NUMBERS, ready=False, headline=None)
     every = bool(session.items) and all(i["label"] for i in session.items)
@@ -681,6 +682,11 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=done[0], done=done)
     elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
+    from judgekeeper import check
+
+    wait = check.wait_lines(ws, len(session.marked()) - len(graded))
+    if wait:  # said once, in the status area: else the result never moves, with no word why
+        status["waiting"] = " ".join(wait)
     return status
 
 
@@ -964,8 +970,14 @@ class StartSession(LabelSession):
             items.insert(start, {**self._again(due[1]), "again": due[0]})
         status = self.current_status()
         self.pop_up(status)  # a page that opens with a verdict shows it without the pop-up
+        counts = self.counts()
+        marked = self.marked()
+        graded = batches.graded(self.workspace.cached_data(), marked)
+        if len(graded) < len(marked):  # the bar: only the marks that count (some wait)
+            kinds = list(graded.values())
+            counts["toward"] = {"correct": kinds.count("pass"), "wrong": kinds.count("fail")}
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": self.counts(), "status": status, "version": self.version()}
+                "counts": counts, "status": status, "version": self.version()}
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
@@ -1061,12 +1073,11 @@ def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."
-    if targets.width_word(interval) == "exact":
-        from judgekeeper.report_page import EVERY_MARKED
+    from judgekeeper.report_page import estimate
 
-        return f"You {did}: your LLM-as-a-judge also {did} {_pct(value)} ({why or EVERY_MARKED})."
-    return (f"You {did}: your LLM-as-a-judge also {did} about {_pct(value)} (between "
-            f"{_pct(interval[0])} and {_pct(interval[1])}).")
+    shown, between = estimate(value, interval, why)  # the page's words and decimals
+    said = shown if between == "–" else f"{shown} (between {between})"
+    return f"You {did}: your LLM-as-a-judge also {did} {said}."
 
 
 def all_labeled(r: dict) -> bool:
@@ -1084,7 +1095,7 @@ def mark_command(run: str | None = None) -> str:
     marking page's end card, the result page and report.html."""
     run = _PAGE_FLAGS.sub("", run or program())
     flags = run[len(program()):].strip() if run.startswith(program()) else ""
-    if flags == "start" or flags.startswith("start "):  # a result made before 1.0
+    if flags == "start" or flags.startswith("start "):  # older results keep `start`: drop it
         flags = flags[len("start"):].strip()
     return " ".join(x for x in (program("mark"), flags) if x)
 
@@ -1248,7 +1259,7 @@ def link_lines(made: dict | None) -> list[str]:
             them = "it" if n == 1 else "them"
             out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
                        f"{them} yourself, nothing to do.")
-    return out  # a link printed at a terminal ("asked" before 1.1) needs no note
+    return out  # a link printed at a terminal needs no note
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1317,7 +1328,7 @@ def why_counts(ws: Workspace, r: dict) -> tuple[int, int]:
 
 
 def kept_count(ws: Workspace, r: dict) -> int:
-    """How many disagreements the result page says are hidden on purpose (kept aside to test
+    """How many disagreements the result page says are kept aside on purpose (kept aside to test
     a new rule on), for the result `r`: none while it lists none."""
     from judgekeeper import fix
     from judgekeeper.report_page import counts, kept_count, shows_disagreements
@@ -1368,7 +1379,8 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     disagreement listed: the hidden marks can't be set aside first. Before there is a result,
     nothing is written, as in the terminal: the page shows the numbers so far. A saved result
     is written again (a mark taken back since), so no file keeps the old one."""
-    ready = (has_result(batches.counted_strata(ws.data(), session.marked()))
+    ready = (has_result(batches.counted_strata(ws.data(), batches.graded(ws.data(),
+                                                                           session.marked())))
              or ws.result_json.is_file())
     try:
         r = store_result(ws, session, flags) if ready else _made(ws, session, flags)
@@ -1442,7 +1454,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
-    labels = batches.counted_labels(data, session.marked())
+    labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
     if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
         r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
@@ -1468,6 +1480,11 @@ def compute(ws: Workspace, session: StartSession) -> dict:
                     "results_date": data.get("results_date")})
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
+    k = batches.waiting(data, session.marked())
+    if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
+        from judgekeeper import check
+
+        r.update(waiting=k, waiting_check=check.wait_command(ws))
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
@@ -1576,7 +1593,7 @@ def store_result(ws: Workspace, session: StartSession,
                  flags: dict | None = None, worse: str | None = None,
                  redraw: bool = False) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
-    result moves to history/; a result.html from before goes), and a line in history.jsonl.
+    result moves to history/; an old result.html is removed), and a line in history.jsonl.
     `flags` (start.run_flags) are kept in it, and the command they make (start.command_from):
     every next command it shows is made again from them.
     With no new marks since the saved result, that result stays as it is, and history.jsonl
@@ -1667,9 +1684,9 @@ def _add_history_line(ws: Workspace, r: dict) -> None:
 
 
 def repair(ws: Workspace) -> None:
-    """After a run stopped half way through saving a result (judgekeeper before 1.0 wrote
-    result.json first): when result.json is newer than report.html, report.html is drawn again,
-    and when history.jsonl has no line for it, the line is added."""
+    """After a run stopped half way through saving a result: when result.json is newer than
+    report.html, report.html is drawn again, and when history.jsonl has no line for it, the
+    line is added."""
     try:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):

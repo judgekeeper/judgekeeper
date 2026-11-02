@@ -180,7 +180,7 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     assert "about" not in out and "between" not in out and "exactly" not in out
     html = Workspace(here).report_html.read_text(encoding="utf-8")
     assert "85% (you marked every answer)" in html and "exactly" not in html
-    assert "lucky streak" not in out and "lucky streak" not in html  # no range to be wider
+    assert "coincidence can" not in out and "coincidence can" not in html  # no range to be wider
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
     assert code == 0
@@ -411,8 +411,8 @@ def test_a_measure_stopped_before_its_result_is_made_again_once(here, capsys, mo
 
 
 def test_a_result_saved_before_its_report_and_history_is_repaired(here, capsys):
-    """judgekeeper before 1.0 wrote result.json first: a Ctrl-C left the report and the
-    history on the old result."""
+    """A result.json newer than report.html, with no history line for it (a run stopped half
+    way through saving): the next run draws the report again and adds the line."""
     import os
 
     ws = _measured(here, capsys, only=40)
@@ -795,7 +795,7 @@ def test_the_inner_project_says_once_that_the_outer_one_holds_its_marks(tmp_path
 
 def test_a_model_given_after_find_is_written_down(here, capsys):
     """Find's own hint, `--judge-model NAME`, on a later run: the judge is the same, now with
-    its model in every file that names the judge (it said "changed" and wrote it nowhere)."""
+    its model in every file that names the judge."""
     from judgekeeper import judge_setup
     from judgekeeper.judgments import read_run
     from tests.start_projects import table_project
@@ -853,7 +853,7 @@ def test_marks_saved_while_the_results_file_is_gone_are_said(here, capsys):
 # Back to the marked judge ---------------------------------------------------------------------
 
 def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
-    """LE3: a check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again."""
+    """A check on another model said "Worse"; the eval runs with the old LLM-as-a-judge again."""
     from tests.test_check import LENIENT, MARKED, _results
 
     ws = _marked(here)
@@ -872,7 +872,7 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
 
 
 def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
-    """LE3: a check moved the marks to another model; the eval runs with the old LLM-as-a-judge again:
+    """A check moved the marks to another model; the eval runs with the old LLM-as-a-judge again:
     the result is the marks' own again."""
     from tests.test_check import MARKED, _results
 
@@ -898,7 +898,7 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
 
 def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(here, capsys):
     """After `fix` and a check that took on the new rule, `check` on the results the marks were
-    made from says "back" every time (it said "Worse" from the second check on)."""
+    made from says "back" every time."""
     ws = _all_marked_promptfoo(here, capsys)
     _jk(capsys, "fix")
     _rubric(here, AS_MARKED, RULE_B, name="new.json")

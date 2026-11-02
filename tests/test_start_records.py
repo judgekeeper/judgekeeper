@@ -58,8 +58,8 @@ def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):
 
 def test_records_with_the_old_default_name_read_as_llm_as_a_judge(tmp_path, capsys,
                                                                   monkeypatch):
-    """Records written before 1.1 have the default name "judge": shown as "LLM-as-a-judge",
-    and a session (or --metric) that says "judge" still finds them."""
+    """Records saved under the old default name "judge" are shown as "LLM-as-a-judge", and
+    --metric judge still finds them."""
     from judgekeeper.cli import main
 
     records_project(tmp_path, split(12, 8), name="judge", model=None)

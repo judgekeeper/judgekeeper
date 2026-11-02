@@ -352,8 +352,7 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
 
 
 def _started(path: Path) -> bool:
-    """Whether marking started in the project at `path` (or an unreleased 0.2 build's marks
-    are there)."""
+    """Whether marking started in the project at `path` (a labels.csv file counts too)."""
     if not path.exists():
         return False
     ws = Workspace(project.project_of(path))
@@ -700,7 +699,7 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
 
 def _kept_experiment(path: Path) -> str | None:
     """The MLflow experiment the marks were made on, kept in start.json: read again with no
-    --experiment, as the store is (it was asked for again on every run)."""
+    --experiment, as the store is."""
     ws = Workspace(project.project_of(path))
     try:
         data = ws.data() if ws.start.is_file() else {}
@@ -1276,8 +1275,10 @@ def _read_from(found: start.Found) -> str:
     newest = found.results[0]
     if found.tool == "mlflow":
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
-    if found.tool == "records":
-        return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
+    if found.tool == "records":  # from here, as every other path line (textio.shown_in)
+        shown = textio.shown_in(newest.path, found.root)
+        folder = Path(shown).parent.as_posix()
+        return f"{shown if folder == '.' else folder + '/'}, {_n(len(found.used), 'file')}"
     shown = _newest(found)
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
@@ -1374,7 +1375,7 @@ def _import_gate(ws: Workspace, session: StartSession) -> str | None:
     if not ws.marks.is_file():
         return None
     data = ws.data()
-    ids = set(batches.counted_labels(data, session.marked()))
+    ids = set(batches.counted_labels(data, batches.graded(data, session.marked())))
     imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
     return labels_mod.gate_line(needed, imported)
 
@@ -1393,7 +1394,7 @@ def _say_found(talk: FrontTalk, line: str) -> None:
 
 def found_block(found: start.Found, pass_if: str | None = None,
                 mapped: settings.StartSettings | None = None) -> list[str]:
-    """Screen 1's "Find" block: the eval tool, the file, the answers, the judge, its rule and
+    """The "Find" block: the eval tool, the file, the answers, the judge, its rule and
     what was read from the file."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
@@ -1513,8 +1514,7 @@ def _free_check(talk: FrontTalk, found: start.Found, listed: str) -> None:
 
 def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | None,
          wait: bool) -> int:
-    """Found, no marking started: Screen 1's "Find" block and the free checks, then the
-    page."""
+    """Found, no marking started: the "Find" block and the free checks, then the page."""
     if talk.counts_wait():  # the counts depend on the answers: they come after them
         _to_save(talk, found, mapped)  # noted with the others, so --yes answers it too
         talk.ask_noted()
@@ -1708,7 +1708,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
 
 
 def _has_marks(ws: Workspace) -> bool:
-    """Whether .judgekeeper/ holds marks that count (or an older judgekeeper's marks)."""
+    """Whether .judgekeeper/ holds marks that count (a labels.csv file counts too)."""
     if ws.labels.is_file():
         return True
     try:
@@ -1780,8 +1780,8 @@ def _same_files(ws: Workspace, data: dict, files: list[str], found: start.Found)
 
 def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
              marking: bool, first: bool = False) -> int:
-    """The pool (prepared now unless it is there), then the page and the count (Screens 1, 2
-    and 4), or for `judgekeeper` with enough marks the result."""
+    """The pool (prepared now unless it is there), then the page and the count, or for
+    `judgekeeper` with enough marks the result."""
     from judgekeeper import check
 
     if not ws.start.is_file():
@@ -1825,7 +1825,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if unreadable := marks.unreadable_line(marks.read(ws.marks)):
         head.append(unreadable)
     counts = session.counts()
-    enough = start_label.has_result(batches.counted_strata(ws.data(), session.marked()))
+    enough = start_label.has_result(batches.counted_strata(
+        ws.data(), batches.graded(ws.data(), session.marked())))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
@@ -1899,7 +1900,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
-                               say=talk.say)
+                               say=talk.para)
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
@@ -2143,6 +2144,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line[2:], indent="  ")
         else:
             talk.para(line)
+    if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
+        talk.para(checking.WAIT.format(k=r["waiting"]))
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
@@ -2220,6 +2223,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         next_step = worse_here
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
+    elif r.get("waiting"):  # only the judge's grades on them can count them
+        next_step = checking.WAIT_NEXT.format(command=r["waiting_check"])
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
@@ -2248,7 +2253,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         ws = Workspace(start.reads_in(path))  # the folder a run from here reads
     below = [] if is_open(ws.dir) or not path.is_dir() else [
         name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
-    if len(below) == 1:  # opened from the folder right below (`judgekeeper evals`)
+    if len(below) == 1:  # opened from the folder right below
         ws = Workspace(path / below[0])
     elif below:
         talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")

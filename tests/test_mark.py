@@ -212,7 +212,7 @@ def test_every_answer_marked_keeps_the_page_to_change_a_mark(here, capsys, pages
     assert len(pages[0]) == 1  # the page still open from marking
 
 
-# Marks for another judge, or from 0.2: start over -----------------------------------------
+# Marks for another judge, or from an older judgekeeper: start over ------------------------
 
 def test_a_new_eval_run_goes_on_with_the_marks(here, capsys, pages):
     promptfoo_project(here, split(20, 16), tag=TAG)

@@ -138,6 +138,22 @@ def header(text: str, suffix: str) -> list[str]:
         return []
 
 
+def written_header(path: str | Path) -> list[str]:
+    """A CSV or TSV file's column names as written in it (the same name twice too), read one
+    line at a time as read_kept does: a big file is never held. [] when it can't be read."""
+    from contextlib import closing
+
+    path = Path(path)
+    try:
+        with closing(utf8_lines(path, TableError)) as lines:
+            first = next(lines, "")
+            reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
+                                delimiter=_delimiter(first, path.suffix.lower()))
+            return next(reader, [])
+    except (OSError, TableError, csv.Error):
+        return []
+
+
 def columns(path: str | Path) -> list[str]:
     """The column names of a CSV, TSV or JSONL file as written in it (a JSONL file's first
     object's keys), or [] when it can't be read."""

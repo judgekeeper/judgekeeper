@@ -2,7 +2,7 @@
 results path and the person's own flags (start.Talk.command), in the terminal and on the result
 page (`mark` with every flag, `check` and `fix` with the path; with every answer marked, `mark`
 with the path and the flags that change how the results are read). No page names `judgekeeper
-start` or one of its flags: that command is gone."""
+start` or one of its flags."""
 
 from __future__ import annotations
 

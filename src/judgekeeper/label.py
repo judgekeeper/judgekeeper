@@ -221,7 +221,7 @@ RELEASE_PAUSE = 0.05
 
 def read_lock(folder: Path) -> dict | None:
     """{"pid", "port", "stop", "token", "settings", "link"} of the page named in the
-    project's lock, or None (a lock from before 1.0 has no token: None). `link`: how its marks
+    project's lock, or None (a lock with no token gives token None). `link`: how its marks
     are stamped (marks.LINKS), or None. When server.json can't be read, its copy (page.json)
     is. A lock that is a link, or over MAX_LOCK, is not read."""
     for name in (LOCK, LOCK_COPY):
@@ -236,7 +236,7 @@ def read_lock(folder: Path) -> dict | None:
             lock = json.loads(raw.decode("utf-8"))
             token, settings, how = lock.get("token"), lock.get("settings"), lock.get("link")
             if how not in LINKS:
-                how = PRINTED if lock.get("printed") is True else None  # a lock before the stamps
+                how = PRINTED if lock.get("printed") is True else None  # a lock with no link stamp
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
                     "stop": str(lock["stop"]), "token": token if isinstance(token, str) else None,
                     "settings": settings if isinstance(settings, dict) else None,

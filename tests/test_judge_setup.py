@@ -365,8 +365,8 @@ def test_before_any_mark_a_new_model_is_read_anew(tmp_path, monkeypatch, capsys)
 
 
 def test_an_older_judge_json_is_read_from_the_marks(tmp_path):
-    """judge.json from 1.0.0b1 has no setup: the LLM-as-a-judge of the marks stands in (what start.json
-    keeps), and only what it knows is compared."""
+    """A judge.json from an older version has no setup: the LLM-as-a-judge of the marks stands
+    in (what start.json keeps), and only what it knows is compared."""
     _promptfoo(tmp_path)
     found = start.find_judge(tmp_path)
     ws = start_label.prepare(found, say=_quiet)

@@ -8,7 +8,7 @@
 - Phone: tables and code scroll inside their box; the browser check's lines wrap.
 - Each page's own parts: Home, the Guide, the browser check and Privacy.
 
-The tests run no JavaScript: the pages were checked in Chrome at 1440 and 390 wide.
+The tests run no JavaScript; they read the HTML and CSS.
 """
 
 from __future__ import annotations
@@ -476,8 +476,7 @@ def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
 
 def test_the_demo_card_keeps_one_height():
     """The card is as tall as its tallest answer or its end card, measured on load, when the
-    fonts arrive and on resize, so nothing below it moves while you mark (checked in Chrome at
-    1440, 1000 and 390 wide: the same height for every answer and the end card)."""
+    fonts arrive and on resize, so nothing below it moves while you mark."""
     lock = JS[JS.index("function lockHeight("):]
     lock = lock[:lock.index("\n    }\n")]
     assert "items.forEach" in lock and 'classList.add("is-end")' in lock
@@ -747,7 +746,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        "With pip, in your project’s virtual environment", "With uv"]
+        ("With pip, in your project’s virtual environment (in a uv virtual environment, uv "
+         "pip install judgekeeper)"), "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
         ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
@@ -886,7 +886,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
                        "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
-                       "so you can stop at any time and come back later."),
+                       "so you can stop at any time and come back later. Once in a while an "
+                       "answer you marked comes back a second time, to see how steady your marks "
+                       "are. Mark it as you see it."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
                        "for a file with an output (or answer) column and a label (or "
                        "human_label) column, or judgekeeper --labels for a human_label or label "
@@ -906,7 +908,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
              "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes or a "
-             "quarter of them is clear from about 80 marks, and one that fixes 1 in 10 and "
+             "quarter of them usually gets a clear answer from about 80 marks, and one that "
+             "fixes 1 in 10 and "
              "breaks 5 in 100 right answers needs about 160 (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
@@ -1218,9 +1221,8 @@ def test_the_browser_check_is_two_even_columns_that_end_together():
 
 
 def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
-    """At every width a line wraps inside the terminal (checked in Chrome at 1440 and 390
-    wide). On a phone a value goes under its label, and a line that only goes on from the one
-    above has no indent."""
+    """At every width a line wraps inside the terminal. On a phone a value goes under its label,
+    and a line that only goes on from the one above has no indent."""
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
     assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
@@ -1381,9 +1383,8 @@ def test_privacy_says_judgekeeper_only_reads_files():
 
 
 # Phones and touch screens -------------------------------------------------------------------
-# Each rule for a phone sits in a block for a narrow or a touch screen, so a laptop shows the
-# pages as before (checked with full-page screenshots in Chrome at 1280, 1440 and 1920, Safari
-# at 1440 and an iPad at 1024: the same pixels, but for the demo's last button).
+# Each rule for a phone sits in a block for a narrow or a touch screen, so a laptop keeps the
+# same layout.
 
 FREECHECK = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
 

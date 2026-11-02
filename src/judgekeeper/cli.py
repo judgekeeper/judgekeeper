@@ -99,8 +99,8 @@ COMMANDS_HELP = (
     ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
-# Removed commands: the 0.1 CI gate, setup (part of judgekeeper now) and start (its steps are
-# judgekeeper, mark, fix and check now). Each prints one line and exits 2.
+# Commands that no longer exist (the CI gate, setup, start and the rest): each prints one line
+# and exits 2.
 REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup",
            "start")
 

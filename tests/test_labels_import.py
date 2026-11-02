@@ -749,7 +749,7 @@ def test_the_flag_is_never_repeated_in_a_command(here, capsys):
 
 
 
-# Found in the first round of end-to-end tests ----------------------------------------------
+# More cases, from running the commands end to end ------------------------------------------
 
 def test_an_id_with_an_empty_answer_cell_matches_by_id(here, capsys):
     ids = [f"case-{i}" for i in range(40)]

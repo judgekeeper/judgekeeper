@@ -635,8 +635,8 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but a
-                and not (c == "judge" and _models_named(rows, c))]  # judge column of gpt-4o
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but not
+                and not (c == "judge" and _models_named(rows, c))]  # a "judge" column of names
     if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
@@ -766,21 +766,28 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
         except RecordsError as e:
             text = str(e).removeprefix(f"{r.path.name} is damaged: ")
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
+            talk.say(f"  {_here(r)} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
         if len(records) > room:
             del records[room:]
             cut = True
         room -= len(records)
         if CUT_END in records.notes:
-            talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
+            talk.say(f"  Note: the last line of {_here(r)} was cut short (the program stopped while "
                      "writing it) and was left out.")
         for warning in records.warnings:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
     if cut:
-        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=_folder_of(results[0]))}")
+        here = Path(_here(results[0])).parent.as_posix()
+        folder = _here(results[0]) if here == "." else f"{here}/"
+        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=folder)}")
     return loaded
+
+
+def _here(result: find.Result) -> str:
+    """A records file as a line names it: from where the command runs (shown_from_here)."""
+    return textio.shown_from_here(result.path)
 
 
 def given_model(fp: dict, root) -> str | None:
@@ -1411,7 +1418,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
     above = _read_above(root, found, tool)
     if above is not None and above[0] == "records":  # record() saves at the project root
         above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
-        talk.say(RECORDS_ABOVE.format(root=above_here))
+        _note(talk, RECORDS_ABOVE.format(root=above_here))
         talk.say()
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
@@ -1850,7 +1857,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
         return prefer
-    if metric == OLD_DEFAULT_NAME and metric not in counts:  # saved before 1.1
+    if metric == OLD_DEFAULT_NAME and metric not in counts:  # the old default name: use the new one
         metric = DEFAULT_NAME
     if metric is not None and metric not in counts:  # a name start.json keeps with its keys
         # hidden: the one it stands for

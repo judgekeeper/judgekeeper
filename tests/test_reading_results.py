@@ -143,8 +143,8 @@ def test_a_score_table_with_a_quote_that_never_closes_is_still_named(here, capsy
 @pytest.mark.parametrize("grade", ["score", "verdict"])
 def test_a_quote_that_closes_only_on_a_later_row_is_named_not_dropped(here, capsys, grade, tail):
     """The quote on line 42 closes on the next row's own quote: the cell holds the rest of its
-    row and the start of the next, and the rest of that row follows the closing quote. Rows used
-    to be dropped with no word (exit 0); now the quote on line 42 is named."""
+    row and the start of the next, and the rest of that row follows the closing quote. Rows are
+    never dropped without a word: the quote on line 42 is named."""
     mark = "0.9" if grade == "score" else "pass"
     lines = [f"id,input,output,{grade},reason"]
     lines += [f'q-{i},Question {i}?,"Answer {i}, short.",{mark},"Reason {i}, yes."'
@@ -442,7 +442,7 @@ def test_factuality_compares_with_each_tests_reference(here, capsys):
     assert '"reference 0"' not in out
 
 
-# 29, 30 and 33. Inspect AI ------------------------------------------------------------------
+# Inspect AI ---------------------------------------------------------------------------------
 
 def _inspect_log(root: Path, name: str, data: dict) -> Path:
     return _write(root / "logs" / name, data)
@@ -529,7 +529,7 @@ def test_samples_that_failed_before_scoring(here, capsys):
     _, out = find(capsys, "--metric", "model_graded_qa", "--label-map", "P=fail")
     assert "calls failed" not in out
     assert "2 answers have no score: the run failed before scoring." in flat(out), out
-    # only the answers with a grade (v2-bugfix-2 item 7)
+    # only the answers with a grade
     # no count while the partial-credit question is open: the answer decides it
     assert answers(first) is None and answers(out) == 18, (first, out)
 
