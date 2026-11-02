@@ -84,7 +84,7 @@ def test_the_terminal_range_uses_the_same_decimals_as_the_page():
 
 def test_a_kappa_range_that_reads_the_same_is_almost_exact():
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.4999, 0.5001]}
-    assert '0.50 (almost exact)</td><td data-label="Between">–' in report_page._details(r)
+    assert '<td data-label="Estimate">0.50 (almost exact)</td>' in report_page._details(r)
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.5, 0.5], "left": 0}
     assert "0.50 (you marked every answer)" in report_page._details(r)
 
