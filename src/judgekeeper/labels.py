@@ -252,6 +252,7 @@ def read_file(path: Path, label_map: dict | None = None,
     word."""
     from judgekeeper import find
     from judgekeeper.table import TableError, open_quote, read_kept
+    from judgekeeper.table import columns as header_of
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
@@ -269,7 +270,8 @@ def read_file(path: Path, label_map: dict | None = None,
     if not rows:
         raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
-    _twice(path, columns, _plain(command))
+    written = header_of(path) if path.suffix.lower() in (".csv", ".tsv") else []
+    _twice(path, written or columns, _plain(command))  # as written: the same name twice too
     out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
         raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))
