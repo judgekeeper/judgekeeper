@@ -252,8 +252,10 @@ def test_the_first_run(here, capsys, monkeypatch):
                          "Where your LLM-as-a-judge goes wrong:"]
     # every clue names the LLM-as-a-judge and says Pass and Fail plainly
     assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
-        f"Your LLM-as-a-judge made {len(seen)} mistakes. In {passed}, it said Pass where you "
-        "said Fail. Its rule may be too easy.")
+        f"Your LLM-as-a-judge made {len(seen)} mistakes on the {len(split['visible'])} marks "
+        f"used here. The other {len(split['hidden'])} are kept aside to test a new rule. In "
+        f"{passed}, it said Pass where you said Fail. Its rule may be too easy.")
+    assert "of your marks are kept aside" not in flat  # said once, with the mistakes
     saved = next(n for n, line in enumerate(lines) if line.startswith("All "))
     found = " ".join(" ".join(lines[5:saved - 1]).split())
     assert re.search(r"Words found in many of your LLM-as-a-judge's mistakes: [^.]*\brefund "
@@ -264,7 +266,6 @@ def test_the_first_run(here, capsys, monkeypatch):
         ".judgekeeper/fix/mistakes.md. Use it to write a better rule, or hand it to a coding "
         "agent to help you write one. "
         f'Your LLM-as-a-judge\'s rule is in promptfooconfig.yaml, line 5: "{RULE}" '
-        f"{len(split['hidden'])} of your marks are kept aside to test your new rule fairly. "
         f".judgekeeper/fix/marked-answers.csv holds all {N} marked answers, questions and "
         "answers only, so you can't tell which are kept aside. "
         f"1. Change the rule in .judgekeeper/fix/regrade.yaml (line {_value_line(ws)}). "
@@ -329,8 +330,11 @@ def test_mistakes_md_layout(here, capsys):
     printed = out.splitlines()
     said = printed[printed.index("Where your LLM-as-a-judge goes wrong:") + 1:]
     said = [x.strip() for x in said[:said.index("")]]
-    # the same sentences the terminal prints (which wraps them)
-    assert " ".join(x for x in clues if x) == " ".join(said)
+    # the same sentences the terminal prints (which wraps them, and says which marks the
+    # mistakes are on)
+    terminal = re.sub(r" on the \d+ marks used here\. The other \d+ are kept aside to test a "
+                      r"new rule\.", ".", " ".join(said))
+    assert " ".join(x for x in clues if x) == terminal
     rule_at = lines.index("## Your LLM-as-a-judge's rule now")
     assert lines[rule_at + 2] == "<<<RULE" and RULE in lines[rule_at + 3]
     warn_at = next(n for n, x in enumerate(lines) if x.startswith(start_fix_rule.DATA_WARNING))

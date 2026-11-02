@@ -20,6 +20,9 @@ import pytest
 
 from judgekeeper import mark_page
 
+NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
+          "judgekeeper mark in your project folder. Your marks are kept.")  # gone, or no answer
+
 DOM = r"""
 var NOW = 1000000; Date.now = function () { return NOW; };
 var sent = [], reloads = 0, stored = {}, storageWorks = true;
@@ -475,7 +478,7 @@ def test_a_save_with_no_answer_in_10_seconds_says_so_and_can_be_tried_again():
         if (ms >= 5000) { timers.push({f: f, ms: ms}); return 0; } return soon(f, ms); };
       """)
     assert got["waiting"] == ""
-    assert got["said"].startswith("Not saved: this page lost its link to judgekeeper.")
+    assert got["said"] == NO_ANSWER
     assert got["at"] == "Question 0?" and got["then"] == 1  # tried again: saved
     assert got["ms"] == [10000, 10000]  # one wait per save
 

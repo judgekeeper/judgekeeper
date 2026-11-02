@@ -613,6 +613,13 @@ def _handler(server: LabelServer):
                 self._json(400, {"error": "not a request a browser sends"})
                 return False
             if self.headers.get("Host") != f"{HOST}:{server.port}":
+                if self._browser_page(url):  # how to open it, never the page
+                    from judgekeeper.mark_page import OLD_LINK_CSP, wrong_host_page
+
+                    self._send(403, wrong_host_page(server.port).encode("utf-8"),
+                               "text/html; charset=utf-8",
+                               {"Content-Security-Policy": OLD_LINK_CSP})
+                    return False
                 self._json(403, {"error": "wrong Host header"})
                 return False
             if url.path == "/favicon.ico" and self.command == "GET":
@@ -630,8 +637,7 @@ def _handler(server: LabelServer):
                     stop.encode(), server.stop_secret.encode()):
                 server.last_request = time.monotonic()
                 return True
-            if self.command in ("GET", "HEAD") and url.path == "/" and \
-                    "text/html" in (self.headers.get("Accept") or ""):  # a browser: a page
+            if self._browser_page(url):  # a browser: a page
                 from judgekeeper.mark_page import OLD_LINK_CSP, old_link_page
 
                 self._send(403, old_link_page().encode("utf-8"), "text/html; charset=utf-8",
@@ -639,6 +645,11 @@ def _handler(server: LabelServer):
                 return False
             self._json(403, {"error": "missing or wrong token"})
             return False
+
+        def _browser_page(self, url) -> bool:
+            """Whether a browser asks for the page itself (it then gets a page, not JSON)."""
+            return self.command in ("GET", "HEAD") and url.path == "/" and \
+                "text/html" in (self.headers.get("Accept") or "")
 
         def _same_origin(self) -> bool:
             """Whether a POST comes from the page's own script (see the module's docstring)."""

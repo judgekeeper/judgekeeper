@@ -635,10 +635,12 @@ def mistakes(rows: list[dict]) -> list[dict]:
             and not r.get("earlier")]
 
 
-def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
+def patterns(rows: list[dict], mark: float | None = None,
+             aside: int = 0) -> list[list[str]]:
     """Plain patterns in the judge's mistakes on `rows` ("judge", "final", "output" text,
     "score"), only when strong: each pattern is its sentences. `mark` is the pass mark when
-    the judge's grades follow its scores."""
+    the judge's grades follow its scores. `aside`: the marks kept aside, said with the count
+    of mistakes (Fix's screen: the mistakes are on the other marks only)."""
     wrong = mistakes(rows)
     n = len(wrong)
     if n < FEW:
@@ -647,6 +649,10 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
     passes = sum(m["judge"] == "pass" for m in wrong)
     fails = n - passes
     made = f"Your LLM-as-a-judge made {n} mistakes."
+    if aside:
+        made = (f"Your LLM-as-a-judge made {n} mistakes on the {len(rows)} marks used here. "
+                f"The other {aside} {'is' if aside == 1 else 'are'} kept aside to test a new "
+                "rule.")
     easy = "it said Pass where you said Fail"
     strict = "it said Fail where you said Pass"
     if passes > fails:
@@ -1607,7 +1613,8 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
                   f"{_file(ws, ANSWERS)} again with it, then run "
                   f"`{talk.command()} {NEW_RESULTS}`.")
         return EXIT_OK
-    found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
+    counted = patterns(seen_rows, mark, aside=len(split.hidden))  # its first names the half
+    found = [[line] for line in reasons.clue_lines(wrong)] + counted
     if found:
         talk.say(WHERE_WRONG)
         for p in found:
@@ -1634,7 +1641,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
-    talk.para(_answers_line(ws, split, n))
+    talk.para(_answers_line(ws, split, n, said=bool(counted and split.hidden)))
     _next_regrade(talk, ws, tool)
     return EXIT_OK
 
@@ -1647,11 +1654,12 @@ def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
     write_replacing(path, mistakes_md(rule, rows, mark, worse_from))
 
 
-def _answers_line(ws: Workspace, split: Split, n: int) -> str:
-    """How many marks are kept aside, and that marked-answers.csv holds all `n`."""
+def _answers_line(ws: Workspace, split: Split, n: int, said: bool = False) -> str:
+    """How many marks are kept aside (unless `said` above), and that marked-answers.csv holds
+    all `n`."""
     k = len(split.hidden)
     aside = f"{k} of your marks {'is' if k == 1 else 'are'} kept aside to test your new rule " \
-        "fairly. " if k else ""
+        "fairly. " if k and not said else ""
     return (f"{aside}{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
             "answers only, so you can't tell which are kept aside.")
 
