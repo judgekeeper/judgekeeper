@@ -815,6 +815,19 @@ def above_projects(folder) -> bool:
         return False
 
 
+def shown_in(path, root) -> str:
+    """A file found in the project folder `root` as Find's lines name it (File:, "looks
+    like", the question to save how to read it): from the project folder when this runs
+    there, else from here (shown_from_here)."""
+    try:
+        real, top = Path(path).resolve(), Path(root).resolve()
+        if real.is_relative_to(top) and Path.cwd().resolve() == top:
+            return real.relative_to(top).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        pass
+    return shown_from_here(path)
+
+
 def _from_below_home(real: str, start) -> str | None:
     """`real` from the folder `start` (`..` allowed, `/` between folders) when they share a
     folder below the home folder's parents (shares_below_home), else None."""

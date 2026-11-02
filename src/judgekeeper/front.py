@@ -57,7 +57,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    shown_from_here,
     shown_path,
     wrap,
 )
@@ -1238,9 +1237,7 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    root = Path(found.root).resolve()
-    here = Path(newest.path).resolve().is_relative_to(root) and Path.cwd().resolve() == root
-    shown = link(newest.path, newest.rel if here else shown_from_here(newest.path))  # from here
+    shown = link(newest.path, textio.shown_in(newest.path, found.root))  # from here
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
@@ -1585,7 +1582,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
     if mapped is None and not talk.answers:
         return None
     if mapped is not None:
-        new, question = mapped, SAVE_MAP.format(file=mapped.file)
+        new, question = mapped, SAVE_MAP.format(  # named as File: names it
+            file=textio.shown_in(Path(found.root) / mapped.file, found.root))
     else:
         try:
             new = settings.load(found.root) or settings.StartSettings(source=found.tool)
@@ -1605,7 +1603,8 @@ def _to_save(talk: FrontTalk, found: start.Found,
         if mapped is None:
             return None
         _write(found)
-        talk.para(f"Nothing was saved: judgekeeper reads {mapped.file} only once "
+        talk.para(f"Nothing was saved: judgekeeper reads "
+                  f"{textio.shown_in(Path(found.root) / mapped.file, found.root)} only once "
                   "judgekeeper.toml says how.")
         raise talk.stop(EXIT_OK, f"run `{program()}` again and answer yes.", as_given=True)
     return new
