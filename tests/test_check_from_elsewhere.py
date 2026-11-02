@@ -184,3 +184,76 @@ def test_mistakes_md_names_the_program_plainly(home, monkeypatch, capsys, where)
     assert "`judgekeeper check` found it worse" in text, text
     for part in ("/", "venv", "~"):
         assert part not in text, part
+
+
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_the_wait_line_from_another_folder_names_the_program_from_the_project(
+        home, monkeypatch, capsys, where):
+    """Marks wait after `check` took on a rule that graded only the marked answers. From
+    another folder the terminal says "then in your project folder, run `<program> check <new
+    results file>`", with the program as it is from there; result.json and report.html name
+    it plainly and hold no path."""
+    import json
+
+    from tests.test_waiting_marks import adopt_records
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt_records(proj, monkeypatch, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, os.path.relpath(proj, away), "--no-browser", "--port", "0")
+    assert code == 0, out
+    nxt = out[out.rindex("Next: "):]
+    assert ("Next: grade all your answers with your new LLM-as-a-judge, " + CHECK_LINE) in nxt
+    check_line = _commands(nxt)[-1]
+    assert _program_in(check_line, proj, home) == tool, check_line
+    assert check_line.endswith(f" check {fix.NEW_RECORDS}"), check_line
+    saved = json.loads((proj / ".judgekeeper" / "result.json").read_text(encoding="utf-8"))
+    assert saved["waiting_check"] == f"judgekeeper check {fix.NEW_RECORDS}"
+    import html
+    import re
+
+    page = (proj / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
+    assert "Tools" not in page and USER not in page
+    page = " ".join(html.unescape(re.sub(r"<[^>]+>", "", page)).split())
+    assert f"then run judgekeeper check {fix.NEW_RECORDS}." in page, page
+
+
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, monkeypatch,
+                                                                         capsys, where):
+    """A results file of a project with its own session, given from another folder: "To check
+    them, run `<program>` in proj s3/", with the program as it is typed in proj s3/."""
+    from tests.test_earlier_grades import adopt
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt(proj, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, os.path.relpath(proj / "v2.json", away), "--no-browser")
+    assert code == 3 and "To check them, run `" in out, out
+    for line in _commands(out[out.index("To check them"):]):
+        assert _program_in(line, proj, home) == tool, (line, out)
+
+
+@pytest.mark.parametrize(("given", "said"), [
+    ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
+     "There is no file named missing.csv in ../c2-new/."),
+    ("sub/missing.csv", "There is no file named missing.csv in sub/."),
+    ("missing.csv", "There is no file or folder named missing.csv here."),
+    ("../c9", "There is no file or folder named c9 in the folder above."),
+])
+@pytest.mark.parametrize("command", ["check", "fix"])
+def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch, capsys, given,
+                                                              said, command):
+    proj = home / "Desktop" / "Testing Judge" / "c2"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    code, out = _run(capsys, command, given.format(home=home))
+    assert code != 0 and said in out and USER not in out, out

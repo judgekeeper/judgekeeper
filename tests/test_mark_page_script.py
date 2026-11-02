@@ -857,9 +857,9 @@ def test_z_on_a_first_mark_still_takes_it_back_and_on_a_changed_one_puts_the_old
 def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
     """Marks on answers the new LLM-as-a-judge never graded count for nothing in the bar; the
     line under it says how many wait and how to count them, with the command as code."""
-    line = ("20 of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet. "
-            "To count them, grade all your answers with your new LLM-as-a-judge, then run "
-            "`judgekeeper check <new results file>`.")
+    line = ("20 of your marks wait: your new LLM-as-a-judge has no Pass or Fail grade on those "
+            "answers yet. To count them, grade all your answers with your new LLM-as-a-judge, "
+            "then run `judgekeeper check <new results file>`.")
     counts = {"correct": 15, "wrong": 15, "skipped": 0, "toward": {"correct": 15, "wrong": 0}}
     got = _run("""
       var w = ids["waiting"];
@@ -872,3 +872,14 @@ def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
                data=_data(counts={"correct": 1, "wrong": 1, "skipped": 0},
                           status={"text": "x", "first": False, "ready": False}))
     assert got == [True]
+
+
+def test_with_only_marks_that_wait_left_the_page_never_says_keep_marking():
+    """No answer the new LLM-as-a-judge graded is left to mark (status.only_wait): no mark can
+    move the result, so the line under the bar is gone; the wait line is the step."""
+    counts = {"correct": 20, "wrong": 20, "skipped": 0, "toward": {"correct": 15, "wrong": 15}}
+    keep = 'console.log(JSON.stringify([ids["keep"].hidden, ids["waiting"].hidden]));'
+    status = {"text": "x", "first": True, "ready": False, "waiting": "20 of your marks wait."}
+    assert _run(keep, data=_data(counts=counts, status=status)) == [False, False]
+    assert _run(keep, data=_data(counts=counts, status={**status, "only_wait": True})) == [
+        True, False]

@@ -76,6 +76,28 @@ def test_an_estimate_is_never_rounded_to_100_or_0(value, interval, shown, betwee
     assert report_page.estimate(value, interval) == (shown, between)
 
 
+@pytest.mark.parametrize(("value", "interval", "between"), [
+    (0.996, [0.986, 0.9996], "99% and 99.96%"),
+    (0.999, [0.995, 0.99995], "99.5% and 99.99%"),
+    (0.004, [0.0004, 0.014], "0.04% and 1%"),
+    (0.5, [0.00004, 0.9], "0.01% and 90%"),
+])
+def test_a_range_end_is_never_rounded_to_100_or_0(value, interval, between):
+    assert report_page.estimate(value, interval)[1] == between
+
+
+def test_a_range_end_past_two_decimals_reads_as_its_last_two():
+    """Inside a range an end is never "over" or "under": "between 99.5% and 99.99%"."""
+    assert side_sentence("tpr", 0.999, [0.995, 0.99995]) == (
+        "You passed: your LLM-as-a-judge also passed about 99.9% (between 99.5% and 99.99%).")
+
+
+def test_ends_that_read_the_same_past_two_decimals_are_almost_exact():
+    """Never "between 99.99% and 99.99%"."""
+    assert report_page.estimate(0.99997, [0.99994, 0.99999]) == (
+        f"over 99.99% ({report_page.ALMOST_EXACT})", "–")
+
+
 def test_the_terminal_range_uses_the_same_decimals_as_the_page():
     """Never "about 99% (between 99% and 99%)" in the terminal."""
     assert side_sentence("tnr", 0.99251, [0.99122, 0.99292]) == (

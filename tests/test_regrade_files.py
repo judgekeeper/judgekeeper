@@ -357,6 +357,21 @@ def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
     code, out = run(capsys, "check", write(here, "new.csv", mixed))
     assert code == 3, out
     assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out
+    assert "It finds a marked answer by the same text" in out  # 50 were not found
+
+
+def test_check_says_how_it_finds_answers_only_when_some_were_not_found(here, capsys):
+    """Every marked answer is in the new results, 5 with an error: none was missed, so the
+    line on how it finds them is not said."""
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) | ({"verdict": "error"} if i < 5 else {}) for i in range(N)]
+    _, out = run(capsys, "check", write(here, "new.csv", rows))
+    out = " ".join(out.split())
+    assert ("5 of your 60 marked answers had no grade in your new results, so judgekeeper left "
+            "them out.") in out, out
+    assert "5 of them are there with no decision" in out, out
+    assert "It finds a marked answer" not in out, out
 
 
 def test_check_on_unknown_grade_words_refuses_them(here, capsys):

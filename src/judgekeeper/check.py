@@ -118,8 +118,9 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
                "decision from your LLM-as-a-judge{why}.")
 NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
 SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
-NOT_IN = ("{k} of your {n} had no grade in your new results, so judgekeeper left {them} out. "
-          "It finds a marked answer by the same text, word for word, and the same question.")
+LEFT_OUT = "{k} of your {n} had no grade in your new results, so judgekeeper left {them} out."
+BY_TEXT = "It finds a marked answer by the same text, word for word, and the same question."
+NOT_IN = f"{LEFT_OUT} {BY_TEXT}"  # BY_TEXT only when some of them were not found
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")
 CHANGED = ("Your new results ask {c} of those questions again with a different answer: your "
@@ -761,10 +762,10 @@ def _made_after(state: State, since: str, tested: dict[str, str]) -> dict[str, s
 
 
 def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str, str],
-                 pool: dict[str, int], every: bool = False) -> list[str]:
+                 pool: dict[str, int], every: bool = False, more: bool | None = None) -> list[str]:
     """The new judge on the marks made after the change: none yet, how many so far, or (with
     AFTER_NUMBERS of each) its numbers with their ranges. `every`: every answer is marked, so
-    none is left to mark."""
+    none is left to mark; `more`: a mark would count (default: not `every`)."""
     from judgekeeper.report_page import why_no_range
     from judgekeeper.start_label import side_sentence
 
@@ -772,7 +773,8 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
     n_pass, n_fail = kinds.count("pass"), kinds.count("fail")
     if min(n_pass, n_fail) < AFTER_NUMBERS:
         said = f"{len(fresh)} so far" if fresh else "none" if every else "none yet"
-        return [AFTER_NONE.format(said=said) + ("" if every else AFTER_MORE)]
+        return [AFTER_NONE.format(said=said) + (AFTER_MORE if (not every if more is None
+                                                               else more) else "")]
     items = [(picked.get(i, tested[i]), fresh[i], tested[i]) for i in fresh]
     out = weighted.general_strata(items, pool)
     return [f"On marks made after this change ({n_pass} Pass, {n_fail} Fail):",
@@ -804,32 +806,47 @@ def written_from_lines(ws: Workspace) -> list[str]:
     fresh = {i: marked[i] for i in tested
              if str((m.last.get(i) or {}).get("at") or "") > since}
     picked, pool = batches.strata(data)
+    never = set(data.get("earlier_grades") or ())  # a mark there only waits
+    more = any(q["id"] not in every and q["id"] not in never for q in data.get("queue") or [])
     return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool,
-                                        every=every_marked(ws) and len(marked) == len(every))]
+                                        every=every_marked(ws) and len(marked) == len(every),
+                                        more=more)]
 
 
 # Marks on answers the judge now has never graded (batches.graded) ----------------------------
 
-WAIT = "{k} of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet."
-WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then run `{command}`."
+WAIT = ("{k} of your marks wait: your new LLM-as-a-judge has no Pass or Fail grade on those "
+        "answers yet.")
+WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
 
 
-def wait_command(ws: Workspace) -> str:
-    """The `check` that counts the marks that wait: on the new results file (record()'s new
-    file, as `fix` names it); on the store for MLflow (it reads the newest run)."""
+def wait_file(ws: Workspace) -> str:
+    """What the `check` that counts the marks that wait is given, named from the project
+    folder: the new results file (record()'s new file, as `fix` names it); the store for
+    MLflow (it reads the newest run)."""
     from judgekeeper import fix
 
-    tool, command = ws.data().get("tool"), program("check")
+    tool = ws.data().get("tool")
     if tool == "records":
-        return f"{command} {fix.NEW_RECORDS}"
-    store = fix.mlflow_store(ws) if tool == "mlflow" else None
-    return f"{command} {store or fix.NEW_RESULTS}"
+        return fix.NEW_RECORDS
+    return (fix.mlflow_store(ws) if tool == "mlflow" else None) or fix.NEW_RESULTS
+
+
+def wait_command(ws: Workspace) -> str:
+    """That `check`, with the program as program() names it where this is called."""
+    return f"{program('check')} {wait_file(ws)}"
+
+
+def wait_run(ws: Workspace) -> str:
+    """WAIT_NEXT's "run `...`" for the terminal: from another folder, "in your project folder,
+    run ..." with the program named from there (_run_in)."""
+    return _run_in(ws, wait_file(ws), _away(ws))
 
 
 def wait_lines(ws: Workspace, k: int) -> list[str]:
     """What the marking page says while `k` marks wait: WAIT, then how to count them."""
-    return [WAIT.format(k=k), WAIT_COUNT.format(command=wait_command(ws))] if k else []
+    return [WAIT.format(k=k), WAIT_COUNT.format(run=f"run `{wait_command(ws)}`")] if k else []
 
 
 def outcome(g: dict) -> str | None:
@@ -1046,6 +1063,25 @@ def given_results(path: str) -> bool:
     return Path(path).is_file() or find.is_mlflow_folder(Path(path))
 
 
+def no_such(path: str) -> str:
+    """Nothing at the PATH given: by its name, in the folder it was looked for in, as a line
+    names a path (shown_from_here, folder_words), else "here". A name with an extension is a
+    file."""
+    from judgekeeper.textio import folder_words, shown_from_here
+
+    given = Path(path)
+    name = given.name or path
+    what = "file" if given.suffix else "file or folder"
+    if not given.name or str(given.parent) in ("", "."):
+        return f"There is no file or folder named {name} here."
+    shown = shown_from_here(given.parent)
+    folder = folder_words(shown)
+    if folder == shown:  # a folder's name: with its separator, as the other lines end it
+        sep = "\\" if "\\" in shown else "/"
+        folder = shown.rstrip("/\\") + sep
+    return f"There is no {what} named {name} in {folder}."
+
+
 def path_problem(path: str) -> str | None:
     """Why the PATH given to `check` or `fix` is neither a results file nor a project folder,
     in one line: nothing there (or a link to nothing), a named pipe or a device, or a folder
@@ -1058,11 +1094,11 @@ def path_problem(path: str) -> str | None:
     given = Path(path)
     name = given.name or path
     if not given.exists():
-        return f"There is no file or folder named {name} here."
+        return no_such(path)
     try:
         kind = file_kind(given.stat().st_mode)
     except OSError:
-        return f"There is no file or folder named {name} here."
+        return no_such(path)
     if kind == "folder" and store_above(given.resolve()) not in (None, given.resolve()):
         return (f"{name} is a folder inside your project, not a results file or your project "
                 "folder.")
@@ -1078,7 +1114,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
 
     given = Path(path)
     if not given.exists():
-        said.say(f"There is no file or folder named {given.name or path} here.")
+        said.say(no_such(path))
         said.say()
         said.say(f"Next: run `{program_in(ANYWHERE, 'check')}` in your project folder.")
         return EXIT_USAGE
@@ -1432,6 +1468,16 @@ def no_decision(found, ids, ws: Workspace) -> list[str]:
     return [i for i in ids if _candidates(index, rows.get(i) or {})]
 
 
+def _say_left_out(said, found, gone: list[str], ws: Workspace, total: int) -> None:
+    """The marked answers `gone` (of `total`) with no grade in the new results: left out, how
+    an answer is found when some of them were not, and how many are there with no decision."""
+    k, e = len(gone), len(no_decision(found, gone, ws))
+    line = LEFT_OUT.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1 else "them")
+    said.say(line if e == k else f"{line} {BY_TEXT}")
+    if e:
+        said.say(NO_DECISION.format(e=e, are=_are(e), why=no_decision_why(found, gone, ws)))
+
+
 def no_decision_why(found, ids, ws: Workspace) -> str:
     """" (such as an error)" when one of the marked answers `ids` has no decision because the
     judge's call failed or its grade is the word error; else nothing: an empty grade may be
@@ -1704,7 +1750,8 @@ def full(path: str, said: Said) -> int:
     if not changed and not grades:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
-        held = len(lookup(found, state.marks, state.ws)[0]) if found is not None else None
+        matched = lookup(found, state.marks, state.ws)[0] if found is not None else None
+        held = len(matched) if matched is not None else None
         if held == len(state.marks) and not given_results(path):
             _covered(state.ws)
         if now.config is not None:  # one line per case, never "no change" with it
@@ -1715,9 +1762,8 @@ def full(path: str, said: Said) -> int:
             said.say(_no_change(state))
             said.say(SAME if new.get("rule_hash") else SAME_GRADES)
             if held is not None and held < len(state.marks):  # most were run again: new text
-                k = len(state.marks) - held
-                said.say(NOT_IN.format(k=k, n=_n(len(state.marks), "marked answer"),
-                                       them="it" if k == 1 else "them"))
+                _say_left_out(said, found, [i for i in state.marks if i not in matched],
+                              state.ws, len(state.marks))
                 said.say()
                 if batches.new_answers(state.ws, found):  # new answers came with them
                     said.say(NEXT_NEW_ANSWERS.format(program=_here(state.ws),
@@ -1814,7 +1860,7 @@ def full(path: str, said: Said) -> int:
     elif unsure:
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=_here(state.ws, "mark"), command=_command(state)))
-    before = _saved_result(state.ws)
+    before = _saved_result(state.ws) or _from_marks(state.ws)  # marked on the page only
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
     new_rates = _new_rates(state.marks, tested, *_picks(state)) if worse else None
@@ -1842,11 +1888,11 @@ def full(path: str, said: Said) -> int:
             if worse else None)
     if not given_results(path):
         _covered(state.ws)
-    after = _saved_result(state.ws) if not held else None
+    after = (_saved_result(state.ws) or _from_marks(state.ws)) if not held else None
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
         said.say(RESULT_NOW.format(verdict=_verdict_words(after)))
-        if after.get("written_from"):
+        if after.get("written_from") and fresh is None:  # else said with the numbers above
             said.say(WRITTEN_FROM)
         said.say()
     if then is None and level in ("check", "too_early"):  # nothing to do is not so
@@ -1862,6 +1908,17 @@ def _saved_result(ws: Workspace) -> dict | None:
     except (OSError, ValueError):
         return None
     return saved if isinstance(saved, dict) else None
+
+
+def _from_marks(ws: Workspace) -> dict | None:
+    """The result the marks give now, worked out and not saved (start_label.compute): for
+    marks made on the page only, which saved no result. None when it can't be worked out."""
+    from judgekeeper.start_label import StartSession, compute
+
+    try:
+        return compute(ws, StartSession(ws))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def _verdict_words(r: dict) -> str:
@@ -1980,12 +2037,7 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     if not few and looked is None:
         return False  # the check goes on, and says them there
     if n < total:
-        k = total - n
-        said.say(NOT_IN.format(k=k, n=_n(total, "marked answer"), them="it" if k == 1
-                               else "them"))
-        if e:
-            said.say(NO_DECISION.format(e=e, are=_are(e),
-                                        why=no_decision_why(found, gone, state.ws)))
+        _say_left_out(said, found, gone, state.ws, total)
     c = _asked_again(found, gone, state.ws) if gone else 0
     if c:
         said.say(CHANGED.format(c=c))

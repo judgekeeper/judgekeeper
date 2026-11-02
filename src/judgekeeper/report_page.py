@@ -658,6 +658,8 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
+    elif r.get("only_wait"):  # no mark counts now: the wait line below says the step
+        then = ""
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
@@ -682,8 +684,16 @@ def waiting_html(r: dict) -> str:
     k = r.get("waiting")
     if not k:
         return ""
-    run = f"<code>{look.command(_e(r.get('waiting_check') or 'judgekeeper check'))}</code>"
-    count = _term(WAIT_COUNT.format(command="\0")).replace("`\0`", run)
+    from judgekeeper import textio
+
+    command = r.get("waiting_check") or "judgekeeper check"  # named plainly (result.json)
+    typed = textio.program("check")  # report.html: plainly too; the live page: its own
+    with textio.plainly():
+        plain = textio.program("check")
+    if typed != plain and command.startswith(f"{plain} "):
+        command = typed + command[len(plain):]
+    run = f"run <code>{look.command(_e(command))}</code>"
+    count = _term(WAIT_COUNT.format(run="\0")).replace("\0", run)
     return f'<p class="lead">{_term(WAIT.format(k=k))} {count}</p>'
 
 
@@ -1101,18 +1111,25 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
     to the same percent are shown with one decimal, then two, and so is the value, so it
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
-    with two decimals too are no range to show: "about 99.3% (almost exact)". The value is
-    never shown as 100% or 0% unless it is exactly that (share)."""
+    with two decimals too are no range to show: "about 99.3% (almost exact)". Neither the
+    value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
+    99.96%"; an end past two decimals reads "99.99%" or "0.01%", never "over" or "under"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{share(value)} ({why or EVERY_MARKED})", "–"
     for places in range(3):
-        ends = f"{lo:.{places}%}", f"{hi:.{places}%}"
-        if ends[0] != ends[1]:
-            return _about(share(value, places)), " and ".join(ends)
+        if f"{lo:.{places}%}" != f"{hi:.{places}%}":
+            ends = _end(lo, places), _end(hi, places)
+            if ends[0] != ends[1]:
+                return _about(share(value, places)), " and ".join(ends)
+            break
     return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+
+
+def _end(x: float, places: int) -> str:
+    return share(x, places).removeprefix("over ").removeprefix("under ")
 
 
 def share(x: float, places: int = 0) -> str:
@@ -1291,13 +1308,19 @@ def _last_check(last: dict | None, worse: str) -> str:
             f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
+STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "
+                "start it that way.")
+
+
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
-         worse: str | None = None, last: dict | None = None) -> str:
+         worse: str | None = None, last: dict | None = None, started_else: bool = False) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of What next; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
-    copy keeps it too."""
+    and of What next; `last`: that check (check.last_check), said at the top;
+    `started_else`: report.html of a run not started as its commands name the program
+    (STARTED_ELSE under them). The page carries its Content-Security-Policy in a meta tag, so
+    the saved copy keeps it too."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -1319,6 +1342,9 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     if not worse:
         parts.append(_next(r, back))
     parts.append(held_note(r, "".join(parts)))
+    if started_else:
+        note = _e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>")
+        parts.append(f'<div class="band"><p class="note">{note}</p></div>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
     if live and 'class="why"' in "".join(parts):

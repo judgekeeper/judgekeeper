@@ -635,17 +635,24 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     coloured verdict, whose words are `headline`."""
     if not has_result(strata):
         return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
-    r = describe(weighted.stratified(strata))
+    return status_of(describe(weighted.stratified(strata)))
+
+
+def status_of(r: dict) -> dict:
+    """strata_status from a result's numbers (result_numbers)."""
     ready = coloured(r)
     return {"text": status_line(r), "first": r["check"] != "too_few", "ready": ready,
             "headline": r["verdict"] if ready else None}
 
 
-def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
+def import_check(m: marks.Marks, data: dict, ids: set,
+                 markable: bool = False) -> tuple[dict | None, int, dict | None]:
     """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
     verdict still needs to check them (labels.still_needed: from the answers left in the
     batches the result is on), and the group where they don't
-    look like the page marks (labels.looks_off): (None, 0, None) without any."""
+    look like the page marks (labels.looks_off): (None, 0, None) without any. An answer whose
+    mark waits (batches.graded) is still left, so the check holds while marks wait;
+    `markable`: only the answers a page mark can count on now (the gate line's number)."""
     from judgekeeper import labels as labels_mod
 
     imported = marks.imported(m, ids=ids)
@@ -654,9 +661,16 @@ def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
-    batch = batches.of(data)  # left to mark: only in the batches the result is on
+    batch = batches.of(data)  # left: only in the batches the result is on
     on = set(batches.counting(data, {i: counted[i] for i in ids if i in counted}))
-    left = {g: sum(q["group"] == g and q["id"] not in counted and batch.get(q["id"], 1) in on
+    never = set(data.get("earlier_grades") or ())  # not graded by the LLM-as-a-judge now
+
+    def left_in(q: dict) -> bool:
+        if markable:
+            return q["id"] not in counted and q["id"] not in never
+        return q["id"] not in counted or q["id"] in never
+
+    left = {g: sum(q["group"] == g and batch.get(q["id"], 1) in on and left_in(q)
                    for q in data["queue"]) for g in ("pass", "fail")}
     needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
     return imported, needed, labels_mod.looks_off(counts)
@@ -669,7 +683,11 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     ws = session.workspace
     data = ws.cached_data()
     graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
-    status = strata_status(batches.counted_strata(data, graded, ws.cached_strata()))
+    known = ws.cached_strata()
+    if has_result(batches.counted_strata(data, graded, known)):  # as the result counts them
+        status = status_of(result_numbers(data, batches.counted_labels(data, graded), known))
+    else:
+        status = strata_status([])
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
         ids = set(batches.counted_labels(data, graded))
         if import_check(marks.read(ws.marks), data, ids)[1]:
@@ -687,6 +705,12 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     wait = check.wait_lines(ws, len(session.marked()) - len(graded))
     if wait:  # said once, in the status area: else the result never moves, with no word why
         status["waiting"] = " ".join(wait)
+        never = set(data.get("earlier_grades") or ())
+        if not any(not i["label"] and i["id"] not in never for i in session.items):
+            status["only_wait"] = True  # no mark can move the result: the wait line is the step
+            if not status["ready"]:
+                status.pop("done", None)
+                status["text"] = EARLY
     return status
 
 
@@ -1280,7 +1304,7 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
         plain = textio.program()
         if worse and typed != plain:  # made for the terminal too (check.worse_step)
             worse = worse.replace(f"{typed} ", f"{plain} ")
-        return visible(page(r, back, fixing, worse, last))
+        return visible(page(r, back, fixing, worse, last, started_else=typed != plain))
 
 
 def _fixing(ws: Workspace, r: dict) -> dict | None:
@@ -1450,22 +1474,29 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
     return out
 
 
+def result_numbers(data: dict, labels: dict[str, str], known: tuple | None = None) -> dict:
+    """The result's numbers (describe) from `labels`, the marks it counts
+    (batches.counted_labels); the marking page's status comes from them too. `known`:
+    batches.strata(data), when the caller has it."""
+    if not data.get("picked"):
+        return describe(weighted.stratified(batches.counted_strata(data, labels, known)))
+    # a re-check: the marks keep the groups they were picked by
+    groups = {q["id"]: q["group"] for q in data["queue"]}
+    r = describe(picked_numbers(data["picked"], labels, groups, data["pool"], batches.of(data)))
+    r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the LLM-as-a-judge's grades
+                       "labeled": sum(groups[i] == g for i in labels),
+                       "correct": sum(groups[i] == g and m == "pass" for i, m in labels.items())}
+                   for g in ("pass", "fail")}
+    return r
+
+
 def compute(ws: Workspace, session: StartSession) -> dict:
     """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
     labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
-    if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
-        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
-                                     batches.of(data)))
-        r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the judge's grades now
-                           "labeled": sum(groups[i] == g for i in labels),
-                           "correct": sum(groups[i] == g and m == "pass"
-                                          for i, m in labels.items())}
-                       for g in ("pass", "fail")}
-    else:
-        r = describe(weighted.stratified(batches.counted_strata(data, labels)))
+    r = result_numbers(data, labels)
     about = batches.about(data, session.marked())
     if about is not None:
         r["batches"] = about
@@ -1482,9 +1513,10 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     k = batches.waiting(data, session.marked())
     if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
-        from judgekeeper import check
+        from judgekeeper import check, textio
 
-        r.update(waiting=k, waiting_check=check.wait_command(ws))
+        with textio.plainly():  # result.json and report.html name the program plainly
+            r.update(waiting=k, waiting_check=check.wait_command(ws))
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
@@ -1494,8 +1526,12 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if imported:
         r["imported"] = imported
     if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
-        r.update(import_gate=needed, verdict_level="too_early")
+        shown = import_check(m, data, set(labels), markable=True)[1] if k else needed
+        r.update(import_gate=shown, verdict_level="too_early")  # 0: no page mark counts now
         r["verdict"] = _verdict(r)
+    never = set(data.get("earlier_grades") or ())
+    if k and not any(not i["label"] and i["id"] not in never for i in session.items):
+        r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
         r["imports_off"] = off
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],

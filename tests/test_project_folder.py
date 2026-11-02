@@ -493,6 +493,48 @@ def _rule_project(root, verdicts, rule):
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
 
 
+FLIP = (0, 4, 8, 12, 24, 28, 32)  # the person disagrees with the first grades on these
+
+
+def _checked_outside(here, capsys, worse: bool) -> None:
+    """Marked against a table judge in evals/; a check passes on evals/support-evals-v2.csv,
+    graded as the person marks (`worse`: then a check finds a file outside the project worse);
+    or (not `worse`) the passing check is of a file outside the project."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/support-evals.csv")
+    assert run(capsys)[0] == 0
+    person = [(not v) if i in FLIP else v for i, v in enumerate(verdicts)]
+    _mark(Workspace(here), {i: "pass" if v else "fail" for i, v in enumerate(person)})
+    run(capsys)
+    if worse:
+        table_project(here, person, name="evals/support-evals-v2.csv")
+        assert run(capsys, "check", "evals/support-evals-v2.csv")[0] == 0
+        outside = table_project(here.parent / "outside", [not v for v in person])
+        assert run(capsys, "check", str(outside))[0] == 1
+    else:
+        outside = table_project(here.parent / "outside", person)
+        assert run(capsys, "check", str(outside))[0] == 0
+
+
+def test_after_a_worse_check_the_judge_is_the_one_before_it(here, capsys, no_calls):
+    """The last check found its LLM-as-a-judge worse, so it was not taken on: the one marks
+    test is the one from before that check, not the one it re-tested."""
+    _checked_outside(here, capsys, worse=True)
+    out = flat(run(capsys)[1])
+    assert "the one your last check re-tested" not in out, out
+    assert ("Your answers were graded again. Your LLM-as-a-judge is the one you had before your "
+            "last check, so your marks still test it.") in out, out
+
+
+def test_grades_changed_after_a_check_of_another_file_is_said_once(here, capsys, no_calls):
+    """A check took on the LLM-as-a-judge of a file outside the project; the project's own
+    results still hold the grades from before: said on the next run, not on every run."""
+    _checked_outside(here, capsys, worse=False)
+    line = "Your LLM-as-a-judge's grades changed on 7 of your marked answers."
+    assert line in flat(run(capsys)[1])
+    assert line not in flat(run(capsys)[1])
+
+
 def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rule_project(here, split(25, 25), RULE_A)

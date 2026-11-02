@@ -92,8 +92,11 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
              "still test it.")
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
+RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the one you had before "
+                  "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
+READING = "Reading {file}."  # back to a file older than the last one read
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -488,8 +491,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, folders)  # a session below never joins other results here
     if path.is_file() and (owner := _session_owning(path)) is not None:
-        talk.para(_nested_line([owner]))  # its own project's answers, never a batch here
-        raise talk.stop(EXIT_QUESTION, f"run `{program()}` in {owner}/.")
+        # its own project's answers, never a batch here
+        talk.para(_nested_line([owner], Path.cwd()))
+        raise talk.stop(EXIT_QUESTION, f"run `{_program_there([owner], Path.cwd())}` in {owner}/.")
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -847,13 +851,20 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
-def _nested_line(nested: list[str]) -> str:
-    """Results in projects of their own below this one (find.nested_results): whose they
-    are, and where to check them."""
+def _nested_line(nested: list[str], base: Path) -> str:
+    """Results in projects of their own below this one (find.nested_results, named from the
+    folder `base`): whose they are, and where to check them."""
     named = start._and([f"{p}/" for p in nested])
     where = start._or([f"{p}/" for p in nested])
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
-            f"{named}. To check them, run `{program()}` in {where}.")
+            f"{named}. To check them, run `{_program_there(nested, base)}` in {where}.")
+
+
+def _program_there(folders: list[str], base: Path) -> str:
+    """program() as it is typed in each of `folders` (from `base`), for a line that says to
+    run it there: the same in all of them, else the form that runs in any folder."""
+    shown = {textio.program_in(base / f) for f in folders}
+    return shown.pop() if len(shown) == 1 else textio.program_in(textio.ANYWHERE)
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
@@ -872,9 +883,9 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
     if nested and len(sessions := _sessions_below(root, nested)) == len(nested):
         return _go_to(talk, sessions)
     if nested:
-        talk.para(_nested_line(nested))
+        talk.para(_nested_line(nested, root))
         where = start._or([f"{p}/" for p in nested])
-        return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
+        return talk.stop(EXIT_QUESTION, f"run `{_program_there(nested, root)}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
@@ -1137,7 +1148,7 @@ def _nested_here(found: start.Found) -> str | None:
     if found.given:
         return None
     nested = find.nested_results(find.search(found.root))
-    return _nested_line(nested) if nested else None
+    return _nested_line(nested, found.root) if nested else None
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -1257,7 +1268,8 @@ def _newest(found: start.Found) -> str:
 
 def _newest_line(ws: Workspace, found: start.Found) -> str | None:
     """NEWEST when this run found other results files than the last one read (a newer one
-    saved in the folder), not given by path."""
+    saved in the folder), not given by path; READING when the one read is older than the
+    last one read (a run back on an earlier file)."""
     if found.given or found.tool in ("mlflow", "records") or not found.results:
         return None
     try:
@@ -1267,7 +1279,25 @@ def _newest_line(ws: Workspace, found: start.Found) -> str | None:
         return None
     if not files or data.get("given") or _same_files(ws, data, files, found):
         return None
-    return NEWEST.format(file=_newest(found))
+    return (READING if _older(ws, data, files, found) else NEWEST).format(file=_newest(found))
+
+
+def _older(ws: Workspace, data: dict, files: list[str], found: start.Found) -> bool:
+    """Whether the newest file `found` read is older than one of `files`, the files read last
+    (start.json's, from the folder its results were read in)."""
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    try:
+        now = found.results[0].path.stat().st_mtime
+    except OSError:
+        return False
+    for f in files:
+        try:
+            if (base / f).stat().st_mtime > now:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _read_from(found: start.Found) -> str:
@@ -1376,7 +1406,8 @@ def _import_gate(ws: Workspace, session: StartSession) -> str | None:
         return None
     data = ws.data()
     ids = set(batches.counted_labels(data, batches.graded(data, session.marked())))
-    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
+    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids,
+                                                   markable=True)
     return labels_mod.gate_line(needed, imported)
 
 
@@ -1739,6 +1770,17 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     return [] if talk.new else None
 
 
+def _graded_elsewhere(ws: Workspace, found: start.Found) -> bool:
+    """Whether the results `found` here are not the files start.json's grades were read from
+    (a check took on the LLM-as-a-judge of a file elsewhere)."""
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    return bool(files) and not _same_files(ws, data, files, found)
+
+
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
     """Whether the newest results differ from the ones being marked, with marks made: other
     files (by where they are, not how they were named) or other grades. No marks yet: nothing
@@ -1799,6 +1841,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
+    once = grades and _graded_elsewhere(ws, found)  # a check took on another file: said once
+    if once and ws.data().get("results_seen") == batches.results_key(found):
+        grades = 0
     added = 0
     if not (first or changed or back or grades):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
@@ -1809,6 +1854,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     elif changed or grades:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
                     else check.GRADES.format(k=grades))
+        if grades and once:
+            batches.seen(ws, found)
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
@@ -1817,7 +1864,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
     elif not first and _ran_again(ws, found):
-        head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
+        head.append(RAN_AGAIN if not ws.data().get("checked_at")
+                    else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
@@ -2068,7 +2116,7 @@ def verdict_line(r: dict) -> str | None:
     if r["verdict_level"] is None:
         return None
     verdict = r["verdict"]
-    if start_label.all_labeled(r):  # nothing left to mark
+    if start_label.all_labeled(r) or r.get("only_wait"):  # nothing left to mark that counts
         verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
     return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 
@@ -2224,7 +2272,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif r.get("waiting"):  # only the judge's grades on them can count them
-        next_step = checking.WAIT_NEXT.format(command=r["waiting_check"])
+        next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
