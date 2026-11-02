@@ -155,18 +155,21 @@ def test_an_import_that_starts_over_says_find_once(tmp_path, monkeypatch, capsys
 # fix --new never asks for more marks than there are answers left ---------------------------
 
 def _marked_but(root: Path, n: int, left: int) -> None:
-    """`n` answers in results.csv, all but `left` marked as the person sees them."""
+    """`n` answers in results.csv, all but `left` Pass answers marked as the person sees them:
+    the queue's order is drawn at random, so the ones left are picked, and every Fail answer
+    is marked. No page is started."""
+    from judgekeeper import start, start_label
     from judgekeeper.start_label import StartSession
 
     _write(root / "results.csv", [_row(i, 5) for i in range(n)], COLUMNS)
-    assert main(["--no-browser", "--port", "0", "--yes"]) == 0
-    ws = Workspace(root)
-    background.stop(ws.dir)
+    ws = start_label.prepare(start.find_judge(root), say=lambda line: None)
     pool = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
     session = StartSession(ws)
-    for item in session.items[:n - left]:
-        bad = "BAD" in pool[item["id"]]["output"]
-        session.update({"id": item["id"], "label": "fail" if bad else "pass", "seconds": 5})
+    bad = {item["id"]: "BAD" in pool[item["id"]]["output"] for item in session.items}
+    kept = [i for i in bad if not bad[i]][-left:]
+    for i, is_bad in bad.items():
+        if i not in kept:
+            session.update({"id": i, "label": "fail" if is_bad else "pass", "seconds": 5})
 
 
 def test_fix_new_with_few_answers_left_asks_for_no_more_than_are_left(tmp_path, monkeypatch,
