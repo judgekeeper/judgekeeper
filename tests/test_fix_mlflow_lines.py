@@ -42,7 +42,10 @@ for i in range(40):
 """
 
 
-class _Talk:
+class _Talk(fix.Talk):
+    def __init__(self):
+        super().__init__(".")  # run in the project folder
+
     def command(self, sub: str = "") -> str:
         return f"judgekeeper {sub or 'fix'}"
 

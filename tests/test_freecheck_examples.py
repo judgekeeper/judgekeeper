@@ -80,14 +80,27 @@ def test_the_page_offers_the_three_examples_as_cards_that_drag():
 
 
 @pytest.mark.parametrize("name", NAMES)
-def test_each_example_reads_the_same_in_the_page_and_the_tool(files, name):
+def test_each_example_reads_the_same_in_the_page_and_the_tool(files, name, monkeypatch):
+    """Run in the file's own folder, as the page stands for (it knows only the file's name)."""
     path = files[name]
+    monkeypatch.chdir(path.parent)
     page = browser(path)
     assert _page(page) == tool(path)
     for judge in page["judges"]:
         found = start.find_judge(path, metric=judge["key"] if len(page["judges"]) > 1 else None)
         block = front.found_block(found)
         assert judge["lines"][:len(block)] == block
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_each_example_reads_the_same_in_a_folder_under_home(tmp_path, monkeypatch, name):
+    """As on a Windows runner, where the temporary folder is under the home folder."""
+    home = tmp_path.resolve() / "Users" / "ann-x"
+    path = home / "AppData" / name / name
+    path.parent.mkdir(parents=True)
+    path.write_text(_text(name), encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    test_each_example_reads_the_same_in_the_page_and_the_tool({name: path}, name, monkeypatch)
 
 
 def test_each_example_shows_what_it_is_there_for(files):

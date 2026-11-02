@@ -86,7 +86,8 @@ def test_a_new_rule_leaves_out_the_answers_with_an_earlier_grade(adopted, tmp_pa
     assert code == 3 and "better" not in said, out
     assert fix.EARLIER.format(k=20, n=20, have="have", them="them") in said
     assert said.endswith("Next: " + fix.NEXT_EARLIER.format(
-        answers=".judgekeeper/fix/marked-answers.csv", command="judgekeeper fix"))
+        answers=".judgekeeper/fix/marked-answers.csv",
+        run="run `judgekeeper fix <those results>`"))
 
 
 def test_no_grade_on_an_answer_with_an_earlier_grade_is_left_out_too(adopted, tmp_path):
@@ -107,7 +108,8 @@ def test_no_grade_on_an_answer_with_an_earlier_grade_is_left_out_too(adopted, tm
     assert code == 3 and "better" not in said and "mistake" not in said, out
     assert fix.EARLIER.format(k=20, n=20, have="have", them="them") in said
     assert said.endswith("Next: " + fix.NEXT_EARLIER.format(
-        answers=".judgekeeper/fix/marked-answers.csv", command="judgekeeper fix"))
+        answers=".judgekeeper/fix/marked-answers.csv",
+        run="run `judgekeeper fix <those results>`"))
 
 
 def test_check_leaves_earlier_grades_out_of_its_table(adopted, tmp_path):
