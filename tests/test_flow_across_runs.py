@@ -555,13 +555,28 @@ def test_fix_names_the_file_that_holds_the_rule_when_it_cant_find_the_line(tmp_p
 
     monkeypatch.chdir(tmp_path)
     project(tmp_path)
-    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
-                                                   encoding="utf-8")
+    (tmp_path / "promptfooconfig.yaml").write_text(
+        "description: support bot\ntests: file://tests.yaml\ndefaultTest:\n  assert:\n"
+        "    - type: llm-rubric\n      value: file://rubric.txt\n", encoding="utf-8")
     (tmp_path / "notes.txt").write_text(f"{RULE}\n", encoding="utf-8")
     _, out = _jk(capsys, "fix")
     assert ("Your LLM-as-a-judge's rule is in the `value:` of the llm-rubric assert in "
             "promptfooconfig.yaml:") in flat(out), out
     assert "can't tell which file" not in flat(out) and "notes.txt" not in out
+
+
+def test_fix_names_no_config_file_that_holds_no_llm_rubric_assert(tmp_path, capsys,
+                                                                   monkeypatch):
+    from tests.test_fix import project
+
+    monkeypatch.chdir(tmp_path)
+    project(tmp_path)
+    (tmp_path / "promptfooconfig.yaml").write_text(
+        "description: support bot\nprompts:\n  - 'Answer: {{question}}'\n", encoding="utf-8")
+    _, out = _jk(capsys, "fix")
+    assert ("Your LLM-as-a-judge's rule is in the `value:` of the llm-rubric assert in your "
+            "promptfoo config:") in flat(out), out
+    assert "promptfooconfig.yaml" not in out
 
 
 def test_fix_names_where_the_eval_keeps_the_rule_when_no_file_holds_it(tmp_path, capsys,

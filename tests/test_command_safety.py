@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from html import escape
@@ -369,3 +370,233 @@ def test_on_windows_a_path_in_home_is_repeated_from_here_and_named_from_userprof
     monkeypatch.chdir(tmp_path / "proj")
     assert textio.runnable(os.path.join(home, "My Labels", "l.csv"), labels=True) == (
         '"../My Labels/l.csv"')
+
+
+# report.html is a file people share: it names the program plainly ----------------------------
+
+TYPED = "venv/bin/judgekeeper"  # a program typed as a path from here (textio.off_path)
+
+
+def _measured(root, capsys) -> Workspace:
+    """A table of 50 answers, 40 of them marked by import: a result, and answers to mark."""
+    from tests.start_projects import answer, table_project
+    from tests.test_labels_import import write_labels
+
+    table_project(root, split(25, 25))
+    write_labels(root / "mine.csv", [{"answer": answer(i), "label": "pass" if i < 25 else "fail"}
+                                     for i in (*range(20), *range(25, 45))])
+    main(["--labels", "mine.csv", "--no-browser", "--port", "0", "--yes"])
+    capsys.readouterr()
+    return Workspace(root)
+
+
+def test_report_html_names_the_program_plainly_when_typed_as_a_path(tmp_path, monkeypatch,
+                                                                     capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setattr(textio, "_typed", TYPED)
+    ws = _measured(tmp_path, capsys)
+    main(["--no-browser", "--port", "0"])
+    out = "".join(capsys.readouterr())
+    assert f"{TYPED} " in out  # the terminal: as typed, so it runs as printed here
+    html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
+    assert "venv/bin" not in html
+    assert "judgekeeper mark --no-browser" in html
+
+
+def test_report_html_names_uvx_when_uvx_started_it(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(textio, "_typed", TYPED)
+    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
+    monkeypatch.setattr(textio, "extras_here", lambda: ())
+    ws = _measured(tmp_path, capsys)
+    html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
+    assert "uvx judgekeeper mark" in html and "venv/bin" not in html
+
+
+def test_report_html_after_worse_names_the_program_plainly(tmp_path, monkeypatch, capsys):
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
+    from tests.test_check import run as check_run
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("UV", raising=False)
+    ws = _marked(tmp_path)
+    start_label.store_result(ws, StartSession(ws))
+    _results(tmp_path, LENIENT, model=HAIKU)
+    monkeypatch.setattr(textio, "_typed", TYPED)
+    code, out = check_run(capsys)
+    assert code == 1, out
+    assert f"{TYPED} check" in out
+    html = ws.report_html.read_text(encoding="utf-8")
+    assert "Go back to your old LLM-as-a-judge" in re.sub('<span class="term">(.*?)</span>',
+                                                          r"\1", html)
+    assert "venv/bin" not in html
+
+
+# "go there, then run it": the program as typed from there ------------------------------------
+
+def _off_the_path(monkeypatch, typed: str) -> None:
+    """judgekeeper started as `typed`, a path from here, with no `judgekeeper` on the PATH."""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setattr(sys, "argv", [typed])
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a venv's scripts are .exe files there")
+def test_go_to_a_folder_names_the_program_as_typed_from_there(tmp_path, monkeypatch, capsys):
+    from tests.start_projects import promptfoo_project, table_project
+
+    (tmp_path / "venv" / "bin").mkdir(parents=True)
+    (tmp_path / "venv" / "bin" / "judgekeeper").write_text("", encoding="utf-8")
+    work = tmp_path / "work"
+    table_project(work / "gym", split(20, 16))
+    promptfoo_project(work / "dental", split(20, 16))
+    monkeypatch.chdir(work)
+    _off_the_path(monkeypatch, "../venv/bin/judgekeeper")
+    assert textio.program() == "../venv/bin/judgekeeper"  # here, as typed
+    code = main(["--no-browser", "--port", "0"])
+    out = " ".join("".join(capsys.readouterr()).split())
+    assert code == 3, out
+    assert ("Next: go to one of those folders (`cd dental`), then run "
+            "`../../venv/bin/judgekeeper` there.") in out, out
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a venv's scripts are .exe files there")
+def test_a_line_for_another_project_names_a_program_that_runs_anywhere(tmp_path, monkeypatch):
+    (tmp_path / "venv" / "bin").mkdir(parents=True)
+    (tmp_path / "venv" / "bin" / "judgekeeper").write_text("", encoding="utf-8")
+    (tmp_path / "work").mkdir()
+    monkeypatch.chdir(tmp_path / "work")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    _off_the_path(monkeypatch, "../venv/bin/judgekeeper")
+    with textio.run_from(textio.ANYWHERE):
+        assert textio.program("--stop") == "~/venv/bin/judgekeeper --stop"
+    assert textio.program("--stop") == "../venv/bin/judgekeeper --stop"
+
+
+# The result's commands are for the project folder -------------------------------------------
+
+def test_the_result_commands_run_in_the_project_folder_after_a_run_from_above(tmp_path,
+                                                                               monkeypatch,
+                                                                               capsys):
+    from tests.start_projects import answer, table_project
+    from tests.test_labels_import import write_labels
+
+    proj = tmp_path / "proj"
+    table_project(proj, split(25, 25))
+    write_labels(proj / "mine.csv", [{"answer": answer(i), "label": "pass" if i < 25 else "fail"}
+                                     for i in (*range(20), *range(25, 45))])
+    monkeypatch.chdir(tmp_path)
+    main(["proj", "--labels", "proj/mine.csv", "--no-browser", "--port", "0", "--yes"])
+    out = "".join(capsys.readouterr())
+    assert "judgekeeper mark proj" in " ".join(out.split())  # the terminal: from here
+    ws = Workspace(proj)
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    commands = report_page.commands(r)
+    assert commands["mark"].startswith("judgekeeper mark") and "proj" not in commands["mark"]
+    for name in ("run", "check", "fix", "more"):
+        assert "proj" not in commands[name], commands
+    html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
+    assert "judgekeeper mark proj" not in html and "judgekeeper mark --no-browser" in html
+
+
+def test_on_windows_a_line_for_another_project_never_names_the_home_folder(tmp_path,
+                                                                         monkeypatch):
+    """Windows: a command never holds %USERPROFILE% or `~` (PowerShell reads neither): the
+    full path, when no folder can be named to start from."""
+    (tmp_path / "venv" / "bin").mkdir(parents=True)
+    (tmp_path / "venv" / "bin" / "judgekeeper").write_text("", encoding="utf-8")
+    (tmp_path / "work").mkdir()
+    monkeypatch.chdir(tmp_path / "work")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    _off_the_path(monkeypatch, os.path.join(os.pardir, "venv", "bin", "judgekeeper"))
+    monkeypatch.setattr(textio, "is_windows", lambda: True)
+    with textio.run_from(textio.ANYWHERE):
+        stop = textio.program("--stop")
+    assert "%USERPROFILE%" not in stop and "~" not in stop, stop
+    assert os.path.abspath(os.path.join(os.pardir, "venv", "bin", "judgekeeper")) in stop
+
+
+# report.html written by check from another folder ---------------------------------------------
+
+@pytest.mark.parametrize(("start_in", "given"), [("top", "project"), ("parent", "project"),
+                                                 ("elsewhere", "project"),
+                                                 ("project", "results")])
+def test_report_html_from_check_in_another_folder_holds_no_path_from_there(start_in, given,
+                                                                           tmp_path, monkeypatch,
+                                                                           capsys):
+    """`check <whole project path>` run from /, from the folder above or from another folder
+    (or `check <whole results path>` in the project): the report it writes names no path from
+    where it ran, no whole path and no program path. Its command runs in the project folder."""
+    from tests.test_check import HAIKU, LENIENT, _marked, _results
+
+    proj = tmp_path / "home" / "acme-bot"
+    proj.mkdir(parents=True)
+    elsewhere = tmp_path / "other"
+    elsewhere.mkdir()
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.chdir(proj)
+    ws = _marked(proj)
+    start_label.store_result(ws, StartSession(ws))
+    _results(proj, LENIENT, model=HAIKU)
+    monkeypatch.chdir({"top": Path(proj.anchor), "parent": proj.parent,
+                       "elsewhere": elsewhere, "project": proj}[start_in])
+    monkeypatch.setattr(textio, "_typed", str(tmp_path / "venv" / "bin" / "judgekeeper"))
+    code = main(["check", str(proj if given == "project" else proj / "results.json")])
+    assert code == 1, capsys.readouterr()  # Worse: report.html says what to run next
+    capsys.readouterr()
+    html = ws.report_html.read_text(encoding="utf-8")
+    text = re.sub("<[^>]+>", "", html)
+    kept = ws.result_json.read_text(encoding="utf-8")
+    for whole in {str(tmp_path), os.path.realpath(tmp_path), str(Path.home()),
+                  str(Path("~").expanduser())}:
+        assert whole not in html and whole not in kept, whole
+    assert "venv" not in html and "~/" not in text
+    assert "venv" not in kept and "~/" not in kept and "../" not in kept
+    assert "acme-bot/" not in text and not re.search(r"judgekeeper \w+ \S*acme-bot", text)
+    assert "../" not in text and "other/" not in text
+    command = "judgekeeper check" + ("" if given == "project" else " results.json")
+    assert f"run {command} again." in " ".join(text.split())
+
+
+@pytest.mark.parametrize("start_in", ["parent", "elsewhere"])
+def test_result_json_names_the_program_plainly_after_a_run_from_another_folder(start_in, tmp_path,
+                                                                             monkeypatch,
+                                                                             capsys):
+    """judgekeeper typed as a path and run on the project from another folder: result.json
+    keeps its command as typed in the project folder, the program named plainly."""
+    from tests.start_projects import answer, table_project
+    from tests.test_labels_import import write_labels
+
+    proj = tmp_path / "home" / "acme-bot"
+    table_project(proj, split(25, 25))
+    write_labels(proj / "mine.csv", [{"answer": answer(i), "label": "pass" if i < 25 else "fail"}
+                                     for i in (*range(20), *range(25, 45))])
+    elsewhere = tmp_path / "other"
+    elsewhere.mkdir()
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path / "home")
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.chdir({"parent": proj.parent, "elsewhere": elsewhere}[start_in])
+    monkeypatch.setattr(textio, "_typed", os.path.relpath(tmp_path / "venv" / "bin" /
+                                                          "judgekeeper"))
+    main([str(proj), "--labels", str(proj / "mine.csv"), "--no-browser", "--port", "0",
+          "--yes"])
+    capsys.readouterr()
+    r = json.loads(Workspace(proj).result_json.read_text(encoding="utf-8"))
+    assert r["command"] == "judgekeeper --port 0 --no-browser", r["command"]
+    write_labels(proj / "more.csv", [{"answer": answer(i), "label": "pass" if i < 25 else "fail"}
+                                     for i in (20, 21, 45, 46)])
+    main([str(proj), "--labels", str(proj / "more.csv"), "--no-browser", "--port", "0", "--yes"])
+    main(["fix", str(proj)])
+    capsys.readouterr()
+    copies = sorted((proj / ".judgekeeper" / "history").glob("result-*.json"))
+    assert copies, "a second result moves the first to history/"
+    for copy in copies:
+        assert json.loads(copy.read_text(encoding="utf-8"))["command"].startswith(
+            "judgekeeper "), copy.name
+    for kept in sorted((proj / ".judgekeeper").rglob("*")):
+        if kept.is_file():
+            data = kept.read_text(encoding="utf-8", errors="replace")
+            assert "venv" not in data and str(tmp_path) not in data, kept.name
