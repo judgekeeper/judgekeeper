@@ -666,8 +666,11 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
     gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
     gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
+    written = "".join(f'<p class="lead">{_term(x.strip())}</p>'  # as `check` said it
+                      for x in r.get("written_from") or [])
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-            f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
+            f'class="{cls}">{_term(headline)}</h1>{written}{gate}<p class="lead">{lead}</p>'
+            "</section>")
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -1082,20 +1085,23 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     range is too wide for a result (the headline says it is too early to tell). Too early to
     tell when there is no number yet. A range of no width is not shown: the number says why
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
-    to the same percent are shown with one decimal, and so is the value, so it always sits
-    inside its range ("about 99.3% (between 99.1% and 99.3%)")."""
+    to the same percent are shown with one decimal, then two, and so is the value, so it
+    always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
+    with two decimals too are no range to show: "about 99.3% (almost exact)"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
-    if _pct(lo) == _pct(hi):
-        return f"about {value:.1%}", f"{lo:.1%} and {hi:.1%}"
-    return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
+    for shown in (_pct, "{:.1%}".format, "{:.2%}".format):
+        if shown(lo) != shown(hi):
+            return f"about {shown(value)}", f"{shown(lo)} and {shown(hi)}"
+    return f"about {value:.1%} ({ALMOST_EXACT})", "–"
 
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1192,7 +1198,11 @@ def _next(r: dict, back: str | None) -> str:
     saved = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
              "folder. You can close this page.</p>")
     out = [saved]
-    if step == "fix":
+    if step == "fix" and r.get("fix_ready") is False:  # `fix` would say this: mark more
+        from judgekeeper.fix import NOT_ENOUGH
+
+        out.append(f"<p>{_e(NOT_ENOUGH)}</p>")
+    elif step == "fix":
         out.append("<p>Next, in your terminal, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '

@@ -300,7 +300,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
+    assert ("Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge."
+            in " ".join(out.split()))
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
     assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
             "in every 100.") in " ".join(out.split())
@@ -662,3 +663,12 @@ def test_check_names_the_folders_when_the_newest_results_need_a_choice(here, cap
             "deepeval-results/test_run_20261101_155341.json` or `judgekeeper check "
             "deepeval-results-rule/test_run_20261101_155333.json`.") in text, out
     assert code == 3
+    title = "DeepEval results in more than one folder:"
+    lines = out.splitlines()
+    checked = lines[lines.index(title):lines.index(title) + 3]
+    assert all(len(x) > 66 for x in checked[1:]), checked  # long: unwrapped, one per folder
+    from judgekeeper.cli import main
+
+    assert main(["--no-browser"]) == 3  # plain judgekeeper says the same lines
+    plain = capsys.readouterr().out.splitlines()
+    assert plain[plain.index(title):plain.index(title) + 3] == checked

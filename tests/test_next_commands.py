@@ -130,8 +130,8 @@ READ = ("given", "label_map", "metric", "pool", "pool_sha256", "left_out")
 
 def test_marked_line_is_the_same_everywhere(
         tmp_path, monkeypatch, capsys):
-    """Every answer marked, Fail still short: the terminal, the marking page's end card, the
-    result page and report.html name the same `mark` command, and that command, run as
+    """Every answer marked, Fail still short: the terminal, the marking page's end card and the
+    result page name the same `mark` command, and that command, run as
     printed, reads the results as the first run did."""
     verdicts = ["good"] * 50 + ["bad"] * 10
     table_project(tmp_path, verdicts, name="evals/results.csv")
@@ -154,10 +154,9 @@ def test_marked_line_is_the_same_everywhere(
         server.httpd.server_close()
         server.release()
     assert f"then run `{MARK}`: the new answers join the ones you marked." in card
-    for name, text in (("result page", unwrapped(html)),
-                       ("report.html", unwrapped(ws.report_html.read_text(encoding="utf-8")))):
-        assert (f"then run <code>{escape(MARK)}</code>: the new answers join the ones you "
-                "marked.") in text, name
+    assert (f"then run <code>{escape(MARK)}</code>: the new answers join the ones you "
+            "marked.") in unwrapped(html)
+    assert not ws.report_html.exists()  # no result yet: nothing written, as in the terminal
     capsys.readouterr()
     assert main(shlex.split(MARK)[1:]) == 3  # nothing new yet: it says the same
     out = " ".join(capsys.readouterr().out.split())
