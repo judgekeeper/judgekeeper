@@ -76,6 +76,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
   white-space: normal; text-align: right; }
+/* marks that wait: a row of its own under the top bar, so a long note never covers the list */
+.wait-note { flex: none; margin: 0; padding: 10px 28px; border-bottom: 1px solid var(--line);
+  font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.wait-note code { color: var(--text); }
 .see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none;
   white-space: nowrap; }
 .see:hover { text-decoration: underline; }
@@ -264,6 +268,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-top: 8px; padding-bottom: 8px; }
 }
 @media (max-width: 760px) {
+  .wait-note { padding: 10px 16px; }
   html, body { height: auto; }
   #app, .wrap { flex: none; min-height: 0; }
   .wrap { grid-template-columns: 1fr; height: auto; }
@@ -289,6 +294,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 BODY = """<div id="app">
 __TOP__
+<p class="wait-note" id="waiting" hidden></p>
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
@@ -1043,8 +1049,7 @@ def _progress() -> str:
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
             f'<a class="see" id="see" href="#" hidden>{escape(SEE_READY)}</a></div>'
-            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p>'
-            '<p class="keep" id="waiting" hidden></p></div>')
+            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
