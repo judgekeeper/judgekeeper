@@ -1381,6 +1381,9 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     return result_html(_scrubbed(_now(ws, r)), back, fixing=fixing)
 
 
+OWN_FILES = ("table", "mapped", "records")  # results in the person's own format
+
+
 def page_template(about: dict | None = None, command: str | None = None,
                   held: list[str] | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's model and tool
@@ -1396,7 +1399,8 @@ def page_template(about: dict | None = None, command: str | None = None,
     return label_page(about.get("description") or about.get("app_version"), command,
                       model=(about.get("fingerprint") or {}).get("model"),
                       tool=tool_name(about.get("tool"), about.get("results_files")),
-                      held=held, metric=about.get("metric"),
+                      held=held, metric=None if about.get("tool") in OWN_FILES
+                      else about.get("metric"),  # an own file's metric is its grade column
                       rule=rule if isinstance(rule, str) else None)
 
 
