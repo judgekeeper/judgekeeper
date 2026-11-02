@@ -1113,7 +1113,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
     with two decimals too are no range to show: "about 99.3% (almost exact)". Neither the
     value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
-    99.96%"."""
+    99.96%"; an end past two decimals reads "99.99%" or "0.01%", never "over" or "under"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
@@ -1121,8 +1121,15 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
         return f"{share(value)} ({why or EVERY_MARKED})", "–"
     for places in range(3):
         if f"{lo:.{places}%}" != f"{hi:.{places}%}":
-            return _about(share(value, places)), f"{share(lo, places)} and {share(hi, places)}"
+            ends = _end(lo, places), _end(hi, places)
+            if ends[0] != ends[1]:
+                return _about(share(value, places)), " and ".join(ends)
+            break
     return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+
+
+def _end(x: float, places: int) -> str:
+    return share(x, places).removeprefix("over ").removeprefix("under ")
 
 
 def share(x: float, places: int = 0) -> str:
