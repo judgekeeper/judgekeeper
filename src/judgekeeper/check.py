@@ -134,6 +134,10 @@ GRADE_MARKED = f"{WROTE_NEW} Grade the answers you marked instead:"  # before th
 GRADE_SAME = "Grade the answers you marked:"  # too few, and none of them asked again
 NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
+# A results file given: the next change makes new results, never this file again
+NEXT_SAME_FILE = ("Next: nothing to do. After you change your LLM-as-a-judge again, run "
+                  "`{command}`.")
+NEW_RESULTS = "<new results file>"
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
@@ -585,6 +589,19 @@ def _command(state_or_path) -> str:
     path = state_or_path.path if isinstance(state_or_path, State) else state_or_path
     return " ".join((program("check"),
                      *([] if str(path) == "." else [runnable(str(path), labels=False)])))
+
+
+def _next_change(state: State) -> str:
+    """`check` for the next change: the same folder, or new results for a given file."""
+    if given_results(state.path):
+        return f"{program('check')} {NEW_RESULTS}"
+    return _command(state)
+
+
+def _next_same(state: State) -> str:
+    """The Next line when nothing is to do until the LLM-as-a-judge changes again."""
+    then = NEXT_SAME_FILE if given_results(state.path) else NEXT_SAME
+    return then.format(command=_next_change(state))
 
 
 def _away(ws: Workspace) -> bool:
@@ -1643,7 +1660,7 @@ def full(path: str, said: Said) -> int:
                 "free": 0, "groups": {}}))
         _report(state.ws)  # no "Worse" from the other judge on it
         said.say()
-        said.say(NEXT_SAME.format(command=_command(state)))
+        said.say(_next_same(state))
         return EXIT_OK
     changed = judge_setup.changes(old, new)
     if not changed and added:  # marks made since the last check: that change again
@@ -1679,7 +1696,7 @@ def full(path: str, said: Said) -> int:
                     said.say("Next: " + regrade_marked(state, every=True))
                 return EXIT_OK
             said.say()
-            said.say(NEXT_SAME.format(command=_command(state)))
+            said.say(_next_same(state))
         return EXIT_OK
 
     for line in _change_lines(old, new, changed, full=True) if changed else [
@@ -1750,7 +1767,7 @@ def full(path: str, said: Said) -> int:
     if picks_lines(picked):
         said.say()
     if worse:
-        said.say("Next: " + worse_step(old, new, _command(state), state.ws))
+        said.say("Next: " + worse_step(old, new, _next_change(state), state.ws))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
         said.say("Next: " + regrade_marked(state, every=True))
@@ -1762,7 +1779,7 @@ def full(path: str, said: Said) -> int:
         said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=_here(state.ws, "mark"), command=_command(state))))
     else:
-        said.say(NEXT_SAME.format(command=_command(state)))
+        said.say(_next_same(state))
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
     new_rates = _new_rates(state.marks, tested, *_picks(state)) if worse else None

@@ -1934,13 +1934,34 @@ def _same_rule(ws: Workspace, setup: dict, setup_hash: str) -> bool:
     return not setup.get("rule_hash") or saved.get("setup_hash") == setup_hash
 
 
+def _copy_rule(ws: Workspace, data: dict) -> str | None:
+    """With promptfoo, while the config still holds the rule the marks were made with: "copy
+    your new rule from regrade.yaml (line N) into <config> (line N)", each file and line
+    named when known. Else None: the new rule is where the person changed it."""
+    rule = data.get("rule")
+    if data.get("tool") != "promptfoo" or not isinstance(rule, str) or not data.get(
+            "one_rule", True):
+        return None
+    first = start_fix_rule.rule_config(ws.root, "promptfoo", data)
+    where = start_fix_rule.found_rule(ws.root, rule, "promptfoo", first=first)
+    if where is None:
+        return None
+    regrade = _folder(ws) / REGRADE_FILE
+    line = _line_of(regrade, "value") if regrade.is_file() else None
+    source = f" from {_file(ws, REGRADE_FILE)} (line {line})" if line else ""
+    return (f"copy your new rule{source} into {link(ws.root / where[0], where[0])} "
+            f"(line {where[1]})")
+
+
 def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> str:
     """The next step after a test of the new results `path` (without "Next: "). They grade
     every marked answer, so `check` re-checks the new rule on them: running the eval again
     would make new answers, which judgekeeper can't compare."""
     if kind in ("better", "safe"):
-        return (f"keep your new rule, then run `{talk.command('check')} "
-                f"{runnable(str(path), labels=False)}` to re-check it on all your marks.")
+        check = (f"`{talk.command('check')} {runnable(str(path), labels=False)}` to re-check it "
+                 "on all your marks.")
+        copy = _copy_rule(ws, m.data)
+        return f"{copy}, then run {check}" if copy else f"keep your new rule, then run {check}"
     if kind == "worse":
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "

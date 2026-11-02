@@ -582,8 +582,10 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     kind = targets.fix_verdict(fixed, 0, n).kind
     assert kind in ("better", "safe")
     assert fix.RESULT[kind] in flat
-    assert flat.endswith(f"Next: keep your new rule, then run `judgekeeper check {new.name}` "
-                         "to re-check it on all your marks.")
+    assert flat.endswith(
+        "Next: copy your new rule from .judgekeeper/fix/regrade.yaml (line "
+        f"{_value_line(ws)}) into promptfooconfig.yaml (line 5), then run "
+        f"`judgekeeper check {new.name}` to re-check it on all your marks.")
 
 
 def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(
