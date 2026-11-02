@@ -190,3 +190,19 @@ def _ids(ws: Workspace, which: list[int]) -> list[str]:
     return [item["id"] for item in session.items
             if int(re.search(r"Question (\d+)\?", json.dumps(session.raw[item["id"]]["input"]))[1])
             in which]
+
+
+def test_a_plain_run_back_on_the_first_judge_counts_every_mark(adopted):
+    """promptfoo's results.json still holds the first judge's grades on every answer: a plain
+    run goes back to it, and its grades are the current judge's, so no mark waits."""
+    ws, capsys = adopted
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    said = flat(out)
+    assert code == 0, out
+    assert "back to the one you marked with" in said, out
+    assert check.WAIT.split("{k}")[1] not in said and "To count them" not in said, out
+    r = _result(ws)
+    assert "waiting" not in r and "earlier_grades" not in ws.data()
+    assert r["labels"]["correct"] + r["labels"]["wrong"] == N
+    assert r["disagreements"] == len(WRONG)  # the first judge's own mistakes, all counted
