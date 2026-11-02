@@ -138,6 +138,25 @@ def header(text: str, suffix: str) -> list[str]:
         return []
 
 
+def columns(path: str | Path) -> list[str]:
+    """The column names of a CSV, TSV or JSONL file as written in it (a JSONL file's first
+    object's keys), or [] when it can't be read."""
+    path = Path(path)
+    try:
+        text = read_utf8(path, TableError)
+    except (OSError, TableError):
+        return []
+    suffix = path.suffix.lower()
+    if suffix in (".csv", ".tsv"):
+        return header(text, suffix)
+    line = next((line for _, line in _lines(text) if line.strip()), "")
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    return [k for k in row if isinstance(k, str)] if isinstance(row, dict) else []
+
+
 def _lines(text: str):
     """(line number, line) of JSONL text, split at "\n" only (textio.jsonl_lines), one at a
     time: a big file is never held as a list of lines."""
@@ -285,10 +304,11 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
     it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
     when a quote closes on a later line that began as a row, with text after it, or two
-    lines or more inside it read as whole rows: one value per column, and a grade in the verdict column (or, with
-    none, the score column) when the table has one (an answer over several lines, with
-    commas, is not a row); with `loose`, when it holds a line break at all (a hint, not a
-    finding)."""
+    lines or more inside it read as whole rows: one value per column, and a grade in the
+    grade column (the verdict column; with none, the score or a labels file's label column);
+    a table with none of these is not guessed at (an answer or a note over several lines,
+    with commas, is not a row); with `loose`, when it holds a line break at all (a hint, not
+    a finding)."""
     from judgekeeper.find import VERDICT_COLUMNS
 
     path = Path(path)
@@ -316,8 +336,11 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
                 if verdict is None:  # find.grade_columns: with no verdict column, the score
                     verdict = next((i for i, c in enumerate(header)
                                     if column_name(c) == "score"), None)
-            elif any(loose or (len(header) >= 3 and _rows_inside(cell, delimiter,
-                                                                 len(header), verdict) >= 2)
+                if verdict is None:  # a labels file: its label
+                    verdict = next((i for i, c in enumerate(header)
+                                    if column_name(c) in ("human_label", "label")), None)
+            elif any(loose or (len(header) >= 3 and verdict is not None
+                               and _rows_inside(cell, delimiter, len(header), verdict) >= 2)
                      for cell in row if "\n" in cell):
                 return start
             start = reader.line_num + 1
@@ -338,14 +361,13 @@ def _line(path: Path, number: int) -> str:
         return next(itertools.islice(lines, number - 1, None), "")
 
 
-def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int | None) -> int:
+def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int) -> int:
     """How many lines of a cell read as a whole row of `columns` values, with a grade at
-    `verdict` (when the table has a verdict column)."""
+    `verdict`."""
     from judgekeeper.mapper import _verdict_value
 
     rows = (next(csv.reader([line], delimiter=delimiter), []) for line in cell.split("\n"))
-    return sum(len(r) == columns and (verdict is None or _verdict_value(r[verdict]))
-               for r in rows)
+    return sum(len(r) == columns and _verdict_value(r[verdict]) for r in rows)
 
 
 def kind_of(columns) -> str:

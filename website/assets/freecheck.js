@@ -651,8 +651,9 @@
         header = fields;
         verdict = header.findIndex(function (h) { return VERDICT_COLUMNS.indexOf(columnName(h)) >= 0; });
         if (verdict < 0) verdict = header.findIndex(function (h) { return columnName(h) === 'score'; });  // with no verdict column, the score
+        if (verdict < 0) verdict = header.findIndex(function (h) { return ['human_label', 'label'].indexOf(columnName(h)) >= 0; });  // a labels file: its label
         if (verdict < 0) verdict = null;
-      } else if (header.length >= 3 && fields.some(function (cell) { return cell.indexOf('\n') >= 0 && rowsInside(cell, d, header.length, verdict) >= 2; })) {
+      } else if (header.length >= 3 && verdict !== null && fields.some(function (cell) { return cell.indexOf('\n') >= 0 && rowsInside(cell, d, header.length, verdict) >= 2; })) {
         return start;
       }
       start = k + 1;
@@ -662,7 +663,7 @@
   function rowsInside(cell, d, columns, verdict) {
     return cell.split('\n').filter(function (line) {
       var r = parseCsv(line, d)[0] || [];
-      return r.length === columns && (verdict === null || verdictValue(r[verdict]));
+      return r.length === columns && verdictValue(r[verdict]);
     }).length;
   }
 

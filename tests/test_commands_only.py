@@ -97,7 +97,7 @@ def test_a_whole_run_changes_nothing_outside_judgekeeper(here, capsys):
 
 
 @pytest.mark.parametrize("flags", [["--on"], ["--off"], ["--hook"], ["--fast"], ["--ci"],
-                                   ["--baseline"], ["--port", "9000"]])
+                                   ["--baseline"]])
 def test_a_removed_check_flag_is_a_usage_error_with_one_next_line(here, capsys, flags):
     code, out, err = _cli(capsys, "check", *flags)
     assert code == 2

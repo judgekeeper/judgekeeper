@@ -836,9 +836,10 @@ def test_the_same_words_in_other_on_several_answers_are_one_reason(here, capsys,
             "Fee is wrong twice\nYOUR REASON>>>") in suggested
     assert "wrong twice" not in once.casefold() and "Your own words" not in md
     mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert f"Your reason: your own reason 1 ({n})" in mistakes
-    assert "said: your own reason" not in mistakes  # the note is fenced, not said again
-    assert "; your own reason" not in mistakes
+    assert f"Your reason: “Fee is wrong twice” ({n})" in mistakes
+    assert "your own reason" not in mistakes
+    assert "said: “Fee" not in mistakes  # the note is fenced, not said again
+    assert "; “Fee" not in mistakes
 
 
 def test_your_own_button_tapped_on_passes_is_pass_even_when(here):
@@ -999,7 +1000,7 @@ def test_mark_with_every_answer_marked_opens_the_result_page_with_the_boxes(
     ws, passes, _, _ = _ready(here)
     code, out = _run(capsys, "mark")
     assert code == 0, out
-    assert f"You have marked all {N} answers. There are no more to mark." in out
+    assert f"You have marked all {N} answers." in out
     flat = " ".join(out.split())
     assert f"Your result page is open in your browser. {SAY_WHY}" in flat
     assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
@@ -1044,8 +1045,8 @@ def test_mark_opens_the_result_page_again_while_the_page_is_open(here, capsys, p
     assert "The marking page is already running." in " ".join(out.split()), out
 
 
-def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, capsys, pages,
-                                                                         no_browser):
+def test_mark_with_every_answer_marked_and_no_disagreement_keeps_the_marking_page(
+        here, capsys, pages, no_browser):
     from tests.start_projects import promptfoo_project, split
     from tests.test_mark import _click
 
@@ -1056,8 +1057,9 @@ def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, c
     started = len(pages[0])
     code, out = _run(capsys, "mark")
     assert code == 0, out
-    assert "You have marked all 36 answers. There are no more to mark." in out
+    assert "You have marked all 36 answers." in out
     assert "result page" not in out and "Say why" not in out
+    assert "To change a mark, click it in the list." in " ".join(out.split()), out
     assert len(pages[0]) == started and len(no_browser) == 1  # the marking page, once
 
 
@@ -1100,8 +1102,12 @@ def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, 
     code, out = _run(capsys)
     assert code == 0, out
     flat = " ".join(out.split())
-    assert f"Tell judgekeeper why you disagree on these {n - 2}:" in flat, out
-    assert f"disagree on these {n - 2}:" in _report(ws).replace("\n", " ")
+    have = "(2 more already have a reason)"
+    assert f"Tell judgekeeper why you disagree on these {n - 2} {have}:" in flat, out
+    assert f"disagree on these {n - 2} {have}:" in _report(ws).replace("\n", " ")
+    _say(ws, passes[1], reasons=["wrong_fact"])
+    _run(capsys)
+    assert "(3 more already have a reason)" in _report(ws).replace("\n", " ")
     for i in [*passes[1:], *fails[1:]]:
         _say(ws, i, reasons=[], note="Wrong")
     code, out = _run(capsys)
@@ -1230,3 +1236,13 @@ def test_the_reason_box_in_a_browser(here, tmp_path, width):
     assert any(x["note"] == "Gives a price" for x in rest)
     assert rest[-1]["spans"] == [[0, 6]]
     assert got["token"].startswith("/label?token=")
+
+
+@pytest.mark.parametrize("n, have, line", [
+    (5, 0, "Tell judgekeeper why you disagree on these 5: run `judgekeeper mark`."),
+    (5, 1, ("Tell judgekeeper why you disagree on these 5 (1 more already has a reason): "
+            "run `judgekeeper mark`.")),
+    (1, 3, ("Tell judgekeeper why you disagree on this one (3 more already have a reason): "
+            "run `judgekeeper mark`."))])
+def test_the_line_asking_why_says_how_many_have_a_reason(n, have, line):
+    assert start_label.say_why_run(n, "judgekeeper mark", have) == line

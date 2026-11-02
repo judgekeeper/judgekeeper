@@ -27,6 +27,7 @@ from judgekeeper import __version__, check, find, fix, judge_setup, page, start,
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project, unwrapped
+from tests.test_flow_across_runs import now_part
 from tests.test_front import flat, next_lines, run
 from tests.test_only_reads import only_reads
 
@@ -529,7 +530,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     assert "Your LLM-as-a-judge is the same" in out or "Your LLM-as-a-judge changed" not in out
     run(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert RULE_B in mistakes and RULE_A not in mistakes
+    assert RULE_B in mistakes and RULE_A not in now_part(mistakes)
     assert mistakes.count("## [M") == 1
 
 

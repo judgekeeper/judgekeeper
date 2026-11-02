@@ -50,7 +50,7 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.0.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.0.0" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
-**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
+**The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
 
 The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run uses the same page after checking it is judgekeeper's, for this project. It opens no new tab: at your terminal it prints the link; with no terminal it prints no link and says to run with `--no-browser` to print it. It keeps the open page whatever its `--port` and `--no-browser`; with other flags it starts the page again, and says so (it prints a new link). Marks made through the program in `BROWSER`, or from a link printed with no terminal (another program, such as a coding agent, read the output), are stamped so, and the result counts them. A link printed at your terminal is not stamped.
 
@@ -64,7 +64,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--judge-model NAME] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
-Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
+Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some, else the marking page. To change a mark, click it in the list.
 
 After your first 10 marks, about 1 in 20 answers comes back a second time, so judgekeeper can see how often your own marks change. Only your first mark counts. It adds about 5% more marks.
 
@@ -77,7 +77,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
 
-**The file's columns** (any case): the answer, `output` or `answer`; the label, `label` or `human_label`; and, if you have them, the question, `input` or `question`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
+**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
 **How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the same answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 
@@ -111,7 +111,7 @@ judgekeeper fix [PATH] [--new]
 
 **Marks kept aside:** half of each group, by your LLM-as-a-judge's grade and your mark, rounded up (a group of one stays in use, and each batch is split on its own), at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. After `check` found a new LLM-as-a-judge worse, the mistakes are that one's, and the file names the results its grades are in. Write a better rule from it, or hand it to a coding agent.
 
-**`marked-answers.csv`** holds every answer you marked, shuffled, with two columns, `question` and `answer`: no marks, no grades and no judgekeeper ids, so the file does not say which are kept aside. Your own question fields (such as a promptfoo `description`) stay as they are, because the regrade matches on them. Change the rule where your eval keeps it, grade these answers again, save the results, then run `judgekeeper fix <new results file>`. judgekeeper prints the line for your eval tool:
+**`marked-answers.csv`** holds every answer you marked, shuffled, with two columns, `question` and `answer`: no marks, no grades and no judgekeeper ids, so the file does not say which are kept aside. A cell that starts with `=`, `+`, `-` or `@` gets a leading `'` so a spreadsheet won't run it, and judgekeeper reads it back the same. Your own question fields (such as a promptfoo `description`) stay as they are, because the regrade matches on them. Change the rule where your eval keeps it, grade these answers again, save the results, then run `judgekeeper fix <new results file>`. judgekeeper prints the line for your eval tool:
 
 | Eval tool | How to grade the same answers again |
 |---|---|
@@ -307,6 +307,8 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them, with its sha256 |
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
 | `fix/marked-answers.csv` | Every marked answer, question and answer only, shuffled, to grade again |
+| `fix/regrade.yaml` | With promptfoo: a config that grades the marked answers again; change the rule in it |
+| `fix/marked-answers.yaml` | With promptfoo: the same answers, exactly as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
 | `rules/` | Each rule tested, as `<hash>.txt` |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |

@@ -115,6 +115,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .more:hover { color: var(--text); background: var(--hover); }
 .tbl { margin-top: 28px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
+.tbl.no-reason col.c2 { width: 72%; }
 /* the small labels: the marking page's .label */
 .tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
@@ -214,6 +215,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
+.panel.no-range col.d2 { width: 52%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
 .panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
@@ -263,6 +265,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl colgroup { display: none; }
   .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
     border-bottom: 1px solid var(--line); }
+  .tbl.no-reason tr { grid-template-columns: 28fr 72fr; }
   .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
   .tbl thead th { padding-bottom: 14px; }
   .tbl tbody tr { padding: 22px 0; }
