@@ -29,12 +29,12 @@ judgekeeper
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"`.
 
-Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
+Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result. The result then notes that your marks came through a link printed with no terminal; if you marked them yourself, nothing to do.
 
 ## The 5 steps
 
 1. **Find:** `judgekeeper` finds your eval results.
-2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Once in a while an answer you marked comes back a second time, to see how steady your marks are. Mark it as you see it. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
+2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Once in a while an answer you marked comes back a second time, to see how steady your marks are. Mark it as you see it. No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer).
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
 5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`; with promptfoo, `.judgekeeper/fix/regrade.yaml`), then run `judgekeeper check <new results file>`.

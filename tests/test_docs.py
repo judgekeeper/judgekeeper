@@ -296,3 +296,22 @@ def test_the_mark_step_says_a_marked_answer_comes_back():
     """About 1 in 20 answers comes back once, so the person's own steadiness can be seen."""
     assert STEADY in _step(2)
     assert STEADY in _guide("step-mark")
+
+
+NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the "
+              "link to open instead.")
+
+
+def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
+    """--no-browser prints the link; marks made through a link printed with no terminal (a
+    coding agent read it) get a note on the result, in the words the result uses."""
+    from judgekeeper.start_label import link_lines
+
+    assert NO_BROWSER in _step(2)
+    install = _flat(_sections(_readme())["Install"])
+    (note,) = link_lines({"printed": 2})
+    said = ("The result then notes that your marks came through a link printed with no "
+            "terminal; if you marked them yourself, nothing to do.")
+    assert said in install
+    assert "came through a link printed with no terminal" in note
+    assert "If you marked them yourself, nothing to do." in note
