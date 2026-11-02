@@ -28,7 +28,8 @@ def _stamp() -> str:
 
 def move_to_previous(ws: Workspace, say) -> Path | None:
     """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
-    previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted."""
+    previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted. Said
+    only when marks moved."""
     if not ws.dir.is_dir():
         return None
     entries = [p for p in ws.dir.iterdir()
@@ -43,10 +44,11 @@ def move_to_previous(ws: Workspace, say) -> Path | None:
     target.mkdir(mode=PRIVATE_FOLDER)
     what = ("your marks and results" if ws.result_json.is_file()  # a result was made
             else "your marks" if ws.marks.is_file() and marks.read(ws.marks).counted()
-            else "your saved answers")
+            else None)  # no marks: nothing of the person's moves, so nothing is said
     for p in entries:
         p.replace(target / p.name)
-    say(f"Moved {what} to {FOLDER}/{target.name}/. Nothing was deleted.")
+    if what is not None:
+        say(f"Moved {what} to {FOLDER}/{target.name}/. Nothing was deleted.")
     return target
 
 

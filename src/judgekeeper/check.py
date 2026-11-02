@@ -129,8 +129,8 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
 # Running the eval again makes new answers, which can't be compared: grade the marked ones
-GRADE_MARKED = ("Your eval wrote new answers, so there's nothing to compare. Grade the answers "
-                "you marked instead:")
+WROTE_NEW = "Your eval wrote new answers, so there's nothing to compare."
+GRADE_MARKED = f"{WROTE_NEW} Grade the answers you marked instead:"  # before the steps
 GRADE_SAME = "Grade the answers you marked:"  # too few, and none of them asked again
 NEXT_NOT_MARKED = "Next: {regrade}; or start over on your new answers with `{new}`."
 NEXT_SAME = "Next: nothing to do. Run `{command}` again after you change your LLM-as-a-judge."
@@ -1598,7 +1598,15 @@ def full(path: str, said: Said) -> int:
                 said.say(NOT_IN.format(k=k, n=_n(len(state.marks), "marked answer"),
                                        them="it" if k == 1 else "them"))
                 said.say()
-                said.say(NEXT_NEW_ANSWERS.format(program=program(), command=_command(state)))
+                if batches.new_answers(state.ws, found):  # new answers came with them
+                    said.say(NEXT_NEW_ANSWERS.format(program=program(), command=_command(state)))
+                elif _say_steps(said, state):  # the rest of the marked ones: grade them again
+                    from judgekeeper import fix
+
+                    said.say()
+                    said.say("Next: " + fix.FOLLOW_STEPS)
+                else:
+                    said.say("Next: " + regrade_marked(state, every=True))
                 return EXIT_OK
             said.say()
             said.say(NEXT_SAME.format(command=_command(state)))
@@ -1805,8 +1813,11 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                  else NONE_IN.format(n=_n(total, "marked answer")))
         said.say()
         if not e:  # the eval wrote new answers: grade the marked ones instead
-            said.say(GRADE_MARKED)
-            if _say_steps(said, state):
+            steps = _steps(state)
+            said.say(GRADE_MARKED if steps else WROTE_NEW)  # else the Next line says how
+            if steps:
+                for line in steps.split("\n"):
+                    said.say(line)
                 said.say()
                 said.say("Next: " + fix.FOLLOW_STEPS.rstrip(".")
                          + f"; or start over on your new answers with `{program('--new')}`.")
@@ -1845,14 +1856,19 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
     return few
 
 
-def _say_steps(said: Said, state: State) -> bool:
+def _steps(state: State) -> str | None:
     """For promptfoo, the three steps that grade the marked answers again with regrade.yaml
-    (written if there is none); whether they were said."""
+    (written if there is none); else None."""
     from judgekeeper import fix
 
-    steps = fix.regrade_steps(state.ws, program("check"), "grader") \
+    return fix.regrade_steps(state.ws, program("check"), "grader") \
         if state.data.get("tool") == "promptfoo" else None
-    for line in (steps or "").split("\n") if steps else ():
+
+
+def _say_steps(said: Said, state: State) -> bool:
+    """_steps, said; whether they were."""
+    steps = _steps(state)
+    for line in steps.split("\n") if steps else ():
         said.say(line)
     return bool(steps)
 

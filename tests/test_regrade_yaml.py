@@ -296,8 +296,8 @@ def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools
     code, out = run_any(capsys, "check", rows.name)
     flat = _flat(out)
     assert code == 3, out
-    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
-            "marked instead: Next: run `judgekeeper fix` to write the answers you marked") in flat
+    assert ("Your eval wrote new answers, so there's nothing to compare. Next: run "
+            "`judgekeeper fix` to write the answers you marked") in flat  # said once, there
     assert "or start over on your new answers with `judgekeeper --new`." in flat
 
 

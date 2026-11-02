@@ -697,9 +697,9 @@ def test_one_newer_answer_needs_a_mark():
         "first.")
 
 
-# the mark command once on the result screen ----------------------------------------------
+# the result screen asks why with the mark command ---------------------------------------
 
-def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
+def test_the_result_screen_asks_why_with_the_mark_command(here, capsys, pages):
     promptfoo_project(here, split(30, 30))
     ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
     person = {i: ("fail" if i in (1, 2, 3) else "pass") if i < 30
@@ -713,8 +713,9 @@ def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
     assert "Too early to tell" in out or "too early to tell" in out, out
     run(capsys, "--stop")
     _, out, _ = run(capsys, "--no-browser")
-    assert flat(out).count("judgekeeper mark") == 1, out
-    assert "The Next step below also lets you say why on these." in flat(out)
+    assert "The Next step below" not in flat(out), out
+    assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+                     r"`judgekeeper mark --no-browser`\.", flat(out)), out
     assert _next(out) == "Next: run `judgekeeper mark --no-browser` to mark more answers."
 
 

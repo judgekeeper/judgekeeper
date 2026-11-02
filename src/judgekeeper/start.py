@@ -1223,8 +1223,8 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {shown_path(root)}. judgekeeper looked "
-             f"{find.looked(root).replace(' from ' + root.name, '')}.")
+    talk.say(f"No saved eval results found in {textio.folder_words(shown_path(root))}. "
+             f"judgekeeper looked {find.looked(root).replace(' from ' + root.name, '')}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
                  + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
@@ -1390,7 +1390,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                   else f"{rel} {how}, so it was left out.")
     above = _read_above(root, found, tool)
     if above is not None and above[0] == "records":  # record() saves at the project root
-        talk.say(RECORDS_ABOVE.format(root=textio.shown_from_here(above[1])))  # `..`, never whole
+        above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
+        talk.say(RECORDS_ABOVE.format(root=above_here))
         talk.say()
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
@@ -1404,7 +1405,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {find.NAMES[tool]} results found in {shown_path(root)}.")
+            raise StartError(f"No saved {find.NAMES[tool]} results found in "
+                             f"{textio.folder_words(shown_path(root))}.")
         available = [tool]
     if not available:
         if found.too_big():  # said above, with how to read them anyway

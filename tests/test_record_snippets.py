@@ -212,3 +212,12 @@ def test_the_typescript_snippet_writes_what_record_writes(tmp_path, monkeypatch,
     subprocess.run(["node", "eval.ts"], cwd=here, check=True, env=env, capture_output=True)
     name, rows = _lines(here / ".judgekeeper" / "records")
     assert (name, rows) == expected
+
+
+def test_the_reference_names_each_copys_function_as_it_is_imported():
+    """`from jk_record import record` fails: the reference names the function each defines."""
+    section = " ".join(_section(DOCS / "reference.md", RECORD_SECTION).split())
+    assert "`from jk_record import jk_record`" in section
+    assert "`import { jkRecord } from \"./jk_record\"`" in section
+    assert re.search(r"^def jk_record\(", SNIPPETS["python"], re.MULTILINE)
+    assert re.search(r"^export function jkRecord\(", SNIPPETS["typescript"], re.MULTILINE)

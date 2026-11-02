@@ -129,7 +129,6 @@ STILL_OPEN = ("The marking page is still open. Mark more answers to make these r
               "narrower, so the numbers are more certain.")
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
-SAY_WHY_NEXT = "The Next step below also lets you say why on these."  # its command once
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
@@ -167,6 +166,7 @@ class FrontTalk(start.Talk):
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
+        self.find_said = False  # "Step 1 of 5: Find" was said in this run
         # --labels (never repeated in a command): a file's name or labels.IN_RESULTS; then the
         # labels read, and where from (marks.jsonl's "from")
         self.labels: str | None = None
@@ -273,6 +273,7 @@ class FrontTalk(start.Talk):
             step, self.step = self.step, None
             super().say(step)
             super().say()
+            self.find_said = self.find_said or step == STEP.format(n=1, name="Find")
 
     def para(self, text: str = "", indent: str = "") -> None:
         """Say `text` wrapped (textio.wrap)."""
@@ -322,6 +323,7 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
         if talk.labels is not None or not marking and not _started(path):  # an import
             talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
+            talk.find_said = True
         else:  # said only when Find has something to say (a file left out, an error)
             talk.step = STEP.format(n=1, name="Find")
         from judgekeeper.check import texts_once
@@ -372,11 +374,22 @@ def _find_anew(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
         return False
     if is_open(ws.dir):
         background.stop(ws.dir)
-    if project.move_to_previous(ws, talk.say) is not None:
+    _move_aside(talk, ws)
+    if not talk.find_said:  # Find's label once per run
+        talk.say(STEP.format(n=1, name="Find"))
         talk.say()
-    talk.say(STEP.format(n=1, name="Find"))
-    talk.say()
     return True
+
+
+def _move_aside(talk: FrontTalk, ws: Workspace) -> None:
+    """The saved answers move to previous-<date>/; a line, then a blank one, when marks
+    moved."""
+    said: list[str] = []
+    project.move_to_previous(ws, said.append)
+    for line in said:
+        talk.say(line)
+    if said:
+        talk.say()  # a blank line before the step header, as everywhere
 
 
 def _labels_stop(talk: FrontTalk, e: labels_mod.LabelsStop) -> Stop:
@@ -1639,8 +1652,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
-        if project.move_to_previous(ws, talk.say) is not None:
-            talk.say()  # a blank line before the step header, as everywhere
+        _move_aside(talk, ws)
     _write(found)  # judge.json and the free checks: the judge as it is now
     return _marking(talk, ws, found, wait, saved, marking)
 
@@ -1678,16 +1690,42 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
 
 
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
-    """Whether the newest results differ from the ones being marked."""
+    """Whether the newest results differ from the ones being marked, with marks made: other
+    files (by where they are, not how they were named) or other grades. No marks yet: nothing
+    to say."""
     try:
         data = ws.data()
         marked = {q["id"]: q["group"] for q in data["queue"]}
-        files = list(data.get("results_files") or [])
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
     except (OSError, ValueError, KeyError, TypeError):
         return False
     if data.get("results_seen") == batches.results_key(found):  # said, or added as a batch
         return False
-    return files != list(found.used) or marked != {a.id: a.verdict for a in found.pool.answers}
+    if not _has_marks(ws):
+        return False
+    return (not _same_files(ws, data, files, found)
+            or marked != {a.id: a.verdict for a in found.pool.answers})
+
+
+def _same_files(ws: Workspace, data: dict, files: list[str], found: start.Found) -> bool:
+    """Whether `files` (start.json's, from the folder its results were read in) are the files
+    `found` read, however each run named them: the same label, or the same file on disk."""
+    if files == list(found.used):
+        return True
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+
+    def path_of(label: str) -> Path | None:  # a label is a file's path from where it was read
+        paths = [r.path for r in found.results if r.rel == label or r.rel.endswith("/" + label)]
+        return paths[0] if len(paths) == 1 else None
+
+    try:
+        return len(files) == len(found.used) and all(
+            f == u or ((path := path_of(u)) is not None
+                       and os.path.realpath(base / f) == os.path.realpath(path))
+            for f, u in zip(files, found.used, strict=True))
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
@@ -2050,16 +2088,13 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
     mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
     why = not worse and start_label.why_count(ws, r)
-    if why:  # the result page has a box on each
+    if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
-        if mark_next:
-            talk.para(SAY_WHY_NEXT)
-        else:  # the disagreements the result page lists: never those kept aside
-            talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
-            if kept := start_label.kept_count(ws, r):  # said on the result page too
-                talk.para(report_page.kept_line(kept))
-            if step != "mark":  # fix is never a step while it is too early to tell
-                talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
+        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+        if kept := start_label.kept_count(ws, r):  # said on the result page too
+            talk.para(report_page.kept_line(kept))
+        if step != "mark":  # fix is never a step while it is too early to tell
+            talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
         for line in estimate_lines(r):
