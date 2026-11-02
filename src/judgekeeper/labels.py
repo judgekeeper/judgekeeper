@@ -252,7 +252,7 @@ def read_file(path: Path, label_map: dict | None = None,
     word."""
     from judgekeeper import find
     from judgekeeper.table import TableError, open_quote, read_kept
-    from judgekeeper.table import columns as header_of
+    from judgekeeper.table import written_header as header_of
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
