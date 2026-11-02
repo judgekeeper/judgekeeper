@@ -50,7 +50,7 @@ from judgekeeper.start_label import StartSession, Workspace
 LINK = "Open this link in your browser to mark answers:"
 RESULT_LINK = "Open this link in your browser to see your result:"
 OPENING_BROWSER = "Opening the marking page in your browser…"
-DONE = "When you're done, run {program} in your terminal."
+DONE = "When you're done, run {program} in your project folder."
 BROWSER, TERMINAL, PRINTED = "browser", "terminal", marks.PRINTED  # how the page was shown
 KEPT = "kept"  # the page was open already, with no terminal: no new tab, no link printed
 OTHER_PORTS = range(8766, 8786)  # tried when the default port is taken
@@ -195,7 +195,7 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
                     return Page(server.url, server.port, server.token, server)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
                             "link": stamp, "python_m": textio.started_with_python_m(),
-                            "program": textio.program()}
+                            "program": textio.program_in(ws.root)}  # its lines: from there
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None

@@ -618,7 +618,7 @@ def test_the_page_says_what_to_run_when_it_has_enough(here, capsys, pages):
     _click(ws)
     status = page.marking_session(ws).summary()["status"]
     assert status["ready"]
-    assert status["text"].endswith("When you're done, run judgekeeper in your terminal.")
+    assert status["text"].endswith("When you're done, run judgekeeper in your project folder.")
 
 
 class _Stream:

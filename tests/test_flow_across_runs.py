@@ -191,7 +191,7 @@ def test_the_page_line_never_says_mark_more_once_every_answer_is_marked(here, ca
     status = page.marking_status(StartSession(ws))
     assert status["ready"] is True
     assert status["text"] == ("You marked every answer. When you're done, run judgekeeper in "
-                              "your terminal.")
+                              "your project folder.")
 
 
 def test_the_picks_line_says_it_once_and_never_asks_with_nothing_left():

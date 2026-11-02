@@ -164,7 +164,7 @@ def test_the_page_says_to_run_uvx_in_the_terminal(here, capsys, by_uvx):
     for item in session.items:
         session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
     text = page.marking_session(ws).summary()["status"]["text"]
-    assert text.endswith(f"When you're done, run {UVX} in your terminal."), text
+    assert text.endswith(f"When you're done, run {UVX} in your project folder."), text
 
 
 def test_without_uvx_nothing_changes(here, capsys, no_browser, monkeypatch):
