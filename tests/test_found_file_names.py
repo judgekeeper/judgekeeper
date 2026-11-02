@@ -27,3 +27,25 @@ def test_a_found_file_is_named_as_the_file_line_names_it(top, home, monkeypatch,
     said = re.sub(r"`[^`]*`", "", out)  # a command repeats the folder as it was typed
     assert USER not in said, said
     assert _written(top) == []
+
+
+def test_a_folder_given_from_a_top_folder_is_repeated_from_home(top, home, monkeypatch,
+                                                                 capsys):
+    """`judgekeeper Users/<name>/jk-try` from the top folder: each printed command repeats the
+    folder as `~/jk-try`, never through the top folder; pasted in the shell, it is the same
+    folder."""
+    import shlex
+    import subprocess
+
+    monkeypatch.setenv("HOME", str(home))  # the shell's ~
+    monkeypatch.chdir(top)
+    code, out = _run(capsys, Path("Users") / USER / "jk-try", "--no-browser", "--port", "0")
+    assert code == 3, out
+    commands = re.findall(r"`([^`]*)`", out)
+    assert commands and USER not in out, out
+    for command in commands:
+        word = shlex.split(command)[1]
+        assert word == "~/jk-try", command
+        shell = subprocess.run(["sh", "-c", f"printf '%s' {word}"], capture_output=True,
+                               text=True, check=True, cwd=top).stdout
+        assert shell == str(home / "jk-try")

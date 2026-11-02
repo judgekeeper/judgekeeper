@@ -815,6 +815,15 @@ def above_projects(folder) -> bool:
         return False
 
 
+def through_top(path) -> bool:
+    """Whether `path`, typed from here, climbs through a top folder or a folder above the home
+    folder (shares_below_home): a printed command names it as from_here does instead."""
+    try:
+        return _from_below_home(os.path.realpath(path), os.getcwd()) is None
+    except OSError:
+        return False
+
+
 def shown_in(path, root) -> str:
     """A file found in the project folder `root` as Find's lines name it (File:, "looks
     like", the question to save how to read it): from the project folder when this runs
