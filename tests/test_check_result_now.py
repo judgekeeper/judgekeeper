@@ -105,3 +105,26 @@ def test_the_caveat_on_marks_used_to_write_the_rule_is_said_once(here, capsys):
     said = " ".join(out.split())
     assert code == 0 and "Your result is now: your LLM-as-a-judge is good enough to use." in said
     assert said.count(check.WRITTEN_FROM) == 1, out
+
+
+def test_a_result_that_changes_is_said_when_no_result_was_saved(here, capsys):
+    """Marked on the page only, so no result was saved: `check` works out the result before
+    the change from the marks, and says the new one when it differs."""
+    from tests.test_earlier_grades import FIRST, N, _mark, person
+    from tests.test_fix import closed
+    from tests.test_flow_across_runs import _jk, _rubric
+
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(here, [i < 30 for i in range(N)], "V1 rule.")
+    _jk(capsys, "--no-browser")
+    ws = Workspace(here)
+    closed(ws)
+    _mark(ws, FIRST)
+    assert not ws.result_json.is_file()
+    _jk(capsys, "fix")
+    _rubric(here, [person(i) for i in range(N)], "V2 rule.", name="v2.json", only=FIRST)
+    _jk(capsys, "fix", "v2.json")
+    code, out = _jk(capsys, "check", "v2.json")
+    said = " ".join(out.split())
+    assert code == 0, out
+    assert "Your result is now: your LLM-as-a-judge is good enough to use." in said, out

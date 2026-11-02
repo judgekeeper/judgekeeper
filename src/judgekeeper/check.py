@@ -1860,7 +1860,7 @@ def full(path: str, said: Said) -> int:
     elif unsure:
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=_here(state.ws, "mark"), command=_command(state)))
-    before = _saved_result(state.ws)
+    before = _saved_result(state.ws) or _from_marks(state.ws)  # marked on the page only
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
     new_rates = _new_rates(state.marks, tested, *_picks(state)) if worse else None
@@ -1888,7 +1888,7 @@ def full(path: str, said: Said) -> int:
             if worse else None)
     if not given_results(path):
         _covered(state.ws)
-    after = _saved_result(state.ws) if not held else None
+    after = (_saved_result(state.ws) or _from_marks(state.ws)) if not held else None
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
         said.say(RESULT_NOW.format(verdict=_verdict_words(after)))
@@ -1908,6 +1908,17 @@ def _saved_result(ws: Workspace) -> dict | None:
     except (OSError, ValueError):
         return None
     return saved if isinstance(saved, dict) else None
+
+
+def _from_marks(ws: Workspace) -> dict | None:
+    """The result the marks give now, worked out and not saved (start_label.compute): for
+    marks made on the page only, which saved no result. None when it can't be worked out."""
+    from judgekeeper.start_label import StartSession, compute
+
+    try:
+        return compute(ws, StartSession(ws))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def _verdict_words(r: dict) -> str:
