@@ -147,6 +147,7 @@ OWN = f"Grade {ANSWERS} with your own code."
 # promptfoo: a ready config that grades the marked answers again (written as text: no YAML
 # parser; every value is a JSON string, which is also a YAML string)
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
+TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers exactly, no guard
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
                  "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
                  "3. Then{where}: `{command} {after}`")
@@ -831,8 +832,21 @@ WORSE_JUDGE = ("These are the mistakes of your new LLM-as-a-judge, whose grades 
                "`{check}` found it worse than the one you marked against.")
 
 
+MARKED_WITH = "The rule you marked with"
+SAME_RULE = "The same as the rule now."
+
+
+def marked_rule(data: dict) -> str | None:
+    """The rule the marks were made with: start.json's marked_rule (kept when check took on
+    a new rule), else its rule; None when the answers were graded by more than one rule."""
+    if not data.get("one_rule", True):
+        return None
+    rule = data.get("marked_rule") or data.get("rule")
+    return rule if isinstance(rule, str) else None
+
+
 def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
-                worse_from: str | None = None) -> str:
+                worse_from: str | None = None, marked: str | None = None) -> str:
     """The clue file, ready for a person or a coding agent: the task, the clues (the person's
     reasons and the pattern sentences the terminal prints; `mark` is the pass mark when the
     grades follow the scores), the judge's rule now, then each mistake on the seen marks,
@@ -851,6 +865,9 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
     parts += [f"## {WHERE_WRONG.rstrip(':')}", "", *clues, ""]
     if rule:
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
+    if marked:  # a copy to go back to, after "Worse" too
+        parts += [f"## {MARKED_WITH}", "", SAME_RULE if marked == rule
+                  else fenced("MARKED RULE", marked, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
     grouped = reasons.groups(wrong, True) if reasons.has_any(wrong) else [(None, wrong)]
@@ -907,7 +924,7 @@ def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
     marks._refuse_links(path)
     make_private(path.parent)
     write_replacing(path, mistakes_md(rule, rows, pm["mark"] if pm and pm.get("follows")
-                                      else None))
+                                      else None, marked=marked_rule(m.data)))
     write_suggestions(ws, rows)
     return len(mistakes(rows))
 
@@ -1252,7 +1269,18 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     marks._refuse_links(path)
     make_private(path.parent)
     write_replacing(path, buf.getvalue(), newline="")
+    if m.data.get("tool") == "promptfoo":  # never opened in a spreadsheet: nothing guarded
+        tests = _folder(ws) / TESTS_FILE
+        marks._refuse_links(tests)
+        write_replacing(tests, tests_yaml(rows), newline="")
     return len(rows)
+
+
+def tests_yaml(rows: list[tuple[str, str]]) -> str:
+    """The marked answers as promptfoo tests (fix/marked-answers.yaml, in the CSV's order):
+    each question and answer exactly as marked."""
+    return "".join("- vars: " + _yaml_string({"question": q, "answer": a}) + "\n"
+                   for q, a in rows) or "[]\n"
 
 
 def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> None:
@@ -1480,7 +1508,7 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     kept, left = _without_keys(config)
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
              "providers: [" + _yaml_string("echo") + "]",
-             "tests: " + _yaml_string(f"file://{ANSWERS}"),
+             "tests: " + _yaml_string(f"file://{TESTS_FILE}"),
              "defaultTest:",
              "  options:",
              *("    " + LEFT_OUT.format(name=one_line(scrub(name))) for name in left),
@@ -1669,7 +1697,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             talk.next("nothing to do. When you change your LLM-as-a-judge or update your eval "
                       f"tool, run `{talk.command('check')}`.")
             return EXIT_OK
-        _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)  # both fit the set kept aside
+        _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))  # both fit the set kept aside
         n = write_answers(ws, m)
         talk.say()
         talk.para(_answers_line(ws, split, n))
@@ -1693,7 +1721,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     fresh = split.pass_mark is None  # no pass mark tested on these marks yet
     tested = test_pass_mark(m, split)
     save_split(ws, split)
-    _write_mistakes(ws, rule, seen_rows, mark, m.worse_from)
+    _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
@@ -1716,11 +1744,12 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
 
 
 def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
-                    mark: float | None, worse_from: str | None = None) -> None:
+                    mark: float | None, worse_from: str | None = None,
+                    marked: str | None = None) -> None:
     path = _folder(ws) / MISTAKES
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, mistakes_md(rule, rows, mark, worse_from))
+    write_replacing(path, mistakes_md(rule, rows, mark, worse_from, marked))
 
 
 def _answers_line(ws: Workspace, split: Split, n: int, said: bool = False) -> str:
@@ -1928,13 +1957,34 @@ def _same_rule(ws: Workspace, setup: dict, setup_hash: str) -> bool:
     return not setup.get("rule_hash") or saved.get("setup_hash") == setup_hash
 
 
+def _copy_rule(ws: Workspace, data: dict) -> str | None:
+    """With promptfoo, while the config still holds the rule the marks were made with: "copy
+    your new rule from regrade.yaml (line N) into <config> (line N)", each file and line
+    named when known. Else None: the new rule is where the person changed it."""
+    rule = data.get("rule")
+    if data.get("tool") != "promptfoo" or not isinstance(rule, str) or not data.get(
+            "one_rule", True):
+        return None
+    first = start_fix_rule.rule_config(ws.root, "promptfoo", data)
+    where = start_fix_rule.found_rule(ws.root, rule, "promptfoo", first=first)
+    if where is None:
+        return None
+    regrade = _folder(ws) / REGRADE_FILE
+    line = _line_of(regrade, "value") if regrade.is_file() else None
+    source = f" from {_file(ws, REGRADE_FILE)} (line {line})" if line else ""
+    return (f"copy your new rule{source} into {link(ws.root / where[0], where[0])} "
+            f"(line {where[1]})")
+
+
 def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> str:
     """The next step after a test of the new results `path` (without "Next: "). They grade
     every marked answer, so `check` re-checks the new rule on them: running the eval again
     would make new answers, which judgekeeper can't compare."""
     if kind in ("better", "safe"):
-        return (f"keep your new rule, then run `{talk.command('check')} "
-                f"{runnable(str(path), labels=False)}` to re-check it on all your marks.")
+        check = (f"`{talk.command('check')} {runnable(str(path), labels=False)}` to re-check it "
+                 "on all your marks.")
+        copy = _copy_rule(ws, m.data)
+        return f"{copy}, then run {check}" if copy else f"keep your new rule, then run {check}"
     if kind == "worse":
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "

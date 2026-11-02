@@ -134,6 +134,7 @@ NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
+CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
 IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
 # --no-browser opened none, so "in your browser" could be false
 CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
@@ -457,7 +458,9 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     if talk.labels_read is None:
         return
     rows = start_label.StartSession(ws).raw
-    plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
+    data = ws.data()
+    plan = labels_mod.match(talk.labels_read, rows, data["queue"], found.pool.left,
+                            data.get("left"))
     if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
         raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from)
@@ -1934,22 +1937,27 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
-        talk.say(f"You have {'marks on' if some_imported else 'marked'} all {_n(n, 'answer')}. "
-                 "There are no more to mark.")  # the page didn't mark the imported ones
+        talk.say(f"You have {'marks on' if some_imported else 'marked'} all "
+                 f"{_n(n, 'answer')}.")  # the page didn't mark the imported ones
         talk.say()
         for line in head:
             talk.para(line)
         if head:
             talk.say()
-        opened = None
-        # disagreements the person can see: the result page, with its reason boxes
+        # disagreements the person can see: the result page, with its reason boxes (and its
+        # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
             if _kept(talk, opened, shown, SAY_WHY) is None:
                 talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
-            if opened.server is not None:
-                talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-            talk.say()
+        else:
+            opened, shown = _open(talk, ws, wait, saved)
+            if _kept(talk, opened, shown, CHANGE_MARK) is None:
+                talk.para(f"The marking page is open in your browser. {CHANGE_MARK}"
+                          if shown == page.BROWSER else CHANGE_MARK)
+        if opened.server is not None:
+            talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
+        talk.say()
         talk.para("Next: " + then if then  # the new answers wait for a check
                   else _all_marked_lines(talk, ws, counts, saved)[1])  # they join later
         if opened is not None and opened.server is not None:
@@ -2142,10 +2150,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     step = report_page.next_step(r)  # the report's next step
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
     mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
-    why = not worse and start_label.why_count(ws, r)
+    why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
-        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
         if kept := start_label.kept_count(ws, r):  # said on the result page too
             talk.para(report_page.kept_line(kept))
         if step != "mark":  # fix is never a step while it is too early to tell

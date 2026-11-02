@@ -23,6 +23,7 @@ warning when p < CHECK_LEVEL in either group (looks_off). Never a stop.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 import unicodedata
@@ -420,21 +421,39 @@ def _base(answer_id: str) -> str:
     return head if head and n.isdigit() else answer_id
 
 
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+
+
+def left_kept(left: dict, kept: dict | None = None) -> dict:
+    """The answers the judge gave no clear grade (start.Pool.left), as start.json keeps them
+    with the pool, added to `kept`: their ids, and a short hash of each answer's text
+    (check._text). Later results (a regrade of the marked answers) may not hold them."""
+    from judgekeeper.check import _text
+
+    kept = kept if isinstance(kept, dict) else {}
+    ids = {i for i in kept.get("ids") or [] if isinstance(i, str)} | set(left)
+    texts = {t for t in kept.get("texts") or [] if isinstance(t, str)} | {
+        _digest(_text(_nfc(r.output))) for _, r in left.values()}
+    return {"ids": sorted(ids), "texts": sorted(texts)}
+
+
 def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-          left: dict | None = None) -> Plan:
+          left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue the labels are for (_match), each text made ready for
     matching once (check.texts_once)."""
     from judgekeeper.check import texts_once
 
     with texts_once():
-        return _match(found_labels, pool_rows, queue, left)
+        return _match(found_labels, pool_rows, queue, left, kept)
 
 
 def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-           left: dict | None = None) -> Plan:
+           left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue (`pool_rows`: pool.jsonl by id) the labels are for. `left`:
-    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), to tell
-    those from answers not in the results."""
+    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), and
+    `kept` those start.json keeps (left_kept), to tell them from answers not in the
+    results."""
     from judgekeeper.check import _candidates, _index, _text
 
     order = [q["id"] for q in queue if q["id"] in pool_rows]
@@ -447,9 +466,8 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         by_text.setdefault(_text(a.output), []).append(a)
     by_id = {_nfc(k): v for k, v in by_base.items()}
     index = _index(answers)
-    left = left or {}
-    left_keys = set(left)
-    left_text = {_text(_nfc(r.output)) for _, r in left.values()}
+    left = left_kept(left or {}, kept)
+    left_keys, left_text = set(left["ids"]), set(left["texts"])
 
     wanted: dict[str, set[str]] = {}
     targets_of: list[tuple[Label, list[str]]] = []
@@ -480,7 +498,7 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                     plan.skip(MORE_THAN_ONE)
                     continue
             if not hits:
-                plan.skip(NOT_GRADED if text and text in left_text else NO_MATCH)
+                plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
                 continue
         ids = list(dict.fromkeys(a.id for a in hits))
         targets_of.append((label, ids))

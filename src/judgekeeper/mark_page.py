@@ -34,6 +34,9 @@ FIRST = 2 * ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
+# under the headline: repeats are told, never shown (a repeat's card is not marked as one)
+REPEATS = ("Now and then an answer you marked comes back once, to see how steady your marks "
+           "are. Mark it as you see it.")
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
 SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
@@ -313,6 +316,7 @@ __TOP__
   <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
     __BRAND__
     <h2 id="intro-title">__TITLE__</h2>
+    <p class="note" id="intro-note">__REPEATS__</p>
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
@@ -775,7 +779,7 @@ __TOP__
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
   // result, to leave them out).
-  function finish() {
+  function finish(opening) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
@@ -783,8 +787,15 @@ __TOP__
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
+      setText("end-note", "Opening your result\u2026");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
+        focusCard(); return;
+      }
+      if (opening) {  // opened with every answer marked: a mark can still be changed
+        var n = counts.correct + counts.wrong;
+        setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
+        setText("end-note", WORDS.change);
         focusCard(); return;
       }
       window.location.href = url("/result");
@@ -1002,7 +1013,7 @@ __TOP__
   });
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
-  if (left) { open(pos); } else { finish(); }
+  if (left) { open(pos); } else { finish(true); }
   if (!seenIntro()) {
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
@@ -1040,11 +1051,13 @@ def _words() -> str:
     """The link's and the line's words, as the page's script reads them: before the first
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
+    from judgekeeper.front import CHANGE_MARK
     from judgekeeper.start_label import FIRST_NUMBERS
     from judgekeeper.textio import program
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark")))}
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark"))),
+             "change": CHANGE_MARK}
     return json.dumps(words).replace("<", "\\u003c")
 
 
@@ -1096,6 +1109,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
+            .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
