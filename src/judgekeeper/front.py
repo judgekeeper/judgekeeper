@@ -2047,11 +2047,12 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    elif not mark_next and not why:  # else the Next: line or "To say why" names it
+    elif not mark_next and not why and ranges:  # else the Next: line or "To say why" names it
+        # with exact numbers (one grade) more marks would not make them more certain: no line
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     # wait before is_open: --wait's own page answers only once it is served (page.serve)
     if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges)
-            or not (is_open(ws.dir) or mark_next or why)):
+            or (ranges and not (is_open(ws.dir) or mark_next or why))):
         talk.say()
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)
