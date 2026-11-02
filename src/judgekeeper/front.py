@@ -452,7 +452,9 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
     if talk.labels_read is None:
         return
     rows = start_label.StartSession(ws).raw
-    plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
+    data = ws.data()
+    plan = labels_mod.match(talk.labels_read, rows, data["queue"], found.pool.left,
+                            data.get("left"))
     if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
         raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from)

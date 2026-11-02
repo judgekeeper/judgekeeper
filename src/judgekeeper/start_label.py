@@ -300,6 +300,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     When start.json already holds the same pool (the same answers with the same verdicts),
     its seed and queue are kept, so labeling again carries on where it stopped.
     """
+    from judgekeeper.labels import left_kept
     from judgekeeper.start import StartError
 
     ws = ws or Workspace(found.root)
@@ -357,6 +358,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         **({"label_map": found.label_map} if getattr(found, "label_map", None) else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
+        "left": left_kept(p.left),  # labels for these: not graded, after a regrade too
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
                      "repeats_merged": p.n_merged, "human_labels_not_used": p.n_human},
         **({"judge_check": found.check.block()} if found.check is not None else {}),

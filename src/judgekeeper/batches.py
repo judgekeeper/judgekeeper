@@ -285,7 +285,10 @@ def add(ws, found) -> int:
                                      "seed": data.get("seed")}]
     added.append({"batch": batch, "results_files": list(found.used), "added_at": utc_now(),
                   "seed": seed, "answers": len(named)})
+    from judgekeeper.labels import left_kept
+
     data.update(queue=queue, batches=added, pool_sha256=pool_sha, updated_at=utc_now(),
+                left=left_kept(found.pool.left, data.get("left")),
                 results_seen=results_key(found),
                 pool={**(data.get("pool") or {}), "answers": len(queue),
                       "pass": kinds.count("pass"), "fail": kinds.count("fail")})
