@@ -220,3 +220,23 @@ def test_the_wait_line_from_another_folder_names_the_program_from_the_project(
     assert "Tools" not in page and USER not in page
     page = " ".join(html.unescape(re.sub(r"<[^>]+>", "", page)).split())
     assert f"then run judgekeeper check {fix.NEW_RECORDS}." in page, page
+
+
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, monkeypatch,
+                                                                         capsys, where):
+    """A results file of a project with its own session, given from another folder: "To check
+    them, run `<program>` in proj s3/", with the program as it is typed in proj s3/."""
+    from tests.test_earlier_grades import adopt
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt(proj, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, os.path.relpath(proj / "v2.json", away), "--no-browser")
+    assert code == 3 and "To check them, run `" in out, out
+    for line in _commands(out[out.index("To check them"):]):
+        assert _program_in(line, proj, home) == tool, (line, out)

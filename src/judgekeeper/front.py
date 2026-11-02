@@ -488,8 +488,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, folders)  # a session below never joins other results here
     if path.is_file() and (owner := _session_owning(path)) is not None:
-        talk.para(_nested_line([owner]))  # its own project's answers, never a batch here
-        raise talk.stop(EXIT_QUESTION, f"run `{program()}` in {owner}/.")
+        # its own project's answers, never a batch here
+        talk.para(_nested_line([owner], Path.cwd()))
+        raise talk.stop(EXIT_QUESTION, f"run `{_program_there([owner], Path.cwd())}` in {owner}/.")
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -847,13 +848,20 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
-def _nested_line(nested: list[str]) -> str:
-    """Results in projects of their own below this one (find.nested_results): whose they
-    are, and where to check them."""
+def _nested_line(nested: list[str], base: Path) -> str:
+    """Results in projects of their own below this one (find.nested_results, named from the
+    folder `base`): whose they are, and where to check them."""
     named = start._and([f"{p}/" for p in nested])
     where = start._or([f"{p}/" for p in nested])
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
-            f"{named}. To check them, run `{program()}` in {where}.")
+            f"{named}. To check them, run `{_program_there(nested, base)}` in {where}.")
+
+
+def _program_there(folders: list[str], base: Path) -> str:
+    """program() as it is typed in each of `folders` (from `base`), for a line that says to
+    run it there: the same in all of them, else the form that runs in any folder."""
+    shown = {textio.program_in(base / f) for f in folders}
+    return shown.pop() if len(shown) == 1 else textio.program_in(textio.ANYWHERE)
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
@@ -872,9 +880,9 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
     if nested and len(sessions := _sessions_below(root, nested)) == len(nested):
         return _go_to(talk, sessions)
     if nested:
-        talk.para(_nested_line(nested))
+        talk.para(_nested_line(nested, root))
         where = start._or([f"{p}/" for p in nested])
-        return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
+        return talk.stop(EXIT_QUESTION, f"run `{_program_there(nested, root)}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
@@ -1137,7 +1145,7 @@ def _nested_here(found: start.Found) -> str | None:
     if found.given:
         return None
     nested = find.nested_results(find.search(found.root))
-    return _nested_line(nested) if nested else None
+    return _nested_line(nested, found.root) if nested else None
 
 
 def _outer_marks(found: start.Found) -> str | None:
