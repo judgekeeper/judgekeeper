@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 
 from judgekeeper.cli import main
+from judgekeeper.textio import quote_arg
 from tests.test_front import assert_one_next_at_the_end
 
 
@@ -15,16 +16,17 @@ def here(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.mark.parametrize("argv, rest", [
-    (["fix", "--port", "9581", "--no-browser"], "fix"),
-    (["fix", "--new", "--no-browser"], "fix --new"),
-    (["--no-browser", "fix", "new.json"], "fix new.json"),
-    (["check", "--port=9000", "new results.json"], "check 'new results.json'"),
-    (["check", "--port", "9000"], "check")])
-def test_a_page_flag_on_fix_or_check_is_said_plainly(here, capsys, argv, rest):
+@pytest.mark.parametrize("argv, words", [
+    (["fix", "--port", "9581", "--no-browser"], ["fix"]),
+    (["fix", "--new", "--no-browser"], ["fix", "--new"]),
+    (["--no-browser", "fix", "new.json"], ["fix", "new.json"]),
+    (["check", "--port=9000", "new results.json"], ["check", "new results.json"]),
+    (["check", "--port", "9000"], ["check"])])
+def test_a_page_flag_on_fix_or_check_is_said_plainly(here, capsys, argv, words):
+    rest = " ".join(quote_arg(w) for w in words)  # quoted as this system's shell needs
     assert main(argv) == 2
     out = capsys.readouterr()
-    command = rest.split()[0]
+    command = words[0]
     said = out.out + out.err
     assert "unrecognized" not in said and "usage:" not in said
     assert (f"`{command}` opens no page, so it takes no --port or --no-browser."
