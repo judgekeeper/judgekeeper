@@ -38,7 +38,7 @@ from judgekeeper.judgments import read_run
 from judgekeeper.links import link, said
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.start_label import Workspace, next_marks, shown_folder
+from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
     held_lines,
@@ -88,6 +88,8 @@ RESULT = {
 CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
+CANT_SETTLE = ("these marks can't settle it. Keep your old rule, or try another change and run "
+               "`{command}` again.")  # can't tell yet, with every answer marked
 MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grade in your new "
            "results{why}. A rule is tested only on all of them: a rule that leaves the hard ones "
            "ungraded would look better than it is.")
@@ -1858,6 +1860,8 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "
                 f"run `{talk.command()} {_new_results(ws)}` again.")
+    if every_marked(ws):  # none left to mark: more marks would need more questions
+        return CANT_SETTLE.format(command=f"{talk.command()} {_new_results(ws)}")
     return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 

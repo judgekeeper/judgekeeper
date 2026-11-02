@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from judgekeeper import fix, targets
+from judgekeeper import fix, start_label, targets
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.test_fix import closed
@@ -197,6 +197,19 @@ def test_the_new_rule_breaking_answers_is_seen(here, capsys):
     assert "Result: your new rule is better" not in out and "Result: safe to try" not in out
     assert "Result: can't tell yet. That leans toward worse." in out
 
+
+
+def test_cant_tell_yet_with_every_answer_marked_says_keep_the_old_rule(here, capsys):
+    """Every answer is marked and the rule was just changed: the next step is about the rule,
+    never to run the eval on more questions."""
+    ws = project(here)
+    assert start_label.every_marked(ws)
+    code, out = run(capsys, "fix", write(here, "new.csv", breaking(ws, "wrong")))
+    assert code == 0 and "Result: can't tell yet." in out, out
+    assert " ".join(out.split()).endswith(
+        "Next: these marks can't settle it. Keep your old rule, or try another change and run "
+        "`judgekeeper fix <new results file>` again."), out
+    assert "more questions" not in out
 
 def kept_aside(ws: Workspace) -> list[str]:
     """The answers kept aside, in their numbers' order."""
