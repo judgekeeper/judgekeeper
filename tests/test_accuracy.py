@@ -158,21 +158,7 @@ def project(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _sides(lines: list[str], at: int) -> list[str]:
-    """The two "When you say" lines after `at`, each joined with the line it wraps onto
-    (under the same indent, in lower case)."""
-    out: list[str] = []
-    for line in lines[at + 1:]:
-        if line.startswith("  When you say "):
-            out.append(line)
-        elif out and line.startswith("  ") and line[2:3].islower():
-            out[-1] += " " + line.strip()
-        else:
-            break
-    return out
-
-
-def test_the_result_has_each_side_with_its_range(project, capsys):
+def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     from tests.start_projects import promptfoo_project, split
 
     promptfoo_project(project, split(300, 300))  # most answers left unmarked: a range
@@ -181,12 +167,12 @@ def test_the_result_has_each_side_with_its_range(project, capsys):
     lines = out.splitlines()
     assert "Step 3 of 5: Measure" in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
-    for line, word in zip(_sides(lines, at), ("Pass", "Fail"), strict=True):
+    for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
         assert line.startswith(f"  When you say {word}, it also says {word}: about ")
         assert " (between " in line and line.endswith("%)")
     counts = [x for x in lines if x.startswith("  You ")]
     assert [x.split(" answers.")[0] for x in counts] == ["  You passed 30", "  You failed 30"]
-    assert all(len(x) <= 64 for x in lines if x.startswith("  When you say "))
+    assert all(len(x) <= 80 for x in lines)
     for gone in ("Kappa", "kappa", "Your marks:", "sitting", "can see a drop", "likely",
                  "Probably", "These are estimates", "could be"):
         assert gone not in out, gone
@@ -201,10 +187,10 @@ def test_a_side_that_can_not_tell_yet_is_too_early_with_both_numbers(project, ca
     assert "Result: too early to tell. Mark more answers to get a result." in lines
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
     assert at > lines.index("Result: too early to tell. Mark more answers to get a result.")
-    for line, word in zip(_sides(lines, at), ("Pass", "Fail"), strict=True):
+    for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
         assert re.fullmatch(rf"  When you say {word}, it also says {word}: (about )?\d+% "
                             r"\(between \d+% and \d+%\)", line), line
-    assert "too early to tell" not in "\n".join(lines[at:at + 5])
+    assert "too early to tell" not in "\n".join(lines[at:at + 3])
     assert out.rstrip().endswith(
         "Next: run `judgekeeper mark --no-browser` to mark more answers.")
 
