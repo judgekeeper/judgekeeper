@@ -93,6 +93,7 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
+NEWEST = "Reading {file}, the newest results here."
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -1247,6 +1248,28 @@ def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
     return TOOL_NAMES.get(tool, tool)
 
 
+def _newest(found: start.Found) -> str:
+    """The newest results file read, named from here (linked): `~/...` in the home folder,
+    never through a top folder (textio.shown_in)."""
+    newest = found.results[0]
+    return link(newest.path, textio.shown_in(newest.path, found.root))
+
+
+def _newest_line(ws: Workspace, found: start.Found) -> str | None:
+    """NEWEST when this run found other results files than the last one read (a newer one
+    saved in the folder), not given by path."""
+    if found.given or found.tool in ("mlflow", "records") or not found.results:
+        return None
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if not files or data.get("given") or _same_files(ws, data, files, found):
+        return None
+    return NEWEST.format(file=_newest(found))
+
+
 def _read_from(found: start.Found) -> str:
     """Where the answers were read, in the shape of found_line's brackets."""
     newest = found.results[0]
@@ -1254,7 +1277,7 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    shown = link(newest.path, textio.shown_in(newest.path, found.root))  # from here
+    shown = _newest(found)
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
@@ -1763,6 +1786,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     again = start_label.recompute_old(ws, flags=_flags_of(talk, saved, ws))  # this run's
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = [start_label.WORKED_OUT_AGAIN] if again else []
+    if not first and (newest := _newest_line(ws, found)):
+        head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on

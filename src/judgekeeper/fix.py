@@ -158,8 +158,9 @@ RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()
                 "new grades, then {run}.")
 SAME_SHAPE = (f"Grade {ANSWERS} with your own code, and save the new grades in the same shape "
               "as {file}.")
-TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
-         "`answer` as its output, and the grade.")
+TABLE = "Save the new grades in a file like your first one, with its column names ({names})."
+TABLE_COLUMNS = ("input", "output", "verdict")
+GRADE_COLUMNS = ("verdict", "judge_verdict", "judge", "score")  # the grade, first found
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -168,6 +169,7 @@ LONG_SIDE = 4  # mistakes on one side the length pattern needs
 LONG = 1.5  # how much longer is long
 WORDS_SHOWN = 5
 WORD_IN = 3  # mistakes a word must be in
+WORD_SHARE = 10  # and at least 1 in this many of them
 STRONG = 1.0  # smoothed log-odds a word needs, against the agreed answers
 STOPWORDS = frozenset((
     "about", "above", "after", "again", "against", "also", "among", "another", "anything",
@@ -693,7 +695,7 @@ def patterns(rows: list[dict], mark: float | None = None,
             b = in_agreed[word]
             odds = (math.log((a + 0.5) / (n - a + 0.5))
                     - math.log((b + 0.5) / (k - b + 0.5)))
-            if a >= WORD_IN and odds >= STRONG:
+            if a >= WORD_IN and a * WORD_SHARE >= n and odds >= STRONG:
                 strong.append((odds, a, word))
         strong.sort(key=lambda x: (-x[0], -x[1]))
         if strong:
@@ -749,7 +751,8 @@ def prepared_section(ws: Workspace) -> dict | None:
 
 def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason, each text whole (the page folds each row), a many-field question's
+    judge's reason (`reasons_given`: whether any marked answer has one), each text whole (the
+    page folds each row), a many-field question's
     `fields` as the marking page shows them, and the person's reasons on it (`why`:
     reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
     buttons. Never a hidden mark. None when there is none. A split.json that can't be used
@@ -778,7 +781,8 @@ def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
                           "reason": r["reason"], "why": why(r)}
                          for r in wrong],
             "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
-            "own": list(m.own.values())}
+            "own": list(m.own.values()),
+            "reasons_given": any(m.reasons.get(i) for i in m.person)}  # else no reason column
 
 
 def _fields(m: Marks, row: dict) -> list[list[str]] | None:
@@ -866,8 +870,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
                   else fenced("MARKED RULE", marked, cut=False), ""]
     parts += ["## Mistakes", ""]
     wrong = mistakes(rows)
-    own = reasons.own_numbers(wrong)  # named by number, as the clues name them
-    grouped = reasons.groups(wrong, own) if reasons.has_any(wrong) else [(None, wrong)]
+    grouped = reasons.groups(wrong, True) if reasons.has_any(wrong) else [(None, wrong)]
     n = 0
     for title, group in grouped:
         if title:
@@ -879,7 +882,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
             answer = reasons.canonical(r["output"])
             parts += [fenced("QUESTION", r["input"]),
                       fenced("ANSWER", reasons.bold(answer, r.get("spans")))]
-            said = reasons.said_line(r, own)
+            said = reasons.said_line(r)
             if said:
                 parts.append(said)
             if r.get("why"):
@@ -1584,15 +1587,34 @@ def not_a_column(ws: Workspace) -> list[str]:
 
 
 def regrade_line(tool: str | None, run: str = f"run `judgekeeper fix {NEW_RECORDS}`",
-                 file: str | None = None) -> str:
+                 file: str | None = None, columns=TABLE_COLUMNS) -> str:
     """How to grade the marked answers again with the person's own eval tool (`run`: the
     step that gives `fix` the new records, Talk.run); for a format of its own, `file` is the
-    results file read at the start."""
+    results file read at the start; for a table, `columns` are its question, answer and
+    grade columns (table_columns)."""
     if tool == "records":
         return RECORD_AGAIN.format(run=run)
     if tool == "mapped" and file:
         return SAME_SHAPE.format(file=file)
-    return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
+    if tool == "table":
+        return f"{OWN} {TABLE.format(names=', '.join(f'`{c}`' for c in columns))}"
+    return REGRADE.get(tool or "", OWN)
+
+
+def table_columns(ws: Workspace) -> tuple[str, ...]:
+    """The first results file's question, answer and grade columns as written in it, or
+    TABLE_COLUMNS when it can't be read."""
+    from judgekeeper.table import column_name, columns
+
+    file = _first_file(ws)
+    names = columns(Path(ws.root) / file) if file else []
+    known = {}
+    for name in names:
+        known.setdefault(column_name(name), name)
+    grade = next((known[g] for g in GRADE_COLUMNS if g in known), None)
+    if "input" in known and "output" in known and grade:
+        return known["input"], known["output"], grade
+    return TABLE_COLUMNS
 
 
 def _first_file(ws: Workspace) -> str | None:
@@ -1633,7 +1655,8 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     talk.say()
     steps = (regrade_steps(ws, talk.program("fix"), away=talk.away()) if tool == "promptfoo"
              else None)
-    talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws)))
+    talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws),
+                                    table_columns(ws) if tool == "table" else TABLE_COLUMNS))
     if steps:  # a ready config: the steps above are the whole way
         for line in not_a_column(ws):
             talk.para(line)
