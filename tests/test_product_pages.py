@@ -658,7 +658,8 @@ def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
 def test_a_judge_that_gave_every_answer_one_grade_shows_kappa_as_n_a():
     part = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)),
                  '<details class="details band">', "</details>")
-    assert f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a –" in _text(part)
+    assert _text(part).endswith(f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a")
+    assert "Between" not in part  # no range: no column for one
 
 
 def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
@@ -1152,3 +1153,20 @@ def test_the_wider_ranges_note_shows_only_with_a_range_on_screen():
     for back in ("/?token=t", None):  # the result page, report.html
         assert '<p class="note wider">' not in start_label.result_html(every, back=back)
         assert '<p class="note wider">' in start_label.result_html(one, back=back)
+
+
+@pytest.mark.parametrize("page", ["result page", "report.html"])
+def test_with_no_range_anywhere_there_is_no_between_column(page):
+    r = _result(*GATE)
+    for key in ("tpr", "tnr", "kappa"):
+        r[f"{key}_interval"] = (r[key], r[key])  # every answer marked: exact
+    r["left"] = 0
+    html = start_label.result_html(r, back="/" if page == "result page" else None)
+    assert "Between" not in html and '<col class="d3">' not in html
+    tables = re.findall(r'<table class="panel no-range">.*?</table>', html, re.DOTALL)
+    assert len(tables) == 2
+    for table in tables:
+        assert '<th scope="col">Estimate</th></tr></thead>' in table
+        rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
+        assert rows and all(row.count("<td") == 1 for row in rows)
+    assert "you marked every answer" in _text(html)
