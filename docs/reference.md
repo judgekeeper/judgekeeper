@@ -77,7 +77,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
 
-**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question`, `query` or `prompt`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
+**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
 **How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the same answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 

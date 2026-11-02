@@ -1,15 +1,15 @@
 """`--labels [FILE]`: Pass/Fail labels people already have, used as their marks.
 
-`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (`output` or
-`answer`), a label column (`label` or `human_label`), and optionally the question (`input` or
-`question`) and an `id`. `--labels` alone uses the labels people gave that are already in the
+`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (any name the
+results reader takes: `output`, `answer`, `response`, ...), a label column (`label` or
+`human_label`), and optionally the question (`input`, `question` or `query`) and an `id`. `--labels` alone uses the labels people gave that are already in the
 results (start.Pool.humans). Asked for every time, never automatic.
 
 A label counts only for an answer the LLM-as-a-judge graded Pass or Fail (the queue in
 start.json), and for each repeat of it. A file's label finds its answer by id (with the same
 answer text), else by the exact answer text (check's normalising: line endings, the space at
 both ends, keys hidden, a spreadsheet's guard quote, accents written either way: Unicode NFC),
-with the question when one is given. Each label becomes one line of marks.jsonl
+with the question when one is given (a question that finds none: by the answer text alone). Each label becomes one line of marks.jsonl
 (marks.imported_line, "by": "file"); an answer that already has a mark keeps it. The words are
 read as grades are (normalise.Normaliser), with the project's label map; a word the person
 mapped to error is no decision, left out and counted; anything else stops before a line is
@@ -32,7 +32,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from judgekeeper import marks
-from judgekeeper.mapper import INPUT_WORDS, OUTPUT_WORDS, QUESTION_WORDS
+from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
@@ -42,7 +42,7 @@ RESULTS_NAME = "your results"
 ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant can't be told
 QUESTION_COLUMNS = ("input", "question")
 ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
-QUESTION_NAMES = (*QUESTION_WORDS, *(w for w in INPUT_WORDS if w not in QUESTION_WORDS))
+QUESTION_NAMES = QUESTION_WORDS  # never a prompt: it may hold a whole template
 COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
@@ -474,7 +474,7 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                         if not text or _text(a.output) == text]  # an empty cell: not given
             if not hits and not _blank(question):
                 hits = _candidates(index, {"input": question, "output": output})
-            elif not hits:
+            if not hits:  # no question, or one that finds no answer: by the text alone
                 hits = by_text.get(text, []) if text else []
                 if len({_text(a.input) for a in hits}) > 1:
                     plan.skip(MORE_THAN_ONE)
