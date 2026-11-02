@@ -266,3 +266,20 @@ def test_the_readmes_measure_step_says_what_a_result_needs():
     measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))
     assert f"at least {targets.ROUGH} Pass and {targets.ROUGH} Fail marks" in measure
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+
+
+# The marking page and the documents your LLM-as-a-judge was given --------------------------
+
+def test_the_docs_say_the_marking_page_leaves_out_the_documents():
+    """DeepEval's retrieval_context is never read, so a faithfulness check is marked with the
+    documents open; elsewhere they show only when they are part of the question."""
+    deepeval = _flat(_tools()["DeepEval"])
+    assert ("The marking page shows the question (`input`) and the answer (`actual_output`), "
+            "not the documents your LLM-as-a-judge was given (`retrieval_context`, `context`). "
+            "For a faithfulness check, keep those documents open while you mark.") in deepeval
+    marking = _flat(_sections()["judgekeeper: find, mark, measure"])
+    assert ("It shows the question and the answer, not the documents your LLM-as-a-judge was "
+            "given, unless they are part of the question (such as a promptfoo var). For a "
+            "faithfulness check, keep those documents open while you mark.") in marking
+    reader = ROOT / "src" / "judgekeeper" / "readers" / "deepeval.py"
+    assert "retrieval" not in reader.read_text(encoding="utf-8").lower()  # never read
