@@ -92,6 +92,8 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
              "still test it.")
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
+RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the one you had before "
+                  "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
 READING = "Reading {file}."  # back to a file older than the last one read
@@ -1764,6 +1766,17 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     return [] if talk.new else None
 
 
+def _graded_elsewhere(ws: Workspace, found: start.Found) -> bool:
+    """Whether the results `found` here are not the files start.json's grades were read from
+    (a check took on the LLM-as-a-judge of a file elsewhere)."""
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    return bool(files) and not _same_files(ws, data, files, found)
+
+
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
     """Whether the newest results differ from the ones being marked, with marks made: other
     files (by where they are, not how they were named) or other grades. No marks yet: nothing
@@ -1824,6 +1837,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
     changed = [] if first or back else _changed(ws, found)
     grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
+    once = grades and _graded_elsewhere(ws, found)  # a check took on another file: said once
+    if once and ws.data().get("results_seen") == batches.results_key(found):
+        grades = 0
     added = 0
     if not (first or changed or back or grades):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
@@ -1834,6 +1850,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     elif changed or grades:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
                     else check.GRADES.format(k=grades))
+        if grades and once:
+            batches.seen(ws, found)
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
@@ -1842,7 +1860,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
     elif not first and _ran_again(ws, found):
-        head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
+        head.append(RAN_AGAIN if not ws.data().get("checked_at")
+                    else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
