@@ -330,3 +330,14 @@ def test_the_readme_says_kappa_never_decides():
                  if x.startswith("- **Kappa:**"))
     assert ('it is under "More details" on the result page and in report.html, and never '
             "decides the result (TPR and TNR do).") in kappa
+
+
+def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
+    from judgekeeper import fix
+
+    step = _step(4)
+    assert ("It is a loop: change the rule (with promptfoo, in "
+            "`.judgekeeper/fix/regrade.yaml`), grade again, then run "
+            "`judgekeeper fix <new results file>`.") in step
+    assert "With few marks, \"can't tell yet\" is a normal answer." in step
+    assert "Result: can't tell yet." in fix.RESULT["same"]
