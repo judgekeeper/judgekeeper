@@ -88,3 +88,13 @@ def test_the_file_line_for_a_project_given_from_the_top_folder_names_no_user(
     file = next(line for line in out.splitlines() if line.startswith("File:"))
     assert file.split(None, 1)[1] == textio._home_shown("Desktop/proj/results.csv"), file
     assert USER not in out, out
+
+
+def test_check_with_no_marks_from_the_top_folder_names_this_folder(home, monkeypatch, capsys):
+    results = home / "ext" / "results.csv"
+    results.parent.mkdir()
+    _write(results, [_row(i, 5) for i in range(60)], COLUMNS)
+    monkeypatch.chdir(Path(home.anchor))
+    _, out = _run(capsys, "check", results)
+    assert "No marks in this folder ()" not in out, out
+    assert "No marks in this folder." in out, out

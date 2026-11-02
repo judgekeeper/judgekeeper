@@ -927,14 +927,15 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
+    this = f"this folder ({folder.name})" if folder.name else "this folder"  # / has no name
     if above is None:
-        said.say(f"No marks in this folder ({folder.name}).")
+        said.say(f"No marks in {this}.")
         said.say()
         said.say(f"Next: run `{program()}` to find your eval results and mark answers.")
         return EXIT_NEEDS_YOU
     where = os.path.relpath(above, given if given.is_dir() else given.parent)
     which = "the folder" if above == folder.parent else "a folder"
-    said.say(f"No marks in this folder ({folder.name}). Your marks are in {which} above it "
+    said.say(f"No marks in {this}. Your marks are in {which} above it "
              f"({above.name}).")
     said.say()
     said.say(f"Next: run `{program('check')} {quote_arg(where)}`.")
