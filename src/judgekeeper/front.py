@@ -2065,6 +2065,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     was = checking.open_worse(ws, found) if check else None  # checking again says the same
     worse = was and checking.worse_step(was["before"], was["after"],
                                         start.kept_check(talk.path, ws.root), ws, kept=True)
+    # the terminal's: run where it is printed, as `check` says it
+    worse_here = was and checking.worse_step(was["before"], was["after"],
+                                             _check_command(talk), ws)
     r = start_label.store_result(ws, session, _flags_of(talk, saved, ws), worse=worse or None,
                                  redraw=True)
     m = marks.read(ws.marks)
@@ -2149,7 +2152,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)
         talk.say()
-        next_step = worse
+        next_step = worse_here
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif step == "mark":  # too early to tell

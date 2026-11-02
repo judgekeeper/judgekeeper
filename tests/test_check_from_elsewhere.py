@@ -99,6 +99,38 @@ def test_check_from_another_folder_names_its_lines_from_the_project(home, monkey
     assert "new.csv" in out, out
 
 
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_judgekeeper_from_another_folder_after_worse_names_the_program_from_the_project(
+        home, monkeypatch, capsys, where):
+    """Plain `judgekeeper <project>` after "Worse": the terminal says "then in your project
+    folder, run `<program> check <new results file>`"; report.html keeps the plain form, as it
+    is read in the project folder."""
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    _worse_project(proj, monkeypatch, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    given = os.path.relpath(proj, away)
+    code, out = _run(capsys, "check", given)
+    assert code == 1 and "Worse" in out, out
+    code, out = _run(capsys, given, "--no-browser", "--port", "0")
+    assert code == 0, out
+    nxt = out[out.rindex("Next: "):]
+    assert CHECK_LINE in nxt, nxt
+    check_line = _commands(nxt)[-1]
+    assert _program_in(check_line, proj, home) == tool, check_line
+    assert check_line.endswith(f" check {fix.NEW_RESULTS}"), check_line
+    for line in _commands(nxt)[:-1]:  # `fix`, run where it is printed
+        assert _program_in(line, away, home) == tool, line
+    import html
+    import re
+
+    page = (proj / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
+    page = " ".join(html.unescape(re.sub(r"<[^>]+>", "", page)).split())
+    assert "in your project folder" not in page
+    assert f"then run judgekeeper check {fix.NEW_RESULTS}." in page, page
+
+
 def test_check_from_the_project_keeps_its_lines(home, monkeypatch, capsys):
     proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
     _worse_project(proj, monkeypatch, capsys)
