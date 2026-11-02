@@ -637,7 +637,8 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
 
 def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
     """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
-    verdict still needs to check them (labels.still_needed), and the group where they don't
+    verdict still needs to check them (labels.still_needed: from the answers left in the
+    batches the result is on), and the group where they don't
     look like the page marks (labels.looks_off): (None, 0, None) without any."""
     from judgekeeper import labels as labels_mod
 
@@ -647,8 +648,10 @@ def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
-    left = {g: sum(q["group"] == g and q["id"] not in counted for q in data["queue"])
-            for g in ("pass", "fail")}
+    batch = batches.of(data)  # left to mark: only in the batches the result is on
+    on = set(batches.counting(data, {i: counted[i] for i in ids if i in counted}))
+    left = {g: sum(q["group"] == g and q["id"] not in counted and batch.get(q["id"], 1) in on
+                   for q in data["queue"]) for g in ("pass", "fail")}
     needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
     return imported, needed, labels_mod.looks_off(counts)
 

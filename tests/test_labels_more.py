@@ -106,3 +106,33 @@ def test_the_start_over_question_keeps_the_labels_flag(here, capsys, given):
     out = capsys.readouterr().out
     assert code == 0, out
     assert "Added " in out, out
+
+
+# The import gate looks at the batches the result is on -----------------------------------------
+
+def _labelled_table(root, n: int) -> None:
+    """A table of `n` answers, each with a person's label: the judge is wrong on every third
+    one it passed."""
+    from tests.start_projects import table_project
+
+    verdicts = [i % 2 == 0 for i in range(n)]
+    humans = ["fail" if v and i % 3 == 0 else "pass" if v else "fail"
+              for i, v in enumerate(verdicts)]
+    table_project(root, verdicts, extra={"human_label": humans})
+
+
+def test_new_answers_never_bring_back_the_import_gate(here, capsys):
+    from judgekeeper.cli import main
+
+    _labelled_table(here, 300)
+    assert main(["--labels", "--no-browser", "--port", "0"]) == 0
+    out = flat(capsys.readouterr().out)
+    assert "Added 300 marks from your results" in out and "needs work" in out, out
+    _labelled_table(here, 350)
+    code = main(["--no-browser", "--port", "0"])
+    out = flat(capsys.readouterr().out)
+    assert code == 0, out
+    assert "needs work" in out, out
+    assert "on 1 of 2 batches" in out, out
+    assert "Mark at least" not in out, out
+    assert "too early" not in out.lower(), out
