@@ -198,18 +198,26 @@ def test_a_next_line_repeats_a_full_path_from_here(here, tmp_path_factory):
     _no_whole_path(said, here, other.parent)
 
 
-def test_a_labels_file_on_another_drive_is_named_as_a_file(here, monkeypatch):
+def test_a_path_on_another_drive_is_in_full_on_windows_and_stood_for_elsewhere(here,
+                                                                               monkeypatch):
+    """Nothing from here runs: a Windows command has the path in full (printed only, never
+    kept); elsewhere the command stands for it."""
     from judgekeeper import cli, textio
 
     def other_drive(path, start=None):
         raise ValueError("path is on mount 'D:', start on mount 'C:'")
 
     monkeypatch.setattr(textio.os.path, "relpath", other_drive)
+    windows = textio.is_windows()
+    labels = textio.quote_arg("/elsewhere/labels.csv") if windows else "<file>"
     assert (cli.again(["--labels", "/elsewhere/labels.csv", "--port", "9605"])
-            == "judgekeeper --labels <file> --port 9605")
+            == f"judgekeeper --labels {labels} --port 9605")
     # the --labels stops' Next lines: the same rule
-    assert textio.runnable("/elsewhere/labels.csv", labels=True) == "<file>"
-    assert textio.runnable("/elsewhere/evals", labels=False) == "PATH"
+    assert textio.runnable("/elsewhere/labels.csv", labels=True) == labels
+    assert textio.runnable("/elsewhere/evals", labels=False) == (
+        textio.quote_arg("/elsewhere/evals") if windows else "PATH")
+    monkeypatch.setattr(textio.sys, "platform", "win32")  # as Windows says it, here too
+    assert textio.runnable("/elsewhere/labels.csv", labels=True) == "/elsewhere/labels.csv"
 
 
 def test_a_value_that_is_no_path_is_repeated_as_given(here):
