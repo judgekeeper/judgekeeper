@@ -587,6 +587,31 @@ def _command(state_or_path) -> str:
                      *([] if str(path) == "." else [runnable(str(path), labels=False)])))
 
 
+def _away(ws: Workspace) -> bool:
+    """Whether this runs in a folder other than the project's."""
+    try:
+        return Path(ws.root).resolve() != Path.cwd().resolve()
+    except OSError:
+        return True
+
+
+def _run_in(ws: Workspace, file: str, away: bool) -> str:
+    """"run `judgekeeper check FILE`" for FILE named from the project folder; when this runs
+    in another folder (`away`), "in your project folder, run ..." with the program named from
+    there."""
+    if away:
+        return f"in your project folder, run `{program_in(ws.root, 'check')} {file}`"
+    return f"run `{program('check')} {file}`"
+
+
+def _here(ws: Workspace, subcommand: str = "") -> str:
+    """program(subcommand), given the project folder when this runs in another folder: the
+    command runs where it is printed."""
+    if not _away(ws):
+        return program(subcommand)
+    return f"{program(subcommand)} {runnable(os.path.abspath(ws.root), labels=False)}"
+
+
 # The paired test --------------------------------------------------------------------------------
 
 def _old_verdicts(state: State, old: dict) -> dict[str, str]:
@@ -1531,7 +1556,7 @@ def full(path: str, said: Said) -> int:
             said.say(line.format(new=names.get(switched, switched),
                                  old=names.get(old_tool, old_tool)))
         said.say()
-        said.say(NEXT_FRESH.format(command=program(), new=names.get(switched, switched)))
+        said.say(NEXT_FRESH.format(command=_here(state.ws), new=names.get(switched, switched)))
         return EXIT_NEEDS_YOU
     if isinstance(problem, FolderChoice):  # as plain `judgekeeper` says it, with check's commands
         for line in problem.lines:
@@ -1599,7 +1624,8 @@ def full(path: str, said: Said) -> int:
                                        them="it" if k == 1 else "them"))
                 said.say()
                 if batches.new_answers(state.ws, found):  # new answers came with them
-                    said.say(NEXT_NEW_ANSWERS.format(program=program(), command=_command(state)))
+                    said.say(NEXT_NEW_ANSWERS.format(program=_here(state.ws),
+                                                     command=_command(state)))
                 elif _say_steps(said, state):  # the rest of the marked ones: grade them again
                     from judgekeeper import fix
 
@@ -1687,10 +1713,10 @@ def full(path: str, said: Said) -> int:
     elif picked["ask"]:
         need = PICK_MARKS - picked["new_marks"]
         said.say("Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=program("mark"), n=need, command=_command(state)), need=need))
+            mark=_here(state.ws, "mark"), n=need, command=_command(state)), need=need))
     elif unsure:
         said.say("Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
-            mark=program("mark"), command=_command(state))))
+            mark=_here(state.ws, "mark"), command=_command(state))))
     else:
         said.say(NEXT_SAME.format(command=_command(state)))
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
@@ -1820,11 +1846,11 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                     said.say(line)
                 said.say()
                 said.say("Next: " + fix.FOLLOW_STEPS.rstrip(".")
-                         + f"; or start over on your new answers with `{program('--new')}`.")
+                         + f"; or start over on your new answers with `{_here(state.ws, '--new')}`.")
                 return True
         answers = f"{fix.shown_folder(state.ws)}/{fix.FOLDER}/{fix.ANSWERS}"
         regrade = _regrade_answers(state.ws, answers, "your LLM-as-a-judge").rstrip(".")
-        said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=program("--new")))
+        said.say(NEXT_NOT_MARKED.format(regrade=regrade, new=_here(state.ws, "--new")))
         return True
     if not few and looked is None:
         return False  # the check goes on, and says them there
@@ -1861,7 +1887,9 @@ def _steps(state: State) -> str | None:
     (written if there is none); else None."""
     from judgekeeper import fix
 
-    return fix.regrade_steps(state.ws, program("check"), "grader") \
+    away = _away(state.ws)
+    return fix.regrade_steps(state.ws, program_in(state.ws.root, "check") if away
+                             else program("check"), "grader", away=away) \
         if state.data.get("tool") == "promptfoo" else None
 
 
@@ -1905,22 +1933,27 @@ def regrade_marked(state: State, every: bool = False) -> str:
         log = quote_arg(fix.new_log(ws))
         return (f"score your {'whole ' if every else ''}marked log again with your "
                 f"LLM-as-a-judge as it is now: run "
-                f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then run `{check} {log}`.")
+                f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then "
+                f"{_run_in(ws, log, _away(ws))}.")
     return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now",
                             every)
 
 
-def _regrade_answers(ws: Workspace, answers: str, judge: str, every: bool = False) -> str:
+def _regrade_answers(ws: Workspace, answers: str, judge: str, every: bool = False,
+                     kept: bool = False) -> str:
     """Grade marked-answers.csv (shown as `answers`) again with `judge`, then `check` the new
-    results; `fix` writes the file first when there is none. `every`: each answer in it."""
+    results; `fix` writes the file first when there is none. `every`: each answer in it.
+    `kept`: for report.html, whose commands run in the project folder."""
     from judgekeeper import fix
 
-    check = f"`{program('check')} {fix.NEW_RESULTS}`"
+    away = not kept and _away(ws)
+    check = _run_in(ws, fix.NEW_RESULTS, away)
     if (fix._folder(ws) / fix.ANSWERS).is_file():
         return (f"grade {'every answer' if every else 'the answers'} in {answers} again with "
-                f"{judge}, then run {check}.")
-    return (f"run `{program('fix')}` to write the answers you marked to {answers}, grade "
-            f"{'every one' if every else 'them'} again with {judge}, then run {check}.")
+                f"{judge}, then {check}.")
+    write = _here(ws, "fix") if away else program("fix")
+    return (f"run `{write}` to write the answers you marked to {answers}, grade "
+            f"{'every one' if every else 'them'} again with {judge}, then {check}.")
 
 
 def _are(k: int) -> str:
@@ -1957,7 +1990,7 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = F
 
         folder = FOLDER if kept else fix.shown_folder(ws)
         answers = f"{folder}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
-        return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it"))
+        return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it", kept=kept))
     return NEXT_WORSE.format(back="your old LLM-as-a-judge", command=command)
 
 
