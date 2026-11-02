@@ -1768,6 +1768,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)
+    if unreadable := marks.unreadable_line(marks.read(ws.marks)):
+        head.append(unreadable)
     counts = session.counts()
     enough = start_label.has_result(batches.counted_strata(ws.data(), session.marked()))
     every = bool(session.items) and all(i["label"] for i in session.items)
