@@ -242,8 +242,11 @@ def test_program_names_python_p_m_only_when_started_so(monkeypatch):
     assert textio.program("mark") == "python3 -P -m judgekeeper mark"
     monkeypatch.setattr(sys, "platform", "win32")
     assert textio.program("--stop") == "py -P -m judgekeeper --stop"
-    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/judgekeeper")
+    ours = os.path.join(os.path.dirname(sys.executable), "judgekeeper")  # this python's
+    monkeypatch.setattr("shutil.which", lambda name: ours)
     assert textio.program("mark") == "judgekeeper mark"
+    monkeypatch.setattr("shutil.which", lambda name: "/opt/old/bin/judgekeeper")  # another
+    assert textio.program("mark") == "py -P -m judgekeeper mark"
 
 
 # A value that starts with "-" ------------------------------------------------------------------

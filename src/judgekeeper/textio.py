@@ -115,19 +115,24 @@ SCRIPT_NAMES = ("judgekeeper", "judgekeeper.exe", "judgekeeper-script.py")
 _imports: dict[str, bool] = {}
 
 
+IMPORTED = "import judgekeeper, os; print(os.path.realpath(judgekeeper.__file__))"
+
+
 def imports_judgekeeper(python: str) -> bool:
-    """Whether `python` on the PATH can import judgekeeper (asked once per program found)."""
+    """Whether `python` on the PATH imports this judgekeeper, not another install (asked once
+    per program found)."""
     import shutil
 
     found = shutil.which(python)
     if found is None:
         return False
     if found not in _imports:
+        this = _same(os.path.join(os.path.dirname(os.path.realpath(__file__)), "__init__.py"))
         try:
-            done = subprocess.run([found, "-P", "-c", "import judgekeeper"], timeout=30,
-                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            done = subprocess.run([found, "-P", "-c", IMPORTED], timeout=30, text=True,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, check=False)
-            _imports[found] = done.returncode == 0
+            _imports[found] = done.returncode == 0 and _same(done.stdout.strip()) == this
         except (OSError, subprocess.SubprocessError):
             _imports[found] = False
     return _imports[found]
@@ -246,10 +251,9 @@ def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper` when uvx started it (uvx
     puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
     betas unless the version is named), with the extras it was started with (uvx_with);
-    when the `judgekeeper` command is not on the PATH, the form that runs (off_path); else
-    `judgekeeper`; then the subcommand. Inside plainly(): never a path or a python."""
-    import shutil
-
+    when the `judgekeeper` command on the PATH is not this program (_on_path), the form that
+    runs (off_path); else `judgekeeper`; then the subcommand. Inside plainly(): never a path
+    or a python."""
     from judgekeeper import __version__
 
     name = "judgekeeper"
@@ -258,9 +262,50 @@ def program(subcommand: str = "") -> str:
     elif started_by_uvx():
         pin = f"@{__version__}" if is_prerelease() else ""
         name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
-    elif not _plain and _started_as_judgekeeper() and not shutil.which("judgekeeper"):
+    elif not _plain and _started_as_judgekeeper() and not _on_path():
         name = off_path() or name
     return f"{name} {subcommand}" if subcommand else name
+
+
+def _on_path() -> bool:
+    """Whether the `judgekeeper` command the shell finds on the PATH is this program: the
+    script that started it (a link to it too), or one in this python's scripts folder (where
+    its python is, in a venv). Another install first on the PATH (an older one) would run
+    instead."""
+    import shutil
+
+    found = shutil.which("judgekeeper")
+    if not found:
+        return False
+    try:
+        real = _same(os.path.realpath(found))
+        typed = sys.argv[0] if sys.argv else ""
+        if typed and _same(os.path.realpath(typed)) == real:
+            return True
+        folders = {_same(os.path.dirname(os.path.abspath(found))), _same(os.path.dirname(real))}
+        return bool(folders & _scripts_folders())
+    except (OSError, ValueError):
+        return False
+
+
+def _same(path: str) -> str:
+    return os.path.normcase(os.path.normpath(path))
+
+
+def _scripts_folders() -> set[str]:
+    """The folders this python's scripts are in: its own folder (a venv's bin or Scripts),
+    and sysconfig's scripts folder."""
+    folders = {_same(os.path.dirname(os.path.abspath(sys.executable)))} if sys.executable \
+        else set()
+    try:
+        import sysconfig
+
+        scripts = sysconfig.get_path("scripts")
+    except Exception:  # noqa: BLE001 - a python that can't say where its scripts go
+        scripts = None
+    if scripts:
+        folders |= {_same(scripts), _same(os.path.realpath(scripts))}
+    return folders
 
 
 @contextmanager
