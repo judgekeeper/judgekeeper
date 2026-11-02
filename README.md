@@ -21,7 +21,7 @@ An LLM-as-a-judge is an AI model that grades another model's answers. judgekeepe
 
 ## Install
 
-In your project folder, in its virtual environment:
+In your project folder, in its virtual environment (in a uv virtual environment, `uv pip install judgekeeper`):
 ```
 pip install judgekeeper
 judgekeeper
@@ -29,14 +29,14 @@ judgekeeper
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"`.
 
-Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
+Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result. The result then notes that your marks came through a link printed with no terminal; if you marked them yourself, nothing to do.
 
 ## The 5 steps
 
 1. **Find:** `judgekeeper` finds your eval results.
-2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
+2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. Once in a while an answer you marked comes back a second time, to see how steady your marks are. Mark it as you see it. No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead. Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer).
-4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
+4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It is a loop: change the rule (with promptfoo, in `.judgekeeper/fix/regrade.yaml`), grade again, then run `judgekeeper fix <new results file>`. With few marks, "can't tell yet" is a normal answer.
 5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`; with promptfoo, `.judgekeeper/fix/regrade.yaml`), then run `judgekeeper check <new results file>`.
 
 judgekeeper only reads files. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
@@ -45,9 +45,9 @@ judgekeeper only reads files. It makes no AI call and needs no API key. See [SEC
 
 - **TPR:** of the answers you passed, how many it passed too.
 - **TNR:** of the answers you failed, how many it failed too.
-- **Kappa:** how much you agree beyond what matching at random would give.
+- **Kappa:** how much you agree beyond what matching at random would give; it is under "More details" on the result page and in report.html, and never decides the result (TPR and TNR do).
 
-TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)". The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
+TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" (when you mark every answer, the numbers are exact and have no range). The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
 
 How the numbers are worked out: [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-the-numbers-are-worked-out).
 
