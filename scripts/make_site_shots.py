@@ -419,9 +419,12 @@ def webp_size(path: Path) -> tuple[int, int]:
 
 # The three pictures -----------------------------------------------------------------------
 
+SECONDS = 6  # a person's pace on each answer: the result page says when marks look too fast
+
+
 def mark(start: Start, items: list[dict]) -> None:
     for item in items:
-        start.post("/label", {"id": item["id"], "label": my_mark(item)})
+        start.post("/label", {"id": item["id"], "label": my_mark(item), "seconds": SECONDS})
 
 
 def label_and_result(chrome: Chrome, folder: Path, out: Path,

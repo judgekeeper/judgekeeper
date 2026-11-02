@@ -415,6 +415,20 @@ def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():
                    "inert": ["", None]}  # the page behind: inert while the box is open
 
 
+def test_the_first_answer_takes_no_key_in_the_first_250_ms_after_the_box_closes():
+    got = _run("""
+      ids["intro-box"].fire("keydown", {key: "Enter"});
+      key("ArrowRight"); await settle();
+      var at_once = sent.length;
+      later(100); key("ArrowRight"); await settle();
+      var soon = sent.length;
+      later(250); key("ArrowRight"); await settle();
+      console.log(JSON.stringify({at_once: at_once, soon: soon,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               seen_intro=False)
+    assert got == {"at_once": 0, "soon": 0, "sent": [["a0", "pass"]]}
+
+
 def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
     got = _run("""
       var tab = ids["intro-box"].fire("keydown", {key: "Tab"});

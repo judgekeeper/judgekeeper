@@ -966,6 +966,7 @@ __TOP__
   function startMarking() {
     $("intro").hidden = true; $("app").removeAttribute("inert");
     shownAt = Date.now();  // the answer is on screen from now
+    freshUntil = shownAt + FRESH_MS;  // and a key within FRESH_MS of it is not meant for it
     try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
