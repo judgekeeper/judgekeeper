@@ -1100,8 +1100,12 @@ def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, 
     code, out = _run(capsys)
     assert code == 0, out
     flat = " ".join(out.split())
-    assert f"Tell judgekeeper why you disagree on these {n - 2}:" in flat, out
-    assert f"disagree on these {n - 2}:" in _report(ws).replace("\n", " ")
+    have = "(2 more already have a reason)"
+    assert f"Tell judgekeeper why you disagree on these {n - 2} {have}:" in flat, out
+    assert f"disagree on these {n - 2} {have}:" in _report(ws).replace("\n", " ")
+    _say(ws, passes[1], reasons=["wrong_fact"])
+    _run(capsys)
+    assert "(3 more already have a reason)" in _report(ws).replace("\n", " ")
     for i in [*passes[1:], *fails[1:]]:
         _say(ws, i, reasons=[], note="Wrong")
     code, out = _run(capsys)
@@ -1230,3 +1234,13 @@ def test_the_reason_box_in_a_browser(here, tmp_path, width):
     assert any(x["note"] == "Gives a price" for x in rest)
     assert rest[-1]["spans"] == [[0, 6]]
     assert got["token"].startswith("/label?token=")
+
+
+@pytest.mark.parametrize("n, have, line", [
+    (5, 0, "Tell judgekeeper why you disagree on these 5: run `judgekeeper mark`."),
+    (5, 1, ("Tell judgekeeper why you disagree on these 5 (1 more already has a reason): "
+            "run `judgekeeper mark`.")),
+    (1, 3, ("Tell judgekeeper why you disagree on this one (3 more already have a reason): "
+            "run `judgekeeper mark`."))])
+def test_the_line_asking_why_says_how_many_have_a_reason(n, have, line):
+    assert start_label.say_why_run(n, "judgekeeper mark", have) == line

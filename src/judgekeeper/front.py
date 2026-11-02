@@ -2115,10 +2115,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     step = report_page.next_step(r)  # the report's next step
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
     mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
-    why = not worse and start_label.why_count(ws, r)
+    why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
-        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+        talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
         if kept := start_label.kept_count(ws, r):  # said on the result page too
             talk.para(report_page.kept_line(kept))
         if step != "mark":  # fix is never a step while it is too early to tell

@@ -1059,7 +1059,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
     if asked and not live and mark:
-        tell = say_why_run(asked, mark)
+        tell = say_why_run(asked, mark, len(mistakes) - asked)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 
