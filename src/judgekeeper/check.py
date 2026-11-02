@@ -1890,11 +1890,16 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say(GRADE_MARKED if c else GRADE_SAME)
-        if _say_steps(said, state):  # a ready config: change the grader in it
+        steps = _steps(state)
+        if steps:  # a ready config: change the grader in it
+            said.say(GRADE_MARKED if c else GRADE_SAME)
+            for line in steps.split("\n"):
+                said.say(line)
             said.say()
             said.say("Next: " + fix.FOLLOW_STEPS)
-        else:  # new answers can't be compared
+        else:  # new answers can't be compared; the Next line says how to grade them
+            if c:
+                said.say(WROTE_NEW)
             said.say("Next: " + regrade_marked(state, every=True))
     return few
 

@@ -205,7 +205,8 @@ def test_check_with_too_few_of_the_same_answers_keeps_the_old_next_for_other_too
     flat = _flat(out)
     assert code == 3, out
     assert "wrote new answers" not in flat
-    assert ("Grade the answers you marked: Next: run `judgekeeper fix` to write the answers you "
+    assert "Grade the answers you marked" not in flat  # the Next line says it, once
+    assert ("a re-check needs 15 of each. Next: run `judgekeeper fix` to write the answers you "
             "marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again") in flat
     assert not (here / ".judgekeeper" / "fix" / "regrade.yaml").exists()
