@@ -38,7 +38,7 @@ from judgekeeper.judgments import read_run
 from judgekeeper.links import link, said
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub
-from judgekeeper.start_label import Workspace, next_marks, shown_folder
+from judgekeeper.start_label import Workspace, every_marked, next_marks, shown_folder
 from judgekeeper.table import guard_cell
 from judgekeeper.textio import (
     held_lines,
@@ -88,6 +88,8 @@ RESULT = {
 CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
+CANT_SETTLE = ("these marks can't settle it. Keep your old rule, or try another change and run "
+               "`{command}` again.")  # can't tell yet, with every answer marked
 MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grade in your new "
            "results{why}. A rule is tested only on all of them: a rule that leaves the hard ones "
            "ungraded would look better than it is.")
@@ -632,10 +634,12 @@ def mistakes(rows: list[dict]) -> list[dict]:
             and not r.get("earlier")]
 
 
-def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
+def patterns(rows: list[dict], mark: float | None = None,
+             aside: int = 0) -> list[list[str]]:
     """Plain patterns in the judge's mistakes on `rows` ("judge", "final", "output" text,
     "score"), only when strong: each pattern is its sentences. `mark` is the pass mark when
-    the judge's grades follow its scores."""
+    the judge's grades follow its scores. `aside`: the marks kept aside, said with the count
+    of mistakes (Fix's screen: the mistakes are on the other marks only)."""
     wrong = mistakes(rows)
     n = len(wrong)
     if n < FEW:
@@ -644,6 +648,10 @@ def patterns(rows: list[dict], mark: float | None = None) -> list[list[str]]:
     passes = sum(m["judge"] == "pass" for m in wrong)
     fails = n - passes
     made = f"Your LLM-as-a-judge made {n} mistakes."
+    if aside:
+        made = (f"Your LLM-as-a-judge made {n} mistakes on the {len(rows)} marks used here. "
+                f"The other {aside} {'is' if aside == 1 else 'are'} kept aside to test a new "
+                "rule.")
     easy = "it said Pass where you said Fail"
     strict = "it said Fail where you said Pass"
     if passes > fails:
@@ -1074,6 +1082,8 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
         return f"{said} {home}"
     if home == start_fix_rule.OWN_CODE:
         return "Your LLM-as-a-judge's rule, where your code keeps it"
+    if tool == "promptfoo":  # no config here with the assert: never a file it can't point to
+        return f"{said} {home} in your promptfoo config"
     return f"{said} {home} in your eval's code"
 
 
@@ -1625,7 +1635,8 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "
                   f"{_file(ws, ANSWERS)} again with it, then {talk.run(NEW_RESULTS)}.")
         return EXIT_OK
-    found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
+    counted = patterns(seen_rows, mark, aside=len(split.hidden))  # its first names the half
+    found = [[line] for line in reasons.clue_lines(wrong)] + counted
     if found:
         talk.say(WHERE_WRONG)
         for p in found:
@@ -1652,7 +1663,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say(f"  {_rule_quote(rule)}")
         talk.say()
     n = write_answers(ws, m)
-    talk.para(_answers_line(ws, split, n))
+    talk.para(_answers_line(ws, split, n, said=bool(counted and split.hidden)))
     _next_regrade(talk, ws, tool)
     return EXIT_OK
 
@@ -1665,11 +1676,12 @@ def _write_mistakes(ws: Workspace, rule: str | None, rows: list[dict],
     write_replacing(path, mistakes_md(rule, rows, mark, worse_from))
 
 
-def _answers_line(ws: Workspace, split: Split, n: int) -> str:
-    """How many marks are kept aside, and that marked-answers.csv holds all `n`."""
+def _answers_line(ws: Workspace, split: Split, n: int, said: bool = False) -> str:
+    """How many marks are kept aside (unless `said` above), and that marked-answers.csv holds
+    all `n`."""
     k = len(split.hidden)
     aside = f"{k} of your marks {'is' if k == 1 else 'are'} kept aside to test your new rule " \
-        "fairly. " if k else ""
+        "fairly. " if k and not said else ""
     return (f"{aside}{_file(ws, ANSWERS)} holds all {plural(n, 'marked answer')}, questions and "
             "answers only, so you can't tell which are kept aside.")
 
@@ -1879,6 +1891,8 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
         kept = f" ({_file(ws, MISTAKES)} keeps a copy)" if m.data.get("rule") else ""
         return (f"copy your old rule back into your eval tool{kept}, or try another rule and "
                 f"run `{talk.command()} {_new_results(ws)}` again.")
+    if every_marked(ws):  # none left to mark: more marks would need more questions
+        return CANT_SETTLE.format(command=f"{talk.command()} {_new_results(ws)}")
     return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 

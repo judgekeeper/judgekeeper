@@ -359,16 +359,41 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
     ws = Workspace(found.root)
     if not marking and not ws.start.is_file() and not ws.labels.is_file():
         return _say(talk, found, mapped, wait)
+    if not marking and _find_anew(talk, ws, found):
+        return _say(talk, found, mapped, wait)
     return _go_on(talk, found, mapped, wait, marking)
+
+
+def _find_anew(talk: FrontTalk, ws: Workspace, found: start.Found) -> bool:
+    """Nothing is marked yet and the judge is set up otherwise (another --pass-if, say):
+    the saved answers move aside, asking nothing, and Find starts again with these flags.
+    Returns whether it did."""
+    if talk.new or _has_marks(ws) or _why_start_over(talk, ws, found) is None:
+        return False
+    if is_open(ws.dir):
+        background.stop(ws.dir)
+    if project.move_to_previous(ws, talk.say) is not None:
+        talk.say()
+    talk.say(STEP.format(n=1, name="Find"))
+    talk.say()
+    return True
 
 
 def _labels_stop(talk: FrontTalk, e: labels_mod.LabelsStop) -> Stop:
     """Why the labels can't be used (exit 3): nothing was written."""
-    for line in e.lines:
-        talk.para(line)
+    _say_lines(talk, e.lines)
     if e.next_step:
         talk.say()
     return talk.stop(EXIT_QUESTION, e.next_step)
+
+
+def _say_lines(talk: FrontTalk, lines: list[str]) -> None:
+    """Lines of labels.py, those that start with two spaces indented."""
+    for line in lines:
+        if line.startswith("  "):
+            talk.para(line[2:], indent="  ")
+        else:
+            talk.para(line)
 
 
 def _labels_file(talk: FrontTalk) -> Path | None:
@@ -386,14 +411,14 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
     written: a word that isn't Pass or Fail stops here."""
     if talk.labels is None:
         return
+    mine = talk.options["label_map"] or _kept_label_map(found.root)  # the person's own map
     try:
         if path is None:
-            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command)
+            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command, mine)
             talk.labels_from = marks.FROM_RESULTS
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
-            talk.labels_read = labels_mod.read_file(path, talk.labels, found.pool.label_map,
-                                                    talk.command)
+            talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -405,14 +430,10 @@ def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bo
         return
     rows = start_label.StartSession(ws).raw
     plan = labels_mod.match(talk.labels_read, rows, ws.data()["queue"], found.pool.left)
-    if not plan.matched:
-        raise _labels_stop(talk, labels_mod.nothing_matched(talk.labels_from))
+    if (stop := labels_mod.nothing_added(plan, talk.labels_from)) is not None:
+        raise _labels_stop(talk, stop)
     added = labels_mod.add(ws, plan, talk.labels_from)
-    for line in labels_mod.said(added, plan, talk.labels_from):
-        if line.startswith("  "):
-            talk.para(line[2:], indent="  ")
-        else:
-            talk.para(line)
+    _say_lines(talk, labels_mod.said(added, plan, talk.labels_from))
     talk.say()
     talk.labels_read = None  # once
 
@@ -895,7 +916,13 @@ def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str
 
 
 def _go_step(names: list[str], command: str) -> str:
+    """Go to the first folder of `names` and run `command` (it starts with program()) there:
+    the program as it is typed in that folder (textio.run_from)."""
     folder = "that folder" if len(names) == 1 else "one of those folders"
+    here = program()
+    if command.startswith(here):
+        with textio.run_from(names[0]):
+            command = program() + command[len(here):]
     return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
 
 
@@ -1222,8 +1249,7 @@ def _judge_value(found: start.Found) -> str:
 def _rule_file(found: start.Found) -> str | None:
     """The file the judge's rule comes from, when judgekeeper knows it."""
     if found.tool == "promptfoo":
-        return next((n for n in find.PROMPTFOO_CONFIGS if (Path(found.root) / n).is_file()),
-                    None)
+        return start_fix_rule.rule_config(Path(found.root), found.tool, {})
     if found.tool == "inspect" and found.task_file and found.rule:
         return start_fix_rule.opened_rule_file(Path(found.root), found.task_file, found.rule,
                                                found.tool)
@@ -1613,7 +1639,8 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
-        project.move_to_previous(ws, talk.say)
+        if project.move_to_previous(ws, talk.say) is not None:
+            talk.say()  # a blank line before the step header, as everywhere
     _write(found)  # judge.json and the free checks: the judge as it is now
     return _marking(talk, ws, found, wait, saved, marking)
 
@@ -1630,7 +1657,8 @@ def _has_marks(ws: Workspace) -> bool:
 
 def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[str] | None:
     """Why the marks saved in .judgekeeper/ can't be used for this judge, in lines; [] for
-    --new on marks that could be; None when marking can go on. A new eval run is no reason:
+    --new on marks that could be, or for a judge set up otherwise (another --pass-if, say)
+    before anything is marked; None when marking can go on. A new eval run is no reason:
     the answers being marked are kept in pool.jsonl."""
     if ws.labels.is_file():
         return [OLD_MARKS]
@@ -1644,6 +1672,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
         return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
                  f"({tool}), and these results are of {found.judge}.")]
+    if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew
+        return []
     return [] if talk.new else None
 
 
@@ -1791,8 +1821,10 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
                                                                           "port": 0})))
             if is_page(tried):  # another project's page (its name needs its token): close it
                 talk.para(PORT_PAGE.format(port=tried))
-                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(
-                    stop=program("--stop"), command=command))
+                with textio.run_from(textio.ANYWHERE):  # its folder can't be named
+                    stop = program("--stop")
+                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop,
+                                                                      command=command))
             talk.say(PORT_TAKEN.format(port=tried))
             raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
@@ -2024,6 +2056,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(SAY_WHY_NEXT)
         else:  # the disagreements the result page lists: never those kept aside
             talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark")))
+            if kept := start_label.kept_count(ws, r):  # said on the result page too
+                talk.para(report_page.kept_line(kept))
             if step != "mark":  # fix is never a step while it is too early to tell
                 talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
@@ -2068,11 +2102,12 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    elif not mark_next and not why:  # else the Next: line or "To say why" names it
+    elif not mark_next and not why and ranges:  # else the Next: line or "To say why" names it
+        # with exact numbers (one grade) more marks would not make them more certain: no line
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     # wait before is_open: --wait's own page answers only once it is served (page.serve)
     if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges)
-            or not (is_open(ws.dir) or mark_next or why)):
+            or (ranges and not (is_open(ws.dir) or mark_next or why))):
         talk.say()
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)

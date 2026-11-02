@@ -136,11 +136,23 @@ def field(tool: str, rule_field: str | None = None) -> str:
 
 def rule_config(root: Path, tool: str, data: dict) -> str | None:
     """The config file that holds the rule, when judgekeeper knows it (promptfoo's config,
-    Inspect's task file)."""
+    when it has an llm-rubric assert; Inspect's task file)."""
     from judgekeeper.find import PROMPTFOO_CONFIGS
 
-    return (next((n for n in PROMPTFOO_CONFIGS if (Path(root) / n).is_file()), None)
-            if tool == "promptfoo" else data.get("task_file") if tool == "inspect" else None)
+    if tool == "promptfoo":
+        return next((n for n in PROMPTFOO_CONFIGS if _has_rubric(Path(root) / n)), None)
+    return data.get("task_file") if tool == "inspect" else None
+
+
+def _has_rubric(path: Path) -> bool:
+    """Whether the promptfoo config at `path` has an llm-rubric assert."""
+    try:
+        if not path.is_file():
+            return False
+        with path.open("rb") as f:
+            return b"llm-rubric" in f.read(OPENED_BYTES)
+    except OSError:
+        return False
 
 
 def rule_home(root: Path, tool: str, data: dict) -> str:

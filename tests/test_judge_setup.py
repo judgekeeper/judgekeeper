@@ -342,10 +342,26 @@ def test_while_marking_judge_json_keeps_the_judge_of_the_marks(tmp_path, monkeyp
     monkeypatch.chdir(tmp_path)
     _promptfoo(tmp_path)
     front.run()  # marking starts
+    session = start_label.StartSession(start_label.Workspace(tmp_path))
+    session.update({"id": session.items[0]["id"], "label": "pass", "seconds": 5})
     _promptfoo(tmp_path, model="anthropic:claude-haiku-4-5")
     front.run()
     saved = json.loads((tmp_path / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
     assert saved["setup"]["models"] == ["openai:gpt-4.1-mini"]
+
+
+def test_before_any_mark_a_new_model_is_read_anew(tmp_path, monkeypatch, capsys):
+    """Nothing is marked: the answers of the new model are the ones to mark."""
+    monkeypatch.chdir(tmp_path)
+    _promptfoo(tmp_path)
+    front.run()  # marking starts
+    _promptfoo(tmp_path, model="anthropic:claude-haiku-4-5")
+    capsys.readouterr()
+    front.run()
+    out = capsys.readouterr().out
+    saved = json.loads((tmp_path / ".judgekeeper" / "judge.json").read_text(encoding="utf-8"))
+    assert saved["setup"]["models"] == ["anthropic:claude-haiku-4-5"]
+    assert "Step 1 of 5: Find" in out and "changed since your marks" not in out
 
 
 def test_an_older_judge_json_is_read_from_the_marks(tmp_path):

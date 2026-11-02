@@ -120,3 +120,32 @@ def test_a_result_with_ranges_still_asks_for_more_marks():
     from tests.test_product_pages import GATE, KEEP_MARKING, _html, _result
 
     assert KEEP_MARKING in _html(_result(*GATE), "/?token=t")
+
+
+def test_exact_numbers_do_not_say_to_mark_more_at_any_time(one_grade, capsys, pages):
+    """More marks would not make exact numbers more certain: the terminal drops the line, and
+    keeps that fix needs more marks."""
+    run(capsys, "--no-browser")
+    _mark(one_grade, ["pass"] * 4 + ["fail"])
+    from judgekeeper import background
+    assert background.stop(start_label.Workspace(one_grade).dir)
+    _, out, _ = run(capsys)
+    said = flat(out)
+    assert "To mark more answers at any time" not in said, said
+    assert "You have not marked enough answers yet to fix your LLM-as-a-judge." in said
+    assert "\n\n\n" not in out
+
+
+def test_a_result_with_ranges_still_says_to_mark_more_at_any_time(tmp_path, capsys, pages,
+                                                                  monkeypatch):
+    from judgekeeper import background
+    from tests.test_loop import _click
+
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(30, 30))
+    run(capsys)
+    ws = start_label.Workspace(tmp_path)
+    _click(ws, 50)  # 10 answers left to mark
+    assert background.stop(ws.dir)
+    _, out, _ = run(capsys)
+    assert "To mark more answers at any time, run `judgekeeper mark`." in out

@@ -1248,10 +1248,19 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
     why on each disagreement); `fixing`: the mistakes the person can see
     (fix.report_section); `worse`: the next step after a check found the new judge worse
     (check.worse_step), and `last` that check (check.last_check). No value on it holds a
-    hidden character (redact.visible)."""
+    hidden character (redact.visible). Without `back` it is report.html, a file people share:
+    its commands name the program plainly (textio.plainly), the next step's too."""
+    from judgekeeper import textio
     from judgekeeper.report_page import page
 
-    return visible(page(r, back, fixing, worse, last))
+    if back is not None:
+        return visible(page(r, back, fixing, worse, last))
+    typed = textio.program()
+    with textio.plainly():
+        plain = textio.program()
+        if worse and typed != plain:  # made for the terminal too (check.worse_step)
+            worse = worse.replace(f"{typed} ", f"{plain} ")
+        return visible(page(r, back, fixing, worse, last))
 
 
 def _fixing(ws: Workspace, r: dict) -> dict | None:
@@ -1288,6 +1297,18 @@ def why_count(ws: Workspace, r: dict) -> int:
         return 0
     section = fix.prepared_section(ws)
     return len(fix.without_why(section["mistakes"])) if section else 0
+
+
+def kept_count(ws: Workspace, r: dict) -> int:
+    """How many disagreements the result page says are hidden on purpose (kept aside to test
+    a new rule on), for the result `r`: none while it lists none."""
+    from judgekeeper import fix
+    from judgekeeper.report_page import counts, kept_count, shows_disagreements
+
+    if not shows_disagreements(r):
+        return 0
+    section = fix.prepared_section(ws)
+    return kept_count(counts(r), section["mistakes"]) if section else 0
 
 
 def _now(ws: Workspace, r: dict) -> dict:
@@ -1508,11 +1529,11 @@ def _made(ws: Workspace, session: StartSession, flags: dict | None,
           digest: str | None = None) -> dict:
     """The result from the marks so far, with the flags (start.run_flags) it keeps and the
     command they make: what store_result saves."""
-    from judgekeeper.start import command_from, saved_flags
+    from judgekeeper.start import kept_command, saved_flags
 
     flags = saved_flags(flags)
     r = compute(ws, session)
-    r["command"] = command_from(flags, kept=True)
+    r["command"] = kept_command(flags)
     r["flags"] = flags
     r["marks_sha256"] = digest or marks_digest(ws, session)
     return r

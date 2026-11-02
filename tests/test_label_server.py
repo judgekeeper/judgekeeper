@@ -645,6 +645,26 @@ def test_a_result_that_cant_be_saved_is_said_plainly(tmp_path):
         thread.join(timeout=5)
 
 
+@pytest.mark.parametrize("host", ["localhost:{port}", "evil.example"])
+def test_a_browser_on_another_host_name_gets_a_page_that_says_which_link(tmp_path, serve,
+                                                                         host):
+    client = serve(_items(tmp_path), tmp_path / "labels.csv")
+    port = client.server.port
+    resp, payload = client.request("GET", "/", host=host.format(port=port),
+                                   headers={"Accept": "text/html,*/*"})
+    page = payload.decode()
+    assert resp.status == 403 and resp.getheader("Content-Type").startswith("text/html")
+    assert ("Open the link just as judgekeeper printed it. It starts with "
+            f"http://127.0.0.1:{port}/.") in unwrapped(page)
+    assert client.server.token not in page and "it0" not in page  # no token, no answers
+    assert "default-src 'none'" in resp.getheader("Content-Security-Policy")
+    resp, payload = client.request("GET", "/", host=host.format(port=port))  # a script
+    assert resp.status == 403 and json.loads(payload) == {"error": "wrong Host header"}
+    resp, payload = client.request("GET", "/state", host=host.format(port=port),
+                                   headers={"Accept": "text/html"})
+    assert json.loads(payload) == {"error": "wrong Host header"}  # only the page itself
+
+
 def test_a_browser_with_an_old_link_gets_a_page_and_a_script_gets_json(tmp_path, serve):
     client = serve(_items(tmp_path), tmp_path / "labels.csv")
     resp, payload = client.request("GET", "/?token=old", token=False,

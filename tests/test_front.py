@@ -197,6 +197,16 @@ def test_a_long_rule_is_one_line_cut_short(here, capsys):
     assert lines[at + 1] == "                 (shortened; full rule in promptfooconfig.yaml)"
 
 
+def test_a_long_rule_names_no_config_that_holds_no_llm_rubric_assert(here, capsys):
+    promptfoo_project(here, split(20, 16), rubric="Be kind. " * 60)
+    (here / "promptfooconfig.yaml").write_text("description: support bot\nprompts:\n"
+                                               "  - 'Answer: {{question}}'\n", encoding="utf-8")
+    _, out, _ = run(capsys)
+    lines = out.splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("Rule:            "))
+    assert lines[at + 1] == "                 (shortened)"
+
+
 # The free checks ------------------------------------------------------------------------
 
 def test_answers_with_no_real_verdict_are_left_out_and_listed(here, capsys):

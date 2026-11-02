@@ -8,10 +8,12 @@ results (start.Pool.humans). Asked for every time, never automatic.
 A label counts only for an answer the LLM-as-a-judge graded Pass or Fail (the queue in
 start.json), and for each repeat of it. A file's label finds its answer by id (with the same
 answer text), else by the exact answer text (check's normalising: line endings, the space at
-both ends, keys hidden, a spreadsheet's guard quote), with the question when one is given. Each
-label becomes one line of marks.jsonl (marks.imported_line, "by": "file"); an answer that
-already has a mark keeps it. The words are read as grades are (normalise.Normaliser), with the
-project's label map; anything else stops before a line is written.
+both ends, keys hidden, a spreadsheet's guard quote, accents written either way: Unicode NFC),
+with the question when one is given. Each label becomes one line of marks.jsonl
+(marks.imported_line, "by": "file"); an answer that already has a mark keeps it. The words are
+read as grades are (normalise.Normaliser), with the project's label map; a word the person
+mapped to error is no decision, left out and counted; anything else stops before a line is
+written.
 
 Imported marks are checked against the page's: no coloured verdict until PAGE_MARKS page marks
 in each of the LLM-as-a-judge's groups, or none left to mark there (still_needed); then, per
@@ -23,13 +25,14 @@ from __future__ import annotations
 
 import math
 import os
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
 from judgekeeper import marks
-from judgekeeper.normalise import Normaliser, UnmappedValue, _numeric
+from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, runnable
 
@@ -39,9 +42,10 @@ ANSWER_COLUMNS = ("output", "answer")
 QUESTION_COLUMNS = ("input", "question")
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
-WORDS_SHOWN = 5
+WORDS_SHOWN = 10
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
+NO_DECISION = "no_decision"
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
@@ -51,7 +55,10 @@ SKIPPED = (  # (reason, one, many): said in this order
                      "apart)"),
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
-     "{n} are for answers labelled both Pass and Fail"))
+     "{n} are for answers labelled both Pass and Fail"),
+    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"))
+WORDS_NEXT = ("run the same command again with `--label-map`, giving each of these words =pass, "
+              "=fail or =error (no decision). An empty label cell skips that row.")
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
            "random and labelled without looking at your LLM-as-a-judge's grade.")
 FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
@@ -77,8 +84,9 @@ class LabelsStop(Exception):
 
 @dataclass(frozen=True)
 class Label:
-    """One label: its mark, and how it finds its answer: `key`, the answer id the results gave
-    it (--labels alone), or a file's `id`, answer (`output`) and question (`input`)."""
+    """One label: its mark ("pass", "fail", or "error": a word the person mapped to no
+    decision), and how it finds its answer: `key`, the answer id the results gave it (--labels
+    alone), or a file's `id`, answer (`output`) and question (`input`)."""
 
     mark: str
     output: object = None
@@ -193,11 +201,12 @@ def _column(columns, wanted: tuple[str, ...]) -> str | None:
     return next((plain[w] for w in wanted if w in plain), None)
 
 
-def read_file(path: Path, given: str, label_map: dict | None = None,
-              command: Callable[..., str] | None = None) -> list[Label]:
-    """The labels in the file at `path` (named `given` on the command line). A LabelsStop when
-    it can't be read as labels, lacks the columns, or holds a number or a word that isn't Pass
-    or Fail. A blank label is left out without a word."""
+def read_file(path: Path, label_map: dict | None = None,
+              mine: str | dict | None = None) -> list[Label]:
+    """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
+    the columns, has no label in any cell, or holds a number or a word that isn't Pass or Fail
+    (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
+    word."""
     from judgekeeper import find
     from judgekeeper.table import TableError, open_quote, read_kept
 
@@ -223,7 +232,9 @@ def read_file(path: Path, given: str, label_map: dict | None = None,
                            "(label or human_label).")])
     in_col, id_col = _column(columns, QUESTION_COLUMNS), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
-    read = read_marks(values, label_map, name, given, command)
+    read = read_marks(values, label_map, name, mine)
+    if all(mark is None for mark in read):
+        raise LabelsStop([f"Nothing added from {name}: every label cell is empty."])
     out = []
     for row, mark in zip(rows, read, strict=True):
         if mark is None:
@@ -246,14 +257,16 @@ def _blank(value) -> bool:
     return value is None or isinstance(value, str) and not value.strip()
 
 
-def read_marks(values: list, label_map: dict | None, name: str, given: str | None,
-               command: Callable[..., str] | None = None) -> list[str | None]:
+def read_marks(values: list, label_map: dict | None, name: str,
+               mine: str | dict | None = None) -> list[str | None]:
     """Each value as "pass" or "fail" (None when blank), read with `label_map` (the
-    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0). A number
-    (other than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words
-    and the command with --label-map."""
+    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0), or "error"
+    for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
+    than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
+    says how to map them (never a command with guessed values: it would be copied)."""
     norm = Normaliser(label_map=None)
     norm.label_map = {**norm.label_map, **(label_map or {})}
+    no_decision = {k for k, v in parse_label_map(mine).items() if v == ERROR}
     out: list[str | None] = []
     numbers, words = False, []
     for value in values:
@@ -267,6 +280,9 @@ def read_marks(values: list, label_map: dict | None, name: str, given: str | Non
         if verdict in ("pass", "fail"):
             out.append(verdict)
             continue
+        if verdict == ERROR and str(value).strip().lower() in no_decision:
+            out.append(ERROR)
+            continue
         out.append(None)
         if verdict is None and _numeric(value) and not isinstance(value, bool):
             numbers = True
@@ -275,14 +291,20 @@ def read_marks(values: list, label_map: dict | None, name: str, given: str | Non
     if numbers:
         raise LabelsStop(["Labels must be Pass or Fail, not numbers."])
     if words:
-        shown = sorted({_word(w) for w in words})[:WORDS_SHOWN]
-        command = _plain(command)
-        where = (("--labels",) if given is None else ("--labels", runnable(given, labels=True)))
-        raise LabelsStop([(f"Some labels in {shown_name(name) if given is None else name} aren't "
-                           f"Pass or Fail: {', '.join(shown)}.")],
-                         "say what each one means, then run: "
-                         f"{command(*where, '--label-map', chr(34) + 'WORD=pass,WORD=fail' + chr(34))}")
+        every = sorted({_word(w) for w in words})
+        shown = ", ".join(every[:WORDS_SHOWN]) + (f" and {len(every) - WORDS_SHOWN} more"
+                                                  if len(every) > WORDS_SHOWN else "")
+        so_far = f" Your map so far: `{_map_text(mine)}`." if mine else ""
+        raise LabelsStop([f"Some labels in {name} aren't Pass or Fail: {shown}."],
+                         WORDS_NEXT + so_far)
     return out
+
+
+def _map_text(mine: str | dict) -> str:
+    """The person's --label-map as they would type it."""
+    if isinstance(mine, dict):
+        return ",".join(f"{k}={v}" for k, v in mine.items())
+    return scrub(str(mine).strip())
 
 
 def _word(value) -> str:
@@ -292,8 +314,8 @@ def _word(value) -> str:
 
 # The labels in the results ---------------------------------------------------------------
 
-def in_results(pool, metric: str | None = None,
-               command: Callable[..., str] | None = None) -> list[Label]:
+def in_results(pool, metric: str | None = None, command: Callable[..., str] | None = None,
+               mine: str | dict | None = None) -> list[Label]:
     """The human labels in the results (start.Pool.humans), one per answer and name: on an
     answer that has some named like the judge (`metric`), only those. A LabelsStop when there
     are none, or for a word that isn't Pass or Fail."""
@@ -304,8 +326,7 @@ def in_results(pool, metric: str | None = None,
     if metric is not None:
         named = {key for key, _, name in humans if name == metric}
         humans = [h for h in humans if h[0] not in named or h[2] == metric]
-    read = read_marks([value for _, value, _ in humans], pool.label_map, RESULTS_NAME, None,
-                      command)
+    read = read_marks([value for _, value, _ in humans], pool.label_map, RESULTS_NAME, mine)
     return [Label(mark=mark, key=key) for (key, _, _), mark in zip(humans, read, strict=True)
             if mark is not None]
 
@@ -319,10 +340,21 @@ class Plan:
 
     marks: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
-    matched: int = 0  # labels that found an answer
 
     def skip(self, reason: str, n: int = 1) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + n
+
+
+def _nfc(value):
+    """`value` with its accents written one way (Unicode NFC), to match by: text from a Mac
+    tool may write é as e and an accent. Only for matching; the text kept is as it was."""
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, dict):
+        return {k: _nfc(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_nfc(v) for v in value]
+    return value
 
 
 def _base(answer_id: str) -> str:
@@ -349,37 +381,42 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
     from judgekeeper.check import _candidates, _index, _text
 
     order = [q["id"] for q in queue if q["id"] in pool_rows]
-    answers = [SimpleNamespace(id=i, input=pool_rows[i].get("input"),
-                               output=pool_rows[i].get("output")) for i in order]
+    answers = [SimpleNamespace(id=i, input=_nfc(pool_rows[i].get("input")),
+                               output=_nfc(pool_rows[i].get("output"))) for i in order]
     by_base: dict[str, list] = {}
     by_text: dict[str, list] = {}
     for a in answers:
         by_base.setdefault(_base(a.id), []).append(a)
         by_text.setdefault(_text(a.output), []).append(a)
+    by_id = {_nfc(k): v for k, v in by_base.items()}
     index = _index(answers)
     left = left or {}
     left_keys = set(left)
-    left_text = {_text(r.output) for _, r in left.values()}
+    left_text = {_text(_nfc(r.output)) for _, r in left.values()}
 
     wanted: dict[str, set[str]] = {}
     targets_of: list[tuple[Label, list[str]]] = []
     plan = Plan()
     for label in found_labels:
         hits: list = []
+        if label.mark == ERROR:  # no decision, by the person's map
+            plan.skip(NO_DECISION)
+            continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
             if not hits:
                 plan.skip(NOT_GRADED if label.key in left_keys else NO_MATCH)
                 continue
         else:
-            text = _text(label.output)
+            output, question = _nfc(label.output), _nfc(label.input)
+            text = _text(output)
             if label.id is not None:
                 from judgekeeper.table import sheet_id
 
-                hits = [a for a in by_base.get(sheet_id(label.id), [])
+                hits = [a for a in by_id.get(_nfc(sheet_id(label.id)), [])
                         if not text or _text(a.output) == text]  # an empty cell: not given
-            if not hits and not _blank(label.input):
-                hits = _candidates(index, {"input": label.input, "output": label.output})
+            if not hits and not _blank(question):
+                hits = _candidates(index, {"input": question, "output": output})
             elif not hits:
                 hits = by_text.get(text, []) if text else []
                 if len({_text(a.input) for a in hits}) > 1:
@@ -388,7 +425,6 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
             if not hits:
                 plan.skip(NOT_GRADED if text and text in left_text else NO_MATCH)
                 continue
-        plan.matched += 1
         ids = list(dict.fromkeys(a.id for a in hits))
         targets_of.append((label, ids))
         for i in ids:
@@ -443,25 +479,40 @@ def said(added: Added, plan: Plan, source: str) -> list[str]:
     name = shown_name(source)
     if not added.marks and not added.kept and added.same:  # "Added 0 marks" would say nothing
         out = [f"Nothing new: the labels in {name} are already your marks."]
+    elif not added.marks and added.kept:  # nor here: the Kept line says it
+        out = []
     else:
         out = [(f"Added {plural(added.marks, 'mark', 'marks')} from {name} ({added.passed} "
                 f"Pass, {added.failed} Fail).")]
-    n = sum(plan.skipped.values())
-    if n:
-        out.append(f"Skipped {plural(n, 'label', 'labels')}:")
-        for reason, one, many in SKIPPED:
-            k = plan.skipped.get(reason, 0)
-            if k:
-                out.append("  " + (one if k == 1 else many).format(n=k))
+    out += skipped_lines(plan)
     if added.kept:
         out.append(f"Kept your earlier mark on {plural(added.kept, 'answer', 'answers')} that "
                    f"{name} labels differently.")
     return out
 
 
-def nothing_matched(source: str) -> LabelsStop:
-    return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that the "
-                        "answer text is the same, word for word.")])
+def skipped_lines(plan: Plan) -> list[str]:
+    """"Skipped N labels:" and a line per reason (SKIPPED), indented by two spaces."""
+    n = sum(plan.skipped.values())
+    if not n:
+        return []
+    out = [f"Skipped {plural(n, 'label', 'labels')}:"]
+    for reason, one, many in SKIPPED:
+        k = plan.skipped.get(reason, 0)
+        if k:
+            out.append("  " + (one if k == 1 else many).format(n=k))
+    return out
+
+
+def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
+    """The stop when the plan marks no answer: "No labels ... match" only when every label left
+    out doesn't match; else "Nothing added" and why each was left out."""
+    if plan.marks:
+        return None
+    if set(plan.skipped) <= {NO_MATCH}:
+        return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
+                            "the answer text is the same, word for word.")])
+    return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])
 
 
 # Imported marks against page marks -----------------------------------------------------------
