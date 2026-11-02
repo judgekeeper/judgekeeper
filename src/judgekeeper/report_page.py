@@ -187,12 +187,18 @@ REASONS_SCRIPT = """
         if (open && row && !row.hidden && row.getAttribute("aria-expanded") !== "true") {
           row.click(); }
       });
-      function send() {
+      // A reason picked, or typed and Enter pressed: the box closes, the line shows it.
+      function shut() {
+        add.setAttribute("aria-expanded", "false");
+        document.getElementById(add.getAttribute("aria-controls")).hidden = true;
+        add.focus();
+      }
+      function send(close) {
         clearTimeout(timer); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; line(); return; }
+            if (r.ok) { saved.textContent = "Saved"; line(); if (close) { shut(); } return; }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
@@ -213,7 +219,7 @@ REASONS_SCRIPT = """
       }
       each(box.querySelectorAll("[aria-pressed]"), function (b) {
         b.addEventListener("click", function () {
-          b.setAttribute("aria-pressed", String(!on(b))); send(); });
+          b.setAttribute("aria-pressed", String(!on(b))); send(true); });
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";
@@ -226,7 +232,10 @@ REASONS_SCRIPT = """
         clearTimeout(timer); timer = setTimeout(send, PAUSE);
       });
       input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); if (input.value !== sent) { send(); } }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (input.value !== sent) { send(true); } else { shut(); }
+        }
       });
       input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
       document.addEventListener("selectionchange", function () {
@@ -313,6 +322,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .more:hover { color: var(--text); background: var(--hover); }
 .tbl { margin-top: 28px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
+.tbl.no-reason col.c2 { width: 72%; }
 /* the small labels: the marking page's .label */
 .tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
@@ -412,6 +422,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
+.panel.no-range col.d2 { width: 52%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
 .panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
@@ -461,6 +472,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl colgroup { display: none; }
   .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
     border-bottom: 1px solid var(--line); }
+  .tbl.no-reason tr { grid-template-columns: 28fr 72fr; }
   .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
   .tbl thead th { padding-bottom: 14px; }
   .tbl tbody tr { padding: 22px 0; }
@@ -943,14 +955,17 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           left_out: int = 0, same: tuple = ()) -> str:
+           left_out: int = 0, same: tuple = (), reasons_given: bool = True) -> str:
     """One group of disagreements: its title, how many more are kept aside (`kept`), the
-    table, then "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
+    table (its REASON column only when an answer marked has a reason: `reasons_given`), then
+    "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show all" (SCRIPT) at the right; in report.html the person's
     reasons, read-only."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
+    third = (('<col class="c3">', f'<th scope="col">{REASON}</th>') if reasons_given
+             else ("", ""))  # the REASON column's col and heading
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -964,16 +979,17 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
-                    f'<td colspan="3" class="why-cell">{foot}</td></tr>')
+                    + (f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
+                       if reasons_given else "")
+                    + f'<td colspan="{3 if reasons_given else 2}" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
             f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
-            f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
-            '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
-            f'<th scope="col">Answer</th><th scope="col">{REASON}</th></tr></thead>'
+            f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
+            f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
+            f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table>{more}</section>')
 
 
@@ -1052,14 +1068,15 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
                            f'{_e(WHY_USES)}</p></div>')
             first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
-                              (fixing or {}).get("left_out", 0), names))
+                              (fixing or {}).get("left_out", 0), names,
+                              (fixing or {}).get("reasons_given", True)))
         else:
             left += kept
     if left:
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
     if asked and not live and mark:
-        tell = say_why_run(asked, mark)
+        tell = say_why_run(asked, mark, len(mistakes) - asked)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 
@@ -1085,6 +1102,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
 ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
@@ -1137,16 +1155,25 @@ def _main_lines(r: dict) -> str:
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
+    ranged = shows_range(r)
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
-                   f'<td data-label="Between">{_e(between)}</td></tr>'
-                   for name, est, between in rows)
+                   + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
+                   + "</tr>" for name, est, between in rows)
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
-            f'with you"><table class="panel"><caption>{_caption(r)}</caption>'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(WIDER)}</p>' if shows_range(r) else "")
+            f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
+            f"<tbody>{body}</tbody></table>"
+            + (f'<p class="note wider">{_e(WIDER)}</p>' if ranged else "")
             + "</section>")
+
+
+def _panel_open(ranged: bool, caption: str = "") -> str:
+    """An estimates table's start: its columns and heads, with no Between column when no row
+    has a range (every answer marked)."""
+    return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
+            '<colgroup><col class="d1"><col class="d2">'
+            + ('<col class="d3">' if ranged else "") + "</colgroup>"
+            '<thead><tr><td></td><th scope="col">Estimate</th>'
+            + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
 def _details(r: dict) -> str:
@@ -1159,14 +1186,12 @@ def _details(r: dict) -> str:
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-            f'{shown}</td><td data-label="Between">'
-            f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
+    ranged = lo is not None and hi is not None
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">{shown}</td>'
+            + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
+            + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
-            '</summary><table class="panel">'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table></details>")
+            f"</summary>{_panel_open(ranged)}<tbody>{body}</tbody></table></details>")
 
 
 def _next(r: dict, back: str | None) -> str:
@@ -1205,6 +1230,11 @@ def _next(r: dict, back: str | None) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
+    elif back is not None:  # every answer marked: a mark can still be changed
+        out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                   "it again.</p>")
+    else:
+        out.append(f"<p>To change a mark, run {mark} in your project folder.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
             f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
 

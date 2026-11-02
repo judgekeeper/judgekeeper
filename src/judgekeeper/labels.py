@@ -1,15 +1,15 @@
 """`--labels [FILE]`: Pass/Fail labels people already have, used as their marks.
 
-`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (`output` or
-`answer`), a label column (`label` or `human_label`), and optionally the question (`input` or
-`question`) and an `id`. `--labels` alone uses the labels people gave that are already in the
+`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (any name the
+results reader takes: `output`, `answer`, `response`, ...), a label column (`label` or
+`human_label`), and optionally the question (`input`, `question` or `query`) and an `id`. `--labels` alone uses the labels people gave that are already in the
 results (start.Pool.humans). Asked for every time, never automatic.
 
 A label counts only for an answer the LLM-as-a-judge graded Pass or Fail (the queue in
 start.json), and for each repeat of it. A file's label finds its answer by id (with the same
 answer text), else by the exact answer text (check's normalising: line endings, the space at
 both ends, keys hidden, a spreadsheet's guard quote, accents written either way: Unicode NFC),
-with the question when one is given. Each label becomes one line of marks.jsonl
+with the question when one is given (a question that finds none: by the answer text alone). Each label becomes one line of marks.jsonl
 (marks.imported_line, "by": "file"); an answer that already has a mark keeps it. The words are
 read as grades are (normalise.Normaliser), with the project's label map; a word the person
 mapped to error is no decision, left out and counted; anything else stops before a line is
@@ -23,6 +23,7 @@ warning when p < CHECK_LEVEL in either group (looks_off). Never a stop.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 import unicodedata
@@ -32,14 +33,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from judgekeeper import marks
+from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
-ANSWER_COLUMNS = ("output", "answer")
+ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant can't be told
 QUESTION_COLUMNS = ("input", "question")
+ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
+QUESTION_NAMES = QUESTION_WORDS  # never a prompt: it may hold a whole template
+COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 10
@@ -190,7 +195,7 @@ def _has_results(folder: Path) -> bool:
 
 def _used(column) -> bool:
     """A column read_file may use: an id, question, answer or label."""
-    return str(column).strip().lower() in (*ANSWER_COLUMNS, *QUESTION_COLUMNS, *LABEL_COLUMNS,
+    return str(column).strip().lower() in (*ANSWER_NAMES, *QUESTION_NAMES, *LABEL_COLUMNS,
                                            "id")
 
 
@@ -215,6 +220,27 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
             raise LabelsStop([TWICE.format(file=path.name, kind=kind, a=str(same[0]).strip(),
                                            b=str(same[1]).strip(),
                                            command=command("--labels", given))])
+
+
+NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
+         "human_label).")
+
+
+def _or(words) -> str:
+    return ", ".join(words[:-1]) + f" or {words[-1]}"
+
+
+def _has(path: Path) -> str:
+    """" It has: <its columns>.", the first COLUMNS_SHOWN of them, or "" when none is read."""
+    from judgekeeper.redact import one_line
+    from judgekeeper.table import columns
+
+    names = [one_line(str(c).strip()) for c in columns(path) if str(c).strip()]
+    if not names:
+        return ""
+    more = len(names) - COLUMNS_SHOWN
+    shown = ", ".join(names[:COLUMNS_SHOWN]) + (f" and {more} more" if more > 0 else "")
+    return f" It has: {scrub(shown)}."
 
 
 def read_file(path: Path, label_map: dict | None = None,
@@ -245,11 +271,11 @@ def read_file(path: Path, label_map: dict | None = None,
         raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
     _twice(path, columns, _plain(command))
-    out_col, label_col = _column(columns, ANSWER_COLUMNS), _column(columns, LABEL_COLUMNS)
+    out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
-        raise LabelsStop([(f"{name} needs an answer column (output or answer) and a label column "
-                           "(label or human_label).")])
-    in_col, id_col = _column(columns, QUESTION_COLUMNS), _column(columns, ("id",))
+        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))
+                          + _has(path)])
+    in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)
     if all(mark is None for mark in read):
@@ -395,21 +421,39 @@ def _base(answer_id: str) -> str:
     return head if head and n.isdigit() else answer_id
 
 
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+
+
+def left_kept(left: dict, kept: dict | None = None) -> dict:
+    """The answers the judge gave no clear grade (start.Pool.left), as start.json keeps them
+    with the pool, added to `kept`: their ids, and a short hash of each answer's text
+    (check._text). Later results (a regrade of the marked answers) may not hold them."""
+    from judgekeeper.check import _text
+
+    kept = kept if isinstance(kept, dict) else {}
+    ids = {i for i in kept.get("ids") or [] if isinstance(i, str)} | set(left)
+    texts = {t for t in kept.get("texts") or [] if isinstance(t, str)} | {
+        _digest(_text(_nfc(r.output))) for _, r in left.values()}
+    return {"ids": sorted(ids), "texts": sorted(texts)}
+
+
 def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-          left: dict | None = None) -> Plan:
+          left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue the labels are for (_match), each text made ready for
     matching once (check.texts_once)."""
     from judgekeeper.check import texts_once
 
     with texts_once():
-        return _match(found_labels, pool_rows, queue, left)
+        return _match(found_labels, pool_rows, queue, left, kept)
 
 
 def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-           left: dict | None = None) -> Plan:
+           left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue (`pool_rows`: pool.jsonl by id) the labels are for. `left`:
-    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), to tell
-    those from answers not in the results."""
+    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), and
+    `kept` those start.json keeps (left_kept), to tell them from answers not in the
+    results."""
     from judgekeeper.check import _candidates, _index, _text
 
     order = [q["id"] for q in queue if q["id"] in pool_rows]
@@ -422,9 +466,8 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         by_text.setdefault(_text(a.output), []).append(a)
     by_id = {_nfc(k): v for k, v in by_base.items()}
     index = _index(answers)
-    left = left or {}
-    left_keys = set(left)
-    left_text = {_text(_nfc(r.output)) for _, r in left.values()}
+    left = left_kept(left or {}, kept)
+    left_keys, left_text = set(left["ids"]), set(left["texts"])
 
     wanted: dict[str, set[str]] = {}
     targets_of: list[tuple[Label, list[str]]] = []
@@ -449,13 +492,13 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                         if not text or _text(a.output) == text]  # an empty cell: not given
             if not hits and not _blank(question):
                 hits = _candidates(index, {"input": question, "output": output})
-            elif not hits:
+            if not hits:  # no question, or one that finds no answer: by the text alone
                 hits = by_text.get(text, []) if text else []
                 if len({_text(a.input) for a in hits}) > 1:
                     plan.skip(MORE_THAN_ONE)
                     continue
             if not hits:
-                plan.skip(NOT_GRADED if text and text in left_text else NO_MATCH)
+                plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
                 continue
         ids = list(dict.fromkeys(a.id for a in hits))
         targets_of.append((label, ids))

@@ -51,7 +51,7 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     lines = text.splitlines()
     line = next(n for n, x in enumerate(lines, 1) if x.lstrip().startswith("value:"))
     assert _written(ws) == {
-        "prompts": ["{{answer}}"], "providers": ["echo"], "tests": "file://marked-answers.csv",
+        "prompts": ["{{answer}}"], "providers": ["echo"], "tests": "file://marked-answers.yaml",
         "defaultTest": {"options": {"provider": {"id": "openai:gpt-4.1-mini",
                                                  "config": {"temperature": 0}}},
                         "assert": [{"type": "llm-rubric", "value": RULE}]}}
@@ -63,6 +63,25 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     assert "Next: follow the three steps above." in flat
     assert "judgekeeper's docs/eval-tools.md shows the whole config" not in flat
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
+    # the same answers as the CSV, as promptfoo tests
+    import csv as csv_mod
+
+    with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv_mod.DictReader(f))
+    tests = yaml.safe_load((ws.dir / "fix" / "marked-answers.yaml").read_text(encoding="utf-8"))
+    assert tests == [{"vars": {"question": r["question"], "answer": r["answer"]}} for r in rows]
+
+
+@pytest.mark.parametrize("answer", ["=SUM(A1:A9) is the total.", "+1 for asking", "-",
+                                    "@team will reply", "Plain."])
+def test_the_promptfoo_tests_hold_each_answer_exactly_and_the_csv_guards_it(answer):
+    from judgekeeper.table import guard_cell, unguard_cell
+
+    text = fix.tests_yaml([("What is it?", answer)])
+    assert yaml.safe_load(text) == [{"vars": {"question": "What is it?", "answer": answer}}]
+    assert unguard_cell(guard_cell(answer)) == answer  # the CSV's cell reads back the same
+    if answer[0] in "=+-@":
+        assert guard_cell(answer) == "'" + answer
 
 
 def test_a_rule_with_quotes_colons_and_new_lines_survives(tmp_path):

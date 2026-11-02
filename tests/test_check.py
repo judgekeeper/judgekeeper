@@ -295,6 +295,15 @@ def test_a_model_change_rechecked_free(here, capsys):
     assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
 
 
+def test_worse_on_a_given_file_names_new_results_for_the_next_change(here, capsys):
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    code, out = run(capsys, "results.json")
+    assert code == 1
+    assert _next(out) == ("Next: go back to your old LLM-as-a-judge, or try another change and "
+                          "run `judgekeeper check <new results file>` again.")
+
+
 def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _marked(here)
     _results(here, MARKED, model=HAIKU)

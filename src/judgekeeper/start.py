@@ -198,9 +198,12 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
 def path_word(path: str | Path, kept: bool = False) -> str:
     """The path a command is given, as a printed command repeats it: one typed in full is
     said from here in a terminal (textio.runnable), never the whole path; one kept in a file
-    or on the page (`kept`) is from the project folder already (front._flags_of)."""
+    or on the page (`kept`) is from the project folder already (front._flags_of). One typed
+    from here through a top folder (textio.through_top) is said as a whole one is."""
     if not kept and os.path.isabs(str(path)):
         return textio.runnable(str(path), labels=False)
+    if not kept and textio.through_top(path):
+        return textio.runnable(os.path.abspath(path), labels=False)
     return quote_arg(path, kept)
 
 
