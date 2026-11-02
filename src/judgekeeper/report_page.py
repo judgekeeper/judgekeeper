@@ -422,6 +422,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
+.panel.no-range col.d2 { width: 52%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
 .panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
@@ -1088,7 +1089,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
     if asked and not live and mark:
-        tell = say_why_run(asked, mark)
+        tell = say_why_run(asked, mark, len(mistakes) - asked)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 
@@ -1131,6 +1132,7 @@ def _about(shown: str) -> str:
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
 ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
@@ -1192,16 +1194,25 @@ def _main_lines(r: dict) -> str:
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
+    ranged = shows_range(r)
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
-                   f'<td data-label="Between">{_e(between)}</td></tr>'
-                   for name, est, between in rows)
+                   + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
+                   + "</tr>" for name, est, between in rows)
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
-            f'with you"><table class="panel"><caption>{_caption(r)}</caption>'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(WIDER)}</p>' if shows_range(r) else "")
+            f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
+            f"<tbody>{body}</tbody></table>"
+            + (f'<p class="note wider">{_e(WIDER)}</p>' if ranged else "")
             + "</section>")
+
+
+def _panel_open(ranged: bool, caption: str = "") -> str:
+    """An estimates table's start: its columns and heads, with no Between column when no row
+    has a range (every answer marked)."""
+    return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
+            '<colgroup><col class="d1"><col class="d2">'
+            + ('<col class="d3">' if ranged else "") + "</colgroup>"
+            '<thead><tr><td></td><th scope="col">Estimate</th>'
+            + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
 def _details(r: dict) -> str:
@@ -1215,14 +1226,12 @@ def _details(r: dict) -> str:
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-            f'{shown}</td><td data-label="Between">'
-            f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
+    ranged = lo is not None and hi is not None
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">{shown}</td>'
+            + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
+            + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
-            '</summary><table class="panel">'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table></details>")
+            f"</summary>{_panel_open(ranged)}<tbody>{body}</tbody></table></details>")
 
 
 def _next(r: dict, back: str | None) -> str:
@@ -1261,6 +1270,11 @@ def _next(r: dict, back: str | None) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
+    elif back is not None:  # every answer marked: a mark can still be changed
+        out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                   "it again.</p>")
+    else:
+        out.append(f"<p>To change a mark, run {mark} in your project folder.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
             f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
 

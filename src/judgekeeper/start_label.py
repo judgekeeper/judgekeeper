@@ -106,8 +106,9 @@ FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 WIDER = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
          "You can look after every mark.")
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
-SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}: run `{command}`."
-SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one: run `{command}`."
+SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
+SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
+SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
 SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
@@ -300,6 +301,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     When start.json already holds the same pool (the same answers with the same verdicts),
     its seed and queue are kept, so labeling again carries on where it stopped.
     """
+    from judgekeeper.labels import left_kept
     from judgekeeper.start import StartError
 
     ws = ws or Workspace(found.root)
@@ -357,6 +359,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         **({"label_map": found.label_map} if getattr(found, "label_map", None) else {}),
         "pool": {"answers": len(p.answers), "pass": p.n_pass, "fail": p.n_fail},
         "pool_sha256": pool_sha,
+        "left": left_kept(p.left),  # labels for these: not graded, after a regrade too
         "left_out": {"no_clear_verdict": p.n_unclear, "unmapped_values": p.unmapped,
                      "repeats_merged": p.n_merged, "human_labels_not_used": p.n_human},
         **({"judge_check": found.check.block()} if found.check is not None else {}),
@@ -535,9 +538,12 @@ def _field_order(pair: list[str]) -> tuple[int, int, int]:
     return (1 if len(pair[1]) <= SHORT_FIELD and "\n" not in pair[1] else 2), 0, 0
 
 
-def say_why_run(n: int, command: str) -> str:
-    """The line that asks why, for `n` disagreements: "on this one" for one."""
-    return (SAY_WHY_RUN_ONE if n == 1 else SAY_WHY_RUN).format(n=n, command=command)
+def say_why_run(n: int, command: str, have: int = 0) -> str:
+    """The line that asks why, for `n` disagreements: "on this one" for one; `have`: those
+    listed that already have a reason."""
+    said = SAY_WHY_HAVE.format(k=have, verb="has" if have == 1 else "have") if have else ""
+    return (SAY_WHY_RUN_ONE if n == 1 else SAY_WHY_RUN).format(n=n, command=command,
+                                                               have=said)
 
 
 def question_view(value):
@@ -1304,13 +1310,21 @@ def why_count(ws: Workspace, r: dict) -> int:
     the result `r`: none while it is too early to tell (the page lists none), else the
     mistakes on the marks the person can see (fix.report_section), the hidden marks set
     aside first, with no reason given (fix.without_why)."""
+    return why_counts(ws, r)[0]
+
+
+def why_counts(ws: Workspace, r: dict) -> tuple[int, int]:
+    """(why_count, how many of those listed already have a reason)."""
     from judgekeeper import fix
     from judgekeeper.report_page import shows_disagreements
 
     if not shows_disagreements(r):
-        return 0
+        return 0, 0
     section = fix.prepared_section(ws)
-    return len(fix.without_why(section["mistakes"])) if section else 0
+    if not section:
+        return 0, 0
+    asked = len(fix.without_why(section["mistakes"]))
+    return asked, len(section["mistakes"]) - asked
 
 
 def kept_count(ws: Workspace, r: dict) -> int:
@@ -1379,6 +1393,9 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     return result_html(_scrubbed(_now(ws, r)), back, fixing=fixing)
 
 
+OWN_FILES = ("table", "mapped", "records")  # results in the person's own format
+
+
 def page_template(about: dict | None = None, command: str | None = None,
                   held: list[str] | None = None) -> str:
     """The marking page for a check whose start.json is `about`: its judge's model and tool
@@ -1394,7 +1411,8 @@ def page_template(about: dict | None = None, command: str | None = None,
     return label_page(about.get("description") or about.get("app_version"), command,
                       model=(about.get("fingerprint") or {}).get("model"),
                       tool=tool_name(about.get("tool"), about.get("results_files")),
-                      held=held, metric=about.get("metric"),
+                      held=held, metric=None if about.get("tool") in OWN_FILES
+                      else about.get("metric"),  # an own file's metric is its grade column
                       rule=rule if isinstance(rule, str) else None)
 
 

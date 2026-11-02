@@ -295,6 +295,30 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
                    "note": False, "again": True, "href": "/result?token=t0k"}
 
 
+def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
+    """`mark` with every answer marked: the page opens on a card that says how to change a
+    mark, not on the result; a mark changed from the list then opens the result."""
+    data = _data(3)
+    for item in data["items"]:
+        item["label"] = "pass"
+    data["counts"] = {"correct": 3, "wrong": 0, "skipped": 0}
+    got = _run("""
+      var opened = {end: ids["end"].hidden, title: ids["end-title"].textContent,
+        note: ids["end-note"].textContent, shown: !ids["end-note"].hidden,
+        href: window.location.href};
+      var link = new El("a"); link.setAttribute("data-k", "2");
+      ids["queue"].fire("click", {target: link}); await settle();
+      var picked = ids["ans-status"].textContent;
+      key("ArrowLeft"); await settle(); later(500);
+      console.log(JSON.stringify({opened: opened, picked: picked, sent: sent.map(function (s) {
+        return [s.body.id, s.body.label]; }), href: window.location.href}));""", data=data)
+    assert got == {"opened": {"end": False, "title": "You have marked all 3 answers.",
+                              "note": "To change a mark, click it in the list.", "shown": True,
+                              "href": ""},
+                   "picked": "Marked Pass", "sent": [["a2", "fail"]],
+                   "href": "/result?token=t0k"}
+
+
 def test_end_card_with_no_result_says_what_comes_next():
     """The server says every answer is marked and a kind is still short (status.done): the end
     card says it in the terminal's words, and no result opens."""
