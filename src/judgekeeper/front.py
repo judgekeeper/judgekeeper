@@ -258,9 +258,18 @@ class FrontTalk(start.Talk):
         for n, question in enumerate(self.noted, 1):
             for i, line in enumerate(wrap(question, indent="     ")):
                 self.say(f"  {n}. {line.lstrip()}" if i == 0 else line)
-        yes, again = f"`{self.command('--yes')}`", f"`{self.command()}`"
+        keep = self.labels_flags()  # the answer reads the same labels
+        yes, again = f"`{self.command(*keep, '--yes')}`", f"`{self.command(*keep)}`"
         raise self.stop(EXIT_QUESTION, f"run {again} in a terminal to answer, or {yes} to say "
                                        f"yes{'' if one else ' to all'}.")
+
+    def labels_flags(self) -> tuple[str, ...]:
+        """--labels as it was given, for a command that answers a question about this run."""
+        if self.labels is None:
+            return ()
+        if self.labels == labels_mod.IN_RESULTS:
+            return ("--labels",)
+        return ("--labels", start.path_word(self.labels))
 
     def say(self, text: str = "") -> None:
         if text:  # Find says something: under its step label
@@ -431,7 +440,8 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
             talk.labels_from = marks.FROM_RESULTS
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
-            talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine)
+            talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
+                                                    talk.command)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -1742,8 +1752,10 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
             if not ws.start.is_file():
                 start_label.prepare(found, say=lambda line: None)
+    # first: repair would make it again too, with the old run's flags and without a word
+    again = start_label.recompute_old(ws, flags=_flags_of(talk, saved, ws))  # this run's
     start_label.repair(ws)  # a result whose saving was stopped half way
-    head = [start_label.WORKED_OUT_AGAIN] if start_label.recompute_old(ws) else []
+    head = [start_label.WORKED_OUT_AGAIN] if again else []
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
@@ -1998,7 +2010,7 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         why = why_for(r, key) if every is None else why_no_range(key, every, pool)
         shown, between = estimate(r.get(key), r.get(f"{key}_interval"), why)
-        ranged = ranged or between != "–"
+        ranged = ranged or between != "–" or shown.startswith("about ")  # almost exact too
         value = shown if between == "–" else f"{shown} (between {between})"
         out.append(f"  When you say {said}, it also says {said}: {value}")
     # with no range (every answer marked) the numbers are no estimates
@@ -2082,6 +2094,11 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
+    for line in r.get("written_from") or []:  # as check says it, and the page under its headline
+        if line.startswith("  "):
+            talk.para(line[2:], indent="  ")
+        else:
+            talk.para(line)
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)

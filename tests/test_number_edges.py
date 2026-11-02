@@ -111,3 +111,46 @@ def test_when_the_ends_need_a_decimal_the_value_has_one_too(value, interval, sho
     assert report_page.estimate(value, interval) == (shown, between)
     lo, hi = (float(x.strip("%")) for x in between.split(" and "))
     assert lo <= float(shown.removeprefix("about ").strip("%")) <= hi
+
+
+@pytest.mark.parametrize(("value", "interval", "shown", "between"), [
+    (0.99335, [0.99332, 0.99338], "about 99.33%", "99.33% and 99.34%"),
+    (0.9933, [0.993251, 0.993349], "about 99.3% (almost exact)", "–"),
+    (0.99338, [0.99332, 0.99338], "about 99.34%", "99.33% and 99.34%"),
+])
+def test_ends_that_read_the_same_get_two_decimals_then_no_range(value, interval, shown,
+                                                                between):
+    """Never "between 99.3% and 99.3%": two decimals, and when those read the same too, no
+    range."""
+    assert report_page.estimate(value, interval) == (shown, between)
+
+
+def test_almost_exact_reads_the_same_in_the_terminal(monkeypatch):
+    from judgekeeper import front
+
+    r = {"tpr": 0.9933, "tpr_interval": [0.993251, 0.993349],
+         "tnr": 0.99335, "tnr_interval": [0.99332, 0.99338], "left": 5,
+         "groups": {"pass": {"pool": 60}, "fail": {"pool": 60}}}
+    lines = front.estimate_lines(r)
+    assert "  When you say Pass, it also says Pass: about 99.3% (almost exact)" in lines
+    assert ("  When you say Fail, it also says Fail: about 99.33% "
+            "(between 99.33% and 99.34%)") in lines
+
+
+def test_almost_exact_numbers_are_still_estimates():
+    from judgekeeper import front
+
+    r = {"tpr": 0.9933, "tpr_interval": [0.993251, 0.993349],
+         "tnr": 0.9933, "tnr_interval": [0.993251, 0.993349], "left": 5,
+         "groups": {"pass": {"pool": 60}, "fail": {"pool": 60}}}
+    assert front.estimate_lines(r)[0] == front.AGREES
+
+
+def test_almost_exact_reads_the_same_on_the_result_page():
+    r = {"tpr": 0.9933, "tpr_interval": [0.993251, 0.993349],
+         "tnr": 0.99335, "tnr_interval": [0.99332, 0.99338], "left": 5,
+         "labels": {"correct": 300, "wrong": 300},
+         "groups": {"pass": {"pool": 600}, "fail": {"pool": 600}}}
+    html = report_page._main_lines(r)
+    assert '<td data-label="Estimate">about 99.3% (almost exact)</td>' in html, html
+    assert '<td data-label="Between">99.33% and 99.34%</td>' in html, html

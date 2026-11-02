@@ -754,6 +754,32 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
               for k in ("tpr", "tnr"))]
 
 
+def written_from_lines(ws: Workspace) -> list[str]:
+    """What `check` says under its result after it took on a rule (or pass mark) `fix` tested
+    on these marks: WRITTEN_FROM, then the new judge on the marks made since (_after_lines),
+    worked out from the marks as they are now. [] when the judge now is not one such check
+    took on. The result page, report.html and Measure say it under the verdict."""
+    saved = judge_setup.read(ws)
+    now = saved.get("setup_hash") if isinstance(saved, dict) else None
+    checks = _history(ws)
+    took = [x for x in checks if x.get("from_fix") and isinstance(x.get("after"), dict)
+            and judge_setup.hash_of(x["after"]) == now]
+    if now is None or not took:
+        return []
+    pair = (judge_setup.hash_of(took[-1].get("before") or {}), now)
+    since = min(str(x.get("time") or "") for x in checks
+                if (judge_setup.hash_of(x.get("before") or {}),
+                    judge_setup.hash_of(x.get("after") or {})) == pair)
+    data = ws.data()
+    m = marks.read(ws.marks)
+    marked = {i: v for i, v in m.counted().items() if v in ("pass", "fail")}
+    tested = {q["id"]: q["group"] for q in data.get("queue") or [] if q["id"] in marked}
+    fresh = {i: marked[i] for i in tested
+             if str((m.last.get(i) or {}).get("at") or "") > since}
+    picked, pool = batches.strata(data)
+    return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool, every=every_marked(ws))]
+
+
 def outcome(g: dict) -> str | None:
     """The check's one result from the groups' verdicts: worse if either group is, else not
     sure if either is, else no drop bigger than NO_DROP; None when no group could be tested."""
@@ -820,7 +846,7 @@ def expect_lines(g: dict) -> list[str]:
 def _say_result(said: Said, g: dict) -> None:
     kind = outcome(g)
     if kind:
-        said.say(RESULT[kind])
+        said.para(RESULT[kind])
         said.say()
 
 
@@ -830,7 +856,7 @@ def _say_table(said: Said, g: dict) -> None:
     said.say()
     lines = expect_lines(g)
     for line in lines:
-        said.say(line)
+        said.para(line)
     if lines:
         said.say()
 
@@ -939,6 +965,23 @@ class Said:
             for line in wrap(text.strip(), indent=indent):
                 self._say(line)
         for line in held_lines(text):  # a name left out of the command above, as data
+            self._say(one_line(line))
+
+    def para(self, text: str) -> None:
+        """A line of judgekeeper's own words, wrapped at the width of the rest (textio.wrap)
+        under its own indent, however long it is."""
+        text = one_line(text)
+        indent = text[:len(text) - len(text.lstrip())]
+        for line in wrap(text.strip(), indent=indent):
+            self._say(line)
+        for line in held_lines(text):
+            self._say(one_line(line))
+
+    def as_is(self, text: str) -> None:
+        """A line said as plain `judgekeeper` says it: never wrapped."""
+        text = one_line(text)
+        self._say(text)
+        for line in held_lines(text):
             self._say(one_line(line))
 
     def _say(self, line: str) -> None:
@@ -1560,7 +1603,7 @@ def full(path: str, said: Said) -> int:
         return EXIT_NEEDS_YOU
     if isinstance(problem, FolderChoice):  # as plain `judgekeeper` says it, with check's commands
         for line in problem.lines:
-            said.say(line)
+            said.as_is(line)
         said.say()
         said.say(problem.next_step)
         return EXIT_NEEDS_YOU
@@ -1686,7 +1729,7 @@ def full(path: str, said: Said) -> int:
             said.say(WRITTEN_FROM)
             for line in _after_lines(fresh, tested, picked, pool,
                                      every=every_marked(state.ws)):
-                said.say(line)
+                said.para(line)
             said.say()
     left = sum(i in state.marks and i not in old_verdicts for i in tested)
     if left:  # graded before the last check took on the old judge (_adopt)
@@ -1873,11 +1916,16 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        said.say(GRADE_MARKED if c else GRADE_SAME)
-        if _say_steps(said, state):  # a ready config: change the grader in it
+        steps = _steps(state)
+        if steps:  # a ready config: change the grader in it
+            said.say(GRADE_MARKED if c else GRADE_SAME)
+            for line in steps.split("\n"):
+                said.say(line)
             said.say()
             said.say("Next: " + fix.FOLLOW_STEPS)
-        else:  # new answers can't be compared
+        else:  # new answers can't be compared; the Next line says how to grade them
+            if c:
+                said.say(WROTE_NEW)
             said.say("Next: " + regrade_marked(state, every=True))
     return few
 

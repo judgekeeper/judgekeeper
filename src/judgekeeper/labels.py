@@ -34,7 +34,7 @@ from types import SimpleNamespace
 from judgekeeper import marks
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
-from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, runnable
+from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
@@ -200,10 +200,29 @@ def _column(columns, wanted: tuple[str, ...]) -> str | None:
     return next((plain[w] for w in wanted if w in plain), None)
 
 
+TWICE = "{file} has two {kind} columns ({a} and {b}). Keep one, then run: `{command}`"
+
+
+def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
+    """A LabelsStop when two columns mean the same thing (`label` and `Label`, `output` and
+    `answer`): which one is meant can't be told."""
+    for kind, wanted in (("label", LABEL_COLUMNS), ("answer", ANSWER_COLUMNS),
+                         ("question", QUESTION_COLUMNS), ("id", ("id",))):
+        same = [c for c in columns if str(c).strip().lower() in wanted]
+        if len(same) > 1:
+            given = (runnable(str(path), labels=True) if str(path.parent) != "."
+                     else quote_arg(path.name))
+            raise LabelsStop([TWICE.format(file=path.name, kind=kind, a=str(same[0]).strip(),
+                                           b=str(same[1]).strip(),
+                                           command=command("--labels", given))])
+
+
 def read_file(path: Path, label_map: dict | None = None,
-              mine: str | dict | None = None) -> list[Label]:
+              mine: str | dict | None = None,
+              command: Callable[..., str] | None = None) -> list[Label]:
     """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
-    the columns, has no label in any cell, or holds a number or a word that isn't Pass or Fail
+    the columns, has two columns for the same thing (_twice; `command`: the command run),
+    has no label in any cell, or holds a number or a word that isn't Pass or Fail
     (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
     word."""
     from judgekeeper import find
@@ -225,6 +244,7 @@ def read_file(path: Path, label_map: dict | None = None,
     if not rows:
         raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
+    _twice(path, columns, _plain(command))
     out_col, label_col = _column(columns, ANSWER_COLUMNS), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
         raise LabelsStop([(f"{name} needs an answer column (output or answer) and a label column "
@@ -256,10 +276,23 @@ def _blank(value) -> bool:
     return value is None or isinstance(value, str) and not value.strip()
 
 
+def _one_or_zero(value):
+    """A number equal to 1 or 0 (`1.0`, `0.0`, as a spreadsheet or pandas writes them) as
+    "1" or "0"; any other value as it is."""
+    if isinstance(value, bool) or not _numeric(value):
+        return value
+    try:
+        number = float(str(value).strip())
+    except ValueError:
+        return value
+    return "1" if number == 1 else "0" if number == 0 else value
+
+
 def read_marks(values: list, label_map: dict | None, name: str,
                mine: str | dict | None = None) -> list[str | None]:
     """Each value as "pass" or "fail" (None when blank), read with `label_map` (the
-    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0), or "error"
+    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0, a number
+    equal to 1 or 0 too), or "error"
     for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
     than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
     says how to map them (never a command with guessed values: it would be copied)."""
@@ -273,7 +306,7 @@ def read_marks(values: list, label_map: dict | None, name: str,
             out.append(None)
             continue
         try:
-            verdict = norm(value).verdict
+            verdict = norm(_one_or_zero(value)).verdict
         except UnmappedValue:
             verdict = None
         if verdict in ("pass", "fail"):

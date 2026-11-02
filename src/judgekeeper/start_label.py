@@ -637,7 +637,8 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
 
 def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
     """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
-    verdict still needs to check them (labels.still_needed), and the group where they don't
+    verdict still needs to check them (labels.still_needed: from the answers left in the
+    batches the result is on), and the group where they don't
     look like the page marks (labels.looks_off): (None, 0, None) without any."""
     from judgekeeper import labels as labels_mod
 
@@ -647,8 +648,10 @@ def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
-    left = {g: sum(q["group"] == g and q["id"] not in counted for q in data["queue"])
-            for g in ("pass", "fail")}
+    batch = batches.of(data)  # left to mark: only in the batches the result is on
+    on = set(batches.counting(data, {i: counted[i] for i in ids if i in counted}))
+    left = {g: sum(q["group"] == g and q["id"] not in counted and batch.get(q["id"], 1) in on
+                   for q in data["queue"]) for g in ("pass", "fail")}
     needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
     return imported, needed, labels_mod.looks_off(counts)
 
@@ -1348,9 +1351,13 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     """The result page the marking page serves at /result: the result from the marks so far,
     with the reason boxes. `flags`: start.run_flags of the run that opened the page.
     While .judgekeeper/ can't be written, the result from the marks, not saved, and no
-    disagreement listed: the hidden marks can't be set aside first."""
+    disagreement listed: the hidden marks can't be set aside first. Before there is a result,
+    nothing is written, as in the terminal: the page shows the numbers so far. A saved result
+    is written again (a mark taken back since), so no file keeps the old one."""
+    ready = (has_result(batches.counted_strata(ws.data(), session.marked()))
+             or ws.result_json.is_file())
     try:
-        r = store_result(ws, session, flags)
+        r = store_result(ws, session, flags) if ready else _made(ws, session, flags)
     except OSError:
         r = _made(ws, session, flags)
     try:
@@ -1445,6 +1452,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
+    from judgekeeper import fix
+
+    r["fix_ready"] = fix.can_run(ws)  # "What next" asks for marks until `fix` can run
     imported, needed, off = import_check(m, data, set(labels))  # only the marks it counts
     if imported:
         r["imported"] = imported
@@ -1458,6 +1468,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     from judgekeeper import check
 
     r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
+    written = check.written_from_lines(ws)  # a rule check took on was written from these marks
+    if written:
+        r["written_from"] = written
     return r
 
 
@@ -1485,10 +1498,11 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
         saved.get("numbers_version") == NUMBERS_VERSION else None
 
 
-def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
+def recompute_old(ws: Workspace, worse: str | None = None, flags: dict | None = None) -> bool:
     """When result.json was worked out another way (NUMBERS_VERSION): the result made again
     from start.json and the marks, with no AI call, the old one copied to history/. Whether it
-    was. A result that can't be made again is left as it was saved."""
+    was. A result that can't be made again is left as it was saved. `flags`: those of the run
+    that makes it again (start.run_flags), kept in it; else the old result's."""
     try:
         saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1497,7 +1511,8 @@ def recompute_old(ws: Workspace, worse: str | None = None) -> bool:
             saved.get("numbers_version") == NUMBERS_VERSION:
         return False
     try:
-        store_result(ws, StartSession(ws), saved.get("flags"), worse=worse)
+        store_result(ws, StartSession(ws), saved.get("flags") if flags is None else flags,
+                     worse=worse)
     except (OSError, ValueError, KeyError, TypeError, marks.MarksError):
         return False
     return True
