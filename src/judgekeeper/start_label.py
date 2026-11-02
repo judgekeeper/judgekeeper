@@ -1288,7 +1288,7 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
         plain = textio.program()
         if worse and typed != plain:  # made for the terminal too (check.worse_step)
             worse = worse.replace(f"{typed} ", f"{plain} ")
-        return visible(page(r, back, fixing, worse, last))
+        return visible(page(r, back, fixing, worse, last, started_else=typed != plain))
 
 
 def _fixing(ws: Workspace, r: dict) -> dict | None:

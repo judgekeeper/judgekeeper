@@ -71,3 +71,50 @@ def test_a_python_that_imports_another_judgekeeper_is_never_named(ours, monkeypa
     monkeypatch.setattr(sys, "argv", [str(ours)])
     monkeypatch.setattr(textio, "_imports", {})
     assert textio.program("fix") == "../tools/.venv/bin/judgekeeper fix"
+
+
+STARTED_ELSE = ("These commands start with judgekeeper. If you start judgekeeper another way, "
+                "start it that way.")
+
+
+def _report(capsys, folder: Path) -> str:
+    """report.html's text after a run of Measure on a promptfoo project with 40 marks."""
+    import html
+    import re
+
+    from judgekeeper.start_label import Workspace
+    from tests.test_earlier_grades import FIRST, N, _mark
+    from tests.test_fix import closed
+    from tests.test_flow_across_runs import _jk, _rubric
+
+    (folder / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _rubric(folder, [i < 30 for i in range(N)], "V1 rule.")
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(folder)
+    closed(ws)
+    _mark(ws, FIRST)
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    assert code == 0, out
+    page = ws.report_html.read_text(encoding="utf-8")
+    assert "tools" not in page and ".venv" not in page  # never a path in the file
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", page)).split())
+
+
+def test_report_html_says_how_to_start_it_when_it_was_started_another_way(ours, capsys):
+    text = _report(capsys, Path.cwd())
+    assert "run judgekeeper mark" in text or "Run judgekeeper mark" in text, text
+    assert STARTED_ELSE in text, text
+
+
+def test_report_html_says_nothing_more_when_started_as_judgekeeper(ours, monkeypatch, capsys):
+    monkeypatch.setenv("PATH", f"{ours.parent}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(sys, "argv", [str(ours)])
+    assert textio.program() == "judgekeeper"
+    assert STARTED_ELSE not in _report(capsys, Path.cwd())
+
+
+def test_report_html_says_nothing_more_when_started_by_uvx(ours, monkeypatch, capsys):
+    monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
+    monkeypatch.setattr(textio, "extras_here", lambda: ())
+    assert textio.program() == "uvx judgekeeper"
+    assert STARTED_ELSE not in _report(capsys, Path.cwd())

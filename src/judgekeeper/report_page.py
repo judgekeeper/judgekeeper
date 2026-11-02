@@ -1299,13 +1299,19 @@ def _last_check(last: dict | None, worse: str) -> str:
             f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
+STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "
+                "start it that way.")
+
+
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
-         worse: str | None = None, last: dict | None = None) -> str:
+         worse: str | None = None, last: dict | None = None, started_else: bool = False) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of What next; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
-    copy keeps it too."""
+    and of What next; `last`: that check (check.last_check), said at the top;
+    `started_else`: report.html of a run not started as its commands name the program
+    (STARTED_ELSE under them). The page carries its Content-Security-Policy in a meta tag, so
+    the saved copy keeps it too."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -1327,6 +1333,9 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     if not worse:
         parts.append(_next(r, back))
     parts.append(held_note(r, "".join(parts)))
+    if started_else:
+        note = _e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>")
+        parts.append(f'<div class="band"><p class="note">{note}</p></div>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
     if live and 'class="why"' in "".join(parts):
