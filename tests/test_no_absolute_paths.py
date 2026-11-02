@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -365,3 +366,19 @@ def test_the_file_line_from_the_top_folder_names_no_user(home, tmp_path, monkeyp
     shown = front._read_from(found)
     assert USER not in shown and shown.endswith("results.csv"), shown
     assert shown == textio._home_shown("ext/results.csv")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a POSIX path can't be faked on Windows")
+def test_on_macos_paths_sharing_only_private_are_named_in_full(monkeypatch):
+    """/tmp and /var are /private/tmp and /private/var on macOS: two paths that share only
+    /private are named as when they share only `/`, never by climbing to it."""
+    from judgekeeper import textio
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    proj = "/private/var/folders/xy/T/pytest-1/proj"
+    monkeypatch.setattr(textio.os, "getcwd", lambda: proj)
+    python = "/private/tmp/jk-kit/venv/bin/python"
+    assert textio.command_path(python) == python
+    assert textio.kept_path("/private/tmp/jk-kit/new.csv", proj) == "new.csv"
+    assert textio.kept_path(proj + "/data/new.csv", proj) == "data/new.csv"
+    assert textio.kept_path("/private/var/folders/xy/T/new.csv", proj) == "../../new.csv"

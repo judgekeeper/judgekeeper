@@ -412,11 +412,7 @@ def test_the_inspect_regrade_lines_keep_the_log_folder_after_a_check(here, capsy
     capsys.readouterr()
     assert fix.new_log(ws) == "logs/new.eval"
 
-    class Talk:
-        def command(self, *_):
-            return "judgekeeper fix"
-
-    line = fix._regrade_same(Talk(), ws)
+    line = fix._regrade_same(fix.Talk("."), ws)
     assert "`--output-file logs/new.eval`" in line and "fix logs/new.eval" in line, line
 
 

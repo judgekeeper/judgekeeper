@@ -97,8 +97,7 @@ MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no
                 "your new rule{why}: more than half, too many to test it on.")
 COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
            "counted {them}.")
-REGRADE_SAME = ("grade every answer in {answers} again with your new rule, then run "
-                f"`{{command}} {NEW_RESULTS}`.")
+REGRADE_SAME = "grade every answer in {answers} again with your new rule, then {run}."
 REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
            "answers kept aside your new results lack.")
 NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
@@ -109,7 +108,7 @@ EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a
 TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} answers kept aside it had "
         "not graded yet: judgekeeper keeps them as its grades.")
 NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge as it is now, "
-                "run `{command} <those results>` so judgekeeper has its grades, then test your "
+                "{run} so judgekeeper has its grades, then test your "
                 "new rule.")
 UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade the old one "
              "gave, so it changes nothing there to test.")
@@ -145,12 +144,12 @@ OWN = f"Grade {ANSWERS} with your own code."
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
                  "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
-                 "3. Then: `{command} {new}`")
+                 "3. Then{where}: `{command} {after}`")
 FOLLOW_STEPS = "follow the three steps above."
 NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}; {answers} has only question and answer."
 NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
 RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
-                f"new grades, then run `{{command}} {NEW_RECORDS}`.")
+                "new grades, then {run}.")
 SAME_SHAPE = (f"Grade {ANSWERS} with your own code, and save the new grades in the same shape "
               "as {file}.")
 TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
@@ -1021,6 +1020,20 @@ class Talk:
         return " ".join((program(subcommand), *([] if self.path == "." else
                                                 [path_word(self.path)])))
 
+    def away(self) -> bool:
+        """Whether it was given a project folder other than the folder it runs in."""
+        try:
+            return self.path != "." and Path(self.path).resolve() != Path.cwd().resolve()
+        except OSError:
+            return True
+
+    def run(self, file: str, subcommand: str = "fix") -> str:
+        """"run `judgekeeper fix FILE`": it takes one path, so never the project folder too;
+        "in your project folder, run ..." when it was given one from elsewhere (FILE is
+        named from there)."""
+        where = "in your project folder, " if self.away() else ""
+        return f"{where}run `{program(subcommand)} {file}`"
+
     def next(self, text: str) -> None:
         self.say()
         self.para(f"Next: {text}")
@@ -1261,9 +1274,10 @@ def answer_text(value) -> str:
     return scrub(display(value))
 
 
-def mlflow_store(ws: Workspace) -> str | None:
-    """The MLflow store the marks were made on, as a path from where the command runs (the
-    new grades are a new run in it), or None for another eval tool."""
+def mlflow_store(ws: Workspace, here: bool = True) -> str | None:
+    """The MLflow store the marks were made on, as a path from where the command runs (not
+    `here`: from the project folder; the new grades are a new run in it), or None for
+    another eval tool."""
     import os
 
     try:
@@ -1273,6 +1287,8 @@ def mlflow_store(ws: Workspace) -> str | None:
     store = data.get("mlflow_store") if data.get("tool") == "mlflow" else None
     if not isinstance(store, str) or not store:
         return None
+    if not here:
+        return quote_arg(store)
     try:
         return quote_arg(Path(os.path.relpath(ws.root / store)).as_posix())
     except ValueError:  # another drive on Windows
@@ -1288,10 +1304,10 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     """The next step when answers kept aside are missing from the new results: Inspect AI
     scores its log again, MLflow makes a new run in its store, others grade
     marked-answers.csv."""
-    store = mlflow_store(ws)
+    store = mlflow_store(ws, here=not talk.away())
     if store:
-        return (f"run your new scorer on all the traces again, then run "
-                f"`{talk.command()} {store}`: it reads the newest run.")
+        return (f"run your new scorer on all the traces again, then {talk.run(store)}: it "
+                f"reads the newest run.")
     try:
         tool = ws.cached_data().get("tool")
     except (OSError, ValueError, AttributeError):
@@ -1299,8 +1315,8 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     if tool == "inspect":  # the log itself is scored again
         log = quote_arg(new_log(ws))
         return (f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
-                f"`--output-file {log}`, then run `{talk.command()} {log}`.")
-    return REGRADE_SAME.format(answers=_file(ws, ANSWERS), command=talk.command())
+                f"`--output-file {log}`, then {talk.run(log)}.")
+    return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
 
 
 def _yaml_string(text) -> str:
@@ -1476,18 +1492,23 @@ def promptfoo_regrade(ws: Workspace) -> Path | None:
     return path if _line_of(path, "value") else None
 
 
-def regrade_steps(ws: Workspace, command: str, what: str = "rule") -> str | None:
+def regrade_steps(ws: Workspace, command: str, what: str = "rule",
+                  away: bool = False) -> str | None:
     """The three steps that grade the marked answers again with promptfoo, `what` ("rule" or
-    "grader") changed in regrade.yaml first, then `command` run on the new results. None when
-    there is no regrade.yaml to point at (today's text stays)."""
+    "grader") changed in regrade.yaml first, then `command` run on the new results (`away`:
+    in the project folder, given from elsewhere). None when there is no regrade.yaml to
+    point at (today's text stays)."""
     path = promptfoo_regrade(ws)
     line = path and _line_of(path, "value" if what == "rule" else "provider")
     if not line:
         return None
     shown = f"{shown_folder(ws)}/{FOLDER}"
+    new = quote_arg(f"{shown}/{NEW_JSON}")
     return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line,
-                                config=quote_arg(f"{shown}/{REGRADE_FILE}"),
-                                new=quote_arg(f"{shown}/{NEW_JSON}"), command=command)
+                                config=quote_arg(f"{shown}/{REGRADE_FILE}"), new=new,
+                                where=", in your project folder" if away else "",
+                                after=quote_arg(f"{ws.dir.name}/{FOLDER}/{NEW_JSON}") if away
+                                else new, command=command)
 
 
 def not_a_column(ws: Workspace) -> list[str]:
@@ -1502,12 +1523,13 @@ def not_a_column(ws: Workspace) -> list[str]:
             if n not in ANSWER_COLUMNS]
 
 
-def regrade_line(tool: str | None, command: str = "judgekeeper fix",
+def regrade_line(tool: str | None, run: str = f"run `judgekeeper fix {NEW_RECORDS}`",
                  file: str | None = None) -> str:
-    """How to grade the marked answers again with the person's own eval tool; for a format
-    of its own, `file` is the results file read at the start."""
+    """How to grade the marked answers again with the person's own eval tool (`run`: the
+    step that gives `fix` the new records, Talk.run); for a format of its own, `file` is the
+    results file read at the start."""
     if tool == "records":
-        return RECORD_AGAIN.format(command=command)
+        return RECORD_AGAIN.format(run=run)
     if tool == "mapped" and file:
         return SAME_SHAPE.format(file=file)
     return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
@@ -1549,8 +1571,9 @@ def new_log(ws: Workspace) -> str:
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     """The per-tool line and the Next: line after marked-answers.csv is written."""
     talk.say()
-    steps = regrade_steps(ws, talk.command()) if tool == "promptfoo" else None
-    talk.para(steps or regrade_line(tool, talk.command(), _first_file(ws)))
+    steps = (regrade_steps(ws, program("fix"), away=talk.away()) if tool == "promptfoo"
+             else None)
+    talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws)))
     if steps:  # a ready config: the steps above are the whole way
         for line in not_a_column(ws):
             talk.para(line)
@@ -1559,22 +1582,20 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
         talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
-                  f"then run `{talk.command()} {log}`.")
+                  f"then {talk.run(log)}.")
         return
-    store = mlflow_store(ws) if tool == "mlflow" else None
+    store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
     if store:  # a new run in the same store
         talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
-                  f"same traces, then run `{talk.command()} {store}`: it reads the newest run.")
+                  f"same traces, then {talk.run(store)}: it reads the newest run.")
         return
     if tool in ("records", "mapped"):  # graded with their own code, as said above
         new = NEW_RECORDS if tool == "records" else NEW_RESULTS
         talk.next(f"change your LLM-as-a-judge's rule, grade the answers in "
-                  f"{_file(ws, ANSWERS)} again as said above, then run "
-                  f"`{talk.command()} {new}`.")
+                  f"{_file(ws, ANSWERS)} again as said above, then {talk.run(new)}.")
         return
     talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
-              f"{_file(ws, ANSWERS)} again, save the results, then run "
-              f"`{talk.command()} {NEW_RESULTS}`.")
+              f"{_file(ws, ANSWERS)} again, save the results, then {talk.run(NEW_RESULTS)}.")
 
 
 def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
@@ -1600,12 +1621,11 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if data.get("tool") == "inspect":  # the log itself is scored again
             log = quote_arg(new_log(ws))
             talk.next(f"nothing to fix. To test another rule anyway, score your log again "
-                      f"with it: run `{INSPECT_SCORE}` with `--output-file {log}`, then run "
-                      f"`{talk.command()} {log}`.")
+                      f"with it: run `{INSPECT_SCORE}` with `--output-file {log}`, then "
+                      f"{talk.run(log)}.")
             return EXIT_OK
         talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "
-                  f"{_file(ws, ANSWERS)} again with it, then run "
-                  f"`{talk.command()} {NEW_RESULTS}`.")
+                  f"{_file(ws, ANSWERS)} again with it, then {talk.run(NEW_RESULTS)}.")
         return EXIT_OK
     found = [[line] for line in reasons.clue_lines(wrong)] + patterns(seen_rows, mark)
     if found:
@@ -1697,7 +1717,7 @@ def _given(talk: Talk, state, m: Marks, path: Path):
                       f"name {scrub(m.data.get('metric') or '')!r}, the one your marks test, "
                       f"then run `{talk.command()} {runnable(str(path), labels=False)}`.")
         elif tool == "records":
-            again = RECORD_AGAIN.format(command=talk.command())
+            again = RECORD_AGAIN.format(run=talk.run(NEW_RECORDS))
             talk.next(again[0].lower() + again[1:])
         else:
             talk.next(f"give `{talk.command()}` the results of grading "
@@ -1766,7 +1786,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
         ids = [i for i in ids if i not in left]
         blank = [i for i in blank if i not in left]
         if not ids and not blank:
-            talk.next(NEXT_EARLIER.format(answers=_file(ws, ANSWERS), command=talk.command()))
+            talk.next(NEXT_EARLIER.format(answers=_file(ws, ANSWERS),
+                                          run=talk.run("<those results>")))
             return EXIT_NEEDS_YOU
     # nothing changed: nothing to tell apart. An answer with no grade is a change: counted
     if not blank and ids and all(new[i] == old.get(i) for i in ids):

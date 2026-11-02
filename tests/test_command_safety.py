@@ -158,15 +158,19 @@ def test_python_p_m_is_kept_in_the_next_line(tmp_path):
 
 def _from(folder, path) -> str:
     """`path` as a program run from `folder`, quoted: relative when they share a folder below
-    the top; else `~/...` under the home folder (not on Windows); else as it is."""
+    the top (on macOS /private too) and below the home folder's parents; else `~/...` under
+    the home folder (not on Windows); else as it is."""
     folder, path = os.path.realpath(folder), str(path)
     try:
         shared = os.path.commonpath([folder, path])
     except ValueError:  # another drive
         return textio.quote_arg(path)
-    if os.path.dirname(shared) != shared:
-        return textio.quote_arg(os.path.relpath(path, folder))
     home = os.path.realpath(os.path.expanduser("~"))
+    top = os.path.dirname(shared) == shared or (sys.platform == "darwin"
+                                                and shared == "/private")
+    above_home = home != shared and os.path.commonpath([home, shared]) == shared
+    if not (top or above_home):
+        return textio.quote_arg(os.path.relpath(path, folder))
     if sys.platform != "win32" and path.startswith(home + os.sep):
         return "~/" + textio.quote_arg(path[len(home) + 1:])
     return textio.quote_arg(path)

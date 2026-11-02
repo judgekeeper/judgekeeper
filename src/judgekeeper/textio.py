@@ -138,7 +138,8 @@ def _started_as_judgekeeper() -> bool:
 
 def command_path(path: str) -> str:
     """`path` as a program to run from this folder, quoted: relative when the two share a
-    folder below the top, with a folder in it so the shell never looks it up on the PATH;
+    folder below the top and the home folder's parents (shares_below_home), with a folder in
+    it so the shell never looks it up on the PATH;
     else under the home folder as `~/...`: never the user name; else, or on another drive,
     the path as it is. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it): the
     shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path as
@@ -159,7 +160,7 @@ def command_path(path: str) -> str:
         return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
     if shared is None:
         return quote_arg(path)
-    if os.path.dirname(shared) != shared:  # more than the top in common: from here
+    if shares_below_home(shared):  # more than the top in common: from here
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
@@ -751,11 +752,17 @@ def from_here(value: str, labels: bool, command: bool = False) -> str:
     return ANOTHER_DRIVE[0 if labels else 1]
 
 
+def _is_top(folder: str) -> bool:
+    """`/`, a drive, or on macOS /private (where /tmp, /var and /etc really are)."""
+    return os.path.dirname(folder) == folder or (sys.platform == "darwin"
+                                                 and folder == "/private")
+
+
 def shares_below_home(shared: str) -> bool:
     """Whether two paths whose deepest shared folder is `shared` may be named one from the
-    other: `shared` is neither a top folder (`/`, a drive) nor a folder above the home folder,
-    so the climb names neither the whole path nor the user name."""
-    if os.path.dirname(shared) == shared:
+    other: `shared` is neither a top folder (_is_top) nor a folder above the home folder, so
+    the climb names neither the whole path nor the user name, and stays short."""
+    if _is_top(shared):
         return False
     try:
         home = os.path.realpath(Path.home())
