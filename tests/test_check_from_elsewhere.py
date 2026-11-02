@@ -133,3 +133,22 @@ def test_check_steps_from_the_folder_above_name_the_program_from_the_project(hom
     fresh = _commands(out[out.rindex("Next: "):])[-1]
     assert shlex.split(fresh)[1:] == ["--new", "support-bot"], fresh
     assert _program_in(fresh, proj.parent, home) == tool, fresh
+
+
+@pytest.mark.parametrize("where", ["root", "above", "far"])
+def test_mistakes_md_names_the_program_plainly(home, monkeypatch, capsys, where):
+    """mistakes.md is a file in .judgekeeper/: it names `judgekeeper check`, never a path."""
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    _worse_project(proj, monkeypatch, capsys)
+    away = {"root": Path("/"), "above": proj.parent, "far": home.parent.parent}[where]
+    monkeypatch.chdir(away)
+    _started(monkeypatch, home)
+    given = str(proj) if where == "root" else os.path.relpath(proj, away)
+    code, out = _run(capsys, "check", given)
+    assert code == 1 and "Worse" in out, out
+    code, out = _run(capsys, "fix", given)
+    assert code == 0, out
+    text = (proj / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert "`judgekeeper check` found it worse" in text, text
+    for part in ("/", "venv", "~"):
+        assert part not in text, part
