@@ -836,8 +836,8 @@ __TOP__
       if (items[k].again !== slot) { continue; }
       items.splice(k, 1); total -= 1;
       if (k < pos) { pos -= 1; }
-      history = history.filter(function (h) { return h !== k; })
-        .map(function (h) { return h > k ? h - 1 : h; });
+      history = history.filter(function (h) { return h.pos !== k; })
+        .map(function (h) { return h.pos > k ? {pos: h.pos - 1, was: h.was} : h; });
     }
   }
 
@@ -918,28 +918,32 @@ __TOP__
     if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
-    if (it.label) { changing = true; }  // a mark changed: the result doesn't open by itself
+    var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
+    if (was) { changing = true; }
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos);
+      it.label = value; it.skipped = false; history.push({pos: pos, was: was});
       hear(heard); next(); focusCard(); }, heard);
   }
 
   function skip(key) {
     if (ended || fresh() || locked(key)) { return; }
-    var it = items[pos];
+    var it = items[pos], was = it.label;
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos);
+      it.label = null; it.skipped = true; history.push({pos: pos, was: was});
       hear("Skipped."); next(); focusCard(); }, "Skipped.");
   }
 
+  // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
+  // ordinary mark line in marks.jsonl, so every step stays there).
   function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     var back = history.pop();
-    walkingSkipped = false; open(back);
+    walkingSkipped = false; open(back.pos);
     var it = items[pos];
-    send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); }, "Undone.");
+    send({label: back.was, deferred: false}, function () {
+      it.label = back.was; it.skipped = false; hear("Undone."); render(); focusCard(); },
+      "Undone.");
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.

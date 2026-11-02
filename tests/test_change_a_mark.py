@@ -112,3 +112,35 @@ def test_mark_at_the_result_page_says_how_to_change_a_mark(here, capsys, pages, 
     flat = " ".join(out.split())
     assert "Say why on the answers" in flat, out
     assert CHANGE_ON_RESULT in flat, out
+
+
+def test_z_after_a_changed_mark_puts_the_old_mark_back_and_every_step_stays(
+        here, capsys, pages, no_browser):
+    """Pass, changed to Fail, then Z: the page sends the earlier mark, an ordinary mark line
+    (older reads take it as any mark); the result counts Pass again, and marks.jsonl keeps
+    all three steps."""
+    from judgekeeper import marks
+
+    ws = _all_marked(here)
+    capsys.readouterr()
+    no_browser.clear()
+    assert main(["mark", "--port", "0"]) == 0
+    url = no_browser[-1]
+    state = json.loads(_get(url.replace("/?", "/state?")))
+    item = next(i for i in state["items"] if i["label"] == "pass")
+    assert _post(url, {"id": item["id"], "label": "fail", "seconds": 4}) == 200
+    _get(url.replace("/?", "/result?"))
+    assert _result(ws)["disagreements"] == 1
+    assert _post(url, {"id": item["id"], "label": "pass", "deferred": False,
+                       "seconds": 2}) == 200  # Z, as the page sends it
+    _get(url.replace("/?", "/result?"))
+    assert _result(ws)["disagreements"] == 0
+    main(["--stop"])
+    m = marks.read(ws.marks)
+    assert m.last[item["id"]]["mark"] == "pass"
+    assert item["id"] not in m.after_result  # back to the mark it had: no change counted
+    lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
+    steps = [x for x in lines if x.get("id") == item["id"]]
+    assert [x["mark"] for x in steps] == ["pass", "fail", "pass"]
+    usual = set(steps[0])
+    assert all(set(x) - {"after_result"} <= usual for x in steps), steps

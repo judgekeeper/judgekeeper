@@ -298,7 +298,7 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
 def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
     """`mark` with every answer marked: the page opens on a card that says how to change a
     mark, not on the result; a mark changed from the list keeps that card (the bar links to
-    the result), so Z can undo it."""
+    the result), and Z puts back the mark it had."""
     data = _data(3)
     for item in data["items"]:
         item["label"] = "pass"
@@ -316,7 +316,6 @@ def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
         note: ids["end-note"].textContent, href: window.location.href};
       key("z"); await settle(); later(500);
       var undone = {card: ids["answer-card"].hidden, status: ids["ans-status"].textContent};
-      key("ArrowRight"); await settle(); later(500);
       console.log(JSON.stringify({opened: opened, picked: picked, changed: changed,
         undone: undone, sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
         end: ids["end"].hidden, href: window.location.href}));""", data=data)
@@ -324,9 +323,9 @@ def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
                   "note": "To change a mark, click it in the list."}
     assert got == {"opened": {**marked_all, "shown": True, "href": ""},
                    "picked": "Marked Pass", "changed": {**marked_all, "href": ""},
-                   "undone": {"card": False, "status": ""},
-                   "sent": [["a2", "fail"], ["a2", None], ["a2", "pass"]],
-                   "end": False, "href": ""}
+                   "undone": {"card": False, "status": "Marked Pass"},
+                   "sent": [["a2", "fail"], ["a2", "pass"]],
+                   "end": True, "href": ""}
 
 
 def test_end_card_with_no_result_says_what_comes_next():
@@ -835,3 +834,21 @@ def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
       key("ArrowRight"); await settle();
       console.log(JSON.stringify({at: ids["q-text"].textContent, reloads: reloads}));""")
     assert got == {"at": "Question 1?", "reloads": 0}
+
+
+def test_z_on_a_first_mark_still_takes_it_back_and_on_a_changed_one_puts_the_old_back():
+    got = _run("""
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass, a first mark
+      key("z"); await settle(); later(500);           // taken back: a0 unmarked
+      var first = ids["ans-status"].textContent;
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass again, a1 shows
+      var link = new El("a"); link.setAttribute("data-k", "0");
+      ids["queue"].fire("click", {target: link}); await settle();
+      key("ArrowLeft"); await settle(); later(500);   // a0 changed to Fail
+      key("z"); await settle(); later(500);           // back to Pass
+      console.log(JSON.stringify({first: first, now: ids["ans-status"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+        data=_data(3))
+    assert got == {"first": "", "now": "Marked Pass",
+                   "sent": [["a0", "pass"], ["a0", None], ["a0", "pass"], ["a0", "fail"],
+                            ["a0", "pass"]]}
