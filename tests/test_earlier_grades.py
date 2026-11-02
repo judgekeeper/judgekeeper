@@ -40,6 +40,11 @@ def adopted(tmp_path, monkeypatch, capsys):
     """V1 marked on FIRST, V2 tested on them and taken on by `check` from a file of the marked
     answers only, then LATER marked: (workspace, capsys)."""
     monkeypatch.chdir(tmp_path)
+    return adopt(tmp_path, capsys), capsys
+
+
+def adopt(tmp_path, capsys) -> Workspace:
+    """The `adopted` project, made in `tmp_path` (the folder this runs in)."""
     (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
                                                   encoding="utf-8")
     _rubric(tmp_path, [i < 30 for i in range(N)], "V1 rule.")
@@ -55,7 +60,7 @@ def adopted(tmp_path, monkeypatch, capsys):
     assert sorted(ws.data()["earlier_grades"]) == sorted(
         i["id"] for i in StartSession(ws).items if not i["label"])
     _mark(ws, LATER)
-    return ws, capsys
+    return ws
 
 
 def test_the_unchanged_rule_on_marks_made_after_a_check_is_not_better(adopted, tmp_path):

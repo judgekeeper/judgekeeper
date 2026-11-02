@@ -682,8 +682,16 @@ def waiting_html(r: dict) -> str:
     k = r.get("waiting")
     if not k:
         return ""
-    run = f"<code>{look.command(_e(r.get('waiting_check') or 'judgekeeper check'))}</code>"
-    count = _term(WAIT_COUNT.format(command="\0")).replace("`\0`", run)
+    from judgekeeper import textio
+
+    command = r.get("waiting_check") or "judgekeeper check"  # named plainly (result.json)
+    typed = textio.program("check")  # report.html: plainly too; the live page: its own
+    with textio.plainly():
+        plain = textio.program("check")
+    if typed != plain and command.startswith(f"{plain} "):
+        command = typed + command[len(plain):]
+    run = f"run <code>{look.command(_e(command))}</code>"
+    count = _term(WAIT_COUNT.format(run="\0")).replace("\0", run)
     return f'<p class="lead">{_term(WAIT.format(k=k))} {count}</p>'
 
 

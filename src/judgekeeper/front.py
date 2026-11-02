@@ -2219,7 +2219,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
     elif r.get("waiting"):  # only the judge's grades on them can count them
-        next_step = checking.WAIT_NEXT.format(command=r["waiting_check"])
+        next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first

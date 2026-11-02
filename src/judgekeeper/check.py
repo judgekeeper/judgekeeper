@@ -811,25 +811,36 @@ def written_from_lines(ws: Workspace) -> list[str]:
 # Marks on answers the judge now has never graded (batches.graded) ----------------------------
 
 WAIT = "{k} of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet."
-WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then run `{command}`."
+WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
 
 
-def wait_command(ws: Workspace) -> str:
-    """The `check` that counts the marks that wait: on the new results file (record()'s new
-    file, as `fix` names it); on the store for MLflow (it reads the newest run)."""
+def wait_file(ws: Workspace) -> str:
+    """What the `check` that counts the marks that wait is given, named from the project
+    folder: the new results file (record()'s new file, as `fix` names it); the store for
+    MLflow (it reads the newest run)."""
     from judgekeeper import fix
 
-    tool, command = ws.data().get("tool"), program("check")
+    tool = ws.data().get("tool")
     if tool == "records":
-        return f"{command} {fix.NEW_RECORDS}"
-    store = fix.mlflow_store(ws) if tool == "mlflow" else None
-    return f"{command} {store or fix.NEW_RESULTS}"
+        return fix.NEW_RECORDS
+    return (fix.mlflow_store(ws) if tool == "mlflow" else None) or fix.NEW_RESULTS
+
+
+def wait_command(ws: Workspace) -> str:
+    """That `check`, with the program as program() names it where this is called."""
+    return f"{program('check')} {wait_file(ws)}"
+
+
+def wait_run(ws: Workspace) -> str:
+    """WAIT_NEXT's "run `...`" for the terminal: from another folder, "in your project folder,
+    run ..." with the program named from there (_run_in)."""
+    return _run_in(ws, wait_file(ws), _away(ws))
 
 
 def wait_lines(ws: Workspace, k: int) -> list[str]:
     """What the marking page says while `k` marks wait: WAIT, then how to count them."""
-    return [WAIT.format(k=k), WAIT_COUNT.format(command=wait_command(ws))] if k else []
+    return [WAIT.format(k=k), WAIT_COUNT.format(run=f"run `{wait_command(ws)}`")] if k else []
 
 
 def outcome(g: dict) -> str | None:

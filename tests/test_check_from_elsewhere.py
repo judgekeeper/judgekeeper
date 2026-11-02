@@ -184,3 +184,39 @@ def test_mistakes_md_names_the_program_plainly(home, monkeypatch, capsys, where)
     assert "`judgekeeper check` found it worse" in text, text
     for part in ("/", "venv", "~"):
         assert part not in text, part
+
+
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_the_wait_line_from_another_folder_names_the_program_from_the_project(
+        home, monkeypatch, capsys, where):
+    """Marks wait after `check` took on a rule that graded only the marked answers. From
+    another folder the terminal says "then in your project folder, run `<program> check <new
+    results file>`", with the program as it is from there; result.json and report.html name
+    it plainly and hold no path."""
+    import json
+
+    from tests.test_waiting_marks import adopt_records
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt_records(proj, monkeypatch, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, os.path.relpath(proj, away), "--no-browser", "--port", "0")
+    assert code == 0, out
+    nxt = out[out.rindex("Next: "):]
+    assert ("Next: grade all your answers with your new LLM-as-a-judge, " + CHECK_LINE) in nxt
+    check_line = _commands(nxt)[-1]
+    assert _program_in(check_line, proj, home) == tool, check_line
+    assert check_line.endswith(f" check {fix.NEW_RECORDS}"), check_line
+    saved = json.loads((proj / ".judgekeeper" / "result.json").read_text(encoding="utf-8"))
+    assert saved["waiting_check"] == f"judgekeeper check {fix.NEW_RECORDS}"
+    import html
+    import re
+
+    page = (proj / ".judgekeeper" / "report.html").read_text(encoding="utf-8")
+    assert "Tools" not in page and USER not in page
+    page = " ".join(html.unescape(re.sub(r"<[^>]+>", "", page)).split())
+    assert f"then run judgekeeper check {fix.NEW_RECORDS}." in page, page

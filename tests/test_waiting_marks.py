@@ -73,6 +73,21 @@ def test_the_live_result_page_says_it(adopted):
             "run judgekeeper check <new results file>.") in text, text
 
 
+def test_the_live_page_names_the_program_as_it_runs_and_the_files_plainly(adopted,
+                                                                          monkeypatch):
+    from judgekeeper import textio
+
+    ws, _ = adopted
+    monkeypatch.setattr(textio, "_typed", "../tools/.venv/bin/judgekeeper")
+    text = _text(start_label.live_result(ws, StartSession(ws)))
+    assert "then run ../tools/.venv/bin/judgekeeper check <new results file>." in text, text
+    saved = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert saved["waiting_check"] == "judgekeeper check <new results file>"
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert ".venv" not in report
+    assert "then run judgekeeper check <new results file>." in _text(report)
+
+
 def test_the_marking_page_says_it_once_in_its_status(adopted):
     ws, _ = adopted
     status = StartSession(ws).state()["status"]
@@ -144,9 +159,14 @@ def records(tmp_path, monkeypatch, capsys):
     """judgekeeper.record() saves V1's grades on every answer; FIRST are marked, `fix` runs,
     the person grades only the marked answers with V2 (a new record run), `check` takes V2
     on, then LATER are marked."""
+    monkeypatch.chdir(tmp_path)
+    return adopt_records(tmp_path, monkeypatch, capsys), capsys
+
+
+def adopt_records(tmp_path, monkeypatch, capsys) -> Workspace:
+    """The `records` project, made in `tmp_path` (the folder this runs in)."""
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "r"\nversion = "0"\n',
                                             encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
 
     def run(rule, verdict, which, n):
         import os  # a new run of the program: a file of its own (record() names it by pid)
@@ -171,7 +191,7 @@ def records(tmp_path, monkeypatch, capsys):
     assert code == 0, out
     closed(ws)
     _mark(ws, LATER)
-    return ws, capsys
+    return ws
 
 
 def test_records_marks_made_after_check_wait_too(records):

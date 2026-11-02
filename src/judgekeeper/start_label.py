@@ -1497,9 +1497,10 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     k = batches.waiting(data, session.marked())
     if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
-        from judgekeeper import check
+        from judgekeeper import check, textio
 
-        r.update(waiting=k, waiting_check=check.wait_command(ws))
+        with textio.plainly():  # result.json and report.html name the program plainly
+            r.update(waiting=k, waiting_check=check.wait_command(ws))
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
