@@ -896,7 +896,7 @@ def test_the_result_page_style():
                  ".kappa .tip { font-size: 15px; }"):
         assert rule in narrow, rule
     # on a phone or a touch screen, "Show all" and kappa's ⓘ are big enough to tap (48 and
-    # 44px), with the layout as it was
+    # 44px), with the laptop layout unchanged
     touch = style.split("@media (max-width: 720px), (pointer: coarse) {")[1].split("\n}\n")[0]
     assert ".more { font-size: 16px; }" in touch
     assert (".kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }"

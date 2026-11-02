@@ -57,7 +57,7 @@ BLOCK = 10
 ROUGH = targets.ROUGH
 GITIGNORE = ("# judgekeeper's files hold your answers. Commit them only if your data "
              "may live here.\n*\n!.gitignore\n!judge.json\n!history.jsonl\n")
-# The exact text an unreleased 0.2 build wrote, by its SHA-256 (its first line has older words)
+# The exact text of an earlier .gitignore, by its SHA-256 (its first line has older words)
 OLD_GITIGNORE_SHA256 = "fbefa615c803cdd5410b6da92a3d848d329dcb64930a47830f9e834fa4d44663"
 LINK = ("{path} is a link to another {kind}. judgekeeper does not write through links. "
         "Remove it, then run {program} again.")
@@ -116,7 +116,7 @@ SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
 # How the numbers are worked out: one more whenever the Measure maths changes. A result saved
-# with another (or none: 1.0.0b1) is worked out again from the marks before it is shown.
+# with another (or none) is worked out again from the marks before it is shown.
 NUMBERS_VERSION = 4
 WORKED_OUT_AGAIN = "Your numbers were worked out again with this version of judgekeeper."
 
@@ -132,11 +132,11 @@ class Workspace:
         self.pool = self.dir / "pool.jsonl"
         self.pool_judge = self.dir / "pool-judge.jsonl"
         self.marks = self.dir / marks.FILE
-        self.labels = self.dir / "labels.csv"  # an unreleased 0.2 build's marks: never read
+        self.labels = self.dir / "labels.csv"  # marks file of an earlier layout: never read
         self.anchors = self.dir / "anchors.jsonl"
         self.result_json = self.dir / "result.json"
         self.report_html = self.dir / "report.html"
-        self.result_html = self.dir / "result.html"  # the result page's name before 1.0
+        self.result_html = self.dir / "result.html"  # the old name: removed when a result is saved
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
         self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
@@ -199,8 +199,8 @@ def check_writable(ws: Workspace) -> None:
 
 def make_folder(ws: Workspace) -> None:
     """Make `ws.dir` (after `refuse_links`), with its .gitignore when a first check starts in
-    the project's own folder and it has none. One holding exactly the text an unreleased 0.2
-    build wrote is replaced; any other is left alone."""
+    the project's own folder and it has none. One holding exactly the text of
+    the earlier .gitignore (OLD_GITIGNORE_SHA256) is replaced; any other is left alone."""
     refuse_links(ws)
     make_private(ws.dir)
     gitignore = ws.dir / ".gitignore"
@@ -209,7 +209,7 @@ def make_folder(ws: Workspace) -> None:
     if not ws.start.is_file() and not os.path.lexists(gitignore):
         write_replacing(gitignore, GITIGNORE)
     elif gitignore.is_file() and not gitignore.is_symlink():
-        try:  # an unreleased 0.2 build wrote it with the system's line endings
+        try:  # the earlier .gitignore was written with the system's line endings
             text = gitignore.read_text(encoding="utf-8")
             old = hashlib.sha256(text.encode("utf-8")).hexdigest() == OLD_GITIGNORE_SHA256
         except (OSError, ValueError):
@@ -1084,7 +1084,7 @@ def mark_command(run: str | None = None) -> str:
     marking page's end card, the result page and report.html."""
     run = _PAGE_FLAGS.sub("", run or program())
     flags = run[len(program()):].strip() if run.startswith(program()) else ""
-    if flags == "start" or flags.startswith("start "):  # a result made before 1.0
+    if flags == "start" or flags.startswith("start "):  # older results keep `start`: drop it
         flags = flags[len("start"):].strip()
     return " ".join(x for x in (program("mark"), flags) if x)
 
@@ -1248,7 +1248,7 @@ def link_lines(made: dict | None) -> list[str]:
             them = "it" if n == 1 else "them"
             out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
                        f"{them} yourself, nothing to do.")
-    return out  # a link printed at a terminal ("asked" before 1.1) needs no note
+    return out  # a link printed at a terminal needs no note
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1576,7 +1576,7 @@ def store_result(ws: Workspace, session: StartSession,
                  flags: dict | None = None, worse: str | None = None,
                  redraw: bool = False) -> dict:
     """Make a result from the marks so far: anchors, result.json and report.html (the last
-    result moves to history/; a result.html from before goes), and a line in history.jsonl.
+    result moves to history/; an old result.html is removed), and a line in history.jsonl.
     `flags` (start.run_flags) are kept in it, and the command they make (start.command_from):
     every next command it shows is made again from them.
     With no new marks since the saved result, that result stays as it is, and history.jsonl
@@ -1667,9 +1667,9 @@ def _add_history_line(ws: Workspace, r: dict) -> None:
 
 
 def repair(ws: Workspace) -> None:
-    """After a run stopped half way through saving a result (judgekeeper before 1.0 wrote
-    result.json first): when result.json is newer than report.html, report.html is drawn again,
-    and when history.jsonl has no line for it, the line is added."""
+    """After a run stopped half way through saving a result: when result.json is newer than
+    report.html, report.html is drawn again, and when history.jsonl has no line for it, the
+    line is added."""
     try:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):

@@ -607,8 +607,8 @@ def test_the_build_stops_on_an_example_page_with_a_script_and_no_policy(tmp_path
 # The README and the changelog (the README's own contract is in test_docs.py)
 
 def test_changelog_entry_says_1_0_is_commands_you_run():
-    """The 1.0.0 entry (1.0.0b2 was never published and is folded into it): the 5 steps, the
-    4 commands, that it only reads files and what is gone since 0.1.3."""
+    """The 1.0.0 entry: the 5 steps, the 4 commands, that it only reads files and what is gone
+    since 0.1.3."""
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entry = text[text.index("## 1.0.0 "):text.index("Earlier versions")]
     assert len(entry.strip().splitlines()) < 20

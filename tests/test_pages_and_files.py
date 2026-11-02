@@ -43,7 +43,7 @@ def here(tmp_path, monkeypatch):
 
 # The wording sweep --------------------------------------------------------------------------
 
-OLD_WORDS = [  # (where, the old text)
+OLD_WORDS = [  # (where, text that must not appear)
     ("src", r"Re-checked for free"),
     ("README.md", r"checks its grades for free"),
     ("README.md", r"never runs your app"),

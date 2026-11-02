@@ -1,6 +1,6 @@
-"""One page server per project. Two `start` servers on one project each wrote labels.csv from
-memory, so marks were lost while both pages said "saved": a second one is refused, and each
-write reads the sheet again first. The lock holds the page's port and stop secret, never its
+"""One page server per project. Two page servers on one project could each write the marks
+from memory and lose marks while both pages said "saved": a second one is refused, and each
+write reads the marks again first. The lock holds the page's port and stop secret, never its
 token."""
 
 from __future__ import annotations

@@ -117,7 +117,7 @@ def test_real_inspect_prompt_hash_is_the_default_template_identity():
 
 @pytest.mark.parametrize("name", ["inspect-0.3.2.json", "inspect-0.3.204.eval"])
 def test_real_inspect_logs_from_older_versions_are_read(name):
-    # written by the oldest inspect_ai the extra allows and by one six months older than 1.0
+    # logs written by inspect_ai 0.3.2 (.json) and 0.3.204 (.eval)
     if name.endswith(".eval"):
         pytest.importorskip("inspect_ai")
     records = read_inspect(INSPECT / "old" / name)

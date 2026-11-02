@@ -620,8 +620,8 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but a
-                and not (c == "judge" and _models_named(rows, c))]  # judge column of gpt-4o
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but not
+                and not (c == "judge" and _models_named(rows, c))]  # a "judge" column of names
     if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
@@ -1833,7 +1833,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
         return prefer
-    if metric == OLD_DEFAULT_NAME and metric not in counts:  # saved before 1.1
+    if metric == OLD_DEFAULT_NAME and metric not in counts:  # the old default name: use the new one
         metric = DEFAULT_NAME
     if metric is not None and metric not in counts:  # a name start.json keeps with its keys
         # hidden: the one it stands for

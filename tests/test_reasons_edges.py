@@ -1,7 +1,7 @@
-"""The reasons and the screens around them: an own button
-renamed on every answer, reasons for the other side, a mark changed and changed back, overlapping marked parts, the mark command said three times, a
-program that sends no `seconds`, the old pre-commit line, and Ctrl-C under `python -m`. Every
-fixture here is made up.
+"""The reasons and the screens around them: an own button renamed on every answer, reasons for
+the other side, a mark changed and changed back, overlapping marked parts, the mark command said
+three times, a program that sends no `seconds`, the old pre-commit line, and Ctrl-C under
+`python -m`. Every fixture here is made up.
 """
 
 from __future__ import annotations

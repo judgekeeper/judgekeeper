@@ -8,7 +8,7 @@
 - Phone: tables and code scroll inside their box; the browser check's lines wrap.
 - Each page's own parts: Home, the Guide, the browser check and Privacy.
 
-The tests run no JavaScript: the pages were checked in Chrome at 1440 and 390 wide.
+The tests run no JavaScript; they read the HTML and CSS.
 """
 
 from __future__ import annotations
@@ -476,8 +476,7 @@ def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
 
 def test_the_demo_card_keeps_one_height():
     """The card is as tall as its tallest answer or its end card, measured on load, when the
-    fonts arrive and on resize, so nothing below it moves while you mark (checked in Chrome at
-    1440, 1000 and 390 wide: the same height for every answer and the end card)."""
+    fonts arrive and on resize, so nothing below it moves while you mark."""
     lock = JS[JS.index("function lockHeight("):]
     lock = lock[:lock.index("\n    }\n")]
     assert "items.forEach" in lock and 'classList.add("is-end")' in lock
@@ -1218,9 +1217,8 @@ def test_the_browser_check_is_two_even_columns_that_end_together():
 
 
 def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
-    """At every width a line wraps inside the terminal (checked in Chrome at 1440 and 390
-    wide). On a phone a value goes under its label, and a line that only goes on from the one
-    above has no indent."""
+    """At every width a line wraps inside the terminal. On a phone a value goes under its label,
+    and a line that only goes on from the one above has no indent."""
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
     assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
@@ -1381,9 +1379,8 @@ def test_privacy_says_judgekeeper_only_reads_files():
 
 
 # Phones and touch screens -------------------------------------------------------------------
-# Each rule for a phone sits in a block for a narrow or a touch screen, so a laptop shows the
-# pages as before (checked with full-page screenshots in Chrome at 1280, 1440 and 1920, Safari
-# at 1440 and an iPad at 1024: the same pixels, but for the demo's last button).
+# Each rule for a phone sits in a block for a narrow or a touch screen, so a laptop keeps the
+# same layout.
 
 FREECHECK = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
 

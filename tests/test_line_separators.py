@@ -22,7 +22,7 @@ def _quiet(line=""):
 def test_jsonl_lines_split_at_newlines_only():
     text = json.dumps({"a": SEPARATED}, ensure_ascii=False) + "\r\n" + '{"b": 1}\n'
     assert jsonl_lines(text) == [json.dumps({"a": SEPARATED}, ensure_ascii=False), '{"b": 1}', ""]
-    assert len(text.splitlines()) == 5  # what went wrong before
+    assert len(text.splitlines()) == 5  # str.splitlines() also cuts at the separators
 
 
 def test_an_answer_with_line_separators_goes_through_every_step(tmp_path):

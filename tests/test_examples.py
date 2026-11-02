@@ -168,7 +168,8 @@ def test_the_examples_readme_has_one_line_per_folder():
 
 
 def test_the_check_reports_name_no_removed_command():
-    """`judgekeeper start` is gone; the reports say what judgekeeper does."""
+    """The reports name no `judgekeeper start` command (it does not exist); they say what
+    judgekeeper does."""
     for name in ("real-data-check/report.md", "coverage/coverage.md"):
         text = (ROOT / "docs" / "examples" / name).read_text(encoding="utf-8")
         assert "start's" not in text and "`start`" not in text, name
