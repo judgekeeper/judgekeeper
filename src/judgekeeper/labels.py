@@ -256,10 +256,23 @@ def _blank(value) -> bool:
     return value is None or isinstance(value, str) and not value.strip()
 
 
+def _one_or_zero(value):
+    """A number equal to 1 or 0 (`1.0`, `0.0`, as a spreadsheet or pandas writes them) as
+    "1" or "0"; any other value as it is."""
+    if isinstance(value, bool) or not _numeric(value):
+        return value
+    try:
+        number = float(str(value).strip())
+    except ValueError:
+        return value
+    return "1" if number == 1 else "0" if number == 0 else value
+
+
 def read_marks(values: list, label_map: dict | None, name: str,
                mine: str | dict | None = None) -> list[str | None]:
     """Each value as "pass" or "fail" (None when blank), read with `label_map` (the
-    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0), or "error"
+    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0, a number
+    equal to 1 or 0 too), or "error"
     for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
     than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
     says how to map them (never a command with guessed values: it would be copied)."""
@@ -273,7 +286,7 @@ def read_marks(values: list, label_map: dict | None, name: str,
             out.append(None)
             continue
         try:
-            verdict = norm(value).verdict
+            verdict = norm(_one_or_zero(value)).verdict
         except UnmappedValue:
             verdict = None
         if verdict in ("pass", "fail"):
