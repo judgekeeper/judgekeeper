@@ -1136,7 +1136,7 @@ def made_lines(made: dict | None, imported: dict | None = None,
 
     if not made or not made["marks"]:
         return []
-    n, quick = made["marks"], made["under_second"]
+    n = made["marks"]
     k = (imported or {}).get("marks") or 0
     counts = f"Your marks: {n} ({made['pass']} Pass, {made['fail']} Fail)"
     if k and k >= n:
@@ -1150,15 +1150,24 @@ def made_lines(made: dict | None, imported: dict | None = None,
         if seconds is not None:
             line += (", under a second each" if seconds == 0
                      else f", about {_plural(seconds, 'second', 'seconds')} each")
-    out = [line + "."]
-    n -= k  # the page's marks: an import has no time
-    if quick and quick * 4 > n:
-        out.append(f"{quick} of your marks took under a second each. A result is only as good "
-                   "as the marks." + (" This looks like a program, not a person."
-                                      if quick * 2 > n else ""))
+    out = [line + ".", *quick_lines(made, imported)]
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
     return (out + ([not_counted] if not_counted else []) + link_lines(made)
             + second_thoughts(made, real_pass))
+
+
+def quick_lines(made: dict | None, imported: dict | None = None) -> list[str]:
+    """The line on page marks made under a second each, when more than a quarter were (and
+    "This looks like a program" past half): the same in the terminal, on the result page and
+    report.html."""
+    if not made or not made.get("marks"):
+        return []
+    quick = made.get("under_second") or 0
+    n = made["marks"] - ((imported or {}).get("marks") or 0)  # the page's: an import has no time
+    if not (quick and quick * 4 > n):
+        return []
+    return [f"{quick} of your marks took under a second each. A result is only as good as the "
+            "marks." + (" This looks like a program, not a person." if quick * 2 > n else "")]
 
 
 def second_thoughts(made: dict | None, real_pass: float | None = None) -> list[str]:
@@ -1202,7 +1211,6 @@ PRINTED_NOTE = ("a link printed with no terminal, so another program on this com
 BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
                     "made {them}")
 LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
-ASKED_NOTE = "You opened the page from a printed link. If you marked {them} yourself, nothing to do."
 
 
 def link_lines(made: dict | None) -> list[str]:
@@ -1217,10 +1225,7 @@ def link_lines(made: dict | None) -> list[str]:
             them = "it" if n == 1 else "them"
             out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
                        f"{them} yourself, nothing to do.")
-    n = (made or {}).get("asked") or 0
-    if n:  # the person asked for the link at a terminal: nothing another program did
-        out.append(ASKED_NOTE.format(them="it" if n == 1 else "these"))
-    return out
+    return out  # a link printed at a terminal ("asked" before 1.1) needs no note
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1258,16 +1263,17 @@ def _fixing(ws: Workspace, r: dict) -> dict | None:
 
 
 def why_count(ws: Workspace, r: dict) -> int:
-    """How many disagreements the result page lists with a reason box, for the result
-    `r`: none while it is too early to tell (the page lists none), else the mistakes on
-    the marks the person can see (fix.report_section), the hidden marks set aside first."""
+    """How many disagreements the result page lists with a reason box and no reason yet, for
+    the result `r`: none while it is too early to tell (the page lists none), else the
+    mistakes on the marks the person can see (fix.report_section), the hidden marks set
+    aside first, with no reason given (fix.without_why)."""
     from judgekeeper import fix
     from judgekeeper.report_page import shows_disagreements
 
     if not shows_disagreements(r):
         return 0
     section = fix.prepared_section(ws)
-    return len(section["mistakes"]) if section else 0
+    return len(fix.without_why(section["mistakes"])) if section else 0
 
 
 def _now(ws: Workspace, r: dict) -> dict:

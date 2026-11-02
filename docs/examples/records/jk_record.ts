@@ -9,7 +9,7 @@ type JkFields = { verdict?: unknown; score?: number; pass_mark?: number; reason?
 
 export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): void {
   try {
-    const name = f.name ?? "judge", now = new Date().toISOString();
+    const name = f.name ?? "LLM-as-a-judge", now = new Date().toISOString();
     const meta: Record<string, unknown> = { ...(f.metadata ?? {}) };
     if (f.pass_mark != null && !("pass_mark" in meta)) meta.pass_mark = f.pass_mark;
     const said = typeof f.verdict === "string" ? f.verdict.trim().toLowerCase() : "";
@@ -28,7 +28,7 @@ export function jkRecord(input: unknown, output: unknown, f: JkFields = {}): voi
     const folder = join(".judgekeeper", "records");
     mkdirSync(folder, { recursive: true });
     const file = name.replace(/[^A-Za-z0-9._]+/g, "-").replace(/^[-.]+|[-.]+$/g, "")
-      .slice(0, 60) || "judge";
+      .slice(0, 60) || "LLM-as-a-judge";
     appendFileSync(join(folder, `${file}-${now.slice(0, 10)}-${process.pid}.jsonl`),
       JSON.stringify(line) + "\n");
   } catch { /* a record never stops your program */ }

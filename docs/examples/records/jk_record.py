@@ -5,7 +5,7 @@ def jk_record(input=None, output=None, *, verdict=None, score=None, pass_mark=No
               reason=None, judge=None, rule=None, name=None, temperature=None, id=None,
               metadata=None):
     try:
-        name, now = "judge" if name is None else str(name), time.gmtime()
+        name, now = "LLM-as-a-judge" if name is None else str(name), time.gmtime()
         meta = dict(metadata or {})
         if pass_mark is not None:
             meta.setdefault("pass_mark", pass_mark)
@@ -27,7 +27,7 @@ def jk_record(input=None, output=None, *, verdict=None, score=None, pass_mark=No
             line["metadata"] = meta
         folder = os.path.join(".judgekeeper", "records")
         os.makedirs(folder, exist_ok=True)
-        file = re.sub(r"[^A-Za-z0-9._]+", "-", name).strip("-.")[:60] or "judge"
+        file = re.sub(r"[^A-Za-z0-9._]+", "-", name).strip("-.")[:60] or "LLM-as-a-judge"
         file += f"-{time.strftime('%Y-%m-%d', now)}-{os.getpid()}.jsonl"
         with open(os.path.join(folder, file), "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(line, ensure_ascii=False, default=str) + "\n")

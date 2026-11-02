@@ -871,7 +871,10 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                        "judgekeeper to your results file:")],
         "step-mark": ["When the link at the top shows your numbers, click it."],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. Mark more answers, then look again:")]}
+                          "of your marks to be measured. You need at least 15 Pass and 15 Fail "
+                          "marks and 20 marks on answers your LLM-as-a-judge passed and 20 on "
+                          "answers it failed (or all of them, when there are fewer). Mark more "
+                          "answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]
@@ -902,7 +905,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "breaks 5 in 100 right answers needs about 160 (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv) the same way as in step 4, then:"),
+             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, .judgekeeper/fix/regrade.yaml), "
+             "then run:"),
             ("judgekeeper finds the answers you marked in your new results by the same text, "
              "word for word, and the same question, compares the new grades with your marks, and tells you if your "
              "LLM-as-a-judge "
@@ -960,7 +964,7 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         *install, "judgekeeper", "judgekeeper path/to/results.json",
         "judgekeeper mark", "judgekeeper fix", "judgekeeper fix new-results.json",
-        "judgekeeper check",
+        "judgekeeper check new-results.json",
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
     for box in boxes:
         (button,) = _all(box, "button", "copy")
@@ -1502,7 +1506,9 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert "overflow-wrap: anywhere" in _last(".gx-text code.path", phone)
     paths = [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
-                                         ".judgekeeper/fix/marked-answers.csv"]
+                                         ".judgekeeper/fix/marked-answers.csv",
+                                         ".judgekeeper/fix/marked-answers.csv",
+                                         ".judgekeeper/fix/regrade.yaml"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 

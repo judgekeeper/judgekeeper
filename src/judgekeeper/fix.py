@@ -711,6 +711,16 @@ RESULT_WORDS = {"better": "better", "safe": "safe to try",
                 "worse": "looks worse"}
 
 
+def without_why(mistakes: list[dict]) -> list[dict]:
+    """The disagreements of report_section the person has given no reason on yet (no tap,
+    note or marked words)."""
+    def given(x: dict) -> bool:
+        why = x.get("why") or {}
+        return bool(why.get("reasons") or why.get("note") or why.get("spans"))
+
+    return [x for x in mistakes if not given(x)]
+
+
 def prepared_section(ws: Workspace) -> dict | None:
     """report_section after prepare_split, on one reading of the marks: with many marks,
     reading them takes time."""
