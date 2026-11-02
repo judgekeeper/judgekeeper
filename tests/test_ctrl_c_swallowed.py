@@ -48,6 +48,7 @@ def test_a_ctrl_c_a_library_swallowed_still_stops_the_run(project, capsys, monke
     assert "Stopped." in text
     assert flat(text).endswith("Next: run `judgekeeper --no-browser` to carry on.")
     assert text.count("Next:") == 1
+    assert "No eval results found" not in text  # stopped before its next line
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler  # put back
     assert not textio.ctrl_c and not inspect_logs._stopping
 
@@ -152,3 +153,40 @@ def test_samples_closed_after_the_run_put_back_no_old_handler():
         assert not inspect_logs._stopping
     finally:
         signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+def test_a_noted_ctrl_c_stops_before_any_line_and_any_long_read(monkeypatch):
+    """Not only a Next: line: any line, and the next "Reading ..." check of a long read."""
+    monkeypatch.setattr(textio, "next_said", False)  # a run under way (cli._main)
+    textio.ctrl_c.append(True)
+    with pytest.raises(KeyboardInterrupt):
+        textio.said_next("Step 2 of 5: Mark")
+    assert not textio.ctrl_c
+    monkeypatch.setattr(textio, "_clock", lambda: 0.0)
+    textio.ctrl_c.append(True)
+    with pytest.raises(KeyboardInterrupt):
+        textio.reading(500)
+    assert not textio.ctrl_c
+
+
+def test_a_ctrl_c_a_library_swallowed_prints_no_traceback(tmp_path):
+    """Swallowed inside a weakref callback (as in Python's import machinery), Python would
+    print "Exception ignored ... KeyboardInterrupt" with a traceback: not once it is noted."""
+    script = textwrap.dedent("""
+        import gc, signal, weakref
+        from judgekeeper import textio
+
+        class Held:
+            pass
+
+        held = Held()
+        ref = weakref.ref(held, lambda _: textio.note_ctrl_c(signal.SIGINT, None))
+        del held
+        gc.collect()
+        print("noted" if textio.ctrl_c else "not noted")
+    """)
+    env = dict(os.environ, PYTHONPATH=SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    p = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env, check=False,
+                       capture_output=True, text=True, timeout=20)
+    assert p.stdout == "noted\n", p.stdout + p.stderr
+    assert p.stderr == "", p.stderr

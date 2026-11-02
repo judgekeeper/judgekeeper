@@ -502,20 +502,33 @@ ctrl_c: list[bool] = []  # holds True once this run noted a Ctrl-C (note_ctrl_c)
 
 def note_ctrl_c(signum, frame) -> None:
     """Python's own Ctrl-C (KeyboardInterrupt), noted first (cli.main puts it in for the run):
-    a library that swallows the KeyboardInterrupt (raised inside its import, Python says
-    "Exception ignored" and goes on) can't make the run carry on to its Next: line."""
+    a library that swallows the KeyboardInterrupt (raised inside its import, where Python
+    would say "Exception ignored" with a traceback and go on) can't make the run carry on, and
+    nothing is printed for it: the run says "Stopped."."""
     ctrl_c.append(True)
+    sys.unraisablehook = _unsaid
     raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python could only print (a Ctrl-C swallowed, what it left half done): the run
+    is stopping, so it is not printed."""
+
+
+def stop_if_noted() -> None:
+    """A Ctrl-C a library swallowed stops the run here (cli._stopped), before its next line
+    or the next check of a long read, unless the run has said its Next: line."""
+    if ctrl_c and not next_said:
+        ctrl_c.clear()
+        raise KeyboardInterrupt
 
 
 def said_next(text: str) -> None:
     """Note a line about to be printed: a Next: line ends what the command says. After a
-    Ctrl-C a library swallowed, the run stops instead, before that line (cli._stopped)."""
+    Ctrl-C a library swallowed, the run stops instead, before this line."""
     global next_said
+    stop_if_noted()
     if text.startswith("Next:"):
-        if ctrl_c and not next_said:
-            ctrl_c.clear()
-            raise KeyboardInterrupt
         next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
 PROGRESS_EVERY = 5  # seconds between those lines
@@ -536,6 +549,7 @@ def reading(n: int, name: str | None = None) -> None:
         _reading.update(since=_clock(), said=None)
     if n % 500:
         return
+    stop_if_noted()  # a swallowed Ctrl-C: the read stops, not after the whole file
     now, said = _clock(), _reading["said"]
     if now - _reading["since"] < PROGRESS_AFTER or (said is not None
                                                     and now - said < PROGRESS_EVERY):
