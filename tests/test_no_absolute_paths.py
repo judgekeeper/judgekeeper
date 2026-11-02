@@ -187,3 +187,147 @@ def test_an_mlflow_store_given_in_full_is_kept_from_the_project(tmp_path):
     assert front._kept_uri("sqlite:///" + store, root) == "sqlite:///" + up
     for given in ("sqlite:///mlflow.db", "http://127.0.0.1:5000", "databricks", "mlruns"):
         assert front._kept_uri(given, root) == given
+
+
+# A path that would climb to the top folder, or above the home folder, names no folder ---------
+
+USER = "ann-x"  # the user name in the home folder's path: no file or line may hold it
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    """A home folder at tmp/Users/ann-x: its parent folders are above the home folder."""
+    folder = tmp_path / "Users" / USER
+    (folder / "Desktop").mkdir(parents=True)
+    real = Path(os.path.realpath(folder))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: real))
+    return real
+
+
+def test_a_kept_path_climbs_only_to_a_folder_below_the_home_folder(home, tmp_path):
+    from judgekeeper import textio
+
+    proj = home / "Desktop" / "proj"
+    assert textio.kept_path(home / "Desktop" / "ext" / "r.csv", proj) == "../ext/r.csv"
+    assert textio.kept_path(home / "r.csv", proj) == "../../r.csv"  # home is shared
+    other = Path(os.path.realpath(tmp_path)) / "elsewhere" / "new.csv"  # shares above home
+    assert textio.kept_path(other, proj) == "new.csv"
+    top = Path(os.path.realpath(tmp_path)).anchor
+    assert textio.kept_path(os.path.join(top, "jk-none", "new.csv"), proj) == "new.csv"
+    work = Path(os.path.realpath(tmp_path)) / "work" / "proj"  # outside the home folder
+    kept = textio.kept_path(home / "Desktop" / "r.csv", work)
+    assert kept == "~/Desktop/r.csv"
+    assert Path(textio.kept_at(kept, work)) == home / "Desktop" / "r.csv"
+    assert textio.kept_path(work.parent / "r.csv", work) == "../r.csv"
+
+
+def test_a_printed_path_climbs_only_to_a_folder_below_the_home_folder(home, tmp_path,
+                                                                      monkeypatch):
+    from judgekeeper import textio
+
+    proj = home / "Desktop" / "proj"
+    proj.mkdir()
+    monkeypatch.chdir(proj)
+    other = str(Path(os.path.realpath(tmp_path)) / "elsewhere" / "new.csv")
+    assert textio.shown_from_here(other) == "new.csv"
+    if os.name == "nt":  # a command that runs: in full when nothing shorter does (printed only)
+        assert textio.runnable(other, labels=True) == textio.quote_arg(other)
+    else:
+        assert textio.runnable(other, labels=False) == "PATH"
+        assert textio.runnable(other, labels=True) == "<file>"
+    assert textio.shown_from_here(str(home / "Desktop" / "ext" / "r.csv")) == "../ext/r.csv"
+    work = Path(os.path.realpath(tmp_path)) / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    inside = str(home / "Desktop" / "r.csv")
+    assert textio.shown_from_here(inside) == textio._home_shown("Desktop/r.csv")
+    assert (USER not in textio.runnable(inside, labels=False)) is (os.name != "nt")
+
+
+def test_a_loop_given_whole_paths_from_anywhere_names_no_folder_above_the_project(
+        home, tmp_path, tmp_path_factory, monkeypatch, capsys):
+    """Results given by whole path on the first run, labels and fix/check files on another
+    root, then `check <project>` from the top folder, the parent and another root: no file
+    under .judgekeeper/ (report.html too) and no printed line names the home folder's path,
+    or a folder above it."""
+    from judgekeeper.start_label import StartSession, Workspace
+    from tests.test_labels_import import write_labels
+    from tests.test_regrade_files import COLUMNS, _row, _write, breaking, closed, regraded
+    from tests.test_regrade_files import write as write_rows
+
+    proj, ext = home / "Desktop" / "proj", home / "ext"
+    proj.mkdir()
+    ext.mkdir()
+    other = Path(os.path.realpath(tmp_path_factory.mktemp("elsewhere")))
+    _write(ext / "results.csv", [_row(i, 5) for i in range(60)], COLUMNS)
+    monkeypatch.chdir(proj)
+    said = []
+
+    def step(*argv):
+        code = main([str(a) for a in argv])
+        out, err = capsys.readouterr()
+        said.append((argv, code, out + err))
+        return code
+
+    assert step(ext / "results.csv", "--no-browser") == 0, said[-1]
+    ws = Workspace(proj)
+    closed(ws)
+    session = StartSession(ws)
+    pool = {r["id"]: r for r in map(json.loads,
+                                    ws.pool.read_text(encoding="utf-8").splitlines())}
+    for item in session.items:
+        session.update({"id": item["id"], "seconds": 5,
+                        "label": "fail" if "BAD" in pool[item["id"]]["output"] else "pass"})
+    step(*PAGE)  # Measure: the result, and report.html
+    background.stop(ws.dir)
+    step("fix")
+    flip = {"pass": "fail", "fail": "pass"}
+    new = other / write_rows(other, "new.csv", [
+        {**r, "verdict": flip[r["verdict"]]} if i % 2 == 0 else r
+        for i, r in enumerate(regraded(ws))])
+    step("fix", new)
+    from judgekeeper import fix
+
+    assert fix.read_split(ws).tests[-1]["file"] == "new.csv"  # shares only above home
+    assert step("check", new) == 1 and "Worse" in said[-1][2], said[-1]
+    report = " ".join((ws.dir / "report.html").read_text(encoding="utf-8").split())
+    assert "grade the answers in .judgekeeper/fix/marked-answers.csv again" in report
+    labels = write_labels(other / "labels.csv", [{"answer": r["output"], "label": r["verdict"]}
+                                                 for r in breaking(ws, "wrong")[:10]])
+    step("--labels", labels, *PAGE)
+    background.stop(ws.dir)
+    for cwd in (Path(proj.anchor), home / "Desktop", other):
+        monkeypatch.chdir(cwd)
+        step("check", proj)
+        step("fix", proj)
+    assert (ws.dir / "report.html").is_file() and json.loads(ws.start.read_text(
+        encoding="utf-8"))["given"] == "../../ext/results.csv"
+    above = (USER, "pytest-of", other.name, str(home), str(tmp_path))
+    found = {}
+    for f in sorted(ws.dir.rglob("*")):
+        if f.is_file() and f.name not in ("server.json", "page.json"):
+            text = f.read_bytes().decode("utf-8", "replace").replace("\\\\", "/")
+            found.update({str(f.relative_to(ws.dir)): w for w in above
+                          if w in text.replace("\\", "/")})
+    assert found == {}, (found, [s[:2] for s in said])
+    printed = [(argv, line) for argv, _, out in said for line in out.splitlines()
+               if any(w in line for w in above)
+               and not (os.name == "nt" and "`" in line)]  # a command runs: in full there
+    assert printed == [], printed
+
+
+def test_the_file_line_from_the_top_folder_names_no_user(home, tmp_path, monkeypatch):
+    """Screen 1's File: line for results outside the project, run from `/`: `~/...`, never
+    Users/<name>/..."""
+    from types import SimpleNamespace
+
+    from judgekeeper import front, textio
+
+    results = home / "ext" / "results.csv"
+    work = Path(os.path.realpath(tmp_path)) / "work"
+    found = SimpleNamespace(tool="table", root=work, used=["results.csv"], results=[
+        SimpleNamespace(path=results, rel=textio.kept_path(results, work))])
+    monkeypatch.chdir(Path(home.anchor))
+    shown = front._read_from(found)
+    assert USER not in shown and shown.endswith("results.csv"), shown
+    assert shown == textio._home_shown("ext/results.csv")

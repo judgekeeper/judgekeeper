@@ -51,11 +51,13 @@ from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
 from judgekeeper.start_label import FOLDER, StartSession, Workspace, made_lines, shown_folder
 from judgekeeper.textio import (
+    kept_at,
     kept_path,
     old_hook,
     plural,
     program,
     quote_arg,
+    shown_from_here,
     shown_path,
     wrap,
 )
@@ -1090,8 +1092,9 @@ def _outer_marks(found: start.Found) -> str | None:
         try:
             data = ws.data()
             given = data.get("given")  # a file given by path: read from where it is
-            files = [(folder / f).resolve() for f in ([given] if isinstance(given, str) and given
-                                                      else data.get("results_files") or [])]
+            files = [Path(kept_at(f, folder)).resolve()
+                     for f in ([given] if isinstance(given, str) and given
+                               else data.get("results_files") or [])]
             n = len(marks.read(ws.marks).counted())
         except (OSError, ValueError, AttributeError, TypeError):
             return None
@@ -1106,7 +1109,7 @@ def _kept_apart(found: start.Found) -> str | None:
     """A session above whose marks are for other results than these: these get their own
     .judgekeeper/ here, said once, when marking starts here."""
     root = Path(found.root)
-    apart = project.kept_apart(root, root / found.given if found.given else None)
+    apart = project.kept_apart(root, Path(kept_at(found.given, root)) if found.given else None)
     if apart is None:
         return None
     above, files = apart
@@ -1187,7 +1190,8 @@ def _read_from(found: start.Found) -> str:
         return f"{found.store}, experiment {quote_arg(found.experiment or '')}"
     if found.tool == "records":
         return f"{start._folder_of(newest)}, {_n(len(found.used), 'file')}"
-    shown = link(newest.path, newest.rel)
+    inside = Path(newest.path).resolve().is_relative_to(Path(found.root).resolve())
+    shown = link(newest.path, newest.rel if inside else shown_from_here(newest.path))
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
@@ -1981,7 +1985,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     session = StartSession(ws)
     was = checking.open_worse(ws, found) if check else None  # checking again says the same
     worse = was and checking.worse_step(was["before"], was["after"],
-                                        _check_command(talk), ws)
+                                        start.kept_check(talk.path, ws.root), ws, kept=True)
     r = start_label.store_result(ws, session, _flags_of(talk, saved, ws), worse=worse or None,
                                  redraw=True)
     m = marks.read(ws.marks)

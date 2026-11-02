@@ -732,39 +732,71 @@ ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 
 def from_here(value: str, labels: bool, command: bool = False) -> str:
-    """A path given in full, as a Next: line repeats it: from the folder the command runs in;
-    when the two share only the top folder and the path is in the home folder, `~/...`
-    (_home_shown); on another drive, `<file>` for --labels and PATH for the rest. Never the
-    whole path, nor (but in a Windows `command`) the user name: a command on Windows runs in
-    cmd.exe and PowerShell, and PowerShell doesn't read %USERPROFILE%, so it is from here."""
+    """A path given in full, as a Next: line repeats it: from the folder the command runs in
+    when the two share a folder below the home folder's parents (shares_below_home); else in
+    the home folder, `~/...` (_home_shown); else, or on another drive, `<file>` for --labels
+    and PATH for the rest. Never the whole path, nor the user name, but in a Windows
+    `command`: it runs in cmd.exe and PowerShell, and PowerShell doesn't read %USERPROFILE%,
+    so when nothing shorter runs it is the path as given (only ever printed, never kept)."""
     if not Path(value).anchor:  # on Windows, \x\r.csv has no drive but is not relative
         return value
-    try:
-        real, here = os.path.realpath(value), os.path.realpath(os.getcwd())
-        rel = os.path.relpath(real, here)
-        shared = os.path.commonpath([real, here])
-    except ValueError:  # another drive (Windows)
-        return ANOTHER_DRIVE[0 if labels else 1]
-    if (os.path.dirname(shared) == shared and not (command and is_windows())
-            and (inside := _in_home(real)) is not None):
+    real = os.path.realpath(value)
+    rel = _from_below_home(real, os.getcwd())
+    if rel is not None:
+        return rel
+    if command and is_windows():
+        return value
+    if (inside := _in_home(real)) is not None:
         return _home_shown(inside)
-    return rel.replace(os.sep, "/")
+    return ANOTHER_DRIVE[0 if labels else 1]
+
+
+def shares_below_home(shared: str) -> bool:
+    """Whether two paths whose deepest shared folder is `shared` may be named one from the
+    other: `shared` is neither a top folder (`/`, a drive) nor a folder above the home folder,
+    so the climb names neither the whole path nor the user name."""
+    if os.path.dirname(shared) == shared:
+        return False
+    try:
+        home = os.path.realpath(Path.home())
+        return not (home != shared and os.path.commonpath([home, shared]) == shared)
+    except (OSError, RuntimeError, ValueError):
+        return True
+
+
+def _from_below_home(real: str, start) -> str | None:
+    """`real` from the folder `start` (`..` allowed, `/` between folders) when they share a
+    folder below the home folder's parents (shares_below_home), else None."""
+    try:
+        start = os.path.realpath(start)
+        rel = os.path.relpath(real, start)
+        shared = os.path.commonpath([real, start])
+    except ValueError:  # another drive (Windows)
+        return None
+    return rel.replace(os.sep, "/") if shares_below_home(shared) else None
 
 
 def kept_path(path, root) -> str:
-    """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` (`..`
-    allowed, `/` between folders), so the file names no folder outside the project; on
-    another drive, its base name."""
-    try:
-        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(root))
-    except ValueError:  # another drive (Windows)
-        return Path(os.fsdecode(path)).name
-    return rel.replace(os.sep, "/")
+    """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` when the two
+    share a folder below the home folder's parents (`..` allowed, `/` between folders); else
+    in the home folder, `~/...`; else its base name. Never the whole path nor the user
+    name."""
+    real = os.path.realpath(path)
+    rel = _from_below_home(real, root)
+    if rel is not None:
+        return rel
+    inside = _in_home(real)
+    if inside is not None:
+        return HOME_FORMS[0] + inside.replace(os.sep, "/")
+    return Path(os.fsdecode(path)).name
 
 
 def kept_at(kept: str, root) -> str:
-    """A path a file in .judgekeeper/ keeps (kept_path), as a path to read: from the project
-    folder `root`; an older file's whole path stays as it is."""
+    """A path a file in .judgekeeper/ keeps (kept_path), as a path to read: `~/...` in the
+    home folder, else from the project folder `root`; an older file's whole path stays as it
+    is."""
+    if kept.startswith(HOME_FORMS[0]):
+        return os.path.normpath(os.path.join(Path.home(), kept[len(HOME_FORMS[0]):]))
     return os.path.normpath(os.path.join(root, kept))
 
 

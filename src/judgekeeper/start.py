@@ -261,6 +261,13 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
                      *repeated_flags(kept=kept, **saved_flags(flags))))
 
 
+def kept_check(path, root) -> str:
+    """`judgekeeper check` as report.html keeps it: with `path` from the project folder `root`
+    (textio.kept_path) when it is not the project folder itself."""
+    kept = "." if str(path) == "." else textio.kept_path(path, root)
+    return " ".join((textio.program("check"), *([] if kept == "." else [path_word(kept, True)])))
+
+
 def held_values(flags) -> list[str]:
     """The values a kept command made from `flags` shows as NAME (quote_arg), in order: on
     Windows, each is said beside it as data."""
@@ -1084,7 +1091,9 @@ def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
 
     def rel(path: Path) -> str:
         path = path.resolve()
-        return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+        if path.is_relative_to(root):
+            return path.relative_to(root).as_posix()
+        return textio.kept_path(path, root)  # never the whole path: start.json keeps it
 
     results = [replace(r, rel=rel(r.path)) for r in found.results]
     given = rel(folder or found.results[0].path) if found.tool != "mapped" else None
@@ -1096,7 +1105,7 @@ def results_path(root: Path, data: dict) -> Path:
     path when marking started, while it is there; else the project folder."""
     given = data.get("given") if isinstance(data, dict) else None
     if isinstance(given, str) and given:
-        path = Path(root) / given
+        path = Path(textio.kept_at(given, root))
         if path.exists():
             return path
     return Path(root)

@@ -343,20 +343,29 @@ def test_a_path_typed_in_home_from_a_folder_outside_it_is_repeated_from_home(mon
     assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == "~/My Labels/l.csv"
     inside = tmp_path / "data" / "l.csv"  # sharing more than the top: from here, as before
     assert textio.from_here(str(inside), labels=True) == "data/l.csv"
-    assert textio.from_here("/opt/data/l.csv", labels=True).endswith("opt/data/l.csv")
+    assert textio.from_here("/opt/data/l.csv", labels=True) == "<file>"  # climbs to the top
+    assert textio.shown_from_here("/opt/data/l.csv") == "l.csv"
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="faked: the temp folder is under C:\\Users there")
 def test_on_windows_a_path_in_home_is_repeated_from_here_and_named_from_userprofile(
         monkeypatch, tmp_path):
-    """A command repeats it from here (PowerShell doesn't read %USERPROFILE%); a line that
-    only names it still says %USERPROFILE%."""
+    """A command repeats it from here when the two share a folder in the home folder, else
+    in full, double-quoted (PowerShell doesn't read %USERPROFILE%, and from here would climb
+    to the top): never a stand-in for a file that is there. A line that only names it still
+    says %USERPROFILE%."""
     monkeypatch.setenv("HOME", "/Users/someone")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "platform", "win32")
-    up = os.path.relpath("/Users/someone", os.path.realpath(tmp_path))
     assert textio.runnable("/Users/someone/My Labels/l.csv", labels=True) == (
-        f'"{up}/My Labels/l.csv"')
-    assert textio.runnable("/Users/someone/labels.csv", labels=False) == f"{up}/labels.csv"
+        '"/Users/someone/My Labels/l.csv"')
+    assert textio.runnable("/Users/someone/labels.csv", labels=False) == (
+        "/Users/someone/labels.csv")
     assert textio.shown_from_here("/Users/someone/My Labels/l.csv") == (
         "%USERPROFILE%\\My Labels\\l.csv")
+    home = os.path.realpath(tmp_path)
+    monkeypatch.setenv("HOME", home)
+    (tmp_path / "proj").mkdir()
+    monkeypatch.chdir(tmp_path / "proj")
+    assert textio.runnable(os.path.join(home, "My Labels", "l.csv"), labels=True) == (
+        '"../My Labels/l.csv"')
