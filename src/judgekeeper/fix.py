@@ -748,7 +748,8 @@ def prepared_section(ws: Workspace) -> dict | None:
 
 def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
     """The result page's disagreements: the mistakes on the marks the person can see, with the
-    judge's reason, each text whole (the page folds each row), a many-field question's
+    judge's reason (`reasons_given`: whether any marked answer has one), each text whole (the
+    page folds each row), a many-field question's
     `fields` as the marking page shows them, and the person's reasons on it (`why`:
     reasons.of_line, rule parts only of the rule now); the rule's parts and the person's own
     buttons. Never a hidden mark. None when there is none. A split.json that can't be used
@@ -777,7 +778,8 @@ def report_section(ws: Workspace, m: Marks | None = None) -> dict | None:
                           "reason": r["reason"], "why": why(r)}
                          for r in wrong],
             "parts": m.parts, "left_out": reasons.parts_left_out(m.data),
-            "own": list(m.own.values())}
+            "own": list(m.own.values()),
+            "reasons_given": any(m.reasons.get(i) for i in m.person)}  # else no reason column
 
 
 def _fields(m: Marks, row: dict) -> list[list[str]] | None:
