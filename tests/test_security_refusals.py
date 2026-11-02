@@ -729,11 +729,11 @@ def test_a_command_kept_in_a_file_or_page_keeps_the_value_beside_name(monkeypatc
     from judgekeeper import front, start
 
     monkeypatch.setattr(sys, "platform", "win32")
-    talk = SimpleNamespace(path="C:\\work\\100% done", answers={}, store=None,
+    talk = SimpleNamespace(path="100% done", answers={}, store=None,  # kept as it is
                            options={"port": 8765, "no_browser": False, "pass_if": "x>=0.5"})
     flags = front._flags_of(talk, True, SimpleNamespace(root=Path.cwd()))
     assert start.command_from(flags, "mark", kept=True).endswith('mark NAME --pass-if "x>=0.5"')
-    assert start.held_values(flags) == ["C:\\work\\100% done"]
+    assert start.held_values(flags) == ["100% done"]
     assert textio._held == {}
 
 

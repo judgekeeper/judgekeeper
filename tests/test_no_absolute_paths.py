@@ -156,8 +156,8 @@ def test_an_older_split_with_a_whole_path_still_reads(here, capsys, tmp_path_fac
     new = other / write_rows(other, "new.csv", breaking(ws, "wrong"))
     assert main(["fix", str(new)]) == 0
     split = fix.read_split(ws)
-    assert split.tests[-1]["file"] == os.path.relpath(os.path.realpath(new),
-                                                      os.path.realpath(here))
+    kept = os.path.relpath(os.path.realpath(new), os.path.realpath(here))
+    assert split.tests[-1]["file"] == kept.replace(os.sep, "/")  # the same on every system
     split.tests[-1]["file"] = str(new)  # as an older judgekeeper kept it
     fix.save_split(ws, split)
     capsys.readouterr()
