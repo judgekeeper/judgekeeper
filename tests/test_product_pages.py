@@ -760,7 +760,7 @@ def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_se
 
 
 
-def test_what_next_never_sends_to_marking_when_every_answer_is_marked():
+def test_what_next_sends_to_marking_only_to_change_a_mark_when_every_answer_is_marked():
     mark = program("mark")
     for counts in (GATE, NOT_GATE_TNR):
         live = unwrapped(_part(start_label.result_html(_result(*counts, left=0), "/?token=t"),
@@ -769,7 +769,10 @@ def test_what_next_never_sends_to_marking_when_every_answer_is_marked():
         assert SAVED in live and SAVED in saved, counts
         assert "Keep marking" not in live and "Closed?" not in live, counts
         assert TO_MARK_MORE.format(mark=mark) not in saved, counts
-        assert mark not in live and mark not in saved, counts
+        assert ('<a href="/?token=t">Change a mark</a>: click it in the list and mark it '
+                "again.") in live, counts
+        assert f"To change a mark, run <code>{mark}</code> in your project folder." in saved
+        assert mark not in live, counts
     left = unwrapped(_part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN))
     assert TO_MARK_MORE.format(mark=mark) in left
 

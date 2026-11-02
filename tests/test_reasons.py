@@ -999,7 +999,7 @@ def test_mark_with_every_answer_marked_opens_the_result_page_with_the_boxes(
     ws, passes, _, _ = _ready(here)
     code, out = _run(capsys, "mark")
     assert code == 0, out
-    assert f"You have marked all {N} answers. There are no more to mark." in out
+    assert f"You have marked all {N} answers." in out
     flat = " ".join(out.split())
     assert f"Your result page is open in your browser. {SAY_WHY}" in flat
     assert assert_one_next_at_the_end(out) == NEXT_ALL_MARKED
@@ -1044,8 +1044,8 @@ def test_mark_opens_the_result_page_again_while_the_page_is_open(here, capsys, p
     assert "The marking page is already running." in " ".join(out.split()), out
 
 
-def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, capsys, pages,
-                                                                         no_browser):
+def test_mark_with_every_answer_marked_and_no_disagreement_keeps_the_marking_page(
+        here, capsys, pages, no_browser):
     from tests.start_projects import promptfoo_project, split
     from tests.test_mark import _click
 
@@ -1056,8 +1056,9 @@ def test_mark_with_every_answer_marked_and_no_disagreement_opens_no_page(here, c
     started = len(pages[0])
     code, out = _run(capsys, "mark")
     assert code == 0, out
-    assert "You have marked all 36 answers. There are no more to mark." in out
+    assert "You have marked all 36 answers." in out
     assert "result page" not in out and "Say why" not in out
+    assert "To change a mark, click it in the list." in " ".join(out.split()), out
     assert len(pages[0]) == started and len(no_browser) == 1  # the marking page, once
 
 

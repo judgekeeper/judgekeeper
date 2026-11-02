@@ -779,7 +779,7 @@ __TOP__
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
   // result, to leave them out).
-  function finish() {
+  function finish(opening) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
@@ -787,8 +787,15 @@ __TOP__
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
+      setText("end-note", "Opening your result\u2026");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
+        focusCard(); return;
+      }
+      if (opening) {  // opened with every answer marked: a mark can still be changed
+        var n = counts.correct + counts.wrong;
+        setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
+        setText("end-note", WORDS.change);
         focusCard(); return;
       }
       window.location.href = url("/result");
@@ -1006,7 +1013,7 @@ __TOP__
   });
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
-  if (left) { open(pos); } else { finish(); }
+  if (left) { open(pos); } else { finish(true); }
   if (!seenIntro()) {
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
@@ -1044,11 +1051,13 @@ def _words() -> str:
     """The link's and the line's words, as the page's script reads them: before the first
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
+    from judgekeeper.front import CHANGE_MARK
     from judgekeeper.start_label import FIRST_NUMBERS
     from judgekeeper.textio import program
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark")))}
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark"))),
+             "change": CHANGE_MARK}
     return json.dumps(words).replace("<", "\\u003c")
 
 

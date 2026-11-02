@@ -1086,6 +1086,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
 ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
@@ -1213,6 +1214,11 @@ def _next(r: dict, back: str | None) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
+    elif back is not None:  # every answer marked: a mark can still be changed
+        out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                   "it again.</p>")
+    else:
+        out.append(f"<p>To change a mark, run {mark} in your project folder.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
             f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
 

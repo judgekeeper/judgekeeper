@@ -205,7 +205,7 @@ def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here,
     run(capsys, "--labels", "mine.csv")
     _page(Workspace(here), {i: ("pass" if i < 20 else "fail") for i in range(10, 36)})
     _, out = run(capsys, "mark")
-    assert "You have marks on all 36 answers. There are no more to mark." in out
+    assert "You have marks on all 36 answers." in out
     assert "You have marked all" not in out
 
 

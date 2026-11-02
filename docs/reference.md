@@ -64,7 +64,7 @@ judgekeeper mark [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
                  [--judge-model NAME] [--yes] [--port PORT] [--no-browser] [--new | --wait | --stop]
 ```
 
-Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some.
+Opens the marking page again. It takes the same flags as `judgekeeper`, without `--version`. When every answer is marked, it opens your result page if you and your LLM-as-a-judge disagree on some, else the marking page. To change a mark, click it in the list.
 
 After your first 10 marks, about 1 in 20 answers comes back a second time, so judgekeeper can see how often your own marks change. Only your first mark counts. It adds about 5% more marks.
 
