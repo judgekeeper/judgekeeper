@@ -64,7 +64,7 @@ def test_the_check_finds_a_bare_judge_and_leaves_the_rest():
     assert bare("Your judge passed it.") and bare("The judge's rule") and bare("Judge: gpt")
     assert bare("Two judges agree.")
     for fine in ("Your LLM-as-a-judge passed it.", "--judge-model NAME", "judge_verdict",
-                 "judge-check.csv", ".judgekeeper/judge.json", "pass judge= to record()",
+                 "judge-check.csv", ".judgekeeper/judge.json", "pass `judge=` to record()",
                  "write how to judge them", "{judge}", "judgekeeper", "judgment",
                  "LLM_JUDGE, JUDGE"):
         assert not bare(fine), fine

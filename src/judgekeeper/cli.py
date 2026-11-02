@@ -41,7 +41,6 @@ from judgekeeper.textio import (
     describe_os_error,
     flush_stdout,
     held_lines,
-    is_windows,
     lenient_streams,
     program,
     quote_arg,
@@ -145,8 +144,8 @@ def version_lines(stream=None) -> list[str]:
     """What `--version` prints. In a terminal it is the install check: the install is ready,
     and what to run next. Piped (a script, CI), exactly `judgekeeper <version>`.
 
-    When the `judgekeeper` command is not on the PATH, the next step names the form that works,
-    with -P so Python keeps this folder off the import path (a project's re.py never runs).
+    When the `judgekeeper` command is not on the PATH, the next step names the form that runs
+    (textio.off_path).
     """
     stream = sys.stdout if stream is None else stream
     try:
@@ -158,7 +157,7 @@ def version_lines(stream=None) -> list[str]:
     if started_by_uvx() or shutil.which("judgekeeper"):
         command = program()
     else:
-        command = f"{'py' if is_windows() else 'python3'} -P -m judgekeeper"
+        command = textio.off_path(any_start=True)
     return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
 
 
@@ -338,7 +337,7 @@ def _page_args(p: argparse.ArgumentParser) -> None:
     what = p.add_mutually_exclusive_group()
     what.add_argument("--new", action="store_true",
                       help="start over: your marks move to .judgekeeper/previous-<date>/ "
-                           "(asked first; nothing is deleted)")
+                           "(asked first when you have marks; nothing is deleted)")
     what.add_argument("--wait", action="store_true",
                       help="serve the page in this terminal until Ctrl-C, instead of in the "
                            "background")

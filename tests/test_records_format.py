@@ -14,6 +14,7 @@ import pytest
 from judgekeeper import start
 from judgekeeper.normalise import Normaliser
 from judgekeeper.records import (
+    DEFAULT_NAME,
     SCHEMA_VERSION,
     RecordsError,
     ScoreRecord,
@@ -266,7 +267,7 @@ def test_two_agent_runs_with_the_same_answer_do_not_merge(tmp_path):
              "trajectory": SHORT_RUN}]
     records = read_records(write_jsonl(tmp_path / "runs.jsonl", rows))
     assert records[0].target_id != records[1].target_id
-    pool = start.build_pool([("runs.jsonl", records)], "judge", Normaliser())
+    pool = start.build_pool([("runs.jsonl", records)], DEFAULT_NAME, Normaliser())
     assert len(pool.answers) == 2 and pool.n_merged == 0
     assert {a.agent["trajectory"] == TRAJECTORY for a in pool.answers} == {True, False}
 
@@ -276,5 +277,5 @@ def test_without_a_trajectory_the_same_answer_still_merges(tmp_path):
             {"input": "q", "output": "a", "label": "pass"}]
     records = read_records(write_jsonl(tmp_path / "same.jsonl", rows))
     assert records[0].target_id == records[1].target_id == derive_record_id("q", "a")
-    pool = start.build_pool([("same.jsonl", records)], "judge", Normaliser())
+    pool = start.build_pool([("same.jsonl", records)], DEFAULT_NAME, Normaliser())
     assert len(pool.answers) == 1 and pool.n_merged == 1

@@ -54,3 +54,25 @@ def test_records_reach_the_labeling_page_like_any_other_results(tmp_path):
     assert len(pool) == 36
 
 
+
+
+def test_records_with_the_old_default_name_read_as_llm_as_a_judge(tmp_path, capsys,
+                                                                  monkeypatch):
+    """Records written before 1.1 have the default name "judge": shown as "LLM-as-a-judge",
+    and a session (or --metric) that says "judge" still finds them."""
+    from judgekeeper.cli import main
+
+    records_project(tmp_path, split(12, 8), name="judge", model=None)
+    records_project(tmp_path, split(4, 4), name="tone", pid=4102, model=None, start=40)
+    assert start.find_judge(tmp_path, metric="judge").metric == "LLM-as-a-judge"
+    monkeypatch.chdir(tmp_path)
+    main(["--no-browser", "--port", "0", "--yes"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "LLM-as-a-judge (20 answers)" in out and "judge (" not in out.replace(
+        "LLM-as-a-judge (", "")
+    main(["--metric", "judge", "--no-browser", "--port", "0", "--yes"])
+    out = " ".join(capsys.readouterr().out.split())
+    assert "LLM-as-a-judge: LLM-as-a-judge, model not found" in out, out
+    assert "no LLM-as-a-judge named" not in out
+    assert start._judge_name("records", "LLM-as-a-judge", None, [], False, "x").endswith(
+        "(your records do not say which model: pass `judge=` to record())")

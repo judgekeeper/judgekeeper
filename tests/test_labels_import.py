@@ -492,8 +492,8 @@ def test_the_same_import_twice_changes_nothing(here, capsys):
     before = ws.marks.read_bytes()
     _code, out = run(capsys, "--labels", "mine.csv")
     assert ws.marks.read_bytes() == before
-    assert "Added 0 marks from mine.csv (0 Pass, 0 Fail)." in flat(out)
-    assert "--labels" not in out.split("Added")[1]  # never in a Next line
+    assert "Nothing new: the labels in mine.csv are already your marks." in flat(out)
+    assert "--labels" not in out.split("Nothing new")[1]  # never in a Next line
 
 
 def test_a_mark_made_on_the_page_is_kept(here, capsys):
@@ -834,8 +834,8 @@ def test_the_same_import_twice_says_nothing_is_new(here, capsys):
     write_labels(here / "mine.csv", labelled(range(10)))
     run(capsys, "--labels", "mine.csv")
     _, out = run(capsys, "--labels", "mine.csv")
-    assert ("Added 0 marks from mine.csv (0 Pass, 0 Fail). Nothing new: the labels in mine.csv "
-            "are already your marks.") in flat(out)
+    assert "Nothing new: the labels in mine.csv are already your marks." in flat(out)
+    assert "Added" not in out  # only the one line: nothing was added
     write_labels(here / "more.csv", labelled(range(10, 12)))
     _, out = run(capsys, "--labels", "more.csv")
     assert "Nothing new" not in out
@@ -856,8 +856,8 @@ def test_ctrl_c_after_the_import_was_written_then_again_says_nothing_is_new(here
     assert code == 130 and "Added" not in out, out
     monkeypatch.setattr(labels, "add", written)
     _, out = run(capsys, "--labels", "mine.csv")
-    assert ("Added 0 marks from mine.csv (0 Pass, 0 Fail). Nothing new: the labels in mine.csv "
-            "are already your marks.") in flat(out)
+    assert "Nothing new: the labels in mine.csv are already your marks." in flat(out)
+    assert "Added" not in out  # only the one line: nothing was added
 
 
 @pytest.mark.parametrize("command", [[], ["mark"]])

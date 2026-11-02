@@ -1574,7 +1574,7 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
         talk.ask_noted()
         raise _nothing_to_mark(talk, found, None)
     over = why is not None
-    if over:
+    if over and _has_marks(ws):  # else nothing to lose: start over without asking
         for line in why:
             talk.para(line)
         over = talk.confirm(START_OVER, default=True, with_yes=True, hint="")
@@ -1589,6 +1589,16 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
         project.move_to_previous(ws, talk.say)
     _write(found)  # judge.json and the free checks: the judge as it is now
     return _marking(talk, ws, found, wait, saved, marking)
+
+
+def _has_marks(ws: Workspace) -> bool:
+    """Whether .judgekeeper/ holds marks that count (or an older judgekeeper's marks)."""
+    if ws.labels.is_file():
+        return True
+    try:
+        return ws.marks.is_file() and bool(marks.read(ws.marks).counted())
+    except (OSError, ValueError):
+        return True  # unreadable: ask, so nothing moves without a yes
 
 
 def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[str] | None:
@@ -2060,12 +2070,20 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
 
 
 def _stop(talk: FrontTalk, path: Path) -> int:
-    """--stop: close the page open for this project."""
+    """--stop: close the page open for this project, or the one opened from a folder right
+    below it (Find looks one level down); with several there, where they are."""
     if not path.exists():
         raise not_found(path)
     ws = Workspace(project.project_of(path))
     if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
         ws = Workspace(start.reads_in(path))  # the folder a run from here reads
+    below = [] if is_open(ws.dir) or not path.is_dir() else [
+        name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
+    if len(below) == 1:  # opened from the folder right below (`judgekeeper evals`)
+        ws = Workspace(path / below[0])
+    elif below:
+        talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
+        raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
