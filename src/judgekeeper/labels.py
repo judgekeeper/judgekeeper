@@ -32,14 +32,17 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from judgekeeper import marks
+from judgekeeper.mapper import INPUT_WORDS, OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
 from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
-ANSWER_COLUMNS = ("output", "answer")
+ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant can't be told
 QUESTION_COLUMNS = ("input", "question")
+ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
+QUESTION_NAMES = (*QUESTION_WORDS, *(w for w in INPUT_WORDS if w not in QUESTION_WORDS))
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 10
@@ -190,7 +193,7 @@ def _has_results(folder: Path) -> bool:
 
 def _used(column) -> bool:
     """A column read_file may use: an id, question, answer or label."""
-    return str(column).strip().lower() in (*ANSWER_COLUMNS, *QUESTION_COLUMNS, *LABEL_COLUMNS,
+    return str(column).strip().lower() in (*ANSWER_NAMES, *QUESTION_NAMES, *LABEL_COLUMNS,
                                            "id")
 
 
@@ -215,6 +218,14 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
             raise LabelsStop([TWICE.format(file=path.name, kind=kind, a=str(same[0]).strip(),
                                            b=str(same[1]).strip(),
                                            command=command("--labels", given))])
+
+
+NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
+         "human_label).")
+
+
+def _or(words) -> str:
+    return ", ".join(words[:-1]) + f" or {words[-1]}"
 
 
 def read_file(path: Path, label_map: dict | None = None,
@@ -245,11 +256,10 @@ def read_file(path: Path, label_map: dict | None = None,
         raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
     _twice(path, columns, _plain(command))
-    out_col, label_col = _column(columns, ANSWER_COLUMNS), _column(columns, LABEL_COLUMNS)
+    out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
     if out_col is None or label_col is None:
-        raise LabelsStop([(f"{name} needs an answer column (output or answer) and a label column "
-                           "(label or human_label).")])
-    in_col, id_col = _column(columns, QUESTION_COLUMNS), _column(columns, ("id",))
+        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))])
+    in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)
     if all(mark is None for mark in read):
