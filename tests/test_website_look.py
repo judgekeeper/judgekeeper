@@ -747,7 +747,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        "With pip, in your project’s virtual environment", "With uv"]
+        ("With pip, in your project’s virtual environment (in a uv virtual environment, uv "
+         "pip install judgekeeper)"), "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words

@@ -21,7 +21,7 @@ An LLM-as-a-judge is an AI model that grades another model's answers. judgekeepe
 
 ## Install
 
-In your project folder, in its virtual environment:
+In your project folder, in its virtual environment (in a uv virtual environment, `uv pip install judgekeeper`):
 ```
 pip install judgekeeper
 judgekeeper
