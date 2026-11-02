@@ -528,11 +528,17 @@ class _Walk:
             except OSError:
                 continue
             for entry in entries:
-                if entry.is_symlink():
-                    if _results_like(Path(entry.path)) and entry.is_file():
+                try:
+                    link = entry.is_symlink()
+                    is_dir = not link and entry.is_dir(follow_symlinks=False)
+                    is_file = not (link or is_dir) and entry.is_file(follow_symlinks=False)
+                    if link and _results_like(Path(entry.path)) and entry.is_file():
                         self.skip(Path(entry.path), LINK)
+                except OSError:  # it can't be told what it is (/dev/fd/3 from /): skipped
                     continue
-                if entry.is_dir(follow_symlinks=False):
+                if link:
+                    continue
+                if is_dir:
                     sub = Path(entry.path)
                     if entry.name == HIDDEN_KEPT:
                         self.sign("deepeval", self.rel(sub) + "/")
@@ -547,7 +553,7 @@ class _Walk:
                         queue.append(sub)
                     elif walked(entry):
                         self.edge.append(sub)
-                elif entry.is_file(follow_symlinks=False):
+                elif is_file:
                     self.file(entry)
                 else:
                     self.odd(entry)
@@ -660,9 +666,15 @@ def search(root: str | Path) -> Search:
         elif store is not None and store.is_dir():
             walk.add("mlflow", store)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
-            if entry.is_file(follow_symlinks=False) and not entry.is_symlink():
+            try:
+                link = entry.is_symlink()
+                is_file = not link and entry.is_file(follow_symlinks=False)
+                odd = not (link or is_file) and not entry.is_dir(follow_symlinks=False)
+            except OSError:  # it can't be told what it is (/dev/fd/3 from /): skipped
+                continue
+            if is_file:
                 walk.file(entry)
-            elif not entry.is_symlink() and not entry.is_dir(follow_symlinks=False):
+            elif odd:
                 walk.odd(entry)
         for folder in known:
             if folder.is_dir() and not folder.is_symlink():

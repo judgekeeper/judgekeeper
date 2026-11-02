@@ -98,3 +98,42 @@ def test_check_with_no_marks_from_the_top_folder_names_this_folder(home, monkeyp
     _, out = _run(capsys, "check", results)
     assert "No marks in this folder ()" not in out, out
     assert "No marks in this folder." in out, out
+
+
+class _Unknown:
+    """An entry the walk can't tell the kind of: /dev/fd/3 seen from / (Bad file
+    descriptor)."""
+
+    name = "3"
+
+    def __init__(self, folder: str):
+        self.path = os.path.join(folder, self.name)
+
+    def _bad(self, *args, **kwargs):
+        raise OSError(errno.EBADF, "Bad file descriptor", self.path)
+
+    is_symlink = is_dir = is_file = stat = _bad
+
+
+@pytest.mark.parametrize("below", [("dev", "fd"), ()])  # as from /, and in this folder
+def test_a_folder_below_that_cant_be_told_apart_is_skipped(below, tmp_path, monkeypatch,
+                                                           capsys):
+    real, fd = os.scandir, Path(os.path.realpath(tmp_path), *below)
+    fd.mkdir(parents=True, exist_ok=True)
+
+    class _Os:
+        def __getattr__(self, name):
+            return getattr(os, name)
+
+        @staticmethod
+        def scandir(folder="."):
+            entries = list(real(folder))
+            return entries + [_Unknown(str(fd))] if Path(folder).resolve() == fd else entries
+
+    monkeypatch.setattr(find, "os", _Os())
+    monkeypatch.chdir(tmp_path)
+    code, out = _run(capsys, "--stop")
+    assert code == 0 and "No marking page is open." in out, out
+    assert "cannot use" not in out
+    code, out = _run(capsys, *PAGE)
+    assert "cannot use" not in out and "error" not in out.lower(), out
