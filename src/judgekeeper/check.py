@@ -821,7 +821,7 @@ def expect_lines(g: dict) -> list[str]:
 def _say_result(said: Said, g: dict) -> None:
     kind = outcome(g)
     if kind:
-        said.say(RESULT[kind])
+        said.para(RESULT[kind])
         said.say()
 
 
@@ -831,7 +831,7 @@ def _say_table(said: Said, g: dict) -> None:
     said.say()
     lines = expect_lines(g)
     for line in lines:
-        said.say(line)
+        said.para(line)
     if lines:
         said.say()
 
@@ -940,6 +940,16 @@ class Said:
             for line in wrap(text.strip(), indent=indent):
                 self._say(line)
         for line in held_lines(text):  # a name left out of the command above, as data
+            self._say(one_line(line))
+
+    def para(self, text: str) -> None:
+        """A line of judgekeeper's own words, wrapped at the width of the rest (textio.wrap)
+        under its own indent, however long it is."""
+        text = one_line(text)
+        indent = text[:len(text) - len(text.lstrip())]
+        for line in wrap(text.strip(), indent=indent):
+            self._say(line)
+        for line in held_lines(text):
             self._say(one_line(line))
 
     def as_is(self, text: str) -> None:
@@ -1693,7 +1703,7 @@ def full(path: str, said: Said) -> int:
             said.say(WRITTEN_FROM)
             for line in _after_lines(fresh, tested, picked, pool,
                                      every=every_marked(state.ws)):
-                said.say(line)
+                said.para(line)
             said.say()
     left = sum(i in state.marks and i not in old_verdicts for i in tested)
     if left:  # graded before the last check took on the old judge (_adopt)

@@ -67,7 +67,7 @@ def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     assert AGAIN in " ".join(out.split())
-    assert _no_width(out)
+    assert _no_width(" ".join(out.split()))
     assert "Pass: 100% (you marked every answer)" in " ".join(out.split())
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["numbers_version"] == start_label.NUMBERS_VERSION

@@ -300,7 +300,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
+    assert ("Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge."
+            in " ".join(out.split()))
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
     assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
             "in every 100.") in " ".join(out.split())

@@ -2114,8 +2114,11 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
-        for line in estimate_lines(r):
-            talk.say(line)
+        for line in estimate_lines(r):  # each wrapped under its own indent
+            if line.startswith("  "):
+                talk.para(line[2:], indent="  ")
+            else:
+                talk.para(line)
         if report_page.shows_range(r):  # with no range shown, nothing is wider
             talk.para(start_label.WIDER)
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels

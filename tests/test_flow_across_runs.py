@@ -168,7 +168,7 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     _mark(Workspace(here), {i: "fail" for i in (0, 1, 2)} | {i: "pass" for i in (20, 21, 22)})
     code, out = _jk(capsys)
     assert "Result: your LLM-as-a-judge is good enough to use." in out  # 17 of 20 each side
-    assert "it also says Pass: 85% (you marked every answer)" in out
+    assert "it also says Pass: 85% (you marked every answer)" in " ".join(out.split())
     assert "about" not in out and "between" not in out and "exactly" not in out
     html = Workspace(here).report_html.read_text(encoding="utf-8")
     assert "85% (you marked every answer)" in html and "exactly" not in html
