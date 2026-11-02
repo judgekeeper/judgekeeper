@@ -45,3 +45,32 @@ def test_other_numbers_are_still_refused(here, capsys, value):
                                      {"answer": answer(1), "label": "1.0"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3 and "Labels must be Pass or Fail, not numbers." in flat(out), out
+
+
+# Two columns for the same thing ---------------------------------------------------------------
+
+@pytest.mark.parametrize("columns,kind,pair", [
+    (["output", "label", "Label", "OUTPUT"], "label", "label and Label"),
+    (["output", "OUTPUT", "label"], "answer", "output and OUTPUT"),
+    (["answer", "output", "label"], "answer", "answer and output"),
+    (["output", "label", "human_label"], "label", "label and human_label"),
+    (["input", "Question", "output", "label"], "question", "input and Question"),
+    (["id", " ID ", "output", "label"], "id", "id and ID"),
+])
+def test_two_columns_for_the_same_thing_stop_before_anything_is_written(here, capsys, columns,
+                                                                       kind, pair):
+    from tests.test_labels_import import _nothing_written
+
+    table(here)
+    rows = [{c: (answer(i) if c.strip().lower() in ("output", "answer")
+                 else "pass" if c.strip().lower() in ("label", "human_label")
+                 else f"Question {i}?" if c.strip().lower() in ("input", "question")
+                 else str(i)) for c in columns} for i in range(3)]
+    write_labels(here / "mine.csv", rows, columns)
+    code, out = run(capsys, "--labels", "mine.csv")
+    assert code == 3, out
+    text = flat(out)
+    assert f"mine.csv has two {kind} columns ({pair}). Keep one, then run: " in text, text
+    command = text[text.index("Keep one, then run: ") + len("Keep one, then run: "):]
+    assert "--labels mine.csv" in command, command
+    _nothing_written(Workspace(here))
