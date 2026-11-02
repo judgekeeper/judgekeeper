@@ -138,6 +138,25 @@ def header(text: str, suffix: str) -> list[str]:
         return []
 
 
+def columns(path: str | Path) -> list[str]:
+    """The column names of a CSV, TSV or JSONL file as written in it (a JSONL file's first
+    object's keys), or [] when it can't be read."""
+    path = Path(path)
+    try:
+        text = read_utf8(path, TableError)
+    except (OSError, TableError):
+        return []
+    suffix = path.suffix.lower()
+    if suffix in (".csv", ".tsv"):
+        return header(text, suffix)
+    line = next((line for _, line in _lines(text) if line.strip()), "")
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    return [k for k in row if isinstance(k, str)] if isinstance(row, dict) else []
+
+
 def _lines(text: str):
     """(line number, line) of JSONL text, split at "\n" only (textio.jsonl_lines), one at a
     time: a big file is never held as a list of lines."""

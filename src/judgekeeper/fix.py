@@ -157,8 +157,9 @@ RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()
                 "new grades, then {run}.")
 SAME_SHAPE = (f"Grade {ANSWERS} with your own code, and save the new grades in the same shape "
               "as {file}.")
-TABLE = ("Save the new grades with the columns of your first file: `question` as its input, "
-         "`answer` as its output, and the grade.")
+TABLE = "Save the new grades in a file like your first one, with its column names ({names})."
+TABLE_COLUMNS = ("input", "output", "verdict")
+GRADE_COLUMNS = ("verdict", "judge_verdict", "judge", "score")  # the grade, first found
 
 # The patterns: only when strong, from at least FEW mistakes
 FEW = 3
@@ -1558,15 +1559,34 @@ def not_a_column(ws: Workspace) -> list[str]:
 
 
 def regrade_line(tool: str | None, run: str = f"run `judgekeeper fix {NEW_RECORDS}`",
-                 file: str | None = None) -> str:
+                 file: str | None = None, columns=TABLE_COLUMNS) -> str:
     """How to grade the marked answers again with the person's own eval tool (`run`: the
     step that gives `fix` the new records, Talk.run); for a format of its own, `file` is the
-    results file read at the start."""
+    results file read at the start; for a table, `columns` are its question, answer and
+    grade columns (table_columns)."""
     if tool == "records":
         return RECORD_AGAIN.format(run=run)
     if tool == "mapped" and file:
         return SAME_SHAPE.format(file=file)
-    return f"{OWN} {TABLE}" if tool == "table" else REGRADE.get(tool or "", OWN)
+    if tool == "table":
+        return f"{OWN} {TABLE.format(names=', '.join(f'`{c}`' for c in columns))}"
+    return REGRADE.get(tool or "", OWN)
+
+
+def table_columns(ws: Workspace) -> tuple[str, ...]:
+    """The first results file's question, answer and grade columns as written in it, or
+    TABLE_COLUMNS when it can't be read."""
+    from judgekeeper.table import column_name, columns
+
+    file = _first_file(ws)
+    names = columns(Path(ws.root) / file) if file else []
+    known = {}
+    for name in names:
+        known.setdefault(column_name(name), name)
+    grade = next((known[g] for g in GRADE_COLUMNS if g in known), None)
+    if "input" in known and "output" in known and grade:
+        return known["input"], known["output"], grade
+    return TABLE_COLUMNS
 
 
 def _first_file(ws: Workspace) -> str | None:
@@ -1607,7 +1627,8 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     talk.say()
     steps = (regrade_steps(ws, talk.program("fix"), away=talk.away()) if tool == "promptfoo"
              else None)
-    talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws)))
+    talk.para(steps or regrade_line(tool, talk.run(NEW_RECORDS), _first_file(ws),
+                                    table_columns(ws) if tool == "table" else TABLE_COLUMNS))
     if steps:  # a ready config: the steps above are the whole way
         for line in not_a_column(ws):
             talk.para(line)
