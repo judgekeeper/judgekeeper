@@ -668,9 +668,22 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
     written = "".join(f'<p class="lead">{_term(x.strip())}</p>'  # as `check` said it
                       for x in r.get("written_from") or [])
+    written += waiting_html(r)
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_term(headline)}</h1>{written}{gate}<p class="lead">{lead}</p>'
             "</section>")
+
+
+def waiting_html(r: dict) -> str:
+    """The marks that wait (batches.graded) and how to count them, as Measure says it."""
+    from judgekeeper.check import WAIT, WAIT_COUNT
+
+    k = r.get("waiting")
+    if not k:
+        return ""
+    run = f"<code>{look.command(_e(r.get('waiting_check') or 'judgekeeper check'))}</code>"
+    count = _term(WAIT_COUNT.format(command="\0")).replace("`\0`", run)
+    return f'<p class="lead">{_term(WAIT.format(k=k))} {count}</p>'
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -1146,7 +1159,7 @@ def why_for(r: dict, key: str) -> str:
     (ON_ANSWERS): the newer ones are not all marked."""
     g = r.get("groups") or {}
     pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
-    why = why_no_range(key, r.get("left") == 0, pool)
+    why = why_no_range(key, r.get("left") == 0 and not r.get("waiting"), pool)
     on = r.get("batches") or {}
     if why != SAME_GRADE and on.get("waiting") and len(on.get("counted") or []) < (on.get("of") or 0):
         why += ON_ANSWERS.format(n=on["answers"])

@@ -105,6 +105,19 @@ def counting(data: dict, labels: dict[str, str], known: tuple | None = None) -> 
     return out
 
 
+def graded(data: dict, labels: dict[str, str]) -> dict[str, str]:
+    """The marks on answers the LLM-as-a-judge now has graded. A mark on an answer only an
+    earlier judge graded (`earlier_grades`, check._adopt) waits: it is never counted as this
+    judge's grade, and counts once `check` gets this judge's grade on it."""
+    earlier = set(data.get("earlier_grades") or [])
+    return {i: m for i, m in labels.items() if i not in earlier} if earlier else labels
+
+
+def waiting(data: dict, labels: dict[str, str]) -> int:
+    """How many of the marks `labels` wait (graded)."""
+    return len(labels) - len(graded(data, labels))
+
+
 def counted_labels(data: dict, labels: dict[str, str]) -> dict[str, str]:
     """The marks of the batches that count."""
     batch = of(data)

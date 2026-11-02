@@ -344,7 +344,8 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.index('id="count"') < right.index('id="see"')
     assert right.index('id="see"') < right.index('id="keep"')
     assert right.endswith('<p class="keep" id="keep" hidden>Keep going: your result appears once '
-                          'there are enough Pass and Fail marks.</p></div></div>')
+                          'there are enough Pass and Fail marks.</p>'
+                          '<p class="keep" id="waiting" hidden></p></div></div>')  # marks that wait
     style = mark_page.STYLE
     assert ".seg { display: flex; gap: 3px; }" in style
     assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style

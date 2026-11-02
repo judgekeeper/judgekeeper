@@ -1372,7 +1372,7 @@ def _import_gate(ws: Workspace, session: StartSession) -> str | None:
     if not ws.marks.is_file():
         return None
     data = ws.data()
-    ids = set(batches.counted_labels(data, session.marked()))
+    ids = set(batches.counted_labels(data, batches.graded(data, session.marked())))
     imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
     return labels_mod.gate_line(needed, imported)
 
@@ -1818,7 +1818,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if unreadable := marks.unreadable_line(marks.read(ws.marks)):
         head.append(unreadable)
     counts = session.counts()
-    enough = start_label.has_result(batches.counted_strata(ws.data(), session.marked()))
+    enough = start_label.has_result(batches.counted_strata(
+        ws.data(), batches.graded(ws.data(), session.marked())))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
@@ -2130,6 +2131,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line[2:], indent="  ")
         else:
             talk.para(line)
+    if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
+        talk.para(checking.WAIT.format(k=r["waiting"]))
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
@@ -2207,6 +2210,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         next_step = worse_here
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
+    elif r.get("waiting"):  # only the judge's grades on them can count them
+        next_step = checking.WAIT_NEXT.format(command=r["waiting_check"])
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
