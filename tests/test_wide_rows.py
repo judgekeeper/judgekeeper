@@ -57,8 +57,24 @@ def test_labels_with_a_wide_row_stop_and_name_the_line(here, capsys):
     code, out = run(capsys, "--labels", "labels.csv")
     assert code == 3, out
     assert ("labels.csv has more cells than its header (line 6): a quote may be closed in the "
-            "wrong place. Fix it, then run judgekeeper again.") in flat(out), out
+            "wrong place. Fix it, then run `judgekeeper` again.") in flat(out), out
     assert not (here / ".judgekeeper" / "marks.jsonl").exists()
+
+
+@pytest.mark.parametrize("stray", ["wide", "open"])
+def test_the_labels_stop_names_the_program_as_typed(here, capsys, monkeypatch, stray):
+    """Run by a path, the stop line says to run that path again, as every other line does."""
+    from judgekeeper import textio
+
+    table_project(here, [True] * 20 + [False] * 20)
+    path = _labels(here / "labels.csv", stray_at=7 if stray == "open" else 4)
+    if stray == "open":  # the last row's quote never closes
+        path.write_text(path.read_text(encoding="utf-8").rstrip('"\n') + "\n", encoding="utf-8")
+    monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
+    code, out = run(capsys, "--labels", "labels.csv")
+    assert code == 3, out
+    assert "Fix it, then run `venv/bin/judgekeeper` again." in flat(out), out
+    assert "run judgekeeper again" not in flat(out)
 
 
 def test_labels_with_trailing_empty_cells_import(here, capsys):

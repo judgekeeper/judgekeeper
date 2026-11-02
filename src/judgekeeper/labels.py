@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from judgekeeper import marks
+from judgekeeper import marks, textio
 from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
@@ -261,15 +261,15 @@ def read_file(path: Path, label_map: dict | None = None,
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
         raise LabelsStop([(f"judgekeeper reads labels from a CSV, TSV or JSONL file; {name} is "
                            "none of these.")])
+    again = f"Fix it, then run `{textio.program()}` again."  # the program as typed
     try:
         line = open_quote(path) if path.suffix.lower() in (".csv", ".tsv") else None
         if line is not None:
-            raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
-                               "then run judgekeeper again.")])
+            raise LabelsStop([f"{name} has a quote that never closes (line {line}). {again}"])
         line = wide_row(path)
         if line is not None:  # the second row's answer and label would be lost
             raise LabelsStop([(f"{name} {MORE_CELLS} (line {line}): a quote may be closed in the "
-                               "wrong place. Fix it, then run judgekeeper again.")])
+                               f"wrong place. {again}")])
         rows = read_kept(path, _used)  # every row (the size question guards), its cells
         # used only: a big notes column is never held
     except TableError as e:
