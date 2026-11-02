@@ -157,13 +157,12 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
         except OSError:
             continue
         for entry in entries:
-            if entry.is_symlink():
-                continue
+            what = find.kind(entry)  # a device, a pipe or a link: skipped
             path = Path(entry.path)
-            if entry.is_dir(follow_symlinks=False):
+            if what == find.DIR:
                 if find.walked(entry) and len(path.relative_to(root).parts) <= find.MAX_DEPTH:
                     queue.append(path)
-            elif entry.is_file(follow_symlinks=False) and path.suffix.lower() in SUFFIXES:
+            elif what == find.FILE and path.suffix.lower() in SUFFIXES:
                 seen += 1
                 try:
                     changed = entry.stat(follow_symlinks=False).st_mtime

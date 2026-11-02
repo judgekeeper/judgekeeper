@@ -589,6 +589,25 @@ def is_venv(folder: Path) -> bool:
         return False
 
 
+def kind(entry: os.DirEntry) -> str | None:
+    """DIR or FILE for a plain folder or file, never through a link; None for anything else
+    (a link, a device, a pipe, a socket) and for an entry that can't be told what it is
+    (/dev/fd/3 from /): every walk skips those."""
+    try:
+        if entry.is_symlink():
+            return None
+        if entry.is_dir(follow_symlinks=False):
+            return DIR
+        if entry.is_file(follow_symlinks=False):
+            return FILE
+    except OSError:
+        pass
+    return None
+
+
+DIR, FILE = "dir", "file"
+
+
 def walked(entry: os.DirEntry) -> bool:
     """Whether the walk goes into a folder: not skipped by name, and not a virtual
     environment."""
@@ -752,13 +771,12 @@ def _look_deeper(walk: _Walk) -> None:
         for entry in entries:
             if files >= MAX_FILES or _clock() - started > MAX_SECONDS:
                 return
-            if entry.is_symlink():
-                continue
+            what = kind(entry)
             path = Path(entry.path)
-            if entry.is_dir(follow_symlinks=False):
+            if what == DIR:
                 if walked(entry) and walk.depth(path) <= MAX_DEPTH + DEEPER:
                     queue.append(path)
-            elif entry.is_file(follow_symlinks=False):
+            elif what == FILE:
                 files += 1
                 if _results_like(path) or entry.name == "mlflow.db":
                     walk.skip(path, _down(walk.depth(path) - 1))

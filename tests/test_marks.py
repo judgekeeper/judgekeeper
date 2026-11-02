@@ -86,9 +86,9 @@ def test_unstamped_and_broken_lines_are_not_counted(tmp_path):
         f.write("\n")
     m = marks.read(path)
     assert m.counted() == {"a": "pass"}
-    assert m.not_counted == 3
+    assert m.not_counted == 2 and m.unreadable == 1  # the broken line is said apart
     assert marks.not_counted_line(m.not_counted) == (
-        "3 lines in marks.jsonl were not made on the page and are not counted.")
+        "2 lines in marks.jsonl were not made on the page and are not counted.")
     assert marks.not_counted_line(1) == (
         "1 line in marks.jsonl was not made on the page and is not counted.")
     assert marks.not_counted_line(0) is None

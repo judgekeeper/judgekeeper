@@ -49,6 +49,7 @@ from judgekeeper.textio import (
     loads,
     make_private,
     old_hook,
+    plainly,
     plural,
     program,
     program_in,
@@ -840,7 +841,9 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
     parts = ["# Your LLM-as-a-judge's mistakes", "", TASK, "",
              f"{start_fix_rule.DATA_WARNING} {start_fix_rule.MARKS}", ""]
     if worse_from:
-        parts += [WORSE_JUDGE.format(file=worse_from, check=program("check")), ""]
+        with plainly():  # a file in .judgekeeper/: never a path that started it
+            check = program("check")
+        parts += [WORSE_JUDGE.format(file=worse_from, check=check), ""]
     parts += [f"## {WHERE_WRONG.rstrip(':')}", "", *clues, ""]
     if rule:
         parts += ["## Your LLM-as-a-judge's rule now", "", fenced("RULE", rule, cut=False), ""]
