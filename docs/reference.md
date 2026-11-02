@@ -111,7 +111,7 @@ judgekeeper fix [PATH] [--new]
 
 **Marks kept aside:** half of each group, by your LLM-as-a-judge's grade and your mark, rounded up (a group of one stays in use, and each batch is split on its own), at least 5 Pass and 5 Fail. Only `fix/split.json` names them, so a new rule is never written from them. A `split.json` that is damaged or changed by hand stops `fix` (exit 2); it is never replaced. **`mistakes.md`** holds the clues (your reasons, which way the mistakes go, words found in many), the rule, and each mistake with both reasons. After `check` found a new LLM-as-a-judge worse, the mistakes are that one's, and the file names the results its grades are in. Write a better rule from it, or hand it to a coding agent.
 
-**`marked-answers.csv`** holds every answer you marked, shuffled, with two columns, `question` and `answer`: no marks, no grades and no judgekeeper ids, so the file does not say which are kept aside. Your own question fields (such as a promptfoo `description`) stay as they are, because the regrade matches on them. Change the rule where your eval keeps it, grade these answers again, save the results, then run `judgekeeper fix <new results file>`. judgekeeper prints the line for your eval tool:
+**`marked-answers.csv`** holds every answer you marked, shuffled, with two columns, `question` and `answer`: no marks, no grades and no judgekeeper ids, so the file does not say which are kept aside. A cell that starts with `=`, `+`, `-` or `@` gets a leading `'` so a spreadsheet won't run it, and judgekeeper reads it back the same. Your own question fields (such as a promptfoo `description`) stay as they are, because the regrade matches on them. Change the rule where your eval keeps it, grade these answers again, save the results, then run `judgekeeper fix <new results file>`. judgekeeper prints the line for your eval tool:
 
 | Eval tool | How to grade the same answers again |
 |---|---|
@@ -307,6 +307,8 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them, with its sha256 |
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
 | `fix/marked-answers.csv` | Every marked answer, question and answer only, shuffled, to grade again |
+| `fix/regrade.yaml` | With promptfoo: a config that grades the marked answers again; change the rule in it |
+| `fix/marked-answers.yaml` | With promptfoo: the same answers, exactly as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
 | `rules/` | Each rule tested, as `<hash>.txt` |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |

@@ -147,6 +147,7 @@ OWN = f"Grade {ANSWERS} with your own code."
 # promptfoo: a ready config that grades the marked answers again (written as text: no YAML
 # parser; every value is a JSON string, which is also a YAML string)
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
+TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers exactly, no guard
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
                  "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
                  "3. Then{where}: `{command} {after}`")
@@ -1249,7 +1250,18 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     marks._refuse_links(path)
     make_private(path.parent)
     write_replacing(path, buf.getvalue(), newline="")
+    if m.data.get("tool") == "promptfoo":  # never opened in a spreadsheet: nothing guarded
+        tests = _folder(ws) / TESTS_FILE
+        marks._refuse_links(tests)
+        write_replacing(tests, tests_yaml(rows), newline="")
     return len(rows)
+
+
+def tests_yaml(rows: list[tuple[str, str]]) -> str:
+    """The marked answers as promptfoo tests (fix/marked-answers.yaml, in the CSV's order):
+    each question and answer exactly as marked."""
+    return "".join("- vars: " + _yaml_string({"question": q, "answer": a}) + "\n"
+                   for q, a in rows) or "[]\n"
 
 
 def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> None:
@@ -1477,7 +1489,7 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     kept, left = _without_keys(config)
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
              "providers: [" + _yaml_string("echo") + "]",
-             "tests: " + _yaml_string(f"file://{ANSWERS}"),
+             "tests: " + _yaml_string(f"file://{TESTS_FILE}"),
              "defaultTest:",
              "  options:",
              *("    " + LEFT_OUT.format(name=one_line(scrub(name))) for name in left),
