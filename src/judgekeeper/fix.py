@@ -167,6 +167,7 @@ LONG_SIDE = 4  # mistakes on one side the length pattern needs
 LONG = 1.5  # how much longer is long
 WORDS_SHOWN = 5
 WORD_IN = 3  # mistakes a word must be in
+WORD_SHARE = 10  # and at least 1 in this many of them
 STRONG = 1.0  # smoothed log-odds a word needs, against the agreed answers
 STOPWORDS = frozenset((
     "about", "above", "after", "again", "against", "also", "among", "another", "anything",
@@ -692,7 +693,7 @@ def patterns(rows: list[dict], mark: float | None = None,
             b = in_agreed[word]
             odds = (math.log((a + 0.5) / (n - a + 0.5))
                     - math.log((b + 0.5) / (k - b + 0.5)))
-            if a >= WORD_IN and odds >= STRONG:
+            if a >= WORD_IN and a * WORD_SHARE >= n and odds >= STRONG:
                 strong.append((odds, a, word))
         strong.sort(key=lambda x: (-x[0], -x[1]))
         if strong:
