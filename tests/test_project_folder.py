@@ -396,6 +396,25 @@ def test_a_file_in_a_nearby_project_is_refused_with_or_without_its_session(
     assert not (here / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize(("where", "command", "given", "shown"), [
+    ("p11/sub", "fix", "..", ".."), ("", "fix", "p11", "p11"), ("", "check", "p11", "p11")])
+def test_too_few_marks_name_the_project_in_the_mark_command(here, capsys, monkeypatch, where,
+                                                             command, given, shown):
+    """Run from another folder, the mark command it prints runs in the project, named from
+    where you are."""
+    (here / "p11" / "sub").mkdir(parents=True)
+    (here / "p11" / "pyproject.toml").write_text("[project]\nname = 'p11'\n", encoding="utf-8")
+    table_project(here / "p11", split(20, 16))
+    monkeypatch.chdir(here / "p11")
+    assert run(capsys, "--no-browser", "--port", "0")[0] == 0
+    run(capsys, "--stop")
+    _mark(Workspace(here / "p11"), only=range(3))
+    monkeypatch.chdir(here / where)
+    code, out, err = run(capsys, command, given)
+    assert code != 0, out + err
+    assert f"Next: run `judgekeeper mark {shown}` to mark more answers." in flat(out), out
+
+
 # Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):

@@ -1137,7 +1137,8 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if state is not None:
         said.say(NOT_SET_UP)
         said.say()
-        said.say("Next: " + next_marks(state.ws, f"run `{program('mark')}` to mark more answers."))
+        said.say("Next: " + next_marks(state.ws, f"run `{_here(state.ws, 'mark')}` to mark more "
+                                                 "answers."))
         return EXIT_NEEDS_YOU
     from judgekeeper import front
 
