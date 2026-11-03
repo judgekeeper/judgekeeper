@@ -672,30 +672,44 @@ __TOP__
   }
 
   // The answers list: the person's own marks only, each answer once (never one shown again).
+  // Drawn in place: each row's link is kept and only its text, icon and state change, rows
+  // added or taken away only as the list grows or shrinks, so a click pressed on a row while
+  // a mark is saved still lands on it when it is let go.
   var DOT = {none: '__DOT_NONE__', pass: '__DOT_PASS__', fail: '__DOT_FAIL__'};
   var SAID = {pass: "marked Pass", fail: "marked Fail"};
+  function newRow() {
+    var li = el("li"), a = el("a", "item"), title = el("span", "q"), dot = el("span", "dot-wrap");
+    a.href = "#";
+    title.setAttribute("dir", "auto");
+    dot.setAttribute("aria-hidden", "true");
+    a.appendChild(el("span", "num")); a.appendChild(title); a.appendChild(dot);
+    a.appendChild(el("span", "sr"));
+    li.appendChild(a);
+    return li;
+  }
+  function setRow(a, it, k, shown) {
+    var parts = a.children, dot = it.label || "none";
+    a.setAttribute("data-k", String(k));
+    if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
+    else { a.removeAttribute("aria-current"); }
+    parts[0].textContent = shown < 100 ? ("0" + shown).slice(-2) : String(shown);
+    parts[1].textContent = firstLine(it);
+    if (parts[2].getAttribute("data-dot") !== dot) {  // the icon only when it changes
+      parts[2].setAttribute("data-dot", dot);
+      parts[2].innerHTML = DOT[dot];  // fixed icon markup only, no data
+    }
+    parts[3].textContent = ", " + (SAID[it.label] || (it.skipped ? "skipped" : "not marked"));
+  }
   function renderQueue() {
-    var list = $("queue");
-    list.textContent = "";
-    var shown = 0;
+    var list = $("queue"), shown = 0;
     items.forEach(function (it, k) {
       if (it.again != null) { return; }
-      var li = el("li"), a = el("a", "item");
+      if (!list.children[shown]) { list.appendChild(newRow()); }
+      setRow(list.children[shown].children[0], it, k, shown + 1);
       shown += 1;
-      a.href = "#"; a.setAttribute("data-k", String(k));
-      if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
-      a.appendChild(el("span", "num", shown < 100 ? ("0" + shown).slice(-2) : String(shown)));
-      var title = el("span", "q", firstLine(it));
-      title.setAttribute("dir", "auto");
-      a.appendChild(title);
-      var dot = el("span", "dot-wrap");
-      dot.setAttribute("aria-hidden", "true");
-      dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
-      a.appendChild(dot);
-      a.appendChild(el("span", "sr", ", " + (SAID[it.label] || (it.skipped ? "skipped" :
-        "not marked"))));
-      li.appendChild(a); list.appendChild(li);
     });
+    while (list.children.length > shown) {
+      list.removeChild(list.children[list.children.length - 1]); }
     var now = list.querySelector("[aria-current]");
     if (now && (now.offsetTop < list.scrollTop ||
                 now.offsetTop + now.offsetHeight > list.scrollTop + list.clientHeight)) {

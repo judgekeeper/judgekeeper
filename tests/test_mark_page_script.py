@@ -900,3 +900,58 @@ def test_with_only_marks_that_wait_left_the_page_never_says_keep_marking():
     assert _run(keep, data=_data(counts=counts, status=status)) == [False, False]
     assert _run(keep, data=_data(counts=counts, status={**status, "only_wait": True})) == [
         True, False]
+
+
+def test_a_saved_mark_keeps_the_list_rows_so_a_click_is_never_lost():
+    """The answers list is updated in place after each save (each row's link kept, only its
+    text, icon and state changed): a click pressed on a row while a mark is saved lands on the
+    same row when it is let go, and opens it."""
+    got = _run("""
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      function state(a) { return [a.getAttribute("aria-current"),
+        a.children[a.children.length - 1].textContent, a.children[2].innerHTML]; }
+      var before = rows(), icon = state(before[0])[2];
+      key("ArrowRight"); await settle();  // saved: the list is drawn again
+      var after = rows();
+      var same = before.length === after.length && before.every(function (a, i) {
+        return a === after[i]; });
+      var states = [state(after[0]), state(after[1])];
+      ids["queue"].fire("click", {target: before[3].children[1]}); await settle();
+      console.log(JSON.stringify({same: same, n: after.length, states: states,
+        iconChanged: states[0][2] !== icon, opened: ids["q-text"].textContent}));""")
+    assert got["same"] and got["n"] == 6
+    assert got["states"][0][:2] == [None, ", marked Pass"] and got["iconChanged"]
+    assert got["states"][1][:2] == ["true", ", not marked"]
+    assert got["opened"] == "Question 3?"
+
+
+@pytest.mark.parametrize("n", [8, 4])
+def test_the_list_grows_or_shrinks_with_the_answers_and_keeps_the_rows_it_has(n):
+    """A new list from the server (marks written elsewhere, /state) with more or fewer
+    answers: rows are added or taken away at the end; the rows kept are the same links."""
+    got = _run(f"var NEWN = {n};" + """
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      fetch = function (url, opts) {
+        if (url.indexOf("/state") === 0) {
+          var items = [];
+          for (var k = 0; k < NEWN; k++) { items.push({id: "a" + k, input: "Question " + k + "?",
+            output: "Answer " + k + ".", label: k === 0 ? "pass" : null, skipped: false}); }
+          return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+            {items: items, total: NEWN, start: 1, version: "v3",
+             counts: {correct: 1, wrong: 0, skipped: 0},
+             status: {text: "Keep going.", ready: false}}); }});
+        }
+        sent.push({url: url, body: JSON.parse(opts.body)});
+        return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+          {summary: {counts: {correct: 1, wrong: 0, skipped: 0}, version: "v3", before: "v2",
+                     status: {text: "Keep going.", ready: false}}}); }});
+      };
+      var before = rows();
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      var after = rows(), kept = Math.min(before.length, after.length);
+      console.log(JSON.stringify({n: after.length, same: before.slice(0, kept).every(
+        function (a, i) { return a === after[i]; }),
+        last: after[after.length - 1].children[1].textContent}));""", _data(version="v1"))
+    assert got == {"n": n, "same": True, "last": f"Question {n - 1}?"}
