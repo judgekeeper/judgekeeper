@@ -345,3 +345,18 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
         assert refs and set(refs) == {"15"}, (page.name, refs)
     # the browser check's script has its own version number
     assert "assets/freecheck.js?v=16" in (site / "check.html").read_text(encoding="utf-8")
+
+
+def test_a_reason_ending_in_inspects_grade_line_is_shown_without_it():
+    """Inspect's model-graded scorers end the reason with "GRADE: C": the page keeps the
+    LLM-as-a-judge's grade hidden, so the reason shown leaves that line out."""
+    from tests.test_product_pages import MISTAKE
+
+    mistakes = [{**MISTAKE, "question": "easy 0", "reason": "It answers the question.\n\nGRADE: C"},
+                {**MISTAKE, "question": "easy 1", "reason": "GRADE: C"}]
+    for live in (False, True):
+        fixing = {"mistakes": mistakes}
+        html = (report_page.page(_result(*NOT_GATE_TNR), back="/?token=t", fixing=fixing)
+                if live else start_label.result_html(_result(*NOT_GATE_TNR), fixing=fixing))
+        assert "GRADE: C" not in html
+        assert "It answers the question.</td>" in html and "No reason given</td>" in html

@@ -23,6 +23,7 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
+from judgekeeper.judge_check import shown_reason
 from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, wider
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
@@ -1010,7 +1011,8 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    + (f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
+                    + (f'<td data-label="{REASON}">'
+                       f'{_e(shown_reason(m.get("reason") or "") or "No reason given")}</td>'
                        if reasons_given else "")
                     + f'<td colspan="{3 if reasons_given else 2}" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
