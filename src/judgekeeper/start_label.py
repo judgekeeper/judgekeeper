@@ -702,16 +702,25 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=EVERY_MARKED)
     from judgekeeper import check
 
-    wait = check.wait_lines(ws, len(session.marked()) - len(graded))
+    only = only_wait(data, session)
+    wait = check.wait_lines(ws, len(session.marked()) - len(graded), only)
     if wait:  # said once, in the status area: else the result never moves, with no word why
         status["waiting"] = " ".join(wait)
-        never = set(data.get("earlier_grades") or ())
-        if not any(not i["label"] and i["id"] not in never for i in session.items):
-            status["only_wait"] = True  # no mark can move the result: the wait line is the step
-            if not status["ready"]:
-                status.pop("done", None)
-                status["text"] = EARLY
+    if only:  # no mark can move the result: the wait line is the step
+        status["only_wait"] = True
+        if not status["ready"]:
+            status.pop("done", None)
+            status["text"] = EARLY
     return status
+
+
+def only_wait(data: dict, session: StartSession) -> bool:
+    """Whether every answer left to mark is one the judge the marks test now never graded
+    (earlier_grades), so a new mark could only wait (batches.graded): then no line asks for
+    marks, and the step is to grade every answer, then `check` (check.WAIT_NEXT)."""
+    never = set(data.get("earlier_grades") or ())
+    return bool(never) and not any(not i["label"] and i["id"] not in never
+                                   for i in session.items)
 
 
 def _runs(runs) -> dict:
@@ -1512,11 +1521,14 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
     k = batches.waiting(data, session.marked())
-    if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
+    only = only_wait(data, session)
+    if k or only:  # on answers the judge now never graded: kept, not counted (batches.graded)
         from judgekeeper import check, textio
 
         with textio.plainly():  # result.json and report.html name the program plainly
-            r.update(waiting=k, waiting_check=check.wait_command(ws))
+            r.update(waiting_check=check.wait_command(ws))
+        if k:
+            r["waiting"] = k
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
@@ -1526,11 +1538,11 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if imported:
         r["imported"] = imported
     if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
-        shown = import_check(m, data, set(labels), markable=True)[1] if k else needed
+        shown = (import_check(m, data, set(labels), markable=True)[1]
+                 if data.get("earlier_grades") else needed)
         r.update(import_gate=shown, verdict_level="too_early")  # 0: no page mark counts now
         r["verdict"] = _verdict(r)
-    never = set(data.get("earlier_grades") or ())
-    if k and not any(not i["label"] and i["id"] not in never for i in session.items):
+    if only:
         r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
         r["imports_off"] = off

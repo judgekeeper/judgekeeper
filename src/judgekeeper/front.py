@@ -2199,6 +2199,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line)
     if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
         talk.para(checking.WAIT.format(k=r["waiting"]))
+    elif r.get("only_wait"):  # none yet, but a new mark could only wait
+        talk.para(checking.NONE_GRADED)
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
@@ -2212,7 +2214,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line)
     step = report_page.next_step(r)  # the report's next step
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
-    mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
+    only = bool(r.get("only_wait"))  # a new mark would only wait: no line asks for one
+    mark_next = (not worse and not check and step == "mark" and not start_label.all_labeled(r)
+                 and not only)
     why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
@@ -2249,7 +2253,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     opened = None
     ranges = report_page.shows_range(r)
     if start_label.all_labeled(r):  # nothing left to mark: no page
-        if step == "mark" and not check:
+        if step == "mark" and not check and not only:
             labels = r["labels"]
             first, then = _all_marked_lines(talk, ws, {"correct": labels["correct"],
                                                        "wrong": labels["wrong"]}, saved)
@@ -2258,17 +2262,17 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(then)
             return EXIT_NEEDS_YOU
     elif is_open(ws.dir):
-        if ranges:  # with no range shown, there is none to narrow
+        if ranges and not only:  # with no range shown, there is none to narrow
             talk.para(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    elif not mark_next and not why and ranges:  # else the Next: line or "To say why" names it
+    elif not mark_next and not why and ranges and not only:  # else Next or "To say why" names it
         # with exact numbers (one grade) more marks would not make them more certain: no line
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     # wait before is_open: --wait's own page answers only once it is served (page.serve)
-    if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges)
-            or (ranges and not (is_open(ws.dir) or mark_next or why))):
+    if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges and not only)
+            or (ranges and not (is_open(ws.dir) or mark_next or why or only))):
         talk.say()
     if worse:  # why "go back" next to this result
         talk.para(WORSE_LAST)
@@ -2276,7 +2280,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         next_step = worse_here
     elif check:
         next_step = NEXT_CHECK.format(command=_check_command(talk))
-    elif r.get("waiting"):  # only the judge's grades on them can count them
+    elif r.get("waiting") or only:  # only the judge's grades on them can count them
         next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))

@@ -654,12 +654,10 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         headline = VERDICTS[None]
     if worse:
         then = "" if above else _code_line(worse)
-    elif cls != "plain":
+    elif cls != "plain" or r.get("only_wait"):  # no mark counts now: the wait line says it
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
-    elif r.get("only_wait"):  # no mark counts now: the wait line below says the step
-        then = ""
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
@@ -678,11 +676,13 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
 
 def waiting_html(r: dict) -> str:
-    """The marks that wait (batches.graded) and how to count them, as Measure says it."""
-    from judgekeeper.check import WAIT, WAIT_COUNT
+    """The marks that wait (batches.graded) and how to count them, as Measure says it; with
+    none waiting but no answer left that a mark counts on (only_wait), that, and how to mark
+    more."""
+    from judgekeeper.check import NONE_GRADED, WAIT, WAIT_COUNT, WAIT_MORE
 
     k = r.get("waiting")
-    if not k:
+    if not k and not r.get("only_wait"):
         return ""
     from judgekeeper import textio
 
@@ -693,8 +693,9 @@ def waiting_html(r: dict) -> str:
     if typed != plain and command.startswith(f"{plain} "):
         command = typed + command[len(plain):]
     run = f"run <code>{look.command(_e(command))}</code>"
-    count = _term(WAIT_COUNT.format(run="\0")).replace("\0", run)
-    return f'<p class="lead">{_term(WAIT.format(k=k))} {count}</p>'
+    first, then = (WAIT.format(k=k), WAIT_COUNT) if k else (NONE_GRADED, WAIT_MORE)
+    count = _term(then.format(run="\0")).replace("\0", run)
+    return f'<p class="lead">{_term(first)} {count}</p>'
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -1279,7 +1280,8 @@ def _next(r: dict, back: str | None) -> str:
                    '</code> after '
                    f"you change your {TERM}.</p>")
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
-    more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
+    # with every answer marked, or only answers a mark would wait on, nothing sends to marking
+    more = r.get("left") != 0 and not r.get("only_wait")
     if more and back is not None and shows_range(r):  # exact numbers: no more marks to ask for
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
                    "<p>It closes by itself after 30 minutes without use. Closed? Run "

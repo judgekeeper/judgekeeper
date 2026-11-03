@@ -819,6 +819,9 @@ WAIT = ("{k} of your marks wait: your new LLM-as-a-judge has no Pass or Fail gra
         "answers yet.")
 WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
+NONE_GRADED = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to mark, "
+               "so a new mark can't count yet.")
+WAIT_MORE = "To mark more, " + WAIT_NEXT
 
 
 def wait_file(ws: Workspace) -> str:
@@ -844,9 +847,22 @@ def wait_run(ws: Workspace) -> str:
     return _run_in(ws, wait_file(ws), _away(ws))
 
 
-def wait_lines(ws: Workspace, k: int) -> list[str]:
-    """What the marking page says while `k` marks wait: WAIT, then how to count them."""
-    return [WAIT.format(k=k), WAIT_COUNT.format(run=f"run `{wait_command(ws)}`")] if k else []
+def wait_lines(ws: Workspace, k: int, only: bool = False) -> list[str]:
+    """What the marking page says while `k` marks wait: WAIT, then how to count them; with
+    none waiting but `only` (no answer left to mark has the new judge's grade), NONE_GRADED,
+    then how to mark more."""
+    run = f"run `{wait_command(ws)}`"
+    if k:
+        return [WAIT.format(k=k), WAIT_COUNT.format(run=run)]
+    return [NONE_GRADED, WAIT_MORE.format(run=run)] if only else []
+
+
+def _markable_left(state: State, found) -> bool:
+    """Whether an answer no one marked has a Pass or Fail grade in the new results `found`: a
+    mark there counts; else a new mark could only wait."""
+    graded = {a.id for a in found.pool.answers if a.verdict in ("pass", "fail")}
+    return any(q["id"] not in state.marks and q["id"] in graded
+               for q in state.data.get("queue") or [])
 
 
 def outcome(g: dict) -> str | None:
@@ -1828,7 +1844,8 @@ def full(path: str, said: Said) -> int:
         if fresh is not None:
             said.say(WRITTEN_FROM)
             for line in _after_lines(fresh, tested, picked, pool,
-                                     every=every_marked(state.ws)):
+                                     every=every_marked(state.ws),
+                                     more=_markable_left(state, found)):
                 said.para(line)
             said.say()
     left = sum(i in state.marks and i not in old_verdicts for i in tested)
@@ -1897,7 +1914,9 @@ def full(path: str, said: Said) -> int:
         if after.get("written_from") and fresh is None:  # else said with the numbers above
             said.say(WRITTEN_FROM)
         said.say()
-    if then is None and level in ("check", "too_early"):  # nothing to do is not so
+    if then is None and level in ("check", "too_early") and (after or {}).get("only_wait"):
+        then = "Next: " + WAIT_NEXT.format(run=wait_run(state.ws))  # a new mark only waits
+    elif then is None and level in ("check", "too_early"):  # nothing to do is not so
         then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=_here(state.ws, "mark")))
     said.say(then or _next_same(state))
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points

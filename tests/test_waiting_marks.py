@@ -254,9 +254,10 @@ def imported_wait(tmp_path, monkeypatch, capsys):
     return _imported_wait(tmp_path, capsys), capsys
 
 
-def _imported_wait(tmp_path, capsys, also: list[int] = (), page: int = 10) -> Workspace:
+def _imported_wait(tmp_path, capsys, also: list[int] = (), page: int = 10,
+                   said: list | None = None) -> Workspace:
     """`imported_wait`'s project; V2 grades the answers `also` too (none of them marked);
-    `page`: how many of the others are marked on the page."""
+    `page`: how many of the others are marked on the page; `said` gets check's output."""
     from tests.start_projects import answer
 
     (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
@@ -271,7 +272,10 @@ def _imported_wait(tmp_path, capsys, also: list[int] = (), page: int = 10) -> Wo
     _rubric(tmp_path, [person(i) for i in range(N)], "V2 rule.", name="v2.json",
             only=FIRST + list(also))
     _jk(capsys, "fix", "v2.json")
-    assert _jk(capsys, "check", "v2.json")[0] == 0
+    code, out = _jk(capsys, "check", "v2.json")
+    assert code == 0, out
+    if said is not None:
+        said.append(flat(out))
     _mark(ws, [i for i in LATER if i not in also][:page])
     return ws
 
@@ -298,6 +302,114 @@ def test_with_only_ungraded_answers_left_nothing_asks_for_more_marks(imported_wa
     status = StartSession(ws).state()["status"]
     assert status["only_wait"] is True and not status["ready"], status
     assert "keep marking" not in status["text"], status
+
+
+NEXT_WAIT = ("Next: grade all your answers with your new LLM-as-a-judge, then run "
+             "`judgekeeper check <new results file>`.")
+
+
+def _no_mark_more(text: str) -> None:
+    low = text.lower()
+    for words in ("mark at least", "mark more answers", "keep marking", "marked every answer",
+                  "run your eval on more questions"):
+        assert words not in low, (words, text)
+
+
+def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
+        tmp_path, monkeypatch, capsys):
+    """No mark waits yet, but every answer left to mark is one the new LLM-as-a-judge never
+    graded: a mark there could only wait, so no line asks for one; the step is to grade every
+    answer, then check."""
+    monkeypatch.chdir(tmp_path)
+    said = []
+    ws = _imported_wait(tmp_path, capsys, page=0, said=said)
+    _no_mark_more(said[0])
+    assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in said[0]
+    r = _result(ws)
+    assert "waiting" not in r and r["only_wait"] is True and not r.get("import_gate"), r
+    code, out = _jk(capsys, "v2.json", "--no-browser", "--port", "0")
+    out += _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]  # the page open now
+    closed(ws)
+    text = flat(out)
+    assert code == 0 and check.NONE_GRADED in text and NEXT_WAIT in text, out
+    _no_mark_more(text)
+    for page in (_text(ws.report_html.read_text(encoding="utf-8")),
+                 _text(start_label.live_result(ws, StartSession(ws), back="/"))):
+        assert check.NONE_GRADED in page, page
+        _no_mark_more(page)
+    status = StartSession(ws).state()["status"]
+    assert status["only_wait"] is True and check.NONE_GRADED in status["waiting"], status
+    _no_mark_more(status["text"])
+
+
+def test_while_only_marks_that_wait_are_left_the_open_page_asks_for_no_marks(imported_wait):
+    """Measure never says "Mark more answers to make these ranges narrower" then."""
+    ws, capsys = imported_wait
+    out = _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]
+    out += _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]
+    closed(ws)
+    assert "still open" not in flat(out) and NEXT_WAIT in flat(out), out
+    _no_mark_more(flat(out))
+
+
+def test_with_a_result_and_only_waiting_answers_left_nothing_asks_for_marks(
+        tmp_path, monkeypatch, capsys):
+    """Marked on the page, so the result is ready; 10 marks wait and every answer left is one
+    the new LLM-as-a-judge never graded: no "still open… Mark more answers", no "Keep
+    marking" nor "To mark more, run" in report.html."""
+    from tests.test_earlier_grades import FIRST
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
+                                                  encoding="utf-8")
+    _rubric(tmp_path, [i < 30 for i in range(N)], "V1 rule.")
+    assert _jk(capsys, "--no-browser")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    _mark(ws, FIRST)
+    _rubric(tmp_path, [person(i) for i in range(N)], "V2 rule.", name="v2.json", only=FIRST)
+    assert _jk(capsys, "check", "v2.json")[0] == 0
+    _mark(ws, LATER[:10])
+    out = _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]
+    out += _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]  # the page open now
+    closed(ws)
+    r = _result(ws)
+    assert r["verdict_level"] in ("gate", "not_gate") and r["only_wait"] is True, r
+    text = flat(out)
+    assert "still open" not in text and check.WAIT.format(k=10) in text, out
+    _no_mark_more(text)
+    report = _text(ws.report_html.read_text(encoding="utf-8"))
+    assert "To mark more, run" not in report and "Keep marking" not in report, report
+
+
+def test_every_answer_marked_and_some_waiting_say_only_the_wait(tmp_path, monkeypatch, capsys):
+    """Every answer marked, then new results with an error on 5 marked answers: the marks are
+    not too few and no eval run on more questions helps; the wait line and its Next are the
+    step, in check, Measure and report.html."""
+    from tests.start_projects import answer, question, table_project
+
+    monkeypatch.chdir(tmp_path)
+    verdicts = [i % 2 == 1 for i in range(80)]
+    table_project(tmp_path, verdicts, model="bike-grader-v1")
+    (tmp_path / "labels.csv").write_text("question,response,label\n" + "".join(
+        f"{question(i)},{answer(i)},{'pass' if v == (i % 9 != 0) else 'fail'}\n"
+        for i, v in enumerate(verdicts)), encoding="utf-8")
+    assert _jk(capsys, "--labels", "labels.csv", "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    table_project(tmp_path, ["error" if i < 5 else v for i, v in enumerate(verdicts)],
+                  name="results-v2.csv", model="bike-grader-v2")
+    code, out = _jk(capsys, "check", "results-v2.csv")
+    assert code == 0, out
+    _no_mark_more(flat(out))
+    assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in flat(out)
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    text = flat(out)
+    assert check.WAIT.format(k=5) in text and NEXT_WAIT.replace(
+        "<new results file>", "results-v2.csv") in text or NEXT_WAIT in text, out
+    _no_mark_more(text)
+    _no_mark_more(_text(ws.report_html.read_text(encoding="utf-8")))
 
 
 def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_check(
