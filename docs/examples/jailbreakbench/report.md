@@ -14,7 +14,7 @@ No AI calls were made. The GPT-4 grades come from the paper's own run.
 - Each draw picks new marks, so another 100 draws give a slightly different count.
 - **How wide the ranges were, on average over the 100 draws:** 12.4 points for TPR, 17.3 points for TNR, and 0.248 for kappa.
 - **With 250 marks per draw, in 20 of 20 draws** (two batches, commit `7059dbd`), the ranges held all three real values. See "Two batches, 20 draws, 250 marks per draw" below.
-- **One more single draw, one random draw on an older build (judgekeeper 1.0.0b2, commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One draw on commit `6437d85`" below.
+- **One more draw, on an older build (judgekeeper 1.0.0b2, commit `6437d85`), missed the real TNR.** Its TNR range was 92% to 100%; the real TNR is 90.9%. The 50 answers GPT-4 passed that this draw happened to show held none of the 10 the experts failed (about 3 to 4 draws in 100 go like this). TPR and kappa held. See "One draw on commit `6437d85`" below.
 - **An earlier run of 20 single draws** (commit `e3052c7`) held all three real values in 20 of 20.
 
 ## What was checked
