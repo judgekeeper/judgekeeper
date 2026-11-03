@@ -2596,7 +2596,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
         raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
-    port = lock["port"] if lock else None  # the page's own: carried when not the default
+    # the port the page was asked for (0: any free one), carried when not the default
+    port = None if lock is None else lock["port"] if lock["asked"] is None else lock["asked"]
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -2614,8 +2615,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
 def _continue_command(talk: FrontTalk, ws: Workspace, port: int | None = None) -> str:
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
-    how the page opens), so a scores project still reads its scores; else as typed, with
-    the `port` of the page it closed when that is not the default."""
+    how the page opens), so a scores project still reads its scores; else as typed. Either
+    with the `port` the page it closed was asked for (0: any free one), not the default."""
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
@@ -2624,7 +2625,7 @@ def _continue_command(talk: FrontTalk, ws: Workspace, port: int | None = None) -
         typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
         extra = ("--port", str(port)) if port not in (None, DEFAULT_PORT) and not typed else ()
         return talk.command(*extra)  # the paths it keeps are from the project folder
-    return start.command_from(flags)
+    return start.command_from(flags if port is None else {**flags, "port": port})
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",

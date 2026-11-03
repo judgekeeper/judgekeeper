@@ -220,9 +220,10 @@ RELEASE_PAUSE = 0.05
 
 
 def read_lock(folder: Path) -> dict | None:
-    """{"pid", "port", "stop", "token", "settings", "link"} of the page named in the
+    """{"pid", "port", "stop", "token", "settings", "link", "asked"} of the page named in the
     project's lock, or None (a lock with no token gives token None). `link`: how its marks
-    are stamped (marks.LINKS), or None. When server.json can't be read, its copy (page.json)
+    are stamped (marks.LINKS), or None. `asked`: the port the run that opened it asked for
+    (0: any free one), or None in a lock written before it was kept. When server.json can't be read, its copy (page.json)
     is. A lock that is a link, or over MAX_LOCK, is not read."""
     for name in (LOCK, LOCK_COPY):
         try:
@@ -237,10 +238,12 @@ def read_lock(folder: Path) -> dict | None:
             token, settings, how = lock.get("token"), lock.get("settings"), lock.get("link")
             if how not in LINKS:
                 how = PRINTED if lock.get("printed") is True else None  # a lock with no link stamp
+            asked = lock.get("asked")
             return {"pid": int(lock["pid"]), "port": int(lock["port"]),
                     "stop": str(lock["stop"]), "token": token if isinstance(token, str) else None,
                     "settings": settings if isinstance(settings, dict) else None,
-                    "link": how}
+                    "link": how, "asked": asked if type(asked) is int and 0 <= asked <= 65535
+                    else None}
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return None
@@ -484,6 +487,7 @@ class LabelServer:
         self._stopped = False
         self.lock: Path | None = None  # the lock file this server wrote (make_server)
         self.settings: dict | None = None  # what the page shows (page.page_key), in the lock
+        self.asked: int | None = None  # the port its run asked for (make_server), in the lock
 
     def hold(self, folder: Path, settings: dict | None = None) -> None:
         """Write the project's lock and its copy (owner-only): this process, port, stop
@@ -497,7 +501,7 @@ class LabelServer:
             return
         text = json.dumps({"pid": os.getpid(), "port": self.port, "stop": self.stop_secret,
                            "token": self.token, "settings": self.settings,
-                           "link": getattr(self.session, "link", None)})
+                           "link": getattr(self.session, "link", None), "asked": self.asked})
         write_replacing(self.lock, text)
         write_replacing(self.lock.with_name(LOCK_COPY), text)
 
@@ -860,12 +864,14 @@ def _handler(server: LabelServer):
 
 def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                 page: str, lock: Path | None = None, stays: bool = False,
-                token: str | None = None, settings: dict | None = None) -> LabelServer:
+                token: str | None = None, settings: dict | None = None,
+                asked: int | None = None) -> LabelServer:
     """A server for `session`, or a LabelError that says why there cannot be one. With `lock`
     (the project's .judgekeeper/), one server per project: when its page is already open,
     that is the error; else this server holds the lock until it stops. Two pages on one
     project would each write their marks over the other's. `token`: the one its caller made
-    (default: a new one); `settings`: kept in the lock."""
+    (default: a new one); `settings` and `asked` (the port the run asked for): kept in the
+    lock."""
     if lock is not None and is_open(lock):
         from judgekeeper.textio import program
 
@@ -879,6 +885,7 @@ def make_server(session: LabelSession, port: int = DEFAULT_PORT, result=None, *,
                              token=token)
     except OSError as e:
         raise LabelError(f"cannot listen on {HOST}:{port} ({e.strerror}); try --port") from None
+    server.asked = asked
     if lock is not None:
         try:
             server.hold(lock, settings)

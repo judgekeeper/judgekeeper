@@ -142,7 +142,8 @@ def page_server(ws: Workspace, port: int, flags: dict | None = None,
     template = start_label.page_template(ws.data(), start.come_back(flags, back),
                                          start.held_values(flags))
     return make_server(session, port, result=result, page=template, lock=ws.dir, stays=True,
-                       token=token, settings=page_key(ws, flags))
+                       token=token, settings=page_key(ws, flags),
+                       asked=start.saved_flags(flags).get("port", DEFAULT_PORT))
 
 
 def server_for(ws: Workspace, settings: dict, token: str):

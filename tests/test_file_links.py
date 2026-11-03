@@ -207,13 +207,11 @@ def _url_of(path) -> str:
 
 
 def _first_screen(folder: Path, monkeypatch, capsys) -> str:
-    """The first screen, its marking page's address and the port the --stop line carries (a
-    new port and token each time) left out."""
+    """The first screen, its marking page's address (a new port and token each time) left out."""
     folder.mkdir(parents=True)
     monkeypatch.chdir(folder)
     promptfoo_project(folder, [*split(18, 16), None, None, None])
-    screen = re.sub(r"http://127\.0\.0\.1:\S+", "PAGE", _front(capsys))
-    return re.sub(r"--port \d+", "--port PORT", screen)
+    return re.sub(r"http://127\.0\.0\.1:\S+", "PAGE", _front(capsys))
 
 
 def test_the_find_screen_links_the_results_file_and_the_list(tmp_path, capsys, monkeypatch):
