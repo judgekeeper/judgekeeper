@@ -90,6 +90,18 @@ RESULT = {
     "leans worse": "Result: can't tell yet. That leans toward worse.",
     "worse": "Result: it looks worse.",  # only past the sign test
 }
+LEANS = ("leans better", "same", "leans worse")
+
+
+def shown_kind(kind: str, fixed: int, broke: int) -> str:
+    """The result as the counts on screen show it: a lean, or none, from the plain counts
+    `fixed` and `broke` the person sees. The weighted counts may lean the other way; they
+    decide only better, safe to try and worse."""
+    if kind not in LEANS:
+        return kind
+    return "leans better" if fixed > broke else "same" if fixed == broke else "leans worse"
+
+
 CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
@@ -2071,7 +2083,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
             talk.say(f"    When you say {side}: agrees on {agreed} of {len(of)}")
     talk.para(went_line(fixed, broke), indent="  ")
     talk.say()
-    talk.para(RESULT[v.kind])
+    talk.para(RESULT[shown_kind(v.kind, fixed, broke)])
     k = next_test(split)
     _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root),
           {i: new.get(i) for i in ids})
@@ -2163,7 +2175,8 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
               f"{test.get('n')} marks kept aside. "
               f"{went_line(int(test.get('fixed') or 0), int(test.get('broke') or 0))}")
     talk.say()
-    talk.para(RESULT.get(test.get("verdict"), ""))
+    talk.para(RESULT.get(shown_kind(str(test.get("verdict")), int(test.get("fixed") or 0),
+                                    int(test.get("broke") or 0)), ""))
     kept = test.get("file") if isinstance(test.get("file"), str) else None
     file = line_path(kept_at(kept, ws.root)) if kept else None
     source = (f"the result above is from {file or 'an earlier file'}"

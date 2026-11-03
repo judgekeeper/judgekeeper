@@ -1330,7 +1330,7 @@ def own_marks_lines(folder: Path, marked: Path, files: list[str]) -> list[str]:
 def _tested_rule(state: State, found) -> str | None:
     """When the new judge's rule is one `judgekeeper fix` tested: the line that says so, with
     the day and the result of that test."""
-    from judgekeeper.fix import RESULT_WORDS
+    from judgekeeper.fix import RESULT_WORDS, shown_kind
     from judgekeeper.start_fix_rule import rule_text
 
     if not found.rule:
@@ -1349,7 +1349,9 @@ def _tested_rule(state: State, found) -> str | None:
     if not tests:
         return None
     day = _day(tests[-1].get("time"))
-    result = RESULT_WORDS.get(tests[-1].get("verdict"), "")
+    last = tests[-1]
+    result = RESULT_WORDS.get(shown_kind(str(last.get("verdict")), int(last.get("fixed") or 0),
+                                         int(last.get("broke") or 0)), "")
     return (f"This is the rule you tested with `{program('fix')}`"
             f"{f' on {day}' if day else ''}{f' ({result})' if result else ''}.")
 
