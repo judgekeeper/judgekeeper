@@ -838,8 +838,8 @@ WAIT = ("{k} of your marks wait: your new LLM-as-a-judge has no Pass or Fail gra
         "answers yet.")
 WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
-NONE_GRADED = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to mark, "
-               "so a new mark can't count yet.")
+NO_GRADE_LEFT = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to "
+                 "mark, so a new mark can't count yet.")
 WAIT_MORE = "To count new marks, first " + WAIT_NEXT
 
 
@@ -868,12 +868,12 @@ def wait_run(ws: Workspace) -> str:
 
 def wait_lines(ws: Workspace, k: int, only: bool = False) -> list[str]:
     """What the marking page says while `k` marks wait: WAIT, then how to count them; with
-    none waiting but `only` (no answer left to mark has the new judge's grade), NONE_GRADED,
+    none waiting but `only` (no answer left to mark has the new judge's grade), NO_GRADE_LEFT,
     then how to mark more."""
     run = f"run `{wait_command(ws)}`"
     if k:
         return [WAIT.format(k=k), WAIT_COUNT.format(run=run)]
-    return [NONE_GRADED, WAIT_MORE.format(run=run)] if only else []
+    return [NO_GRADE_LEFT, WAIT_MORE.format(run=run)] if only else []
 
 
 def _markable_left(state: State, found) -> bool:

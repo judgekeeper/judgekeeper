@@ -331,14 +331,14 @@ def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
     out += _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]  # the page open now
     closed(ws)
     text = flat(out)
-    assert code == 0 and check.NONE_GRADED in text and NEXT_WAIT in text, out
+    assert code == 0 and check.NO_GRADE_LEFT in text and NEXT_WAIT in text, out
     _no_mark_more(text)
     for page in (_text(ws.report_html.read_text(encoding="utf-8")),
                  _text(start_label.live_result(ws, StartSession(ws), back="/"))):
-        assert check.NONE_GRADED in page, page
+        assert check.NO_GRADE_LEFT in page, page
         _no_mark_more(page)
     status = StartSession(ws).state()["status"]
-    assert status["only_wait"] is True and check.NONE_GRADED in status["waiting"], status
+    assert status["only_wait"] is True and check.NO_GRADE_LEFT in status["waiting"], status
     _no_mark_more(status["text"])
 
 

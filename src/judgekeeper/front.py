@@ -2233,7 +2233,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
         talk.para(checking.WAIT.format(k=r["waiting"]))
     elif r.get("only_wait"):  # none yet, but a new mark could only wait
-        talk.para(checking.NONE_GRADED)
+        talk.para(checking.NO_GRADE_LEFT)
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
