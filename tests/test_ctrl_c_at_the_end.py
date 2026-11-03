@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +17,7 @@ from judgekeeper import cli
 from tests.start_projects import promptfoo_project, split
 
 ARGV = ["--no-browser", "--port", "0"]
+SRC = str(Path(__file__).resolve().parent.parent / "src")
 
 
 @pytest.fixture
@@ -97,3 +102,28 @@ def test_a_second_ctrl_c_while_stopped_is_said_is_only_noted(here, capsys, monke
     assert pressed and "Traceback" not in out.out + out.err
     assert out.out.splitlines()[-2:][0] == "Stopped.", out.out
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+
+def test_a_ctrl_c_while_the_program_ends_is_ignored(tmp_path):
+    """As the program itself, once its result is said: a Ctrl-C while Python ends (an exit
+    hook here; later, Python's own handler is gone and it would end by the signal) has
+    nothing left to stop. The result stays whole, with no traceback, and the exit code."""
+    script = textwrap.dedent("""
+        import atexit, os, signal, sys, time
+        import judgekeeper.__main__ as entry
+
+        def pressed():
+            os.kill(os.getpid(), signal.SIGINT)
+            time.sleep(0.05)
+            print("ignored:", signal.getsignal(signal.SIGINT) is signal.SIG_IGN)
+
+        atexit.register(pressed)
+        sys.argv = ["judgekeeper", "--version"]
+        sys.exit(entry.main(["--version"]))
+    """)
+    env = dict(os.environ, PYTHONPATH=SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    p = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env, check=False,
+                       capture_output=True, text=True, timeout=20)
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "Traceback" not in p.stderr and "KeyboardInterrupt" not in p.stderr, p.stderr
+    assert "judgekeeper " in p.stdout and p.stdout.rstrip().endswith("ignored: True"), p.stdout

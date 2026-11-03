@@ -36,12 +36,17 @@ def _release(held) -> None:
 
 
 def _put_back(held) -> None:
-    """Python's Ctrl-C handler (`held`) back, once the run is done: the very last step. Only
-    in place of a handler of judgekeeper's that only notes a press (_record, cli._late)."""
+    """Once the run is done, the very last step, in place of a handler of judgekeeper's that
+    only notes a press (_record, cli._late): Python's Ctrl-C handler (`held`) back; as the
+    program itself, a Ctrl-C ignored instead, as it ends: nothing is left to stop, and while
+    Python ends it puts back the system's own, which would end it by the signal."""
     cli = sys.modules.get("judgekeeper.cli")
-    if held is not None and signal.getsignal(signal.SIGINT) in (_record,
+    if held is None or signal.getsignal(signal.SIGINT) not in (_record,
                                                                getattr(cli, "_late", _record)):
-        signal.signal(signal.SIGINT, held)
+        return
+    textio = sys.modules.get("judgekeeper.textio")
+    ending = textio is not None and textio._started_as_judgekeeper()
+    signal.signal(signal.SIGINT, signal.SIG_IGN if ending else held)
 
 
 def main(argv: list[str] | None = None) -> int:
