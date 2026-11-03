@@ -966,8 +966,9 @@ def by_stratum(m: Marks, ids: list[str], old: dict, new: dict) -> list[list[int]
 
 def test_pass_mark(m: Marks, split: Split) -> dict | None:
     """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
-    scores (no AI call), once per set of hidden marks: the test, also kept in split.json, or
-    None for a judge with no pass mark or when the pass mark already fits best."""
+    scores (no AI call), once per set of hidden marks and pass mark in use: the test, also
+    kept in split.json, or None for a judge with no pass mark or when the pass mark already
+    fits best (kept as {"old", "op"}: the mark it was run for)."""
     from judgekeeper.start import passes
     from judgekeeper.start_fix import cell, cell_weights, choose_mark
 
@@ -975,9 +976,9 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     if not _follows(m, pm):
         return None
     saved = split.pass_mark
-    if saved is not None and (not saved or (saved.get("old"), saved.get("op")) == (
-            pm["mark"], pm["op"])):
-        return saved or None
+    ran_for = saved is not None and (saved.get("old"), saved.get("op")) == (pm["mark"], pm["op"])
+    if ran_for:  # run for the mark in use: the test, or nothing better than it
+        return saved if "new" in saved else None
     if saved and saved.get("new") == pm["mark"] and saved.get("op") == pm["op"]:
         return None  # the mark it found is the one in use now: nothing better was tested
     rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
@@ -993,7 +994,7 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     new = choose_mark([(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen],
                       current, op, weights)
     if new == current:
-        split.pass_mark = {}
+        split.pass_mark = {"old": current, "op": op}
         return None
     now = {i: passes(m.scores[i], op, new) for i in split.hidden}
     strata = by_stratum(m, split.hidden, m.judge, now)
@@ -1733,8 +1734,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             for sentence in p:
                 talk.para(sentence, indent="  ")
         talk.say()
-    fresh = split.pass_mark is None  # no pass mark tested on these marks yet
+    made = len(split.tests)
     tested = test_pass_mark(m, split)
+    fresh = len(split.tests) > made  # the test made now: its line is said once
     save_split(ws, split)
     _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))
     talk.para(_saved_line(ws, len(wrong)))

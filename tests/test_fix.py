@@ -829,6 +829,30 @@ def test_fix_never_offers_the_pass_mark_in_use(here, capsys, monkeypatch):
     assert "A better pass mark" not in flat and "instead of 0.5" not in flat, flat
 
 
+def test_a_pass_mark_taken_on_after_fix_found_none_better_is_tested_again(here, capsys,
+                                                                          monkeypatch):
+    """fix found the pass mark in use fits best; a check then took on another one: fix tests
+    from that one, as it was never tested."""
+    from judgekeeper import start_fix
+
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    choose = start_fix.choose_mark
+    monkeypatch.setattr(start_fix, "choose_mark", lambda rows, current, *a: current)
+    run(capsys)
+    assert _split(ws)["pass_mark"] == {"old": 0.5, "op": ">="}
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.66")
+    assert code == 0 and _rule_in_use(ws) == "score>=0.66", said
+    monkeypatch.setattr(start_fix, "choose_mark", choose)
+    flat = " ".join(run(capsys)[1].split())
+    test = _split(ws)["pass_mark"]
+    assert test["old"] == 0.66 and test["new"] != 0.66, test
+    assert test in _split(ws)["tests"]
+    assert "instead of 0.66" in flat, flat
+
+
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])
 def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypatch, kind):
     ws = score_project(here)
