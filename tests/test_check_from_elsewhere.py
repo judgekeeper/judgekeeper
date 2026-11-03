@@ -263,6 +263,36 @@ def test_check_sending_you_to_a_project_names_the_program_from_there(home, monke
         assert _program_in(line, proj, home) == tool, (line, out)
 
 
+TEAM = "~/Desktop/Testing Judge/team/proj s3"
+
+
+@pytest.mark.parametrize(("where", "named"), [
+    ("above", "proj s3"), ("homes", TEAM), ("far", TEAM), ("top", TEAM)])
+@pytest.mark.parametrize("command", [[], ["check"]])
+def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, capsys, where,
+                                                          named, command):
+    """Run from far above (the folder of home folders, a top folder) a project in the home
+    folder is `~/...`: never a user name, and every command it names runs where it says."""
+    from tests.test_earlier_grades import adopt
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt(proj, capsys)
+    away = {"above": proj.parent, "homes": home.parent, "far": home.parent.parent,
+            "top": Path("/")}[where]
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, *command, os.path.relpath(proj / "v2.json", away),
+                     *([] if command else ["--no-browser"]))
+    assert code == 3 and f"These results belong to the project in {named}/." in out, out
+    assert USER not in out, out
+    folder = home / named[2:] if named.startswith("~") else away / named
+    for line in _commands(out):
+        if "judgekeeper" in line:
+            assert _program_in(line, folder, home) == tool, (line, out)
+
+
 @pytest.mark.parametrize(("given", "said"), [
     ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
      "There is no file named missing.csv in ../c2-new/."),
@@ -282,3 +312,27 @@ def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch,
     monkeypatch.chdir(proj)
     code, out = _run(capsys, command, given.format(home=home))
     assert code != 0 and said in out and USER not in out, out
+
+
+@pytest.mark.parametrize(("folder", "at", "shown"), [
+    ("{home}/Desktop/a b/p", "{home}/Desktop", "a b/p"),
+    ("{home}/Desktop/p", "/", "~/Desktop/p"),
+    ("{home}/Desktop/p", "{users}", "~/Desktop/p"),
+    ("{users}/bob/work/p", "{home}", "/…/p"),
+    ("{users}/bob/work/p", "/", "/…/p"),
+    ("{top}/data/p", "{top}", "data/p"),
+])
+def test_a_folder_is_named_from_here_without_a_user_name(home, monkeypatch, folder, at, shown):
+    """As a line names a folder to go to: from here, in the home folder as `~/...`, in
+    another person's home folder cut short to its own name; and back again to the folder."""
+    from judgekeeper import textio
+
+    names = {"home": home, "users": home.parent, "top": home.parent.parent}
+    folder, at = Path(folder.format(**names)), Path(at.format(**names))
+    folder.mkdir(parents=True)
+    monkeypatch.chdir(at)
+    assert textio.folder_from_here(folder) == shown
+    back = textio.folder_of(shown, at)
+    assert back == textio.ANYWHERE if "…" in shown else Path(back).resolve() == folder
+    if shown.startswith("~/"):
+        assert textio.cd_word(shown) == "~/" + textio.quote_arg(shown[2:])

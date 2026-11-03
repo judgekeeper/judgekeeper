@@ -941,6 +941,48 @@ def _from_below_home(real: str, start) -> str | None:
     return rel.replace(os.sep, "/") if shares_below_home(shared) else None
 
 
+CUT = "\u2026"  # a folder in another person's home folder, cut short (folder_from_here)
+
+
+def folder_from_here(path) -> str:
+    """A folder as a line names it, to go to: from here when the two share a folder below the
+    home folder's parents (_from_below_home); else in the home folder, `~/...`; else in
+    another person's home folder (beside this one), `/.../its name`; else from here (another
+    drive: the path as it is). Never a user name. folder_of turns it back into the folder."""
+    real = os.path.realpath(path)
+    rel = _from_below_home(real, os.getcwd())
+    if rel is not None:
+        return rel
+    if (inside := _in_home(real)) is not None:
+        return _home_shown(inside)
+    try:
+        homes = os.path.dirname(os.path.realpath(Path.home()))
+        if os.path.commonpath([homes, real]) == homes and real != homes:
+            return f"{Path(real).anchor}{CUT}/{Path(real).name}".replace("\\", "/")
+        return os.path.relpath(real, os.getcwd()).replace(os.sep, "/")
+    except (OSError, RuntimeError, ValueError):  # another drive (Windows)
+        return Path(real).as_posix()
+
+
+def folder_of(shown: str, base) -> Path | str:
+    """The folder a folder_from_here name (from `base`) stands for; ANYWHERE when it was cut
+    short, so a command for it is one that runs in any folder."""
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return Path.home() / shown[len(form):]
+    if CUT in shown:
+        return ANYWHERE
+    return Path(base) / shown
+
+
+def cd_word(shown: str) -> str:
+    """A folder_from_here name as `cd` is given it: quoted, with `~/` outside the quotes."""
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return _home_command(shown[len(form):]) or quote_arg(shown)
+    return quote_arg(shown)
+
+
 def kept_path(path, root) -> str:
     """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` when the two
     share a folder below the home folder's parents (`..` allowed, `/` between folders); else

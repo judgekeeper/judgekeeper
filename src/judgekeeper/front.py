@@ -889,21 +889,15 @@ def _nested_line(nested: list[str], base: Path) -> str:
 
 
 def _from_here(base: Path, names: list[str]) -> list[str]:
-    """Folders `names` right below `base`, as lines name them: from the folder the command
-    runs in (os.path.relpath), so `cd` and "in ..." work from here."""
-    out = []
-    for name in names:
-        try:
-            out.append(Path(os.path.relpath(Path(base) / name)).as_posix())
-        except ValueError:  # another drive (Windows): the folder by its whole path
-            out.append(Path(base, name).resolve().as_posix())
-    return out
+    """Folders `names` right below `base`, as lines name them (textio.folder_from_here), so
+    `cd` and "in ..." work from here, never with a user name."""
+    return [textio.folder_from_here(Path(base) / name) for name in names]
 
 
 def _program_there(folders: list[str], base: Path) -> str:
     """program() as it is typed in each of `folders` (from `base`), for a line that says to
     run it there: the same in all of them, else the form that runs in any folder."""
-    shown = {textio.program_in(base / f) for f in folders}
+    shown = {textio.program_in(textio.folder_of(f, base)) for f in folders}
     return shown.pop() if len(shown) == 1 else textio.program_in(textio.ANYWHERE)
 
 
@@ -1008,9 +1002,9 @@ def _go_step(names: list[str], command: str) -> str:
     folder = "that folder" if len(names) == 1 else "one of those folders"
     here = program()
     if command.startswith(here):
-        with textio.run_from(names[0]):
+        with textio.run_from(textio.folder_of(names[0], Path.cwd())):
             command = program() + command[len(here):]
-    return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
+    return f"go to {folder} (`cd {textio.cd_word(names[0])}`), then run `{command}` there."
 
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
@@ -1072,7 +1066,6 @@ def _session_owning(path: Path) -> str | None:
     session: that folder, from the folder the command runs in. From a folder that is no
     project, a project below (project.is_project) owns its files too, used or not."""
     root = project.project_of(path)
-    here = Path.cwd().resolve()
     folder = path.resolve().parent
     if not folder.is_relative_to(root):
         return None
@@ -1080,7 +1073,7 @@ def _session_owning(path: Path) -> str | None:
     while folder != root:
         ws = Workspace(folder)
         if ws.start.is_file() or ws.labels.is_file() or no_project and project.is_project(folder):
-            return Path(os.path.relpath(folder, here)).as_posix()
+            return textio.folder_from_here(folder)
         folder = folder.parent
     return None
 
@@ -1235,10 +1228,7 @@ def _kept_apart(found: start.Found) -> str | None:
     if apart is None:
         return None
     above, files = apart
-    try:
-        rel = Path(os.path.relpath(above, Path.cwd().resolve())).as_posix()
-    except ValueError:  # another drive on Windows
-        rel = above.name
+    rel = textio.folder_from_here(above)  # never a user name
     return ("These results get their own marks here. "
             + (f"The marks in {rel}/ are for {', '.join(files)}." if files else "")).strip()
 
