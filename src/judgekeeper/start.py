@@ -1571,12 +1571,27 @@ def _unreadable(found: find.Search) -> Damaged:
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
-    if "promptfoo" in found.signs and rel.endswith(".json"):
+    return empty_file(rel, "promptfoo" in found.signs)
+
+
+def empty_file(rel: str, promptfoo: bool = False) -> Damaged:
+    """`rel`, a results file with nothing in it, in the words of the website's free check
+    ("This file is empty."), the file named."""
+    if promptfoo and rel.endswith(".json"):
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                        f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
                        "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                    f"save your results to {rel} again, then run `{{command}}` again.")
+
+
+def is_empty_file(path: Path) -> bool:
+    """Whether the file at `path` holds nothing, or only a UTF-8 byte order mark."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) in (b"", b"\xef\xbb\xbf")
+    except OSError:
+        return False
 
 
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:

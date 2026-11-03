@@ -344,3 +344,22 @@ def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, 
     # said once, under Answers: no second line about the repeats among the notes
     for lines in (judge["lines"], front._notes(found)):
         assert not any("its own answer" in line or "repeats in all" in line for line in lines)
+
+
+# an empty file is called empty, by the page and by the tool -----------------------------
+
+@pytest.mark.parametrize("name, data", [("results.json", b""), ("results.csv", b""),
+                                        ("results.jsonl", b""), ("results.json", b"\xef\xbb\xbf")])
+def test_an_empty_file_is_called_empty_by_the_page_and_the_tool(tmp_path, monkeypatch, capsys,
+                                                                name, data):
+    from judgekeeper.cli import main
+
+    path = tmp_path / name
+    path.write_bytes(data)
+    result = browser(path)
+    assert result["ok"] is False and result["message"] == "This file is empty."
+    monkeypatch.chdir(tmp_path)
+    assert main([name, "--no-browser", "--port", "0"]) == 2
+    out = " ".join(capsys.readouterr().err.split())
+    assert f"{name} is empty, so judgekeeper can't read it." in out, out
+    assert f"Next: save your results to {name} again, then run" in out, out
