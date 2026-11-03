@@ -2485,8 +2485,8 @@ def regrade_marked(state: State, every: bool = False, found=None) -> str:
         if held and isinstance(now.get("rule"), str) and now["rule"].strip():
             # the rule is known, and -S can't take it: no command to fill in
             return (f"score your {'whole ' if every else ''}marked log again with your "
-                    f"LLM-as-a-judge as it is now, with Inspect's score() in Python, as "
-                    f"{fix.EVAL_TOOLS} shows, and then {then}.")
+                    f"LLM-as-a-judge as it is now, with Inspect's score() in Python, saving "
+                    f"it as `{log}`, as {fix.EVAL_TOOLS} shows, and then {then}.")
         note = f" {fix.NOT_IN_S}" if held else ""
         return (f"score your {'whole ' if every else ''}marked log again with your "
                 f"LLM-as-a-judge as it is now: run `{command}` and then {then}.{note}")

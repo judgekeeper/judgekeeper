@@ -267,8 +267,13 @@ def test_a_known_rule_inspect_s_cannot_take_gets_no_command_to_fill_in(here, cap
     said = regrade_marked(_state("."), every=True, found=object())
     assert said == (
         "score your whole marked log again with your LLM-as-a-judge as it is now, with "
-        f"Inspect's score() in Python, as {fix.EVAL_TOOLS} shows, and then run "
-        "`judgekeeper check logs/new.eval`."), said
+        f"Inspect's score() in Python, saving it as `logs/new.eval`, as {fix.EVAL_TOOLS} "
+        "shows, and then run `judgekeeper check logs/new.eval`."), said
+    with monkeypatch.context() as m:  # the marks test new.eval: the new log has its own name
+        m.setattr(fix, "_marked_log", lambda ws: ("logs/new.eval", "logs"))
+        said = regrade_marked(_state("."), every=True, found=object())
+    assert "saving it as `logs/new-2.eval`" in said, said
+    assert said.endswith("run `judgekeeper check logs/new-2.eval`."), said
     monkeypatch.setattr(fix, "now_options", lambda ws, found: {"read": True, "rule": None})
     said = regrade_marked(_state("."), every=True, found=object())
     assert "<current rule>" in said and said.endswith(fix.NOT_IN_S), said
