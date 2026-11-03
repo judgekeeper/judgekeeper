@@ -149,9 +149,36 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
-    # a file beside one it reads (new results of the same eval, say) is its own too
-    return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
-                       for t in theirs) for m in mine)
+    # a file beside one it reads is its own too when it is the same eval (new results of it)
+    return not all(any(m == t or m.is_relative_to(t) for t in theirs) or (
+        any(not t.is_dir() and m.parent == t.parent for t in theirs) and _same_eval(m, store))
+        for m in mine)
+
+
+def _same_eval(path: Path, store: Path) -> bool:
+    """Whether the results file `path` is of the eval the session in `store` marks: read the
+    same way (its eval tool or format), with at least one of its answers (the same question,
+    or the same answer: an id made the same way)."""
+    import json
+
+    from judgekeeper import find, start
+    from judgekeeper.records import RecordsError, derive_record_id
+
+    ws = Workspace(store)
+    try:
+        tool = json.loads(ws.start.read_text(encoding="utf-8")).get("tool")
+        if not tool or find.classify_file(path) != tool:
+            return False
+        held = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+        records = start._read(find.Result(tool, path, path.name, path.stat().st_size)).records
+    except (OSError, ValueError, AttributeError, RecordsError, start.StartError,
+            *start.UNREADABLE):  # kept apart: the command says why it can't read it
+        return False
+    ids = {str(a.get("id")) for a in held}
+    questions = {a.get("input") for a in held if a.get("input")}
+    return any(r.input in questions or str(r.target_id or "") in ids
+               or derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
 
 
 def is_project(folder: Path) -> bool:

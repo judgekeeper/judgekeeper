@@ -1,7 +1,8 @@
-"""A results file in the same folder as one the session above reads belongs to that session:
-from that folder every command uses the marks above, as it does from the project folder,
-and never starts a second .judgekeeper/ there. Results in a folder of their own still get
-their own marks."""
+"""A results file in the same folder as one the session above reads belongs to that session
+when it is the same eval (read the same way, with answers the session holds): from that
+folder every command uses the marks above, as it does from the project folder, and never
+starts a second .judgekeeper/ there. Another eval beside them, and results in a folder of
+their own, still get their own marks."""
 
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ import pytest
 
 from judgekeeper.start_label import Workspace
 from tests import test_project_folder
-from tests.start_projects import split, table_project
+from tests.start_projects import promptfoo_project, split, table_project
 from tests.test_front import flat, run
 from tests.test_project_folder import _mark, _marker
 
@@ -82,4 +83,27 @@ def test_results_in_a_folder_of_their_own_still_get_their_own_marks(here, capsys
     assert ("These results get their own marks here. The marks in ../ are for "
             "sub2/results.csv.") in said, said
     assert (here / "evals3" / ".judgekeeper" / "start.json").is_file()
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+
+
+@pytest.mark.parametrize("other", ["csv", "promptfoo"])
+@pytest.mark.parametrize("command", [["mark"], []])
+def test_another_eval_beside_the_results_gets_its_own_marks(here, capsys, monkeypatch, other,
+                                                            command):
+    """Other questions in a CSV, or a promptfoo file, beside the session's CSV: their own
+    marks in that folder, never joined to the session's nor asked to start over."""
+    before = _store(here, capsys, ".git")
+    if other == "csv":
+        table_project(here, split(20, 16), name="sub2/other.csv", tag="another eval")
+        name = "other.csv"
+    else:
+        promptfoo_project(here / "sub2", split(20, 16), name="pf.json", config=False)
+        name = "pf.json"
+    monkeypatch.chdir(here / "sub2")
+    code, said = _said(capsys, *command, name)
+    assert code == 0, said
+    assert "Start over" not in said and "changed since your marks" not in said, said
+    if not command:  # Find says so; `mark` starts on the page
+        assert "These results get their own marks here." in said, said
+    assert (here / "sub2" / ".judgekeeper" / "start.json").is_file(), said
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
