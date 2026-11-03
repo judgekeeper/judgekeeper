@@ -170,7 +170,7 @@ def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys, "--yes")
     assert code == 0, out
-    assert "Eval tool:       your own format" in out and "36 answers" in out
+    assert "Eval tool:       your own JSONL file" in out and "36 answers" in out
     assert "File:            evals/graded.jsonl" in out
     assert "  question:        question" in out  # which parts were read: paths only
     assert "Saved judgekeeper.toml" in out

@@ -88,6 +88,19 @@ def test_every_answer_is_said_clear_only_when_every_grade_was_read(tmp_path, gra
 
 
 @needs_node
+@pytest.mark.parametrize("columns", ["input,output,verdict", "question,answer,grade"])
+def test_the_eval_tool_is_named_as_the_terminal_names_it(tmp_path, columns):
+    from judgekeeper.front import tool_name
+
+    path = tmp_path / "results.csv"
+    path.write_text(columns + "\n" + "".join(
+        f"Question {i}?,Answer {i}.,{'pass' if i % 3 else 'fail'}\n" for i in range(40)),
+        encoding="utf-8")
+    tool = "table" if columns.startswith("input") else "mapped"  # the tool maps the other names
+    assert browser(path)["toolName"] == tool_name(tool, [path.name]) == "your own CSV file"
+
+
+@needs_node
 def test_a_grade_written_1_0_is_never_a_pass(tmp_path):
     path = tmp_path / "graded.jsonl"
     shutil.copy2(FREECHECK / "page-one-point-zero.jsonl", path)

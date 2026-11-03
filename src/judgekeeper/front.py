@@ -1403,8 +1403,9 @@ TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
 def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
     """The eval tool as every screen and page names it; a table by its kind ("your own CSV
     file", from the first of `files`)."""
-    if tool == "table" and files:
-        return f"your own {Path(files[0]).suffix.lstrip('.').upper()} file"
+    kind = Path(files[0]).suffix.lstrip(".").upper() if files else ""
+    if tool == "table" and files or tool == "mapped" and kind in ("CSV", "TSV", "JSONL"):
+        return f"your own {kind} file"  # a table by its kind, read by its columns or mapped
     return TOOL_NAMES.get(tool, tool)
 
 

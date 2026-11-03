@@ -1063,6 +1063,7 @@ def test_every_page_fits_a_phone_width_viewport():
     ("table", ["graded.jsonl"], "your own JSONL file"),
     ("records", None, "judgekeeper.record() in your code"),
     ("mapped", ["out.json"], "your own format"),
+    ("mapped", ["evals/graded.csv"], "your own CSV file"),
     ("promptfoo", ["results.json"], "promptfoo")])
 def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
     from judgekeeper.front import tool_name
