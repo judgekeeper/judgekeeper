@@ -168,10 +168,10 @@ TRAPS = {"promptfoo": ("A human rating overrides the row's `success` and `pass`.
          "Inspect AI": ("`P` (partial credit) has no default", "`--no-log-samples`"),
          "MLflow": ("Trace ids change every run.", "A copied `mlruns/` folder.",
                     "MLflow's own problems, not judgekeeper's.")}
-TESTED = {"promptfoo": "Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures.",
-          "DeepEval": "Tested with DeepEval 4.2, the version in tests/fixtures.",
-          "Inspect AI": "Tested with Inspect AI 0.3.273, the version in tests/fixtures.",
-          "MLflow": "Tested with MLflow 3.16, the version in tests/fixtures"}
+TESTED = {"promptfoo": "Tested with promptfoo 0.123 and 0.124.",
+          "DeepEval": "Tested with DeepEval 4.2.",
+          "Inspect AI": "Tested with Inspect AI 0.3.273.",
+          "MLflow": "Tested with MLflow 3.16"}
 
 
 def _tools() -> dict[str, str]:

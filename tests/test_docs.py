@@ -326,8 +326,8 @@ def _guide(wanted: str) -> str:
     return " ".join(el.text().replace("’", "'").split())
 
 
-STEADY = ("Once in a while an answer you marked comes back a second time, to see how steady "
-          "your marks are. Mark it as you see it.")
+STEADY = ("Now and then an answer you marked comes back once, to see how steady your marks "
+          "are. Mark it as you see it.")
 
 
 def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():

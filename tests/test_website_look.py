@@ -890,11 +890,11 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
-        "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
-                       "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
-                       "so you can stop at any time and come back later. Once in a while an "
-                       "answer you marked comes back a second time, to see how steady your marks "
-                       "are. Mark it as you see it."),
+        "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
+                       "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
+                       "Every mark is saved, so you can stop at any time and come back later. Now "
+                       "and then an answer you marked comes back once, to see how steady your "
+                       "marks are. Mark it as you see it."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
                        "for a file with an output (or answer) column and a label (or "
                        "human_label) column, or judgekeeper --labels for a human_label or label "
