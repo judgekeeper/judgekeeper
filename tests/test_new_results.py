@@ -215,8 +215,11 @@ def _marked_inspect_log(here, capsys) -> tuple:
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
     assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
                                      "--action overwrite")
-    assert (f"run `{fix.inspect_score(ws)}` with `--output-file {new}`, then run "
-            f"`judgekeeper fix {new}`") in said
+    assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
+    assert (f"run `{fix.inspect_score(ws, new)}` and then run `judgekeeper fix {new}`") in said
+    assert "with `--output-file" not in said, said
+    assert (f"else grade it with Inspect's score() in Python, as {fix.EVAL_TOOLS} shows.") in said
+    assert fix.EVAL_TOOLS == "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
     assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space "
             "(Inspect reads `-S` values as YAML and cuts them at commas); else grade it with "
             "Inspect's score() in Python") in said, said
@@ -309,3 +312,12 @@ def test_the_docs_python_regrade_names_the_llm_as_a_judge(here, capsys):
     assert done.returncode == 0, done.stdout + done.stderr
     _, out = run(capsys, "check", "logs/new.eval")
     assert "Your LLM-as-a-judge changed: rule changed." in flat(out), out
+
+
+def test_the_lines_on_grading_again_link_the_eval_tools_page():
+    """A pip install has no docs/ folder: the lines link the page on GitHub."""
+    from judgekeeper import fix
+
+    for tool in ("promptfoo", "inspect"):
+        assert fix.EVAL_TOOLS in fix.REGRADE[tool], tool
+    assert not any("judgekeeper's docs/" in line for line in fix.REGRADE.values())

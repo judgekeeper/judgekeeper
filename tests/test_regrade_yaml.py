@@ -61,7 +61,7 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
             ".judgekeeper/fix/new.json` "
             "3. Then: `judgekeeper fix .judgekeeper/fix/new.json`") in flat
     assert "Next: follow the three steps above." in flat
-    assert "judgekeeper's docs/eval-tools.md shows the whole config" not in flat
+    assert "docs/eval-tools.md shows the whole config" not in flat
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
     # the same answers as the CSV, as promptfoo tests
     import csv as csv_mod

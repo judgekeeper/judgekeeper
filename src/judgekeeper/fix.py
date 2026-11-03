@@ -128,18 +128,19 @@ UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade t
              "gave, so it changes nothing there to test.")
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
+# The page on each eval tool: a pip install has no docs/ folder
+EVAL_TOOLS = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
     "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
                   "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
                   "`defaultTest.options.provider` and the same `metric:` with your new rule; "
                   "the rule's variables are the file's columns, `{{question}}` and "
-                  "`{{answer}}`. Save with `-o`. judgekeeper's docs/eval-tools.md shows the "
-                  "whole config."),
+                  "`{{answer}}`. Save with `-o`. " + EVAL_TOOLS + " shows the whole config."),
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
                 "give the options you set before again with `-S`. `-S instructions=` takes a "
                 "rule with no comma and no colon followed by a space (Inspect reads `-S` "
                 "values as YAML and cuts them at commas); else grade it with "
-                "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
+                "Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
                 "to yours, so yours stays as it was and `judgekeeper check` finds the new "
@@ -1485,8 +1486,8 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
         tool = None
     if tool == "inspect":  # the log itself is scored again
         log = quote_arg(new_log(ws))
-        return (f"score your log again with your new rule: run `{inspect_score(ws)}` with "
-                f"`--output-file {log}`, then {talk.run(log)}.")
+        return (f"score your log again with your new rule: run `{inspect_score(ws, log)}` "
+                f"and then {talk.run(log)}.")
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
 
 
@@ -1767,18 +1768,20 @@ def new_log(ws: Workspace) -> str:
     return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
 
 
-def inspect_score(ws: Workspace) -> str:
+def inspect_score(ws: Workspace, out: str | None = None) -> str:
     """INSPECT_SCORE with the marked log and its scorer, so it runs as it is copied: the
     scorer is the LLM-as-a-judge's metric (`scorer.key` for a dict score). A placeholder
-    stays only for what is not known (a log gone, a name `--scorer` can't take)."""
+    stays only for what is not known (a log gone, a name `--scorer` can't take). `out`: the
+    new log it writes (`--output-file`, quoted already), in the one command."""
     log = _marked_log(ws)[0]
     try:
         metric = ws.data().get("metric")
     except (OSError, ValueError, AttributeError):
         metric = None
     name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
-    return INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>",
-                                scorer=name if _SCORER.fullmatch(name) else "<name>")
+    command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>",
+                                   scorer=name if _SCORER.fullmatch(name) else "<name>")
+    return f"{command} --output-file {out}" if out else command
 
 
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
@@ -1795,8 +1798,8 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
         return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
-        talk.next(f"change your scorer's rule, run `{inspect_score(ws)}` with `--output-file {log}`, "
-                  f"then {talk.run(log)}.")
+        talk.next(f"change your scorer's rule, run `{inspect_score(ws, log)}` "
+                  f"and then {talk.run(log)}.")
         return
     store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
     if store:  # a new run in the same store
@@ -1835,7 +1838,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if data.get("tool") == "inspect":  # the log itself is scored again
             log = quote_arg(new_log(ws))
             talk.next(f"nothing to fix. To test another rule anyway, score your log again "
-                      f"with it: run `{inspect_score(ws)}` with `--output-file {log}`, then "
+                      f"with it: run `{inspect_score(ws, log)}` and then "
                       f"{talk.run(log)}.")
             return EXIT_OK
         talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "

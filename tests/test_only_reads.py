@@ -283,7 +283,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     then = said[said.rindex("Next:"):]
     if tool == "inspect":  # the log is scored again, not marked-answers.csv
         assert then == (f"Next: score your log again with your new rule: run "
-                        f"`{fix.inspect_score(ws)}` with `--output-file {fix.new_log(ws)}`, then "
+                        f"`{fix.inspect_score(ws, fix.new_log(ws))}` and then "
                         f"run `judgekeeper fix {fix.new_log(ws)}`.")
     else:  # MLflow: a new run in its store
         assert (fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv") in then
