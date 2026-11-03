@@ -398,7 +398,7 @@ def test_on_macos_paths_sharing_only_private_are_named_in_full(monkeypatch):
 
 
 
-@pytest.mark.parametrize("where", ["outside", "theirs"])
+@pytest.mark.parametrize("where", ["outside", "theirs", "yours"])
 def test_a_plain_check_goes_back_to_a_file_outside_the_home_folder(home, tmp_path, monkeypatch,
                                                                     capsys, where):
     """A check took on another model from a file outside the home folder: the next plain
@@ -420,16 +420,20 @@ def test_a_plain_check_goes_back_to_a_file_outside_the_home_folder(home, tmp_pat
     run(capsys, "--stop")
     other = list(verdicts)
     other[0] = not other[0]  # another model, not worse
-    folder = (Path(os.path.realpath(tmp_path)) / "scratch" if where == "outside"
-              else home.parent / "bob")
+    folder = {"outside": Path(os.path.realpath(tmp_path)) / "scratch",
+              "theirs": home.parent / "bob",
+              "yours": Path(os.path.realpath(tmp_path)) / f"{USER}-data"}[where]
     new = table_project(folder, other, model="bike-grader-v2")
     code, out, err = run(capsys, "check", str(new))
     said = flat(out + err)
     assert code == 0, said
     kept = json.loads((proj / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
     assert USER not in json.dumps(kept), kept
-    again = ("results.csv is in another person's home folder, so judgekeeper keeps only its "
-             "name: give its path again to check it next time.")
+    again = {"theirs": "results.csv is in another person's home folder, so judgekeeper keeps "
+                       "only its name: give its path again to check it next time.",
+             "yours": "results.csv is in a folder whose path holds your user name, so "
+                      "judgekeeper keeps only its name: give its path again to check it next "
+                      "time."}.get(where, "keeps only its name")
     code, out, err = run(capsys, "check")
     plain = flat(out + err)
     if where == "outside":
@@ -438,3 +442,21 @@ def test_a_plain_check_goes_back_to_a_file_outside_the_home_folder(home, tmp_pat
     else:
         assert kept["results_read"] == "results.csv", kept
         assert again in said, said
+
+
+
+def test_a_path_on_another_drive_is_held_against_both_names(monkeypatch):
+    """Windows: the home folder's name and the login differ, and the file is on another
+    drive: a folder named after either keeps only the file's name."""
+    from judgekeeper import textio
+
+    monkeypatch.setattr("getpass.getuser", lambda: "jsmith")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path("/Users/John")))
+
+    def other_drive(paths):
+        raise ValueError("Paths don't have the same drive")
+
+    monkeypatch.setattr(os.path, "commonpath", other_drive)
+    for folder in ("John-evals", "jsmith-evals"):
+        assert textio.name_only_why(os.path.join(os.sep, "work", folder, "x.csv")) == "yours"
+    assert textio.name_only_why(os.path.join(os.sep, "work", "evals", "x.csv")) is None

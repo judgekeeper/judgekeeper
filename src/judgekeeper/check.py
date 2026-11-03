@@ -103,8 +103,10 @@ SAME_GRADES = "Same model, same grades on your marked answers, same eval tool." 
 NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
                     "your marks as a new batch. Then run `{command}` again.")
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
-KEPT_NAME = ("{name} is in another person's home folder, so judgekeeper keeps only its name: "
-             "give its path again to check it next time.")
+KEPT_NAME = ("{name} is in {where}, so judgekeeper keeps only its name: give its path again to "
+             "check it next time.")
+NAME_ONLY = {"theirs": "another person's home folder",
+             "yours": "a folder whose path holds your user name"}
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be a coincidence."
@@ -2142,8 +2144,9 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
         from judgekeeper import textio
 
         line = f"New results: {Path(shown_from_here(path)).as_posix()}"
-        if Path(path).is_file() and not textio.found_again(path, state.ws.root):
-            line += "\n" + KEPT_NAME.format(name=Path(path).name)
+        why = textio.name_only_why(os.path.realpath(path))
+        if Path(path).is_file() and why and not textio.found_again(path, state.ws.root):
+            line += "\n" + KEPT_NAME.format(name=Path(path).name, where=NAME_ONLY[why])
         return line
     if now is None or now.newest is None:
         return None
