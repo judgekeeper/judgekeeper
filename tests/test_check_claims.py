@@ -9,7 +9,7 @@
 - A wrong PATH, or a folder under the project, says where it looked.
 - No "since the last check" before any check; a missing results file is said plainly.
 - Output piped into a program that stops reading ends quietly.
-- Screen 6a: the agreed words for "nothing changed" and "changed after your last eval run".
+- The words for "nothing changed" and "changed after your last eval run".
 No test calls an API: check only reads the results files.
 """
 
@@ -50,7 +50,7 @@ def _lock(root, version: str, later: float = 0) -> None:
         os.utime(path, (stamp, stamp))
 
 
-# Screen 6a ------------------------------------------------------------------------------------
+# The words for "nothing changed" and "changed after your last eval run" -----------------------
 
 def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     _marked(here)
@@ -252,7 +252,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys):
     _results(here, MARKED)  # back to the old judge
     code, out = run(capsys)
     assert code == 0 and "has not changed" not in out
-    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
+    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
 
 
 def test_after_worse_judgekeeper_still_points_at_check(here, capsys):

@@ -63,8 +63,8 @@ def _run(capsys, *argv) -> tuple[int, str]:
 
 
 def test_the_experiment_chosen_is_kept_with_the_marks(project, capsys):
-    """Plain `judgekeeper`, `mark` and the run after `--stop` asked for the experiment again
-    every time (exit 3), and their Next lines left `--experiment` out."""
+    """Plain `judgekeeper`, `mark` and the run after `--stop` do not ask for the experiment
+    again, and their Next lines keep `--experiment`."""
     code, out = _run(capsys, "--experiment", "helper", "--no-browser", "--port", "0")
     assert code == 0 and "experiment helper" in out, out
     for argv in (["--stop"], [], ["mark"], ["--stop"], []):

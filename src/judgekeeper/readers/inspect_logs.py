@@ -147,20 +147,12 @@ SAMPLE_LIMIT = 200 * 2**20
 # aside) grow with them: summaries.json, reductions.json, _journal/summaries/...
 HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
 HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
-# bytes: one text (a JSON string) in a sample. inspect_ai's read takes time that grows faster
-# than a text's length, and far faster with its escapes (\n, \"): on a Mac, inspect_ai 0.3.285,
-# a screenshot as base64 of 20 MB reads in 1.0 s, of 32 MB in 2.6 s, two of 32 MB in 5.1 s;
-# 32 MB of tool output with a newline every 32 characters in 5.7 s, every 8 in 13.6 s; text
-# made only of escapes: 8 MB in 8.9 s, 32 MB in minutes. So a text over LONG_TEXT (as before:
-# any text up to it) may hold at most one escape for every ESCAPE_SPACING characters, and the
-# texts over LONG_TEXT may add up to LONG_TEXTS_LIMIT in the whole log: about 11.4 s at most.
-# A sample of 200 MB in 8 MB texts reads in about 11 s. The time follows the escapes: texts of
-# escapes only take, per million escapes, 1.06 s in 8 MB texts, 0.34 s in 2 MB ones, 0.21 s
-# in 1 MB, 0.12 s in 256 KB, 0.09 s in 64 KB (a sample of 200 MB of them: about 100 s in 8 MB
-# texts, 21 s in 1 MB, 12 s in 256 KB); JSON kept as a string, an escape every 6.6
-# characters, 20 texts of 1.5 MB (4.8 million escapes) in 1.6 s. So the escapes in texts over
-# COUNTED_TEXT may add up to ESCAPES_LIMIT in the whole log: about 11.7 s at most, in 8 MB
-# texts. COUNTED_TEXT is not under STEP, so such a text spans steps.
+# bytes: one text (a JSON string) in a sample. inspect_ai reads long texts slowly, and much
+# slower when they hold many escapes (\n, \"): a 32 MB text of escapes takes minutes. So a text
+# over LONG_TEXT may hold at most one escape for every ESCAPE_SPACING characters, and all such
+# texts together may add up to LONG_TEXTS_LIMIT in a log. The escapes in texts over
+# COUNTED_TEXT may add up to ESCAPES_LIMIT in a log. Both keep a read to about 12 seconds at
+# most. COUNTED_TEXT is not under STEP, so such a text spans steps.
 MAX_STRING = 32 * 2**20
 LONG_TEXT = 8 * 2**20
 ESCAPE_SPACING = 32

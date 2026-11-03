@@ -1,5 +1,5 @@
-"""The README and the docs folder: what each holds, in the agreed words. The README's numbers
-come from the committed reports in docs/examples/.
+"""The README and the docs folder: what each holds, in plain words. The README's numbers come
+from the committed reports in docs/examples/.
 """
 
 from __future__ import annotations
@@ -256,8 +256,7 @@ def test_the_demo_script_checks_the_outline_of_every_frame():
 def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
     """The card (centred over the answer area) is shown in the first marking frames, then it is
     gone: from then on the part of the answer area below any answer text (the card's second
-    headline line and its button, rows 358 to 455) is the page's background, to within 4 levels
-    (a faded card the WebP kept as a faint ghost showed up to 17 above)."""
+    headline line and its button, rows 358 to 455) is the page's background, to within 4 levels."""
     background = (11, 12, 14)
     states = []
     for n, frame in _demo_frames():

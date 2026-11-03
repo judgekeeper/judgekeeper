@@ -53,7 +53,7 @@ FROM_RESULTS = "results"  # "from" of the labels already in the results
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
 BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
-ASKED = "asked"  # before 1.1: a link printed at a terminal with --no-browser (read, not said)
+ASKED = "asked"  # a link printed at a terminal with --no-browser (read, not said)
 LINKS = (PRINTED, BROWSER_ENV, ASKED)
 
 

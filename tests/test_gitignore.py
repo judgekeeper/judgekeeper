@@ -1,5 +1,6 @@
 """.judgekeeper/.gitignore keeps everything out of Git except judge.json, history.jsonl and
-itself. One the person wrote is never overwritten; the exact text 0.2 wrote is replaced."""
+itself. One the person wrote is never overwritten; the exact text an older judgekeeper wrote
+is replaced."""
 
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def test_the_exact_old_text_is_replaced(tmp_path):
 
 
 def test_the_old_text_with_windows_line_endings_is_replaced(tmp_path):
-    """0.2 wrote the file with the system's line endings."""
+    """An older judgekeeper wrote the file with the system's line endings."""
     (tmp_path / ".judgekeeper").mkdir()
     (tmp_path / ".judgekeeper" / ".gitignore").write_bytes(OLD.replace("\n", "\r\n").encode())
     ws = _prepare(tmp_path)

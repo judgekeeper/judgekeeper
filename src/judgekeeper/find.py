@@ -492,7 +492,7 @@ class _Walk:
                 self.skip(path, NOT_UTF8)
                 return
             columns = table_columns(path)
-            if suffix in JSONL_SUFFIXES and is_records(columns):  # record()'s format, moved
+            if suffix in JSONL_SUFFIXES and is_records(columns):  # judgekeeper.record()'s format
                 self.add("records", path, size)
             elif is_table(columns):
                 why = table_problem(path, size, columns)
@@ -568,8 +568,8 @@ class _Walk:
                 self.search.notes.append(note)
 
 
-# judgekeeper's own output folders: 0.1's report folder (anchors.jsonl looks like a table)
-# and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
+# judgekeeper's own output folders (an old report folder holds anchors.jsonl, which looks like a
+# table, and the demo data). They are never "your LLM-as-a-judge" or "your own format".
 OWN_FOLDERS = ("judgekeeper-report",)
 OWN_PREFIXES = ("judgekeeper-demo",)
 VENV_MARKER = "pyvenv.cfg"  # every Python virtual environment holds one, whatever its name

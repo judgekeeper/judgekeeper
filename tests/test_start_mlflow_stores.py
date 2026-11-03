@@ -549,8 +549,8 @@ def test_a_tracking_uri_that_is_no_store_is_refused_plainly(value, tmp_path, mon
 
 # Files MLflow must not open ---------------------------------------------------------------
 # MLflow's folder store reads each tag, setting and assessment file whole and follows links:
-# a link to /dev/zero used GBs in a second, a pipe waited forever, and a link out of the
-# project put that file's text in judgekeeper's files. Git keeps links, so a cloned project
+# a link to /dev/zero can use GBs in a second, a pipe can wait forever, and a link out of the
+# project can put that file's text in judgekeeper's files. Git keeps links, so a cloned project
 # can carry one. Before MLflow opens a folder store, judgekeeper looks at every file in it.
 
 POSIX = pytest.mark.skipif(os.name == "nt", reason="links and pipes need rights on Windows")
@@ -762,7 +762,7 @@ def _reads(monkeypatch) -> list:
 @pytest.mark.parametrize("named", [False, True])
 def test_trace_files_over_the_limit_together_are_refused_before_one_is_read(folder_only, capsys,
                                                                            monkeypatch, named):
-    """Their sizes are added up first: nine 99 MB trace files were read for 31 s before."""
+    """Their sizes are added up first: reading nine 99 MB trace files takes about 31 s."""
     sizes = [p.stat().st_size for p in _trace_files(folder_only)]
     monkeypatch.setattr(mlflow_store, "TRACES_LIMIT", sum(sizes) - 1)
     read = _reads(monkeypatch)
@@ -807,8 +807,9 @@ def with_prod(tmp_path_factory):
 
 def test_the_trace_limit_is_shared_by_the_experiments_read(with_prod, tmp_path, capsys,
                                                           monkeypatch):
-    """200 experiments of 9 sparse 99 MB trace files each were all read, one by one. Each one
-    named with --experiment is still read: only its own trace files count then."""
+    """The trace limit is shared by all experiments read: 200 experiments of 9 sparse 99 MB
+    trace files each would be read one by one. Each one named with --experiment is still
+    read: only its own trace files count then."""
     project = tmp_path / "docs-qa"
     shutil.copytree(with_prod, project / "mlruns")
     prod = next(p.parent for p in (project / "mlruns").glob("*/meta.yaml")

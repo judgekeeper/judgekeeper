@@ -258,8 +258,8 @@ def test_kappa_is_in_more_details_with_its_range_and_no_bar():
 def test_a_recheck_weights_the_marks_by_the_groups_they_were_picked_from():
     """Pools of 2,000, 80% truly Pass. The old LLM-as-a-judge passes 97% of true Pass and 50% of true
     Fail; the new one 80% and 15%. 25 + 25 marks picked by the old LLM-as-a-judge's groups: the new
-    judge's numbers come out right on average. Re-weighting by the new verdicts instead (as a
-    re-check did) is far off."""
+    judge's numbers come out right on average. Re-weighting by the new verdicts instead
+    is far off."""
     rng = random.Random(2000)
     got, true, wrong = {"tpr": [], "tnr": []}, {"tpr": [], "tnr": []}, {"tpr": [], "tnr": []}
     for _ in range(300):

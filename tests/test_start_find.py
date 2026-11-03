@@ -193,7 +193,7 @@ def test_an_mlruns_folder_of_artifacts_only_is_not_a_store(tmp_path):
 @pytest.mark.parametrize("folder", ["judgekeeper-report", "judgekeeper-demo-2026-10-01",
                                     "judgekeeper-demo"])
 def test_judgekeepers_own_folders_are_never_your_judge(tmp_path, capsys, folder):
-    # the check command's report (anchors.jsonl looks like a table) and 0.1.3's demo data
+    # judgekeeper's own report and demo folders (anchors.jsonl looks like a table)
     table_project(tmp_path / folder, split(16, 16), name="anchors.csv")
     (tmp_path / folder / "own.jsonl").write_text(
         json.dumps({"input": "q", "output": "a", "score": 1}) + "\n", encoding="utf-8")
