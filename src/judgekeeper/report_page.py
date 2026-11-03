@@ -1045,7 +1045,8 @@ def kept_count(c: dict, mistakes: list[dict]) -> int:
 
 
 # In place of the lists when split.json can't be used, around the fix command
-SPLIT_UNKNOWN = ("judgekeeper can't tell which answers are kept aside: run ", " to see why.")
+SPLIT_UNKNOWN = ("judgekeeper can't use the file that says which answers are kept aside. Run ",
+                 " to see why and what to do.")
 
 
 def _same(rows: list[dict]) -> list[tuple[str, str]]:

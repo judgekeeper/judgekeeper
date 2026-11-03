@@ -394,8 +394,8 @@ class SplitError(ValueError):
 
 DAMAGED = ("judgekeeper can't use {file}: {why}. It says which of your marks are kept aside, "
            "so judgekeeper doesn't replace it or guess.")
-NEXT_DAMAGED = ("put back the {name} judgekeeper wrote, or delete it and run `{command} --new`: "
-                "every mark you have counts as seen, and the next {n} you make are kept aside.")
+NEXT_DAMAGED = ("put back the {name} judgekeeper wrote, or run `{command} --new`. Then every "
+                "mark you have counts as seen, and the next {n} you make are kept aside.")
 
 
 def _ints(t: dict, *keys: str) -> bool:
@@ -448,8 +448,9 @@ def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
 def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     """How many of the `seen` marks were first made before any `hidden` one, by marks.jsonl:
     the most a later set's earlier sets can hold, since every mark made once a set begins is
-    its own. None kept aside, or one never marked: 0."""
-    order = {i: n for n, i in enumerate(read_cached(ws.marks, marks.read).last)}
+    its own. A mark is its first Pass or Fail: an answer skipped before a set began and marked
+    after is the set's. None kept aside, or one never marked: 0."""
+    order = read_cached(ws.marks, marks.read).first_mark
     if not hidden or any(i not in order for i in hidden):
         return 0
     first = min(order[i] for i in hidden)
@@ -562,7 +563,12 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     """The saved split with marks made since it split the same way; a new one when there is
     none. `new` retires the saved one: a mark once seen is never kept aside again, so only
     marks made after it make the next set."""
-    split = read_split(ws)
+    try:
+        split = read_split(ws)
+    except SplitError:
+        if not new:
+            raise
+        split = None  # `--new` asked: every mark counts as seen, so none can be guessed
     if split is None and new:  # none to retire: the marks may have been seen all the same
         split = Split(seed=secrets.randbelow(2 ** 31), seen=sorted(m.person), hidden=[],
                       made_at=utc_now(), fresh={"want": FRESH, "asked": True})

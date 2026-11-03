@@ -1301,7 +1301,7 @@ def test_a_changed_split_is_refused_and_kept(here, capsys, change, why):
         assert code == 2, out
         assert (f"judgekeeper can't use .judgekeeper/fix/split.json: {why}. It says which of "
                 "your marks are kept aside") in flat
-        assert "delete it and run `judgekeeper fix --new`" in flat
+        assert "or run `judgekeeper fix --new`. Then every mark you have counts as seen" in flat
         assert "pool-judge.jsonl" not in flat and "Result" not in flat
         assert path.read_bytes() == before
     # the result page shows none of the marks, and says it can't tell which are kept aside
@@ -1350,8 +1350,8 @@ def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
     html = ws.report_html.read_text(encoding="utf-8")
     flat = " ".join(re.sub(r"<[^>]+>", "", html).replace("&#x27;", "'").split())
     assert "kept aside to test a new rule fairly" not in flat
-    assert ("judgekeeper can't tell which answers are kept aside: run judgekeeper fix to see "
-            "why.") in flat
+    assert ("judgekeeper can't use the file that says which answers are kept aside. Run "
+            "judgekeeper fix to see why and what to do.") in flat
     assert '<code>judgekeeper fix</code>' in unwrapped(html)
     assert 'class="group' not in html and "Add a reason" not in html
 
