@@ -1119,11 +1119,12 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     else:
         line = where_lines(pm, test["new"])[0]
         where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", line)
-        given = re.search(r'--pass-if "[^"]*"', line)
-        if given:  # the check that re-checks it with that pass mark
+        given = re.search(r'--pass-if "([^"]*)"', line)
+        if given:  # one form: the check that re-checks it with that pass mark
             from judgekeeper.check import _here
 
-            where = f"{where.removesuffix('.')}: run `{_here(ws, 'check')} {given[0]}`."
+            where = (f"To use a pass mark of {new}, run "
+                     f"`{_here(ws, 'check')} --pass-if {quote_arg(given[1])}`.")
     return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
             f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
 

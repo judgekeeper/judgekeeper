@@ -550,7 +550,11 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
                   r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
-    assert 'Use `--pass-if "score>=0.7"`: run `judgekeeper check --pass-if "score>=0.7"`.' in flat
+    from judgekeeper.textio import quote_arg
+
+    assert (f"To use a pass mark of 0.7, run `judgekeeper check --pass-if "
+            f"{quote_arg('score>=0.7')}`.") in flat
+    assert "Use `--pass-if" not in flat  # one form, never two in a sentence
     split = _split(ws)
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
@@ -576,10 +580,10 @@ def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here,
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     with only_reads(monkeypatch):
         flat = " ".join(run(capsys)[1].split())
-    m = re.search(r'Use `--pass-if "(score>=0\.\d+)"`: run `judgekeeper check --pass-if '
-                  r'"(score>=0\.\d+)"`\.', flat)
-    assert m and m[1] == m[2], flat
-    rule = m[1]
+    m = re.search(r"To use a pass mark of (0\.\d+), run `judgekeeper check --pass-if "
+                  r"['\"](score>=0\.\d+)['\"]`\.", flat)  # quoted as the platform quotes
+    assert m and m[2] == f"score>={m[1]}", flat
+    rule = m[2]
     code, said = _main(capsys, "check", "--pass-if", rule)
     assert code == 0, said
     assert f"pass mark 0.5 -> {rule.split('>=')[1]}" in said, said
@@ -839,7 +843,7 @@ def test_fix_never_offers_the_pass_mark_in_use(here, capsys, monkeypatch):
     main(["--stop"])
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     flat = " ".join(run(capsys)[1].split())
-    m = re.search(r'run `judgekeeper check --pass-if "(score>=0\.\d+)"`', flat)
+    m = re.search(r"run `judgekeeper check --pass-if ['\"](score>=0\.\d+)['\"]`", flat)
     assert m, flat
     code, said = _main(capsys, "check", "--pass-if", m[1])
     assert code == 0, said
