@@ -33,7 +33,7 @@
 - Next lines name a command that runs as shown, also when `judgekeeper` is not on the PATH (`venv/bin/judgekeeper`, or `python3 -P -m judgekeeper`). They run on Windows in both cmd and PowerShell.
 - Commands name plain `judgekeeper` only when that is the same program you ran. With another judgekeeper on the PATH, they name yours.
 - A line that says to run a command in your project folder, or sends you to another folder, names the program and the folder as they are from there.
-- On a project with scores, every printed command keeps the pass mark in use, also after `--stop`.
+- On a project with scores, every printed command keeps the pass mark in use once there is a result, also after `--stop`.
 - report.html and the files in `.judgekeeper/` name the program plainly, and report.html says when you started judgekeeper another way. Stop lines name the program as you started it.
 - A folder with a project file (pyproject.toml, package.json, .git, ...) keeps its own marks and never reads the project above it. New results in a folder of their own get their own `.judgekeeper/`.
 - A project folder given from another folder is read as the project. Results of the same eval, in the same folder as the marked results, use those marks from whichever folder you run judgekeeper.
