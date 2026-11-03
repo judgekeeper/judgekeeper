@@ -29,7 +29,7 @@ from judgekeeper.start_label import Workspace
 from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
 from tests.test_front import run
-from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _result, _text
+from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _mistakes, _result, _text
 from tests.test_project_folder import _mark
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -178,6 +178,69 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
         pytest.skip("Chrome did not run the page")
     got = json.loads(found[1].replace("&quot;", '"'))
     assert got == {"width": 390, "boxes": [], "pass": True, "status": "Not saved", "seen": True}
+
+
+# Commands on the pages, as Chrome draws them: a space between each word ----------------------
+
+SPACES_CHECK = """
+var frames = Array.prototype.slice.call(document.querySelectorAll("iframe")), out = {}, left =
+  frames.length;
+frames.forEach(function (f) {
+  f.addEventListener("load", function () {
+    var d = f.contentDocument, gaps = [];
+    d.querySelectorAll("code").forEach(function (code) {
+      var words = code.querySelectorAll(".cw");
+      for (var i = 1; i < words.length; i++) {
+        var a = words[i - 1].getBoundingClientRect(), b = words[i].getBoundingClientRect();
+        if (Math.abs(a.top - b.top) < 2) { gaps.push(Math.round(b.left - a.right)); }
+      }
+    });
+    out[f.id] = gaps;
+    if (--left === 0) { document.getElementById("out").textContent = JSON.stringify(out); }
+  });
+});
+"""
+
+
+def test_each_command_on_a_page_shows_a_space_between_its_words(tmp_path):
+    """A command's words are spans: drawn in a flex box, the space between them is dropped and
+    `judgekeeper fix` reads `judgekeeperfix`. Copy takes the text, so only the drawing shows it."""
+    chrome = _chrome()
+    if chrome is None:
+        pytest.skip("needs Chrome")
+    r = _result(*NOT_GATE_TNR)
+    c = report_page.counts(r)
+    fixing = {"mistakes": _mistakes(c["easy"], c["strict"])}
+    pages = {"result": start_label.result_html(r, fixing=fixing),
+             "report": report_page.page(r),
+             "mark": (mark_page.label_page(None, "judgekeeper mark --port 8766")
+                      .replace("__NONCE__", "n").replace("__TOKEN__", "t")
+                      .replace("__DATA__", label._json_for_html(
+                          {"items": [], "total": 0, "start": 1,
+                           "counts": {"correct": 0, "wrong": 0, "skipped": 0},
+                           "status": {"text": "x", "ready": False}})))}
+    frames = "".join(
+        f'<iframe id="{name}" style="width:1000px;height:900px;border:0" srcdoc="'
+        f'{page.replace("&", "&amp;").replace(chr(34), "&quot;")}"></iframe>'
+        for name, page in pages.items())
+    (tmp_path / "spaces.html").write_text(
+        f'<!doctype html><html><body style="margin:0"><p id="out"></p>{frames}'
+        f"<script>{SPACES_CHECK}</script></body></html>", encoding="utf-8")
+    try:
+        done = subprocess.run(
+            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
+             f"--user-data-dir={tmp_path / 'profile'}", "--window-size=1100,900",
+             "--virtual-time-budget=5000", "--dump-dom", (tmp_path / "spaces.html").as_uri()],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("Chrome did not start")
+    found = re.search(r'<p id="out">(\{.*?\})</p>', done.stdout)
+    if not found:
+        pytest.skip("Chrome did not run the page")
+    got = json.loads(found[1].replace("&quot;", '"'))
+    assert set(got) == set(pages) and all(got.values()), got  # each page has a command
+    for name, gaps in got.items():
+        assert min(gaps) >= 4, (name, gaps)  # a space in a 14-15px monospace font is ~8px
 
 
 # More key shapes hidden ---------------------------------------------------------------------

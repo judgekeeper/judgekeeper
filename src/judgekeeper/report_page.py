@@ -453,7 +453,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
   min-width: min(380px, 100%); background: #07080a; }
-.cmd code { display: flex; align-items: center; padding: 12px 18px; font-size: 15px;
+.cmd code { display: block; align-self: center; padding: 12px 18px; font-size: 15px;
   white-space: nowrap; overflow-x: auto; color: var(--text); font-variant-ligatures: none; }
 .cmd code::before { content: "$"; margin-right: .6em; color: var(--green); }
 .cmd .copy { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
