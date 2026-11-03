@@ -38,8 +38,8 @@ reached RELIABLE Correct and Wrong labels has both ranges no wider than each can
 The numbers on screen (`accuracy`): kappa's range; the ranges at the real stopping rule
 (marking 5 + 5 per block until 15 Pass and 15 Fail, and until 25 + 25); how often each width
 word is said at the first result; how often the verdict is green when the lower of the true
-TPR and TNR is 75% and 80%; weighted.general when the judge, grading again, turns some of
-its grades round at random (it is asked once, as `check` asks); and how often `check` says
+TPR and TNR is 75% and 80%; weighted.general when the judge, grading again, changes a share
+of its grades at random (it is asked once, as `check` asks); and how often `check` says
 "Worse", and how often it exits 1, when nothing changed, with and without the judge's own
 wobble when it grades again.
 
@@ -107,7 +107,7 @@ KAPPA_CHECKS = 500
 STOP_CASES = RELIABLE_CASES
 # (judge's pass share, true TPR, true TNR): the lower of TPR and TNR at 75% and at 80%
 GREEN_CASES = [(0.9, 0.98, 0.75), (0.9, 0.98, 0.80), (0.5, 0.75, 0.95), (0.5, 0.80, 0.95)]
-CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge grading again turns round
+CHANGES_MIND = (0.05, 0.10)  # the share of grades a judge grading again changes
 # the judge also changed: the share of the answers it failed, that should fail, it now passes
 ALSO_CHANGED = (0.0, 0.3)
 WOBBLES = (0.0, 0.05, 0.10)  # the same judge grading again: the share of answers whose grade
@@ -127,7 +127,7 @@ BATCH_CHECKS = 1500
 ONE_GRADE_AGREE = (0.6, 0.8, 0.95)  # the chance a mark is the judge's own grade
 ONE_GRADE_MARKS = (20, 25, 30, 40)
 ONE_GRADE_CHECKS = 2000
-POOL_AGAIN = 10_000  # the pool when the judge turns grades round (see _changes_mind)
+POOL_AGAIN = 10_000  # the pool when the judge changes some grades when asked again
 GENERAL_DRAWS = 4000  # after grading again, as the other re-check rows
 BOOT_SEED = 20261005
 RESAMPLES = 2000
@@ -540,7 +540,7 @@ def _green(args: tuple) -> dict:
 
 
 def _changes_mind(args: tuple) -> dict:
-    """weighted.general when the judge, grading again, turns round a share `flip` of its
+    """weighted.general when the judge, grading again, changes a share `flip` of its
     grades at random (and, `changed`, now passes that share of the answers it failed that
     should fail): how often its TPR and TNR ranges hold the regrading judge's true rates. It
     is asked once, as `check` asks, so its wobble is never seen. The true rates are the ones
@@ -659,10 +659,10 @@ def accuracy_markdown(acc: dict) -> list[str]:
     mind = acc["changes_mind"]
     low = min(row["coverage"][k] for row in mind for k in ("tpr", "tnr")
               if row["coverage"][k] is not None)
-    lines += ["", "### After grading again, an LLM-as-a-judge that turns grades round", "",
+    lines += ["", "### An LLM-as-a-judge that changes some grades when asked again", "",
               (f"{ACCURACY_RUNS:,} simulated re-checks per row, pool of {POOL_AGAIN:,}. "
-               "weighted.general when the LLM-as-a-judge, grading again, turns round a share of "
-               "its grades at random (a = 0.9, w = 0.85); in the lower half it also changed, "
+               "weighted.general when the LLM-as-a-judge, grading again, changes a share of its "
+               "grades at random (a = 0.9, w = 0.85); in the lower half it also changed, "
                "and now passes 30% of the answers it failed that should fail. It is asked once, "
                "as `check` asks, so the ranges are the ones `check` shows. How often they hold "
                f"the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: {_pct(low)}."),
