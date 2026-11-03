@@ -151,12 +151,11 @@ def test_scores_with_a_plain_1_or_0_count_no_pass_or_fail_and_show_no_grade(tmp_
 
 
 NOT_CHECKED = {
-    "page-records.jsonl": ("This is a judgekeeper.record() file. This page does not read it: "
-                           "run uvx judgekeeper in your project for this file."),
-    "not-results.json": ("This doesn't look like results judgekeeper can read in the browser. "
-                         "The tool also reads Inspect AI and MLflow, with its inspect or mlflow "
-                         'extra: run uvx --from "judgekeeper[inspect]" judgekeeper (or '
-                         '"judgekeeper[mlflow]") in your project.'),
+    "page-records.jsonl": ("This is a judgekeeper.record() file. This page does not read it. "
+                           "Run `uvx judgekeeper` in your project for this file."),
+    "not-results.json": ("This isn't a results file this page can read. It reads promptfoo, "
+                         "DeepEval, CSV, TSV and JSONL files. For other results, run "
+                         "`uvx judgekeeper` in your project."),
     "table-output.json": ("This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's "
                           "own decisions. Save the full results with promptfoo eval -o "
                           "results.json."),
@@ -176,10 +175,10 @@ def test_a_file_the_page_does_not_check_says_what_to_do(name, said):
     assert not result["ok"] and result["message"] == said
 
 
-INSPECT_TOOL = ('Inspect AI logs are read by the full tool, with its inspect extra: run '
-                'uvx --from "judgekeeper[inspect]" judgekeeper in your project.')
-MLFLOW_TOOL = ('MLflow results are read by the full tool, with its mlflow extra: run '
-               'uvx --from "judgekeeper[mlflow]" judgekeeper in your project.')
+INSPECT_TOOL = ('Inspect AI logs are read by the full tool, with its inspect extra. Run '
+                '`uvx --from "judgekeeper[inspect]" judgekeeper` in your project.')
+MLFLOW_TOOL = ('MLflow results are read by the full tool, with its mlflow extra. Run '
+               '`uvx --from "judgekeeper[mlflow]" judgekeeper` in your project.')
 
 
 @needs_node
@@ -215,7 +214,7 @@ def test_judgekeeper_toml_says_to_run_the_tool(tmp_path):
     path.write_text('[start]\nsource = "map"\nfile = "history/evals.jsonl"\n', encoding="utf-8")
     result = browser(path)
     assert result["message"] == ("This is judgekeeper's settings file (judgekeeper.toml). This "
-                                 "page does not read it: run uvx judgekeeper in your project "
+                                 "page does not read it. Run `uvx judgekeeper` in your project "
                                  "for this file.")
 
 
@@ -295,8 +294,8 @@ def test_the_next_and_privacy_lines_are_the_pages_own():
     code = SCRIPT.read_text(encoding="utf-8")
     assert ("var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in "
             "your project folder and mark some answers.';") in code
-    assert ("var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: "
-            "it finds your results by itself.';") in code
+    assert ("var NEXT_AFTER_ERROR = 'pick another file, or run `uvx judgekeeper` in your "
+            "project. It finds your results by itself.';") in code
     assert ("Your file never leaves this page: it is read on your computer. Once the page has "
             "loaded, it works with Wi-Fi turned off.") in code
     assert "Turn off Wi-Fi and it still works" not in code
@@ -312,7 +311,7 @@ def test_an_excel_file_is_named_not_called_inspect(tmp_path):
         z.writestr("xl/workbook.xml", "<workbook/>")
     result = browser(path)
     assert not result["ok"]
-    assert result["message"] == "Excel files aren't read. Save it as CSV UTF-8."
+    assert result["message"] == "This page does not read Excel files. Save the sheet as CSV UTF-8."
 
 
 @needs_node

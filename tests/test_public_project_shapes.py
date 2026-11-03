@@ -358,8 +358,8 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     assert code == 0, out
     assert "Answers:         38 to mark" in out  # never "38 answers" next to the file's 36
     assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
-            "the same grade count once. 1 answer got different grades, so its 3 repeats each "
-            "count.)") in flat(out)
+            "the same grade count once. 1 answer got different grades, so each of its 3 repeats "
+            "counts.)") in flat(out)
     assert "tied grade" not in out and "merged" not in out
     _note_fits(out)
 
@@ -842,8 +842,8 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     assert code == 3, out  # 20 to mark: not enough for a first result
     assert "Answers:         20 to mark" in out
     assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
-            "grade count once. 5 answers got different grades, so their 10 repeats each "
-            "count.)") in flat(out)
+            "grade count once. 5 answers got different grades, so each of their 10 repeats "
+            "counts.)") in flat(out)
     assert "its own answer" not in flat(out)  # said once, under Answers
     _note_fits(out)
 

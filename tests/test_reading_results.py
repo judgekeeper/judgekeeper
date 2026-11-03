@@ -398,7 +398,7 @@ def test_an_excel_file_says_how_to_save_it(here, capsys):
     with zipfile.ZipFile(here / "results.xlsx", "w") as z:
         z.writestr("[Content_Types].xml", "<Types/>")
     _, out = find(capsys, "results.xlsx")
-    assert "Excel files aren't read. Save it as CSV UTF-8 and run again." in flat(out)
+    assert "judgekeeper doesn't read Excel files. Save the sheet as CSV UTF-8 and run again." in flat(out)
 
 
 def test_rows_where_every_cell_is_empty_are_skipped(here, capsys):

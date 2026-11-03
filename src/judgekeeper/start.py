@@ -1541,7 +1541,7 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None,
 
 
 TITLE_ROW = "{file}: Row 2 looks like the header. Delete row 1 and run again."
-EXCEL = "{file}: Excel files aren't read. Save it as CSV UTF-8 and run again."
+EXCEL = "{file}: judgekeeper doesn't read Excel files. Save the sheet as CSV UTF-8 and run again."
 
 
 def title_row(rel: str) -> Damaged:

@@ -1532,9 +1532,9 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
     head = f"(your file has {answers + pool.n_merged} results: {head}"
     if not pool.split:
         return f"{head}, so each counts once.)"
-    which = ("1 answer got different grades, so its" if len(pool.split) == 1
-             else f"{len(pool.split)} answers got different grades, so their")
-    return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
+    which = ("1 answer got different grades, so each of its" if len(pool.split) == 1
+             else f"{len(pool.split)} answers got different grades, so each of their")
+    return f"{head}. Repeats with the same grade count once. {which} {split} repeats counts.)"
 
 
 def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | None = None,

@@ -1177,10 +1177,9 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert link.attrs["href"] == "start.html" and "tf-link" in link.classes()
     assert _flat(link) == "next step: install judgekeeper →"
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
-    assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
-            'browser. The tool also reads Inspect AI and MLflow, with its inspect or mlflow '
-            'extra: run uvx --from \\"judgekeeper[inspect]\\" judgekeeper (or '
-            '\\"judgekeeper[mlflow]\\") in your project.";') in script
+    assert ('NOT_RECOGNISED = "This isn\'t a results file this page can read. It reads '
+            'promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run '
+            '`uvx judgekeeper` in your project.";') in script
 
 
 def test_waiting_terminal_uses_the_codes_labels(tmp_path):

@@ -12,17 +12,17 @@ from tests.test_freecheck_parity import NODE
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="needs node to run the page's free check")
 
-FEW = ("Next: a first result needs at least 30 answers, so run your eval to make more answers "
-       "first (that makes model calls), then run judgekeeper in your project folder. You can "
-       "mark these now. Your marks are kept for when more answers come.")
+FEW = ("Next: a first result needs at least 30 answers. Run your eval again to make more "
+       "(that makes model calls), then run `judgekeeper` in your project folder. You can mark "
+       "these answers now. Your marks are kept for when more answers come.")
 MANY = ("Next: to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your "
         "project folder and mark some answers.")
 CUT_OFF = ("This file is cut off or damaged (it ends in the middle). Save it again from your "
            "eval tool.")
-INSPECT = ('Inspect AI logs are read by the full tool, with its inspect extra: run '
-           'uvx --from "judgekeeper[inspect]" judgekeeper in your project.')
-MLFLOW = ('MLflow results are read by the full tool, with its mlflow extra: run '
-          'uvx --from "judgekeeper[mlflow]" judgekeeper in your project.')
+INSPECT = ('Inspect AI logs are read by the full tool, with its inspect extra. Run '
+           '`uvx --from "judgekeeper[inspect]" judgekeeper` in your project.')
+MLFLOW = ('MLflow results are read by the full tool, with its mlflow extra. Run '
+          '`uvx --from "judgekeeper[mlflow]" judgekeeper` in your project.')
 FULL_TOOL_NEXT = "Next: pick another file, or run that command in your project."
 
 

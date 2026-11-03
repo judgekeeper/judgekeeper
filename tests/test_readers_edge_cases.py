@@ -303,8 +303,8 @@ def test_repeats_with_different_grades_never_say_each_is_counted_once(here, caps
     (here / "results.json").write_text(json.dumps(data), encoding="utf-8")
     _, out = run(capsys)
     assert "so each counts once.)" not in flat(out), out
-    assert ("Repeats with the same grade count once. 1 answer got different grades, so its 3 "
-            "repeats each count.)") in flat(out)
+    assert ("Repeats with the same grade count once. 1 answer got different grades, so each of "
+            "its 3 repeats counts.)") in flat(out)
 
 
 def test_every_judge_column_is_in_what_one_line_holds(here, capsys):

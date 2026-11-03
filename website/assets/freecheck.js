@@ -37,15 +37,16 @@
     grading: ["LLM-as-a-judge's decisions", 'PROMPTFOO_STRIP_GRADING_RESULT']
   };
 
-  var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow, with its inspect or mlflow extra: run uvx --from \"judgekeeper[inspect]\" judgekeeper (or \"judgekeeper[mlflow]\") in your project.";
+  // a file of no kind it reads (also an unknown text file): what the page reads, and the tool
+  var NOT_RECOGNISED = "This isn't a results file this page can read. It reads promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run `uvx judgekeeper` in your project.";
   // a table whose columns it can't place: the columns it found, and those it reads
   function NOT_COLUMNS(columns) {
     var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
     return "judgekeeper can't tell which columns hold the question, the answer and the grade" +
       (shown.length ? ' (this file has ' + andList(shown) + (columns.length > 6 ? ' and more' : '') + ')' : '') + '. ' + READ_NAMES +
-      ' The tool reads other names too: run uvx judgekeeper in your project.';
+      ' The tool reads other names too. Run `uvx judgekeeper` in your project.';
   }
-  var IN_PROJECT = ' This page does not read it: run uvx judgekeeper in your project for this file.';
+  var IN_PROJECT = ' This page does not read it. Run `uvx judgekeeper` in your project for this file.';
   var RECORDS = 'This is a judgekeeper.record() file.' + IN_PROJECT;
   var SETTINGS = "This is judgekeeper's settings file (judgekeeper.toml)." + IN_PROJECT;
   var TABLE_OUTPUT = "This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own decisions. Save the full results with promptfoo eval -o results.json.";
@@ -53,13 +54,13 @@
   var NO_JUDGE = ' holds no decisions from an LLM-as-a-judge.';
   var RULES = { promptfoo: 'checks', deepeval: 'metrics' };
   var RULES_IN_CODE = ' are rules in code, not an LLM-as-a-judge. judgekeeper checks an LLM-as-a-judge.';
-  var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
+  var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run `uvx judgekeeper` in your project instead. It reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var EMPTY = 'This file is empty.';
-  var INSPECT_TOOL = 'Inspect AI logs are read by the full tool, with its inspect extra: run uvx --from "judgekeeper[inspect]" judgekeeper in your project.';
-  var MLFLOW_TOOL = 'MLflow results are read by the full tool, with its mlflow extra: run uvx --from "judgekeeper[mlflow]" judgekeeper in your project.';
-  var EXCEL_FILE = "Excel files aren't read. Save it as CSV UTF-8.";
-  var SPREADSHEET_FILE = "Spreadsheet files aren't read. Save it as CSV UTF-8.";
+  var INSPECT_TOOL = 'Inspect AI logs are read by the full tool, with its inspect extra. Run `uvx --from "judgekeeper[inspect]" judgekeeper` in your project.';
+  var MLFLOW_TOOL = 'MLflow results are read by the full tool, with its mlflow extra. Run `uvx --from "judgekeeper[mlflow]" judgekeeper` in your project.';
+  var EXCEL_FILE = 'This page does not read Excel files. Save the sheet as CSV UTF-8.';
+  var SPREADSHEET_FILE = 'This page does not read spreadsheet files. Save the sheet as CSV UTF-8.';
   // first bytes: a zip (Inspect's .eval log, or an Excel or OpenDocument spreadsheet) and an
   // SQLite file (an MLflow store)
   var ZIP_START = [0x50, 0x4B, 0x03, 0x04];
@@ -1303,8 +1304,8 @@
     var head = '(your file has ' + (j.answers + j.merged) + ' results: ' +
       (times ? n(j.answers - split + j.split.length, 'answer') + ', each run ' + times + ' times' : 'some answers are in it more than once');
     if (!j.split.length) return head + ', so each counts once.)';
-    var which = j.split.length === 1 ? '1 answer got different grades, so its' : j.split.length + ' answers got different grades, so their';
-    return head + '. Repeats with the same grade count once. ' + which + ' ' + split + ' repeats each count.)';
+    var which = j.split.length === 1 ? '1 answer got different grades, so each of its' : j.split.length + ' answers got different grades, so each of their';
+    return head + '. Repeats with the same grade count once. ' + which + ' ' + split + ' repeats counts.)';
   }
 
   // [{k, text, tone}] lines: tone is '', 'dim', 'g' (all clear) or 'y' (a finding)
@@ -1315,7 +1316,7 @@
     L.push({ k: 'File:            ', text: result.file });
     L.push({ k: 'Answers:         ', text: j.split.length ? j.answers + ' to mark' : n(j.answers, 'answer') });
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
-    var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
+    var model = j.models.length ? j.models.join(', ') : 'model not found in your results';
     L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });
     if (j.modelRefused && !j.models.length) L.push({ k: pad, text: 'The ' + j.modelRefused + " column holds no model's name.", tone: 'dim' });
     if (!j.rule) {
@@ -1406,8 +1407,10 @@
 
   var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
   // front.py, under MIN_POOL answers with a clear grade: no first result from this file yet
-  var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers, so run your eval to make more answers first (that makes model calls), then run judgekeeper in your project folder. You can mark these now. Your marks are kept for when more answers come.';
-  var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
+  var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers. Run your eval again to make more (that makes model calls), then run `judgekeeper` in your project folder. You can mark these answers now. Your marks are kept for when more answers come.';
+  var NEXT_AFTER_ERROR = 'pick another file, or run `uvx judgekeeper` in your project. It finds your results by itself.';
+  // errors that name the command already: the Next line doesn't say it again
+  var SAYS_COMMAND = ['full-tool', 'settings', 'records', 'not-recognised', 'too-big'];
   var NEXT_FULL_TOOL = 'pick another file, or run that command in your project.';
 
   // A line of the terminal: [class, text] parts; the class is one of Home's terminal colours
@@ -1484,7 +1487,7 @@
 
     function take(file, count) {
       zone.classList.add('busy');
-      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG, file.name); }
+      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG, file.name, 'too-big'); }
       var reader = new FileReader();
       reader.onerror = function () { done(); showError('This file could not be read. Try picking it again.', file.name); };
       reader.onload = function () {
@@ -1542,7 +1545,7 @@
       var pre = el('pre', 'fc-term');
       termTop(pre);
       pre.appendChild(termLine([['t-warn', message]]));
-      termNext(pre, kind === 'full-tool' ? NEXT_FULL_TOOL : NEXT_AFTER_ERROR);
+      termNext(pre, SAYS_COMMAND.indexOf(kind) >= 0 ? NEXT_FULL_TOOL : NEXT_AFTER_ERROR);
       out.appendChild(pre);
     }
 

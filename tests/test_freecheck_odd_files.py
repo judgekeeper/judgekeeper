@@ -145,7 +145,8 @@ def test_an_ods_file_is_named_as_a_spreadsheet(tmp_path):
     result = browser(path)
     assert result["ok"] is False
     assert "Inspect AI" not in result["message"]
-    assert result["message"] == "Spreadsheet files aren't read. Save it as CSV UTF-8."
+    assert result["message"] == ("This page does not read spreadsheet files. Save the sheet as "
+                                 "CSV UTF-8.")
 
 
 # one answer run three times is "1 answer" ----------------------------------------------
@@ -323,13 +324,13 @@ UNEVEN = "(your file has 7 results: some answers are in it more than once"
 @pytest.mark.parametrize("shape, answers, note", [
     # A real file: 6 prompts run 3 times, one of them graded 1 Pass and 2 Fail
     ({"flips": [(0, 1), (0, 2)]}, 8,
-     f"{ALL}. {SAME} 1 answer got different grades, so its 3 repeats each count.)"),
+     f"{ALL}. {SAME} 1 answer got different grades, so each of its 3 repeats counts.)"),
     ({"flips": [(0, 1), (0, 2), (1, 1), (1, 2)]}, 10,
-     f"{ALL}. {SAME} 2 answers got different grades, so their 6 repeats each count.)"),
+     f"{ALL}. {SAME} 2 answers got different grades, so each of their 6 repeats counts.)"),
     ({}, 6, f"{ALL}, so each counts once.)"),
     ({"times": 1, "extra": [(0, True)]}, 6, f"{UNEVEN}, so each counts once.)"),
     ({"times": 1, "extra": [(0, False)]}, 7,
-     f"{UNEVEN}. {SAME} 1 answer got different grades, so its 2 repeats each count.)"),
+     f"{UNEVEN}. {SAME} 1 answer got different grades, so each of its 2 repeats counts.)"),
 ])
 def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, shape, answers,
                                                                        note):
