@@ -677,6 +677,36 @@ def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     assert "changed since your marks" not in out
 
 
+def test_a_plain_check_reads_the_file_the_last_check_read_as_a_plain_run_does(
+        here, capsys, no_calls):
+    """A check took on another model from a file outside the project, which the search never
+    finds: a plain `check` keeps it, as a plain run does, never moving the marks back to the
+    project's older file. Newer results of the eval are read instead."""
+    import os
+
+    verdicts = split(20, 20)
+    mine = table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    outside = table_project(here.parent / "outside", other, model="bike-grader-v2")
+    assert run(capsys, "check", str(outside))[0] == 0
+    code, out = run(capsys, "check")[:2]
+    out = flat(out)
+    assert code == 0 and "back to the one you marked with" not in out, out
+    assert "has not changed since your last check" in out, out
+    got = run(capsys)
+    out = flat(got[1])
+    assert "in ../outside/results.csv, the file your last check read." in out, got
+    later = outside.stat().st_mtime + 10
+    os.utime(mine, (later, later))  # the eval ran again: its newest results are read
+    out = flat(run(capsys, "check")[1])
+    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
+            "marks' result still holds.") in out, out
+
+
 def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
         here, capsys, no_calls):
     """`check` took on evals/results-v2.csv; `check evals/results.csv` goes back to the

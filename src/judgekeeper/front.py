@@ -1879,32 +1879,11 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
 
 
 def _checked_file(ws: Workspace, found: start.Found) -> str | None:
-    """The file the last check read, named from here, when the marks test its LLM-as-a-judge
-    (that check was not held) and it is not one of the results `found` here, which are older:
-    those are no change to check. None otherwise."""
-    try:
-        data = ws.data()
-    except (OSError, ValueError):
-        return None
+    """The file the last check read (check.last_read_file), named from here; else None."""
     from judgekeeper import check as checking
 
-    read = data.get("results_read")
-    checks = checking._history(ws)
-    if not isinstance(read, str) or not read or not checks or not found.results:
-        return None
-    last = checks[-1]
-    if last.get("kind") != "check" or any(
-            isinstance(g, dict) and g.get("exit_worse") for g in (last.get("groups") or {}).values()):
-        return None
-    path = Path(textio.kept_at(read, ws.root))
-    try:
-        if any(os.path.samefile(r.path, path) for r in found.results):
-            return None
-        if path.stat().st_mtime <= found.results[0].path.stat().st_mtime:
-            return None
-    except OSError:
-        return None
-    return Path(textio.shown_from_here(path)).as_posix()
+    path = checking.last_read_file(ws, [r.path for r in found.results])
+    return None if path is None else Path(textio.shown_from_here(path)).as_posix()
 
 
 def _ran_again(ws: Workspace, found: start.Found) -> bool:

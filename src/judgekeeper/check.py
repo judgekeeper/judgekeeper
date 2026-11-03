@@ -1831,6 +1831,10 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         now = Now(judge_setup.of(found), None, found, found.results[0].path)
     else:
         now, problem = _now(state)
+        kept = (last_read_file(state.ws, [r.path for r in now.found.results] if now.found
+                               else [now.newest]) if now is not None and now.newest else None)
+        if kept is not None:  # newer than the results here, which the search finds
+            return full(str(kept), said, pass_if)
     found, new = (now.found, now.setup) if now is not None else (None, None)
     before, added = _added_since_check(state, new) if now is not None else (None, [])
     no_rule = new is not None and new.get("rule_hash") is None  # its grades tell a change
@@ -2128,6 +2132,34 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     shown = (newest.relative_to(root).as_posix() if newest.is_relative_to(root)
              else Path(shown_from_here(newest)).as_posix())
     return f"New results: {shown}"
+
+
+def last_read_file(ws: Workspace, results: list[Path]) -> Path | None:
+    """The file the last check read, when the marks test its LLM-as-a-judge (that check was
+    not held) and it is not one of the `results` found here (newest first), which are older:
+    those are no change to check. A plain run and a plain `check` keep it. None otherwise."""
+    try:
+        read = ws.data().get("results_read")
+    except (OSError, ValueError, AttributeError):
+        return None
+    checks = _history(ws)
+    if not isinstance(read, str) or not read or not checks or not results:
+        return None
+    last = checks[-1]
+    if last.get("kind") != "check" or any(
+            isinstance(g, dict) and g.get("exit_worse") for g in (last.get("groups") or {}).values()):
+        return None
+    from judgekeeper import textio
+
+    path = Path(textio.kept_at(read, ws.root))
+    try:
+        if any(os.path.samefile(r, path) for r in results):
+            return None
+        if path.stat().st_mtime <= Path(results[0]).stat().st_mtime:
+            return None
+    except OSError:
+        return None
+    return path
 
 
 def _newer_elsewhere(state: State, newest: Path | None) -> str | None:
