@@ -342,7 +342,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 1,000 simulated re-checks per row, pool of 10,000. weighted.general when the LLM-as-a-judge, grading again, changes a share of its grades at random (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. It is asked once, as `check` asks, so the ranges are the ones `check` shows. How often they hold the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: 93.6.
 
-| pi | n | turned | also changed | TPR | TNR |
+| pi | n | changed | also changed | TPR | TNR |
 |---|---|---|---|---|---|
 | 50% | 15 | 5% | 0% | 97.9 | 98.0 |
 | 50% | 15 | 10% | 0% | 96.7 | 98.3 |

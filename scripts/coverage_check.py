@@ -666,7 +666,7 @@ def accuracy_markdown(acc: dict) -> list[str]:
                "and now passes 30% of the answers it failed that should fail. It is asked once, "
                "as `check` asks, so the ranges are the ones `check` shows. How often they hold "
                f"the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: {_pct(low)}."),
-              "", "| pi | n | turned | also changed | TPR | TNR |", "|---|---|---|---|---|---|"]
+              "", "| pi | n | changed | also changed | TPR | TNR |", "|---|---|---|---|---|---|"]
     for row in mind:
         lines.append(f"| {row['pi']:.0%} | {row['n']} | {row['flip']:.0%} | "
                      f"{row['changed']:.0%} | {_pct(row['coverage']['tpr'])} | "

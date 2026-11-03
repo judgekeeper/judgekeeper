@@ -1,4 +1,4 @@
-# judgekeeper on JailbreakBench's judge-comparison set
+# judgekeeper on JailbreakBench's LLM-as-a-judge comparison set
 
 The marks are JailbreakBench's three-expert majority labels, entered by a script through the marking page's own calls. So the report pages note that the marks came through a link printed with no terminal.
 
