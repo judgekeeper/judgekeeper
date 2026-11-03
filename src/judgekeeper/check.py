@@ -103,6 +103,9 @@ SAME_GRADES = "Same model, same grades on your marked answers, same eval tool." 
 NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
                     "your marks as a new batch. Then run `{command}` again.")
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
+# ...and how many there are and how many it needs, in Measure's words (front.NEEDS_EACH_KIND)
+SO_FAR = "{so_far} so far: {p} Pass, {f} Fail."
+NEEDS = "A re-check needs at least {n} answers you mark Pass and {n} you mark Fail."
 KEPT_NAME = ("{name} is in {where}, so judgekeeper keeps only its name: give its path again to "
              "check it next time.")
 NAME_ONLY = {"theirs": "another person's home folder",
@@ -1249,7 +1252,13 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say(f"Next: run `{program_in(ANYWHERE, 'check')}` in your project folder.")
         return EXIT_USAGE
     if state is not None:
+        values = list(state.marks.values())
+        so_far = (f"You have {_n(len(values), 'mark')}"  # some came with --labels
+                  if marks.imported(marks.read(state.ws.marks), ids=set(state.marks))
+                  else f"You marked {_n(len(values), 'answer')}")
         said.say(NOT_SET_UP)
+        said.para(SO_FAR.format(so_far=so_far, p=values.count("pass"), f=values.count("fail"))
+                  + " " + NEEDS.format(n=targets.ROUGH))
         said.say()
         said.say("Next: " + next_marks(state.ws, mark_more_step(state.ws)))
         return EXIT_NEEDS_YOU

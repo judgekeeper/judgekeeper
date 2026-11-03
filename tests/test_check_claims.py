@@ -180,12 +180,14 @@ def test_no_marks_anywhere(tmp_path, capsys, monkeypatch):
     assert _next(out) == "Next: run `judgekeeper` to find your eval results and mark answers."
 
 
-def test_too_few_marks_says_so_without_a_number(here, capsys):
+def test_too_few_marks_says_how_many_in_measures_words(here, capsys):
+    """How many marks there are and how many a re-check needs, as Measure says them."""
     _marked(here, n_pass=10, n_fail=25)
     code, out = run(capsys)
     assert code == 3
-    assert "You have not marked enough answers yet for a re-check." in out
-    assert "15" not in out
+    assert ("You have not marked enough answers yet for a re-check. You marked 35 answers so "
+            "far: 10 Pass, 25 Fail. A re-check needs at least 15 answers you mark Pass and 15 "
+            "you mark Fail.") in _flat(out)
     assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`: "
                           "the new answers join the ones you marked.")  # every answer is marked
 
