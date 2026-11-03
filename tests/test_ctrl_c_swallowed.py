@@ -99,7 +99,7 @@ def test_stopped_exits_at_once_with_a_thread_left_running(tmp_path):
 
         threading.Thread(target=threading.Event().wait).start()  # never ends, not a daemon
 
-        def stopped(argv=None):
+        def stopped(argv=None, last=True):
             print("Stopped.")
             return 130
 

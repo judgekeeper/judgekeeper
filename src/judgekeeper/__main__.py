@@ -35,6 +35,15 @@ def _release(held) -> None:
         signal.signal(signal.SIGINT, held)
 
 
+def _put_back(held) -> None:
+    """Python's Ctrl-C handler (`held`) back, once the run is done: the very last step. Only
+    in place of a handler of judgekeeper's that only notes a press (_record, cli._late)."""
+    cli = sys.modules.get("judgekeeper.cli")
+    if held is not None and signal.getsignal(signal.SIGINT) in (_record,
+                                                               getattr(cli, "_late", _record)):
+        signal.signal(signal.SIGINT, held)
+
+
 def main(argv: list[str] | None = None) -> int:
     held = _hold()  # the first statement: a press while the imports run is only recorded
     try:
@@ -44,19 +53,20 @@ def main(argv: list[str] | None = None) -> int:
             if _pressed:  # loaded: now it stops the usual way
                 raise KeyboardInterrupt
         except KeyboardInterrupt:
-            _release(held)
+            if held is not None:  # "Stopped." is said whole: a press now is only recorded
+                signal.signal(signal.SIGINT, _record)
             code = _stopped(sys.argv[1:] if argv is None else argv)
         else:
-            code = run(argv)
+            code = run(argv, last=False)  # done, with a handler that only notes a press
+        if code == EXIT_STOPPED:
+            # A Ctrl-C raised inside code run from a string (namedtuple and dataclass build
+            # their classes so while modules load) leaves Python's "end by the signal" flag
+            # set, even caught, and `python -m` obeys it. Running a string again clears it.
+            exec("")  # noqa: S102 - an empty string, only to clear the flag
+            _end_now(code)
+        return code
     finally:
-        _release(held)
-    if code == EXIT_STOPPED:
-        # A Ctrl-C raised inside code run from a string (namedtuple and dataclass build their
-        # classes so while modules load) leaves Python's "end by the signal" flag set, even
-        # caught, and `python -m` obeys it. Running a string again clears the flag.
-        exec("")  # noqa: S102 - an empty string, only to clear the flag
-        _end_now(code)
-    return code
+        _put_back(held)
 
 
 def _end_now(code: int) -> None:

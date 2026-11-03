@@ -530,7 +530,27 @@ def _note_ctrl_c():
     return signal.default_int_handler
 
 
-def main(argv: list[str] | None = None) -> int:
+def _late(signum, frame) -> None:
+    """A Ctrl-C once the command is done (its result being said and flushed, the entry
+    point's last lines): only noted, so the result is printed whole and no traceback."""
+
+
+def _late_in(held) -> None:
+    """_late in place of judgekeeper's Ctrl-C handler, when main put one in (`held`)."""
+    if held is not None:
+        signal.signal(signal.SIGINT, _late)
+
+
+def put_back() -> None:
+    """Python's own Ctrl-C handler back in place of _late (the one _note_ctrl_c replaced):
+    the very last step."""
+    if signal.getsignal(signal.SIGINT) is _late:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+def main(argv: list[str] | None = None, last: bool = True) -> int:
+    """The commands. `last`: put Python's Ctrl-C handler back before returning; else the
+    caller (the entry point) does, as its very last step (put_back)."""
     project.forget()  # a test or a long session may run many commands in one process
     held = _note_ctrl_c()
     try:
@@ -538,13 +558,13 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 code = _main(argv)
             finally:
-                if held is not None:
-                    signal.signal(signal.SIGINT, held)
+                _late_in(held)  # done: a Ctrl-C from here is only noted
             if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
                 raise KeyboardInterrupt
         except BrokenPipeError:  # piped into a program that stopped reading (`| head`)
             code = EXIT_OK
         except KeyboardInterrupt:  # before a command started (the flags): as _main says it
+            _late_in(held)  # pressed before the line above: "Stopped." is said whole
             try:
                 code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
             except OSError:  # stdout can't take "Stopped.": still stopped
@@ -555,6 +575,8 @@ def main(argv: list[str] | None = None) -> int:
     # code stays
     flush_stdout()
     flush_stdout(err=True)
+    if last:
+        put_back()
     return code
 
 
