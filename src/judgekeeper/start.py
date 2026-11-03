@@ -1153,7 +1153,7 @@ def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
         path = path.resolve()
         if path.is_relative_to(root):
             return path.relative_to(root).as_posix()
-        return textio.kept_path(path, root)  # never the whole path: start.json keeps it
+        return textio.kept_path(path, root)  # as start.json keeps it: never a user name
 
     results = [replace(r, rel=rel(r.path)) for r in found.results]
     given = rel(folder or found.results[0].path) if found.tool != "mapped" else None
