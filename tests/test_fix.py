@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import __version__, fix, label, start_fix_rule, targets
+from judgekeeper import __version__, fix, label, start_fix_rule, targets, textio
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer, promptfoo_data, question, unwrapped
@@ -987,8 +987,8 @@ def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, m
     ws.dir.mkdir()
     data = {"tool": "inspect", "metric": metric, "results_files": ["tech facts.eval"]}
     ws.start.write_text(json.dumps(data), encoding="utf-8")
-    assert fix.inspect_score(ws) == (f"inspect score 'logs/tech facts.eval' --scorer {scorer} "
-                                     "--action overwrite")
+    log = textio.quote_arg("logs/tech facts.eval")  # as the shell here takes it
+    assert fix.inspect_score(ws) == f"inspect score {log} --scorer {scorer} --action overwrite"
     ws.start.write_text(json.dumps({**data, "results_files": ["gone.eval"]}), encoding="utf-8")
     assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
 
