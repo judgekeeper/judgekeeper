@@ -97,7 +97,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Two columns for the same thing (such as `label` and `human_label`, or `output` and `answer`) stop it: it names both and asks you to keep one. So does a row with more filled cells than the header (a quote closed in the wrong place): it names the line. Your results file and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
-**How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by exactly the same answer text. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
+**How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 
 **The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number other than 1 or 0 (`1.0` and `0.0` count as 1 and 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
 
@@ -145,7 +145,7 @@ judgekeeper fix [PATH] [--new]
 
 **The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options.
 
-It looks for the answers kept aside. It matches a marked answer only when the question and the answer text are exactly the same. A row in the results with no question is never an answer you marked with one.
+It looks for the answers kept aside. It matches a marked answer only when the question and the answer text are the same, word for word. A row in the results with no question is never an answer you marked with one.
 
 - If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3).
 - One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded.
@@ -185,7 +185,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 
 **Which results it reads.** It names the file first ("New results: ..."). With a saved choice in `judgekeeper.toml`, check reads only there; name a file to check another. When newer results of the same eval are somewhere else, it says where and the command that checks them.
 
-**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results and takes the new grades from there. It matches a marked answer only when the question and the answer text are exactly the same. A row with no question is never one you marked with a question. A marked answer that isn't there, such as one your eval answered differently, or that is there with no decision (`error`), is counted, said once and left out. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3), also when nothing changed: "has not changed" needs them too. Its Next line says to grade every answer you marked again (Inspect AI: score the whole log again; MLflow: evaluate all the same traces again).
+**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results and takes the new grades from there. It matches a marked answer only when the question and the answer text are the same, word for word. A row with no question is never one you marked with a question. A marked answer that isn't there, such as one your eval answered differently, or that is there with no decision (`error`), is counted, said once and left out. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3), also when nothing changed: "has not changed" needs them too. Its Next line says to grade every answer you marked again (Inspect AI: score the whole log again; MLflow: evaluate all the same traces again).
 
 **How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "Better": the whole range of the change is a rise of more than 20 points. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Each group's range is a 90% range, so even when nothing changed, one of the two groups can say "Worse" by coincidence, in up to 5 checks in 100 for each group ([coverage check](examples/coverage/coverage.md)). Mark more answers before acting on one. It exits 1 only when the drop's middle estimate is over 20 points, whichever word it says. Unless it is "Worse" (or "Not sure" when the drop's middle estimate is over 20 points), your marks now test the new LLM-as-a-judge. Results from the LLM-as-a-judge you marked with, after a check of another one, say "back to the one you marked with" on every check (exit 0), and your marks test it again. With the same model and rule as before, it still compares when grades on your marked answers changed, and says first that your LLM-as-a-judge doesn't always grade the same answer the same way; with no grade changed, it says nothing has changed.
 
@@ -231,7 +231,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
 
-When your LLM-as-a-judge changed since you marked, the result says which one it is about, such as "This result is about your LLM-as-a-judge as it was on 3 Nov: openai:your-model, rule ID 9946." The rule ID is a short code made from your rule's exact text. It changes when the wording changes, so two results with the same rule ID used the same rule.
+When your LLM-as-a-judge changed since you marked, the result says which one it is about, such as "This result is about your LLM-as-a-judge as it was on 3 Nov: openai:your-model, rule ID 9946." The rule ID is a short code made from your rule's text, word for word. It changes when the wording changes, so two results with the same rule ID used the same rule.
 
 ## What it reads
 
@@ -346,7 +346,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
 | `fix/marked-answers.csv` | Every marked answer, question and answer only, shuffled, to grade again |
 | `fix/regrade.yaml` | With promptfoo: a config that grades the marked answers again; change the rule in it |
-| `fix/marked-answers.yaml` | With promptfoo: the same answers, exactly as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
+| `fix/marked-answers.yaml` | With promptfoo: the same answers, word for word as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
 | `rules/` | Each rule tested, as `<hash>.txt` |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |

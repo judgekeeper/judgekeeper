@@ -925,12 +925,10 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
              ".judgekeeper/fix/regrade.yaml), "
              "then run:"),
-            ("judgekeeper finds the answers you marked in your new results. It matches a marked "
-             "answer only when the question and the answer text are exactly the same. Then it "
-             "compares the new grades with your marks and tells you if your LLM-as-a-judge "
-             "still agrees with you. You don’t need to mark anything again. Grading only your "
-             "marked answers is enough to compare the two. To count new marks, grade all your answers "
-             "with your new LLM-as-a-judge.")]}
+            ("judgekeeper finds the answers you marked in your new results by their question "
+             "and answer, word for word, compares the new grades with your marks, and tells you "
+             "if your LLM-as-a-judge still agrees with you. You don’t need to mark anything "
+             "again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],

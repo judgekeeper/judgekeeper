@@ -92,7 +92,7 @@ def test_no_output_says_exactly():
     """A number with no range says why ("you marked every answer"), never "exactly"."""
     files = [p for p in SRC.rglob("*") if p.suffix in (".py", ".html", ".js", ".css")]
     found = [f"{p.name}: {text[:60]!r}" for p in files for text in _said(p)
-             if re.search(r"\bexactly\b(?! the same)", text, re.IGNORECASE)]  # text that matches
+             if re.search(r"\bexactly\b", text, re.IGNORECASE)]
     assert not found
 
 
@@ -115,7 +115,7 @@ def test_when_the_ends_need_a_decimal_the_value_has_one_too(value, interval, sho
 
 @pytest.mark.parametrize(("value", "interval", "shown", "between"), [
     (0.99335, [0.99332, 0.99338], "about 99.33%", "99.33% and 99.34%"),
-    (0.9933, [0.993251, 0.993349], "about 99.3% (almost exact)", "–"),
+    (0.9933, [0.993251, 0.993349], "about 99.3%", "–"),
     (0.99338, [0.99332, 0.99338], "about 99.34%", "99.33% and 99.34%"),
 ])
 def test_ends_that_read_the_same_get_two_decimals_then_no_range(value, interval, shown,
@@ -132,7 +132,7 @@ def test_almost_exact_reads_the_same_in_the_terminal(monkeypatch):
          "tnr": 0.99335, "tnr_interval": [0.99332, 0.99338], "left": 5,
          "groups": {"pass": {"pool": 60}, "fail": {"pool": 60}}}
     lines = front.estimate_lines(r)
-    assert "  When you say Pass, it also says Pass: about 99.3% (almost exact)" in lines
+    assert "  When you say Pass, it also says Pass: about 99.3%" in lines
     assert ("  When you say Fail, it also says Fail: about 99.33% "
             "(between 99.33% and 99.34%)") in lines
 
@@ -152,5 +152,5 @@ def test_almost_exact_reads_the_same_on_the_result_page():
          "labels": {"correct": 300, "wrong": 300},
          "groups": {"pass": {"pool": 600}, "fail": {"pool": 600}}}
     html = report_page._main_lines(r)
-    assert '<td data-label="Estimate">about 99.3% (almost exact)</td>' in html, html
+    assert '<td data-label="Estimate">about 99.3%</td>' in html, html
     assert '<td data-label="Between">99.33% and 99.34%</td>' in html, html

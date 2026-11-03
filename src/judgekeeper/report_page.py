@@ -1125,7 +1125,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
     to the same percent are shown with one decimal, then two, and so is the value, so it
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
-    with two decimals too are no range to show: "about 99.3% (almost exact)". Neither the
+    with two decimals too are no range to show: "about 99.3%", alone. Neither the
     value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
     99.96%"; an end past two decimals reads "99.99%" or "0.01%", never "over" or "under"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
@@ -1139,7 +1139,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
             if ends[0] != ends[1]:
                 return _about(share(value, places)), " and ".join(ends)
             break
-    return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+    return _about(share(value, 1)), "–"
 
 
 def _end(x: float, places: int) -> str:
@@ -1164,7 +1164,6 @@ def _about(shown: str) -> str:
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
 CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
-ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1258,8 +1257,9 @@ def _details(r: dict) -> str:
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        why = why_for(r, "kappa") if targets.width_word([lo, hi]) == "exact" else ALMOST_EXACT
-        shown, lo = f"{shown} ({why})", None
+        if targets.width_word([lo, hi]) == "exact":  # else too narrow to write: alone
+            shown = f"{shown} ({why_for(r, 'kappa')})"
+        lo = None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '

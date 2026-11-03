@@ -33,20 +33,19 @@ def test_only_a_range_of_no_width_is_exact():
     assert targets.width_word([0.40, 0.40004]) is None
 
 
-def test_a_very_narrow_range_is_almost_exact_not_every_answer():
+def test_a_very_narrow_range_shows_its_number_alone():
     why = report_page.why_for(NEAR, "tpr")
-    assert report_page.estimate(NEAR["tpr"], NEAR["tpr_interval"], why) == (
-        "about 99.6% (almost exact)", "–")
+    assert report_page.estimate(NEAR["tpr"], NEAR["tpr_interval"], why) == ("about 99.6%", "–")
 
 
 def test_the_narrow_range_reads_the_same_on_the_terminal_and_the_page():
     lines = front.estimate_lines(NEAR)
-    assert "  When you say Pass, it also says Pass: about 99.6% (almost exact)" in lines
+    assert "  When you say Pass, it also says Pass: about 99.6%" in lines
     assert not any("100% (you marked" in line for line in lines)
     html = report_page._main_lines(NEAR)
-    assert '<td data-label="Estimate">about 99.6% (almost exact)</td>' in html, html
+    assert '<td data-label="Estimate">about 99.6%</td>' in html, html
     assert side_sentence("tpr", NEAR["tpr"], NEAR["tpr_interval"]) == (
-        "You passed: your LLM-as-a-judge also passed about 99.6% (almost exact).")
+        "You passed: your LLM-as-a-judge also passed about 99.6%.")
 
 
 @pytest.mark.parametrize(("value", "shown"), [
@@ -92,10 +91,9 @@ def test_a_range_end_past_two_decimals_reads_as_its_last_two():
         "You passed: your LLM-as-a-judge also passed about 99.9% (between 99.5% and 99.99%).")
 
 
-def test_ends_that_read_the_same_past_two_decimals_are_almost_exact():
+def test_ends_that_read_the_same_past_two_decimals_show_the_number_alone():
     """Never "between 99.99% and 99.99%"."""
-    assert report_page.estimate(0.99997, [0.99994, 0.99999]) == (
-        f"over 99.99% ({report_page.ALMOST_EXACT})", "–")
+    assert report_page.estimate(0.99997, [0.99994, 0.99999]) == ("over 99.99%", "–")
 
 
 def test_the_terminal_range_uses_the_same_decimals_as_the_page():
@@ -104,9 +102,9 @@ def test_the_terminal_range_uses_the_same_decimals_as_the_page():
         "You failed: your LLM-as-a-judge also failed about 99.3% (between 99.1% and 99.3%).")
 
 
-def test_a_kappa_range_that_reads_the_same_is_almost_exact():
+def test_a_kappa_range_that_reads_the_same_shows_the_number_alone():
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.4999, 0.5001]}
-    assert '<td data-label="Value">0.50 (almost exact)</td>' in report_page._details(r)
+    assert '<td data-label="Value">0.50</td>' in report_page._details(r)
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.5, 0.5], "left": 0}
     assert "0.50 (you marked every answer)" in report_page._details(r)
 

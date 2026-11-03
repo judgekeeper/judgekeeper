@@ -115,7 +115,7 @@ PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make yo
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be a coincidence."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper matches a marked answer "
-           "only when the question and the answer text are exactly the same.")
+           "only when the question and the answer text are the same, word for word.")
 NEXT_GIVEN = ("Next: run `{command} " + "<new results file>" + "`, or run `{command}` in your "
               "project folder to read the newest results.")
 OWN_RESULTS = "your own results file"  # marks on a plain table, or a file read with a map
@@ -129,8 +129,8 @@ NONE_GRADED = ("None of your {n} has a grade in your new results: {e} {are} ther
 NO_DECISION = "{e} of them {are} there with no decision from your LLM-as-a-judge{why}."
 SUCH_AS_ERROR = " (such as an error)"  # only when one of them was an error
 LEFT_OUT = "{k} of your {n} had no grade in your new results, so judgekeeper left {them} out."
-BY_TEXT = ("It matches a marked answer only when the question and the answer text are exactly "
-           "the same.")
+BY_TEXT = ("It matches a marked answer only when the question and the answer text are the "
+           "same, word for word.")
 NOT_IN = f"{LEFT_OUT} {BY_TEXT}"  # BY_TEXT only when some of them were not found
 NEWER = ("Newer {tool} results are in {file}, outside your saved choice. To check them: "
          "`{command} {file}`.")

@@ -576,7 +576,7 @@ TEMPLATES = {
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
     "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
 }
-PART_LINE = "Make rule part {n} more exact: your LLM-as-a-judge missed it {times}."
+PART_LINE = "Make rule part {n} more precise: your LLM-as-a-judge missed it {times}."
 RULE_PART = "RULE PART"  # the fence its words go in: data, as an answer's
 MARKED_PART = "MARKED PART"  # the words of an answer the person marked
 SUGGESTIONS = "suggestions.md"

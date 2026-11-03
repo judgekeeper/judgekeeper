@@ -398,14 +398,13 @@ def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
 def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
     """Grading only the marked answers again compares on them; a mark made later waits until
     every answer is graded, in the words `check` uses (check.WAIT_NEXT): said the same way in
-    the README, the guide and eval-tools.md."""
+    the README and eval-tools.md."""
     from judgekeeper import check
 
     grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
     said = (f"Grading only your marked answers is enough to compare the two. To count new marks, "
             f"{grade_all}.")
     assert said in _step(5)
-    assert said in _guide("step-check")
     assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
 
 

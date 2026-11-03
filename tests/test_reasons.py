@@ -766,7 +766,7 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
     assert "- A short answer that answers the question is a Pass." in suggested
     assert "unsafe" not in suggested.lower()
     assert "Fail an answer that is unsafe or not allowed." in once
-    assert ("- Make rule part 3 more exact: your LLM-as-a-judge missed it 1 time.\n"
+    assert ("- Make rule part 3 more precise: your LLM-as-a-judge missed it 1 time.\n"
             "<<<RULE PART\nIt never promises a refund\nRULE PART>>>") in once
     assert "refund" not in _outside_fences(md)  # the rule's words are data, as the answers
     assert "<<<ANSWER" in once  # listed with its answer, fenced as data

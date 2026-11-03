@@ -2187,7 +2187,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
                   "judgekeeper matches an answer only when the question and the answer text are "
-                  "exactly the same.")
+                  "the same, word for word.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU

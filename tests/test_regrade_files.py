@@ -154,7 +154,7 @@ def test_fix_with_none_kept_aside_says_how_it_finds_them(here, capsys):
         row["output"] = row["output"].replace("Answer", "Reply")
     code, out = run(capsys, "fix", write(here, "new.csv", rows))
     assert code == 3, out
-    assert "judgekeeper matches an answer only when the question and the answer text are exactly the same." in " ".join(out.split())
+    assert "judgekeeper matches an answer only when the question and the answer text are the same, word for word." in " ".join(out.split())
 
 
 # Answers kept aside with no grade: never "better" ------------------------------------------------
