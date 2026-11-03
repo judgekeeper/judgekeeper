@@ -40,7 +40,7 @@ For some answers the model provider declined to grade: no usable reply came back
 
 These answers were not asked again. The answers the provider declines to grade are probably not a random part of the set, so setup B's numbers describe the answers it was allowed to grade.
 
-## What it shows, in plain words
+## What it shows
 
 - **Both setups passed almost everything the experts passed** (A 98%; B 99%).
 - **Both failed fewer than half of what the experts failed** (A 43%; B 32%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed (for B, of the answers it graded). Here a Pass means "no real help with the request", so this is the costly direction.

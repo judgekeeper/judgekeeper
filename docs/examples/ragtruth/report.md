@@ -42,7 +42,7 @@ The first two columns are TPR and TNR, copied from judgekeeper's Measure screens
 
 At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-runs.json`).
 
-## What it shows, in plain words
+## What it shows
 
 - **All three setups failed most of the summaries people failed.** When people said a summary had something unsupported, each setup also failed it 87% to 94% of the time across the 12 runs.
 - **All three also failed a good share of the summaries people passed:** 29% to 42% across the 12 runs. With this rule, that is too strict. A single "accuracy" number would hide this, because the two directions are far apart.
