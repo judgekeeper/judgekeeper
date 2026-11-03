@@ -96,7 +96,7 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
     code, out = _run(capsys, "--wait")
     assert code == 130, out
     assert out.rstrip().splitlines()[-2:] == [
-        "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
+        "Stopped.", "Next: run `judgekeeper --wait` when you want to continue."]
     assert not label.is_open(here / ".judgekeeper")
 
 

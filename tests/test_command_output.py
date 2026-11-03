@@ -685,7 +685,7 @@ def test_ctrl_c_while_the_commands_load_says_stopped(monkeypatch, capsys):
     out = capsys.readouterr()
     assert "Traceback" not in out.out + out.err
     assert out.out.splitlines()[-2:] == ["Stopped.",
-                                         "Next: run `judgekeeper --no-browser` to carry on."]
+                                         "Next: run `judgekeeper --no-browser` when you want to continue."]
 
 
 def test_ctrl_c_while_the_arguments_are_read_says_stopped(monkeypatch, capsys):
@@ -697,7 +697,7 @@ def test_ctrl_c_while_the_arguments_are_read_says_stopped(monkeypatch, capsys):
     monkeypatch.setattr(cli, "parse_args", interrupted)
     assert cli.main(["--no-browser"]) == 130
     out = capsys.readouterr()
-    assert out.out == "\nStopped.\nNext: run `judgekeeper --no-browser` to carry on.\n"
+    assert out.out == "\nStopped.\nNext: run `judgekeeper --no-browser` when you want to continue.\n"
 
 
 def test_the_command_starts_from_the_light_entry():

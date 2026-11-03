@@ -160,7 +160,7 @@ def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 130
-    assert "Next: run `judgekeeper --no-browser` to carry on." in flat(text)
+    assert "Next: run `judgekeeper --no-browser` when you want to continue." in flat(text)
 
 
 def test_ctrl_c_after_the_last_next_line_says_nothing_more(project, capsys, monkeypatch):
@@ -175,7 +175,7 @@ def test_ctrl_c_after_the_last_next_line_says_nothing_more(project, capsys, monk
     monkeypatch.setattr(front, "_run", finished)
     code, text = run(capsys, "--no-browser")
     assert code == 130
-    assert "Stopped." not in text and "carry on" not in text
+    assert "Stopped." not in text and "when you want to continue" not in text
     assert flat(text).endswith("run `judgekeeper check`.")
 
 

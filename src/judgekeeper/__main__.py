@@ -117,7 +117,7 @@ def _stopped(argv: list[str]) -> int:
 
     command = " ".join(["judgekeeper", *(shlex.quote(a) for a in argv if a != "--debug")])
     print("\nStopped.")
-    print(f"Next: run `{command}` to carry on.")
+    print(f"Next: run `{command}` when you want to continue.")  # cli.NEXT_STOPPED
     return EXIT_STOPPED
 
 

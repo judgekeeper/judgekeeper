@@ -46,7 +46,7 @@ def test_a_ctrl_c_a_library_swallowed_still_stops_the_run(project, capsys, monke
     code, text = run(capsys, "--no-browser")
     assert code == 130, text
     assert "Stopped." in text
-    assert flat(text).endswith("Next: run `judgekeeper --no-browser` to carry on.")
+    assert flat(text).endswith("Next: run `judgekeeper --no-browser` when you want to continue.")
     assert text.count("Next:") == 1
     assert "No eval results found" not in text  # stopped before its next line
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler  # put back

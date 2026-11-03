@@ -180,7 +180,7 @@ def test_ctrl_c_while_the_commands_load_exits_130_under_python_m(tmp_path):
     done = subprocess.run([sys.executable, "-m", "jk_interrupted"], capture_output=True,
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL, cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` when you want to continue."]
     assert "Traceback" not in done.stdout + done.stderr
 
 
@@ -210,7 +210,7 @@ def test_a_ctrl_c_during_a_slow_import_stops_the_run_after_it(tmp_path):
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL,
                           cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` when you want to continue."]
     assert "RAN" not in done.stdout
     assert "Traceback" not in done.stdout + done.stderr
 
@@ -229,7 +229,7 @@ def test_a_ctrl_c_while_the_commands_load_names_the_program_and_flags(capsys, mo
     assert entry.main(["--no-browser", "--port", "9642"]) == 130
     out = capsys.readouterr().out
     assert out.splitlines()[-2:] == [
-        "Stopped.", "Next: run `venv/bin/judgekeeper --no-browser --port 9642` to carry on."]
+        "Stopped.", "Next: run `venv/bin/judgekeeper --no-browser --port 9642` when you want to continue."]
 
 
 def test_the_entry_leaves_ctrl_c_as_it_found_it():

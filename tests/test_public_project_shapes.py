@@ -595,7 +595,7 @@ def test_ctrl_c_under_wait_prints_one_next_line(here, capsys, monkeypatch):
     assert code == 130, out
     assert out.count("Next:") == 1, out
     assert out.rstrip().splitlines()[-2:] == [
-        "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
+        "Stopped.", "Next: run `judgekeeper --wait` when you want to continue."]
 
 
 # Small words ---------------------------------------------------------------------
