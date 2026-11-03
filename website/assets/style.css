@@ -405,6 +405,15 @@ td:first-child { min-width: 14ch; }
 /* each picture opens full size when clicked; phones say so under it */
 .gx-shot a { display: block; }
 .gx-shot a:focus-visible { outline-offset: -2px; border-radius: 8px; }
+/* a picture of the Guide, opened over the page: wide enough to read, moved around, at every width */
+.shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
+.shot-view[open] { display: flex; flex-direction: column; }
+.shot-view::backdrop { background: var(--bg); }
+.shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
+.shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
+.shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.shot-pane img { display: block; width: max(1100px, 100%); max-width: none; height: auto; }
+html.has-view, html.has-view body { overflow: hidden; }
 .gx-text .gx-tap { display: none; margin: -6px 0 16px; font-size: 13px; color: var(--muted); text-align: center; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
 /* the steps and the windows below: as wide as the top section, so their edges line up */
@@ -627,15 +636,6 @@ td:first-child { min-width: 14ch; }
   .ck-out { font-size: 14px; }
   .ex-or, .fc-kinds, .ck2-term .term-bar { font-size: 15px; }
   .ex-t span { font-size: 14px; }
-  /* a picture of the Guide, opened over the page: wide enough to read, swiped around */
-  .shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
-  .shot-view[open] { display: flex; flex-direction: column; }
-  .shot-view::backdrop { background: var(--bg); }
-  .shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
-  .shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
-  .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-  .shot-pane img { display: block; width: 1100px; max-width: none; height: auto; }
-  html.has-view, html.has-view body { overflow: hidden; }
 }
 @media (max-width: 480px) {
   /* the demo: the pill above the question; on the end card each question on its own line,

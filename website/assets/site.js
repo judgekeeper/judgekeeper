@@ -440,8 +440,8 @@
     nums.forEach(function (n) { seen.observe(n); });
   }
 
-  /* On a phone a picture of the Guide opens over the page, wide enough to read, to swipe
-     around; Close, a tap beside it or Escape closes it. Wider screens open the file. */
+  /* A picture of the Guide opens over the page, wide enough to read, to move around (swiped
+     on a phone); Close, a click or tap beside it or Escape closes it. */
   function setUpShots() {
     var links = $all(".gx-shot a");
     if (!links.length || typeof HTMLDialogElement !== "function") return;
@@ -465,7 +465,6 @@
     });
     links.forEach(function (a) {
       a.addEventListener("click", function (e) {
-        if (!narrow()) return;
         e.preventDefault();
         var shown = a.querySelector("img");
         img.src = a.getAttribute("href");

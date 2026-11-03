@@ -1524,21 +1524,23 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 
-def test_on_a_phone_a_picture_opens_over_the_page():
-    """At 600px and below a tap on a Guide picture opens it in a dialog 1100px wide that can
-    be swiped around, with a Close button 44px tall; the page behind does not scroll. A laptop
-    opens the file, as the link says."""
+def test_a_picture_opens_over_the_page_at_every_width():
+    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: a
+    dialog at least 1100px wide (the window's width when wider) that can be moved around, with
+    a Close button 44px tall; the page behind does not scroll. Without the script the link
+    opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
-    for part in ("if (!narrow()) return;", "e.preventDefault()", "view.showModal()",
+    for part in ("e.preventDefault()", "view.showModal()",
                  'make("button", "shot-close", "Close")', "e.target === view",
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
-    phone = _narrow(600)
-    assert "width: 1100px" in _last(".shot-pane img", phone)
-    assert "overflow: auto" in _last(".shot-pane", phone)
-    assert "min-height: 44px" in _last(".shot-close", phone)
-    assert "overflow: hidden" in _last("html.has-view, html.has-view body", phone)
+    assert "narrow()" not in shots
+    assert "width: max(1100px, 100%)" in _rule(".shot-pane img")
+    assert "overflow: auto" in _rule(".shot-pane")
+    assert "min-height: 44px" in _rule(".shot-close")
+    assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
+    assert not [s for s, d in _rules() if "shot-" in s and s in _narrow(600)]
 
 
 def test_on_a_touch_screen_links_are_44px_tall():
