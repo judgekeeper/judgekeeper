@@ -69,7 +69,7 @@ from judgekeeper.table import (
     open_quote,
     read_table,
     sheet_id,
-    wide_row,
+    wide_row_hint,
 )
 from judgekeeper.textio import (
     flush_stdout,
@@ -622,10 +622,10 @@ def read_results_table(path: Path) -> RecordList:
                          "rows after it can't be read.",
                          f"close the quote on line {line} of {path.name}, then run "
                          "`{command}`.")
-    line = wide_row(path)
-    if line is not None:  # one row of two: the second one's answer would be lost
-        raise StartError(f"{path.name} {MORE_CELLS} (line {line}): a quote may be closed in the "
-                         "wrong place.",
+    wide = wide_row_hint(path)
+    if wide is not None:  # one row of two: the second one's answer would be lost
+        line, hint = wide
+        raise StartError(f"{path.name} {MORE_CELLS} (line {line}){hint}.",
                          f"fix line {line} of {path.name}, then run `{{command}}`.")
     rows = read_table(path)
     if not rows:  # a header and nothing under it

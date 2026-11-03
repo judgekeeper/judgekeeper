@@ -166,7 +166,7 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
         header,
         open_quote,
         too_wide,
-        wide_row,
+        wide_row_hint,
     )
 
     path = Path(path)
@@ -178,10 +178,9 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
         if line is not None:  # the rows after it would be read as one cell: never shown
             raise MapError(f"line {line} of {path.name} has a quote that never closes, so the "
                            "rows after it can't be read")
-        line = wide_row(path)
-        if line is not None:  # one row of two: the second one would be lost
-            raise MapError(f"line {line} of {path.name} {MORE_CELLS}: a quote may be closed in the "
-                           "wrong place")
+        wide = wide_row_hint(path)
+        if wide is not None:  # one row of two: the second one would be lost
+            raise MapError(f"line {wide[0]} of {path.name} {MORE_CELLS}{wide[1]}")
         return capped([(n, {k: v for k, v in row.items() if k is not None})
                        for n, row in csv_numbered(text, suffix, MAX_ROWS)], path)
     if suffix == ".json":

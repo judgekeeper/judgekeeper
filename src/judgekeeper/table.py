@@ -380,22 +380,41 @@ def wide_row(path: str | Path) -> int | None:
     one, and the second one's cells would be lost. Empty cells past the header (a
     spreadsheet's trailing commas) are fine. The rows read_table reads, read as it reads
     them."""
+    found = wide_row_hint(path)
+    return found and found[0]
+
+
+QUOTE_HINT = ": a quote may be closed in the wrong place"
+
+
+def wide_row_hint(path: str | Path) -> tuple[int, str] | None:
+    """wide_row's line, and QUOTE_HINT when that row holds a quote ("" for a row with no
+    quote: a cell too many, plainly)."""
     from contextlib import closing
 
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in (".csv", ".tsv"):
         return None
+    held: list[str] = []  # the lines of the row being read, as the file has them
+
+    def kept(lines):
+        for line in lines:
+            held.append(line)
+            yield line
+
     with closing(utf8_lines(path, TableError)) as lines:
         first = next(lines, "")
-        reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
+        reader = csv.reader(kept(itertools.chain([first], lines)) if first else iter(()),
                             delimiter=_delimiter(first, suffix))
         names = next(reader, None)
         start = reader.line_num + 1
+        held.clear()
         for cells in itertools.islice(reader, MAX_ROWS + 1):
             if names is not None and any(c.strip() for c in cells[len(names):]):
-                return start
+                return start, QUOTE_HINT if any('"' in line for line in held) else ""
             start = reader.line_num + 1
+            held.clear()
     return None
 
 

@@ -127,3 +127,65 @@ def test_a_file_of_its_own_format_with_a_wide_row_stops_and_names_the_line(here,
     assert ("Line 12 of eval_out.csv has more cells than its header: a quote may be closed in "
             "the wrong place.") in text, out
     assert "Next: fix line 12 of eval_out.csv, then run `judgekeeper" in text, out
+
+
+# An extra plain cell, in a row with no quote: the line is named, with no quote hint --------
+
+def _plain_extra(path, header: str, rows: list[str], at: int):
+    """A table with no quote anywhere; row `at` (from 0) has one extra cell with text."""
+    lines = [header] + [f"{r},extra" if i == at else r for i, r in enumerate(rows)]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def test_wide_row_hint_only_for_a_row_with_a_quote(here):
+    quoted = _labels(here / "quoted.csv")
+    plain = _plain_extra(here / "plain.csv", "answer,label",
+                         [f"answer {i},{'Pass' if i % 2 else 'Fail'}" for i in range(8)], 4)
+    assert table.wide_row_hint(quoted) == (6, ": a quote may be closed in the wrong place")
+    assert table.wide_row_hint(plain) == (6, "")
+    assert table.wide_row_hint(_labels(here / "fine.csv", stray_at=None)) is None
+
+
+def test_labels_with_an_extra_plain_cell_name_the_line_without_a_quote_hint(here, capsys):
+    table_project(here, [True] * 20 + [False] * 20)
+    _plain_extra(here / "labels.csv", "answer,label",
+                 [f"{answer(i)},{'Pass' if i % 2 else 'Fail'}" for i in range(8)], 4)
+    code, out = run(capsys, "--labels", "labels.csv")
+    assert code == 3, out
+    assert ("labels.csv has more cells than its header (line 6). Fix it, then run "
+            "judgekeeper again.") in flat(out), out
+    assert "quote" not in out
+
+
+def _plain_results(here):
+    rows = [f"{question(i)},{answer(i)},{'pass' if i % 2 else 'fail'},reason {i}"
+            for i in range(40)]
+    return _plain_extra(here / "results.csv", "input,output,verdict,reason", rows, 10)
+
+
+def test_results_with_an_extra_plain_cell_name_the_line_without_a_quote_hint(here, capsys):
+    _plain_results(here)
+    code, out = run(capsys)
+    assert code == 2, out
+    text = flat(out)
+    assert "results.csv has more cells than its header (line 12)." in text, out
+    assert "quote" not in out
+    assert "Next: fix line 12 of results.csv, then run `judgekeeper" in text, out
+
+
+def test_a_file_of_its_own_format_with_an_extra_plain_cell_has_no_quote_hint(here, capsys):
+    rows = [f"{question(i)},{answer(i)},{'true' if i % 2 else 'false'},note {i}"
+            for i in range(40)]
+    _plain_extra(here / "eval_out.csv", "question,response,judge_passed,notes", rows, 10)
+    code, out = run(capsys)
+    text = flat(out)
+    assert code == 2, out
+    assert "Line 12 of eval_out.csv has more cells than its header." in text, out
+    assert "quote" not in out
+
+
+@pytest.mark.skipif(NODE is None, reason="needs node to run the page's free check")
+def test_the_free_check_gives_the_quote_hint_only_for_a_row_with_a_quote(here):
+    assert browser(_plain_results(here))["message"] == (
+        "Line 12 of this file has more cells than its header.")

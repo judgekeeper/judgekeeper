@@ -680,18 +680,24 @@
       start = k + 1;
     }
   }
-  // table.wide_row: the line a row starts on that has more cells with text than its header has
-  // columns (a stray quote that a later quote closes reads two rows as one), or null
-  var WIDE = 'has more cells than its header: a quote may be closed in the wrong place.';
+  // table.wide_row_hint: the line a row starts on that has more cells with text than its
+  // header has columns (a stray quote that a later quote closes reads two rows as one), and
+  // the quote hint when that row holds a quote; or null
+  var WIDE = 'has more cells than its header', QUOTE_HINT = ': a quote may be closed in the wrong place';
   function wideRow(text, d) {
     var starts = [], rows = parseCsv(text, d, starts);
     if (!rows.length) return null;
-    var n = rows[0].length;
+    var n = rows[0].length, lines = text.split('\n');
     for (var r = 1; r < rows.length; r++) {
-      if (rows[r].slice(n).some(function (cell) { return cell.trim(); })) return starts[r];
+      if (rows[r].slice(n).some(function (cell) { return cell.trim(); })) {
+        var end = r + 1 < starts.length ? starts[r + 1] - 1 : lines.length;
+        var own = lines.slice(starts[r] - 1, end).join('\n');
+        return { line: starts[r], hint: own.indexOf('"') >= 0 ? QUOTE_HINT : '' };
+      }
     }
     return null;
   }
+  function wideMessage(wide) { return 'Line ' + wide.line + ' of this file ' + WIDE + wide.hint + '.'; }
   // table._rows_inside: how many lines of a cell read as a whole row, with a grade at `verdict`
   function rowsInside(cell, d, columns, verdict) {
     return cell.split('\n').filter(function (line) {
@@ -1150,14 +1156,14 @@
         var open = openQuote(fileText, d);
         if (open !== null) return fail('open-quote', 'Line ' + open + " of this file has a quote that never closes, so the rows after it can't be read.");
         var wide = wideRow(fileText, d);
-        if (wide !== null) return fail('wide-row', 'Line ' + wide + ' of this file ' + WIDE);
+        if (wide !== null) return fail('wide-row', wideMessage(wide));
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
       if (/^\s*[\[{]/.test(fileText)) return fail('not-json', NOT_JSON);
       if (header.length >= 2 && openQuote(fileText, d) === null) {
         var wide2 = wideRow(fileText, d);
-        if (wide2 !== null) return fail('wide-row', 'Line ' + wide2 + ' of this file ' + WIDE);
+        if (wide2 !== null) return fail('wide-row', wideMessage(wide2));
         var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
         if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
         return fail('not-recognised', NOT_COLUMNS(t2.header));

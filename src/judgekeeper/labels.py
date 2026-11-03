@@ -254,7 +254,7 @@ def read_file(path: Path, label_map: dict | None = None,
     (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
     word."""
     from judgekeeper import find
-    from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row
+    from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
     from judgekeeper.table import written_header as header_of
 
     name = path.name
@@ -266,10 +266,9 @@ def read_file(path: Path, label_map: dict | None = None,
         line = open_quote(path) if path.suffix.lower() in (".csv", ".tsv") else None
         if line is not None:
             raise LabelsStop([f"{name} has a quote that never closes (line {line}). {again}"])
-        line = wide_row(path)
-        if line is not None:  # the second row's answer and label would be lost
-            raise LabelsStop([(f"{name} {MORE_CELLS} (line {line}): a quote may be closed in the "
-                               f"wrong place. {again}")])
+        wide = wide_row_hint(path)
+        if wide is not None:  # the second row's answer and label would be lost
+            raise LabelsStop([f"{name} {MORE_CELLS} (line {wide[0]}){wide[1]}. {again}"])
         rows = read_kept(path, _used)  # every row (the size question guards), its cells
         # used only: a big notes column is never held
     except TableError as e:
