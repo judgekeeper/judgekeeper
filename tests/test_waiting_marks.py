@@ -388,8 +388,13 @@ def test_results_that_grade_the_answers_left_get_them_out_of_waiting(
     closed(ws)
     out = flat(out)
     assert code == 0 and "Next: nothing to do" not in out and NEXT_WAIT not in out, out
-    assert ("Your new results grade 20 answers your LLM-as-a-judge had not graded yet: "
-            "judgekeeper keeps them as its grades, so a mark on them counts.") in out, out
+    assert ("Your new results grade 20 answers that had no grade before. judgekeeper adds "
+            "these grades, so your marks on those answers count now.") in out, out
+    from judgekeeper import check
+
+    assert check.took_left(1) == ("Your new results grade 1 answer that had no grade before. "
+                                  "judgekeeper adds these grades, so your marks on those "
+                                  "answers count now.")
     assert not _result(ws).get("only_wait") and not ws.data().get("earlier_grades")
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     closed(ws)

@@ -2497,8 +2497,13 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
 
 
 # Results of the same judge grade answers it had not graded (earlier_grades): taken in
-TOOK_LEFT = ("Your new results grade {k} {answers} your LLM-as-a-judge had not graded yet: "
-             "judgekeeper keeps them as its grades, so a mark on them counts.")
+TOOK_LEFT = ("Your new results grade {k} {answers} that had no grade before. judgekeeper adds "
+             "these grades, so your marks on those answers count now.")
+
+
+def took_left(k: int) -> str:
+    """TOOK_LEFT for `k` answers."""
+    return TOOK_LEFT.format(k=k, answers="answer" if k == 1 else "answers")
 
 
 def take_new_grades(ws: Workspace, found) -> str | None:
@@ -2518,7 +2523,7 @@ def take_new_grades(ws: Workspace, found) -> str | None:
         if waited:  # marks that waited: the next change is compared with these grades
             _save_verdicts(ws, judge_setup.of(found), found, waited)
     _report(ws, adopted=True)
-    return TOOK_LEFT.format(k=len(grades), answers="answer" if len(grades) == 1 else "answers")
+    return took_left(len(grades))
 
 
 def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
