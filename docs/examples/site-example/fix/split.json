@@ -1,7 +1,7 @@
 {
   "set": 1,
   "seed": 7,
-  "made_at": "2026-11-03T05:53:29Z",
+  "made_at": "2026-11-03T08:42:47Z",
   "visible": [
     "05b81752ba3d4a6d",
     "05bbe4f57f751a11",
@@ -46,7 +46,7 @@
   "tests": [
     {
       "kind": "rule",
-      "time": "2026-11-03T05:53:29Z",
+      "time": "2026-11-03T08:42:47Z",
       "rule_hash": "sha256:102261537cf975dc2f3cd03a28f9c47a868103a6e80dc3846f84b2d08b3e52d6",
       "setup_hash": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
       "key": "sha256:0c9176c49be28507d69c12388294ed23d4b7235351279f978aaef0a506e4e204",
@@ -74,9 +74,30 @@
           10
         ]
       ],
-      "file": "new-rule.json"
+      "file": "new-rule.json",
+      "grades": {
+        "16a66c92583cc261": "fail",
+        "2f71ab8300b9b24a": "fail",
+        "39c55aefff2d315d": "fail",
+        "65ecce0946ab4783": "fail",
+        "7c7a0f9a7ee838a9": "pass",
+        "8636d32e405cf3e6": "pass",
+        "8d8df9300fc229c7": "pass",
+        "8f20882321a9c28b": "fail",
+        "a3aa32487f6aa49f": "fail",
+        "a4550127d03377b8": "pass",
+        "a600be9301cf60e4": "fail",
+        "ae9bc15defd8a962": "pass",
+        "c125268f2f64db13": "pass",
+        "ceacc2d4707558fd": "fail",
+        "e1b0d9c413095b4c": "pass",
+        "e42d60f45afc2a20": "pass",
+        "e4a6b06906a27d63": "fail",
+        "f62985cfbc901d12": "pass",
+        "f8a22fc1e2a70f4e": "pass"
+      }
     }
   ],
   "pass_mark": null,
-  "sha256": "0535ea0e5ef2fd544d49a48bdab9a4bd5365f989eb1069233e3225e1e20e54bf"
+  "sha256": "74673e3f372d8a4f42c9c8ee6e1b5040c8bebb5df72e7c5f48a0d46f64581cbc"
 }
