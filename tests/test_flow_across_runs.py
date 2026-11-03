@@ -871,6 +871,24 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
     assert judge_models(ws) == [MODEL]
 
 
+def test_no_result_stands_after_new_moved_the_marks(here, capsys):
+    """A check took on another model; `--new --yes` moves every mark away: a plain run never
+    says a result from your marks still stands."""
+    from tests.test_check import MARKED, _results
+
+    _marked(here)
+    other = list(MARKED)
+    other[0] = not other[0]
+    _results(here, other, model=NEW)
+    assert _check(capsys)[0] == 0
+    _results(here, MARKED)  # the marked LLM-as-a-judge's results again
+    _jk(capsys, "--new", "--yes", "--no-browser", "--port", "0")
+    _jk(capsys, "--stop")
+    out = _jk(capsys, "--no-browser", "--port", "0")[1]
+    _jk(capsys, "--stop")
+    assert "still stands" not in out and "back to the one you marked with" not in out, out
+
+
 def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     """A check moved the marks to another model; the eval runs with the old LLM-as-a-judge again:
     the result is the marks' own again."""

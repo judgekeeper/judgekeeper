@@ -2657,8 +2657,8 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
     made_on = (data.get("picked") or {}).get("groups") or {
         q["id"]: q["group"] for q in data.get("queue") or []}
     graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
-    if any(a.verdict != made_on.get(i) for i, a in graded.items()):
-        return None
+    if not graded or any(a.verdict != made_on.get(i) for i, a in graded.items()):
+        return None  # no marks (after --new): no result from them stands
     restored = saved["setup_hash"] != judge_setup.hash_of(now)
     new = found.results[0].rel if found.results else None
     # the file the check the marks leave read (_adopt), kept to say on each "back" after
