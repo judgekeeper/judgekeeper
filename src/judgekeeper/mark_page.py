@@ -1052,19 +1052,20 @@ def _progress() -> str:
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+# Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
-          "{command} in your project folder. Your marks are kept.")  # gone, or no answer
+             "the command at the bottom of this page. Your marks are kept.")
 
 
-def _words(command: str) -> str:
+def _words() -> str:
     """The link's and the line's words, as the page's script reads them: before the first
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
-    can't be saved, which names `command`, the one the page says to come back with."""
+    can't be saved."""
     from judgekeeper.front import CHANGE_MARK
     from judgekeeper.start_label import FIRST_NUMBERS
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(scrub(command) or "")),
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
              "change": CHANGE_MARK}
     # no `_` either: a command can never hold a name the server fills in (_text)
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
@@ -1120,7 +1121,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__TITLE__", _text(TITLE))
             .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
-            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words(command))
+            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)

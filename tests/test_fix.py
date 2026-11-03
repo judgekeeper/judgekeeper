@@ -654,8 +654,8 @@ def test_every_mark_a_scores_project_names_carries_its_pass_mark(here, capsys):
     _marks_with(said, "score>=0.5")  # the pass mark is not taken on: too few marks
     from judgekeeper import mark_page
 
-    assert 'run judgekeeper mark --pass-if' in mark_page.label_page(
-        None, 'judgekeeper mark --pass-if "score>=0.5"').replace("\\u0022", '"')
+    page = mark_page.label_page(None, 'judgekeeper mark --pass-if "score>=0.5"')
+    assert 'judgekeeper mark --pass-if "score>=0.5"' in html.unescape(re.sub(r"<[^>]+>", "", page))
 
 
 def _rule_in_use(ws) -> str:

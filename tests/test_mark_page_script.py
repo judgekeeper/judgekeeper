@@ -21,7 +21,7 @@ import pytest
 from judgekeeper import mark_page
 
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
-          "judgekeeper mark in your project folder. Your marks are kept.")  # gone, or no answer
+             "the command at the bottom of this page. Your marks are kept.")  # gone, or no answer
 
 DOM = r"""
 var NOW = 1000000; Date.now = function () { return NOW; };
