@@ -129,8 +129,9 @@ NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`. New a
 ONLY_SKIPPED = ("The only {answers} left {are_is} {the_one} you skipped. Mark {them} now, or run "
                 "your eval on more questions.")
 ONLY_SKIPPED_CARD = ONLY_SKIPPED
-NEXT_ONLY_SKIPPED = ("mark {the_one} you skipped with `{command}`, or run your eval on more "
-                     "questions and run it again. New answers are added to the ones you marked.")
+NEXT_ONLY_SKIPPED = ("mark {the_one} you skipped with `{command}`. Or run your eval on more "
+                     "questions, then run that command again. New answers are added to the ones "
+                     "you marked.")
 # ...said by `mark`, whose page is open: on the page, never the run just made again
 NEXT_ONLY_SKIPPED_PAGE = "mark {the_one} you skipped on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate

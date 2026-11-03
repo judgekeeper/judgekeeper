@@ -12,8 +12,8 @@ from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
 
-NEXT = ("Next: mark {answers} you skipped with `{mark}`, or run your eval on more questions and "
-        "run it again. New answers are added to the ones you marked.")
+NEXT = ("Next: mark {answers} you skipped with `{mark}`. Or run your eval on more questions, then "
+        "run that command again. New answers are added to the ones you marked.")
 
 
 def _flat(text: str) -> str:

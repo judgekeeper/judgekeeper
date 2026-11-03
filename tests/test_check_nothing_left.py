@@ -58,7 +58,7 @@ def test_check_with_only_a_skipped_answer_left_says_to_look_at_it_again(here, ca
     _marked(here, capsys, split(30, 0), skip={29})  # 29 Pass marks and 1 skipped
     code, said = _said(capsys, "check")
     assert code == 3, said
-    assert _next(said) == ("mark the one you skipped with `judgekeeper mark`, or run "
-                           "your eval on more questions and run it again. New answers are added "
-                           "to the ones you marked."), said
+    assert _next(said) == ("mark the one you skipped with `judgekeeper mark`. Or run "
+                           "your eval on more questions, then run that command again. New "
+                           "answers are added to the ones you marked."), said
     assert "to mark more answers" not in said, said
