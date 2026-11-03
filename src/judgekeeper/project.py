@@ -121,7 +121,8 @@ def _read_by(store: Path) -> list[str]:
 
 def _apart(here: Path, store: Path, given: Path | None) -> bool:
     """Whether the results here (the one given, else those found in `here`) are other than
-    the ones the session in `store` reads: then they get their own .judgekeeper/."""
+    the ones the session in `store` reads, or files beside them: then they get their own
+    .judgekeeper/."""
     try:
         stamp = Workspace(store).start.stat().st_mtime_ns
     except OSError:
@@ -148,7 +149,9 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
-    return not all(any(m == t or m.is_relative_to(t) for t in theirs) for m in mine)
+    # a file beside one it reads (new results of the same eval, say) is its own too
+    return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
+                       for t in theirs) for m in mine)
 
 
 def is_project(folder: Path) -> bool:
