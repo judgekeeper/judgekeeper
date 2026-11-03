@@ -344,7 +344,7 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
         assert "such as an error" not in out
     elif shape in ("unrelated", "other-question"):  # other questions beside the marked file,
         # with other answers or the same ones word for word
-        assert ("new.csv shares no answers with the results you marked (results.csv), so it "
+        assert ("new.csv shares few questions with the results you marked (results.csv), so it "
                 "looks like another eval.") in " ".join(out.split()), out
     else:
         assert "None of your 60 marked answers is in your new results." in out

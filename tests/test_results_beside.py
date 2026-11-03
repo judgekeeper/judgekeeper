@@ -99,7 +99,7 @@ def test_results_in_a_folder_of_their_own_still_get_their_own_marks(here, capsys
 
 
 def _other_eval(file: str, marked: str) -> str:
-    return (f"{file} shares no answers with the results you marked ({marked}), so it looks like "
+    return (f"{file} shares few questions with the results you marked ({marked}), so it looks like "
             "another eval. To mark it, put it in a folder of its own and run `judgekeeper` "
             "there.")
 
@@ -283,12 +283,19 @@ def _with_shared(tag: str, verdicts=None, outputs_tag: str | None = None) -> dic
                           outputs=outputs)
 
 
-@pytest.mark.parametrize("second", ["other questions", "graded again", "new answers"])
+def _more_questions() -> dict:
+    """The 36 marked questions, as marked, then 100 new ones: the eval run on more questions."""
+    outputs = [*SHARED, *(answer(i, "one") for i in range(2, 136))]
+    return promptfoo_data(split(68, 68), tag="one", outputs=outputs)
+
+
+@pytest.mark.parametrize("second", ["other questions", "graded again", "new answers",
+                                    "more questions"])
 def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, capsys,
                                                                           monkeypatch, second):
     """A promptfoo file beside the marked one with other questions is another eval, though a
     few answers (a refusal) are word for word the same: never read, marked or added. The same
-    questions graded again, or answered again, join the session."""
+    questions graded again, answered again, or with 100 more after them, join the session."""
     _marker(here, ".git")
     _write_json(here / "evals" / "a.json", _with_shared("one"))
     assert run(capsys, "evals/a.json", *PAGE)[0] == 0
@@ -299,7 +306,8 @@ def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, 
     _write_json(here / "evals" / "b.json", {
         "other questions": lambda: _with_shared("other"),
         "graded again": lambda: _with_shared("one", verdicts=split(26, 10)),
-        "new answers": lambda: _with_shared("one", outputs_tag="again")}[second]())
+        "new answers": lambda: _with_shared("one", outputs_tag="again"),
+        "more questions": _more_questions}[second]())
     for argv in (["evals/b.json"], ["mark", "evals/b.json"], ["check", "evals/b.json"],
                  ["fix", "evals/b.json"], []):
         code, said = _said(capsys, *argv)
@@ -312,7 +320,7 @@ def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, 
             assert "another eval" not in said, (argv, said)
         assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
         assert not (here / "evals" / ".judgekeeper").exists(), (argv, said)
-    if second == "new answers":  # its 34 new answers join the pool
+    if second in ("new answers", "more questions"):  # its new answers join the pool
         assert (here / ".judgekeeper" / "pool.jsonl").read_bytes() != pool
 
 

@@ -41,7 +41,7 @@ def test_a_typed_path_has_slashes_as_a_path_from_here(windows):
 
 def test_the_other_eval_line_names_both_files_as_every_line(windows):
     line = project.other_eval_line(Path("evals\\other.csv"), windows)
-    assert line.startswith(f"evals/other.csv shares no answers with the results you marked "
+    assert line.startswith(f"evals/other.csv shares few questions with the results you marked "
                            f"({HOME_FILE}),"), line
 
 

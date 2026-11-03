@@ -161,7 +161,7 @@ def _theirs(store: Path) -> list[Path]:
     return [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
 
 
-OTHER_EVAL = ("{file} shares no answers with the results you marked ({marked}), so it looks "
+OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}), so it looks "
               "like another eval. To mark it, put it in a folder of its own and run `{program}` "
               "there.")
 
@@ -243,7 +243,7 @@ def _same_eval_cached(path: Path, store: Path, stamps: tuple[int, int]) -> bool:
 
 def _same_eval(path: Path, store: Path) -> bool:
     """Whether the results file `path` is of the eval the session in `store` marks: read by
-    its own eval tool or format, with at least half of its questions ones the session holds
+    its own eval tool or format, sharing at least half the questions of the smaller side
     (compared as text, and as marked-answers.csv holds them, which promptfoo's `echo` regrade
     gives back: promptfoo's are a dict of vars, Inspect AI's can be chat messages), never by
     an answer word for word (another eval's refusal can be this one's); with no questions on
@@ -277,10 +277,12 @@ def _same_eval(path: Path, store: Path) -> bool:
     if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    questions = {q for a in held for q in _forms(a.get("input"), a.get("output"))} - {""}
+    ours = [f for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held) if f]
+    questions = set().union(*ours)
     theirs = [f for f in (_forms(r.input, r.output) - {""} for r in records) if f]
-    if questions and theirs:  # an answer a refusal or a stock line gives is no sign
-        return 2 * sum(bool(f & questions) for f in theirs) >= len(theirs)
+    if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
+        # the smaller side: the same eval run on more questions is still this one
+        return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
     ids = {str(a.get("id")) for a in held}
     try:
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
