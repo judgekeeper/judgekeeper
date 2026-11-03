@@ -40,9 +40,10 @@ PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
 AGENT_LINE = ("Using a coding agent? Give it this page. It runs the steps and gives you the "
-              "marking page link; you mark, then it explains the result.")
-TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
-                  "The Apache-2.0 license covers the code, not the name or logo.")
+              "marking page link. You mark, then it explains the result.")
+TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota: see "
+                  "[TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/"
+                  "TRADEMARKS.md).")
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
 FONTS = WEBSITE / "assets" / "fonts"
@@ -881,10 +882,10 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
                        "judgekeeper to your results file:")],
         "step-mark": ["When the link at the top shows your numbers, click it."],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. You need at least 15 Pass and 15 Fail "
-                          "marks and 20 marks on answers your LLM-as-a-judge passed and 20 on "
-                          "answers it failed (or all of them, if there are fewer). Mark more "
-                          "answers, then look again:")]}
+                          "of your marks to be measured. A result needs at least 15 Pass and 15 "
+                          "Fail marks from you. It also needs 20 marks on answers your "
+                          "LLM-as-a-judge passed and 20 on answers it failed (or all of them, if "
+                          "there are fewer). Mark more answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]

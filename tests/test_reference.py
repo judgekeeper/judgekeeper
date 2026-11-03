@@ -245,8 +245,9 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
 # What a result needs, said up front -----------------------------------------------------------
 
 NEEDS = ("A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on "
-         "answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your "
-         "LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.")
+         "answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there "
+         "are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you "
+         "mark Fail can take many marks.")
 
 
 def test_the_reference_says_what_a_result_needs_near_its_top():
@@ -259,12 +260,16 @@ def test_the_reference_says_what_a_result_needs_near_its_top():
 def test_the_readmes_measure_step_says_what_a_result_needs():
     from judgekeeper import front, targets
 
-    first = front.NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    n, g = targets.ROUGH, targets.FIRST_GROUP
+    first = (f"A result needs at least {n} Pass and {n} Fail marks from you. It also needs {g} "
+             f"marks on answers your LLM-as-a-judge passed and {g} on answers it failed (or all "
+             "of them, if there are fewer).")
     assert NEEDS.startswith(first + " If ")
     assert f"under {front.FEW_FAILS:.0%} of the answers" in NEEDS
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))
-    assert f"at least {targets.ROUGH} Pass and {targets.ROUGH} Fail marks" in measure
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    at = next(i for i, line in enumerate(readme) if line.startswith("3. **Measure:**"))
+    measure = " ".join(x.strip() for x in readme[at:at + 3])  # the step and its short lines
+    assert first in measure
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
 
 

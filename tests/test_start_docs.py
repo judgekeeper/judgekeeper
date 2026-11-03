@@ -74,8 +74,10 @@ UV_PIP = "(in a uv virtual environment, `uv pip install judgekeeper`)"
 
 
 def test_the_install_lines_name_uv_pip_for_a_uv_virtual_environment():
-    """A uv virtual environment has no pip of its own: `uv pip install` puts judgekeeper in it."""
-    assert UV_PIP in _sections(README)["Install"]
+    """A uv virtual environment has no pip of its own: `uv pip install` puts judgekeeper in it.
+    The README says it on a line of its own; the Guide's install card in brackets."""
+    assert ("\nIn a uv virtual environment, install it with `uv pip install judgekeeper` "
+            "instead.\n") in _sections(README)["Install"]
     from tests.website_pages import WEBSITE, parse
 
     (install,) = [e for e in parse(WEBSITE / "start.html").iter()

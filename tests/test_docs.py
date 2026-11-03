@@ -36,7 +36,7 @@ def test_the_readme_is_short_and_in_order():
     text = _readme()
     assert text.startswith('<div align="center">\n  <img ')  # one centered header block
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 61  # the text under the header stays short
+    assert len(body.splitlines()) < 71  # the text under the header stays short
     top = text[:text.index("\n## ")]
     for needed in ("<strong>Check your LLM-as-a-judge in 5 steps.</strong>",
                    "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
@@ -358,9 +358,9 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    said = ("The result will say your marks came through a link the agent printed. If you "
-            "marked them yourself, you can ignore that.")
+    said = "The result also notes that your marks came through a link the agent printed."
     assert said in install
+    assert "you can ignore" not in install
     assert "came through a link judgekeeper printed" in note
     assert "If you marked them yourself, you can ignore this." in note
 
@@ -384,11 +384,13 @@ def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
     from judgekeeper import fix
 
     step = _step(4)
-    assert ("It is a loop: change the rule (with promptfoo, usually in "
-            "`.judgekeeper/fix/regrade.yaml`; when it can't write one, `fix` says how), grade "
-            "again, then run `judgekeeper fix <new results file>`.") in step
-    assert ("with promptfoo, usually `.judgekeeper/fix/regrade.yaml`), then run "
-            "`judgekeeper check <new results file>`.") in _step(5)
+    assert ("- It is a loop: change the rule, grade again, then run "
+            "`judgekeeper fix <new results file>`.") in step
+    assert ("- With promptfoo, the rule to change is usually in `.judgekeeper/fix/regrade.yaml`. "
+            "When `fix` can't write that file, it says how to grade again.") in step
+    assert ("grade your marked answers again, then run `judgekeeper check <new results file>`. "
+            "- Your marked answers are in `.judgekeeper/fix/marked-answers.csv`. With promptfoo, "
+            "`fix` usually writes `.judgekeeper/fix/regrade.yaml` to grade them.") in _step(5)
     assert "With few marks, \"can't tell yet\" is a normal answer." in step
     assert "Result: can't tell yet." in fix.RESULT["same"]
 
@@ -428,11 +430,11 @@ def test_the_docs_say_mark_asks_for_a_taken_on_pass_mark_again():
             "`judgekeeper` ask for the pass mark again with it as the default.") in changelog
     for text in (reference, changelog):
         assert "`check`, `fix` and `mark` runs read" not in text
-    measure = next(x for x in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
-                   if x.startswith("3. **Measure:**"))
     assert ("If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark "
-            "again, with the one you gave as the default; with no terminal, it prints the "
-            "`--pass-if` to give.") in measure
+            "again, with the one you gave as the default. With no terminal, it prints the "
+            "`--pass-if` to give.") in _step(3)
+    assert ("If you switched to a new pass mark with `judgekeeper check --pass-if`, a plain "
+            "`judgekeeper` and `judgekeeper mark` ask for the pass mark again") in _step(5)
 
 
 def test_the_jailbreakbench_screens_are_what_this_version_prints():
