@@ -1574,7 +1574,7 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     return result_html(_scrubbed(_now(ws, r)), back, fixing=fixing)
 
 
-OWN_FILES = ("table", "mapped", "records")  # results in the person's own format
+OWN_FILES = ("table", "mapped")  # results in the person's own format: no metric name
 
 
 def page_template(about: dict | None = None, command: str | None = None,
