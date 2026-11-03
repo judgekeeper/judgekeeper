@@ -566,7 +566,11 @@ def test_a_check_on_a_given_file_names_one_mark_command(here, capsys):
     judge_setup.save(Workspace(here), judge_setup.of(found), found.metric)
     ws = start_label.prepare(found, say=lambda line: None)
     session = StartSession(ws)
-    for q in ws.data()["queue"][:44]:
+    outputs = {json.loads(x)["id"]: json.loads(x)["output"]
+               for x in ws.pool.read_text(encoding="utf-8").splitlines()}
+    # the queue's order is random: answer 3, the one graded again below, is among the marked
+    queue = sorted(ws.data()["queue"], key=lambda q: outputs[q["id"]] != answer(3, TAG))
+    for q in queue[:44]:
         session.update({"id": q["id"], "label": q["group"], "seconds": 5})
     main(["mark", "--no-browser", "--port", "0"])
     capsys.readouterr()
