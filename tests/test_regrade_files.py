@@ -342,6 +342,9 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
         assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
                 "with no decision from your LLM-as-a-judge.") in out
         assert "such as an error" not in out
+    elif shape == "unrelated":  # other questions and answers beside the marked file
+        assert ("new.csv shares no answers with the results you marked (results.csv), so it "
+                "looks like another eval.") in " ".join(out.split()), out
     else:
         assert "None of your 60 marked answers is in your new results." in out
 

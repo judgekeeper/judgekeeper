@@ -114,7 +114,7 @@ def _read_by(store: Path) -> list[str]:
         data = json.loads(Workspace(store).start.read_text(encoding="utf-8"))
         given = data.get("given")
         files = [given] if isinstance(given, str) and given else data.get("results_files")
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, RecursionError):
         return []
     return [f for f in files if isinstance(f, str)] if isinstance(files, list) else []
 
@@ -178,7 +178,7 @@ def other_eval(store: Path, path: Path) -> Path | None:
     if any(path == t or path.is_relative_to(t) for t in theirs):
         return None
     beside = next((t for t in theirs if not t.is_dir() and path.parent == t.parent), None)
-    if beside is None:
+    if beside is None or not _results(path):  # a file it can't read as results: no eval
         return None
     try:
         stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
@@ -190,8 +190,6 @@ def other_eval(store: Path, path: Path) -> Path | None:
 def others_beside(store: Path) -> list[tuple[Path, Path]]:
     """(another eval, the file it sits beside) for each results file in the folder of a file
     the session in `store` reads that is another eval (other_eval), by name."""
-    from judgekeeper import find
-
     out, seen = [], set()
     for t in _theirs(store):
         folder = t.parent
@@ -204,13 +202,19 @@ def others_beside(store: Path) -> list[tuple[Path, Path]]:
         except OSError:
             continue
         for f in files:
-            try:
-                readable = find.classify_file(f) is not None
-            except (OSError, ValueError):
-                readable = False
-            if readable and (beside := other_eval(store, f)) is not None:
+            if (beside := other_eval(store, f)) is not None:
                 out.append((f.resolve(), beside))
     return out
+
+
+def _results(path: Path) -> bool:
+    """Whether judgekeeper reads `path` as results of an eval tool or a table."""
+    from judgekeeper import find
+
+    try:
+        return find.classify_file(path) is not None
+    except (OSError, ValueError, RecursionError):
+        return False
 
 
 def other_eval_line(path: Path, marked: Path) -> str:
@@ -227,42 +231,63 @@ def _same_eval_cached(path: Path, store: Path, stamps: tuple[int, int]) -> bool:
 
 
 def _same_eval(path: Path, store: Path) -> bool:
-    """Whether the results file `path` is of the eval the session in `store` marks: read the
-    same way (its eval tool or format), with at least one of its answers word for word (the
+    """Whether the results file `path` is of the eval the session in `store` marks: read by
+    its own eval tool or format, with at least one of its answers word for word (the
     same answers graded again: promptfoo's `echo` gives them other questions) or of its
-    questions (compared as text: promptfoo's are a dict of vars, Inspect AI's can be chat
-    messages); with no questions on either side, an answer id made the same way. A tool
+    questions (compared as text, and as marked-answers.csv holds them: promptfoo's are a dict
+    of vars, Inspect AI's can be chat messages); with no questions on either side, an answer id made the same way. A tool
     read another way than one file at a time (judgekeeper.record()'s files, an MLflow store)
-    is the same eval by its tool. A file it can't read, or of a shape it can't compare, is
-    another eval: never an error here."""
+    is the same eval by its tool. A file it can't read (or read only in part: a table past
+    table.MAX_ROWS) is never called another eval: the command that reads it says why. Never
+    an error here."""
     import json
 
-    from judgekeeper import find, start
+    from judgekeeper import find, start, table
     from judgekeeper.records import RecordsError, derive_record_id
 
     ws = Workspace(store)
     try:
         tool = json.loads(ws.start.read_text(encoding="utf-8")).get("tool")
-        if not tool or find.classify_file(path) != tool:
-            return False
-        if tool not in ("table", "inspect", *start.FILE_READERS):
-            return True
         held = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
                 if line.strip()]
-        records = start._read(find.Result(tool, path, path.name, path.stat().st_size)).records
-        held = [a for a in held if isinstance(a, dict)]
-        answers = {_as_text(a.get("output")) for a in held} - {""}
-        if answers & ({_as_text(r.output) for r in records} - {""}):  # graded again
-            return True
-        questions = {_as_text(a.get("input")) for a in held} - {""}
-        theirs = {_as_text(r.input) for r in records} - {""}
-        if questions and theirs:
-            return bool(questions & theirs)
-        ids = {str(a.get("id")) for a in held}
-        return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
-    except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
-            *start.UNREADABLE):  # another eval: the command says why it can't read it
+    except (OSError, ValueError, AttributeError, RecursionError):
+        return True  # the session's own files: the command says what is wrong with them
+    kind = find.classify_file(path)
+    if not tool or kind is None:
         return False
+    if kind not in ("table", "inspect", *start.FILE_READERS):
+        return kind == tool
+    try:  # another tool's file too: one with these answers is no other eval, only misread
+        records = start._read(find.Result(kind, path, path.name, path.stat().st_size)).records
+    except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
+            *start.UNREADABLE):
+        return True  # the command says why it can't read it
+    if len(records) >= table.MAX_ROWS:  # only the first rows read: can't tell
+        return True
+    held = [a for a in held if isinstance(a, dict)]
+    answers = {_as_text(a.get("output")) for a in held} - {""}
+    if answers & ({_as_text(r.output) for r in records} - {""}):  # graded again
+        return True
+    questions = {q for a in held for q in _forms(a.get("input"), a.get("output"))} - {""}
+    theirs = {q for r in records for q in _forms(r.input, r.output)} - {""}
+    if questions and theirs:
+        return bool(questions & theirs)
+    ids = {str(a.get("id")) for a in held}
+    try:
+        return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
+    except (TypeError, ValueError):
+        return True
+
+
+def _forms(question, answer) -> set[str]:
+    """A question as text to compare, both ways: as it is (_as_text), and as
+    marked-answers.csv holds it (fix.question_text), which a grade of that file gives back."""
+    from judgekeeper.fix import question_text
+
+    try:
+        return {_as_text(question), question_text(question, answer)}
+    except (TypeError, ValueError, AttributeError, RecursionError):
+        return {_as_text(question)}
 
 
 def _as_text(value) -> str:
