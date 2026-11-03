@@ -62,7 +62,7 @@ def test_only_skipped_answers_left_says_to_look_again_or_run_the_eval(
     assert start_label.MARK_MORE not in out and "to mark more answers" not in out, out
     mark = "judgekeeper mark --port 0 --no-browser"
     assert NEXT.format(answers=answers, mark=mark) in out, out
-    report = _flat(html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text("utf-8"))))
+    report = _flat(html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))))
     assert line in report and "to mark more answers" not in report, report
     then = NEXT.format(answers=answers, mark="judgekeeper mark").replace("`", "")
     assert then.replace("Next: look", "Look") in report, report
