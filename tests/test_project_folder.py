@@ -731,6 +731,34 @@ def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
     assert "Your last check read" not in later[0] and later[1] == later[0], later
 
 
+def test_mark_on_an_older_file_names_the_file_the_result_is_about(here, capsys, no_calls):
+    """Checks took on evals/new1.csv, then the newer evals/new2.csv. `mark evals/new1.csv`
+    says its result is about new2.csv, the file the last check read: every command it then
+    gives names new2.csv, never the older new1.csv."""
+    import os
+
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # not worse: taken on
+    new1 = table_project(here, other, name="evals/new1.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/new1.csv")[0] == 0
+    new2 = table_project(here, other, name="evals/new2.csv", model="bike-grader-v3")
+    later = new1.stat().st_mtime + 10
+    os.utime(new2, (later, later))
+    assert run(capsys, "check", "evals/new2.csv")[0] == 0
+    code, out, err = run(capsys, "mark", "evals/new1.csv", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    out = flat(out + err)
+    assert code == 0, out
+    assert "in evals/new2.csv, the file your last check read." in out, out
+    assert "evals/new1.csv`" not in out and "new1.csv " not in out, out
+    assert "evals/new2.csv`" in out, out
+
+
 def test_a_check_back_after_a_worse_one_never_says_the_last_check_read_the_kept_file(
         here, capsys, no_calls):
     """results-v2.csv was taken on, then a check of results-v3.csv was worse: the last check

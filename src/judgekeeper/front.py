@@ -2009,6 +2009,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.extend(["", *closed])  # a paragraph of its own
     elif elsewhere:
         head.append(CHECKED_FILE.format(file=elsewhere))
+        if typed:  # an older file typed: every command given names the file the result is about
+            talk.path = elsewhere
     elif changed or grades:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
                     else check.GRADES.format(k=grades))
