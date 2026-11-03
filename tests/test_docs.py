@@ -360,6 +360,16 @@ def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
     assert "Result: can't tell yet." in fix.RESULT["same"]
 
 
+def test_the_recheck_step_says_new_marks_count_once_every_answer_is_graded():
+    """Grading only the marked answers again compares on them; a mark made later waits until
+    every answer is graded, in the words `check` uses (check.WAIT_NEXT)."""
+    from judgekeeper import check
+
+    grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
+    assert (f"Grading only those is a quick compare; to count new marks, {grade_all}."
+            in _step(5))
+
+
 def test_the_readme_says_marking_every_answer_leaves_no_range():
     """With every answer of a group marked its share is known (the reference's maths)."""
     numbers = _flat(_sections(_readme())["The numbers"])
