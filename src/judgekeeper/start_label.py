@@ -157,6 +157,7 @@ class Workspace:
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
         self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
+        self.link_said = self.dir / "link-said.json"  # the link notes the terminal said
         self.judge_check_json = self.dir / judge_check.JSON_FILE
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
@@ -1307,12 +1308,14 @@ _plural = plural  # textio.plural
 
 
 def made_lines(made: dict | None, imported: dict | None = None,
-               real_pass: float | None = None, estimates: tuple | None = None) -> list[str]:
+               real_pass: float | None = None, estimates: tuple | None = None,
+               links: bool = True) -> list[str]:
     """How the marks were made (marks.made; `imported`: marks.imported, the marks brought with
     --labels), and a note when more than a quarter of the page's marks took under a second each
     (more than half: it looks like a program), when lines of marks.jsonl are not counted, or
-    when marks came through a page another program could have used (link_lines); then
-    second_thoughts (`real_pass`: the result's real pass rate; `estimates`: its TPR and TNR)."""
+    when marks came through a page another program could have used (link_lines, unless
+    `links` is False); then second_thoughts (`real_pass`: the result's real pass rate;
+    `estimates`: its TPR and TNR)."""
     from judgekeeper.labels import names
 
     if not made or not made["marks"]:
@@ -1333,7 +1336,7 @@ def made_lines(made: dict | None, imported: dict | None = None,
                      else f", about {_plural(seconds, 'second', 'seconds')} each")
     out = [line + ".", *quick_lines(made, imported)]
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
-    return (out + ([not_counted] if not_counted else []) + link_lines(made)
+    return (out + ([not_counted] if not_counted else []) + (link_lines(made) if links else [])
             + second_thoughts(made, real_pass, estimates))
 
 
@@ -1397,25 +1400,49 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
     return out
 
 
-PRINTED_NOTE = "a link judgekeeper printed, which any program on this computer could also open"
-BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
-                    "made {them}")
+PRINTED_NOTE = ("{n} of your marks came through a link judgekeeper printed. That's expected "
+                "if you opened it yourself.")
+BROWSER_ENV_NOTE = ("{n} of your marks came through a page opened by the program named in "
+                    "BROWSER, so a program could have made {them}. If you marked {them} "
+                    "yourself, you can ignore this.")
 LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
 
 
 def link_lines(made: dict | None) -> list[str]:
     """A note for the marks that came through a link printed with no terminal (page.show: a
     person at a terminal reads it there, else another program could), and one for those made
-    on a page the program named in BROWSER opened: what each means. In the terminal and on the
-    result page, once each."""
+    on a page the program named in BROWSER opened: what each means. On the result page and in
+    report.html, one line each; the terminal says them once a count changes (link_counts)."""
     out = []
-    for key, how in LINK_NOTES:
+    for key, note in LINK_NOTES:
         n = (made or {}).get(key) or 0
         if n:
-            them = "it" if n == 1 else "them"
-            out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
-                       f"{them} yourself, you can ignore this.")
+            out.append(note.format(n=n, them="it" if n == 1 else "them"))
     return out  # a link printed at a terminal needs no note
+
+
+def link_counts(made: dict | None) -> dict:
+    """The counts link_lines speaks of, as the terminal keeps them (Workspace.link_said)."""
+    return {key: (made or {}).get(key) or 0 for key, _ in LINK_NOTES}
+
+
+def link_news(ws: Workspace, made: dict | None) -> bool:
+    """Whether the terminal says link_lines this time: only when a count differs from the one
+    it last said (kept in link-said.json), so the same note is not said on every run."""
+    now = link_counts(made)
+    try:
+        said = loads(ws.link_said.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        said = None
+    if not isinstance(said, dict):
+        said = {key: 0 for key in now}
+    if all(said.get(key) == n for key, n in now.items()):
+        return False
+    try:
+        _write_json(ws.link_said, now)
+    except OSError:  # said again next time
+        pass
+    return any(now.values())
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,

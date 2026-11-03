@@ -362,7 +362,7 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     assert said in install
     assert "you can ignore" not in install
     assert "came through a link judgekeeper printed" in note
-    assert "If you marked them yourself, you can ignore this." in note
+    assert "That's expected if you opened it yourself." in note
 
 
 def test_the_readme_says_kappa_never_decides():

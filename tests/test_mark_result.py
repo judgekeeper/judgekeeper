@@ -70,12 +70,12 @@ def test_marks_made_through_a_printed_link_are_said(ws):
     made = marks.made(marks.read(ws.marks))
     assert made["printed"] == 3
     assert start_label.made_lines(made)[-1] == (
-        "3 of your marks came through a link judgekeeper printed, which any program on this "
-        "computer could also open. If you marked them yourself, you can ignore this.")
+        "3 of your marks came through a link judgekeeper printed. That's expected if you "
+        "opened it yourself.")
     made["printed"] = 1
     assert start_label.made_lines(made)[-1] == (
-        "1 of your marks came through a link judgekeeper printed, which any program on this "
-        "computer could also open. If you marked it yourself, you can ignore this.")
+        "1 of your marks came through a link judgekeeper printed. That's expected if you "
+        "opened it yourself.")
 
 
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):

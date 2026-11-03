@@ -2583,8 +2583,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
     for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
-                           r.get("real_pass_rate"), (r.get("tpr"), r.get("tnr")))[1:]:
-        # the notes on how they were made; the count is below
+                           r.get("real_pass_rate"), (r.get("tpr"), r.get("tnr")),
+                           links=start_label.link_news(ws, made))[1:]:
+        # the notes on how they were made; the count is below. A link note: once per count
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))

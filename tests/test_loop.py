@@ -31,9 +31,8 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
              "still test it.")
 ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
-PRINTED_LINE = ("{n} of your marks came through a link judgekeeper printed, which any program "
-                "on this computer could also open. If you marked them yourself, you can ignore "
-                "this.")
+PRINTED_LINE = ("{n} of your marks came through a link judgekeeper printed. That's expected if "
+                "you opened it yourself.")
 OPENING_BROWSER = "Opening the marking page in your browser…"
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
@@ -538,6 +537,11 @@ def test_the_result_counts_marks_made_through_a_printed_link(here, capsys, pages
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(PRINTED_LINE.format(n=2)) == 1  # once per Measure
+    code, out, _ = run(capsys)  # the same count: the terminal said it already
+    assert code == 0, out
+    assert "came through a link" not in _flat(out)
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert report.count(PRINTED_LINE.format(n=2).replace("'", "&#x27;")) == 1  # one line
 
 
 def test_at_a_terminal_a_link_asked_for_is_not_stamped(here, capsys, pages, monkeypatch):
