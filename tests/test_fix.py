@@ -837,9 +837,8 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
 
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
-    assert ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and they now test a different one. To "
-            f"open the page for it, run `judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 "
-            "--no-browser`.") in said, said
+    mark = f"judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 --no-browser"
+    assert check.PAGE_CLOSED.format(mark=mark) in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
 

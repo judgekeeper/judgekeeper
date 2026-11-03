@@ -799,8 +799,7 @@ def _taken_on_v2(here, capsys) -> Workspace:
     return Workspace(here)
 
 
-CLOSED_BACK = ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and they now test a different "
-               "one. To open the page for it, run `judgekeeper mark evals/results.csv`.")
+CLOSED_BACK = check.PAGE_CLOSED.format(mark="judgekeeper mark evals/results.csv")
 
 
 def _page_open(monkeypatch, stops=True) -> list:
@@ -865,9 +864,8 @@ def test_a_check_that_takes_on_a_given_file_names_it_for_the_page(here, capsys, 
     table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
     _page_open(monkeypatch)
     code, out, _ = run(capsys, "check", "evals/results-v2.csv")
-    assert code == 0 and ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and "
-                          "they now test a different one. To open the page for it, run `judgekeeper mark "
-                          "evals/results-v2.csv`.") in flat(out), flat(out)
+    closed = check.PAGE_CLOSED.format(mark="judgekeeper mark evals/results-v2.csv")
+    assert code == 0 and closed in flat(out), flat(out)
 
 
 def test_a_page_that_is_still_there_after_it_was_closed_is_said_so(here, capsys, no_calls,

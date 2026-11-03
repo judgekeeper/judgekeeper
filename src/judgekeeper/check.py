@@ -173,9 +173,8 @@ NEXT_MARK_STAYS = ("nothing to do. Your pass mark stays {rule}. To try another, 
                    "`{check} --pass-if {other}`.")  # other: quoted (quote_arg)
 # The marks test another judge now (taken on, or back to the marked one): the marking page,
 # which showed the one before, closes (_close_page)
-PAGE_CLOSED = ("Your marking page closed. It was for the LLM-as-a-judge your marks tested "
-               "before this check, and they now test a different one. To open the page for it, "
-               "run `{mark}`.")
+PAGE_CLOSED = ("Your marking page closed. It showed the LLM-as-a-judge from before this check. "
+               "To open it for the LLM-as-a-judge in use now, run `{mark}`.")
 PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show a different "
                   "LLM-as-a-judge. To open it with this one, run `{stop}`, then `{mark}`.")
 # ...the same model and rule, its new grades taken on: the page showed the older grades
