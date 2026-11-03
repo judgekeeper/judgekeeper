@@ -262,8 +262,8 @@ def _same_eval(path: Path, store: Path) -> bool:
     except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
             *start.UNREADABLE):
         return True  # the command says why it can't read it
-    if len(records) >= table.MAX_ROWS:  # only the first rows read: can't tell
-        return True
+    if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
+        return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
     answers = {_as_text(a.get("output")) for a in held} - {""}
     if answers & ({_as_text(r.output) for r in records} - {""}):  # graded again
