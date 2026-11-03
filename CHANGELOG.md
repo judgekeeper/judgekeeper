@@ -28,6 +28,7 @@
 - history.jsonl keeps each result's verdict.
 - Ctrl-C always stops with "Stopped." and exit code 130, with nothing more printed, also while judgekeeper starts or an Inspect AI log is read.
 - Large runs are faster: marks and answers are read once per run.
+- An Inspect AI `.eval` log whose header lists no sample ids (one written with inspect_ai's `write_eval_log`) is read: judgekeeper reads the samples it holds.
 - `record()`, `jk_record.py` and `jk_record.ts` name their records `LLM-as-a-judge` by default; older records still read.
 - Docs: the README and the start page say more: `uvx` before each command, the MLflow and Inspect AI extras, the columns a labels file needs, `--no-browser` for coding agents, and that a faithfulness check needs the documents open while you mark. The reference says what 1.1.0 changed: marks that wait, starting from `/`, labels file rules, the promptfoo re-grade file, and `check --pass-if`.
 

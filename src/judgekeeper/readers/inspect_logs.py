@@ -693,15 +693,20 @@ def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     """(id, epoch) of each sample the log holds a part for, in the order inspect_ai reads
     them: by the ids the header lists, then by epoch up to the header's epochs. Only parts
     that are there, each once: inspect_ai would ask for every id in every epoch the header
-    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it."""
+    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it.
+    A header that lists no ids (a log built with inspect_ai's write_eval_log, which inspect_ai
+    reads): the samples the log holds parts for, in the log's order."""
     dataset, config = spec.get("dataset") or {}, spec.get("config") or {}
     ids, most = dataset.get("sample_ids"), config.get("epochs") or 1
-    if not isinstance(ids, list):
+    if ids is not None and not isinstance(ids, list):
         raise TypeError("no sample ids")
     epochs: dict[str, list[int]] = {}
     for name in sizes:
         if m := _SAMPLE_PART.fullmatch(name):
             epochs.setdefault(m[1], []).append(int(m[2]))
+    if not ids:
+        return [(i, epoch) for i, held in epochs.items() for epoch in sorted(held)
+                if epoch <= most]
     held, parts = [], sum(map(len, epochs.values()))
     for i in ids:
         if len(held) == parts:  # every part named once
