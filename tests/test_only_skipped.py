@@ -146,3 +146,14 @@ def test_fix_and_check_name_the_skipped_answers_left_when_too_few(tmp_path, caps
     assert ("The only answers left are the 2 you skipped. Mark them now, or run your eval on "
             "more questions.") in out, out
     assert NEXT.format(answers="the 2", mark="judgekeeper mark") in out, out
+
+
+def test_the_skipped_next_after_check_or_fix_keeps_the_page_flags(tmp_path, capsys, monkeypatch):
+    """check's and fix's Next to mark the skipped one opens the page as the run did: never a
+    browser the person said no to."""
+    monkeypatch.chdir(tmp_path)
+    ws = _project(tmp_path, skip=1)
+    _run(capsys)
+    said = start_label.next_marks(ws, "mark more answers")
+    assert said == NEXT.format(answers="the one",
+                               mark="judgekeeper mark --port 0 --no-browser")[len("Next: "):]

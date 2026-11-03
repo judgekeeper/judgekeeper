@@ -1297,7 +1297,9 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
         pm = {}
     if pm.get("source") == "pass_if" and isinstance(pm.get("rule"), str):
         flags = {**(flags if isinstance(flags, dict) else {}), "pass_if": pm["rule"]}
-    command = mark_command(command_from(flags))
+    from judgekeeper.check import _page_flags
+
+    command = mark_command(command_from(flags)) + _page_flags(ws)  # opens as the page did
     if 0 < left == skipped:
         return next_only_skipped(skipped, command)
     return NEXT_ALL_MARKED.format(command=command)
