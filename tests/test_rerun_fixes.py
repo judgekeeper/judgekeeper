@@ -109,6 +109,35 @@ def _regraded(root, name: str, blank) -> str:
     return path.name
 
 
+def test_the_same_rule_and_model_says_whether_the_grades_differ(here, capsys):
+    """A second file graded with the same rule and model gets the saved result: "the same"
+    only when its grades on the answers kept aside are too; else how many differ, and how to
+    test them as a new LLM-as-a-judge."""
+    ws = tf.project(here)
+    tf.run(capsys)
+    hidden = _hidden_numbers(ws)
+    n = len(hidden)
+    assert tf.run(capsys, _regraded(here, "first.json", set()))[0] == 0
+    day = _day(tf._split(ws)["tests"][-1]["time"])
+    code, out = tf.run(capsys, _regraded(here, "again.json", set()))
+    flat = " ".join(out.split())
+    assert code == 0, out
+    assert (f"again.json has the same rule and model as first.json ({day}), so judgekeeper "
+            "treats them as one LLM-as-a-judge: the result above is the same.") in flat
+    assert "grades differ" not in flat and fix.TEST_AS_NEW not in flat
+    flip = set(hidden[:3])
+    other = tf.regraded(here, name="other.json",
+                        grade=lambda i: tf._person(question(i)) is (i not in flip))
+    code, out = tf.run(capsys, other.name)
+    flat = " ".join(out.split())
+    assert code == 0, out
+    assert (f"other.json has the same rule and model as first.json ({day}), so judgekeeper "
+            "treats them as one LLM-as-a-judge and shows the result above, from first.json. "
+            f"Its grades differ on 3 of the {n} answers kept aside. {fix.TEST_AS_NEW}") in flat
+    assert fix.TEST_AS_NEW == ("To test these grades as a new LLM-as-a-judge, change its rule "
+                               "and grade again.")
+
+
 def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     ws = tf.project(here)
     tf.run(capsys)
@@ -131,8 +160,10 @@ def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     code, out = tf.run(capsys, _regraded(here, "full.json", set()))
     flat = " ".join(out.split())
     assert code == 0, out
-    assert (f"full.json has the same rule as first.json ({day}), so the result above is the "
-            f"same.") in flat
+    assert (f"full.json has the same rule and model as first.json ({day}), so judgekeeper "
+            "treats them as one LLM-as-a-judge and shows the result above, from first.json. "
+            f"Its grades differ on 2 of the {n} answers kept aside. {fix.TEST_AS_NEW}") in flat
+    assert "the result above is the same" not in flat
     assert "ungraded" not in flat
     code, out = tf.run(capsys, "first.json")  # the file the result came from: no other name
     assert code == 0 and (f"This file leaves 2 of the {n} ungraded; the result above is from "

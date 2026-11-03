@@ -106,6 +106,8 @@ REGRADE_SAME = "grade every answer in {answers} again with your new rule, then {
 REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
            "answers kept aside your new results lack.")
 NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
+# The same rule and model as a file tested before, with other grades: the way to test them
+TEST_AS_NEW = "To test these grades as a new LLM-as-a-judge, change its rule and grade again."
 SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
                "change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
@@ -126,10 +128,10 @@ NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge a
                 "new rule.")
 UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade the old one "
              "gave, so it changes nothing there to test.")
-# How to grade the same answers again, per eval tool (an own file or record(): OWN)
-REGRADE = {
 # The page on each eval tool: a pip install has no docs/ folder
 EVAL_TOOLS = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
+# How to grade the same answers again, per eval tool (an own file or record(): OWN)
+REGRADE = {
     "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
                   "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
                   "`defaultTest.options.provider` and the same `metric:` with your new rule; "
@@ -2035,7 +2037,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
                    and t.get("hidden") == len(split.hidden)
                    and t.get("n") == len(ids) + len(blank)), None)
     if before is not None:
-        return tested_before(talk, ws, m, before, path, len(blank))
+        return tested_before(talk, ws, m, before, path, len(blank),
+                             {**{i: new.get(i) for i in ids}, **dict.fromkeys(blank)})
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
         talk.say()
@@ -2060,7 +2063,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     talk.para(RESULT[v.kind])
     k = next_test(split)
-    _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root))
+    _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root),
+          {i: new.get(i) for i in ids})
     wrong = sum(old[i] != m.person[i] for i in ids)
     if v.kind in ("leans better", "same") and wrong:  # never for a rule that leans worse
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
@@ -2137,10 +2141,11 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
 
 
 def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
-                  blank: int = 0) -> int:
+                  blank: int = 0, grades: dict | None = None) -> int:
     """This LLM-as-a-judge was tested on these marks kept aside: its saved result, never a
     new test, the file and day it came from, how many this file leaves ungraded (`blank`),
-    and the next step that result gave."""
+    and the next step that result gave. `grades`, this file's on the answers kept aside, are
+    compared with the test's own (kept since 1.1.0) to say whether they differ."""
     from judgekeeper.check import _day
 
     day = _day(test.get("time"))
@@ -2157,13 +2162,32 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
         talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}")
     elif kept and Path(kept_at(kept, ws.root)).resolve() != Path(path).resolve():
         # another file: say which one is given now
-        same = "rule" if test.get("rule_hash") else "grades"
-        talk.para(f"{path.name} has the same {same} as {file}{f' ({day})' if day else ''}, so "
-                  f"the result above is the same.")
+        when = f" ({day})" if day else ""
+        if not test.get("rule_hash"):  # told apart by its grades: the same ones
+            talk.para(f"{path.name} has the same grades as {file}{when}, so the result above is "
+                      "the same.")
+        else:
+            talk.para(_same_rule_line(path.name, file, when, test, grades))
     else:
         talk.para(source[0].upper() + source[1:])
     talk.next(_after_step(talk, ws, m, str(test.get("verdict")), path))
     return EXIT_OK
+
+
+def _same_rule_line(name: str, file: str, when: str, test: dict, grades: dict | None) -> str:
+    """A file with the same rule and model as the one `test` came from: one LLM-as-a-judge to
+    judgekeeper, so its saved result; "the same" only when the grades on the answers kept
+    aside are too, else how many differ (unknown for a test before 1.1.0)."""
+    head = (f"{name} has the same rule and model as {file}{when}, so judgekeeper treats them "
+            "as one LLM-as-a-judge")
+    kept = test.get("grades")
+    if not isinstance(kept, dict) or grades is None:
+        return f"{head}: the result above is from {file}."
+    differ = sum(kept.get(i) != g for i, g in grades.items())
+    if not differ:
+        return f"{head}: the result above is the same."
+    return (f"{head} and shows the result above, from {file}. Its grades differ on "
+            f"{differ} of the {len(grades)} answers kept aside. {TEST_AS_NEW}")
 
 
 def test_key(setup: dict, setup_hash: str, new: dict, ids: list[str]) -> str:
@@ -2180,7 +2204,7 @@ def _tool_name(tool: str | None) -> str:
 
 
 def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key: str,
-          v, file: str | None = None) -> None:
+          v, file: str | None = None, grades: dict | None = None) -> None:
     """The tested rule in rules/<hash>.txt (scrubbed) when the results hold one, the test in
     split.json (with the setup the marks tested then, for _adopted) and a history line: the
     setup's and rule's hashes, the counts and the verdict, never answer text or ids."""
@@ -2198,7 +2222,8 @@ def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key:
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "setup_hash": setup_hash,
             "key": key, "from": was, "n": v.n, "hidden": len(split.hidden), "fixed": v.fixed, "broke": v.broke,
             "verdict": v.kind, "test": len(split.tests) + 1, "strata": [list(s) for s in v.strata],
-            **({"file": scrub(file)} if file else {})}  # split.json only: history has no paths
+            **({"file": scrub(file)} if file else {}),  # split.json only: history has no paths
+            **({"grades": grades} if grades is not None else {})}  # nor grades
     split.tests.append(test)
     save_split(ws, split)
     marks.append(ws.history_jsonl, {"time": test["time"], "kind": "fix", "rule_hash": h,
