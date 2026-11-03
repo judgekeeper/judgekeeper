@@ -484,16 +484,18 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
             sessions := _sessions_below(path)):  # never a second session above one, nor
         # one above's for them: results in a folder with its own session belong to it
-        raise _go_to(talk, sessions)
+        raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
+        folders = _from_here(path, folders)
         if len(folders) == 1:  # a project of its own: its results are checked there
             talk.para(_nested_line(folders, Path.cwd()))
             raise talk.stop(EXIT_QUESTION,
                             f"run `{_program_there(folders, Path.cwd())}` in {folders[0]}/.")
         raise _go_to_one(talk, folders)
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
-        raise _go_to_one(talk, folders)  # a session below never joins other results here
+        raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
+        # other results here
     if path.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here
         talk.para(_nested_line([owner], Path.cwd()))
@@ -866,6 +868,18 @@ def _nested_line(nested: list[str], base: Path) -> str:
             f"{named}. To check them, run `{_program_there(nested, base)}` in {where}.")
 
 
+def _from_here(base: Path, names: list[str]) -> list[str]:
+    """Folders `names` right below `base`, as lines name them: from the folder the command
+    runs in (os.path.relpath), so `cd` and "in ..." work from here."""
+    out = []
+    for name in names:
+        try:
+            out.append(Path(os.path.relpath(Path(base) / name)).as_posix())
+        except ValueError:  # another drive (Windows): the folder by its whole path
+            out.append(Path(base, name).resolve().as_posix())
+    return out
+
+
 def _program_there(folders: list[str], base: Path) -> str:
     """program() as it is typed in each of `folders` (from `base`), for a line that says to
     run it there: the same in all of them, else the form that runs in any folder."""
@@ -887,11 +901,12 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                                          f"`{talk.command_at('PATH')}` with their file or "
                                          "folder."))
     if nested and len(sessions := _sessions_below(root, nested)) == len(nested):
-        return _go_to(talk, sessions)
+        return _go_to(talk, [(_from_here(root, [n])[0], k) for n, k in sessions])
     if nested:
-        talk.para(_nested_line(nested, root))
+        nested = _from_here(root, nested)
+        talk.para(_nested_line(nested, Path.cwd()))
         where = start._or([f"{p}/" for p in nested])
-        return talk.stop(EXIT_QUESTION, f"run `{_program_there(nested, root)}` in {where}.")
+        return talk.stop(EXIT_QUESTION, f"run `{_program_there(nested, Path.cwd())}` in {where}.")
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
@@ -1159,7 +1174,7 @@ def _nested_here(found: start.Found) -> str | None:
     if found.given:
         return None
     nested = find.nested_results(find.search(found.root))
-    return _nested_line(nested, found.root) if nested else None
+    return _nested_line(_from_here(found.root, nested), Path.cwd()) if nested else None
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -2410,6 +2425,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if len(below) == 1:  # opened from the folder right below
         ws = Workspace(path / below[0])
     elif below:
+        below = _from_here(path, below)
         talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
         raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
     if not is_open(ws.dir):

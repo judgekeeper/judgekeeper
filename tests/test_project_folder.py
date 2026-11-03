@@ -433,6 +433,50 @@ def test_one_project_below_and_none_here_is_checked_in_its_own_folder(here, caps
     assert not (here / ".judgekeeper").exists()
 
 
+def _projects_in_outer(here, names) -> None:
+    for name in names:
+        (here / "outer" / name).mkdir(parents=True)
+        (here / "outer" / name / "pyproject.toml").write_text(
+            f"[project]\nname = '{name}'\n", encoding="utf-8")
+        table_project(here / "outer" / name, split(20, 16), tag=name)
+
+
+def test_one_project_below_a_folder_given_by_path_is_named_from_here(here, capsys,
+                                                                      monkeypatch):
+    _projects_in_outer(here, ["p2"])
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert ("These results belong to the project in outer/p2/. To check them, run "
+            "`judgekeeper` in outer/p2/.") in flat(out), out
+    assert _next(out) == "Next: run `judgekeeper` in outer/p2/."
+
+
+def test_projects_below_a_folder_given_by_path_are_named_from_here(here, capsys, monkeypatch):
+    _projects_in_outer(here, ["a", "b"])
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert "outer/a/ and outer/b/ hold eval results" in flat(out), out
+    assert _next(out) == ("Next: go to one of those folders (`cd outer/a`), then run "
+                          "`judgekeeper` there.")
+
+
+def test_a_session_below_a_folder_given_by_path_is_named_from_here(here, capsys, monkeypatch):
+    (here / "outer" / ".git").mkdir(parents=True)
+    _session_in(here / "outer" / "sub1", capsys, monkeypatch, 4)
+    run(capsys, "--stop")
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert "outer/sub1/ already holds your judgekeeper session (4 marks)" in flat(out), out
+    assert _next(out) == ("Next: go to that folder (`cd outer/sub1`), then run `judgekeeper` "
+                          "there.")
+
+
 def test_results_in_one_plain_folder_below_still_start_here(here, capsys, monkeypatch):
     """evals/ is no project of its own: its results are this folder's."""
     table_project(here / "evals", split(20, 16))
