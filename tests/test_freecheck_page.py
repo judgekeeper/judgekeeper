@@ -63,8 +63,28 @@ def test_grades_the_tool_would_ask_about_are_left_out_and_said(tmp_path):
     result = browser(path)
     (judge,) = result["judges"]
     assert (judge["pass"], judge["fail"], judge["unmapped"]) == (3, 3, 3)
-    assert ('3 grades could not be read as Pass or Fail ("maybe"). They are left out here; '
+    assert ('3 grades could not be read as Pass or Fail ("maybe"). They are left out here. '
             "judgekeeper in your project asks what they mean.") in judge["lines"]
+    assert "every answer a clear Pass or Fail" not in _lines(result)
+
+
+@needs_node
+@pytest.mark.parametrize("grades", [("good", "bad"), ("pass", "fail")])
+def test_every_answer_is_said_clear_only_when_every_grade_was_read(tmp_path, grades):
+    """good/bad grades are words the tool asks about: no "every answer a clear Pass or Fail"
+    and no "nothing to mark" for them. pass/fail grades are clear."""
+    path = tmp_path / "graded.csv"
+    path.write_text("input,output,verdict\n" + "".join(
+        f"Question {i}?,Answer {i}.,{grades[i % 2]}\n" for i in range(40)), encoding="utf-8")
+    said = _lines(browser(path))
+    clear = "Checked: your LLM-as-a-judge gave every answer a clear Pass or Fail."
+    if grades[0] == "good":
+        assert start.find_judge(path).pool.unmapped  # the tool asks what they mean
+        assert clear not in said and "nothing to mark" not in said, said
+        assert '40 grades could not be read as Pass or Fail ("bad", "good")' in said or \
+            '40 grades could not be read as Pass or Fail ("good", "bad")' in said, said
+    else:
+        assert clear in said, said
 
 
 @needs_node

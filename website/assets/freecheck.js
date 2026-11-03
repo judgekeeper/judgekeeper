@@ -1348,18 +1348,19 @@
     } else if (j.unmapped) {
       notes.push(n(j.unmapped, 'grade') + ' could not be read as Pass or Fail (' + j.unread.map(function (v) { return '"' + v + '"'; }).join(', ') +
         (j.moreUnread ? ' and more' : '') + '). ' + (j.unmapped === 1 ? 'It is' : 'They are') +
-        ' left out here; judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
+        ' left out here. judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
     }
     notes.forEach(function (t) { L.push({ text: t }); });
     if (!j.findings.length) {
-      if (!j.scores) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
+      // grades it could not read are no clear Pass or Fail: never 'every answer' then
+      if (!j.scores && !j.unmapped) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
     } else {
       j.findings.forEach(function (f, i) {
         L.push({ text: i === 0 ? FREE_CHECK + f.charAt(0).toLowerCase() + f.slice(1) : f, tone: 'y' });
       });
     }
     if (j.modelNotWritten) L.push({ text: MODEL_NOT_WRITTEN, tone: 'y' });
-    if (!total && !j.scores) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
+    if (!total && !j.scores && !j.unmapped) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
     return L;
   }
 
