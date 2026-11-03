@@ -110,8 +110,17 @@ SAME_GRADES = ("These are the same grades as when you marked: give the results f
                "change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
            "is now, only from one before it, so judgekeeper leaves {them} out.")
-TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} answers kept aside it had "
-        "not graded yet: judgekeeper keeps them as its grades.")
+TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} {answers} kept aside it had "
+        "not graded yet: judgekeeper keeps {them} as its {grades}.")
+
+
+def took_line(k: int) -> str:
+    """TOOK for `k` answers."""
+    one = k == 1
+    return TOOK.format(k=k, answers="answer" if one else "answers", them="it" if one else "them",
+                       grades="grade" if one else "grades")
+
+
 NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge as it is now, "
                 "{run} so judgekeeper has its grades, then test your "
                 "new rule.")
@@ -1988,7 +1997,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
 
         take_grades(ws, found, {i: matched[i] for i in earlier})
         old = {**old, **{i: new[i] for i in earlier}}
-        talk.para(TOOK.format(k=len(earlier)))
+        talk.para(took_line(len(earlier)))
         talk.say()
     left = [i for i in blank if i in m.earlier] + ([] if took else earlier)
     if left:  # never compared with another judge's grade

@@ -72,7 +72,7 @@ def test_the_unchanged_rule_on_marks_made_after_a_check_is_not_better(adopted, t
     code, out = _jk(capsys, "fix", "same.json")
     said = flat(out)
     assert code == 3 and "better" not in said, out
-    assert fix.TOOK.format(k=len(LATER)) in said
+    assert fix.took_line(len(LATER)) in said
     assert "earlier_grades" not in ws.data()  # its grades now
     _rubric(tmp_path, [person(i) != (i == 56) for i in range(N)], "V3 rule.", name="v3.json",
             only=LATER)
@@ -149,3 +149,9 @@ def test_a_new_set_writes_marked_answers_csv_again(adopted):
     assert "20 of your marks are kept aside to test your new rule fairly." in said
     assert said.endswith("then run `judgekeeper fix <new results file>`.")
     assert ".judgekeeper/fix/marked-answers.csv" in said[said.rindex("Next:"):]
+
+
+def test_the_grades_taken_on_one_answer_kept_aside_say_one_answer():
+    assert "on 1 answer kept aside it had not graded yet: judgekeeper keeps it as its grade." in (
+        fix.took_line(1))
+    assert "on 2 answers kept aside it had not graded yet" in fix.took_line(2)
