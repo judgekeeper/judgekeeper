@@ -742,6 +742,11 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=done[0], done=done)
     elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
+    labels = [i["label"] for i in session.items]
+    if not status["first"] and min(labels.count("pass"), labels.count("fail")) >= targets.ROUGH:
+        from judgekeeper import front  # enough of each kind: the groups' marks are missing
+
+        status["group"] = front._group_marks(session)  # the page's keep-going line, as Mark
     from judgekeeper import check
 
     only = only_wait(data, session)

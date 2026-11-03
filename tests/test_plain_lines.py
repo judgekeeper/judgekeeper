@@ -31,6 +31,10 @@ def test_marks_short_on_one_group_say_how_many_each_has(here, capsys):
     assert "That's not enough for a result yet." in said, said
     assert ("You marked 10 answers your LLM-as-a-judge failed. A result needs 20."
             ) in said, said
+    from judgekeeper.start_label import start_status
+
+    status = start_status(StartSession(Workspace(here)))  # the page says it too, not "keep going"
+    assert status["group"] == "You marked 10 answers your LLM-as-a-judge failed. A result needs 20."
 
 
 def test_a_check_of_the_marked_file_names_it_as_results(here, capsys):

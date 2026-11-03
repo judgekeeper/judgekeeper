@@ -753,7 +753,7 @@ __TOP__
     var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= answers;
     keep.textContent = onlySkipped ? (skippedLeft === 1 ? WORDS.skippedOne : WORDS.skippedMany
       ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first
-      : few ? WORDS.few : WORDS.wait;
+      : few ? WORDS.few : status.group || WORDS.wait;
     $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
     if (status.waiting) { setLine("waiting", status.waiting); }
   }
