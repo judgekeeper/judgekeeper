@@ -1188,14 +1188,14 @@ ON_ANSWERS = " in the {n} answers this result is on"
 def why_for(r: dict, key: str) -> str:
     """why_no_range for a result: its count left to mark and its groups' sizes. When the
     result is on fewer batches than the results hold, the newer ones are not all marked: the
-    bracket says every answer it is on is marked (ALL_ON), or, with some of those still left,
-    names the answers it is on (ON_ANSWERS)."""
+    bracket says every answer it is on is marked (ALL_ON, only when `counted_left` is 0), or,
+    with some of those still left, names the answers it is on (ON_ANSWERS)."""
     g = r.get("groups") or {}
     pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
     why = why_no_range(key, r.get("left") == 0 and not r.get("waiting"), pool)
     on = r.get("batches") or {}
     if why != SAME_GRADE and on.get("waiting") and len(on.get("counted") or []) < (on.get("of") or 0):
-        if (r.get("left") or 0) <= on["waiting"]:
+        if r.get("counted_left") == 0:  # no answer of the counted batches is unmarked
             return ALL_ON.format(n=on["answers"])
         why += ON_ANSWERS.format(n=on["answers"])
     return why

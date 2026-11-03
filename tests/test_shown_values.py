@@ -19,7 +19,7 @@ NEAR = {"tpr": 0.9960159362549801, "tpr_interval": [0.9959948949661799, 0.996015
 # The first batch fully marked, a newer batch of 50 answers not marked at all.
 ONE_BATCH = {"tpr": 0.6933333333333334, "tpr_interval": [0.6933333333333334, 0.6933333333333334],
              "tnr": 0.7266666666666666, "tnr_interval": [0.7266666666666666, 0.7266666666666666],
-             "kappa": 0.42, "kappa_interval": [0.42, 0.42], "left": 50,
+             "kappa": 0.42, "kappa_interval": [0.42, 0.42], "left": 50, "counted_left": 0,
              "batches": {"counted": [1], "of": 2, "answers": 300, "waiting": 50},
              "labels": {"correct": 150, "wrong": 150},
              "groups": {"pass": {"pool": 145, "labeled": 145, "correct": 104},
@@ -118,9 +118,18 @@ def test_with_a_newer_batch_unmarked_the_bracket_names_the_answers_it_counts():
 
 
 def test_with_a_newer_batch_and_some_counted_answers_left_the_bracket_names_them():
-    r = {**ONE_BATCH, "left": 60}
+    r = {**ONE_BATCH, "left": 60, "counted_left": 10}
     assert report_page.why_for(r, "tpr") == (
         "you marked every answer it failed in the 300 answers this result is on")
+
+
+def test_counted_answers_left_name_the_answers_even_with_marks_in_the_newer_batch():
+    """5 unmarked in the counted batch, 14 in the newer one: never "you marked all"."""
+    r = {**ONE_BATCH, "left": 19, "counted_left": 5}
+    assert report_page.why_for(r, "tpr") == (
+        "you marked every answer it failed in the 300 answers this result is on")
+    r = {**ONE_BATCH, "counted_left": None}  # a result.json from before: the longer bracket
+    assert "this result is on" in report_page.why_for(r, "tpr")
 
 
 def test_with_every_batch_counted_the_bracket_stays_short():

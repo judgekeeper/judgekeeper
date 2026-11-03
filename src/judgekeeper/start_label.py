@@ -1657,6 +1657,9 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     about = batches.about(data, session.marked())
     if about is not None:
         r["batches"] = about
+        batch = batches.of(data)
+        r["counted_left"] = sum(1 for item in session.items if not item["label"]
+                                and batch.get(item["id"], 1) in about["counted"])
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
              left=sum(1 for item in session.items if not item["label"]),
              made_at=utc_now(), numbers_version=NUMBERS_VERSION,

@@ -345,6 +345,22 @@ def test_a_batch_below_the_minimum_is_left_out_and_named(here):
     assert "This result is on 1 of 2 batches (36 answers)." in html
     line = json.loads(ws.history_jsonl.read_text(encoding="utf-8").splitlines()[-1])
     assert line["batches"] == {"counted": [1], "of": 2, "answers": 36, "waiting": 10}
+    assert r["counted_left"] == 0
+
+
+def test_unmarked_answers_of_the_counted_batch_are_counted_apart(here):
+    """3 of batch 1 unmarked, 7 of batch 2 unmarked: the result counts the 3 alone, so its
+    bracket never says every answer it is on is marked."""
+    promptfoo_project(here, split(20, 16))
+    ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
+    _mark(ws, only=set(range(3, 36)))
+    _more_questions(here)
+    batches.add(ws, start.find_judge(here))
+    _mark(ws, only={36, 37, 41})
+    r = start_label.store_result(ws, StartSession(ws))
+    assert r["batches"]["counted"] == [1]
+    assert (r["left"], r["counted_left"]) == (10, 3)
+    assert "answers it is on" not in ws.report_html.read_text(encoding="utf-8")
 
 
 def test_a_batch_counts_with_five_marks_in_each_stratum(here):
