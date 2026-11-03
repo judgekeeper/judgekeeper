@@ -70,7 +70,7 @@ FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = "Mark at least {n} more answers on the page to check the marks from {name}."
+GATE = "Mark at least {more} on the page to check the marks from {name}."
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
@@ -617,7 +617,8 @@ def still_needed(page: dict[str, int], left: dict[str, int]) -> int:
 def gate_line(n: int, imported: dict | None) -> str | None:
     if not n or not imported:
         return None
-    return GATE.format(n=n, name=names(imported.get("from") or ["a file"]))
+    more = f"{n} more answer{'' if n == 1 else 's'}"
+    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]))
 
 
 def fisher_p(a: int, b: int, c: int, d: int) -> float:
