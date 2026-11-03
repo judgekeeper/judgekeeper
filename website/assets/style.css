@@ -569,7 +569,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   .ck2 .wrap { padding-block: 36px 48px; }
   .fc-drop { padding: 24px 16px; }
   .ck-out { padding: 16px 14px; font-size: 12px; }
-  .fc-term .ln { flex-direction: column; }
+  .fc-term .ln { flex-wrap: wrap; }
   .fc-term .ln > .pad { display: none; }
   .ex-t span { font-size: 12px; }
   .fc-pick-list .btn { min-height: 44px; }

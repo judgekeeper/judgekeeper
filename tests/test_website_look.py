@@ -1231,14 +1231,16 @@ def test_the_browser_check_is_two_even_columns_that_end_together():
 
 
 def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
-    """At every width a line wraps inside the terminal. On a phone a value goes under its label,
-    and a line that only goes on from the one above has no indent."""
+    """At every width a line wraps inside the terminal. On a phone a value stays beside its
+    label where it fits, else goes under it, and a line that only goes on from the one above
+    has no indent."""
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
     assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
     phone = CSS[CSS.index("@media (max-width: 760px) {\n  .ck2 .wrap"):]
     phone = phone[:phone.index("\n}\n")]
-    assert "flex-direction: column" in _rule(".fc-term .ln", phone)
+    assert "flex-wrap: wrap" in _rule(".fc-term .ln", phone)
+    assert "flex-direction: column" not in _rule(".fc-term .ln", phone)
     assert "display: none" in _rule(".fc-term .ln > .pad", phone)
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert "line.k.trim() ? 'k t-label' : 'k t-label pad'" in script
