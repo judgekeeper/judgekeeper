@@ -62,7 +62,7 @@ def test_the_sitemap_lists_every_page():
         name = page.relative_to(WEBSITE).as_posix()
         url = "https://www.judgekeeper.com/" + ("" if name == "index.html" else name)
         assert url in locs, url
-    assert sitemap.count("<lastmod>2026-11-03</lastmod>") == sitemap.count("<loc>") == 5
+    assert sitemap.count("<lastmod>2026-11-03</lastmod>") == sitemap.count("<loc>") == 4
 
 
 # Commands

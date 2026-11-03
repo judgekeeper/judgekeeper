@@ -177,7 +177,7 @@ def test_the_sitemap_and_llms_txt_list_the_pages_in_the_menus_order():
     order = [site + ("" if p == "index.html" else p) for p in
              ["index.html", "start.html", "check.html", "privacy.html"]]
     locs = re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(encoding="utf-8"))
-    assert [u for u in locs if u in order] == order
+    assert locs == order  # /examples/ has no page of its own: a listing, or a 404
     for gone in ("docs.html", "setup.html"):
         assert not [u for u in locs if gone in u], gone
     assert [url for _, url, _ in _llms_links() if url.startswith(site)] == order
