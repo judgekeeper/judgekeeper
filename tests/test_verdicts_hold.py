@@ -34,7 +34,7 @@ def run(capsys, *argv) -> tuple[int, str]:
     return code, " ".join((out + err).split())
 
 
-# H1: a value many questions share is not the question ----------------------------------------
+# A value many questions share is not the question --------------------------------------------
 
 YES_NO = 60
 PERSONA = "Pedalwise support bot"
@@ -110,7 +110,7 @@ def test_the_echo_regrade_still_finds_every_answer_kept_aside(here, capsys):
     assert "no grade" not in out, out
 
 
-# H2: the old grades are the old LLM-as-a-judge's own ------------------------------------------
+# The old grades are the old LLM-as-a-judge's own ----------------------------------------------
 
 ROWS = 90
 
@@ -162,7 +162,7 @@ def test_marks_added_after_two_changes_are_never_graded_by_the_first(here, capsy
             "judgekeeper left them out of the table.") in out, out
 
 
-# M4: back to the LLM-as-a-judge the marks were made on, only when its grades are too ---------
+# Back to the LLM-as-a-judge the marks were made on, only when its grades are too -------------
 
 def test_a_table_under_the_first_models_name_is_still_compared(here, capsys):
     """A table holds no rule: the same model's name with other grades is not the
@@ -180,7 +180,7 @@ def test_a_table_under_the_first_models_name_is_still_compared(here, capsys):
     assert "back to the one you marked with" not in out and "Result: worse" in out, out
 
 
-# M5: answers kept aside that marked-answers.csv lacks ------------------------------------------
+# Answers kept aside that marked-answers.csv lacks ----------------------------------------------
 
 def _regrade_csv(ws: Workspace, path: Path) -> Path:
     """marked-answers.csv graded again, as a new rule that agrees with the person would."""
@@ -222,7 +222,7 @@ def test_fix_with_a_file_rewrites_the_csv_that_lacks_answers_kept_aside(here, ca
     assert f"tested on the {len(fix.read_split(ws).hidden)} marks kept aside" in out, out
 
 
-# M6: the echo regrade's answers are the marked ones, not new ---------------------------------
+# The echo regrade's answers are the marked ones, not new -------------------------------------
 
 def test_the_echo_regrade_taken_on_adds_no_marked_answer_as_new(here, capsys, monkeypatch):
     """promptfoo's echo regrade holds vars {question, answer}; once `check` takes it on, the
@@ -243,7 +243,7 @@ def test_the_echo_regrade_taken_on_adds_no_marked_answer_as_new(here, capsys, mo
     assert len(ws.pool.read_text(encoding="utf-8").splitlines()) == N
 
 
-# N1: after "better" or "safe to try", the Next lines lead to a re-check, never round again ----------------------
+# After "better" or "safe to try", the Next lines lead to a re-check, never a loop -----------------
 
 def test_after_better_the_next_lines_re_check_and_never_loop(here, capsys, monkeypatch):
     """`fix` after "safe to try" (as after "better") says to check the results it just tested, which grade every marked
@@ -280,7 +280,7 @@ def test_after_better_the_next_lines_re_check_and_never_loop(here, capsys, monke
             "Next: follow the three steps above.") in flat and flat.endswith("above."), out
 
 
-# N6: Inspect AI scores its log again, never marked-answers.csv --------------------------------
+# Inspect AI scores its log again, never marked-answers.csv ------------------------------------
 
 def test_nothing_to_fix_on_inspect_says_to_score_the_log_again(here, capsys, monkeypatch):
     from tests.test_only_reads import FIRST, N, closed, mark_all, person, write_results
@@ -299,7 +299,7 @@ def test_nothing_to_fix_on_inspect_says_to_score_the_log_again(here, capsys, mon
                         "fix logs/new.eval`."), out
 
 
-# N5: no "'better' needs" line for a rule that leans worse -------------------------------------
+# No "'better' needs" line for a rule that leans worse -----------------------------------------
 
 def test_a_rule_that_leans_worse_gets_no_better_needs_line(here, capsys, monkeypatch):
     from tests.test_only_reads import WRONG, N, hidden, judge, person, project, write_results
@@ -317,7 +317,7 @@ def test_a_rule_that_leans_worse_gets_no_better_needs_line(here, capsys, monkeyp
     assert "'better' needs" not in out and "Only " not in out, out
 
 
-# N2: check names what it read; Inspect regrades stay in logs/ -------------------------------------
+# check names what it read; Inspect regrades stay in logs/ -----------------------------------------
 
 def _inspect_log(path: Path, verdicts: dict[int, bool], rule: str,
                  created: str | None = None) -> Path:
@@ -416,7 +416,7 @@ def test_the_inspect_regrade_lines_keep_the_log_folder_after_a_check(here, capsy
     assert "`--output-file logs/new.eval`" in line and "fix logs/new.eval" in line, line
 
 
-# N4: Measure says why it suggests going back --------------------------------------------------
+# Measure says why it suggests going back ------------------------------------------------------
 
 def test_measure_after_a_worse_check_says_why_it_says_go_back(here, capsys):
     from tests.test_only_reads import closed
@@ -437,7 +437,7 @@ def test_measure_after_a_worse_check_says_why_it_says_go_back(here, capsys):
             "one. Next: go back to your old LLM-as-a-judge") in out, out
 
 
-# H1 with repeats: the same question asked twice is not a shared value ------------------------
+# A shared value with repeats: one question asked twice is not a shared value -----------------
 
 def _rows_of(path: Path, questions: list[int], outputs: list[str], rubric: str,
              right=None) -> Path:
@@ -513,7 +513,7 @@ def test_a_shared_var_never_stands_in_for_the_one_row_with_that_answer(here, cap
     assert "counted against" not in out, out
 
 
-# H1: a marked answer is found by its whole question, never by one var value -------------------
+# A marked answer is found by its whole question, never by one var value -----------------------
 
 def _promptfoo(path: Path, rows: list[tuple[dict, str, bool]], rubric: str) -> Path:
     """promptfoo results of `rows` (vars, answer, the LLM-as-a-judge's pass)."""

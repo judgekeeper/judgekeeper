@@ -1,6 +1,6 @@
-"""The commands of the 0.1 CI gate, `setup` (part of `judgekeeper` now) and `start` (its steps
-are `judgekeeper`, `mark`, `fix` and `check` now) are gone: each name prints one line, exits 2,
-and is not in the help. (`check` is a command again.)"""
+"""The CI gate commands, `setup` (part of `judgekeeper` now) and `start` (its steps are
+`judgekeeper`, `mark`, `fix` and `check` now) are gone: each name prints one line, exits 2, and
+is not in the help."""
 
 import re
 from pathlib import Path

@@ -2,7 +2,7 @@
 
     import judgekeeper
     judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
-                       reason=reason, judge="claude-opus-5", rule=criteria, name="Safe wording")
+                       reason=reason, judge="my-model", rule=criteria, name="Safe wording")
 
 Each call writes one record (see records.py) to the project root's `.judgekeeper/records/`,
 in one file per process and judge name (`<name>-<date>-<process id>.jsonl`), as coverage.py

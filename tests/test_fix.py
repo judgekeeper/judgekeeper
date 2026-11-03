@@ -1,6 +1,6 @@
 """`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-First run (Screen 5a): half of the marks are set aside and hidden (of each group: the
+First run: half of the marks are set aside and hidden (of each group: the
 LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
 and 5 marked Fail); the patterns in the LLM-as-a-judge's mistakes on the other marks;
 .judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason;
@@ -9,7 +9,7 @@ to grade again; Next: grade them again with a new rule and give `judgekeeper fix
 Nothing about a hidden mark (its id or its text) is printed or written outside split.json and
 marked-answers.csv, which never says which answers are hidden.
 
-Screen 5b: `judgekeeper fix <new results file>` reads the new grades of the hidden marks from
+Second run: `judgekeeper fix <new results file>` reads the new grades of the hidden marks from
 the file and gives the verdict from targets.fix_verdict. No test calls an API.
 """
 
@@ -235,7 +235,7 @@ def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
     assert fix.read_split(ws).fresh == {"want": 10} and after["hidden"] == []
 
 
-# Screen 5a -----------------------------------------------------------------------------------
+# The first run: clues and mistakes -----------------------------------------------------------
 
 def test_the_first_run(here, capsys, monkeypatch):
     ws = project(here)
@@ -647,7 +647,7 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
     assert "also tried a pass mark" not in " ".join(out.split())
 
 
-# The test of a new rule (Screen 5b) ------------------------------------------------------------
+# The test of a new rule ------------------------------------------------------------------------
 
 def _hidden_counts(ws) -> tuple[int, int, int]:
     """(hidden, the old rule's right answers, fixed) when the new rule agrees with every mark."""

@@ -1005,7 +1005,7 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
 
 
 def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
-    """Screen 5a's pass-mark line, when the verdict says the new mark is worth trying."""
+    """The pass-mark line of the fix output, when the verdict says the new mark is worth trying."""
     from judgekeeper.start_fix import locate, searched, where_lines
 
     words = VERDICT_WORDS.get(test["verdict"])
@@ -1691,7 +1691,7 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
 
 
 def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
-    """Screen 5a: where the judge goes wrong on the seen marks, mistakes.md, the pass mark,
+    """Where the judge goes wrong on the seen marks, mistakes.md, the pass mark,
     where the rule lives, the hidden marks, marked-answers.csv, and what to do next."""
     data = m.data
     seen_rows = [m.row(i) for i in split.seen]
@@ -1771,7 +1771,7 @@ def _answers_line(ws: Workspace, split: Split, n: int, said: bool = False) -> st
             "answers only, so you can't tell which are kept aside.")
 
 
-# The test of a new rule (Screen 5b) ------------------------------------------------------
+# The test of a new rule ------------------------------------------------------------------
 
 def next_test(split: Split) -> int:
     """Which test on this set of hidden marks the next one is: every test counts, whatever
@@ -1822,9 +1822,9 @@ def _given(talk: Talk, state, m: Marks, path: Path):
 
 
 def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
-    """Screen 5b: the new results in `path`, read as step 1 reads results, on the hidden
-    marks: how the old and the new grades agree with the person's marks, and the verdict from
-    the math. A hidden answer not in the file is counted, said once and left out."""
+    """The test of a new rule: the new results in `path`, read as step 1 reads results, on the
+    hidden marks: how the old and the new grades agree with the person's marks, and the
+    verdict from the math. A hidden answer not in the file is counted, said once and left out."""
     from judgekeeper import judge_setup
     from judgekeeper.check import (
         NEXT_UNKNOWN,

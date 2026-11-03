@@ -1,8 +1,7 @@
 """New eval answers join the marking as batches.
 
 - With one batch, every number is the one judgekeeper gives with no batches, to the last digit
-  (fixtures/batches/one-batch.json, saved from judgekeeper before batches and saved again when
-  the draws changed for small pools and for fresh verdicts).
+  (the numbers are saved in fixtures/batches/one-batch.json).
 - A second batch is added when the newest results hold new graded answers and the LLM-as-a-judge
   is the same; never when the LLM-as-a-judge changed.
 - The marking page offers the newest batch first, half passed and half failed.
@@ -59,7 +58,7 @@ def _jsonable(x):
     return json.loads(json.dumps(x, sort_keys=True, default=str))
 
 
-# With one batch, today's numbers --------------------------------------------------------------
+# With one batch, the same numbers as with no batches ------------------------------------------
 
 @pytest.mark.parametrize("key", [k for k in BEFORE["pure"] if k.startswith("corrected")])
 def test_one_batch_gives_the_same_corrected_numbers(key):

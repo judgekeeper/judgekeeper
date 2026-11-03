@@ -332,7 +332,7 @@ def test_promptfoo_project_one_run_then_clicks(here, capsys,
     assert code == 0 and "  When you say Pass, it also says Pass: " in out
 
 
-# Marks for another judge, or from 0.2 -----------------------------------------------------
+# Marks for another judge, or from an older judgekeeper ------------------------------------
 
 def test_another_judge_asks_to_start_over(here, capsys, pages):
     records_project(here, split(16, 16), name="helpfulness")
@@ -420,7 +420,7 @@ def test_a_new_pass_if_before_any_mark_starts_over_at_once(here, capsys, pages):
     assert "Step 1 of 5: Find" not in again and "Moved" not in again
 
 
-# A new eval run no longer asks to start over ----------------------------------------------
+# A new eval run does not ask to start over ------------------------------------------------
 
 def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages):
     promptfoo_project(here, split(20, 16), tag=TAG)

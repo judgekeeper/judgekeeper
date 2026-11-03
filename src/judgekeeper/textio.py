@@ -1012,8 +1012,8 @@ OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, whi
 
 def old_hook(path: str | Path) -> str | None:
     """OLD_HOOK when the git pre-commit hook of the repository `path` is in still runs
-    `judgekeeper check --fast` (gone in 1.0), else None. The hook is only read: judgekeeper
-    never edits it."""
+    `judgekeeper check --fast` (a command that no longer exists), else None. The hook is only
+    read: judgekeeper never edits it."""
     here = Path(path).resolve()
     for folder in (here, *here.parents):
         if (folder / ".git").exists():

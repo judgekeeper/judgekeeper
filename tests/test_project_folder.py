@@ -960,7 +960,7 @@ def test_stop_in_a_project_below_leaves_the_page_above_open(here, capsys, monkey
     assert "Closed the marking page." in run(capsys, "--stop")[1]
 
 
-def _reads_any_project_above(root):  # results_above before a project kept to itself
+def _reads_any_project_above(root):  # stand-in rule: reads any project folder above
     up = find.project_folder(root)
     found = None if up is None else find.search(up)
     return up if found is not None and any(found.readable(t) for t in find.TOOLS) else None

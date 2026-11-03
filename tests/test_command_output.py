@@ -122,8 +122,8 @@ REPORT = "report it at github.com/judgekeeper/judgekeeper/issues with the lines 
 
 
 def _store_fails(args):
-    """An MLflow store with a bad byte in a stored answer (the P03b repro): the error quotes
-    the answer, chained from the database's own error."""
+    """An MLflow store with a bad byte in a stored answer: the error quotes the answer,
+    chained from the database's own error."""
     import sqlite3
 
     try:
@@ -156,7 +156,7 @@ OLD = [i % 30 < 19 if i < 30 else i % 30 >= 19 for i in range(60)]  # the old ju
 
 
 def _n03(root) -> Workspace:
-    """N03: the person passes 30 answers and fails 30; the old LLM-as-a-judge agreed on 19 of each. The
+    """The person passes 30 answers and fails 30; the old LLM-as-a-judge agreed on 19 of each. The
     new LLM-as-a-judge (another model) flips every grade."""
     from judgekeeper import judge_setup, start
     from tests.test_check import _results

@@ -21,10 +21,10 @@ Correct, are left out and counted), and its average width.
 
 Ranges measured:
 - start, now: Jeffreys draws (weighted.corrected) at each level in LEVELS, from the same draws.
-- start, before: Wilson at 97.5% per group, joined at the corners (the earlier method),
-  rebuilt here.
+- start, before: Wilson at 97.5% per group, joined at the corners (kept here to compare
+  with), rebuilt here.
 - general(), before: a stratified percentile bootstrap, 2,000 resamples, with the Wilson
-  corners when a range has zero width (the earlier method), rebuilt here.
+  corners when a range has zero width (kept here to compare with), rebuilt here.
 - general(), now: weighted.general as it is.
 
 The level for start is the first of 0.95, 0.96 and 0.97 whose ranges hold the true TPR, TNR
@@ -98,7 +98,7 @@ STABILITY_SEEDS = (1, 2, 3, 4, 5)
 RELIABLE_CASES = [(0.5, 0.85, 0.85), (0.7, 0.85, 0.85), (0.9, 0.85, 0.85), (0.5, 0.95, 0.95),
                   (0.7, 0.95, 0.60), (0.9, 0.95, 0.60)]
 RELIABLE_RUNS = 1000
-RELIABLE = 25  # Correct and Wrong labels a labeling goes on to (an earlier "reliable" target)
+RELIABLE = 25  # Correct and Wrong labels a labeling goes on to (more than the first result's FIRST)
 FIRST = 15  # Correct and Wrong labels the first result needs (targets.ROUGH)
 ACCURACY_RUNS = 1000
 KAPPA_CELLS = [(pi, a, w, n) for pi in SHARES for a, w in ((0.8, 0.8), (0.95, 0.95), (0.95, 0.6))
@@ -155,7 +155,7 @@ def _hyper(size: int, share: float, n: int) -> list[float]:
 
 
 def wilson(k: int, n: int) -> tuple[float | None, float | None]:
-    """The Wilson interval for k of n at 97.5% (the earlier ranges'); (None, None) when n is 0."""
+    """The Wilson interval for k of n at 97.5% (the comparison method); (None, None) when n is 0."""
     return (None, None) if n <= 0 else wilson_interval(k / n, n, 2.2414)
 
 
@@ -169,10 +169,11 @@ def pool_counts(pi: float) -> tuple[int, int]:
     return n_pass, POOL - n_pass
 
 
-# The earlier ranges, rebuilt -----------------------------------------------------------
+# The comparison ranges, rebuilt --------------------------------------------------------
 
 def corners(n_pool_pass, n_pool_fail, n_p, c_p, n_f, c_f) -> dict:
-    """Wilson at 97.5% per group, the ends put into the formulas (the earlier weighted.corrected)."""
+    """Wilson at 97.5% per group, the ends put into the formulas (the comparison for
+    weighted.corrected)."""
     pi = n_pool_pass / (n_pool_pass + n_pool_fail)
     (a_lo, a_hi), (b_lo, b_hi) = wilson(c_p, n_p), wilson(c_f, n_f)
     a, b = c_p / n_p, c_f / n_f
@@ -212,7 +213,8 @@ def wilson_corners(items, n_pool_pass, n_pool_fail) -> dict:
 
 
 def bootstrap(items, n_pool_pass, n_pool_fail) -> dict:
-    """The stratified percentile bootstrap the earlier weighted.general used, with its corners."""
+    """A stratified percentile bootstrap with Wilson corners, the comparison for
+    weighted.general."""
     pool = {"pass": n_pool_pass, "fail": n_pool_fail}
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
     weights = {g: weighted._div(pool[g], len(xs)) or 0.0 for g, xs in by_group.items()}

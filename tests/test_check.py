@@ -267,7 +267,7 @@ def test_a_marked_empty_answer_is_found_by_its_question(here, capsys):
 
 
 def test_a_rule_taken_on_with_a_marked_empty_answer_has_not_changed_after(here, capsys):
-    """Its empty answer got no grade from the rule taken on, so every check after said "rule
+    """An empty answer that the rule taken on gives no grade: a later check must not say "rule
     changed" against the old rule again."""
     outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
     _marked(here, outputs=outputs)
