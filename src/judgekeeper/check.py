@@ -1713,9 +1713,6 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     about the judge in the newest results. The groups the marks were picked from, and those
     groups' sizes, stay in `picked` (start_label.picked_numbers). The answers it has no grade
     on keep an earlier judge's: `earlier_grades` names them, and no comparison uses those."""
-    from judgekeeper.fingerprint import JudgeFingerprint
-    from judgekeeper.judgments import judgment_to_record, read_run, write_run
-    from judgekeeper.runners.base import Judgment
     from judgekeeper.start_label import _write_json
 
     data = ws.data()
@@ -1743,28 +1740,40 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 pool={**(data.get("pool") or {}), "pass": kinds.count("pass"),
                       "fail": kinds.count("fail")},
                 checked_at=utc_now())
+    _write_grades(ws, found, answers, now)
+    _write_json(ws.start, data)
+
+
+def _write_grades(ws: Workspace, found, answers: dict, now: dict[str, str]) -> None:
+    """pool-judge.jsonl takes the grades `now` ({id: verdict}) of the judge in `found`: an
+    answer in `answers` with its own score, reason and fingerprint; one found by its text
+    alone with its verdict and no reason. Every other answer keeps its record."""
+    from judgekeeper.fingerprint import JudgeFingerprint
+    from judgekeeper.judgments import judgment_to_record, read_run, write_run
+    from judgekeeper.runners.base import Judgment
+
     try:
         head, records = read_run(ws.pool_judge)
     except (OSError, ValueError):
-        head, records = None, {}
-    if head is not None:
-        given = found.fingerprint.get("model_source") is not None
-        fp = JudgeFingerprint.from_dict(found.fingerprint)
-        lines = []
-        for i, rec in records.items():
-            a = answers.get(i)
-            if a is not None and i in now:
-                rec = judgment_to_record(i, Judgment(verdict=a.verdict, raw_score=a.score,
-                                                     rationale=a.reason),
-                                         a.fingerprint.with_(model=found.fingerprint["model"])
-                                         if given else a.fingerprint)
-            elif i in now and now[i] != rec.get("verdict"):  # found by its text: no reason kept
-                rec = judgment_to_record(i, Judgment(verdict=now[i], raw_score=None,
-                                                     rationale=""), fp)
-            lines.append(rec)
-        write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp,
-                  lines, source=head.get("source"), normaliser=head.get("normaliser"))
-    _write_json(ws.start, data)
+        return
+    if head is None:
+        return
+    given = found.fingerprint.get("model_source") is not None
+    fp = JudgeFingerprint.from_dict(found.fingerprint)
+    lines = []
+    for i, rec in records.items():
+        a = answers.get(i)
+        if a is not None and i in now:
+            rec = judgment_to_record(i, Judgment(verdict=a.verdict, raw_score=a.score,
+                                                 rationale=a.reason),
+                                     a.fingerprint.with_(model=found.fingerprint["model"])
+                                     if given else a.fingerprint)
+        elif i in now and now[i] != rec.get("verdict"):  # found by its text: no reason kept
+            rec = judgment_to_record(i, Judgment(verdict=now[i], raw_score=None,
+                                                 rationale=""), fp)
+        lines.append(rec)
+    write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp,
+              lines, source=head.get("source"), normaliser=head.get("normaliser"))
 
 
 def full(path: str, said: Said, pass_if: str | None = None) -> int:
@@ -2514,11 +2523,13 @@ def take_new_grades(ws: Workspace, found) -> str | None:
         earlier = list(ws.data().get("earlier_grades") or [])
     except (OSError, ValueError, AttributeError):
         return None
-    grades = {i: v for i, v in _free(found, earlier, ws).items() if v in ("pass", "fail")}
+    answers = {i: a for i, a in _matched(found, earlier, ws).items()
+               if a.verdict in ("pass", "fail")}
+    grades = {i: a.verdict for i, a in answers.items()}
     if not grades:
         return None
     with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
-        take_grades(ws, grades)
+        take_grades(ws, found, answers)
         waited = {i: grades[i] for i in marks.read(ws.marks).counted() if i in grades}
         if waited:  # marks that waited: the next change is compared with these grades
             _save_verdicts(ws, judge_setup.of(found), found, waited)
@@ -2526,11 +2537,14 @@ def take_new_grades(ws: Workspace, found) -> str | None:
     return took_left(len(grades))
 
 
-def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
-    """The judge the marks test now graded answers that had only an earlier judge's grade
-    (`earlier_grades`): start.json keeps its `grades` on them from now on."""
+def take_grades(ws: Workspace, found, answers: dict) -> None:
+    """The judge the marks test now (in `found`) graded answers that had only an earlier
+    judge's grade (`earlier_grades`): start.json keeps its grades on them from now on, and
+    pool-judge.jsonl its records ({id: its answer} `answers`, _write_grades)."""
     from judgekeeper.start_label import _write_json
 
+    grades = {i: a.verdict for i, a in answers.items()}
+    _write_grades(ws, found, answers, grades)
     data = ws.data()
     data["queue"] = [{**q, "group": grades.get(q["id"], q["group"])}
                      for q in data.get("queue") or []]

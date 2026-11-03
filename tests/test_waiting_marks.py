@@ -402,6 +402,65 @@ def test_results_that_grade_the_answers_left_get_them_out_of_waiting(
     assert code == 0 and check.NO_GRADE_LEFT not in text and NEXT_WAIT not in text, out
 
 
+@pytest.mark.parametrize("command", [["check", "all-results-v2.csv"], ["--no-browser",
+                                                                      "--port", "0"]])
+def test_grades_taken_in_are_kept_with_their_own_score_reason_and_fingerprint(
+        tmp_path, monkeypatch, capsys, command):
+    """As above, with bike-grader-v2 grading the 20 answers left the other way from v1: after
+    the take-in, pool-judge.jsonl holds v2's grade, score, reason and fingerprint on each,
+    and `fix` explains a mistake there with v2's reason, never v1's."""
+    from judgekeeper.judgments import read_run
+    from tests.start_projects import table_project
+
+    monkeypatch.chdir(tmp_path)
+    v1 = [i < 30 for i in range(60)]
+
+    def table(name, verdicts, model, keep=None):
+        path = table_project(tmp_path, verdicts, name=name, model=model, extra={
+            "reason": [f"{model} reason {i}" for i in range(60)],
+            "score": [f"{(0.9 if v else 0.1) if model.endswith('1') else (0.8 if v else 0.2)}"
+                      for v in verdicts]})
+        if keep is not None:
+            _rows(path, keep)
+
+    table("results.csv", v1, "bike-grader-v1")
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    index = {i: int(re.search(r"Question (\d+)\?", json.dumps(session.raw[i]["input"]))[1])
+             for i in groups}
+    for item in session.items[:40]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
+    marked = {index[i["id"]] for i in session.items[:40]}
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    closed(ws)
+    table("new-results-v2.csv", v1, "bike-grader-v2", keep=marked)
+    _jk(capsys, "check", "new-results-v2.csv")
+    v2 = [v if k in marked else not v for k, v in enumerate(v1)]
+    table("all-results-v2.csv", v2, "bike-grader-v2")
+    code, out = _jk(capsys, *command)
+    closed(ws)
+    assert code == 0 and "Your new results grade 20 answers" in flat(out), out
+    _, records = read_run(ws.pool_judge)
+    left = {i: k for i, k in index.items() if k not in marked}
+    for i, k in left.items():
+        rec = records[i]
+        assert rec["verdict"] == ("pass" if v2[k] else "fail"), rec
+        assert rec["raw_score"] == (0.8 if v2[k] else 0.2), rec
+        assert rec["rationale"] == f"bike-grader-v2 reason {k}", rec
+        assert rec["fingerprint"]["model"] == "bike-grader-v2", rec
+    session = StartSession(ws)
+    for i, k in left.items():  # each marked as v1 graded it: v2 got it wrong
+        session.update({"id": i, "label": "pass" if v1[k] else "fail", "seconds": 5})
+    _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    _jk(capsys, "fix")
+    said = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    assert "bike-grader-v2 reason" in said and "bike-grader-v1 reason" not in said, said
+
+
 def _mark_says(ws: Workspace, capsys, path: str = "v2.json") -> str:
     code, out = _jk(capsys, "mark", path, "--no-browser", "--port", "0")
     closed(ws)
