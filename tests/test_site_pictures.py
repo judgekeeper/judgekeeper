@@ -50,9 +50,13 @@ def _report_text(page: str) -> str:
 def measured(tmp_path, monkeypatch, capsys):
     """The sample project after every answer is marked as the pictures mark it, and Measure:
     (its .judgekeeper/, the Measure screen)."""
+    from judgekeeper import recorder
+
     folder = tmp_path / "support-bot"
     folder.mkdir()
+    recorder._reset()  # record() keeps its file per process: this project's, then no other
     shots.make_project(folder)
+    recorder._reset()
     monkeypatch.chdir(folder)
     monkeypatch.setenv("COLUMNS", "80")
     _run(capsys, "--no-browser", "--port", "0")
