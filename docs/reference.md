@@ -200,7 +200,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 The ranges on screen are the middle 96%. The result line uses 99%, because you can look at the result after every mark, and a few marks that agree by coincidence should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
 
-When your LLM-as-a-judge changed since you marked, the result says which one it is about, such as "This result is about your LLM-as-a-judge as it was on 3 Nov: openai:gpt-4.1-mini, rule ID 9946." The rule ID is a short code made from your rule's exact text. It changes when the wording changes, so two results with the same rule ID used the same rule.
+When your LLM-as-a-judge changed since you marked, the result says which one it is about, such as "This result is about your LLM-as-a-judge as it was on 3 Nov: openai:your-model, rule ID 9946." The rule ID is a short code made from your rule's exact text. It changes when the wording changes, so two results with the same rule ID used the same rule.
 
 ## What it reads
 
