@@ -67,7 +67,7 @@ How the numbers are worked out: [reference](https://github.com/judgekeeper/judge
 
 ## Checked on public data
 
-These runs use public datasets that people already labelled, made-up empty answers that should fail, and one simulation, so the true numbers are known. They test whether judgekeeper's ranges hold those numbers, and show what it says about real LLM-as-a-judge setups. Each line links its report.
+These runs use public datasets that people already labelled. One adds made-up empty answers that should fail, and one is a simulation. Where the true number is known, they test whether judgekeeper's ranges hold it. They also show what judgekeeper says about real LLM-as-a-judge setups. Each line links its report.
 
 - [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests with 100 marks each (TPR, TNR and kappa at once; another 100 tests give a slightly different count).
 - [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): news summaries. Three LLM-as-a-judge setups, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. Changing the model did not close the gap.
