@@ -41,7 +41,7 @@ def _ran(main, argv=ARGV) -> int:
 
 def _whole(out: str) -> None:
     assert "Traceback" not in out and "KeyboardInterrupt" not in out, out
-    assert "Step 2 of 5: Mark" in out and out.rstrip().splitlines()[-1].startswith("then"), out
+    assert "Step 2 of 5: Mark" in out and out.rstrip().endswith("then click it."), out
 
 
 @pytest.mark.parametrize("main", [cli.main, entry.main], ids=["cli", "entry"])
