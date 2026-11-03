@@ -73,7 +73,7 @@ def test_a_second_server_on_the_project_is_refused(ws):
             assert stat.S_IMODE((ws.dir / label_mod.LOCK).stat().st_mode) == 0o600
         with pytest.raises(LabelError) as e:
             make_server(StartSession(ws), 0, page="<p>page</p>", lock=ws.dir)
-        assert str(e.value) == ("A judgekeeper page is already open for this project. Close "
+        assert str(e.value) == ("A marking page is already open for this project. Close "
                                 "it with Ctrl-C in its terminal, or run `judgekeeper --stop`.")
         assert "--port" not in str(e.value) and server.token not in str(e.value)
     finally:

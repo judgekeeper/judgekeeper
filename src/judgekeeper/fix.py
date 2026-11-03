@@ -152,8 +152,7 @@ REGRADE = {
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
                 "give the options you set before again with `-S`. `-S instructions=` takes a "
-                "rule with no comma and no colon followed by a space (Inspect reads `-S` "
-                "values as YAML and cuts them at commas); else grade it with "
+                "rule with no comma and no colon followed by a space; else grade it with "
                 "Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
@@ -161,11 +160,11 @@ REGRADE = {
                 "one."),
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
                "under the same name."),
-    "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
-                 "`answer` as actual_output, and any field your metric also reads, such as "
-                 "expected_output, added back by its question); run your metric with its new "
-                 "rule and the same name through `deepeval test run`, which saves a new "
-                 "test_run_<date>.json in your results folder."),
+    "deepeval": (f"DeepEval: make one test case for each row of {ANSWERS} (`question` is the "
+                 "input, `answer` is the actual_output; add any other field your metric reads, "
+                 "such as expected_output). Run your metric with its new rule and the same name "
+                 "through `deepeval test run`. It saves a new test_run_<date>.json in your "
+                 "results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
 # promptfoo: a ready config that grades the marked answers again (written as text: no YAML
@@ -1140,7 +1139,7 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
             where = (f"To use a pass mark of {new}, run "
                      f"`{_here(ws, 'check')} --pass-if {quote_arg(given[1])}`.")
     return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
-            f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
+            f"{test['fixed']}, broke {test['broke']}, so {words}). {where}")
 
 
 def tried_line(test: dict) -> str:

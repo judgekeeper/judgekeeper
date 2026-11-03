@@ -90,7 +90,7 @@ ROUGH = targets.ROUGH  # the label targets every command shares
 MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
 GIVEN_BY_YOU = "given by you"
-POINT_ME = "Point me at the results: {program} path/to/results.json"
+POINT_ME = "Point judgekeeper at the results: {program} path/to/results.json"
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
@@ -1588,7 +1588,7 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
         talk.say(f"  {rel} ({why})")
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
-    which = "that is" if len(found.skipped) == 1 else "one of these is"
+    which = "that file holds" if len(found.skipped) == 1 else "one of these holds"
     readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
     if not readable:  # never a command that reads a link: it leads anywhere
         it = "it links" if len(found.skipped) == 1 else "they link"
@@ -1599,7 +1599,7 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
         return talk.stop(EXIT_USAGE, next_step)
     first, why = readable[0]
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
-        which = "that is" if len(found.skipped) == 1 else f"{first} is"
+        which = "that file holds" if len(found.skipped) == 1 else f"{first} holds"
         next_step = (f"if {which} your results, save it as UTF-8, then run "
                      f"`{talk.command_at(first)}` again.")
     else:
@@ -1660,7 +1660,7 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
                                          f"{own}.")
     if talk.confirm(question, default=False, with_yes=False,
                     hint=f"{question} Run {textio.program()} in a terminal to answer, "
-                         "or point me at the right results file."):
+                         "or give judgekeeper the right results file."):
         return
     other = next((r for r in others if r.path != result.path
                   and results_description(r) in mine), None)
@@ -2015,7 +2015,7 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     model = ", ".join(models)
     if len(models) > 1:
         model = f"more than one model ({model})"
-    with_model = f" with {model}{' (as you told me)' if given else ''}" if models else ""
+    with_model = f" with {model}{' (as you said)' if given else ''}" if models else ""
     if tool == "table":
         return f"{metric} in {file_name}{with_model}" if models else f"not named in {file_name}"
     quoted = f' "{rubric}"' if rubric else ""

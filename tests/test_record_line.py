@@ -211,7 +211,7 @@ def test_an_unwritable_folder_never_raises_and_warns_once(project, caplog):
     warnings = [r for r in caplog.records if r.name == "judgekeeper"]
     assert len(warnings) == 1
     assert "judgekeeper.record()" in warnings[0].getMessage()
-    assert "goes on" in warnings[0].getMessage()
+    assert "keeps running" in warnings[0].getMessage()
     with caplog.at_level(logging.WARNING, logger="judgekeeper"):
         recorder._say_lost()  # at exit: the later losses are not silent
     assert caplog.records[-1].getMessage() == ("judgekeeper.record() could not save 2 more "

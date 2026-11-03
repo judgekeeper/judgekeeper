@@ -162,9 +162,9 @@ CHOOSE = f"they need a choice first, such as which results to read: run `{progra
 NEXT_CHOOSE = f"Next: run `{program()}` to make that choice, then run `{{command}}` again."
 NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
 # ...the same model and rule (in the results), graded again: there is no old one to go back to
-NEXT_WORSE_SAME = ("your model and rule are the same as before, so its grades change from run "
-                   "to run. Make your rule clearer, grade your marked answers again, then run "
-                   "`{command}`.")
+NEXT_WORSE_SAME = ("your model and rule are the same as before, so your LLM-as-a-judge's grades "
+                   "change from run to run. Make your rule clearer, grade your marked answers "
+                   "again, then run `{command}`.")
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade

@@ -210,7 +210,7 @@ ONLY_PAGE = "only the marking page in your browser can send this"
 LOCK = "server.json"  # in a project's .judgekeeper/: the page judgekeeper serves for it now
 LOCK_COPY = "page.json"  # the same, read when server.json is gone
 MAX_LOCK = 64 * 1024  # bytes of a lock read: a real one is a few hundred
-ALREADY_OPEN = ("A judgekeeper page is already open for this project. Close it with Ctrl-C in "
+ALREADY_OPEN = ("A marking page is already open for this project. Close it with Ctrl-C in "
                 "its terminal, or run `{program} --stop`.")
 PROBE_TIMEOUT = 2  # seconds to wait for the page named in the lock to answer
 BUSY = ("A marking page for this folder is open but not answering. Try again in a moment. "

@@ -81,8 +81,8 @@ STEPS = """\
                                     with you, and where it goes wrong
   4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change
                                     its rule, grade your marked answers again,
-                                    and test the new rule on the half of your
-                                    marks kept aside
+                                    and test the new rule on the marks kept
+                                    aside
   5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade
                                     your marked answers again
                                     (.judgekeeper/fix/marked-answers.csv) and
@@ -91,8 +91,8 @@ READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV, TSV or JSONL file with these columns:
   input, output, verdict"""
-FIX_HELP = ("see where your LLM-as-a-judge goes wrong; with the results of grading your marked "
-            "answers again, test a better rule on the marks kept aside")
+FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
+            "it on marks kept aside")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),

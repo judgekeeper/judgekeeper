@@ -285,8 +285,7 @@ def test_the_first_run(here, capsys, monkeypatch):
 
 def test_the_deepeval_regrade_line_says_to_add_the_fields_the_metric_reads():
     line = fix.regrade_line("deepeval")
-    assert ("any field your metric also reads, such as expected_output, added back by its "
-            "question") in line
+    assert "add any other field your metric reads, such as expected_output" in line
 
 
 def test_marked_answers_csv_holds_every_marked_answer_and_nothing_else(here, capsys):
@@ -549,7 +548,7 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
         _, out = run(capsys)  # the second run shows the saved test, not a new one
     flat = " ".join(out.split())
     m = re.search(r"A better pass mark: (0\.\d+) instead of 0\.5 \(tested on the marks kept "
-                  r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
+                  r"aside: fixed (\d+), broke (\d+), so (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
     from judgekeeper.textio import quote_arg

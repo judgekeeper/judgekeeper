@@ -34,7 +34,7 @@ def test_a_table_too_deep_is_named_with_the_command_that_reads_it(here, capsys):
             "(tables: 2 folders deep).") in text
     assert "evals/2026/october/judged.csv (3 folders down)" in out
     path = quote_arg("evals/2026/october/judged.csv")  # as the line above names it
-    assert f"Next: if that is your results, run `judgekeeper {path} --no-browser`." in text
+    assert f"Next: if that file holds your results, run `judgekeeper {path} --no-browser`." in text
     assert "run your eval" not in text
     assert code == 3
 

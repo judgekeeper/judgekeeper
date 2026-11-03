@@ -1063,7 +1063,8 @@ def _same(rows: list[dict]) -> list[tuple[str, str]]:
 
 SAME = "The same in every answer below"
 WHY_OPTIONAL = "Optional: tell judgekeeper why you disagree."  # above the first list
-WHY_USES = "uses your reasons to suggest a better rule."
+WHY_USES = ("shows where your LLM-as-a-judge goes wrong, helps you write "
+            "a better rule and tests it on marks kept aside. It uses your reasons.")
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,

@@ -78,7 +78,7 @@ QUESTIONS = "judgekeeper needs your answer to {which}:"
 # Questions whose answer changes what is counted: the counts are printed after them
 COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
 READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
-         "TSV or JSONL file.")
+         "TSV or JSONL file with input, output and verdict columns.")
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -1646,7 +1646,7 @@ def read_rows(found: start.Found, pass_if: str | None = None,
         return [("question", "each sample's input"), ("answer", "each sample's output"),
                 ("grade", grade)]
     if found.tool == "mlflow":
-        return [("question", "each trace's request"), ("answer", "its response"),
+        return [("question", "each trace's request"), ("answer", "each trace's response"),
                 ("grade", "your LLM-as-a-judge's assessment" + mark)]
     if found.tool == "records":
         return [("question", "each line's input"), ("answer", "each line's output"),
@@ -2445,7 +2445,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
         day = ""
     model = judge.get("model") or "model not named"
     rule = judge.get("rule_hash")
-    rule = f"rule hash {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
+    rule = f"rule {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
     return f"This result is about your LLM-as-a-judge as it was{day}: {model}, {rule}."
 
 
@@ -2545,10 +2545,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
         talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
-        if kept := start_label.kept_count(ws, r):  # said on the result page too
-            talk.para(report_page.kept_line(kept))
         if step != "mark":  # fix is never a step while it is too early to tell
             talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
+        if kept := start_label.kept_count(ws, r):  # said on the result page too
+            talk.para(report_page.kept_line(kept))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
         for line in estimate_lines(r):

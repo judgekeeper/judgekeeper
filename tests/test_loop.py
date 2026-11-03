@@ -290,7 +290,7 @@ def test_a_changed_rule_carries_on_and_says_which_judge(here, capsys, pages):
     assert code == 0, out
     head = marks.read(ws.marks).header
     assert re.search(r"This result is about your LLM-as-a-judge as it was on \d{1,2} [A-Z][a-z]{2}: "
-                     r"openai:gpt-4\.1-mini, rule hash [0-9a-f]{4}\.", _flat(out)), out
+                     r"openai:gpt-4\.1-mini, rule [0-9a-f]{4}\.", _flat(out)), out
     assert head["judge"]["rule_hash"][7:11] in out
     assert "\nYour LLM-as-a-judge changed since your marks: rule changed.\n" in out
     assert _check(out) == ("Next: run `judgekeeper check` to re-check your changed LLM-as-a-judge on "

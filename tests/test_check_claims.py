@@ -368,9 +368,9 @@ def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
         assert "When you said Pass 25 of 25 19 of 25 Worse" in said
         assert "When you said Fail 25 of 25 20 of 25 Worse" in said
         assert _next(out) == (  # no old one to go back to: the same model and rule
-            "Next: your model and rule are the same as before, so its grades change from run to "
-            "run. Make your rule clearer, grade your marked answers again, then run "
-            "`judgekeeper check <new results file>`.")
+            "Next: your model and rule are the same as before, so your LLM-as-a-judge's grades "
+            "change from run to run. Make your rule clearer, grade your marked answers again, "
+            "then run `judgekeeper check <new results file>`.")
     assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
 
 
@@ -403,9 +403,10 @@ def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
             "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
     assert ("Your last check found your LLM-as-a-judge in results.json worse, so the numbers "
             "below still use the grades from before.") in said  # graded again in place
-    assert said.endswith("Next: your model and rule are the same as before, so its grades "
-                         "change from run to run. Make your rule clearer, grade your marked "
-                         "answers again, then run `judgekeeper check`.")
+    assert said.endswith("Next: your model and rule are the same as before, so your "
+                         "LLM-as-a-judge's grades change from run to run. Make your rule "
+                         "clearer, grade your marked answers again, then run "
+                         "`judgekeeper check`.")
     assert "graded again" not in said and "nothing to do" not in said
 
 

@@ -36,7 +36,8 @@ def screen(capsys, *argv) -> tuple[int, list[str]]:
     lines = (out + err).splitlines()
     for line in lines:
         assert len(line) <= 80, line
-        column = line.strip().startswith("input,") or line.endswith(" column")  # its real name
+        column = line.strip().startswith("input,") or line.rstrip(".").endswith(
+            (" column", " columns"))  # its real name
         assert "verdict" not in line.lower() or column, line
         assert "tell the person" not in line and "ask the person" not in line, line
     return code, lines
@@ -267,7 +268,8 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "No eval results found in this folder (my-app). judgekeeper",
         "looked 4 folders down (tables: 2 folders deep).",
         "judgekeeper can read results from promptfoo, DeepEval,",
-        "Inspect AI, MLflow, or a CSV, TSV or JSONL file.",
+        "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input,",
+        "output and verdict columns.",
         "",
         "Next: run your eval once from this folder, then run",
         "`judgekeeper` again. If your results are somewhere else, run",
@@ -299,8 +301,8 @@ def test_screen_8_help(capsys):
         "                                    with you, and where it goes wrong",
         "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change",
         "                                    its rule, grade your marked answers again,",
-        "                                    and test the new rule on the half of your",
-        "                                    marks kept aside",
+        "                                    and test the new rule on the marks kept",
+        "                                    aside",
         "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade",
         "                                    your marked answers again",
         "                                    (.judgekeeper/fix/marked-answers.csv) and",
@@ -316,8 +318,8 @@ def test_screen_8_help(capsys):
         "  mark    mark more answers",
     ]
     assert lines[24:28] == [
-        "  fix     see where your LLM-as-a-judge goes wrong; with the results of grading",
-        "          your marked answers again, test a better rule on the marks kept aside",
+        "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
+        "          rule and test it on marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",
         "",
     ]

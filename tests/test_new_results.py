@@ -220,9 +220,8 @@ def _marked_inspect_log(here, capsys) -> tuple:
     assert "with `--output-file" not in said, said
     assert (f"else grade it with Inspect's score() in Python, as {fix.EVAL_TOOLS} shows.") in said
     assert fix.EVAL_TOOLS == "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
-    assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space "
-            "(Inspect reads `-S` values as YAML and cuts them at commas); else grade it with "
-            "Inspect's score() in Python") in said, said
+    assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space; "
+            "else grade it with Inspect's score() in Python") in said, said
     tools = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
     assert "- **A new rule with a comma, or a colon followed by a space.**" in tools
     return log, ws

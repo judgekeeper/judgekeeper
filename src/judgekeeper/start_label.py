@@ -103,8 +103,8 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER_ONLY = ("The result line uses wider ranges than these, so a few marks that agree by "
-              "coincidence can't decide it.")
+WIDER_ONLY = ("The Result line is more careful than these ranges, so a few marks that agree "
+              "by coincidence can't decide it.")
 WIDER = WIDER_ONLY + " You can look at the result after every mark."
 
 
@@ -115,7 +115,8 @@ def wider(r: dict) -> str:
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
 SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
-SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
+SAY_WHY_FIX = ("`{fix}` shows where your LLM-as-a-judge goes wrong, helps you write a better "
+               "rule and tests it on marks kept aside. It uses your reasons.")
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
 # Too early to tell, and only skipped answers left to mark (only_skipped): the result line in
@@ -124,7 +125,8 @@ ONLY_SKIPPED = ("Only your {n} skipped {answers} {are} left to mark: look at {th
                 "run your eval on more questions.")
 ONLY_SKIPPED_CARD = ("Only your {n} skipped {answers} {are} left. Look at {them} again, or run "
                      "your eval on more questions.")
-NEXT_ONLY_SKIPPED = "look at your skipped {answers} again with `{command}`, or " + NEXT_ALL_MARKED
+NEXT_ONLY_SKIPPED = ("look at your skipped {answers} again with `{command}`, or run your eval on "
+                     "more questions and run it again: the new answers join the ones you marked.")
 # ...said by `mark`, whose page is open: on the page, never the run just made again
 NEXT_ONLY_SKIPPED_PAGE = "look at your skipped {answers} again on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate

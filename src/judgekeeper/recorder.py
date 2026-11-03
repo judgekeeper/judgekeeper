@@ -201,8 +201,8 @@ def _warn(error: Exception) -> None:
             why = f"{type(error).__name__}: {error.strerror or ''} {error.filename or ''}".strip()
         else:
             why = type(error).__name__  # its text may hold the user's data
-        logger.warning("judgekeeper.record() could not save a verdict (%s). Your program goes "
-                       "on; any more it can't save are counted and said when it ends.", why)
+        logger.warning("judgekeeper.record() could not save a verdict (%s). Your program keeps "
+                       "running; any more it can't save are counted and said when it ends.", why)
     except Exception:  # noqa: BLE001, S110 - even a failed warning must not reach the program
         pass
 

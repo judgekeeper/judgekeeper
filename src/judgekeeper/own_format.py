@@ -24,7 +24,7 @@ from judgekeeper import find
 from judgekeeper.mapper import SCORE_WORDS, _words
 from judgekeeper.textio import jsonl_lines
 
-OWN_FORMAT_URL = "www.judgekeeper.com/start.html#own-format"
+OWN_FORMAT_URL = "https://www.judgekeeper.com/start.html#own-format"
 INSTALL_URL = "www.judgekeeper.com/start.html#install"
 RECORD_URL = OWN_FORMAT_URL  # the Guide's "Your own format" shows the record() line
 AGENT_PROMPT = """\
