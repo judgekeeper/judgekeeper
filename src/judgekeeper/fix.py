@@ -1148,7 +1148,8 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     found = name and locate(ws.root, name, test["old"])
     command = pass_mark_command(ws, pm, test)
     if found:
-        where = f"Change it in {found[0]}, line {found[1]}."
+        where = (f"Change it where your eval sets it. That may be in {found[0]}, "
+                 f"line {found[1]}.")
     elif command:  # one form: the check that re-checks it with that pass mark
         where = f"To use a pass mark of {new}, run `{command}`."
     else:
@@ -1230,6 +1231,9 @@ def _sessions_below(path: str) -> tuple[str, str] | None:
     return front.go_to_words(sessions, program("fix")) if sessions else None
 
 
+MAY_BE_IN = "Your LLM-as-a-judge's rule may be in"
+
+
 def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
     the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
@@ -1240,7 +1244,10 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     where = start_fix_rule.found_rule(ws.root, rule, tool, first=first)
     said = "Your LLM-as-a-judge's rule is in"
     if where and (not read or where[0] == read):
-        return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"
+        # in the file the eval tool reads it from, else a search's guess in the person's code
+        known = where[0] in (first, read)
+        return (f"{said if known else MAY_BE_IN} {link(ws.root / where[0], where[0])}, "
+                f"line {where[1]}")
     if read and read != task:
         file_link = start_fix_rule.file_link
         return (f"{said} {file_link(ws.root, read)}, which {file_link(ws.root, task)} reads "
@@ -2191,6 +2198,10 @@ def _copy_rule(ws: Workspace, data: dict) -> str | None:
     regrade = _folder(ws) / REGRADE_FILE
     line = _line_of(regrade, "value") if regrade.is_file() else None
     source = f" from {_file(ws, REGRADE_FILE)} (line {line})" if line else ""
+    if where[0] != first:  # found by a search of the person's code: a guess, not named
+        home = start_fix_rule.rule_home(ws.root, "promptfoo", data)
+        return (f"copy your new rule{source} into {home}" +
+                ("" if first else " in your promptfoo config"))
     return (f"copy your new rule{source} into {link(ws.root / where[0], where[0])} "
             f"(line {where[1]})")
 

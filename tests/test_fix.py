@@ -1100,6 +1100,39 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
         f"`judgekeeper check {new.name}` to re-check it on all your marks.")
 
 
+def test_a_rule_found_only_in_the_persons_own_code_is_a_may_be(here, capsys):
+    """No promptfoo config holds the rule: the line a search finds in a script of the
+    person's is where the rule may be, never where it is."""
+    ws = project(here)
+    (here / "promptfooconfig.yaml").unlink()
+    (here / "make_results.py").write_text(f'import json\n\nRUBRIC = "{RULE}"\n',
+                                          encoding="utf-8")
+    code, out = run(capsys)
+    flat = " ".join(out.split())
+    assert code == 0, out
+    assert "Your LLM-as-a-judge's rule may be in make_results.py, line 3:" in flat, flat
+    assert "rule is in make_results.py" not in flat
+    new = regraded(here)
+    code, out = run(capsys, new.name)
+    flat = " ".join(out.split())
+    assert code == 0, out
+    assert flat.endswith(
+        "Next: copy your new rule from .judgekeeper/fix/regrade.yaml (line "
+        f"{_value_line(ws)}) into the `value:` of the llm-rubric assert in your promptfoo "
+        f"config, then run `judgekeeper check {new.name}` to re-check it on all your marks.")
+    assert "make_results.py" not in flat
+
+
+def test_a_pass_mark_found_by_a_search_is_where_it_may_be_set(here):
+    """`threshold = 0.5` found in the person's code may be the pass mark, or may not."""
+    ws = project(here)
+    (here / "evals.py").write_text("import deepeval\n\nthreshold = 0.5\n", encoding="utf-8")
+    line = fix.pass_mark_line(ws, {"source": "deepeval"}, {
+        "verdict": "better", "new": 0.7, "old": 0.5, "fixed": 3, "broke": 0})
+    assert line.endswith("Change it where your eval sets it. That may be in evals.py, "
+                         "line 3."), line
+
+
 def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(
         here, capsys):
     project(here)
