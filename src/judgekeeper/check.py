@@ -1854,7 +1854,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
             if found is not None else None)
     if back:
         said.say(back)
-        for line in closed:
+        for line in closed:  # a paragraph of its own
+            said.say()
             said.say(line)
         if not (checks and checks[-1].get("trigger") == "back" and judge_setup.hash_of(
                 checks[-1].get("after") or {}) == judge_setup.hash_of(new)):  # once in history

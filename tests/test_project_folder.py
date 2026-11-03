@@ -758,12 +758,13 @@ def test_a_plain_run_back_on_the_marked_file_names_the_page_after_its_step(
         here, capsys, no_calls, monkeypatch):
     _taken_on_v2(here, capsys)
     stopped = _page_open(monkeypatch)
-    code, out, err = run(capsys, "evals/results.csv", "--no-browser", "--port", "0")
-    out = flat(out)
+    code, said, err = run(capsys, "evals/results.csv", "--no-browser", "--port", "0")
+    out = flat(said)
     assert code == 0 and stopped, out + err
     assert CLOSED_BACK in out, out
     assert out.index("Step 3 of 5: Measure") < out.index(CLOSED_BACK), out
     assert out.index("back to the one you marked with") < out.index(CLOSED_BACK), out
+    _page_line_stands_apart(said)
 
 
 def test_mark_back_on_the_marked_file_says_nothing_of_the_page(here, capsys, no_calls,
@@ -781,6 +782,14 @@ def test_a_check_back_on_the_marked_file_names_that_file_for_the_page(here, caps
     _page_open(monkeypatch)
     code, out, _ = run(capsys, "check", "evals/results.csv")
     assert code == 0 and CLOSED_BACK in flat(out), flat(out)
+    _page_line_stands_apart(out)
+
+
+def _page_line_stands_apart(out: str) -> None:
+    """The page's line is a paragraph of its own: a blank line before it."""
+    lines = out.splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("Your marking page closed"))
+    assert lines[at - 1] == "", out
 
 
 def test_a_check_that_takes_on_a_given_file_names_it_for_the_page(here, capsys, no_calls,

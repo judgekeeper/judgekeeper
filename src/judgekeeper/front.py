@@ -1918,8 +1918,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)  # the judge marked on
-        if not marking:
-            head.extend(closed)
+        if not marking and closed:
+            head.extend(["", *closed])  # a paragraph of its own
     elif elsewhere:
         head.append(CHECKED_FILE.format(file=elsewhere))
     elif changed or grades:
@@ -1986,10 +1986,7 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
     """Every answer is marked and a kind is still short: said, and no page (exit 3)."""
     talk.say(STEP.format(n=2, name="Mark"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
     first, step = _all_marked_lines(talk, ws, counts, saved)
     talk.para(first)
     if (waits := _waits(ws, StartSession(ws))) is not None:  # no eval run on more helps
@@ -2025,6 +2022,18 @@ def _wait_step(ws: Workspace) -> str:
     from judgekeeper import check as checking
 
     return "Next: " + checking.WAIT_NEXT.format(run=checking.wait_run(ws))
+
+
+def _say_head(talk: FrontTalk, head: list[str]) -> None:
+    """The lines under a step's header, each a paragraph ("" a blank line), then a blank
+    line."""
+    for line in head:
+        if line:
+            talk.para(line)
+        else:
+            talk.say()
+    if head:
+        talk.say()
 
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
@@ -2102,10 +2111,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if waits is not None:  # the step is grading them again, not more questions
             _say_waits(talk, waits)
         talk.say()
-        for line in head:
-            talk.para(line)
-        if head:
-            talk.say()
+        _say_head(talk, head)
         # disagreements the person can see: the result page, with its reason boxes (and its
         # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
@@ -2128,10 +2134,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         return EXIT_OK
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
     waits = _waits(ws, session) if n else None  # no line asks for a mark that can only wait
     if n:
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
@@ -2294,10 +2297,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     older results here, so the next one is given the new results file."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
     from judgekeeper import check as checking
     from judgekeeper import fix
 
