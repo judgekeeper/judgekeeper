@@ -1233,7 +1233,8 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
     left): then all_marked_lines' next step, as there are not enough left to mark until the
     eval runs on more questions. The one place this is decided. Its command is made again from
-    the flags result.json keeps, never its text."""
+    the flags result.json keeps, never its text, with the pass mark in use (start.json's, as
+    check.mark_here), also with no result.json yet."""
     from judgekeeper.start import command_from
 
     if _left_to_mark(ws) >= need:
@@ -1242,6 +1243,12 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
+    try:
+        pm = ws.data().get("pass_mark") or {}
+    except (OSError, ValueError, AttributeError):
+        pm = {}
+    if pm.get("source") == "pass_if" and isinstance(pm.get("rule"), str):
+        flags = {**(flags if isinstance(flags, dict) else {}), "pass_if": pm["rule"]}
     return NEXT_ALL_MARKED.format(command=mark_command(command_from(flags)))
 
 
