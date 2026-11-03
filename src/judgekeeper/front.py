@@ -108,6 +108,7 @@ REGRADED = ("Your answers were graded again in {file}, and {k} of your marked an
 HELD_WORSE = "Your last check found your LLM-as-a-judge in {file} worse, so {numbers}."
 NUMBERS_IN = "the numbers below still use the grades in {old}"
 NUMBERS_BEFORE = "the numbers below still use the grades from before"  # that file graded again
+NO_GRADES_HERE = "It has no Pass or Fail grades, so {numbers}."  # the newest results file
 READING = "Reading {file}."  # back to a file older than the last one read
 # A check took on the LLM-as-a-judge of a file elsewhere; the results here are older
 CHECKED_FILE = "This result is about your LLM-as-a-judge in {file}, the file your last check read."
@@ -2161,8 +2162,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
     elif not first and not regraded and _ran_again(ws, found):
-        head.append(RAN_AGAIN if not ws.data().get("checked_at")
-                    else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
+        if not (found.pool.n_pass or found.pool.n_fail):  # nothing was graded again
+            head.append(NO_GRADES_HERE.format(numbers=_graded_in(ws, found)))
+        else:
+            head.append(RAN_AGAIN if not ws.data().get("checked_at")
+                        else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
     if took:
         head.append(took)

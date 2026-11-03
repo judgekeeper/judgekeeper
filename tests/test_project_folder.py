@@ -1399,6 +1399,30 @@ def test_a_plain_check_and_a_plain_run_weigh_the_last_read_file_against_the_same
     assert len(asked[0]) == 2, asked
 
 
+def test_a_newest_file_with_no_grades_says_the_numbers_keep_the_old_ones(here, capsys, no_calls):
+    """A newer results file whose grades are all blank was not graded again: the run says
+    the numbers still use the grades the marks were checked with."""
+    import csv
+
+    table_project(here, split(20, 20), name="results.csv", model="gpt-test")
+    run(capsys)
+    _mark(Workspace(here))
+    run(capsys)
+    rows = list(csv.reader((here / "results.csv").open(encoding="utf-8", newline="")))
+    at = rows[0].index("verdict")
+    with (here / "blank.csv").open("w", encoding="utf-8", newline="") as f:
+        csv.writer(f).writerows([rows[0], *([*r[:at], "", *r[at + 1:]] for r in rows[1:])])
+    later = (here / "results.csv").stat().st_mtime + 10
+    os.utime(here / "blank.csv", (later, later))
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    out = flat(out + err)
+    assert code == 0, out
+    assert ("Reading blank.csv, the newest results here. It has no Pass or Fail grades, so the "
+            "numbers below still use the grades in results.csv. Result:") in out, out
+    assert "graded again" not in out, out
+
+
 def test_a_result_about_the_checked_file_names_no_other_file_read(here, capsys, no_calls):
     """After a check took on .judgekeeper/fix/new.csv, the plain run says the result is about
     that file, and never "Reading results.csv." above it."""
