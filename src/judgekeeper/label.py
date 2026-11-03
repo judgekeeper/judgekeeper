@@ -554,6 +554,11 @@ class LabelServer:
     def stop(self) -> None:
         self._stopped = True
 
+    @property
+    def stopped(self) -> bool:
+        """Whether stop() ended it (`--stop`, from another terminal too)."""
+        return self._stopped
+
     def finished(self) -> bool:
         """Every item labeled, none deferred: nothing is left for the page to offer."""
         items = getattr(self.session, "items", [])

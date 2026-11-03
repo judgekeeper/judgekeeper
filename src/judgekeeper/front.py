@@ -2440,6 +2440,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                                             ).replace("{", "{{").replace("}", "}}")
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
+        if getattr(opened.server, "stopped", False):  # --stop closed it: no link is open
+            next_step, waits = NEXT_CONTINUE, None
     talk.para(_wait_step(ws) if waits is not None
               else "Next: " + next_step.format(command=command))
     return EXIT_QUESTION if few else EXIT_OK  # too few answers: as fix and check exit
