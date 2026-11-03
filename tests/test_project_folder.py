@@ -656,8 +656,9 @@ def test_after_a_worse_check_the_judge_is_the_one_before_it(here, capsys, no_cal
 
 
 def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
-    """A check took on another model from a file outside the project; the project's own file,
-    graded by the model the marks were made with, is read again: "back", as for promptfoo."""
+    """A check took on another model from a file outside the project; a plain run keeps that
+    result, and the project's own file, typed, graded by the model the marks were made with,
+    is read again: "back", as for promptfoo."""
     verdicts = split(20, 20)
     table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
     assert run(capsys)[0] == 0
@@ -668,6 +669,9 @@ def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     outside = table_project(here.parent / "outside", other, model="bike-grader-v2")
     assert run(capsys, "check", str(outside))[0] == 0
     out = flat(run(capsys)[1])
+    assert "back to the one you marked with" not in out, out
+    assert "in ../outside/results.csv, the file your last check read." in out, out
+    out = flat(run(capsys, "evals/results.csv")[1])
     assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
             "marks' result still holds.") in out, out
     assert "changed since your marks" not in out
@@ -807,6 +811,59 @@ def test_a_page_that_is_still_there_after_it_was_closed_is_said_so(here, capsys,
             "To open it with this one, run `judgekeeper --stop`, then `judgekeeper mark "
             "evals/results.csv`.") in out, out
     assert "page closed" not in out, out
+
+
+def _first_and_new(tool: str, root, verdicts, new: bool) -> str:
+    """`tool`'s results for `verdicts`: the first ones in the project (False), or ones graded
+    by another LLM-as-a-judge in .judgekeeper/fix/ (True). Where they are, from `root`."""
+    from tests.start_projects import deepeval_data
+
+    if tool == "table":
+        name = ".judgekeeper/fix/new.csv" if new else "evals/results.csv"
+        table_project(root, verdicts, name=name, model="bike-grader-v2" if new else "bike-grader-v1")
+        return name
+    name = ".judgekeeper/fix/new.json" if new else (
+        "results.json" if tool == "promptfoo" else ".deepeval/.latest_run_full.json")
+    data = (promptfoo_data(verdicts, rubric="A new rule." if new else "The old rule.")
+            if tool == "promptfoo" else deepeval_data(verdicts, model="gpt-4.1-mini" if new
+                                                      else "gpt-4.1"))
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_text(json.dumps(data), encoding="utf-8")
+    return name
+
+
+@pytest.mark.parametrize("tool", ["table", "promptfoo", "deepeval"])
+def test_a_plain_run_after_a_check_of_a_file_in_fix_keeps_reading_it(here, capsys, no_calls,
+                                                                       tool):
+    """A check took on results in .judgekeeper/fix/, which the search never reads: a plain
+    run keeps its result, never goes back to the older results here."""
+    verdicts = split(20, 20)
+    _first_and_new(tool, here, verdicts, new=False)
+    assert run(capsys, "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(here)
+    _mark(ws)
+    run(capsys, "--no-browser", "--port", "0")  # the result
+    run(capsys, "--stop")
+    other = list(verdicts)
+    other[0] = not other[0]
+    name = _first_and_new(tool, here, other, new=True)
+    assert run(capsys, "check", name)[0] == 0
+    kept = judge_setup.read(ws)["setup_hash"], ws.data()["fingerprint"]
+    for _ in range(2):
+        code, out, err = run(capsys, "--no-browser", "--port", "0")
+        run(capsys, "--stop")
+        out = flat(out)
+        assert code == 0, out + err
+        assert "back to the one you marked with" not in out, out
+        assert (f"This result is about your LLM-as-a-judge in {name}, the file your last check "
+                "read.") in out, out
+        assert (judge_setup.read(ws)["setup_hash"], ws.data()["fingerprint"]) == kept
+    first = here / _first_and_new(tool, here, verdicts, new=False)  # the eval run again
+    later = (here / name).stat().st_mtime + 10
+    os.utime(first, (later, later))
+    out = flat(run(capsys, "--no-browser", "--port", "0")[1])
+    run(capsys, "--stop")
+    assert "back to the one you marked with" in out, out
 
 
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(

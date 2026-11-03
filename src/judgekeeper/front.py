@@ -1885,9 +1885,14 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
+    # A newer file the last check read, which the search never finds: its result stays,
+    # unless the file is typed (then it is the one to read, and may go back to the marked judge)
+    typed = Path(talk.path).is_file() or find.is_mlflow_folder(Path(talk.path))
+    elsewhere = None if first or typed else _checked_file(ws, found)  # older results here
     closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
-    back = None if first else check.back_to_marked(ws, found, talk.say, closed=closed)
-    elsewhere = None if first or back else _checked_file(ws, found)  # older results here
+    back = None if first or elsewhere else check.back_to_marked(ws, found, talk.say,
+                                                                closed=closed)
+    elsewhere = elsewhere or (None if first or back else _checked_file(ws, found))
     changed = [] if first or back or elsewhere else _changed(ws, found)
     grades = (0 if first or changed or back or elsewhere
               else check.grades_changed(ws, found))  # a table judge
