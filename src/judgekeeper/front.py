@@ -97,6 +97,8 @@ RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the on
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
 READING = "Reading {file}."  # back to a file older than the last one read
+# A check took on the LLM-as-a-judge of a file elsewhere; the results here are older
+CHECKED_FILE = "This result is about your LLM-as-a-judge in {file}, the file your last check read."
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -1776,15 +1778,33 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     return [] if talk.new else None
 
 
-def _graded_elsewhere(ws: Workspace, found: start.Found) -> bool:
-    """Whether the results `found` here are not the files start.json's grades were read from
-    (a check took on the LLM-as-a-judge of a file elsewhere)."""
+def _checked_file(ws: Workspace, found: start.Found) -> str | None:
+    """The file the last check read, named from here, when the marks test its LLM-as-a-judge
+    (that check was not held) and it is not one of the results `found` here, which are older:
+    those are no change to check. None otherwise."""
     try:
         data = ws.data()
-        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
-    except (OSError, ValueError, TypeError, AttributeError):
-        return False
-    return bool(files) and not _same_files(ws, data, files, found)
+    except (OSError, ValueError):
+        return None
+    from judgekeeper import check as checking
+
+    read = data.get("results_read")
+    checks = checking._history(ws)
+    if not isinstance(read, str) or not read or not checks or not found.results:
+        return None
+    last = checks[-1]
+    if last.get("kind") != "check" or any(
+            isinstance(g, dict) and g.get("exit_worse") for g in (last.get("groups") or {}).values()):
+        return None
+    path = Path(textio.kept_at(read, ws.root))
+    try:
+        if any(os.path.samefile(r.path, path) for r in found.results):
+            return None
+        if path.stat().st_mtime <= found.results[0].path.stat().st_mtime:
+            return None
+    except OSError:
+        return None
+    return Path(textio.shown_from_here(path)).as_posix()
 
 
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
@@ -1845,23 +1865,22 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
     back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
-    changed = [] if first or back else _changed(ws, found)
-    grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
-    once = grades and _graded_elsewhere(ws, found)  # a check took on another file: said once
-    if once and ws.data().get("results_seen") == batches.results_key(found):
-        grades = 0
+    elsewhere = None if first or back else _checked_file(ws, found)  # older results here
+    changed = [] if first or back or elsewhere else _changed(ws, found)
+    grades = (0 if first or changed or back or elsewhere
+              else check.grades_changed(ws, found))  # a table judge
     added = 0
-    if not (first or changed or back or grades):
+    if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)
+    elif elsewhere:
+        head.append(CHECKED_FILE.format(file=elsewhere))
     elif changed or grades:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
                     else check.GRADES.format(k=grades))
-        if grades and once:
-            batches.seen(ws, found)
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
@@ -1883,7 +1902,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         ws.data(), batches.graded(ws.data(), session.marked())))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
-        return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
+        return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
+                       elsewhere=bool(elsewhere))
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -2128,11 +2148,15 @@ def verdict_line(r: dict) -> str | None:
 
 def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     """When the judge's rule or model changed since marking started (or since the check that
-    moved the marks to a new judge): which judge the result is about, as it was then."""
+    moved the marks to a new judge), or a check was held: which judge the result is about,
+    as it was then."""
+    from judgekeeper import check as checking
+
     data = ws.data()
     same_rule = rule_hash(data.get("rule")) == rule_hash(scrub(found.rule))  # as start.json
     now = scrub_fingerprint(found.fingerprint)  # as start.json keeps it
-    if same_rule and not judge_setup.judge_change(data["fingerprint"], now):
+    if (same_rule and not judge_setup.judge_change(data["fingerprint"], now)
+            and checking.open_worse(ws, found, held=True) is None):  # a held check: as it was
         return None
     head = marks.read(ws.marks).header or {}
     checked = data.get("checked_at")  # the judge a check moved the marks to (check._adopt)
@@ -2162,9 +2186,11 @@ def _fix_command(talk: FrontTalk) -> str:
 
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
-            head: list[str], check: bool = False) -> int:
+            head: list[str], check: bool = False, elsewhere: bool = False) -> int:
     """Step 3: the result from the marks, saved; whether the page is open. `check`: the
-    judge changed since the marks, so the Next: line is `judgekeeper check`."""
+    judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
+    marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
+    older results here, so the next one is given the new results file."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
     for line in head:
@@ -2292,6 +2318,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             command=_command_of(talk, saved, "mark"))
     elif step == "fix":
         next_step = NEXT_FIX.format(command=_fix_command(talk))
+    elif elsewhere:
+        next_step = checking.NEXT_SAME_FILE.removeprefix("Next: ").format(
+            command=f"{program('check')} {checking.NEW_RESULTS}")
     else:
         next_step = NEXT_RESULT.format(command=_check_command(talk))
     talk.para("Next: " + next_step)

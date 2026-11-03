@@ -2224,11 +2224,12 @@ def last_check(ws: Workspace) -> dict | None:
     return {"judge": ", ".join(names) or None, "lines": lines}
 
 
-def open_worse(ws: Workspace, found) -> dict | None:
+def open_worse(ws: Workspace, found, held: bool = False) -> dict | None:
     """The last check, when it found the judge in the newest results (`found`) worse than the
     one the marks test, and no mark was made since: checking again says the same, so the next
-    step is worse_step. For a judge whose results hold no rule (a table), only while its grades
-    are the ones that check saw. None otherwise."""
+    step is worse_step. `held`: any check that kept the marks on the judge before it ("Worse",
+    or "Not sure" with a big drop), marks made since or not. For a judge whose results hold no
+    rule (a table), only while its grades are the ones that check saw. None otherwise."""
     saved = judge_setup.read(ws)
     checks = _history(ws)
     if saved is None or not checks:
@@ -2237,14 +2238,14 @@ def open_worse(ws: Workspace, found) -> dict | None:
     if (judge_setup.hash_of(last.get("before") or {}) != saved["setup_hash"]
             or judge_setup.hash_of(last.get("after") or {}) != judge_setup.hash_of(now)):
         return None
-    if not any(isinstance(g, dict) and g.get("verdict") == "worse"
+    if not any(isinstance(g, dict) and (g.get("verdict") == "worse" or held and g.get("exit_worse"))
                for g in (last.get("groups") or {}).values()):
         return None
     read = marks.read(ws.marks)
     data = ws.data()
     counted = batches.counted_labels(data, read.counted())  # as check: not a waiting batch's
     time = str(last.get("time") or "")
-    if any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
+    if not held and any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
         return None
     if now.get("rule_hash") is None:  # a table: the same grades as that check saw
         old = {**{q["id"]: q["group"] for q in data.get("queue") or []},

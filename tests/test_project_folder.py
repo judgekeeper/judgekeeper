@@ -564,15 +564,6 @@ def test_after_a_worse_check_the_judge_is_the_one_before_it(here, capsys, no_cal
             "last check, so your marks still test it.") in out, out
 
 
-def test_grades_changed_after_a_check_of_another_file_is_said_once(here, capsys, no_calls):
-    """A check took on the LLM-as-a-judge of a file outside the project; the project's own
-    results still hold the grades from before: said on the next run, not on every run."""
-    _checked_outside(here, capsys, worse=False)
-    line = "Your LLM-as-a-judge's grades changed on 7 of your marked answers."
-    assert line in flat(run(capsys)[1])
-    assert line not in flat(run(capsys)[1])
-
-
 def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     """A check took on another model from a file outside the project; the project's own file,
     graded by the model the marks were made with, is read again: "back", as for promptfoo."""
@@ -598,6 +589,56 @@ def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
     _checked_outside(here, capsys, worse=False)
     out = flat(run(capsys)[1])
     assert "Reading evals/support-evals.csv." in out and "the newest" not in out, out
+
+
+def test_after_a_check_of_a_file_outside_plain_runs_name_that_file(here, capsys, no_calls):
+    """The marks test the LLM-as-a-judge of a file outside the project; the project's own
+    file is older: every plain run says the result is about the file the check read, never
+    "grades changed" nor a plain `check` (that would re-check the older file)."""
+    _checked_outside(here, capsys, worse=False)
+    for _ in range(2):
+        out = flat(run(capsys)[1])
+        assert ("This result is about your LLM-as-a-judge in ../outside/results.csv, the file "
+                "your last check read.") in out, out
+        assert "grades changed" not in out and "the newest" not in out, out
+        assert ("Next: nothing to do. After you change your LLM-as-a-judge again, run "
+                "`judgekeeper check <new results file>`.") in out, out
+
+
+def _held_table(here, capsys, verdict: str) -> None:
+    """Marked as the person; a check took on v2; v3 graded 11 marks wrong, and `check` held it
+    (its saved verdict set to `verdict`, still held: "not_sure" with a big drop)."""
+    person = split(15, 15)
+
+    def flip(idx):
+        return [(not x) if i in idx else x for i, x in enumerate(person)]
+
+    table_project(here, flip({0, 1, 15, 16}), name="results.csv")
+    run(capsys)
+    _mark(Workspace(here), {i: "pass" if v else "fail" for i, v in enumerate(person)})
+    run(capsys)
+    table_project(here, flip({2, 3, 17, 18}), name="results-v2.csv")
+    assert run(capsys, "check", "results-v2.csv")[0] == 0
+    table_project(here, flip(set(range(6)) | set(range(15, 20))), name="results-v3.csv")
+    assert run(capsys, "check", "results-v3.csv")[0] == 1
+    history = Workspace(here).history_jsonl
+    lines = history.read_text(encoding="utf-8").splitlines()
+    last = json.loads(lines[-1])
+    for g in last["groups"].values():
+        if isinstance(g, dict) and g.get("verdict") == "worse":
+            g["verdict"] = verdict
+    history.write_text("\n".join([*lines[:-1], json.dumps(last)]) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("verdict", ["worse", "not_sure"])
+def test_after_a_held_check_every_plain_run_says_which_judge_it_is_about(here, capsys, no_calls,
+                                                                         verdict):
+    """The check found the new results worse (or not sure, with a big drop), so the marks
+    still test the LLM-as-a-judge from before it: every plain run on those results says so."""
+    _held_table(here, capsys, verdict)
+    for _ in range(2):
+        out = flat(run(capsys)[1])
+        assert "This result is about your LLM-as-a-judge as it was" in out, out
 
 
 def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
