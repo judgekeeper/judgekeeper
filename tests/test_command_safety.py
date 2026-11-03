@@ -410,7 +410,7 @@ def test_report_html_names_the_program_plainly_when_typed_as_a_path(tmp_path, mo
     assert f"{TYPED} " in out  # the terminal: as typed, so it runs as printed here
     html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
     assert "venv/bin" not in html
-    assert "judgekeeper mark --no-browser" in html
+    assert "judgekeeper mark --port 0 --no-browser" in html  # the run's flags, as the terminal
 
 
 def test_report_html_names_uvx_when_uvx_started_it(tmp_path, monkeypatch, capsys):
@@ -507,7 +507,8 @@ def test_the_result_commands_run_in_the_project_folder_after_a_run_from_above(tm
     for name in ("run", "check", "fix", "more"):
         assert "proj" not in commands[name], commands
     html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
-    assert "judgekeeper mark proj" not in html and "judgekeeper mark --no-browser" in html
+    assert "judgekeeper mark proj" not in html
+    assert "judgekeeper mark --port 0 --no-browser" in html  # the run's flags, as the terminal
 
 
 def test_on_windows_a_line_for_another_project_never_names_the_home_folder(tmp_path,

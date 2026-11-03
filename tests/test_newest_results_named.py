@@ -43,10 +43,13 @@ def test_a_newer_results_file_is_named(here, capsys, marked):
     first = _run(capsys)
     assert "Reading" not in first
     session = StartSession(Workspace(here))
+    changed = False  # answers 30 to 39 get another grade in new-rule.csv
     for item in session.items[:marked]:
         session.update({"id": item["id"], "label": session.groups[item["id"]], "seconds": 4})
+        changed |= 30 <= int(re.search(r"Question (\d+)", str(session.raw[item["id"]]["input"]))[1]) < 40
     _newer(table_project(here, split(30, 50), name="new-rule.csv"))
-    assert NEWEST in _run(capsys)
+    said = _run(capsys)  # with other grades on marked answers, the line that says whose
+    assert (NEWEST if not changed else "Your answers were graded again in new-rule.csv,") in said
 
 
 def test_the_same_file_again_is_not_named(here, capsys):

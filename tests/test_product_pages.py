@@ -792,7 +792,7 @@ def test_the_mark_line_comes_after_the_next_step():
 def test_the_mark_command_keeps_the_flags_of_the_run():
     r = _result(*GATE, flags={"path": "evals/app", "port": 9000})
     mark = report_page.commands(r)["mark"]
-    assert mark == f"{program('mark')} evals/app"
+    assert mark == f"{program('mark')} evals/app --port 9000"  # as the terminal names it
     assert TO_MARK_MORE.format(mark=mark) in _html(r)
     assert CLOSED.format(mark=mark) in _html(r, "/?token=t")
 
