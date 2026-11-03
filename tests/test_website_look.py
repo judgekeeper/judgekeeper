@@ -675,14 +675,13 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     (bar,) = _all(win, "div", "rt-bar")
     assert _flat(_all(bar, "span", "rt-title")[0]) == "public datasets"
     tiles = _all(win, "a", "rt")
-    assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["Real-data check",
-                                                                    "JailbreakBench"]
-    # what the real-data check covers first, then the one number
+    assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
+                                                                    "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "with human labels, where the TPR and TNR ranges were checked against the true values",
         ("random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at "
-         "once")]
-    assert [len(_all(t, "span", "rt-n")) for t in tiles] == [0, 1]
+         "once (another run gives a slightly different count)"),
+        "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
+    assert [len(_all(t, "span", "rt-n")) for t in tiles] == [1, 1]  # each a green number
     for tile in tiles:
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")

@@ -225,7 +225,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
     expected = {
         "docs/examples/jailbreakbench/report.md": (held, f"{held} of {draws['draws']}"),
-        "docs/examples/real-data-check/report.md": (None, f"{len(REALCHECK['data'])} datasets"),
+        "docs/examples/real-data-check/report.md": (round(mean * 100), f"{round(mean * 100)} in 100"),
     }
     tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
     found = {}
@@ -239,9 +239,9 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         found[report] = (int(counts[0].attrs["data-to"]) if counts else None,
                          " ".join(big.text().split()))
         if "jailbreakbench" in report:  # the count is of draws with all three inside
-            assert line.text().strip().startswith(
+            assert " ".join(line.text().split()) == (
                 "random tests (100 marks each) where the ranges held the true TPR, TNR and kappa "
-                "at once"), report
+                "at once (another run gives a slightly different count)"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
