@@ -21,7 +21,7 @@ from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import answer
 from tests.test_labels_import import flat, here, run, table, write_labels  # noqa: F401
 
-GATE = ("Mark {n} more answers on the page to check the marks from {name}. Until then, it's "
+GATE = ("Mark at least {n} more answers on the page to check the marks from {name}. Until then, it's "
         "too early to tell.")  # locked, word for word; n > 1
 OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers your "
        "LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of those you "
@@ -122,7 +122,7 @@ def test_after_15_page_marks_in_each_group_the_verdict_is_as_usual(here, capsys)
     _page(ws, {i: "pass" for i in range(20, 34)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys)
     assert _result(ws)["import_gate"] == 1  # 14 in the pass group: one more
-    assert ("Mark 1 more answer on the page to check the marks from mine.csv. Until then, it's "
+    assert ("Mark at least 1 more answer on the page to check the marks from mine.csv. Until then, it's "
             "too early to tell.") in flat(out), out
     # no "A result needs" right under "Result: too early to tell", which is a result
     assert "A result with marks" not in flat(out)

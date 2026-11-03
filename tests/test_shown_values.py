@@ -111,13 +111,16 @@ def test_a_kappa_range_that_reads_the_same_shows_the_number_alone():
 
 def test_with_a_newer_batch_unmarked_the_bracket_names_the_answers_it_counts():
     why = {k: report_page.why_for(ONE_BATCH, k) for k in ("tpr", "tnr", "kappa")}
-    assert why == {
-        "tpr": "you marked every answer it failed in the 300 answers this result is on",
-        "tnr": "you marked every answer it passed in the 300 answers this result is on",
-        "kappa": "you marked every answer in the 300 answers this result is on"}
+    assert why == {k: "you marked all 300 answers it is on" for k in ("tpr", "tnr", "kappa")}
     lines = front.estimate_lines(ONE_BATCH)
-    assert ("  When you say Pass, it also says Pass: 69% (you marked every answer it failed in "
-            "the 300 answers this result is on)") in lines
+    assert ("  When you say Pass, it also says Pass: 69% (you marked all 300 answers it is "
+            "on)") in lines
+
+
+def test_with_a_newer_batch_and_some_counted_answers_left_the_bracket_names_them():
+    r = {**ONE_BATCH, "left": 60}
+    assert report_page.why_for(r, "tpr") == (
+        "you marked every answer it failed in the 300 answers this result is on")
 
 
 def test_with_every_batch_counted_the_bracket_stays_short():
