@@ -913,6 +913,25 @@ def test_after_a_check_of_a_file_elsewhere_the_project_file_is_not_called_the_ne
     assert all("the newest" not in out for out in said), said
 
 
+@pytest.mark.parametrize(("graded", "taken"), [(AS_MARKED, True),
+                                               ([not v for v in AS_MARKED], False)])
+def test_a_check_that_takes_on_a_new_judge_closes_the_open_page(here, capsys, graded, taken):
+    """The open page would still show the old LLM-as-a-judge: a check that takes on a new one
+    closes it, so the next `mark` opens it fresh; after "Worse" nothing changed, so it stays."""
+    from judgekeeper.label import is_open
+    from tests.test_fix import closed
+
+    ws = _all_marked_promptfoo(here, capsys)
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    assert is_open(ws.dir)
+    try:
+        _rubric(here, graded, RULE_B, name="new.json")
+        assert _check(capsys, "new.json")[0] == (0 if taken else 1)
+        assert is_open(ws.dir) is not taken
+    finally:
+        closed(ws)
+
+
 def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(here, capsys):
     """After `fix` and a check that took on the new rule, `check` on the results the marks were
     made from says "back" every time (it said "Worse" from the second check on)."""

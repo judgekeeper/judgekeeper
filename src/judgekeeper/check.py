@@ -1883,6 +1883,7 @@ def full(path: str, said: Said) -> int:
         judge_setup.save(state.ws, new, found.metric)
         with page.one_at_a_time(state.ws.dir, said.say):  # two runs at once: one writes
             _adopt(state.ws, found, tested)
+        _close_page(state.ws)
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held, worse=worse_step(
         old, new, start.kept_check(state.path, state.ws.root), state.ws, kept=True)
@@ -2269,11 +2270,14 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
     graded = lookup(found, list(marks.read(ws.marks).counted()), ws)[0]
     if any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None
+    restored = saved["setup_hash"] != judge_setup.hash_of(now)
     with page.one_at_a_time(ws.dir, say):  # two runs at once: one writes
-        if saved["setup_hash"] != judge_setup.hash_of(now):
+        if restored:
             _restore(ws, found, now)
         # the marks' grades from this judge: the next change is compared with them
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
+    if restored:
+        _close_page(ws)
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     return BACK.format(model=", ".join(names) or "model not named")
 
@@ -2294,6 +2298,16 @@ def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
     if left:
         data["earlier_grades"] = left
     _write_json(ws.start, data)
+
+
+def _close_page(ws: Workspace) -> None:
+    """The marks test another judge now: an open marking page would still show the one
+    before, so it closes (as for a new batch), and the next `mark` opens it fresh."""
+    from judgekeeper import background
+    from judgekeeper.label import is_open
+
+    if is_open(ws.dir):
+        background.stop(ws.dir)
 
 
 def _restore(ws: Workspace, found, setup: dict) -> None:
