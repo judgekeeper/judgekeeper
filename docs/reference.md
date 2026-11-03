@@ -28,7 +28,19 @@ Each run does the next step. A result needs at least 15 Pass and 15 Fail marks f
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
-New answers from the same LLM-as-a-judge join as a new batch. Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). With none, it starts one in the folder you run it in. Run from `/` or a folder above your home folder, it starts nothing: it asks you to go to your project folder (exit 3). A results file in the same folder as the results that `.judgekeeper/` reads uses it too when it is the same eval (read the same way, with questions it holds). Another eval in that folder is never read, marked or taken as a changed LLM-as-a-judge: a plain run keeps reading the marked file and says so, and naming it (`judgekeeper FILE`, `mark FILE`, `check FILE`, `fix FILE`) says so and exits 3. To mark it, put it in a folder of its own and run `judgekeeper` there. Results in a folder of their own get their own `.judgekeeper/` in their folder. If you run it in a folder with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there. It stops the same way when results are in two or more folders right below it and none are in it: it names them, and you check one at a time from its own folder (DeepEval and Inspect AI results in several folders are asked about instead). judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file ([What it reads](#what-it-reads)).
+New answers from the same LLM-as-a-judge join as a new batch.
+
+Which `.judgekeeper/` a command uses:
+
+- Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). With none, it starts one in the folder you run it in.
+- Run from `/` or a folder above your home folder, it starts nothing: it asks you to go to your project folder (exit 3).
+- A results file in the same folder as the results that `.judgekeeper/` reads uses it too when it is the same eval (read the same way, with questions it holds).
+- Another eval in that folder is never read, marked or taken as a changed LLM-as-a-judge: a plain run keeps reading the marked file and says so, and naming it (`judgekeeper FILE`, `mark FILE`, `check FILE`, `fix FILE`) says so and exits 3. To mark it, put it in a folder of its own and run `judgekeeper` there.
+- Results in a folder of their own get their own `.judgekeeper/` in their folder.
+- If you run it in a folder with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there.
+- It stops the same way when results are in two or more folders right below it and none are in it: it names them, and you check one at a time from its own folder (DeepEval and Inspect AI results in several folders are asked about instead).
+
+judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file ([What it reads](#what-it-reads)).
 
 | Flag | What it does |
 |---|---|
@@ -52,7 +64,13 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
 
-The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run uses the same page after checking it is judgekeeper's, for this project. It opens no new tab: at your terminal it prints the link; with no terminal it prints no link and says to run with `--no-browser` to print it. It keeps the open page whatever its `--port` and `--no-browser`; with other flags it starts the page again, and says so (it prints a new link). Marks made through the program in `BROWSER`, or from a link printed with no terminal (another program, such as a coding agent, read the output), are stamped so, and the result counts them. A link printed at your terminal is not stamped.
+The page runs on 127.0.0.1 with a random token in its link.
+
+- The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files.
+- The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent).
+- It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon.
+- While the page is open, its token is in `.judgekeeper/server.json`, so a second run uses the same page after checking it is judgekeeper's, for this project. It opens no new tab: at your terminal it prints the link; with no terminal it prints no link and says to run with `--no-browser` to print it. It keeps the open page whatever its `--port` and `--no-browser`; with other flags it starts the page again, and says so (it prints a new link).
+- Marks made through the program in `BROWSER`, or from a link printed with no terminal (another program, such as a coding agent, read the output), are stamped so, and the result counts them. A link printed at your terminal is not stamped.
 
 On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`. The parts of your rule are buttons too: at most 6, the first five and the last; for a part with no button, use “Other…”.
 
@@ -125,7 +143,20 @@ judgekeeper fix [PATH] [--new]
 | Your own code, with `record()` | Grade `marked-answers.csv` with your own code, call `judgekeeper.record()` again on the new grades, then run `judgekeeper fix .judgekeeper/records/<new file>`. |
 | A format of its own | Grade `marked-answers.csv` with your own code, and save the new grades in the same shape as your results file. |
 
-**The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options. It looks for the answers kept aside. It matches a marked answer only when the question and the answer text are exactly the same. A row in the results with no question is never an answer you marked with one. If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3). One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded. With more than half of the answers kept aside ungraded, it gives no result and asks you to grade them again (exit 3). This holds for a rule tested before too. Otherwise a rule tested before gets its saved result, with the file and day it came from and how many answers this file leaves ungraded. A file graded with the same rule and model is the same LLM-as-a-judge to judgekeeper, so it gets that saved result too; when its grades on the answers kept aside differ, it says on how many. To test them as a new LLM-as-a-judge, change its rule and grade again. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
+**The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options.
+
+It looks for the answers kept aside. It matches a marked answer only when the question and the answer text are exactly the same. A row in the results with no question is never an answer you marked with one.
+
+- If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3).
+- One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded.
+- With more than half of the answers kept aside ungraded, it gives no result and asks you to grade them again (exit 3). This holds for a rule tested before too.
+- Otherwise a rule tested before gets its saved result, with the file and day it came from and how many answers this file leaves ungraded.
+- A file graded with the same rule and model is the same LLM-as-a-judge to judgekeeper, so it gets that saved result too; when its grades on the answers kept aside differ, it says on how many. To test them as a new LLM-as-a-judge, change its rule and grade again.
+- A grade word it doesn't know stops it, as in step 1 (exit 3).
+- An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each.
+- The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3).
+
+On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
 
 | Result | When |
 |---|---|
