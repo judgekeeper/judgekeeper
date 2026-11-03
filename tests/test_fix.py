@@ -1537,6 +1537,31 @@ def test_the_mistakes_line_names_both_kinds(easy, strict, said):
     assert " ".join(first) == f"Your LLM-as-a-judge made {easy + strict} mistakes. {said}"
 
 
+def _clues(rows: list[dict]) -> str:
+    return " ".join(" ".join(p) for p in fix.patterns(rows) if p[0].startswith("Words found"))
+
+
+def test_a_word_of_the_format_or_in_most_answers_is_no_clue():
+    """"The answer is 72." in every mistake: "answer" is the format's word, never a clue.
+    A word in more than half of all marked answers is left out too."""
+    rows = ([{"judge": "pass", "final": "fail", "output": "The answer is 72."}] * 6
+            + [{"judge": "pass", "final": "pass", "output": "Paris."}] * 14)
+    assert _clues(rows) == ""
+    rows = ([{"judge": "pass", "final": "fail", "output": "Planet Mercury."}] * 6
+            + [{"judge": "pass", "final": "pass", "output": "Planet Venus."}] * 4
+            + [{"judge": "pass", "final": "pass", "output": "Paris."}] * 2)
+    assert "planet" not in _clues(rows) and "mercury (6)" in _clues(rows)  # 10 of 12, 6 of 12
+
+
+def test_a_strong_clue_in_a_skewed_split_still_shows():
+    """8 of 10 mistakes and 10 of 50 agreed answers say "sorry": 18 of 60 answers, a clue."""
+    rows = ([{"judge": "fail", "final": "pass", "output": "Sorry, I can't say."}] * 8
+            + [{"judge": "fail", "final": "pass", "output": "Ten."}] * 2
+            + [{"judge": "pass", "final": "pass", "output": "Sorry, it's ten."}] * 10
+            + [{"judge": "pass", "final": "pass", "output": "Twelve."}] * 40)
+    assert "sorry (8)" in _clues(rows), fix.patterns(rows)
+
+
 def test_every_printed_pass_if_is_quoted_one_way(here, capsys):
     """Over fix, a check whose pass mark is worse, one that is not sure, and a plain run:
     each --pass-if value is quoted as quote_arg quotes it, so one output has one style."""

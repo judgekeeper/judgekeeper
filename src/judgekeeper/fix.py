@@ -210,7 +210,9 @@ STOPWORDS = frozenset((
     "that", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this",
     "those", "though", "through", "under", "until", "upon", "very", "want", "well", "were",
     "what", "when", "where", "whether", "which", "while", "will", "with", "within", "without",
-    "would", "your", "yours", "yourself", "yourselves"))
+    "would", "your", "yours", "yourself", "yourselves",
+    # words about an eval's format, not its content ("The answer is 72.")
+    "answer", "answers", "question", "questions", "response", "responses"))
 
 
 # The marks ----------------------------------------------------------------------------------
@@ -726,10 +728,13 @@ def patterns(rows: list[dict], mark: float | None = None,
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
         in_agreed = Counter(w for m in agreed for w in _words(m["output"]))
+        in_all = Counter(w for m in rows for w in _words(m["output"]))
         k = len(agreed)
         strong = []
         for word, a in in_wrong.items():
             b = in_agreed[word]
+            if in_all[word] * 2 > len(rows):  # in most answers: it says nothing about mistakes
+                continue
             odds = (math.log((a + 0.5) / (n - a + 0.5))
                     - math.log((b + 0.5) / (k - b + 0.5)))
             if a >= WORD_IN and a * WORD_SHARE >= n and odds >= STRONG:
