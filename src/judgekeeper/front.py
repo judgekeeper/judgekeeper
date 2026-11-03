@@ -2135,7 +2135,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(back)  # the judge marked on
         if not marking and closed:
             head.extend(["", *closed])  # a paragraph of its own
-    elif elsewhere:
+    elif elsewhere:  # the result is about that file, not the one read here
+        head[:] = [x for x in head if x != newest]
         head.append(CHECKED_FILE.format(file=elsewhere))
         if typed:  # an older file typed: every command given names the file the result is about
             talk.path = elsewhere

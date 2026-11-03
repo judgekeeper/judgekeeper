@@ -900,7 +900,8 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
 def test_after_a_check_of_a_file_elsewhere_the_project_file_is_not_called_the_newest(
         here, capsys, name):
     """The check read a newer file in another folder: a plain run back on the project's own
-    file says "Reading results.json.", never "the newest results here"."""
+    file says the result is about that file, never "Reading results.json." or "the newest
+    results here"."""
     _all_marked_promptfoo(here, capsys)
     old = time.time() - 120
     os.utime(here / "results.json", (old, old))
@@ -909,8 +910,8 @@ def test_after_a_check_of_a_file_elsewhere_the_project_file_is_not_called_the_ne
     _rubric(path.parent, AS_MARKED, RULE_B, name=path.name)
     assert _check(capsys, name)[0] == 0
     said = [flat(_jk(capsys)[1]) for _ in range(2)]
-    assert "Reading results.json." in said[0], said[0]
-    assert all("the newest" not in out for out in said), said
+    assert f"This result is about your LLM-as-a-judge in {name}," in said[0], said[0]
+    assert all("the newest" not in out and "Reading" not in out for out in said), said
 
 
 @pytest.mark.parametrize(("graded", "taken"), [(AS_MARKED, True),

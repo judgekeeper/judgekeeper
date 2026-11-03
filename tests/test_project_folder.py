@@ -936,10 +936,12 @@ def test_a_plain_run_after_a_check_of_a_file_in_fix_keeps_reading_it(here, capsy
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
         here, capsys, no_calls):
     """The check read a newer file outside the project: a plain run on the project's file
-    says "Reading evals/support-evals.csv.", never "the newest results here"."""
+    says the result is about that file, never "Reading evals/support-evals.csv." or "the
+    newest results here"."""
     _checked_outside(here, capsys, worse=False)
     out = flat(run(capsys)[1])
-    assert "Reading evals/support-evals.csv." in out and "the newest" not in out, out
+    assert "Step 3 of 5: Measure This result is about your LLM-as-a-judge in " in out, out
+    assert "Reading" not in out and "the newest" not in out, out
 
 
 def test_after_a_check_of_a_file_outside_plain_runs_name_that_file(here, capsys, no_calls):
@@ -1395,3 +1397,24 @@ def test_a_plain_check_and_a_plain_run_weigh_the_last_read_file_against_the_same
         run(capsys, *argv)
     assert len(asked) == 3 and asked[0] == asked[1] == asked[2], asked
     assert len(asked[0]) == 2, asked
+
+
+def test_a_result_about_the_checked_file_names_no_other_file_read(here, capsys, no_calls):
+    """After a check took on .judgekeeper/fix/new.csv, the plain run says the result is about
+    that file, and never "Reading results.csv." above it."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="results.csv", model="gpt-test")
+    run(capsys)
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # not worse: taken on
+    table_project(here, other, name=".judgekeeper/fix/new.csv", model="gpt-test-2")
+    assert run(capsys, "check", ".judgekeeper/fix/new.csv")[0] == 0
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    out = flat(out + err)
+    assert code == 0, out
+    assert ("Step 3 of 5: Measure This result is about your LLM-as-a-judge in "
+            ".judgekeeper/fix/new.csv, the file your last check read. Result:") in out, out
+    assert "Reading results.csv" not in out, out
