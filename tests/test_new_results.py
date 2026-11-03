@@ -237,6 +237,9 @@ def test_check_gives_no_grader_model_the_newest_log_does_not_name(monkeypatch):
     assert "-S model" not in fix.inspect_score(ws, "x", now={"read": True, "rule": "r"})
     given = fix.inspect_score(ws, "x", now={"read": True, "rule": "r", "model": "mockllm/g2"})
     assert "-S model=mockllm/g2" in given, given
+    both = fix.inspect_score(ws, "x", now={"read": True, "rule": "r", "model": "mockllm/g4",
+                                           "role": "mockllm/grader3"})
+    assert "-S model=mockllm/g4" in both, both  # the newest log's scorer names it: it grades
     assert "-S model=mockllm/grader" in fix.inspect_score(ws, "x", now={"rule": "r"})
     assert "-S model=mockllm/grader" in fix.inspect_score(ws, "x")
 

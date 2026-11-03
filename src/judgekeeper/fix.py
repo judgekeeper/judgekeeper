@@ -1909,7 +1909,8 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
     `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule.
     `now` (check): the LLM-as-a-judge as it is now (now_options): its rule when `-S` can take
     it, its grader model, its grader role. The marked log's grader model only when the newest
-    results could not be read, and never with a grader role: `model` wins over the role."""
+    results could not be read, and never with a grader role: `model` wins over the role, so
+    only a model the newest log's scorer names goes with one."""
     log = _marked_log(ws)[0]
     try:
         data = ws.data()
@@ -1928,8 +1929,8 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
     option = f" -S {field}={quote_arg(value)}" if rule and field else ""
     role = (now or {}).get("role")
     model = (now or {}).get("model") if (now or {}).get("read") else (
-        _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None)
-    option += f" -S model={quote_arg(model)}" if model and not role else ""
+        _scorer_model(ws, log, scorer) if log and scorer != "<name>" and not role else None)
+    option += f" -S model={quote_arg(model)}" if model else ""
     option += f" --model-role grader={quote_arg(role)}" if role else ""
     command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
                                    rule=option)
