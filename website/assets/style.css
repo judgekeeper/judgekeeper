@@ -383,7 +383,7 @@ td:first-child { min-width: 14ch; }
 .gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
 /* a window like Home's: the install card */
 .gwin { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
-.gwin-body { padding: 22px 28px 24px; display: grid; gap: 10px; }
+.gwin-body { padding: 22px 28px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 /* the install card: pip and uv, both in view, one command per box, all the same width */
 .gx-install { display: flex; flex-direction: column; gap: 16px; }
 .gx-way-h { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
@@ -492,6 +492,8 @@ html.has-view, html.has-view body { overflow: hidden; }
   .gm-pre .t-dim { display: block; padding-left: 2ch; }
   .term-out { white-space: pre-wrap; overflow-wrap: anywhere; height: auto; }
   .gx-text .gx-tap { display: block; }
+  /* a command in a sentence wraps at its spaces, so no box is cut off on the right */
+  .gx-text p code, .gx-small code, .gx-way-h code { white-space: normal; overflow-wrap: anywhere; }
 }
 /* the smallest phones: a narrower margin, so a command fits its box */
 @media (max-width: 359px) {

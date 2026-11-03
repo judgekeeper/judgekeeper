@@ -180,6 +180,54 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
     assert got == {"width": 390, "boxes": [], "pass": True, "status": "Not saved", "seen": True}
 
 
+# The website's pages in a 390px frame: no box cuts off its text or a copy button on the right.
+# A screen-reader-only line (.sr, 1px wide) and a line that ends in "..." are cut on purpose.
+SITE_PHONE_CHECK = """
+var frames = Array.prototype.slice.call(document.querySelectorAll("iframe")), out = {}, left =
+  frames.length;
+frames.forEach(function (f) {
+  f.addEventListener("load", function () { setTimeout(function () {
+    var w = f.contentWindow, d = f.contentDocument, cut = [];
+    d.querySelectorAll("body *").forEach(function (e) {
+      var s = w.getComputedStyle(e);
+      if ((s.overflowX === "hidden" || s.overflowX === "clip") && s.textOverflow !== "ellipsis"
+          && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1) {
+        cut.push((e.className || e.tagName) + " " + e.scrollWidth + "/" + e.clientWidth); }
+    });
+    out[f.id] = {page: d.documentElement.scrollWidth, cut: cut};
+    if (--left === 0) { document.getElementById("out").textContent = JSON.stringify(out); }
+  }, 300); });
+});
+"""
+SITE_PAGES = ("index.html", "start.html", "check.html", "privacy.html", "errors/404.html")
+
+
+def test_at_390px_no_website_box_is_cut_off(tmp_path):
+    chrome = _chrome()
+    if chrome is None:
+        pytest.skip("needs Chrome")
+    site = Path(__file__).parents[1] / "website"
+    frames = "".join(f'<iframe id="{name}" style="width:390px;height:844px;border:0" '
+                     f'src="{(site / name).as_uri()}"></iframe>' for name in SITE_PAGES)
+    (tmp_path / "phone.html").write_text(
+        f'<!doctype html><html><body style="margin:0"><p id="out"></p>{frames}'
+        f"<script>{SITE_PHONE_CHECK}</script></body></html>", encoding="utf-8")
+    try:
+        done = subprocess.run(
+            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
+             "--allow-file-access-from-files", f"--user-data-dir={tmp_path / 'profile'}",
+             "--window-size=800,900", "--virtual-time-budget=8000", "--dump-dom",
+             (tmp_path / "phone.html").as_uri()],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=90)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("Chrome did not start")
+    found = re.search(r'<p id="out">(\{.*?\})</p>', done.stdout)
+    if not found:
+        pytest.skip("Chrome did not run the pages")
+    got = json.loads(html_text.unescape(found[1]))
+    assert got == {name: {"page": 390, "cut": []} for name in SITE_PAGES}, got
+
+
 # Commands on the pages, as Chrome draws them: a space between each word ----------------------
 
 SPACES_CHECK = """
