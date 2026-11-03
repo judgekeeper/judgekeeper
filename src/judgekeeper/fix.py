@@ -455,13 +455,14 @@ def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
 def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     """How many of the `seen` marks were first made before any `hidden` one, by marks.jsonl:
     the most a later set's earlier sets can hold, since every mark made once a set begins is
-    its own. A mark is its first Pass or Fail: an answer skipped before a set began and marked
-    after is the set's. None kept aside, or one never marked: 0."""
-    order = read_cached(ws.marks, marks.read).first_mark
-    if not hidden or any(i not in order for i in hidden):
+    its own. A seen mark is its first Pass or Fail. A kept-aside one is its first Pass or Fail
+    since it was last skipped or taken back: an answer skipped, or marked and taken back,
+    before a set began and marked after is the set's. None kept aside, or one never marked: 0."""
+    m = read_cached(ws.marks, marks.read)
+    if not hidden or any(i not in m.fresh_mark for i in hidden):
         return 0
-    first = min(order[i] for i in hidden)
-    return sum(order.get(i, first) < first for i in seen)
+    first = min(m.fresh_mark[i] for i in hidden)
+    return sum(m.first_mark.get(i, first) < first for i in seen)
 
 
 def _sum(d: dict) -> str:

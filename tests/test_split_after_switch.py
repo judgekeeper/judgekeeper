@@ -22,9 +22,19 @@ def _skip(ws: Workspace, i: int) -> None:
             session.update({"id": item["id"], "deferred": True, "seconds": 2})
 
 
-def _switched(tmp_path, capsys, skipped: int | None) -> Workspace:
-    """`skipped` skipped, FIRST marked, a rule tested on them and switched to by
-    `check`, then 13 of LATER marked, the skipped one too."""
+def _undo(ws: Workspace, i: int) -> None:
+    """Answer `i` marked, then the mark taken back (a null mark): left unmarked."""
+    _mark(ws, [i])
+    session = StartSession(ws)
+    for item in session.items:
+        if int(re.search(r"Question (\d+)\?",
+                         json.dumps(session.raw[item["id"]]["input"]))[1]) == i:
+            session.update({"id": item["id"], "label": None, "seconds": 2})
+
+
+def _switched(tmp_path, capsys, skipped: int | None, undone: int | None = None) -> Workspace:
+    """`skipped` skipped (or `undone` marked and taken back), FIRST marked, a rule tested on
+    them and switched to by `check`, then 13 of LATER marked, that one too."""
     (tmp_path / "promptfooconfig.yaml").write_text("description: support bot\n",
                                                   encoding="utf-8")
     _rubric(tmp_path, [i < 30 for i in range(N)], "V1 rule.")
@@ -33,6 +43,8 @@ def _switched(tmp_path, capsys, skipped: int | None) -> Workspace:
     closed(ws)
     if skipped is not None:  # skipped before any of the marks the first set holds
         _skip(ws, skipped)
+    if undone is not None:  # marked and taken back before them
+        _undo(ws, undone)
     _mark(ws, FIRST)
     assert _jk(capsys, "fix")[0] == 0
     _rubric(tmp_path, [person(i) for i in range(N)], "V2 rule.", name="v2.json", only=FIRST)
@@ -53,6 +65,20 @@ def test_fix_reads_the_new_set_when_an_answer_in_it_was_skipped_before(tmp_path,
     assert "can't use" not in out, out
     split = fix.read_split(ws)
     assert split.set == 2 and len(split.hidden) == 13, split
+
+
+def test_fix_reads_the_new_set_when_an_answer_in_it_was_marked_and_taken_back_before(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    ws = _switched(tmp_path, capsys, skipped=None, undone=LATER[0])
+    lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
+    assert lines[0]["mark"] in ("pass", "fail") and lines[1]["mark"] is None, lines[:3]
+    code, out = _jk(capsys, "fix")
+    assert code == 0, out
+    split = fix.read_split(ws)
+    assert split.set == 2 and len(split.hidden) == 13, split
+    code, out = _jk(capsys, "fix")  # the split.json it wrote is read again
+    assert code == 0 and "can't use" not in out, out
 
 
 def test_fix_new_starts_a_new_set_even_from_a_split_it_cannot_use(tmp_path, monkeypatch,

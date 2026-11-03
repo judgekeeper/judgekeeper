@@ -229,6 +229,8 @@ class Marks:
     line_of: dict[str, int] = field(default_factory=dict)  # answer id -> its last mark's line
     first_mark: dict[str, int] = field(default_factory=dict)  # answer id -> its first Pass or
     # Fail mark's line (a skip before it is not one)
+    fresh_mark: dict[str, int] = field(default_factory=dict)  # answer id -> its first Pass or
+    # Fail mark's line after its last mark that is neither (taken back, or skipped)
 
     def counted(self) -> dict[str, str]:
         """{answer id: "pass" or "fail"}: the marks that count."""
@@ -283,7 +285,8 @@ def read(path: str | Path) -> Marks:
     return replace(m, header=dict(m.header) if m.header is not None else None,
                    last=dict(m.last), after_result=set(m.after_result), gap=dict(m.gap),
                    repeats=dict(m.repeats), slots=set(m.slots), slot_mark=dict(m.slot_mark),
-                   line_of=dict(m.line_of), first_mark=dict(m.first_mark))
+                   line_of=dict(m.line_of), first_mark=dict(m.first_mark),
+                   fresh_mark=dict(m.fresh_mark))
 
 
 def _parse(text: str) -> Marks:
@@ -316,6 +319,9 @@ def _parse(text: str) -> Marks:
                 out.line_of[x["id"]] = n
                 if x["mark"] in ("pass", "fail"):
                     out.first_mark.setdefault(x["id"], n)
+                    out.fresh_mark.setdefault(x["id"], n)
+                else:
+                    out.fresh_mark.pop(x["id"], None)
         else:
             out.not_counted += 1
     # changed after the grades were shown, and not back to the mark it had then
