@@ -16,7 +16,7 @@ __all__ = ["home"]  # the fixture, used by name
 
 
 def test_a_path_with_spaces_is_never_split(tmp_path, monkeypatch):
-    folder = Path(os.path.realpath(tmp_path)) / "Testing Judge Keeper" / "e2e r3" / "proj s3"
+    folder = Path(os.path.realpath(tmp_path)) / "My Work" / "my evals 2" / "proj b3"
     folder.mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     shown = textio.shown_from_here(folder / ".judgekeeper" / "fix" / "marked-answers.csv")
@@ -38,7 +38,7 @@ def test_other_words_still_wrap(tmp_path, monkeypatch):
 def test_fix_from_the_root_keeps_each_path_on_one_line(home, monkeypatch, capsys):
     from tests.test_regrade_files import project
 
-    proj = home / "Desktop" / "Testing Judge Keeper" / "e2e-1.1-r3" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "evals-1.1-b" / "proj b3"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     project(proj)
@@ -49,7 +49,7 @@ def test_fix_from_the_root_keeps_each_path_on_one_line(home, monkeypatch, capsys
     code = main(["fix", str(proj)])
     out = capsys.readouterr().out
     assert code == 0, out
-    folder = "~/Desktop/Testing Judge Keeper/e2e-1.1-r3/proj s3/.judgekeeper/fix/"
+    folder = "~/Desktop/My Work/evals-1.1-b/proj b3/.judgekeeper/fix/"
     named = [line for line in out.splitlines() if ".judgekeeper/fix/" in line
              and "`" not in line]
     assert any("marked-answers.csv" in line for line in named), out
@@ -57,4 +57,4 @@ def test_fix_from_the_root_keeps_each_path_on_one_line(home, monkeypatch, capsys
     for line in named:
         assert folder in line, (line, out)
     for line in out.splitlines():  # no line ends part way into the folder's name
-        assert not line.rstrip().endswith(("Testing", "Testing Judge", "proj")), (line, out)
+        assert not line.rstrip().endswith(("My", "proj")), (line, out)
