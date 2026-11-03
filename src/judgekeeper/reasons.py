@@ -638,7 +638,7 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
 MARKED_LINE = "The part you marked:"  # never suggested: it is the answer's own words
 NONE_YET = ("None yet. A line is suggested once you give the same reason on at least {twice} "
             "answers.")
-ONE_MORE = "Give a reason you used once on {n} more answer."
+ONE_MORE = ("Give the same reason on one more answer.", "Give the same reason on {n} more answers.")
 ADD_REASONS = ("To add reasons, run `{command}` and open your result from the marking page. "
                "Say why you disagree on an answer there.")
 
@@ -654,7 +654,7 @@ def none_yet(more: int, command: str) -> str:
     needs, how many more (`more`, more_needed) when a reason was given, and how to give one
     (`command`: the `mark` command that opens the page)."""
     return " ".join([NONE_YET.format(twice=TWICE),
-                     *([ONE_MORE.format(n=more)] if more < TWICE else []),
+                     *([ONE_MORE[more != 1].format(n=more)] if more < TWICE else []),
                      ADD_REASONS.format(command=command)])
 
 

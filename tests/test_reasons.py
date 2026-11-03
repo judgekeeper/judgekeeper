@@ -788,7 +788,7 @@ def test_one_reason_says_how_many_more_and_how_to_give_them(here, capsys, monkey
     md = (ws.dir / "fix" / "suggestions.md").read_text(encoding="utf-8")
     said = reasons.none_yet(1, "judgekeeper mark")
     assert said == ("None yet. A line is suggested once you give the same reason on at least 2 "
-                    "answers. Give a reason you used once on 1 more answer. To add reasons, run "
+                    "answers. Give the same reason on one more answer. To add reasons, run "
                     "`judgekeeper mark` and open your result from the marking page. Say why you "
                     "disagree on an answer there.")
     assert said in md.split("## Seen once")[0]

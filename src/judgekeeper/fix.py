@@ -955,6 +955,8 @@ def write_suggestions(ws: Workspace, rows: list[dict]) -> bool:
 def mark_again(ws: Workspace) -> str:
     """The `mark` command that opens the page where reasons are given, from the flags of the
     run that made the result (report_page.commands), as the result page names it."""
+    from judgekeeper import report_page
+
     try:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError, RecursionError):
