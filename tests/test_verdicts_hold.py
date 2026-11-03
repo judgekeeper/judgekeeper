@@ -294,8 +294,9 @@ def test_nothing_to_fix_on_inspect_says_to_score_the_log_again(here, capsys, mon
     code, out = run(capsys, "fix")
     assert code == 0 and "there is nothing to fix" in out, out
     assert out.endswith("Next: nothing to fix. To test another rule anyway, score your log "
-                        "again with it: run `inspect score <log> --scorer <name> --action "
-                        "overwrite` with `--output-file logs/new.eval`, then run `judgekeeper "
+                        "again with it: run `inspect score logs/2026-10-02_support.json "
+                        "--scorer model_graded_qa --action overwrite` with `--output-file "
+                        "logs/new.eval`, then run `judgekeeper "
                         "fix logs/new.eval`."), out
 
 
