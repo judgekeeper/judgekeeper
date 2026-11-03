@@ -1229,18 +1229,19 @@ def test_the_browser_check_is_two_even_columns_that_end_together():
     assert "inset 0 0 0 1px var(--green)" in focus and "outline: none" in focus
 
 
-def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
-    """At every width a line wraps inside the terminal. On a phone a value stays beside its
-    label where it fits, else goes under it, and a line that only goes on from the one above
-    has no indent."""
+def test_the_browser_check_lines_keep_each_label_line_whole_on_a_phone():
+    """Wider than a phone a line wraps inside the terminal. On a phone each line stays whole,
+    a value beside its label ("File:", "Answers:"), and the terminal scrolls sideways for it;
+    only the Next line wraps."""
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
-    assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
     phone = CSS[CSS.index("@media (max-width: 760px) {\n  .ck2 .wrap"):]
     phone = phone[:phone.index("\n}\n")]
-    assert "flex-wrap: wrap" in _rule(".fc-term .ln", phone)
-    assert "flex-direction: column" not in _rule(".fc-term .ln", phone)
-    assert "display: none" in _rule(".fc-term .ln > .pad", phone)
+    assert "overflow-x" not in term
+    assert "overflow-x: auto" in _rule(".fc-term", phone)
+    assert "width: max-content" in _rule(".fc-term .ln:not(.ln-next)", phone)
+    assert "white-space: pre;" in _rule(".fc-term .ln:not(.ln-next) > span", phone)
+    assert "flex-wrap" not in phone and ".pad" not in phone
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert "line.k.trim() ? 'k t-label' : 'k t-label pad'" in script
     # Home's terminal colours

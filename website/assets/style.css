@@ -574,8 +574,11 @@ html.has-view, html.has-view body { overflow: hidden; }
   .ck2 .wrap { padding-block: 36px 48px; }
   .fc-drop { padding: 24px 16px; }
   .ck-out { padding: 16px 14px; font-size: 12px; }
-  .fc-term .ln { flex-wrap: wrap; }
-  .fc-term .ln > .pad { display: none; }
+  /* each line stays whole, a value beside its label, and the box scrolls sideways for it;
+     the Next line still wraps */
+  .fc-term { overflow-x: auto; }
+  .fc-term .ln:not(.ln-next) { width: max-content; min-width: 100%; }
+  .fc-term .ln:not(.ln-next) > span { white-space: pre; }
   .ex-t span { font-size: 12px; }
   .fc-pick-list .btn { min-height: 44px; }
   .fc-clear { min-height: 44px; }
