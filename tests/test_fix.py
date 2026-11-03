@@ -714,8 +714,10 @@ def test_a_plain_run_with_no_terminal_says_the_saved_pass_mark_to_give_again(her
     main(["--stop"])
     command = f"judgekeeper --port 0 --no-browser --pass-if {quote_arg('score>=0.72')}"
     assert code == 3, said
-    assert (f"Your pass mark is score>=0.72. Without a terminal, give it again: `{command}`."
-            ) in said, said
+    from judgekeeper.front import PASS_MARK_AGAIN
+
+    assert PASS_MARK_AGAIN.format(rule="score>=0.72") in said, said
+    assert said.count(command) == 1, said  # the Next line names it, once
     assert "do not say which score passes" not in said, said
     assert said.endswith(f"Next: run `{command}`."), said
 

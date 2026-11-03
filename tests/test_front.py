@@ -385,8 +385,8 @@ def test_without_a_terminal_the_pass_mark_question_names_the_mark_in_use(here, c
     line = assert_one_next_at_the_end(out)
     assert line.startswith("Next: run `"), line
     assert f"--pass-if {quote_arg('score>=0.585')}`" in line and "score>=N" not in line, line
-    assert ("Your pass mark is score>=0.585. Without a terminal, give it again:"
-            in " ".join(out.split())), out
+    assert front.PASS_MARK_AGAIN.format(rule="score>=0.585") in " ".join(out.split()), out
+    assert out.count("--pass-if " + quote_arg("score>=0.585")) == 1, out  # in the Next line only
     assert "Step 1 of 5" not in out, out  # the pass mark was saved: Find is done
 
 
