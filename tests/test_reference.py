@@ -279,7 +279,7 @@ def test_the_reference_says_which_marks_wait_in_the_words_check_uses():
     flat = " ".join(para.split())
     wait = check.WAIT.split("your new LLM-as-a-judge ", 1)[1]  # "has no Pass or Fail grade ..."
     assert wait.rstrip(".") in flat
-    assert check.WAIT_COUNT.format(command="judgekeeper check <new results file>") in flat
+    assert check.WAIT_COUNT.format(run="run `judgekeeper check <new results file>`") in flat
 
 
 # The marking page and the documents your LLM-as-a-judge was given --------------------------
