@@ -30,5 +30,5 @@ def test_the_marks_figures_say_which_pool_they_are_for():
     assert ("A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
             "and breaks at most 2 in 100 right answers, usually gets a clear answer from about "
             "80 marks.") in fixing
-    assert ("One that fixes 1 in 10 or a quarter, and breaks 5 in 100 right answers, gets a "
-            "clear answer from about 160.") in fixing
+    assert ("A rule that breaks 5 in 100 right answers gets a clear answer from about 160 "
+            "marks, whether it fixes 1 in 10 of the mistakes or a quarter of them.") in fixing

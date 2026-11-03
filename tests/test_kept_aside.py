@@ -96,8 +96,9 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     assert (f"A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
             f"and breaks at most 2 in 100 right answers, usually gets a clear answer from about "
             f"{n} marks. For the rule that fixes a quarter, that answer is mostly \"Safe to "
-            f"try\". One that fixes 1 in 10 or a quarter, and breaks 5 in 100 right answers, gets "
-            f"a clear answer from about {slow}.") in reference
+            f"try\". A rule that breaks 5 in 100 right answers gets a clear answer from about "
+            f"{slow} marks, whether it fixes 1 in 10 of the mistakes or a quarter of "
+            "them.") in reference
     # "by mistake is rare but not zero ... only for rules close to no change"
     assert "by mistake is rare but not zero, and happens only for rules close to no change" \
         in reference
