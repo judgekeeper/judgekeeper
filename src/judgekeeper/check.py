@@ -899,6 +899,7 @@ WAIT_COUNT = "To count them, " + WAIT_NEXT
 NO_GRADE_LEFT = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to "
                  "mark, so a new mark can't count yet.")
 WAIT_MORE = "To count new marks, first " + WAIT_NEXT
+NEXT_WAIT_MORE = "to count new marks, first " + WAIT_NEXT  # after check: the compare is done
 WAIT_GROUP = "To check those marks, " + WAIT_NEXT  # one group stuck (NO_GRADE_IN), none wait
 # One group still needs page marks to check the imported marks, and every answer left there
 # waits ({did}: the group, as the old LLM-as-a-judge graded it; {name}: where they came from)
@@ -2169,7 +2170,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         said.say()
     if (then is None and level in ("check", "too_early") or asks) and (after or {}).get(
             "only_wait"):
-        then = "Next: " + WAIT_NEXT.format(run=wait_run(state.ws))  # a new mark only waits
+        wait = WAIT_NEXT if after.get("waiting") else NEXT_WAIT_MORE  # marks wait, or new ones would
+        then = "Next: " + wait.format(run=wait_run(state.ws))
     elif then is None and level in ("check", "too_early"):  # nothing to do is not so
         then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=mark_here(state.ws)))
     said.say(then or _next_same(state))

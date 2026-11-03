@@ -325,7 +325,8 @@ def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
     said = []
     ws = _imported_wait(tmp_path, capsys, page=0, said=said)
     _no_mark_more(said[0])
-    assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in said[0]
+    assert ("Next: to count new marks, first grade all your answers with your new "
+            "LLM-as-a-judge, then run") in said[0]  # the compare itself is done
     r = _result(ws)
     assert "waiting" not in r and r["only_wait"] is True and not r.get("import_gate"), r
     code, out = _jk(capsys, "v2.json", "--no-browser", "--port", "0")
@@ -382,7 +383,8 @@ def test_results_that_grade_the_answers_left_get_them_out_of_waiting(
     _rows(table_project(tmp_path, verdicts, name="new-results-v2.csv", model="bike-grader-v2"),
           set(marked))
     out = flat(_jk(capsys, "check", "new-results-v2.csv")[1])
-    assert NEXT_WAIT in out and _result(ws)["only_wait"] is True, out
+    assert NEXT_WAIT.replace("Next: grade", "Next: to count new marks, first grade") in out, out
+    assert _result(ws)["only_wait"] is True
     table_project(tmp_path, verdicts, name="all-results-v2.csv", model="bike-grader-v2")
     code, out = _jk(capsys, *command)
     closed(ws)
@@ -592,7 +594,8 @@ def test_a_not_sure_check_on_only_the_marked_answers_asks_for_no_marks(
     text = flat(out)
     assert code == 0 and "Compared with before: not sure" in text, out
     _no_mark_more(text)
-    assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in text, out
+    assert ("Next: to count new marks, first grade all your answers with your new "
+            "LLM-as-a-judge, then run") in text, out
     _mark_says(ws, capsys, path="results-v2.csv")
 
 
