@@ -1,0 +1,27 @@
+judgekeeper 1.1.0
+
+Step 3 of 5: Measure
+
+Result: your LLM-as-a-judge needs work.
+You and your LLM-as-a-judge disagreed on 13 of 40 answers.
+
+  You passed 22 answers. Of those, your LLM-as-a-judge passed 19
+  and failed 3.
+  You failed 18 answers. Of those, your LLM-as-a-judge passed 10
+  and failed 8.
+
+Tell judgekeeper why you disagree on these 6: run
+`judgekeeper mark`.
+7 more are kept aside on purpose, so a new rule can be tested on
+answers you haven't looked at again.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
+
+How often your LLM-as-a-judge agrees with you:
+  When you say Pass, it also says Pass: 86% (you marked every answer)
+  When you say Fail, it also says Fail: 44% (you marked every answer)
+
+Full report: .judgekeeper/report.html (open it in your browser)
+
+Next: to improve your LLM-as-a-judge's rule, run
+`judgekeeper fix`.
