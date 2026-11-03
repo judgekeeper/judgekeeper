@@ -12,9 +12,8 @@ You and your LLM-as-a-judge disagreed on 13 of 40 answers.
 
 To tell judgekeeper why you disagree on 6 of them, run
 `judgekeeper mark`.
-`judgekeeper fix` shows where your LLM-as-a-judge goes wrong,
-helps you write a better rule and tests it on marks kept aside.
-It uses your reasons.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 7 more disagreements are kept aside on purpose, so a new rule
 can be tested on answers you haven't looked at again.
 
