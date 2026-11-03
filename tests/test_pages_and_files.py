@@ -140,7 +140,8 @@ f.addEventListener("load", function () {
     setTimeout(function () {
       var s = d.getElementById("status"), q = s.getBoundingClientRect();
       out.status = s.textContent.slice(0, 9);
-      out.seen = q.height > 0 && q.top >= 0 && q.bottom <= w.innerHeight;
+      // a line brought into view ends on the frame's edge, up to a part of a pixel past it
+      out.seen = q.height > 0 && q.top >= 0 && q.bottom < w.innerHeight + 1;
       document.getElementById("out").textContent = JSON.stringify(out);
     }, 500);
   }, 300);
@@ -169,6 +170,9 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
         done = subprocess.run(
             [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
              f"--user-data-dir={tmp_path / 'profile'}", "--window-size=800,900",
+             # timers here run on fast virtual time, a smooth scroll on real time: so every
+             # scroll is at once, and the page stands still when the lines are measured
+             "--force-prefers-reduced-motion",
              "--virtual-time-budget=5000", "--dump-dom", (tmp_path / "phone.html").as_uri()],
             check=False, capture_output=True, text=True, encoding="utf-8", timeout=60)
     except (OSError, subprocess.TimeoutExpired):
@@ -194,7 +198,9 @@ frames.forEach(function (f) {
           && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1) {
         cut.push((e.className || e.tagName) + " " + e.scrollWidth + "/" + e.clientWidth); }
     });
-    out[f.id] = {page: d.documentElement.scrollWidth, cut: cut};
+    // how far the page runs past its own width (a scrollbar, drawn on Linux, not counted)
+    var root = d.documentElement;
+    out[f.id] = {width: w.innerWidth, wider: root.scrollWidth - root.clientWidth, cut: cut};
     if (--left === 0) { document.getElementById("out").textContent = JSON.stringify(out); }
   }, 300); });
 });
@@ -225,7 +231,7 @@ def test_at_390px_no_website_box_is_cut_off(tmp_path):
     if not found:
         pytest.skip("Chrome did not run the pages")
     got = json.loads(html_text.unescape(found[1]))
-    assert got == {name: {"page": 390, "cut": []} for name in SITE_PAGES}, got
+    assert got == {name: {"width": 390, "wider": 0, "cut": []} for name in SITE_PAGES}, got
 
 
 # Commands on the pages, as Chrome draws them: a space between each word ----------------------
