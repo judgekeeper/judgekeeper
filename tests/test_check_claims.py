@@ -401,8 +401,8 @@ def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
     assert said.startswith("judgekeeper ") and "Step 3 of 5: Measure" in said
     assert ("Same model and rule as before, yet 16 of your marked answers got a different "
             "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
-    assert ("Your last check found your LLM-as-a-judge in your newest results worse than this "
-            "one.") in said
+    assert ("Your last check found your LLM-as-a-judge in results.json worse, so the numbers "
+            "below still use the grades from before.") in said  # graded again in place
     assert said.endswith("Next: your model and rule are the same as before, so its grades "
                          "change from run to run. Make your rule clearer, grade your marked "
                          "answers again, then run `judgekeeper check`.")

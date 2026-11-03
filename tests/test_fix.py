@@ -614,7 +614,9 @@ def test_a_plain_run_given_a_new_pass_mark_names_the_check_that_tests_it(here, c
     _, said = _main(capsys, "--pass-if", "score>=0.7", "--no-browser", "--port", "0")
     main(["--stop"])
     assert "pass mark 0.5 -> 0.7" in said, said
-    assert 'Next: run `judgekeeper check --pass-if "score>=0.7"`' in said, said
+    from judgekeeper.textio import quote_arg
+
+    assert f"Next: run `judgekeeper check --pass-if {quote_arg('score>=0.7')}`" in said, said
 
 
 def test_check_with_a_pass_mark_the_eval_sets_says_where_to_change_it(here, capsys):

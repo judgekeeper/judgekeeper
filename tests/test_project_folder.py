@@ -594,7 +594,8 @@ def test_a_table_judge_whose_grades_changed_is_re_checked(here, capsys, no_calls
     table_project(here, flipped)
     out = run(capsys)[1]
     assert "Your LLM-as-a-judge is the same" not in out
-    assert "Your LLM-as-a-judge's grades changed on 7 of your marked answers." in flat(out)
+    assert ("Your answers were graded again in results.csv, and 7 of your marked answers got a "
+            "different grade. The numbers below still use the grades from before.") in flat(out)
     assert _next(out) == ("Next: run `judgekeeper check` to re-check your changed LLM-as-a-judge on "
                           "your marks.")
     _, out, _ = run(capsys, "check")

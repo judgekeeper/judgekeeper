@@ -96,12 +96,14 @@ RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the on
                   "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
-# ...graded again with the same model and rule, other grades on marked answers: only `check`
-# takes new grades on, so the numbers keep the ones the marks were checked with
+# Newer results whose grades only `check` takes on: the numbers keep the ones the marks were
+# checked with. Graded again (the same model and rule, or a table): which, and the check
 REGRADED = ("Your answers were graded again in {file}, and {k} of your marked answers got a "
-            "different grade. {numbers} To compare, run `{command}`.")
-NUMBERS_IN = "The numbers below still use the grades in {old}."
-NUMBERS_BEFORE = "The numbers below still use the grades from before."  # that file graded again
+            "different grade. {numbers}. To compare, run `{command}`.")
+# ...after a check found them worse (a "Worse" kept the marks on the grades before), any judge
+HELD_WORSE = "Your last check found your LLM-as-a-judge in {file} worse, so {numbers}."
+NUMBERS_IN = "the numbers below still use the grades in {old}"
+NUMBERS_BEFORE = "the numbers below still use the grades from before"  # that file graded again
 READING = "Reading {file}."  # back to a file older than the last one read
 # A check took on the LLM-as-a-judge of a file elsewhere; the results here are older
 CHECKED_FILE = "This result is about your LLM-as-a-judge in {file}, the file your last check read."
@@ -1938,6 +1940,17 @@ def _checked_file(ws: Workspace, found: start.Found) -> str | None:
     return None if path is None else Path(textio.shown_from_here(path)).as_posix()
 
 
+def _regraded_line(talk: FrontTalk, ws: Workspace, found: start.Found, k: int) -> str:
+    """REGRADED: the newest file read, `k`, whose grades the numbers use, and the check that
+    compares them, as the Next line gives it."""
+    return REGRADED.format(file=_newest(found), k=k, numbers=_sentence(_graded_in(ws, found)),
+                           command=_compare_command(talk, ws))
+
+
+def _sentence(words: str) -> str:
+    return words[:1].upper() + words[1:]
+
+
 def _graded_in(ws: Workspace, found: start.Found) -> str:
     """Whose grades the numbers use: the results file(s) the marks were checked with
     (start.json's, as result.json names them), named from here; "from before" when the
@@ -2033,8 +2046,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                 and found.rule is not None and found.results else 0)
     if regraded:  # the grades the numbers use are not the ones read: which, and the check
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
-        head.append(REGRADED.format(file=_newest(found), k=regraded,
-                                    numbers=_graded_in(ws, found), command=_check_command(talk)))
+        head.append(_regraded_line(talk, ws, found, regraded))
     added, took = 0, None
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
@@ -2049,9 +2061,19 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(CHECKED_FILE.format(file=elsewhere))
         if typed:  # an older file typed: every command given names the file the result is about
             talk.path = elsewhere
-    elif changed or grades:
-        head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
-                    else (check.SAME_RULE_GRADES if held else check.GRADES).format(k=grades))
+    elif changed or grades:  # grades only `check` takes on: whose grades the numbers use
+        kept_worse = held or check.open_worse(ws, found, held=True) is not None  # any judge
+        if kept_worse or not changed:  # the file read is named in the line itself
+            head[:] = [x for x in head if x != newest]
+        if kept_worse:  # that check, not one to run
+            head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
+                        else (check.SAME_RULE_GRADES if held else check.GRADES).format(k=grades))
+            head.append(HELD_WORSE.format(file=_newest(found), numbers=_graded_in(ws, found)))
+        elif changed:
+            head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
+            head.append(_sentence(_graded_in(ws, found)) + ".")
+        else:  # a table graded again
+            head.append(_regraded_line(talk, ws, found, grades))
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
@@ -2076,7 +2098,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
         return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
-                       elsewhere=bool(elsewhere), compare=bool(regraded))
+                       elsewhere=bool(elsewhere), compare=bool(regraded),
+                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head))
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -2406,9 +2429,8 @@ def _check_command(talk: FrontTalk) -> str:
 
 
 def _recheck_step(talk: FrontTalk, ws: Workspace) -> str:
-    """The step that re-checks this run's LLM-as-a-judge: `check` with the pass mark this
-    run was given (--pass-if), which `check` reads the scores with too. A pass mark the eval
-    or judgekeeper.toml sets is changed there: `check --pass-if` would refuse it."""
+    """The step that re-checks this run's LLM-as-a-judge (_compare_command). A pass mark the
+    eval or judgekeeper.toml sets is changed there: `check --pass-if` would refuse it."""
     rule = talk.options.get("pass_if")
     pm = ws.data().get("pass_mark") or {}
     if rule and pm and pm.get("source") != "pass_if":
@@ -2416,8 +2438,17 @@ def _recheck_step(talk: FrontTalk, ws: Workspace) -> str:
 
         return check.NEXT_MARK_ELSEWHERE.format(
             where=check.mark_set_in(pm, _check_command(talk)))
-    return NEXT_CHECK.format(command=_check_command(talk)
-                             + (f' --pass-if "{rule}"' if rule else ""))
+    return NEXT_CHECK.format(command=_compare_command(talk, ws))
+
+
+def _compare_command(talk: FrontTalk, ws: Workspace) -> str:
+    """`check` on this run's results: with the pass mark this run was given (--pass-if),
+    which `check` reads the scores with too, unless the eval or judgekeeper.toml sets it."""
+    rule = talk.options.get("pass_if")
+    pm = ws.data().get("pass_mark") or {}
+    if not rule or pm and pm.get("source") != "pass_if":
+        return _check_command(talk)
+    return f"{_check_command(talk)} --pass-if {quote_arg(rule)}"
 
 
 def _fix_command(talk: FrontTalk) -> str:
@@ -2427,12 +2458,13 @@ def _fix_command(talk: FrontTalk) -> str:
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
             head: list[str], check: bool = False, elsewhere: bool = False,
-            compare: bool = False) -> int:
+            compare: bool = False, worse_said: bool = False) -> int:
     """Step 3: the result from the marks, saved; whether the page is open. `check`: the
     judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
     marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
     older results here, so the next one is given the new results file. `compare`: graded
-    again with the same model and rule (REGRADED): the check that compares is the Next."""
+    again with the same model and rule (REGRADED): the check that compares is the Next.
+    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE)."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
     _say_head(talk, head)
@@ -2539,9 +2571,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges and not only)
             or (ranges and not (is_open(ws.dir) or mark_next or why or only))):
         talk.say()
-    if worse:  # why "go back" next to this result
-        talk.para(WORSE_LAST)
-        talk.say()
+    if worse:  # why "go back" next to this result, unless the head said it
+        if not worse_said:
+            talk.para(WORSE_LAST)
+            talk.say()
         next_step = worse_here
     elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
         talk.para(few[0])
@@ -2552,7 +2585,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif check:
         next_step = _recheck_step(talk, ws)
     elif compare:
-        next_step = NEXT_COMPARE.format(command=_check_command(talk))
+        next_step = NEXT_COMPARE.format(command=_compare_command(talk, ws))
     elif r.get("waiting") or only:  # only the judge's grades on them can count them
         next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark" and r.get("only_skipped"):  # only a skipped one is left to mark

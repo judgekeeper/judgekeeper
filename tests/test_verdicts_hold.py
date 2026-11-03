@@ -434,8 +434,10 @@ def test_measure_after_a_worse_check_says_why_it_says_go_back(here, capsys):
     capsys.readouterr()
     _, out = run(capsys, "--no-browser")
     closed(ws)
-    assert ("Your last check found your LLM-as-a-judge in your newest results worse than this "
-            "one. Next: go back to your old LLM-as-a-judge") in out, out
+    said = " ".join(out.split())
+    assert ("Your last check found your LLM-as-a-judge in new.json worse, so the numbers below "
+            "still use the grades in results.json.") in said, out
+    assert "Next: go back to your old LLM-as-a-judge" in said, out
 
 
 # A shared value with repeats: one question asked twice is not a shared value -----------------
