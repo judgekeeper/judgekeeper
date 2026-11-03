@@ -396,6 +396,53 @@ def test_a_file_in_a_nearby_project_is_refused_with_or_without_its_session(
     assert not (here / ".judgekeeper").exists()
 
 
+@pytest.mark.parametrize("session", [False, True])
+def test_check_of_a_file_in_a_nearby_project_names_that_project(here, capsys, monkeypatch,
+                                                                session):
+    """`check f02/evals/results.csv` from a folder with no project says whose results they
+    are and where to check them, as the plain run does."""
+    (here / "f02").mkdir()
+    (here / "f02" / "pyproject.toml").write_text("[project]\nname = 'f02'\n", encoding="utf-8")
+    if session:
+        _session_in(here / "f02" / "evals", capsys, monkeypatch, 0)
+        run(capsys, "--stop")
+    else:
+        table_project(here / "f02" / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "check", "f02/evals/results.csv")
+    assert code == 3, out + err
+    owner = "f02/evals" if session else "f02"  # where the session is, else the project
+    assert (f"These results belong to the project in {owner}/. To check them, run "
+            f"`judgekeeper` in {owner}/.") in flat(out), out
+    assert "No marks in" not in out and not (here / ".judgekeeper").exists()
+
+
+def test_one_project_below_and_none_here_is_checked_in_its_own_folder(here, capsys,
+                                                                       monkeypatch):
+    """A folder with no project and one project below it with results: the plain run sends
+    you there, never starts a session here."""
+    (here / "p2").mkdir()
+    (here / "p2" / "pyproject.toml").write_text("[project]\nname = 'p2'\n", encoding="utf-8")
+    table_project(here / "p2", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert ("These results belong to the project in p2/. To check them, run `judgekeeper` "
+            "in p2/.") in flat(out), out
+    assert not (here / ".judgekeeper").exists()
+
+
+def test_results_in_one_plain_folder_below_still_start_here(here, capsys, monkeypatch):
+    """evals/ is no project of its own: its results are this folder's."""
+    table_project(here / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 0, out + err
+    assert (here / ".judgekeeper" / "start.json").is_file()
+
+
 @pytest.mark.parametrize(("where", "command", "given", "shown"), [
     ("p11/sub", "fix", "..", ".."), ("", "fix", "p11", "p11"), ("", "check", "p11", "p11")])
 def test_too_few_marks_name_the_project_in_the_mark_command(here, capsys, monkeypatch, where,

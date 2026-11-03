@@ -488,6 +488,10 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise _go_to(talk, sessions)
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
+        if len(folders) == 1:  # a project of its own: its results are checked there
+            talk.para(_nested_line(folders, Path.cwd()))
+            raise talk.stop(EXIT_QUESTION,
+                            f"run `{_program_there(folders, Path.cwd())}` in {folders[0]}/.")
         raise _go_to_one(talk, folders)
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, folders)  # a session below never joins other results here
@@ -987,10 +991,11 @@ ASKED = ("deepeval", "inspect")  # results in several folders: asked which (star
 
 
 def _projects_below(folder: Path) -> list[str]:
-    """The folders right below `folder` that hold results, when there are 2 or more and
-    nothing says `folder` is one project: no results or tool's config in it, and none in a
-    tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as
-    before (ASKED). Each is a project of its own, never run."""
+    """The folders right below `folder` that hold results, when there are 2 or more (or one
+    that is a project of its own, project.is_project) and nothing says `folder` is one
+    project: no results or tool's config in it, and none in a tool's own folder
+    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before (ASKED). Each
+    is a project of its own, never run."""
     found = find.search(folder)
     if any("/" not in sign for signs in found.signs.values() for sign in signs):
         return []
@@ -1001,7 +1006,9 @@ def _projects_below(folder: Path) -> list[str]:
                 or any(part in TOOL_FOLDERS for part in parts[:-1])):
             return []
         tops.add(parts[0])
-    return sorted(tops) if len(tops) > 1 else []
+    if len(tops) == 1 and not project.is_project(folder / next(iter(tops))):
+        return []  # one plain folder (evals/) holds this folder's results
+    return sorted(tops)
 
 
 def _beside_a_session(folder: Path) -> list[str]:

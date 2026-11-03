@@ -1213,6 +1213,11 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say()
         said.say(f"Next: {step}")
         return EXIT_NEEDS_YOU
+    if given.is_file() and (owner := front._session_owning(given)) is not None:
+        said.say(front._nested_line([owner], Path.cwd()))  # its own project's results
+        said.say()
+        said.say(f"Next: run `{front._program_there([owner], Path.cwd())}` in {owner}/.")
+        return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
     this = f"this folder ({folder.name})" if folder.name else "this folder"  # / has no name
