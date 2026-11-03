@@ -1192,8 +1192,7 @@ def tried_line(test: dict) -> str:
     old = f"{test['old']:g}"
     return (f"judgekeeper also tried a pass mark of {test['new']:g} instead of {old} on the "
             f"marks kept aside (fixed {test['fixed']}, broke {test['broke']}): not clearly "
-            f"better, so keep {old}. Each test on the same kept-aside marks makes them a little "
-            "less reliable.")
+            f"better, so keep {old}. That used up one test on these marks.")
 
 
 # Saying it ----------------------------------------------------------------------------------

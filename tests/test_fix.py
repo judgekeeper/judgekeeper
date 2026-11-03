@@ -1004,7 +1004,7 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
     flat = " ".join(out.split())
     m = re.search(r"judgekeeper also tried a pass mark of (0\.\d+) instead of 0\.5 on the marks "
                   r"kept aside \(fixed (\d+), broke (\d+)\): not clearly better, so keep 0\.5\. "
-                  r"Each test on the same kept-aside marks makes them a little less reliable\.",
+                  r"That used up one test on these marks\.",
                   flat)
     assert m, flat
     assert "A better pass mark" not in flat
