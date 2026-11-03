@@ -366,6 +366,22 @@ def test_scores_need_a_pass_mark(here, capsys):
     assert "the verdict column: Pass at 0.5 or more" in out and "Pass mark:" not in out
 
 
+def test_without_a_terminal_the_pass_mark_question_names_the_mark_in_use(here, capsys):
+    """Started with --pass-if, a plain run with no terminal to ask in names that pass mark in
+    its command, not the placeholder."""
+    table_project(here, ["0.9"] * 16 + ["0.2"] * 16)
+    code, out, _ = run(capsys, "--pass-if", "score>=0.585", "--no-browser", "--port", "0")
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0, out
+    code, out, _ = run(capsys, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert code == 3, out
+    line = assert_one_next_at_the_end(out)
+    assert line.startswith("Next: decide which score counts as a pass"), line
+    assert f"--pass-if {quote_arg('score>=0.585')}`" in line and "score>=N" not in line, line
+
+
 def test_words_need_a_label_map(here, capsys):
     table_project(here, ["good"] * 16 + ["bad"] * 16)
     code, out, _ = run(capsys)

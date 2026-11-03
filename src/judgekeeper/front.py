@@ -46,7 +46,7 @@ from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
 from judgekeeper.mark_page import SEE_FIRST
-from judgekeeper.normalise import _numeric
+from judgekeeper.normalise import NormaliseError, _numeric, parse_pass_if
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
@@ -794,13 +794,32 @@ def _add_label_map(talk: FrontTalk, extra: str) -> None:
     talk.set("label_map", f"{given},{extra}" if given else extra)
 
 
+def _saved_pass_mark(found: start.Found) -> dict:
+    """The pass mark the marks read the scores with now, as start.json keeps it; else {}."""
+    try:
+        return Workspace(found.root).data().get("pass_mark") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def _rule_in_use(found: start.Found) -> str:
+    """--pass-if's value in the command said without a terminal: the rule the marks read the
+    scores with now (given with --pass-if, or taken on by a check), quoted; else PASS_IF."""
+    pm = _saved_pass_mark(found)
+    rule = pm.get("rule")
+    if pm.get("source") != "pass_if" or not isinstance(rule, str) or not rule.isprintable():
+        return PASS_IF
+    try:
+        parse_pass_if(rule)
+    except NormaliseError:
+        return PASS_IF
+    return quote_arg(rule)
+
+
 def _mark_in_use(found: start.Found) -> str:
     """The default for the pass mark asked: the one the marks read the scores with now (given
     with --pass-if, or taken on by a check), when it is "at least"; else 0.5."""
-    try:
-        pm = Workspace(found.root).data().get("pass_mark") or {}
-    except (OSError, ValueError, AttributeError):
-        pm = {}
+    pm = _saved_pass_mark(found)
     mark = pm.get("mark")
     if pm.get("source") == "pass_if" and pm.get("op") == ">=" and isinstance(mark, (int, float)) \
             and not isinstance(mark, bool):
@@ -833,7 +852,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
                  "do not say which score passes.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
-                                           f"`{talk.command('--pass-if', PASS_IF)}`.")
+                                           f"`{talk.command('--pass-if', _rule_in_use(found))}`.")
         while True:
             answer = talk.ask("Pass when the score is at least", _mark_in_use(found))
             if _numeric(answer):
