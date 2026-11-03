@@ -1223,6 +1223,16 @@ def _left_to_mark(ws: Workspace) -> int:
     return sum(q["id"] not in counted for q in queue) if queue else math.inf
 
 
+def _skipped_left(ws: Workspace) -> int:
+    """How many answers in the pool were skipped last (and so have no Pass or Fail mark)."""
+    try:
+        queue = ws.data().get("queue") or []
+        last = marks.read(ws.marks).last
+    except (OSError, ValueError, AttributeError):
+        return 0
+    return sum((last.get(q["id"]) or {}).get("mark") == "skip" for q in queue)
+
+
 def every_marked(ws: Workspace) -> bool:
     """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
     try:
@@ -1237,12 +1247,15 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
     "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
     left): then all_marked_lines' next step, as there are not enough left to mark until the
-    eval runs on more questions. The one place this is decided. Its command is made again from
-    the flags result.json keeps, never its text, with the pass mark in use (start.json's, as
-    check.mark_here), also with no result.json yet."""
+    eval runs on more questions; when every answer left is a skipped one, next_only_skipped's.
+    The one place this is decided. Its command is made again from the flags result.json keeps,
+    never its text, with the pass mark in use (start.json's, as check.mark_here), also with no
+    result.json yet."""
     from judgekeeper.start import command_from
 
-    if _left_to_mark(ws) >= need:
+    left = _left_to_mark(ws)
+    skipped = _skipped_left(ws) if left != math.inf else 0
+    if left >= need and not 0 < left == skipped:
         return step
     try:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
@@ -1254,7 +1267,10 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
         pm = {}
     if pm.get("source") == "pass_if" and isinstance(pm.get("rule"), str):
         flags = {**(flags if isinstance(flags, dict) else {}), "pass_if": pm["rule"]}
-    return NEXT_ALL_MARKED.format(command=mark_command(command_from(flags)))
+    command = mark_command(command_from(flags))
+    if 0 < left == skipped:
+        return next_only_skipped(skipped, command)
+    return NEXT_ALL_MARKED.format(command=command)
 
 
 _plural = plural  # textio.plural
