@@ -209,8 +209,43 @@ def test_windows_folder_as_file_is_not_a_permission_problem(tmp_path,
 
 # Windows --------------------------------------------------------------------------------------
 
+class _Screen(io.BytesIO):
+    def isatty(self) -> bool:  # a terminal, not a pipe
+        return True
+
+
 def _terminal(encoding: str) -> io.TextIOWrapper:
+    return io.TextIOWrapper(_Screen(), encoding=encoding)
+
+
+def _pipe(encoding: str) -> io.TextIOWrapper:
     return io.TextIOWrapper(io.BytesIO(), encoding=encoding)
+
+
+def test_a_pipe_on_windows_gets_utf8(tmp_path, monkeypatch):
+    """Piped on Windows (a script or a coding agent reads it), the output is UTF-8, as the
+    files are: never the code page's own byte for "…", never "?" for a user's text."""
+    monkeypatch.setattr(textio, "is_windows", lambda: True)
+    monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+    err = _pipe("cp1252")
+    monkeypatch.setattr(sys, "stderr", err)
+    assert main([str(tmp_path / "missing \u2192.csv")]) == 2
+    err.flush()
+    assert "missing \u2192.csv".encode() in err.buffer.getvalue()
+
+
+@pytest.mark.parametrize("where", ["terminal", "PYTHONIOENCODING", "not windows"])
+def test_a_terminal_or_a_chosen_encoding_is_left_as_it_is(tmp_path, monkeypatch, where):
+    monkeypatch.setattr(textio, "is_windows", lambda: where != "not windows")
+    if where == "PYTHONIOENCODING":
+        monkeypatch.setenv("PYTHONIOENCODING", "cp1252")
+    else:
+        monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+    err = (_terminal if where == "terminal" else _pipe)("cp1252")
+    monkeypatch.setattr(sys, "stderr", err)
+    assert main([str(tmp_path / "missing \u2192.csv")]) == 2
+    err.flush()
+    assert b"missing ?.csv" in err.buffer.getvalue()
 
 
 def test_a_terminal_that_cannot_show_a_character_gets_a_question_mark(tmp_path, monkeypatch):

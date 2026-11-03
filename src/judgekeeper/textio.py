@@ -56,15 +56,21 @@ def tick(stream=None) -> str:
 def lenient_streams() -> None:
     """Make stdout and stderr replace a character they cannot encode instead of raising.
 
-    A Windows terminal on a legacy code page (cp1252) has no arrow; printing one must not
-    stop a command. A UTF-8 terminal encodes everything, so nothing changes there.
+    A Windows terminal on a legacy code page (cp1252) has no arrow, and printing one must not
+    stop a command. A UTF-8 terminal encodes everything, so nothing changes there. Piped on
+    Windows (a script or a coding agent reads it), the output is UTF-8, as judgekeeper's files
+    are, unless PYTHONIOENCODING chose an encoding.
     """
+    utf8 = is_windows() and not os.environ.get("PYTHONIOENCODING")
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
         try:
-            reconfigure(errors="replace")
+            if utf8 and not stream.isatty():
+                reconfigure(encoding="utf-8", errors="replace")
+            else:
+                reconfigure(errors="replace")
         except (ValueError, OSError):  # closed or detached: leave it as it is
             pass
 
