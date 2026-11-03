@@ -1997,8 +1997,10 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
                                                                 closed=closed)
     elsewhere = elsewhere or (None if first or back else _checked_file(ws, found))
     changed = [] if first or back or elsewhere else _changed(ws, found)
+    held = not (first or changed or back or elsewhere) and found.rule is not None and \
+        check.open_worse(ws, found, held=True) is not None  # a same-rule "Worse" stays
     grades = (0 if first or changed or back or elsewhere
-              else check.grades_changed(ws, found))  # a table judge
+              else check.grades_changed(ws, found, ruled=held))  # a table judge, or held
     added, took = 0, None
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
@@ -2015,7 +2017,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             talk.path = elsewhere
     elif changed or grades:
         head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
-                    else check.GRADES.format(k=grades))
+                    else (check.SAME_RULE_GRADES if held else check.GRADES).format(k=grades))
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))

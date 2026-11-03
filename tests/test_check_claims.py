@@ -386,6 +386,27 @@ def test_a_plain_check_after_a_same_rule_worse_says_worse_again(here, capsys):
     assert [x["changed"] for x in _history(ws)] == [["grades changed on 16 marked answers"]]
 
 
+def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
+    """After that "Worse", a plain `judgekeeper` says why and that the last check found it
+    worse, with the same next step: never "graded again ... the same ... nothing to do"."""
+    _marked(here)
+    _regraded(here, [*range(8), *range(25, 33)], name="results.json")
+    assert run(capsys)[0] == 1
+    main(["--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert said.startswith("judgekeeper ") and "Step 3 of 5: Measure" in said
+    assert ("Same model and rule as before, yet 16 of your marked answers got a different "
+            "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
+    assert ("Your last check found your LLM-as-a-judge in your newest results worse than this "
+            "one.") in said
+    assert said.endswith("Next: your model and rule are the same as before, so its grades "
+                         "change from run to run. Make your rule clearer, grade your marked "
+                         "answers again, then run `judgekeeper check`.")
+    assert "graded again" not in said and "nothing to do" not in said
+
+
 def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
     """One grade turned over on a marked answer: compared, no big drop, and taken on, so the
     next check has nothing new."""
