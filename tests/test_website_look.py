@@ -881,7 +881,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert done == {
         "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
                        "judgekeeper to your results file:")],
-        "step-mark": ["When the link at the top shows your numbers, click it."],
+        "step-mark": [("When See the numbers so far or See your result appears at the top, "
+                       "click it.")],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
                           "of your marks to be measured. A result needs at least 15 Pass and 15 "
                           "Fail marks from you. It also needs 20 marks on answers your "
@@ -924,7 +925,8 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("judgekeeper finds the answers you marked in your new results by their question "
              "and answer, word for word, compares the new grades with your marks, and tells you "
              "if your LLM-as-a-judge still agrees with you. You don’t need to mark anything "
-             "again.")]}
+             "again. Grading only your marked answers is enough to compare the two. To count "
+             "new marks, grade all your answers with your new LLM-as-a-judge.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
