@@ -143,7 +143,7 @@ def test_the_result_links_back_to_the_marking_page_with_the_marks_made(ws, again
     assert len(back) == again and all(i["label"] is None and i["id"] in shown for i in back)
     saved = (ws.dir / "report.html").read_text(encoding="utf-8")
     assert server.token not in saved and "Keep marking</a>" not in saved
-    assert "To mark more, run <code>" in saved
+    assert "To mark more" not in saved
 
 
 def test_the_stop_secret_closes_the_page_and_does_nothing_else(ws, served):

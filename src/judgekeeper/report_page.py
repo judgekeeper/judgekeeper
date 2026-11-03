@@ -1302,13 +1302,12 @@ def _next(r: dict, back: str | None) -> str:
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
     # with every answer marked, or only answers a mark would wait on, nothing sends to marking
     more = r.get("left") != 0 and not r.get("only_wait")
-    if more and back is not None and shows_range(r):  # exact numbers: no more marks to ask for
-        out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
-                   "<p>It closes by itself after 30 minutes without use. Closed? Run "
-                   f"{mark} in your project folder: your marks are still there.</p>")
+    if more and back is not None and shows_range(r):  # no range: no more marks to ask for
+        out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>. It '
+                   f"closes by itself after 30 minutes without use. Then run {mark} to open it "
+                   "again.</p>")
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
-        out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
-                   "there.</p>")
+        pass
     elif back is not None:  # every answer marked: a mark can still be changed
         out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
                    "it again.</p>")

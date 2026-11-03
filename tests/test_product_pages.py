@@ -716,11 +716,9 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
 NEXT_OPEN = '<section class="next band" aria-labelledby="next-h">'
 SAVED = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
          "folder. You can close this page.</p>")
-KEEP_MARKING = '<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>.</p>'
-CLOSED = ("<p>It closes by itself after 30 minutes without use. Closed? Run "
-          "<code>{mark}</code> in your project folder: your marks are still there.</p>")
-TO_MARK_MORE = ("<p>To mark more, run <code>{mark}</code> in your project folder: your marks "
-                "are still there.</p>")
+KEEP_MARKING = ('<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>. It closes '
+                "by itself after 30 minutes without use. Then run <code>{mark}</code> to open it "
+                "again.</p>")  # word for word, and nothing more about marking
 
 
 def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
@@ -753,12 +751,10 @@ def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_se
         live = _part(_html(_result(*counts), "/?token=t"), NEXT_OPEN)
         saved_html = _html(_result(*counts))
         saved = _part(saved_html, NEXT_OPEN)
-        assert KEEP_MARKING in live and CLOSED.format(mark=mark) in live, counts
-        assert live.index(KEEP_MARKING) < live.index("Closed?")
-        assert TO_MARK_MORE.format(mark=mark) not in live
+        assert KEEP_MARKING.format(mark=mark) in live, counts
+        assert live.count(mark) == 1 and "To mark more" not in live
         assert SAVED in live and SAVED in saved
-        assert TO_MARK_MORE.format(mark=mark) in saved, counts
-        assert "Keep marking" not in saved and "Closed?" not in saved
+        assert "Keep marking" not in saved and "To mark more" not in saved, counts
         assert "<a " not in saved and "token" not in saved_html
 
 
@@ -770,29 +766,27 @@ def test_what_next_sends_to_marking_only_to_change_a_mark_when_every_answer_is_m
                                NEXT_OPEN))
         saved = unwrapped(_part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN))
         assert SAVED in live and SAVED in saved, counts
-        assert "Keep marking" not in live and "Closed?" not in live, counts
-        assert TO_MARK_MORE.format(mark=mark) not in saved, counts
+        assert "Keep marking" not in live and "To mark more" not in saved, counts
         assert ('<a href="/?token=t">Change a mark</a>: click it in the list and mark it '
                 "again.") in live, counts
         assert f"To change a mark, run <code>{mark}</code> in your project folder." in saved
         assert mark not in live, counts
     left = unwrapped(_part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN))
-    assert TO_MARK_MORE.format(mark=mark) in left
+    assert "To mark more" not in left and "Keep marking" not in left
+
 
 def test_the_mark_line_comes_after_the_next_step():
-    mark = program("mark")
-    fix = _part(_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
-    assert fix.index('class="cmd"') < fix.index(TO_MARK_MORE.format(mark=mark))
-    good = _part(_html(_result(*GATE)), NEXT_OPEN)
-    assert good.index("Nothing more to do") < good.index(TO_MARK_MORE.format(mark=mark))
+    fix = _part(_html(_result(*NOT_GATE_TNR), "/?token=t"), NEXT_OPEN)
+    assert fix.index('class="cmd"') < fix.index("Want more certain numbers?")
+    good = _part(_html(_result(*GATE), "/?token=t"), NEXT_OPEN)
+    assert good.index("Nothing more to do") < good.index("Want more certain numbers?")
 
 
 def test_the_mark_command_keeps_the_flags_of_the_run():
     r = _result(*GATE, flags={"path": "evals/app", "port": 9000})
     mark = report_page.commands(r)["mark"]
     assert mark == f"{program('mark')} evals/app --port 9000"  # as the terminal names it
-    assert TO_MARK_MORE.format(mark=mark) in _html(r)
-    assert CLOSED.format(mark=mark) in _html(r, "/?token=t")
+    assert KEEP_MARKING.format(mark=mark) in _html(r, "/?token=t")
 
 
 def test_what_next_is_the_same_one_command_for_a_table_of_grades():
