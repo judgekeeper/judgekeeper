@@ -2524,7 +2524,18 @@ def mark_here(ws: Workspace, file: str | None = None) -> str:
     rule = pm.get("rule") if pm.get("source") == "pass_if" else None
     base = (f"{program('mark')} {runnable(textio.kept_at(file, ws.root), labels=False)}" if file
             else _here(ws, "mark"))
-    return base + (f' --pass-if "{rule}"' if rule else "")
+    return base + (f' --pass-if "{rule}"' if rule else "") + _page_flags(ws)
+
+
+def _page_flags(ws: Workspace) -> str:
+    """--port and --no-browser as the run that made the result was given them (result.json's
+    flags), for a `mark` the terminal names: the page opens as it did before."""
+    from judgekeeper import start
+
+    flags = start.saved_flags((_saved_result(ws) or {}).get("flags"))
+    words = start.repeated_flags(port=flags.get("port", start.DEFAULT_PORT),
+                                 no_browser=flags.get("no_browser", False))
+    return "".join(f" {w}" for w in words)
 
 
 def _restore(ws: Workspace, found, setup: dict) -> None:

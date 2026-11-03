@@ -679,8 +679,11 @@ def test_every_step_after_a_new_pass_mark_keeps_it(here, capsys, extra):
     _marks_with(step, "score>=0.72")
     for command in re.findall(r"`(judgekeeper [^`]*)`", step):
         argv = shlex.split(command)[1:]
-        page = ["--no-browser", "--port", "0"] if argv[0] == "mark" else []
-        _, out = _main(capsys, *argv, *page)
+        if argv[0] == "mark" and extra:  # as the person typed them first: no browser
+            assert argv[-3:] == ["--port", "0", "--no-browser"], command
+        elif argv[0] == "mark":  # every answer marked: the same command on every page,
+            argv += ["--no-browser", "--port", "0"]  # which never repeats the page's flags
+        _, out = _main(capsys, *argv)
         main(["--stop"])
         capsys.readouterr()
         assert _rule_in_use(ws) == "score>=0.72", (command, out)
@@ -699,8 +702,8 @@ def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monke
     _, said = _main(capsys, "check", "--pass-if", "score>=0.72")
     assert "Result: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
     assert said.endswith('Next: mark more answers with `judgekeeper mark --pass-if '
-                         '"score>=0.5"`, then run `judgekeeper check --pass-if "score>=0.72"` '
-                         'again.'), said
+                         '"score>=0.5" --port 0 --no-browser`, then run `judgekeeper check '
+                         '--pass-if "score>=0.72"` again.'), said
 
 
 def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, capsys):
@@ -758,7 +761,7 @@ def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, caps
     assert code == 0, said
     assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
             "To open it with this one, run `judgekeeper --stop`, then "
-            '`judgekeeper mark --pass-if "score>=0.7"`.') in said, said
+            '`judgekeeper mark --pass-if "score>=0.7" --port 0 --no-browser`.') in said, said
     assert ws.data()["pass_mark"]["rule"] == "score>=0.7"
     assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == \
         "score>=0.7"
@@ -777,7 +780,8 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
     assert ("Your marking page closed because it showed a different LLM-as-a-judge. To open it "
-            'with this one, run `judgekeeper mark --pass-if "score>=0.7"`.') in said, said
+            'with this one, run `judgekeeper mark --pass-if "score>=0.7" --port 0 '
+            '--no-browser`.') in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
 

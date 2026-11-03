@@ -71,7 +71,7 @@ def test_a_result_now_too_early_to_tell_asks_for_more_marks(here, capsys):
     assert "Your result is now: too early to tell.\n" in out, out
     assert assert_one_next_at_the_end(out) == (
         "Next: the result after this change is too early to tell. Mark more answers with "
-        "`judgekeeper mark`.")
+        "`judgekeeper mark --port 0 --no-browser`.")  # the page opens as it was asked to
 
 
 def test_a_result_that_stays_the_same_is_not_said_again(here, capsys):
