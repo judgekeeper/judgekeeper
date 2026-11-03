@@ -194,7 +194,7 @@ SCENE_6 = [
     "  When you said Fail    25 of 25             16 of 25             Worse",
     "",
     "On answers you pass, no drop, though these marks can't rule out",
-    "one of up to 10 in every 100.",
+    "a drop of up to 10 in every 100.",
     "On answers you fail, agreement drops by about 36 in every 100",
     "(somewhere between 22 and 53).",
     "",
@@ -313,8 +313,8 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     assert ("Compared with before: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge."
             in " ".join(out.split()))
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
-    assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
-            "in every 100.") in " ".join(out.split())
+    assert ("On answers you fail, no drop, though these marks can't rule out a drop of up to "
+            "10 in every 100.") in " ".join(out.split())
     assert "drops by no more than" not in out  # no answer went from right to wrong
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
@@ -597,8 +597,8 @@ def test_the_worst_end_of_a_range_is_rounded_up(low, up_to):
     lines = check.paired_lines(_side("no_drop", low))
     assert lines[1] == f"These marks can't rule out a drop of up to {up_to} points.", lines
     g = {"passed": _side("no_drop", 0.01), "failed": _side("no_drop", low)}
-    assert (f"On answers you fail, no drop, though these marks can't rule out one of up to "
-            f"{up_to} in every 100.") in check.expect_lines(g)
+    assert (f"On answers you fail, no drop, though these marks can't rule out a drop of up "
+            f"to {up_to} in every 100.") in check.expect_lines(g)
     g["failed"] = _side("no_drop", low, change=-0.0001)
     assert f"On answers you fail, agreement drops by no more than {up_to} in every 100." in (
         check.expect_lines(g))

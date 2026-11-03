@@ -983,7 +983,7 @@ def expect_lines(g: dict) -> list[str]:
         elif x["change"] >= 0 and not _worst(x["low"]):  # a range end of 0 once rounded
             out.append(f"{lead} no drop.")
         elif x["change"] >= 0:  # no drop seen; the range can't rule one out
-            out.append(f"{lead} no drop, though these marks can't rule out one of up to "
+            out.append(f"{lead} no drop, though these marks can't rule out a drop of up to "
                        f"{_worst(x['low'])} in every 100.")
         else:
             out.append(f"{lead} agreement drops by no more than {_worst(x['low'])} in "
