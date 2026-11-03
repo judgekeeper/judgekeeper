@@ -1403,3 +1403,16 @@ def test_new_results_given_in_full_are_named_from_here(here, capsys):
     _, out = run(capsys, str(new))
     assert "New results: regraded.json" in out.splitlines(), out
     assert str(here) not in out and str(here.resolve()) not in out
+
+
+def test_with_every_answer_marked_and_no_result_yet_mark_keeps_the_pass_mark(here):
+    """Every answer marked, no result.json yet: the `mark` the all-marked step names reads
+    the scores with the pass mark in use (start.json's), as every other `mark` does."""
+    from judgekeeper import start_label
+    from judgekeeper.textio import quote_arg
+
+    ws = score_project(here)
+    assert not ws.result_json.exists()
+    step = start_label.next_marks(ws, "mark more answers")
+    assert step.startswith("run your eval on more questions"), step
+    assert f"--pass-if {quote_arg('score>=0.5')}`" in step, step

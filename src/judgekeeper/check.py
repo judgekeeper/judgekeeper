@@ -147,6 +147,8 @@ NEW_RESULTS = "<new results file>"
 # After a check took on the new judge and the overall result changed (start_label.VERDICTS)
 RESULT_NOW = "Your result is now: {verdict}"
 NEXT_EARLY = "the result after this change is too early to tell. Mark more answers with `{mark}`."
+# after grades taken in (took_left): no change to say
+NEXT_TOOK_EARLY = "your result is too early to tell. Mark more answers with `{mark}`."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
@@ -1169,7 +1171,13 @@ def no_such(path: str) -> str:
     """Nothing at the PATH given: by its name, in the folder it was looked for in, as a line
     names a path (shown_from_here, folder_words), else "here". A name with an extension is a
     file."""
-    from judgekeeper.textio import ANOTHER_DRIVE, folder_words, from_here, shown_from_here
+    from judgekeeper.textio import (
+        ANOTHER_DRIVE,
+        folder_words,
+        from_here,
+        home_folder_shown,
+        shown_from_here,
+    )
 
     given = Path(path)
     name = given.name or path
@@ -1178,9 +1186,15 @@ def no_such(path: str) -> str:
         return f"There is no {what} named {name} here."
     shown = shown_from_here(given.parent)
     if given.anchor and from_here(str(given.parent), labels=False) in ANOTHER_DRIVE:
-        # named from nowhere near here: from the top as typed, or its own name under it
+        # named from nowhere near here: in the home folder from it (`~/...`), else from the
+        # top as typed, or its own name under it
+        home = home_folder_shown(given.parent)
+        if home is not None:
+            return f"There is no {what} named {name} in {home}."
         sep = "\\" if "\\" in path else "/"
         top = path[:len(given.anchor)]
+        if given.parent == given.parent.parent:  # the top itself
+            return f"There is no {what} named {name} in {top}."
         if given.parent.parent != given.parent.parent.parent:  # not right under the top
             top += "\u2026" + sep
         return f"There is no {what} named {name} in {top}{given.parent.name}{sep}."
@@ -1713,9 +1727,6 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     about the judge in the newest results. The groups the marks were picked from, and those
     groups' sizes, stay in `picked` (start_label.picked_numbers). The answers it has no grade
     on keep an earlier judge's: `earlier_grades` names them, and no comparison uses those."""
-    from judgekeeper.fingerprint import JudgeFingerprint
-    from judgekeeper.judgments import judgment_to_record, read_run, write_run
-    from judgekeeper.runners.base import Judgment
     from judgekeeper.start_label import _write_json
 
     data = ws.data()
@@ -1743,28 +1754,40 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
                 pool={**(data.get("pool") or {}), "pass": kinds.count("pass"),
                       "fail": kinds.count("fail")},
                 checked_at=utc_now())
+    _write_grades(ws, found, answers, now)
+    _write_json(ws.start, data)
+
+
+def _write_grades(ws: Workspace, found, answers: dict, now: dict[str, str]) -> None:
+    """pool-judge.jsonl takes the grades `now` ({id: verdict}) of the judge in `found`: an
+    answer in `answers` with its own score, reason and fingerprint; one found by its text
+    alone with its verdict and no reason. Every other answer keeps its record."""
+    from judgekeeper.fingerprint import JudgeFingerprint
+    from judgekeeper.judgments import judgment_to_record, read_run, write_run
+    from judgekeeper.runners.base import Judgment
+
     try:
         head, records = read_run(ws.pool_judge)
     except (OSError, ValueError):
-        head, records = None, {}
-    if head is not None:
-        given = found.fingerprint.get("model_source") is not None
-        fp = JudgeFingerprint.from_dict(found.fingerprint)
-        lines = []
-        for i, rec in records.items():
-            a = answers.get(i)
-            if a is not None and i in now:
-                rec = judgment_to_record(i, Judgment(verdict=a.verdict, raw_score=a.score,
-                                                     rationale=a.reason),
-                                         a.fingerprint.with_(model=found.fingerprint["model"])
-                                         if given else a.fingerprint)
-            elif i in now and now[i] != rec.get("verdict"):  # found by its text: no reason kept
-                rec = judgment_to_record(i, Judgment(verdict=now[i], raw_score=None,
-                                                     rationale=""), fp)
-            lines.append(rec)
-        write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp,
-                  lines, source=head.get("source"), normaliser=head.get("normaliser"))
-    _write_json(ws.start, data)
+        return
+    if head is None:
+        return
+    given = found.fingerprint.get("model_source") is not None
+    fp = JudgeFingerprint.from_dict(found.fingerprint)
+    lines = []
+    for i, rec in records.items():
+        a = answers.get(i)
+        if a is not None and i in now:
+            rec = judgment_to_record(i, Judgment(verdict=a.verdict, raw_score=a.score,
+                                                 rationale=a.reason),
+                                     a.fingerprint.with_(model=found.fingerprint["model"])
+                                     if given else a.fingerprint)
+        elif i in now and now[i] != rec.get("verdict"):  # found by its text: no reason kept
+            rec = judgment_to_record(i, Judgment(verdict=now[i], raw_score=None,
+                                                 rationale=""), fp)
+        lines.append(rec)
+    write_run(ws.pool_judge, head.get("run", 1), head.get("anchors_sha256", ""), fp,
+              lines, source=head.get("source"), normaliser=head.get("normaliser"))
 
 
 def full(path: str, said: Said, pass_if: str | None = None) -> int:
@@ -1808,6 +1831,10 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         now = Now(judge_setup.of(found), None, found, found.results[0].path)
     else:
         now, problem = _now(state)
+        kept = (last_read_file(state.ws, [r.path for r in now.found.results] if now.found
+                               else [now.newest]) if now is not None and now.newest else None)
+        if kept is not None:  # newer than the results here, which the search finds
+            return full(str(kept), said, pass_if)
     found, new = (now.found, now.setup) if now is not None else (None, None)
     before, added = _added_since_check(state, new) if now is not None else (None, [])
     no_rule = new is not None and new.get("rule_hash") is None  # its grades tell a change
@@ -1898,7 +1925,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                 said.say(took)
                 said.say()
                 after = _saved_result(state.ws) or {}
-                said.say("Next: " + (next_marks(state.ws, NEXT_EARLY.format(
+                said.say("Next: " + (next_marks(state.ws, NEXT_TOOK_EARLY.format(
                     mark=mark_here(state.ws))) if after.get("verdict_level") in (
                         "check", "too_early") else _next_same(state).removeprefix("Next: ")))
                 return EXIT_OK
@@ -2105,6 +2132,34 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     shown = (newest.relative_to(root).as_posix() if newest.is_relative_to(root)
              else Path(shown_from_here(newest)).as_posix())
     return f"New results: {shown}"
+
+
+def last_read_file(ws: Workspace, results: list[Path]) -> Path | None:
+    """The file the last check read, when the marks test its LLM-as-a-judge (that check was
+    not held) and it is not one of the `results` found here (newest first), which are older:
+    those are no change to check. A plain run and a plain `check` keep it. None otherwise."""
+    try:
+        read = ws.data().get("results_read")
+    except (OSError, ValueError, AttributeError):
+        return None
+    checks = _history(ws)
+    if not isinstance(read, str) or not read or not checks or not results:
+        return None
+    last = checks[-1]
+    if last.get("kind") != "check" or any(
+            isinstance(g, dict) and g.get("exit_worse") for g in (last.get("groups") or {}).values()):
+        return None
+    from judgekeeper import textio
+
+    path = Path(textio.kept_at(read, ws.root))
+    try:
+        if any(os.path.samefile(r, path) for r in results):
+            return None
+        if path.stat().st_mtime <= Path(results[0]).stat().st_mtime:
+            return None
+    except OSError:
+        return None
+    return path
 
 
 def _newer_elsewhere(state: State, newest: Path | None) -> str | None:
@@ -2514,11 +2569,13 @@ def take_new_grades(ws: Workspace, found) -> str | None:
         earlier = list(ws.data().get("earlier_grades") or [])
     except (OSError, ValueError, AttributeError):
         return None
-    grades = {i: v for i, v in _free(found, earlier, ws).items() if v in ("pass", "fail")}
+    answers = {i: a for i, a in _matched(found, earlier, ws).items()
+               if a.verdict in ("pass", "fail")}
+    grades = {i: a.verdict for i, a in answers.items()}
     if not grades:
         return None
     with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
-        take_grades(ws, grades)
+        take_grades(ws, found, answers)
         waited = {i: grades[i] for i in marks.read(ws.marks).counted() if i in grades}
         if waited:  # marks that waited: the next change is compared with these grades
             _save_verdicts(ws, judge_setup.of(found), found, waited)
@@ -2526,11 +2583,14 @@ def take_new_grades(ws: Workspace, found) -> str | None:
     return took_left(len(grades))
 
 
-def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
-    """The judge the marks test now graded answers that had only an earlier judge's grade
-    (`earlier_grades`): start.json keeps its `grades` on them from now on."""
+def take_grades(ws: Workspace, found, answers: dict) -> None:
+    """The judge the marks test now (in `found`) graded answers that had only an earlier
+    judge's grade (`earlier_grades`): start.json keeps its grades on them from now on, and
+    pool-judge.jsonl its records ({id: its answer} `answers`, _write_grades)."""
     from judgekeeper.start_label import _write_json
 
+    grades = {i: a.verdict for i, a in answers.items()}
+    _write_grades(ws, found, answers, grades)
     data = ws.data()
     data["queue"] = [{**q, "group": grades.get(q["id"], q["group"])}
                      for q in data.get("queue") or []]

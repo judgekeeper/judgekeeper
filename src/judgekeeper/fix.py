@@ -1986,7 +1986,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if took:
         from judgekeeper.check import take_grades  # the judge as it is now graded them
 
-        take_grades(ws, {i: new[i] for i in earlier})
+        take_grades(ws, found, {i: matched[i] for i in earlier})
         old = {**old, **{i: new[i] for i in earlier}}
         talk.para(TOOK.format(k=len(earlier)))
         talk.say()

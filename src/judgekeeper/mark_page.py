@@ -828,8 +828,12 @@ __TOP__
       return;
     }
     $("end-note").hidden = true;
-    setText("end-title", (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany)
-      .replace("{n}", String(skipped)));
+    // no coloured result yet: a mark more, or more answers, can bring it; with one, the
+    // skipped answers can be left out
+    setText("end-title", status && status.ready
+      ? (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
+        ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out."
+      : (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany).replace("{n}", String(skipped)));
     setText("again", skipped === 1 ? "Look at it" : "Look at them");
     $("again").hidden = false;
     focusCard();  // the end card, not its button: no ring on open; Enter looks again

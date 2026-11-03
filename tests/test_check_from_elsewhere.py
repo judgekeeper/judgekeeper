@@ -303,6 +303,7 @@ def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, cap
     # a folder named from nowhere near: as typed from the top, never as one here
     ("/nonexistent-jk/x.csv", "There is no file named x.csv in /nonexistent-jk/."),
     ("/nonexistent-jk/deep/x.csv", "There is no file named x.csv in /\u2026/deep/."),
+    ("/x.csv", "There is no file named x.csv in /."),
 ])
 @pytest.mark.parametrize("command", ["check", "fix"])
 def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch, capsys, given,
@@ -311,6 +312,18 @@ def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch,
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     code, out = _run(capsys, command, given.format(home=home))
+    assert code != 0 and said in out and USER not in out, out
+
+
+@pytest.mark.parametrize(("given", "said"), [
+    ("{home}/x.csv", "There is no file named x.csv in ~/."),
+    ("{home}/Desktop/x.csv", "There is no file named x.csv in ~/Desktop/."),
+])
+def test_a_missing_path_in_home_named_from_outside_it_is_named_from_home(home, monkeypatch,
+                                                                         capsys, given, said):
+    monkeypatch.chdir(home.parent)
+    (home / "Desktop").mkdir(exist_ok=True)
+    code, out = _run(capsys, "check", given.format(home=home))
     assert code != 0 and said in out and USER not in out, out
 
 
