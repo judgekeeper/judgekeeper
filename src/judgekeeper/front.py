@@ -1654,6 +1654,19 @@ def _flags_of(talk: FrontTalk, saved: bool, ws: Workspace) -> dict:
     return start.run_flags(path, **options)
 
 
+def _back(talk: FrontTalk, saved: bool) -> dict | None:
+    """How to come back to the page as typed here (start.saved_back), for its footer: the
+    path given, from here (never a whole path), and the program as typed here. None when the
+    path can't be said from here (another drive)."""
+    path = answered(talk, saved)[0]
+    if path != "." and (os.path.isabs(path) or textio.through_top(path)):
+        try:
+            path = os.path.relpath(os.path.abspath(path))
+        except ValueError:
+            return None
+    return {"path": path, "program": program()}
+
+
 def _kept_uri(uri: str, root: Path) -> str:
     """An MLflow store as result.json keeps it: a whole path in it (as it is, or after
     sqlite:///) from the project folder; any other store as given."""
@@ -1960,7 +1973,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
-                               say=talk.para)
+                               say=talk.para, back=_back(talk, saved))
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running

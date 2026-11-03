@@ -266,6 +266,28 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
                      *repeated_flags(kept=kept, **saved_flags(flags))))
 
 
+def saved_back(back) -> dict | None:
+    """How to come back to a page as typed where it was started (front._back): the path as
+    given there and the program as typed there, each one line of text; else None."""
+    def ok(value) -> bool:
+        return isinstance(value, str) and value.isprintable() and 0 < len(value) < 4096
+
+    if isinstance(back, dict) and ok(back.get("path")) and ok(back.get("program")):
+        return {"path": back["path"], "program": back["program"]}
+    return None
+
+
+def come_back(flags, back=None) -> str:
+    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: typed
+    where the page was started (`back`, saved_back) when known, else in the project folder
+    (command_from)."""
+    back = saved_back(back)
+    if back is None:
+        return command_from(flags, "mark", kept=True)
+    words = repeated_flags(kept=True, **{**saved_flags(flags), "path": back["path"]})
+    return " ".join((f"{back['program']} mark", *words))
+
+
 def kept_check(path, root) -> str:
     """`judgekeeper check` as report.html keeps it: the program named plainly
     (textio.plainly), with `path` from the project folder `root` (textio.kept_path) when it
