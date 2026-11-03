@@ -744,8 +744,8 @@ WRITTEN_FROM_MARK = ("This includes marks you looked at to pick this pass mark, 
 # `check --pass-if` on a judge whose pass mark is not read with --pass-if
 NO_SCORES = ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
              "Pass or Fail, so run `{check}` without it.")
-MARK_ELSEWHERE = ("--pass-if sets a pass mark given with --pass-if; yours is set in your eval, "
-                  "so change it there, run your eval, then run `{check}`.")
+MARK_ELSEWHERE = ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in "
+                  "your eval, so change it there, run your eval, then run `{check}`.")
 AFTER_NONE = "On marks made after this change: {said}."
 AFTER_MORE = " Mark more answers to see it on answers it was not written for."
 AFTER_NUMBERS = 10  # of each kind: their numbers are shown
@@ -840,7 +840,7 @@ WAIT_NEXT = "grade all your answers with your new LLM-as-a-judge, then {run}."
 WAIT_COUNT = "To count them, " + WAIT_NEXT
 NONE_GRADED = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to mark, "
                "so a new mark can't count yet.")
-WAIT_MORE = "To mark more, " + WAIT_NEXT
+WAIT_MORE = "To count new marks, first " + WAIT_NEXT
 
 
 def wait_file(ws: Workspace) -> str:
@@ -2429,7 +2429,11 @@ def _report(ws: Workspace, adopted: bool = False, worse: str | None = None) -> N
         return
     try:
         if adopted and isinstance(saved, dict):
-            store_result(ws, StartSession(ws), saved.get("flags"), redraw=True)
+            flags = saved.get("flags")
+            pm = ws.data().get("pass_mark") or {}
+            if isinstance(flags, dict) and flags.get("pass_if") and pm.get("source") == "pass_if":
+                flags = {**flags, "pass_if": pm.get("rule")}  # its commands read with that mark
+            store_result(ws, StartSession(ws), flags, redraw=True)
         else:
             write_report(ws, worse=worse)
     except OSError:

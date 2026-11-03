@@ -565,7 +565,9 @@ def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here,
     takes it on; later runs with that pass mark find no change."""
     from judgekeeper import check
 
-    score_project(here)
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")  # result.json
+    main(["--stop"])
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     with only_reads(monkeypatch):
         flat = " ".join(run(capsys)[1].split())
@@ -578,9 +580,14 @@ def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here,
     assert f"pass mark 0.5 -> {rule.split('>=')[1]}" in said, said
     assert check.WRITTEN_FROM_MARK in said and "to write this rule" not in said, said
     assert "has not changed" not in said
+    # the commands the result names read with the new pass mark, never the old one
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == rule
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert "score&gt;=0.5" not in report and "score>=0.5" not in report
     code, said = _main(capsys, "--pass-if", rule, "--no-browser", "--port", "0")
     main(["--stop"])
     assert code == 0 and "changed since your marks" not in said, said
+    assert " -> " not in said and "grades changed" not in said, said  # no change
     code, said = _main(capsys, "check", "--pass-if", rule)
     assert "has not changed since your last check" in said, said
 
@@ -591,6 +598,18 @@ def test_a_plain_run_given_a_new_pass_mark_names_the_check_that_tests_it(here, c
     main(["--stop"])
     assert "pass mark 0.5 -> 0.7" in said, said
     assert 'Next: run `judgekeeper check --pass-if "score>=0.7"`' in said, said
+
+
+def test_check_with_a_pass_mark_the_eval_sets_says_where_to_change_it(here, capsys):
+    from judgekeeper import check
+
+    score_project(here)
+    ws = Workspace(here)
+    data = ws.data()
+    data["pass_mark"] = {**data["pass_mark"], "source": "promptfoo"}
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.7")
+    assert code == 2 and check.MARK_ELSEWHERE.format(check="judgekeeper check") in said, said
 
 
 def test_check_with_a_pass_mark_for_grades_that_are_no_scores_says_what_it_is_for(here, capsys):
