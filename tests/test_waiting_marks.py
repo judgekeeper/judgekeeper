@@ -545,6 +545,13 @@ def test_a_group_left_with_only_waiting_answers_is_named_while_the_other_has_som
     assert "waiting" not in r and not r.get("import_gate"), r.get("import_gate")
     assert r["only_wait"] is True and r["wait_group"] == "fail", r
     _says_the_group_waits(ws, capsys, "failed")
+    # marks in the other group still count: no line says new marks count only after grading
+    step = ("To check those marks, grade all your answers with your new LLM-as-a-judge, then "
+            "run")
+    for page in (_text(ws.report_html.read_text(encoding="utf-8")),
+                 _text(start_label.live_result(ws, StartSession(ws), back="/")),
+                 StartSession(ws).state()["status"]["waiting"]):
+        assert step in page and "to count new marks" not in page.lower(), page
 
 
 def _says_the_group_waits(ws: Workspace, capsys, did: str) -> None:

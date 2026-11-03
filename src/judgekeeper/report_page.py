@@ -679,7 +679,7 @@ def waiting_html(r: dict) -> str:
     """The marks that wait (batches.graded) and how to count them, as Measure says it; with
     none waiting but no answer left that a mark counts on (only_wait), that, and how to mark
     more."""
-    from judgekeeper.check import WAIT, WAIT_COUNT, WAIT_MORE, no_grade_left
+    from judgekeeper.check import WAIT, WAIT_COUNT, WAIT_GROUP, WAIT_MORE, no_grade_left
 
     k = r.get("waiting")
     if not k and not r.get("only_wait"):
@@ -693,7 +693,8 @@ def waiting_html(r: dict) -> str:
     if typed != plain and command.startswith(f"{plain} "):
         command = typed + command[len(plain):]
     run = f"run <code>{look.command(_e(command))}</code>"
-    first, then = (WAIT.format(k=k), WAIT_COUNT) if k else (no_grade_left(r), WAIT_MORE)
+    first, then = ((WAIT.format(k=k), WAIT_COUNT) if k
+                   else (no_grade_left(r), WAIT_GROUP if r.get("wait_group") else WAIT_MORE))
     if k and r.get("wait_group"):  # and the group no mark can move
         first = f"{first} {no_grade_left(r)}"
     count = _term(then.format(run="\0")).replace("\0", run)
