@@ -556,6 +556,9 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
     assert (f"To use a pass mark of 0.7, run `judgekeeper check --pass-if "
             f"{quote_arg('score>=0.7')}`.") in flat
     assert "Use `--pass-if" not in flat  # one form, never two in a sentence
+    # the last step: the better pass mark first, then the new rule
+    assert (f"Next: run `judgekeeper check --pass-if {quote_arg('score>=0.7')}` to switch to "
+            "the better pass mark. Or change your LLM-as-a-judge's rule") in flat, flat
     split = _split(ws)
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))

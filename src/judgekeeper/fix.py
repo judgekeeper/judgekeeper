@@ -1123,6 +1123,21 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     return test
 
 
+def pass_mark_command(ws: Workspace, pm: dict, test: dict) -> str | None:
+    """The `check --pass-if` that switches to the better pass mark `test` found, when the
+    pass mark is given with --pass-if (not kept in a file judgekeeper found); else None."""
+    from judgekeeper.check import _here
+    from judgekeeper.start_fix import locate, searched, where_lines
+
+    if VERDICT_WORDS.get(test["verdict"]) is None:
+        return None
+    name = searched(pm)
+    if name and locate(ws.root, name, test["old"]):
+        return None
+    given = re.search(r'--pass-if "([^"]*)"', where_lines(pm, test["new"])[0])
+    return f"{_here(ws, 'check')} --pass-if {quote_arg(given[1])}" if given else None
+
+
 def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     """The pass-mark line of the fix output, when the verdict says the new mark is worth trying."""
     from judgekeeper.start_fix import locate, searched, where_lines
@@ -1133,17 +1148,13 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     new, old = f"{test['new']:g}", f"{test['old']:g}"
     name = searched(pm)
     found = name and locate(ws.root, name, test["old"])
+    command = pass_mark_command(ws, pm, test)
     if found:
         where = f"Change it in {found[0]}, line {found[1]}."
+    elif command:  # one form: the check that re-checks it with that pass mark
+        where = f"To use a pass mark of {new}, run `{command}`."
     else:
-        line = where_lines(pm, test["new"])[0]
-        where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", line)
-        given = re.search(r'--pass-if "([^"]*)"', line)
-        if given:  # one form: the check that re-checks it with that pass mark
-            from judgekeeper.check import _here
-
-            where = (f"To use a pass mark of {new}, run "
-                     f"`{_here(ws, 'check')} --pass-if {quote_arg(given[1])}`.")
+        where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", where_lines(pm, test["new"])[0])
     return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
             f"{test['fixed']}, broke {test['broke']}, so {words}). {where}")
 
@@ -1827,8 +1838,11 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True) -> s
     return f"{command} --output-file {out}" if out else command
 
 
-def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
-    """The per-tool line and the Next: line after marked-answers.csv is written."""
+def _next_regrade(talk: Talk, ws: Workspace, tool: str | None, first: str | None = None) -> None:
+    """The per-tool line and the Next: line after marked-answers.csv is written. `first`: a
+    step said before the new rule's (a better pass mark), which then comes after "Or"."""
+    def nxt(text: str) -> None:
+        talk.next(f"{first} Or {text}" if first else text)
     talk.say()
     steps = (regrade_steps(ws, talk.program("fix"), away=talk.away()) if tool == "promptfoo"
              else None)
@@ -1837,25 +1851,25 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if steps:  # a ready config: the steps above are the whole way
         for line in not_a_column(ws):
             talk.para(line)
-        talk.next(FOLLOW_STEPS)
+        nxt(FOLLOW_STEPS)
         return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
-        talk.next(f"change your scorer's rule, run `{inspect_score(ws, log)}` "
-                  f"and then {talk.run(log)}.")
+        nxt(f"change your scorer's rule, run `{inspect_score(ws, log)}` "
+            f"and then {talk.run(log)}.")
         return
     store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
     if store:  # a new run in the same store
-        talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
-                  f"same traces, then {talk.run(store)}: it reads the newest run.")
+        nxt(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
+            f"same traces, then {talk.run(store)}. It reads the newest run.")
         return
     if tool in ("records", "mapped"):  # graded with their own code, as said above
         new = NEW_RECORDS if tool == "records" else NEW_RESULTS
-        talk.next(f"change your LLM-as-a-judge's rule, grade the answers in "
-                  f"{_file(ws, ANSWERS)} again as said above, then {talk.run(new)}.")
+        nxt(f"change your LLM-as-a-judge's rule, grade the answers in "
+            f"{_file(ws, ANSWERS)} again as said above, then {talk.run(new)}.")
         return
-    talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
-              f"{_file(ws, ANSWERS)} again, save the results, then {talk.run(NEW_RESULTS)}.")
+    nxt(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
+        f"{_file(ws, ANSWERS)} again, save the results, then {talk.run(NEW_RESULTS)}.")
 
 
 def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
@@ -1921,7 +1935,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say()
     n = write_answers(ws, m)
     talk.para(_answers_line(ws, split, n, said=bool(counted and split.hidden)))
-    _next_regrade(talk, ws, tool)
+    better = tested and pass_mark_command(ws, pm, tested)
+    _next_regrade(talk, ws, tool, f"run `{better}` to switch to the better pass mark."
+                  if better else None)
     return EXIT_OK
 
 
