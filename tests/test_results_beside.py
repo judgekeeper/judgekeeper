@@ -7,6 +7,7 @@ marked file. Results in a folder of their own still get their own marks."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from tests.start_projects import (
     inspect_data,
     promptfoo_data,
     promptfoo_project,
+    question,
     split,
     table_project,
 )
@@ -342,3 +344,43 @@ def test_the_other_eval_line_names_a_program_that_runs_in_the_new_folder(monkeyp
     monkeypatch.setattr(textio, "program", lambda *a: typed)
     line = project.other_eval_line(Path("evals/second.csv"), Path("evals/results.csv"))
     assert line.endswith(f"put it in a folder of its own and run `{shown}` there."), line
+
+
+def _store_and_file(root, held: list[tuple[str, str]], rows: list[tuple[str, str]]):
+    """A session holding `held` (question, answer) pairs, and a CSV beside it of `rows`."""
+    import csv
+
+    ws = Workspace(root)
+    ws.dir.mkdir(parents=True)
+    ws.start.write_text(json.dumps({"tool": "table"}), encoding="utf-8")
+    ws.pool.write_text("".join(json.dumps({"id": f"a{k}", "input": q, "output": a}) + "\n"
+                               for k, (q, a) in enumerate(held)), encoding="utf-8")
+    path = root / "other.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        w.writerows([q, a, "pass" if k % 2 else "fail"] for k, (q, a) in enumerate(rows))
+    return path, root
+
+
+@pytest.mark.parametrize(("held", "rows", "same"), [
+    # marked at 3 answers a question, run again once each on all 20 and 25 new ones
+    ([(question(i), answer(i, f"e{e}")) for i in range(20) for e in range(3)],
+     [(question(i), answer(i, "again")) for i in range(45)], True),
+    # 3 rows a question (one per assertion), only 16 of 60 questions marked
+    ([(question(i), answer(i)) for i in range(60)],
+     [(question(i if i < 16 else 100 + i), answer(i)) for i in range(60) for _ in range(3)],
+     False),
+    ([(question(i), answer(i)) for i in range(60)],
+     [(question(i if i < 30 else 100 + i), answer(i)) for i in range(60)], True),
+    ([(question(i), answer(i)) for i in range(60)],
+     [(question(i if i < 29 else 100 + i), answer(i)) for i in range(60)], False),
+], ids=["epochs then more questions", "3 assertions, 16 of 60", "30 of 60", "29 of 60"])
+def test_the_same_eval_counts_distinct_questions(tmp_path, monkeypatch, held, rows, same):
+    """Half the distinct questions of the smaller side: never rows, which repeats (epochs) or
+    one row per assertion multiply."""
+    from judgekeeper import project
+
+    monkeypatch.chdir(tmp_path)
+    path, store = _store_and_file(tmp_path, held, rows)
+    assert project._same_eval(path, store) is same

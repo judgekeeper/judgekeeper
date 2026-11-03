@@ -277,9 +277,11 @@ def _same_eval(path: Path, store: Path) -> bool:
     if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    ours = [f for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held) if f]
+    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
+    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
+            if f}
     questions = set().union(*ours)
-    theirs = [f for f in (_forms(r.input, r.output) - {""} for r in records) if f]
+    theirs = {frozenset(f) for f in (_forms(r.input, r.output) - {""} for r in records) if f}
     if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
         # the smaller side: the same eval run on more questions is still this one
         return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
