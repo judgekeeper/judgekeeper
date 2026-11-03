@@ -1985,8 +1985,11 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None, first: str | None
         return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
-        nxt(f"change your scorer's rule, run `{inspect_score(ws, log)}` "
-            f"and then {talk.run(log)}.")
+        command = inspect_score(ws, log)
+        spot = next((v for v in (*NEW_RULE.values(), OWN_TEMPLATE[0]) if v in command), None)
+        what = "a file with your new rule" if spot == NEW_RULE["template"] else "your new rule"
+        nxt(f"run `{command}` with {what} in place of `{spot}`, then {talk.run(log)}."
+            if spot else f"change your scorer's rule, run `{command}` and then {talk.run(log)}.")
         return
     store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
     if store:  # a new run in the same store

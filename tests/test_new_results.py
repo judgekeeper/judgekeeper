@@ -274,7 +274,8 @@ def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
                                      f"-S instructions={quote_arg('<new rule>')}{model} "
                                      "--action overwrite")
     assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
-    assert (f"run `{fix.inspect_score(ws, new)}` and then run `judgekeeper fix {new}`") in said
+    assert (f"run `{fix.inspect_score(ws, new)}` with your new rule in place of `<new rule>`, "
+            f"then run `judgekeeper fix {new}`") in said
     assert "with `--output-file" not in said, said
     assert fix.REGRADE["inspect"] in said, said  # with the way round a rule `-S` can't take
     assert fix.EVAL_TOOLS in fix.REGRADE["inspect"] and "score() in Python" in said
