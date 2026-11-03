@@ -69,7 +69,7 @@ def test_check_from_another_folder_names_its_lines_from_the_project(home, monkey
                                                                      where):
     """"Worse" for a table judge: `fix` given the project, then "then in your project folder,
     run `<program> check <new results file>`"; each filled in and run as it says."""
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     _worse_project(proj, monkeypatch, capsys)
     away = proj.parent if where == "above" else home.parent.parent
     monkeypatch.chdir(away)
@@ -105,7 +105,7 @@ def test_judgekeeper_from_another_folder_after_worse_names_the_program_from_the_
     """Plain `judgekeeper <project>` after "Worse": the terminal says "then in your project
     folder, run `<program> check <new results file>`"; report.html keeps the plain form, as it
     is read in the project folder."""
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     _worse_project(proj, monkeypatch, capsys)
     away = proj.parent if where == "above" else home.parent.parent
     monkeypatch.chdir(away)
@@ -132,7 +132,7 @@ def test_judgekeeper_from_another_folder_after_worse_names_the_program_from_the_
 
 
 def test_check_from_the_project_keeps_its_lines(home, monkeypatch, capsys):
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
+    proj = home / "Desktop" / "My Work" / "team" / "proj"
     _worse_project(proj, monkeypatch, capsys)
     _started(monkeypatch, home)
     code, out = _run(capsys, "check")
@@ -148,7 +148,7 @@ def test_check_steps_from_the_folder_above_name_the_program_from_the_project(hom
     from tests.test_only_reads import project as any_project
     from tests.test_regrade_yaml import _none_in
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "support-bot"
+    proj = home / "Desktop" / "My Work" / "team" / "support-bot"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     any_project("promptfoo", proj, monkeypatch)
@@ -170,7 +170,7 @@ def test_check_steps_from_the_folder_above_name_the_program_from_the_project(hom
 @pytest.mark.parametrize("where", ["root", "above", "far"])
 def test_mistakes_md_names_the_program_plainly(home, monkeypatch, capsys, where):
     """mistakes.md is a file in .judgekeeper/: it names `judgekeeper check`, never a path."""
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     _worse_project(proj, monkeypatch, capsys)
     away = {"root": Path("/"), "above": proj.parent, "far": home.parent.parent}[where]
     monkeypatch.chdir(away)
@@ -197,7 +197,7 @@ def test_the_wait_line_from_another_folder_names_the_program_from_the_project(
 
     from tests.test_waiting_marks import adopt_records
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     adopt_records(proj, monkeypatch, capsys)
@@ -226,10 +226,10 @@ def test_the_wait_line_from_another_folder_names_the_program_from_the_project(
 def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, monkeypatch,
                                                                          capsys, where):
     """A results file of a project with its own session, given from another folder: "To check
-    them, run `<program>` in proj s3/", with the program as it is typed in proj s3/."""
+    them, run `<program>` in proj b3/", with the program as it is typed in proj b3/."""
     from tests.test_earlier_grades import adopt
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     adopt(proj, capsys)
@@ -249,7 +249,7 @@ def test_check_sending_you_to_a_project_names_the_program_from_there(home, monke
     folder: the program in "run ... in <project>/" as it is typed there."""
     from tests.test_earlier_grades import adopt
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     adopt(proj, capsys)
@@ -258,16 +258,16 @@ def test_check_sending_you_to_a_project_names_the_program_from_there(home, monke
     tool = _started(monkeypatch, home)
     code, out = _run(capsys, "check", os.path.relpath(proj / "v2.json", away))
     lines = [x for x in _commands(out) if "judgekeeper" in x]
-    assert code == 3 and lines and "proj s3/" in out, out
+    assert code == 3 and lines and "proj b3/" in out, out
     for line in lines:
         assert _program_in(line, proj, home) == tool, (line, out)
 
 
-TEAM = "~/Desktop/Testing Judge/team/proj s3"
+TEAM = "~/Desktop/My Work/team/proj b3"
 
 
 @pytest.mark.parametrize(("where", "named"), [
-    ("above", "proj s3"), ("homes", TEAM), ("far", TEAM), ("top", TEAM)])
+    ("above", "proj b3"), ("homes", TEAM), ("far", TEAM), ("top", TEAM)])
 @pytest.mark.parametrize("command", [[], ["check"]])
 def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, capsys, where,
                                                           named, command):
@@ -275,7 +275,7 @@ def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, cap
     folder is `~/...`: never a user name, and every command it names runs where it says."""
     from tests.test_earlier_grades import adopt
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj = home / "Desktop" / "My Work" / "team" / "proj b3"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     adopt(proj, capsys)
@@ -294,8 +294,8 @@ def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, cap
 
 
 @pytest.mark.parametrize(("given", "said"), [
-    ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
-     "There is no file named missing.csv in ../c2-new/."),
+    ("{home}/Desktop/My Work/evals-new/missing.csv",
+     "There is no file named missing.csv in ../evals-new/."),
     ("sub/missing.csv", "There is no file named missing.csv in sub/."),
     ("missing.csv", "There is no file named missing.csv here."),
     ("missing", "There is no file or folder named missing here."),
@@ -308,7 +308,7 @@ def test_a_project_elsewhere_is_named_without_a_user_name(home, monkeypatch, cap
 @pytest.mark.parametrize("command", ["check", "fix"])
 def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch, capsys, given,
                                                               said, command):
-    proj = home / "Desktop" / "Testing Judge" / "c2"
+    proj = home / "Desktop" / "My Work" / "evals"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     code, out = _run(capsys, command, given.format(home=home))
