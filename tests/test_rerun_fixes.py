@@ -138,6 +138,19 @@ def test_the_same_rule_and_model_says_whether_the_grades_differ(here, capsys):
                                "and grade again.")
 
 
+def test_new_results_with_no_grade_at_all_say_so(here, capsys):
+    """Every answer kept aside is there with no Pass or Fail: no grader ran as set up. That is
+    said plainly, not as an ordinary "can't tell"."""
+    ws = tf.project(here)
+    tf.run(capsys)
+    hidden = _hidden_numbers(ws)
+    code, out = tf.run(capsys, _regraded(here, "none.json", set(hidden)))
+    flat = " ".join(out.split())
+    assert code == 3, out
+    assert f"{fix.NO_GRADES.format(n=len(hidden))} {fix.NO_GRADES_OTHER}" in flat, flat
+    assert "Result:" not in flat and "too many to test it on" not in flat, flat
+
+
 def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     ws = tf.project(here)
     tf.run(capsys)

@@ -180,9 +180,10 @@ def test_inspect_check_with_too_few_says_to_score_the_whole_log_again(here, caps
 
 # Inspect AI: the log graded again ----------------------------------------------------------------
 
-def _marked_inspect_log(here, capsys) -> tuple:
+def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
     """An Inspect AI log graded by model_graded_qa (a mock grader), every answer marked, and
-    `judgekeeper fix` run once: (the log, the workspace)."""
+    `judgekeeper fix` run once: (the log, the workspace). `option`: the grader is the scorer's
+    `model=` (mockllm/grader), not the grader role."""
     from inspect_ai import Task
     from inspect_ai import eval as run_eval
     from inspect_ai.dataset import Sample
@@ -195,13 +196,15 @@ def _marked_inspect_log(here, capsys) -> tuple:
     from tests.test_only_reads import closed
 
     old_rule = "Old rule. GRADE: C or GRADE: I."
-    task = Task(dataset=[Sample(input=f"Question {i}?", target=f"Answer {i}") for i in range(N)],
-                solver=generate(), scorer=model_graded_qa(instructions=old_rule))
-    grades = [ModelOutput.from_content("mockllm/model", f"GRADE: {'C' if i % 3 else 'I'}")
+    name = "mockllm/grader" if option else "mockllm/model"
+    grades = [ModelOutput.from_content(name, f"GRADE: {'C' if i % 3 else 'I'}")
               for i in range(N)]
-    grader = get_model("mockllm/model", custom_outputs=grades)
-    log = Path(run_eval(task, model="mockllm/model", model_roles={"grader": grader},
-                        display="none", log_dir=str(here / "logs"))[0].location)
+    grader = get_model(name, custom_outputs=grades)
+    task = Task(dataset=[Sample(input=f"Question {i}?", target=f"Answer {i}") for i in range(N)],
+                solver=generate(), scorer=model_graded_qa(instructions=old_rule,
+                                                          **({"model": grader} if option else {})))
+    log = Path(run_eval(task, model="mockllm/model", display="none", log_dir=str(here / "logs"),
+                        **({} if option else {"model_roles": {"grader": grader}}))[0].location)
     assert main(["--no-browser"]) == 0
     ws = Workspace(here)
     session = StartSession(ws)
@@ -214,16 +217,19 @@ def _marked_inspect_log(here, capsys) -> tuple:
     said = flat(out)
     new = fix.new_log(ws)
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
+    model = f" -S model={quote_arg('mockllm/grader')}" if option else ""  # roles are kept
     assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
-                                     f"-S instructions={quote_arg('<new rule>')} "
+                                     f"-S instructions={quote_arg('<new rule>')}{model} "
                                      "--action overwrite")
     assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
     assert (f"run `{fix.inspect_score(ws, new)}` and then run `judgekeeper fix {new}`") in said
     assert "with `--output-file" not in said, said
-    assert (f"else grade it with Inspect's score() in Python, as {fix.EVAL_TOOLS} shows.") in said
+    assert (f"Otherwise, grade it with Inspect's score() in Python, as {fix.EVAL_TOOLS} "
+            "shows.") in said
     assert fix.EVAL_TOOLS == "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
-    assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space; "
-            "else grade it with Inspect's score() in Python") in said, said
+    assert ("Give the options you set before again with `-S`, the grader's model too. "
+            "`-S instructions=` takes a rule with no comma and no colon followed by a space. "
+            "Otherwise, grade it with Inspect's score() in Python") in said, said
     tools = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
     assert "- **A new rule with a comma, or a colon followed by a space.**" in tools
     return log, ws
@@ -271,6 +277,57 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     assert test["rule_hash"] == rule_hash(new_rule)  # the rule in the command reached the scorer
     code, out = run(capsys, "check")  # the new log, with the others: no choice to make
     assert "need a choice" not in out and "run your eval once" not in out, out
+
+
+# Inspect's command line, where only the grader model's reply holds a grade (the task's model
+# gives none): a log graded by the wrong model has no grades
+GRADER_ONLY = ("import sys; from inspect_ai.model._providers.mockllm import MockLLM; "
+               "init = MockLLM.__init__\n"
+               "def mine(self, model_name, *a, **k):\n"
+               "    init(self, model_name, *a, **k)\n"
+               "    if model_name == 'grader': self.default_output = 'GRADE: C'\n"
+               "MockLLM.__init__ = mine\n"
+               "from inspect_ai._cli.main import main; sys.argv[0] = 'inspect'; main()")
+
+
+def test_a_grader_set_as_the_scorers_model_is_in_the_command_fix_prints(here, capsys):
+    """model_graded_qa(model=...) is not kept by `inspect score`: without `-S model=`, the
+    task's model grades and every grade is empty. The printed command names the grader, it
+    parses and runs with Inspect's own command line, and a log with no grades is said plainly,
+    not answered with the same command."""
+    pytest.importorskip("inspect_ai")
+    import shlex
+    import subprocess
+    import sys
+
+    from inspect_ai._cli.score import score_command
+
+    _, ws = _marked_inspect_log(here, capsys, option=True)
+    assert fix.scorer_model(ws) == "mockllm/grader"
+    new = fix.new_log(ws)
+    printed = shlex.split(fix.inspect_score(ws, quote_arg(new)))  # its paths have no "\\"
+    argv = ["instructions=New rule. GRADE C or GRADE I." if a == "instructions=<new rule>"
+            else a for a in printed[2:]]
+    assert "model=mockllm/grader" in score_command.make_context("score", list(argv)).params["s"]
+
+    def score(args):
+        done = subprocess.run([sys.executable, "-c", GRADER_ONLY, "score", *args,
+                               "--display", "none"], cwd=here, capture_output=True, text=True,
+                              timeout=300, stdin=subprocess.DEVNULL, check=False)
+        assert done.returncode == 0, done.stdout + done.stderr
+        return run(capsys, "fix", new)
+
+    i = argv.index("model=mockllm/grader")
+    code, out = score(argv[:i - 1] + argv[i + 1:])  # the command as it was: no grader model
+    said = flat(out)
+    assert code != 0 and "Result:" not in said, said
+    assert fix.NO_GRADES.format(n=len(fix.read_split(ws).hidden)) in said, said
+    assert fix.NO_GRADES_INSPECT in said, said
+    assert said.endswith(f"run `{fix.inspect_score(ws, quote_arg(new))}` and then run "
+                         f"`judgekeeper fix {new}`."), said
+    (here / new).unlink()  # else Inspect asks before it writes over it
+    code, out = score(argv)  # as printed
+    assert code == 0 and "Result:" in out, out
 
 
 def test_a_rule_with_commas_graded_again_in_python_as_the_docs_show(here, capsys):

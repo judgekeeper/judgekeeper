@@ -112,6 +112,13 @@ MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grad
            "ungraded would look better than it is.")
 MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no decision from "
                 "your new rule{why}: more than half, too many to test it on.")
+# Every answer kept aside is there, none with a Pass or Fail: the grader did not grade
+NO_GRADES = ("Your new results have no grades. None of the {n} answers kept aside got a Pass "
+             "or Fail from your new rule.")
+NO_GRADES_INSPECT = ("Inspect may have graded with your task's own model, not your grader model. "
+                     "Check the `-S` options you gave `inspect score`. Give again each option "
+                     "your scorer was set up with, its model too.")
+NO_GRADES_OTHER = "Check that your LLM-as-a-judge ran with its model and your new rule."
 COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
            "counted {them}.")
 REGRADE_SAME = "grade every answer in {answers} again with your new rule, then {run}."
@@ -147,8 +154,9 @@ REGRADE = {
     "promptfoo": (f"promptfoo: grade {ANSWERS} again with your new rule, with the `echo` "
                   "provider and no new answers. " + EVAL_TOOLS + " shows the whole config."),
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
-                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
-                "give the options you set before again with `-S`. `-S instructions=` takes a "
+                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own). "
+                "Give the options you set before again with `-S`, the grader's model too. "
+                "`-S instructions=` takes a "
                 "rule with no comma and no colon followed by a space. Otherwise, grade it "
                 "with Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
@@ -1540,6 +1548,23 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
 
 
+def _no_grades_next(talk: Talk, ws: Workspace) -> str:
+    """The next step when the new results hold no grade at all: for Inspect AI, the command
+    with the grader model when the log names it, else the options to give again."""
+    try:
+        tool = ws.cached_data().get("tool")
+    except (OSError, ValueError, AttributeError):
+        tool = None
+    if tool != "inspect":
+        return _regrade_same(talk, ws)
+    log = quote_arg(new_log(ws))
+    if scorer_model(ws):
+        return (f"score your log again with your new rule and your grader model: run "
+                f"`{inspect_score(ws, log)}` and then {talk.run(log)}.")
+    return (f"give `inspect score` the `-S` options your scorer was set up with, its model "
+            f"too, then {talk.run(log)}.")
+
+
 def _yaml_string(text) -> str:
     """`text` as a double-quoted YAML string (any JSON value as YAML's flow form): JSON is
     YAML, with the line breaks and control characters YAML knows beyond JSON's escaped too."""
@@ -1859,9 +1884,38 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True) -> s
     if field not in NEW_RULE:
         field = "instructions" if scorer in INSPECT_OWN else None
     option = f" -S {field}={quote_arg(NEW_RULE[field])}" if rule and field else ""
+    model = _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None
+    option += f" -S model={quote_arg(model)}" if model else ""
     command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
                                    rule=option)
     return f"{command} --output-file {out}" if out else command
+
+
+def scorer_model(ws: Workspace) -> str | None:
+    """The grader model the marked log's scorer was given as its `model` option, or None."""
+    log = _marked_log(ws)[0]
+    try:
+        metric = ws.data().get("metric")
+    except (OSError, ValueError, AttributeError):
+        metric = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    return _scorer_model(ws, log, name) if log and _SCORER.fullmatch(name) else None
+
+
+def _scorer_model(ws: Workspace, log: str, scorer: str) -> str | None:
+    """The model `scorer` was given as its `model` option in the log (model_graded_qa(model=
+    ...)). `inspect score` does not keep it: without `-S model=`, the task's own model grades.
+    A grader given as a model role needs nothing: `inspect score` keeps the log's roles."""
+    from judgekeeper.readers.inspect_logs import _model, eval_header
+
+    spec = eval_header(Path(ws.root) / log)
+    for s in spec.get("scorers") or []:
+        if isinstance(s, dict) and s.get("name") in (scorer, scorer.rsplit("/", 1)[-1]):
+            model = _model((s.get("options") or {}).get("model"))[0]
+            if isinstance(model, str) and model.strip() and model.isprintable() \
+                    and "+" not in model:
+                return model.strip()
+    return None
 
 
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None, first: str | None = None) -> None:
@@ -2105,6 +2159,11 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
             talk.para(SAME_GRADES if _same_rule(ws, setup, setup_hash) else
                       UNCHANGED.format(n=len(ids)))
         _next_regrade(talk, ws, m.data.get("tool"))
+        return EXIT_NEEDS_YOU
+    if blank and not ids and not gone:  # not one grade: say so, never the same Next as before
+        talk.para(NO_GRADES.format(n=len(blank)))
+        talk.para(NO_GRADES_INSPECT if m.data.get("tool") == "inspect" else NO_GRADES_OTHER)
+        talk.next(_no_grades_next(talk, ws))
         return EXIT_NEEDS_YOU
     if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those;
         k = len(lack) if gone else len(blank)  # before a replay: this file can't test it
