@@ -1935,6 +1935,10 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if why is not None and not over:
         talk.say("Nothing was moved.")
         raise talk.stop(EXIT_OK, f"nothing. Your old marks stay in {FOLDER}/.")
+    if why == [] and talk.new and not _has_marks(ws) and not _changed(ws, found):
+        talk.para("You haven't marked any answers yet, so there is nothing to put aside. "
+                  "Nothing was moved.")
+        raise talk.stop(EXIT_OK, f"nothing. To mark answers, run `{program()}`.")
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)

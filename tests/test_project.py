@@ -42,6 +42,10 @@ def test_new_twice_keeps_both_earlier_checks(tmp_path, capsys, monkeypatch):
     stamps = iter(["2026-10-05T10-00-00Z", "2026-10-06T10-00-00Z"])
     monkeypatch.setattr("judgekeeper.project._stamp", lambda: next(stamps))
     run(capsys, tmp_path, "--new", "--yes")
+    ws = Workspace(tmp_path)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    item = StartSession(ws).items[0]  # one mark: something to put aside again
+    StartSession(ws).update({"id": item["id"], "label": groups[item["id"]]})
     run(capsys, tmp_path, "--new", "--yes")
     names = sorted(p.name for p in Workspace(tmp_path).dir.glob("previous-*"))
     assert names == ["previous-2026-10-05T10-00-00Z", "previous-2026-10-06T10-00-00Z"]

@@ -296,6 +296,26 @@ def test_start_over_now_is_asked_first(here, capsys, pages):
     assert label.is_open(ws.dir)  # the old page was closed, a new one opened
 
 
+@pytest.mark.parametrize("argv", [["--new"], ["mark", "--new"], ["--new", "--yes"]])
+def test_start_over_with_nothing_marked_moves_nothing(here, capsys, pages, argv):
+    promptfoo_project(here, split(20, 16))
+    run(capsys, "mark", "--port", "0", "--no-browser")
+    ws = start_label.Workspace(here)
+
+    def files():
+        return {p.relative_to(ws.dir): p.read_bytes() for p in ws.dir.rglob("*")
+                if p.is_file()}
+
+    before = files()
+    code, out, err = run(capsys, *argv, "--port", "0", "--no-browser")
+    assert code == 0, out
+    assert ("You haven't marked any answers yet, so there is nothing to put aside. Nothing "
+            "was moved.") in _flat(out)
+    assert _check(out, err).startswith("Next: nothing.")
+    assert not list(ws.dir.glob("previous-*"))
+    assert files() == before
+
+
 # The page could not start -----------------------------------------------------------------
 
 def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
