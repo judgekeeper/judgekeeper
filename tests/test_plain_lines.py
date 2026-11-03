@@ -57,6 +57,20 @@ def test_a_group_with_fewer_answers_than_a_result_needs_says_why_all(here, capsy
     assert start_status(StartSession(Workspace(here)))["group"] == line
 
 
+def test_a_group_of_one_answer_says_it_in_the_singular(here, capsys):
+    """The LLM-as-a-judge failed 1 answer: never "only 1 answers" or "all 1"."""
+    table_project(here, split(50, 1))
+    _main(capsys, "--no-browser", "--port", "0")
+    session = StartSession(Workspace(here))
+    passed = [i for i in session.items if session.groups[i["id"]] == "pass"][:30]
+    for k, item in enumerate(passed):
+        session.update({"id": item["id"], "label": "pass" if k < 15 else "fail", "seconds": 4})
+    _, said = _main(capsys, "--no-browser", "--port", "0")
+    _main(capsys, "--stop")
+    assert ("You marked 0 answers your LLM-as-a-judge failed. Your LLM-as-a-judge failed only "
+            "1 answer, so a result needs your mark on it.") in _flat(said), said
+
+
 def test_a_check_of_the_marked_file_names_it_as_results(here, capsys):
     table_project(here, split(30, 30))
     _main(capsys, "--no-browser", "--port", "0")
