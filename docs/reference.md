@@ -140,7 +140,7 @@ After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Bett
 ## check: re-check your LLM-as-a-judge after a change
 
 ```
-judgekeeper check [PATH]
+judgekeeper check [PATH] [--pass-if RULE]
 ```
 
 Run it after you change your LLM-as-a-judge or eval tool and grade the answers you marked again the same way as for `fix` (see [Grading answers again](eval-tools.md#grading-answers-again)). It notices a new model, rule, grading prompt, pass mark or temperature, a panel's voting rule, an agent's settings, the eval tool's version, and the endpoint when the results record one. It can't compare two different eval tools.
@@ -148,6 +148,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 | Flag | What it does |
 |---|---|
 | `PATH` | A new results file or MLflow store (`mlflow.db` or an `mlruns/` folder), or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
+| `--pass-if RULE` | Re-check with this pass mark for your LLM-as-a-judge's scores (the one `fix` suggests), e.g. `'score>=0.7'`, instead of the one you marked with |
 
 **Which results it reads.** It names the file first ("New results: ..."). With a saved choice in `judgekeeper.toml`, check reads only there; name a file to check another. When newer results of the same eval are somewhere else, it says where and the command that checks them.
 

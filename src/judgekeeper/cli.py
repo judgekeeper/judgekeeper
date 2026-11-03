@@ -318,8 +318,8 @@ def _parser() -> argparse.ArgumentParser:
                          "newest results)")
     ck.add_argument("--pass-if", metavar="RULE",
                     help="re-check with this pass mark for your LLM-as-a-judge's scores (the "
-                         "one `fix` suggests), e.g. 'score>=0.7', instead of the one you "
-                         "marked with")
+                         "one fix suggests), e.g. 'score>=0.7', instead of the one you marked "
+                         "with")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
