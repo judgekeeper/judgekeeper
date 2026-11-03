@@ -141,6 +141,7 @@ BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
 GROUP_MARKS = "You marked {marked}. A result needs {need}."
+GROUP_ALL = "Your LLM-as-a-judge {word} only {n} answers, so a result needs your marks on all {n}."
 NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
              "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
@@ -1608,8 +1609,11 @@ def _group_marks(session: StartSession) -> str:
         return str(n) if n == targets.FIRST_GROUP else f"all {n}"
     if len(short) == 1:
         word, have, n = short[0]
-        return GROUP_MARKS.format(marked=f"{_n(have, 'answer')} your LLM-as-a-judge {word}",
+        said = GROUP_MARKS.format(marked=f"{_n(have, 'answer')} your LLM-as-a-judge {word}",
                                   need=need(n))
+        if n < targets.FIRST_GROUP:  # why "all": fewer such answers than a result's usual marks
+            said = said.split(". A result needs")[0] + ". " + GROUP_ALL.format(word=word, n=n)
+        return said
     (_, p, np), (_, f, nf) = short
     return GROUP_MARKS.format(
         marked=f"{_n(p, 'answer')} your LLM-as-a-judge passed and {f} it failed",

@@ -37,6 +37,26 @@ def test_marks_short_on_one_group_say_how_many_each_has(here, capsys):
     assert status["group"] == "You marked 10 answers your LLM-as-a-judge failed. A result needs 20."
 
 
+def test_a_group_with_fewer_answers_than_a_result_needs_says_why_all(here, capsys):
+    """The LLM-as-a-judge failed only 14 answers, fewer than the 20 marks a group needs: the
+    line says why a result needs all 14, in the terminal and on the page."""
+    table_project(here, split(50, 14))
+    _main(capsys, "--no-browser", "--port", "0")
+    session = StartSession(Workspace(here))
+    passed = [i for i in session.items if session.groups[i["id"]] == "pass"][:30]
+    failed = [i for i in session.items if session.groups[i["id"]] == "fail"][:13]
+    for k, item in enumerate(passed + failed):
+        session.update({"id": item["id"], "label": "pass" if k < 20 else "fail", "seconds": 4})
+    _, said = _main(capsys, "--no-browser", "--port", "0")
+    _main(capsys, "--stop")
+    line = ("You marked 13 answers your LLM-as-a-judge failed. Your LLM-as-a-judge failed only "
+            "14 answers, so a result needs your marks on all 14.")
+    assert line in _flat(said), said
+    from judgekeeper.start_label import start_status
+
+    assert start_status(StartSession(Workspace(here)))["group"] == line
+
+
 def test_a_check_of_the_marked_file_names_it_as_results(here, capsys):
     table_project(here, split(30, 30))
     _main(capsys, "--no-browser", "--port", "0")

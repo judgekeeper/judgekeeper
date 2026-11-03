@@ -1027,7 +1027,8 @@ def test_the_line_under_the_bar_says_only_skipped_answers_are_left_as_the_card_d
 def test_the_line_under_the_bar_names_the_marks_a_group_still_needs():
     """Enough Pass and Fail marks, too few on the answers the LLM-as-a-judge failed: the line
     under the bar says so, as the terminal does, not only to keep going."""
-    group = "You marked 13 answers your LLM-as-a-judge failed. A result needs all 14."
+    group = ("You marked 13 answers your LLM-as-a-judge failed. Your LLM-as-a-judge failed only "
+             "14 answers, so a result needs your marks on all 14.")
     data = _data(60, counts={"correct": 20, "wrong": 16, "skipped": 0},
                  status={"text": "x", "first": False, "ready": False, "group": group})
     for item in data["items"][:36]:
