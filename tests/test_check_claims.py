@@ -365,6 +365,10 @@ def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
         assert said.index("doesn't always grade") < said.index("Compared with before: worse.")
         assert "When you said Pass 25 of 25 19 of 25 Worse" in said
         assert "When you said Fail 25 of 25 20 of 25 Worse" in said
+        assert _next(out) == (  # no old one to go back to: the same model and rule
+            "Next: your model and rule are the same as before, so its grades change from run to "
+            "run. Make your rule clearer, grade your marked answers again, then run "
+            "`judgekeeper check <new results file>`.")
     assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
 
 

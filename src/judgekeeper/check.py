@@ -161,6 +161,10 @@ NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
 NEXT_CHOOSE = f"Next: run `{program()}` to make that choice, then run `{{command}}` again."
 NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
+# ...the same model and rule (in the results), graded again: there is no old one to go back to
+NEXT_WORSE_SAME = ("your model and rule are the same as before, so its grades change from run "
+                   "to run. Make your rule clearer, grade your marked answers again, then run "
+                   "`{command}`.")
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
@@ -2485,6 +2489,8 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = F
         folder = FOLDER if kept else fix.shown_folder(ws)
         answers = f"{folder}/{fix.FOLDER}/{fix.ANSWERS}"  # plain: report.html too
         return NEXT_WORSE_TABLE.format(regrade=_regrade_answers(ws, answers, "it", kept=kept))
+    if not judge_setup.changes(old, new):  # the same model and rule, other grades
+        return NEXT_WORSE_SAME.format(command=command)
     return NEXT_WORSE.format(back="your old LLM-as-a-judge", command=command)
 
 
