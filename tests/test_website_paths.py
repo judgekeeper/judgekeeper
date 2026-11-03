@@ -100,8 +100,9 @@ def test_guide_install_uses_the_needed_python():
             "virtual environment, uv pip install judgekeeper) pip install "
             "judgekeeper judgekeeper With uv uvx judgekeeper With uv, put uvx before each command "
             "below, for example uvx judgekeeper fix. For MLflow or Inspect AI results: pip "
-            'install "judgekeeper[mlflow]" or "judgekeeper[inspect]". Works on macOS, Linux and '
-            "Windows, with Python 3.11 to 3.14.") in install
+            'install "judgekeeper[mlflow]" or "judgekeeper[inspect]"; with uv, uvx --from '
+            '"judgekeeper[mlflow]" judgekeeper or uvx --from "judgekeeper[inspect]" judgekeeper. '
+            "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
     assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
