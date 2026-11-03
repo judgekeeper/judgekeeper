@@ -806,6 +806,10 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
         ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
                 "verdict=grade)")),
+        ("p", ("It saves in .judgekeeper/records/ in your project folder: the nearest folder up "
+              "from where your code runs with a pyproject.toml, setup.py, judgekeeper.toml, "
+              "requirements*.txt or .git, so in a git repository with none of the others, its "
+              "top folder. Run judgekeeper there.")),
         ("p", ("Your LLM-as-a-judge gives a score instead of Pass or Fail? The full reference "
               "shows how to set where Pass starts, and every other option."))]
     assert [_flat(b) for p in _all(own, "p") for b in _all(p, "b")] == [
