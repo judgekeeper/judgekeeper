@@ -224,12 +224,9 @@ def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
     assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
     assert (f"run `{fix.inspect_score(ws, new)}` and then run `judgekeeper fix {new}`") in said
     assert "with `--output-file" not in said, said
-    assert (f"Otherwise, grade it with Inspect's score() in Python, as {fix.EVAL_TOOLS} "
-            "shows.") in said
+    assert fix.REGRADE["inspect"] in said, said  # with the way round a rule `-S` can't take
+    assert fix.EVAL_TOOLS in fix.REGRADE["inspect"] and "score() in Python" in said
     assert fix.EVAL_TOOLS == "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
-    assert ("Give the options you set before again with `-S`, the grader's model too. "
-            "`-S instructions=` takes a rule with no comma and no colon followed by a space. "
-            "Otherwise, grade it with Inspect's score() in Python") in said, said
     tools = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
     assert "- **A new rule with a comma, or a colon followed by a space.**" in tools
     return log, ws

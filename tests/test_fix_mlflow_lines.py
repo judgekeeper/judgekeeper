@@ -203,7 +203,7 @@ def test_the_printed_fix_and_check_commands_read_the_mlruns_store(mlruns, tmp_pa
     assert printed == ["fix", "mlruns"]
     out, again = _printed(capsys, printed, "fix")
     said = " ".join(out.split())
-    assert "New results: mlruns" in said and "same grades as when you marked" in said, said
+    assert "New results: mlruns" in said and fix.SAME_GRADES in said, said
     assert again == printed
     out, printed = _printed(capsys, ["check", "mlruns"], "check")
     said = " ".join(out.split())

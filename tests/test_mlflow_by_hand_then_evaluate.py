@@ -12,6 +12,7 @@ import sys
 
 import pytest
 
+from judgekeeper import fix
 from judgekeeper.cli import main
 
 HEAD = r"""
@@ -110,7 +111,7 @@ def test_an_evaluate_run_after_grades_by_hand_is_read_as_the_newer(stores, tmp_p
     main(["fix", "mlflow.db"])
     said = " ".join(capsys.readouterr().out.split())
     assert "New results: mlflow.db" in said, said
-    assert "same grades as when you marked" not in said, said
+    assert fix.SAME_GRADES not in said, said  # the new run is read, not the by-hand one
     assert "New rule: When you say Pass: agrees on 9 of 9" in said, said
     main(["check", "mlflow.db"])
     said = " ".join(capsys.readouterr().out.split())
