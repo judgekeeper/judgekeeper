@@ -5,35 +5,40 @@
 # Holds: ids, grades and counts only; no prompt or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 3 of 5: Measure
 
-92 of your marks took under a second each. A result is only as
+93 of your marks took under a second each. A result is only as
 good as the marks. This looks like a program, not a person.
 
 100 of your marks came through a link printed with no terminal,
 so another program on this computer could have made them. If you
 marked them yourself, nothing to do.
 
-Result: too early to tell. Mark more answers to get a result.
+Result: your LLM-as-a-judge is good enough to use.
 You and your LLM-as-a-judge disagreed on 8 of 100 answers.
 
-  You passed 59 answers. Of those, your LLM-as-a-judge passed 55
-  and failed 4.
-  You failed 41 answers. Of those, your LLM-as-a-judge passed 4
-  and failed 37.
+  You passed 63 answers. Of those, your LLM-as-a-judge passed 57
+  and failed 6.
+  You failed 37 answers. Of those, your LLM-as-a-judge passed 2
+  and failed 35.
 
-The Next step below also lets you say why on these.
+Tell judgekeeper why you disagree on these 4: run
+`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9801 --no-browser`.
+4 more are kept aside on purpose, so a new rule can be tested on
+answers you haven't looked at again.
+`judgekeeper fix` uses your reasons to find where your
+LLM-as-a-judge goes wrong.
 
 How often your LLM-as-a-judge agrees with you (estimates):
-  When you say Pass, it also says Pass: about 94% (between 86% and 98%)
-  When you say Fail, it also says Fail: about 90% (between 79% and 96%)
-The result line uses wider ranges than these, so a lucky streak
-can't decide it. You can look after every mark.
+  When you say Pass, it also says Pass: about 91% (between 84% and 96%)
+  When you say Fail, it also says Fail: about 94% (between 83% and 99%)
+The result line uses wider ranges than these, so a few marks
+that agree by coincidence can't decide it. You can look at the
+result after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
-Next: run
-`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9751 --no-browser`
-to mark more answers.
+Next: nothing to do. When you change your LLM-as-a-judge or
+update your eval tool, run `judgekeeper check`.

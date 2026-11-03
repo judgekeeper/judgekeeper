@@ -675,7 +675,8 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "times TPR, TNR and kappa were all in judgekeeper's ranges at once",
+        "random tests (100 marks each) where TPR, TNR and kappa were all in judgekeeper's ranges "
+        "at once",
         "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
     for tile in tiles:
         assert not _flat(tile).startswith(">")

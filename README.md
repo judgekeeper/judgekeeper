@@ -56,7 +56,7 @@ How the numbers are worked out: [reference](https://github.com/judgekeeper/judge
 
 ## Checked on public data
 
-- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true value in 97 of 100 tests (all three numbers at once).
+- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests with 100 marks each (all three numbers at once; another 100 tests give a slightly different count).
 - [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): news summaries. Three LLM-as-a-judge setups, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. Changing the model did not close the gap.
 - RAGTruth [question answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-qa/report.md) and [data-to-text](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-data2txt/report.md): "needs work" in all 4 runs.
 - [JailbreakBench graded by two other setups](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench-setups/report.md): "needs work" for both; each passed more than half of the expert-failed answers it graded (setup B could not grade 61 of 300).

@@ -6,7 +6,7 @@
     "grades": "judge: the dataset's gpt4_cf column (GPT-4-0613); marks: its human_majority column, the majority of three expert annotators (0 = Pass, 1 = Fail)",
     "text": "ids, grades and counts only; no prompt or response"
   },
-  "judgekeeper_version": "1.0.2",
+  "judgekeeper_version": "1.1.0",
   "judge_model": "openai:gpt-4-0613",
   "rows": 300,
   "marks_per_draw": 100,
@@ -23,15 +23,15 @@
   },
   "draws": 100,
   "inside_each": {
-    "tpr": 99,
-    "tnr": 98,
-    "kappa": 99
+    "tpr": 98,
+    "tnr": 99,
+    "kappa": 98
   },
-  "all_three_inside": 97,
+  "all_three_inside": 96,
   "mean_range_width": {
-    "tpr": 0.1254,
-    "tnr": 0.1779,
-    "kappa": 0.2535
+    "tpr": 0.1237,
+    "tnr": 0.1732,
+    "kappa": 0.2478
   },
   "every_draw_counted_its_marks_and_showed_no_text": true
 }

@@ -236,7 +236,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
         assert int(n.attrs["data-to"]) == int(n.text()), report
         found[report] = (int(n.attrs["data-to"]), big.text().strip())
         if "jailbreakbench" in report:  # the count is of draws with all three inside
-            assert line.text().strip().startswith("times TPR, TNR and kappa were all"), report
+            assert line.text().strip().startswith("random tests (100 marks each) where TPR, TNR and kappa were all"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
