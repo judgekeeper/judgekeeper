@@ -677,10 +677,9 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     tiles = _all(win, "a", "rt")
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["Real-data check",
                                                                     "JailbreakBench"]
-    # TPR and TNR in the result page's words first, then the one number
+    # what the real-data check covers first, then the one number
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        ("TPR: when you say Pass, how often your LLM-as-a-judge also says Pass. TNR: the same "
-         "for Fail. Each comes with a range."),
+        "with human labels, where the TPR and TNR ranges were checked against the true values",
         ("random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at "
          "once")]
     assert [len(_all(t, "span", "rt-n")) for t in tiles] == [0, 1]

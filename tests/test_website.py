@@ -216,8 +216,8 @@ def test_coverage_numbers_match_the_committed_grid():
 
 def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     """Home's "On public datasets.": one number, and the number it counts up to, comes from the
-    committed report its tile links to. The other tile says what TPR and TNR are, with no
-    number, so the page makes one "96" claim, not two."""
+    committed report its tile links to. The other tile names how many datasets the real-data
+    check used, with no share, so the page makes one "96" claim, not two."""
     draws = json.loads((ROOT / "docs/examples/jailbreakbench/hundred-marks/summary.json")
                        .read_text(encoding="utf-8"))
     held = draws["all_three_inside"]
@@ -225,7 +225,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
     mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
     expected = {
         "docs/examples/jailbreakbench/report.md": (held, f"{held} of {draws['draws']}"),
-        "docs/examples/real-data-check/report.md": (None, "TPR and TNR"),
+        "docs/examples/real-data-check/report.md": (None, f"{len(REALCHECK['data'])} datasets"),
     }
     tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
     found = {}
