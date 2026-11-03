@@ -654,7 +654,7 @@ def test_a_browser_on_another_host_name_gets_a_page_that_says_which_link(tmp_pat
                                    headers={"Accept": "text/html,*/*"})
     page = payload.decode()
     assert resp.status == 403 and resp.getheader("Content-Type").startswith("text/html")
-    assert ("Open the link just as judgekeeper printed it. It starts with "
+    assert ("Open the link as judgekeeper printed it. It starts with "
             f"http://127.0.0.1:{port}/.") in unwrapped(page)
     assert client.server.token not in page and "it0" not in page  # no token, no answers
     assert "default-src 'none'" in resp.getheader("Content-Security-Policy")

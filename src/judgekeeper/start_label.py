@@ -1385,8 +1385,7 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
         return [(f"You saw {seen} twice and marked {'it' if n == 1 else 'each'} the same way "
                 "both times.")]
     out = [(f"You saw {seen} twice and marked {'it' if n == 1 else k} differently the second "
-           "time. Only your first mark counts. A mark you change from the list replaces the "
-           "old one.")]
+           "time. Only your first mark counts.")]
     if n >= SLIP_FROM and real_pass is not None:
         best = targets.best_possible(real_pass, targets.slip_rate(k / n))
         shown = dict(zip(("tpr", "tnr"), estimates or (), strict=False))

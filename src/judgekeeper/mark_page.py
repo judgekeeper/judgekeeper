@@ -1192,7 +1192,7 @@ OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; 
                 "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
-WRONG_HOST = ("Open the link just as judgekeeper printed it. It starts with "
+WRONG_HOST = ("Open the link as judgekeeper printed it. It starts with "
               "http://127.0.0.1:{port}/.")
 
 
