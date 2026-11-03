@@ -377,6 +377,25 @@ def test_a_file_in_a_project_with_its_own_session_is_never_added_here(here, caps
     assert (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes() == marks_before
 
 
+@pytest.mark.parametrize("session", [False, True])
+def test_a_file_in_a_nearby_project_is_refused_with_or_without_its_session(
+        here, capsys, monkeypatch, session):
+    """From a folder with no project, a results file in a project below belongs to that
+    project, whether it has been used or not: never a session here."""
+    (here / "f02").mkdir()
+    (here / "f02" / "pyproject.toml").write_text("[project]\nname = 'f02'\n", encoding="utf-8")
+    if session:
+        _session_in(here / "f02" / "evals", capsys, monkeypatch, 0)
+        run(capsys, "--stop")
+    else:
+        table_project(here / "f02" / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "f02/evals/results.csv", "--no-browser")
+    assert code == 3, out + err
+    assert "These results belong to the project in f02/" in flat(out), out
+    assert not (here / ".judgekeeper").exists()
+
+
 # Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):

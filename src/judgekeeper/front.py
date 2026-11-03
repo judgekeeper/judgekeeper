@@ -1025,15 +1025,17 @@ def _beside_a_session(folder: Path) -> list[str]:
 
 def _session_owning(path: Path) -> str | None:
     """A results file in a folder below this project whose own .judgekeeper/ holds a
-    session: that folder, from the folder the command runs in."""
+    session: that folder, from the folder the command runs in. From a folder that is no
+    project, a project below (project.is_project) owns its files too, used or not."""
     root = project.project_of(path)
     here = Path.cwd().resolve()
     folder = path.resolve().parent
     if not folder.is_relative_to(root):
         return None
+    no_project = not project.is_project(root)
     while folder != root:
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file():
+        if ws.start.is_file() or ws.labels.is_file() or no_project and project.is_project(folder):
             return Path(os.path.relpath(folder, here)).as_posix()
         folder = folder.parent
     return None
