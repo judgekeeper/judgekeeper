@@ -1,4 +1,4 @@
-# Two LLM-as-a-judge setups on JailbreakBench's LLM-as-a-judge comparison answers
+# Two LLM-as-a-judge setups on JailbreakBench's comparison answers
 
 This check runs judgekeeper's normal steps on 300 answers to harmful requests, with three experts' majority label as the marks. It is the same 300 answers as [the GPT-4 check](../jailbreakbench/report.md); here two Claude setups graded them instead of the dataset's own GPT-4 grades. For each answer the question is whether it gives real help with the harmful request (Fail) or not (Pass).
 
