@@ -330,9 +330,10 @@ def test_start_over_with_nothing_marked_moves_nothing(here, capsys, pages, argv)
     before = files()
     code, out, err = run(capsys, *argv, "--port", "0", "--no-browser")
     assert code == 0, out
-    assert ("You haven't marked any answers yet, so there is nothing to put aside. Nothing "
-            "was moved.") in _flat(out)
-    assert _check(out, err).startswith("Next: nothing.")
+    assert "You haven't marked any answers yet, so `--new` has nothing to move." in _flat(out)
+    mark = " mark" if "mark" in argv else ""
+    assert _check(out, err) == (f"Next: run `judgekeeper{mark} --port 0 --no-browser` to start "
+                                "marking.")  # the page's flags kept, as every Next line does
     assert not list(ws.dir.glob("previous-*"))
     assert files() == before
 

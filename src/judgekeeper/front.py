@@ -1963,9 +1963,10 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
         talk.say("Nothing was moved.")
         raise talk.stop(EXIT_OK, f"nothing. Your old marks stay in {FOLDER}/.")
     if why == [] and talk.new and not _has_marks(ws) and not _changed(ws, found):
-        talk.para("You haven't marked any answers yet, so there is nothing to put aside. "
-                  "Nothing was moved.")
-        raise talk.stop(EXIT_OK, f"nothing. To mark answers, run `{program()}`.")
+        talk.para("You haven't marked any answers yet, so `--new` has nothing to move.")
+        talk.new = False  # done: the command to go on is without it
+        talk.refresh()
+        raise talk.stop(EXIT_OK, f"run `{talk.command()}` to start marking.", as_given=True)
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
