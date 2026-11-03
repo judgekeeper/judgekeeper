@@ -512,6 +512,21 @@ def test_the_compare_command_for_a_project_no_line_can_name_is_the_other_lines_f
     assert "results-regraded.json`" not in said, said
 
 
+def test_going_back_to_the_marked_grades_after_a_worse_says_so(here, capsys):
+    """A same-rule "Worse", then results with the grades the marks were checked with: back
+    to those grades, never "not changed since your last check" (that check said Worse)."""
+    _marked(here)
+    _regraded(here, [*range(6), *range(25, 30)])
+    code, out = run(capsys, "regraded.json")
+    assert code == 1, out
+    _regraded(here, [])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    assert code == 0, out
+    assert "Your results are back to the grades your marks were checked with." in said, said
+    assert "has not changed since your last check" not in said, said
+
+
 def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
     """One grade turned over on a marked answer: compared, no big drop, and taken on, so the
     next check has nothing new."""

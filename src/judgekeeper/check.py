@@ -99,6 +99,7 @@ CONFIG_NEWER = ("Your LLM-as-a-judge's settings changed after your last eval run
 LOCK_NEWER = ("Your eval tool was updated after your last eval run, so your newest results come "
               "from the old version. judgekeeper compared no grades.")
 SAME = "Same model, same rule, same eval tool."
+BACK_TO_CHECKED = "Your results are back to the grades your marks were checked with."
 SAME_GRADES = "Same model, same grades on your marked answers, same eval tool."  # no rule
 NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
                     "your marks as a new batch. Then run `{command}` again.")
@@ -1375,11 +1376,15 @@ def _switched(state: State) -> str | None:
 
 
 def _no_change(state: State) -> str:
-    """Since when the judge is the same: the last check, or the marks when none ran."""
+    """Since when the judge is the same: the last check, or the marks when none ran. After a
+    check that kept the marks on the judge before it ("Worse"), the results are back to it."""
     checks = _history(state.ws)
     day = _day(checks[-1].get("time")) if checks else None
     if not checks:
         return "Your LLM-as-a-judge has not changed since you marked your answers."
+    if any(isinstance(g, dict) and (g.get("verdict") == "worse" or g.get("exit_worse"))
+           for g in (checks[-1].get("groups") or {}).values()):
+        return BACK_TO_CHECKED
     return f"Your LLM-as-a-judge has not changed since your last check{f' ({day})' if day else ''}."
 
 
