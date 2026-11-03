@@ -1405,7 +1405,7 @@
 
   var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
   // front.py, under MIN_POOL answers with a clear grade: no first result from this file yet
-  var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers, so run your eval to make more answers first (that makes model calls), then run judgekeeper in your project folder. You can mark these now: your marks are kept for when more answers come.';
+  var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers, so run your eval to make more answers first (that makes model calls), then run judgekeeper in your project folder. You can mark these now. Your marks are kept for when more answers come.';
   var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
   var NEXT_FULL_TOOL = 'pick another file, or run that command in your project.';
 

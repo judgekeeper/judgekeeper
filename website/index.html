@@ -99,9 +99,9 @@ Fail.
 
 Step 2 of 5: Mark
 
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -133,9 +133,9 @@ Fail.
 
 Step 2 of 5: Mark
 
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -152,9 +152,9 @@ Step 2 of 5: Mark
 
 You marked 12 answers so far: 8 Pass, 4 Fail.
 That's not enough for a result yet.
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 The marking page is still open in your browser. The bar at the
 top fills as you mark.
@@ -174,13 +174,13 @@ You and your LLM-as-a-judge disagreed on 16 of 37 answers.
   You failed 17 answers. Of those, your LLM-as-a-judge passed 8
   and failed 9.
 
-Tell judgekeeper why you disagree on these 8: run
+To tell judgekeeper why you disagree on 8 of them, run
 `judgekeeper mark`.
 `judgekeeper fix` shows where your LLM-as-a-judge goes wrong,
 helps you write a better rule and tests it on marks kept aside.
 It uses your reasons.
-8 more are kept aside on purpose, so a new rule can be tested on
-answers you haven't looked at again.
+8 more disagreements are kept aside on purpose, so a new rule
+can be tested on answers you haven't looked at again.
 
 How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 63% (between 52% and 70%)
@@ -203,11 +203,11 @@ Step 4 of 5: Fix
 
 Where your LLM-as-a-judge goes wrong:
   Your LLM-as-a-judge made 8 mistakes on the 18 marks used here.
-  The other 19 are kept aside to test a new rule. In 4, it said
-  Pass where you said Fail. In the other 4, it said Fail where
-  you said Pass.
+  The other 19 marks are kept aside to test a new rule. In 4, it
+  said Pass where you said Fail. In the other 4, it said Fail
+  where you said Pass.
   When it said Pass and you said Fail, the answers are long
-  (about 12 words, against 8).
+  (about 12 words, while the others average 8).
 
 All 8 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
@@ -220,11 +220,8 @@ Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
 questions and answers only, so you can't tell which are kept
 aside.
 
-promptfoo: use marked-answers.csv as your tests
-(`tests: file://...`) with `prompts: ['{{answer}}']`, the `echo`
-provider, your grader as `defaultTest.options.provider` and the
-same `metric:` with your new rule; the rule's variables are the
-file's columns, `{{question}}` and `{{answer}}`. Save with `-o`.
+promptfoo: grade marked-answers.csv again with your new rule,
+with the `echo` provider and no new answers.
 https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md
 shows the whole config.
 
@@ -271,10 +268,10 @@ Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
   When you said Pass    12 of 20             6 of 20              Worse
   When you said Fail    9 of 17              9 of 17              No big drop
 
-On answers you pass, agreement drops by about 30 in every 100
-(somewhere between 15 and 49).
+On answers you pass, agreement drops by about 30 percentage
+points (somewhere between 15 and 49).
 On answers you fail, no drop, though these marks can't rule out
-a drop of up to 19 in every 100.
+a drop of up to 19 points.
 
 One run, so a small change may be a coincidence.
 
