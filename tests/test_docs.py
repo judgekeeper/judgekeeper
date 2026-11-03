@@ -367,7 +367,8 @@ def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
     from judgekeeper import check
 
     grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
-    said = f"Grading only your marked answers is a quick compare; to count new marks, {grade_all}."
+    said = (f"Grading only your marked answers is enough to compare the two. To count new marks, "
+            f"{grade_all}.")
     assert said in _step(5)
     assert said in _guide("step-check")
     assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
