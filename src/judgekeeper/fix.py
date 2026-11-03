@@ -1535,7 +1535,7 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     marked-answers.csv."""
     store = mlflow_store(ws, here=not talk.away())
     if store:
-        return (f"run your new scorer on all the traces again, then {talk.run(store)}: it "
+        return (f"run your new scorer on all the traces again, then {talk.run(store)}. It "
                 f"reads the newest run.")
     try:
         tool = ws.cached_data().get("tool")
@@ -2306,7 +2306,8 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
     source = (f"the result above is from {file or 'an earlier file'}"
               f"{f' on {day}' if day else ''}.")
     if blank:
-        talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}")
+        talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded. "
+                  f"{source[0].upper() + source[1:]}")
     elif kept and Path(kept_at(kept, ws.root)).resolve() != Path(path).resolve():
         # another file: say which one is given now
         when = f" ({day})" if day else ""
@@ -2329,10 +2330,10 @@ def _same_rule_line(name: str, file: str, when: str, test: dict, grades: dict | 
             "as one LLM-as-a-judge")
     kept = test.get("grades")
     if not isinstance(kept, dict) or grades is None:
-        return f"{head}: the result above is from {file}."
+        return f"{head}. The result above is from {file}."
     differ = sum(kept.get(i) != g for i, g in grades.items())
     if not differ:
-        return f"{head}: the result above is the same."
+        return f"{head}. The result above is the same."
     return (f"{head} and shows the result above, from {file}. Its grades differ on "
             f"{differ} of the {len(grades)} answers kept aside. {TEST_AS_NEW}")
 

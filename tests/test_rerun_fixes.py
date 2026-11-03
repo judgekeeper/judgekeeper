@@ -123,7 +123,7 @@ def test_the_same_rule_and_model_says_whether_the_grades_differ(here, capsys):
     flat = " ".join(out.split())
     assert code == 0, out
     assert (f"again.json has the same rule and model as first.json ({day}), so judgekeeper "
-            "treats them as one LLM-as-a-judge: the result above is the same.") in flat
+            "treats them as one LLM-as-a-judge. The result above is the same.") in flat
     assert "grades differ" not in flat and fix.TEST_AS_NEW not in flat
     flip = set(hidden[:3])
     other = tf.regraded(here, name="other.json",
@@ -168,7 +168,7 @@ def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     flat = " ".join(out.split())
     assert code == 0, out
     assert "You tested this LLM-as-a-judge before" in flat
-    assert (f"This file leaves 4 of the {n} ungraded; the result above is from first.json "
+    assert (f"This file leaves 4 of the {n} ungraded. The result above is from first.json "
             f"on {day}.") in flat
     code, out = tf.run(capsys, _regraded(here, "full.json", set()))
     flat = " ".join(out.split())
@@ -179,7 +179,7 @@ def test_a_rule_tested_before_is_refused_when_most_are_ungraded(here, capsys):
     assert "the result above is the same" not in flat
     assert "ungraded" not in flat
     code, out = tf.run(capsys, "first.json")  # the file the result came from: no other name
-    assert code == 0 and (f"This file leaves 2 of the {n} ungraded; the result above is from "
+    assert code == 0 and (f"This file leaves 2 of the {n} ungraded. The result above is from "
                           f"first.json on {day}.") in " ".join(out.split())
 
 
