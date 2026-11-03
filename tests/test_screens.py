@@ -420,15 +420,17 @@ def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():
         assert not [line for line in lines if line.endswith("Inspect")], lines
 
 
-def test_too_few_answers_says_so_without_a_target_number(here, capsys):
-    """No target numbers on screen: the page shows how far the marks are."""
+def test_too_few_answers_says_what_a_first_result_needs(here, capsys):
+    """How many answers a first result needs, in Measure's words: too few answers can never
+    give one, however many are marked."""
     promptfoo_project(here, split(4, 3), rubric=RULE)
     code, lines = screen(capsys)
     assert code == 3
     text = " ".join(" ".join(lines).split())
     assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
-            "result.") in text
-    assert "15" not in text
+            "result. A result needs at least 15 answers you mark Pass and 15 you mark Fail, and "
+            "20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all "
+            "of them, when there are fewer), so at least 30 answers.") in text
 
 
 @pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])
