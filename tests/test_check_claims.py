@@ -550,3 +550,20 @@ def test_the_same_rule_model_and_grades_has_not_changed(here, capsys):
     assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
     assert "Same model, same rule, same eval tool." in out
     assert "doesn't always grade" not in _flat(out)
+
+
+def test_a_page_closed_for_new_grades_of_the_same_judge_says_older_grades(here, capsys):
+    """Same model and rule, new grades taken on: the page showed the older grades, never a
+    different LLM-as-a-judge."""
+    _marked(here)
+    main(["mark", "--no-browser", "--port", "0"])
+    capsys.readouterr()
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0 and "Same model and rule as before" in said, out
+    assert ("Your marking page closed because it showed your older grades. To open it with the "
+            "new grades, run `judgekeeper mark regraded.json`.") in said, said
+    assert "different LLM-as-a-judge" not in said, said

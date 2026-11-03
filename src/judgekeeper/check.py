@@ -177,6 +177,11 @@ PAGE_CLOSED = ("Your marking page closed because it showed a different LLM-as-a-
                "it with this one, run `{mark}`.")
 PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show a different "
                   "LLM-as-a-judge. To open it with this one, run `{stop}`, then `{mark}`.")
+# ...the same model and rule, its new grades taken on: the page showed the older grades
+PAGE_CLOSED_GRADES = ("Your marking page closed because it showed your older grades. To open "
+                      "it with the new grades, run `{mark}`.")
+PAGE_NO_ANSWER_GRADES = ("Your marking page didn't answer, so it may still show your older "
+                         "grades. To open it with the new grades, run `{stop}`, then `{mark}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -2113,7 +2118,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     if not given_results(path):
         _covered(state.ws)
     taken = found.results[0].rel if _new_file(state) and found.results else None  # a file given
-    if not held and _close_page(state.ws, said.say, file=taken):  # last: every file is written
+    if not held and _close_page(state.ws, said.say, file=taken,  # last: every file is written
+                                grades=not judge_setup.changes(old, new)):
         said.say()
     # the Next line, from the pass mark in use now: one taken on above, or the one kept
     again = _command(state) + (f' --pass-if "{state.pass_if}"' if held and state.pass_if
@@ -2690,12 +2696,13 @@ def _pass_if_refused(state: State) -> str | None:
             else NO_SCORES.format(check=check))
 
 
-def _close_page(ws: Workspace, say, file: str | None = None) -> bool:
+def _close_page(ws: Workspace, say, file: str | None = None, grades: bool = False) -> bool:
     """The marks test another judge now: an open marking page would still show the one
     before, so it closes (as for a new batch), and the next `mark` (of the results `file`
     read, kept_path, when given) opens it fresh. Says so (PAGE_CLOSED), or that the page did
     not answer or is still there (PAGE_NO_ANSWER): never an error, as the check is written.
-    Whether it said a line."""
+    `grades`: the same model and rule, new grades only (PAGE_CLOSED_GRADES). Whether it said a
+    line."""
     from judgekeeper import background
     from judgekeeper.label import LabelError, is_open
 
@@ -2707,9 +2714,10 @@ def _close_page(ws: Workspace, say, file: str | None = None) -> bool:
     except (LabelError, OSError):
         closed = False
     if closed:
-        say(PAGE_CLOSED.format(mark=mark))
+        say((PAGE_CLOSED_GRADES if grades else PAGE_CLOSED).format(mark=mark))
     else:
-        say(PAGE_NO_ANSWER.format(stop=_here(ws, "--stop"), mark=mark))
+        say((PAGE_NO_ANSWER_GRADES if grades else PAGE_NO_ANSWER).format(
+            stop=_here(ws, "--stop"), mark=mark))
     return True
 
 
