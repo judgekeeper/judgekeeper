@@ -30,7 +30,7 @@ def test_stop_after_a_new_pass_mark_names_a_run_that_reads_the_scores(here, caps
     command = _next_command(said)
     assert command[0] == "judgekeeper" and "--stop" not in command, said
     assert command[command.index("--pass-if") + 1] == "score>=0.72", said
-    assert "--no-browser" in command and command[command.index("--port") + 1] == "0", said
+    assert "--no-browser" in command and "--port" not in command, said  # any free port
     code, said = _main(capsys, *command[1:])  # as printed: it reads the scores
     main(["--stop"])
     assert code == 0 and "do not say which score passes" not in said, said
@@ -54,7 +54,7 @@ def test_stop_before_a_result_names_the_port_of_the_page_it_closed(here, capsys)
     assert read_lock(here / ".judgekeeper")["asked"] == 9771  # the tests' pages bind another
     code, said = _main(capsys, "--stop")
     assert code == 0 and "Closed the marking page." in said, said
-    assert _next_command(said) == ["judgekeeper", "--port", "9771"], said
+    assert _next_command(said) == ["judgekeeper", "--port", "9771", "--no-browser"], said
     code, said = _main(capsys, "--stop")  # no page open: nothing to carry
     assert _next_command(said) == ["judgekeeper"], said
 
@@ -66,8 +66,10 @@ def test_stop_names_no_port_for_a_page_on_the_default_one(here, monkeypatch):
     from judgekeeper.start_label import Workspace
 
     talk = front.FrontTalk(yes=False, path=".", options={})
-    assert front._continue_command(talk, Workspace(here), DEFAULT_PORT) == "judgekeeper"
-    assert front._continue_command(talk, Workspace(here), 9771) == "judgekeeper --port 9771"
+    for port, said in ((DEFAULT_PORT, "judgekeeper"), (0, "judgekeeper"),
+                       (9771, "judgekeeper --port 9771")):
+        page = {"port": port, "no_browser": False}
+        assert front._continue_command(talk, Workspace(here), page) == said
 
 
 def _all_marked(here, capsys, *argv):
@@ -103,8 +105,8 @@ def test_stop_after_a_result_names_the_port_of_the_page_it_closed(here, capsys, 
 
 @pytest.mark.parametrize("result", [False, True])
 def test_stop_names_no_fixed_port_for_a_page_on_any_free_port(here, capsys, result):
-    """A page started with --port 0 took whichever port was free: the Next line asks for
-    any free port again, never the one it happened to take."""
+    """A page started with --port 0 took whichever port was free: the Next line names no
+    port, never the one it happened to take."""
     from judgekeeper.label import read_lock
     from tests.start_projects import promptfoo_project, split
 
@@ -116,6 +118,24 @@ def test_stop_names_no_fixed_port_for_a_page_on_any_free_port(here, capsys, resu
     taken = read_lock(here / ".judgekeeper")["port"]
     code, said = _main(capsys, "--stop")
     command = _next_command(said)
-    assert code == 0 and command[command.index("--port") + 1] == "0", said
+    assert code == 0 and "--port" not in command and "--no-browser" in command, said
     assert str(taken) not in command and "9781" not in command, said
 
+
+
+@pytest.mark.parametrize("no_browser", [True, False])
+@pytest.mark.parametrize("result", [False, True])
+def test_stop_carries_the_closed_pages_own_flags(here, capsys, result, no_browser):
+    """Its port and --no-browser as the page was started, the same with a result or not: a
+    result made with --no-browser never adds it to a page started without it."""
+    from tests.start_projects import promptfoo_project, split
+
+    if result:
+        _all_marked(here, capsys, "--port", "9781", "--no-browser")
+    else:
+        promptfoo_project(here, split(30, 30))
+    _main(capsys, "mark", "--port", "9783", *(["--no-browser"] if no_browser else []))
+    code, said = _main(capsys, "--stop")
+    command = _next_command(said)
+    assert code == 0 and command[command.index("--port") + 1] == "9783", said
+    assert ("--no-browser" in command) == no_browser, said

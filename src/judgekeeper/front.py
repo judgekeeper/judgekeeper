@@ -2638,8 +2638,9 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
         raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
-    # the port the page was asked for (0: any free one), carried when not the default
-    port = None if lock is None else lock["port"] if lock["asked"] is None else lock["asked"]
+    closed = None if lock is None else {  # how the page was opened: carried on
+        "port": lock["port"] if lock["asked"] is None else lock["asked"],
+        "no_browser": bool(lock["no_browser"])}
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -2650,24 +2651,30 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")
     talk.say()
-    talk.para("Next: " + NEXT_CONTINUE.format(command=_continue_command(talk, ws, port)))
+    talk.para("Next: " + NEXT_CONTINUE.format(command=_continue_command(talk, ws, closed)))
     return EXIT_OK
 
 
-def _continue_command(talk: FrontTalk, ws: Workspace, port: int | None = None) -> str:
+def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) -> str:
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
     how the page opens), so a scores project still reads its scores; else as typed. Either
-    with the `port` the page it closed was asked for (0: any free one), not the default."""
+    way with how the `page` it closed was opened ({"port", "no_browser"}): its port, but the
+    default or any free one (0), and --no-browser when it was given it."""
+    port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
     if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
         typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
-        extra = ("--port", str(port)) if port not in (None, DEFAULT_PORT) and not typed else ()
+        extra = ("--port", str(port)) if port and not typed else ()
+        if page and page["no_browser"] and not talk.options.get("no_browser"):
+            extra = (*extra, "--no-browser")
         return talk.command(*extra)  # the paths it keeps are from the project folder
-    return start.command_from(flags if port is None else {**flags, "port": port})
+    if page:
+        flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
+    return start.command_from(flags)
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",
