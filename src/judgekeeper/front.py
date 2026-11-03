@@ -2365,6 +2365,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.para(WORSE_LAST)
         talk.say()
         next_step = worse_here
+    elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
+        talk.para(few[0])
+        talk.say()
+        next_step = few[1]
     elif check:
         next_step = _recheck_step(talk, ws)
     elif r.get("waiting") or only:  # only the judge's grades on them can count them

@@ -473,6 +473,38 @@ def test_a_not_sure_check_on_only_the_marked_answers_asks_for_no_marks(
     _mark_says(ws, capsys, path="results-v2.csv")
 
 
+def test_results_that_grade_too_few_marks_never_send_you_to_a_check_that_cant_tell(
+        tmp_path, monkeypatch, capsys):
+    """The newest results grade only 10 of the 60 marked answers (the rest `error`): check
+    can't tell, so a plain run says so and gives check's step, never "run check"."""
+    from tests.start_projects import answer, question, table_project
+
+    monkeypatch.chdir(tmp_path)
+    person = [i < 30 for i in range(60)]
+    table_project(tmp_path, [i < 21 or 55 <= i < 60 for i in range(60)] + [i % 2 == 0
+                                                                           for i in range(60)])
+    (tmp_path / "labels.csv").write_text("question,response,label\n" + "".join(
+        f"{question(i)},{answer(i)},{'pass' if p else 'fail'}\n" for i, p in enumerate(person)),
+        encoding="utf-8")
+    assert _jk(capsys, "--labels", "labels.csv", "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    graded = set(range(7)) | {30, 31, 32}  # 7 marked Pass, 3 marked Fail
+    table_project(tmp_path, [(i % 3 == 0) if i in graded else "error" for i in range(120)],
+                  name="results-v2.csv")
+    out = _jk(capsys, "check", "results-v2.csv")[1]
+    assert "Result: can't tell yet" in flat(out), out
+    step = flat(out)[flat(out).index("Next:"):]
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    assert code == 0, out
+    text = flat(out)
+    assert ("Your new results hold 7 of the answers you marked Pass and 3 you marked Fail; a "
+            "re-check needs 15 of each, so this result is still about your LLM-as-a-judge as "
+            "you marked it.") in text, out
+    assert "re-check your changed" not in text and step in text, out
+
+
 def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_check(
         tmp_path, monkeypatch, capsys):
     """Every other answer marked on the page while it waits; then every answer graded by the

@@ -129,6 +129,10 @@ EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-ju
            "judgekeeper left {them} out of the table.")
 TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
+# A plain run on results `check` can't tell from (too_few_here): the marks still test the old
+FEW_HERE = ("Your new results hold {p} of the answers you marked Pass and {f} you marked Fail; a "
+            "re-check needs {need} of each, so this result is still about your LLM-as-a-judge "
+            "as you marked it.")
 # Running the eval again makes new answers, which can't be compared: grade the marked ones
 WROTE_NEW = "Your eval wrote new answers, so there's nothing to compare."
 GRADE_MARKED = f"{WROTE_NEW} Grade the answers you marked instead:"  # before the steps
@@ -2170,6 +2174,22 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
                 said.say(WROTE_NEW)
             said.say("Next: " + regrade_marked(state, every=True))
     return few
+
+
+def too_few_here(ws: Workspace, found) -> tuple[str, str] | None:
+    """For a plain run on results whose LLM-as-a-judge changed: when they grade too few of
+    the marked answers for `check` to tell (_too_few), the line that says so and check's
+    step (without "Next: "): grade every marked answer again. None otherwise."""
+    m = {i: v for i, v in marks.read(ws.marks).counted().items() if v in ("pass", "fail")}
+    if not m:
+        return None
+    matched = lookup(found, m, ws)[0]
+    kinds = [m[i] for i in matched]
+    if not matched or min(kinds.count("pass"), kinds.count("fail")) >= targets.ROUGH:
+        return None
+    state = State(ws=ws, path=".", data=ws.data(), marks=m, saved={})
+    return (FEW_HERE.format(p=kinds.count("pass"), f=kinds.count("fail"), need=targets.ROUGH),
+            regrade_marked(state, every=True))
 
 
 def _steps(state: State) -> str | None:
