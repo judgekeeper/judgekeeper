@@ -101,3 +101,24 @@ def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, 
     out = _flat(capsys.readouterr().out)
     main(["--stop"])
     assert line in out and "Next: mark answers on the page" not in out, out
+
+
+@pytest.mark.parametrize("pass_marks, fail_marks, side", [(10, 26, "Pass"), (26, 10, "Fail")])
+def test_skipped_answers_that_cant_bring_a_result_say_to_run_the_eval(
+        tmp_path, capsys, monkeypatch, pass_marks, fail_marks, side):
+    """40 answers, 4 skipped and the rest marked, one side 5 marks short: marking the 4 can't
+    bring a result, so no line says to look at them again."""
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(20, 20), tag=" SECRET-TEXT")
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    session = start_label.StartSession(ws)
+    marks = ["pass"] * pass_marks + ["fail"] * fail_marks
+    for k, item in enumerate(session.items):
+        session.update({"id": item["id"], "seconds": 3, **(
+            {"deferred": True} if k < 4 else {"label": marks[k - 4]})})
+    out = _run(capsys)
+    assert "skipped" not in out, out
+    assert (f"Only 4 answers are left to mark, not enough to reach 15 {side} marks, so run "
+            "your eval on more questions.") in out, out
+    assert ("Next: run your eval on more questions, then run `judgekeeper --port 0 "
+            "--no-browser`: the new answers join the ones you marked.") in out, out

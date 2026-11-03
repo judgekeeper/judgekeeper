@@ -120,7 +120,7 @@ ONE_GRADE = ("Your LLM-as-a-judge said {said} on every answer. Your result comes
 FINDING = "finding {n} answers you mark Fail can take many marks."
 FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
 # ...unless too few answers are left to mark to reach them
-FAILS_OUT_OF_REACH = ("Only {left} left to mark, not enough to reach {n} Fail marks, so run "
+FAILS_OUT_OF_REACH = ("Only {left} left to mark, not enough to reach {n} {side} marks, so run "
                       "your eval on more questions.")
 FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
@@ -1443,19 +1443,20 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
 
 
 def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | None = None,
-                    fail_marks: int = 0) -> str:
+                    fail_marks: int = 0, pass_marks: int | None = None) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
     (`said`: Find said how few it failed in this run, so only that). With `left` answers to
-    mark (None: all of them) and `fail_marks` made, fewer left than Fail marks still needed
-    says so instead."""
+    mark (None: all of them) and `fail_marks` and `pass_marks` made (None: not counted), fewer
+    left than the marks of one kind still needed says so instead."""
     if answers and fails in (0, answers):  # one grade for every answer: exact numbers
         said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
         return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
-    if fails_out_of_reach(fails, answers, left, fail_marks):
+    if side := side_out_of_reach(fails, answers, left, fail_marks, pass_marks):
         return out + " " + FAILS_OUT_OF_REACH.format(
-            left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH)
+            left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH,
+            side=side)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
         out += " " + (rest[:1].upper() + rest[1:] if said else
@@ -1463,13 +1464,16 @@ def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | No
     return out
 
 
-def fails_out_of_reach(fails: int, answers: int, left: int | None = None,
-                       fail_marks: int = 0) -> bool:
-    """Whether marking the `left` answers can't reach targets.ROUGH Fail marks (`fail_marks`
-    made), when the LLM-as-a-judge failed `fails` of the `answers` and passed the others
-    (None: every answer is left)."""
-    one_grade = answers and fails in (0, answers)
-    return not one_grade and left is not None and left < targets.ROUGH - fail_marks
+def side_out_of_reach(fails: int, answers: int, left: int | None = None,
+                      fail_marks: int = 0, pass_marks: int | None = None) -> str | None:
+    """"Fail" or "Pass" when marking the `left` answers can't reach targets.ROUGH marks of
+    that kind (`fail_marks` and `pass_marks` made; None: Pass marks not counted), when the
+    LLM-as-a-judge failed `fails` of the `answers` and passed the others (`left` None: every
+    answer is left); else None."""
+    if answers and fails in (0, answers) or left is None:  # one grade: exact numbers
+        return None
+    return ("Fail" if left < targets.ROUGH - fail_marks else
+            "Pass" if pass_marks is not None and left < targets.ROUGH - pass_marks else None)
 
 
 def _each_kind(session: StartSession) -> dict:
@@ -1477,14 +1481,15 @@ def _each_kind(session: StartSession) -> dict:
     groups = list(session.groups.values())  # every answer to mark, each batch's too
     return {"fails": groups.count("fail"), "answers": len(groups),
             "left": sum(not i["label"] for i in session.items),
-            "fail_marks": sum(i["label"] == "fail" for i in session.items)}
+            "fail_marks": sum(i["label"] == "fail" for i in session.items),
+            "pass_marks": sum(i["label"] == "pass" for i in session.items)}
 
 
 def _only_skipped(session: StartSession) -> int:
     """How many answers are left to mark when each of them was skipped, else 0, and 0 when
-    marking them all can't bring a result (fails_out_of_reach says so)."""
+    marking them all can't bring a result (side_out_of_reach says so)."""
     left = [i for i in session.items if not i["label"]]
-    if not left or not all(i["deferred"] for i in left) or fails_out_of_reach(
+    if not left or not all(i["deferred"] for i in left) or side_out_of_reach(
             **_each_kind(session)):
         return 0
     return len(left)
@@ -2222,7 +2227,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
-    if not enough and fails_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
+    if not enough and side_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
         next_step = start_label.NEXT_ALL_MARKED
     elif not enough and n and waits is None and (skipped := _only_skipped(session)):
         next_step = start_label.next_only_skipped(skipped, "{command}")
