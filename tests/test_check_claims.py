@@ -368,6 +368,20 @@ def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
     assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
 
 
+def test_a_plain_check_after_a_same_rule_worse_says_worse_again(here, capsys):
+    """The results graded again in place: a plain check says "Worse" (exit 1), and so does
+    every plain check after it while nothing changes, never "nothing to do"."""
+    ws = _marked(here)
+    _regraded(here, [*range(8), *range(25, 33)], name="results.json")
+    for _ in range(3):
+        code, out = run(capsys)
+        said = _flat(out)
+        assert code == 1, out
+        assert "Same model and rule as before, yet 16 of your marked answers" in said, out
+        assert "Compared with before: worse." in said and "nothing to do" not in said, out
+    assert [x["changed"] for x in _history(ws)] == [["grades changed on 16 marked answers"]]
+
+
 def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
     """One grade turned over on a marked answer: compared, no big drop, and taken on, so the
     next check has nothing new."""

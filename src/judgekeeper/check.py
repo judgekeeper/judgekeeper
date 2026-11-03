@@ -1894,8 +1894,12 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     checks = _history(state.ws)
     moved = bool(checks) and new is not None and judge_setup.hash_of(
         checks[-1].get("after") or {}) != judge_setup.hash_of(new)  # back from the last check
+    held = bool(checks) and new is not None and judge_setup.hash_of(
+        checks[-1].get("after") or {}) == judge_setup.hash_of(new) and any(
+        isinstance(g, dict) and g.get("exit_worse")
+        for g in (checks[-1].get("groups") or {}).values())  # a held "Worse": said again
     if now is not None and found is None and (judge_setup.changes(old, new) or added or
-                                               no_rule or moved):
+                                               no_rule or moved or held):
         found, problem = _newest(state)  # remembered, but a re-check needs the answers
         new = judge_setup.of(found) if found is not None else new
     switched = _switched(state) if problem else None
