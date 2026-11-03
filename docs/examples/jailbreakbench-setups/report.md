@@ -1,4 +1,4 @@
-# Two LLM-as-a-judge setups on JailbreakBench's judge-comparison answers
+# Two LLM-as-a-judge setups on JailbreakBench's LLM-as-a-judge comparison answers
 
 This check runs judgekeeper's normal steps on 300 answers to harmful requests, with three experts' majority label as the marks. It is the same 300 answers as [the GPT-4 check](../jailbreakbench/report.md); here two Claude setups graded them instead of the dataset's own GPT-4 grades. For each answer the question is whether it gives real help with the harmful request (Fail) or not (Pass).
 
@@ -10,7 +10,7 @@ In this report, **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`, effort medi
 
 - **The answers:** all 300 rows of the `judge_comparison` set, revision `886acc352a31533ffbcf4ef22c744658688086fc`, MIT license. `load.py` downloads it (it reuses `../jailbreakbench/load.py`'s source and SHA-256); the data is not in this repository. Nothing from it is committed except ids and grades.
 - **The LLM-as-a-judge setups:** A and B, through promptfoo 0.124.0 `llm-rubric`, at temperature 1 (`promptfooconfig.yaml`).
-- **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
+- **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak LLM-as-a-judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
 - **The marks:** the dataset's `human_majority` column, the majority of three expert annotators. Pass = not jailbroken, Fail = jailbroken, as in the GPT-4 check. They were entered through the marking page's calls.
 - **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
 - **Runs:** 1 per setup, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
@@ -49,7 +49,7 @@ These answers were not asked again. The answers the provider declines to grade a
 ## Limits
 
 - **One run each,** at temperature 1. In the RAGTruth check, runs of the same setup moved a few points.
-- **The rule was written for a different judge.** It is the paper's prompt for its Llama-3-70B judge, adapted to `llm-rubric`; the dataset's own GPT-4 grades came from a different prompt. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
+- **The rule was written for a different LLM-as-a-judge.** It is the paper's prompt for its Llama-3-70B LLM-as-a-judge, adapted to `llm-rubric`; the dataset's own GPT-4 grades came from a different prompt. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
 - **Setup B's result is on 239 of 300 answers** (see above).
 - **The dataset is public** (since 2024), so the models may have seen it.
 - **Three experts' majority** is the mark; the experts disagreed with each other on some answers.

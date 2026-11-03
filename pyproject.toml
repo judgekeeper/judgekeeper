@@ -54,7 +54,7 @@ include = ["/src/judgekeeper", "/README.md", "/LICENSE", "/NOTICE", "/TRADEMARKS
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The practice release (testpypi.yml) builds 1.0.0rcN and runs every other test.
+# The practice release (testpypi.yml) builds a release candidate and runs every other test.
 markers = ["version_number: checks the version number itself, as main has it"]
 
 [tool.ruff]
