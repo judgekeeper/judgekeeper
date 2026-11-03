@@ -104,13 +104,15 @@ FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
 WIDER_ONLY = "The result line uses wider ranges than these, so a lucky streak can't decide it."
+WIDER_PAGE = "The result uses wider ranges than these, so a lucky streak can't decide it."  # no line
 AFTER_EVERY_MARK = " You can look after every mark."
 
 
-def wider(r: dict) -> str:
-    """WIDER_ONLY and AFTER_EVERY_MARK, without it while a new mark could only wait
-    (only_wait)."""
-    return WIDER_ONLY if r.get("only_wait") else WIDER_ONLY + AFTER_EVERY_MARK
+def wider(r: dict, page: bool = False) -> str:
+    """WIDER_ONLY (WIDER_PAGE on the result page and report.html, which have no result line)
+    and AFTER_EVERY_MARK, without it while a new mark could only wait (only_wait)."""
+    first = WIDER_PAGE if page else WIDER_ONLY
+    return first if r.get("only_wait") else first + AFTER_EVERY_MARK
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "To tell judgekeeper why you disagree on {n} of them{have}, run `{command}`."
 SAY_WHY_RUN_ONE = "To tell judgekeeper why you disagree on this one{have}, run `{command}`."

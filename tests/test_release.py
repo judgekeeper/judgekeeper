@@ -114,7 +114,7 @@ LEAD_BULLETS = [  # word for word, in this order, at the top of the 1.1.0 entry
      "it (`judgekeeper mark`)."),
     ("- \"Good enough\" and \"needs work\" now need stronger evidence, so a lucky streak can't "
      "decide them. The first numbers wait for 20 marks on answers your LLM-as-a-judge passed "
-     "and 20 on answers it failed."),
+     "and 20 on answers it failed (or all of them, if there are fewer)."),
     ("- After your first 10 marks, about 1 in 20 marked answers comes back once, so you can see "
      "how often your own marks change."),
     ("- `fix` and `check` count each mark for its share of your answers, so \"Safe to try\" is "
