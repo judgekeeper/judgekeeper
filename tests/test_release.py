@@ -53,6 +53,14 @@ def test_versions_agree():
 
     main = _toml(ROOT / "pyproject.toml")["project"]
     assert main["version"] == __version__ == VERSION
+    ready = f"✓ judgekeeper {VERSION} is ready"  # the version the user's text names
+    for name in ("docs/reference.md", ".github/ISSUE_TEMPLATE/bug.yml",
+                 ".github/ISSUE_TEMPLATE/results-not-found.yml"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert ready in text and not re.findall(r"judgekeeper (?!" + re.escape(VERSION) +
+                                               r")\d+\.\d+\.\d+ is ready", text), name
+    assert f'piped, only "judgekeeper {VERSION}"' in (ROOT / "docs" / "reference.md").read_text(
+        encoding="utf-8")
     assert STABLE in main["classifiers"]
     for minor in ("3.11", "3.12", "3.13", "3.14"):
         assert f"Programming Language :: Python :: {minor}" in main["classifiers"]
@@ -718,11 +726,12 @@ def test_actions_are_pinned_to_commit_hashes():
             assert re.search(r"#\s*v\d", line), f"{path.name}: no version comment on {line.strip()}"
 
 
-def test_security_policy_says_what_judgekeeper_writes_and_that_agents_are_not_supported():
+def test_security_policy_says_what_judgekeeper_writes_and_that_marks_must_be_yours():
     flat = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
     for needed in ("In your project, judgekeeper writes only inside `.judgekeeper/`",
                    "never edits other tools' settings",
-                   "isn't supported in 1.0", "must also come from the page itself"):
+                   ("A coding agent can run the steps and give you the marking page link, but "
+                    "the marks must be yours."), "must also come from the page itself"):
         assert needed in flat, needed
     reference = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
     for text in (flat, reference):  # what it writes outside .judgekeeper/, said in both

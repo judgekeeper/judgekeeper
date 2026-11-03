@@ -96,7 +96,8 @@ def test_guide_install_uses_the_needed_python():
         "requires-python"]
     assert needs == ">=3.11"
     install = _flat(_by_id("start.html", "install"))
-    assert ("your project folder With pip, in your project’s virtual environment pip install "
+    assert ("your project folder With pip, in your project’s virtual environment (in a uv "
+            "virtual environment, uv pip install judgekeeper) pip install "
             "judgekeeper judgekeeper With uv uvx judgekeeper With uv, put uvx before each command "
             "below, for example uvx judgekeeper fix. For MLflow or Inspect AI results: pip "
             'install "judgekeeper[mlflow]" or "judgekeeper[inspect]". Works on macOS, Linux and '

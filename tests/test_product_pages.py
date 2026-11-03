@@ -464,7 +464,7 @@ def _mistakes(n_easy: int, n_strict: int) -> list[dict]:
                 "reason": f"why strict {i}"} for i in range(n_strict)])
 
 
-HIDDEN = "hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
+HIDDEN = "kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
 
 
 def _part(html: str, start: str, end: str = "</section>") -> str:
@@ -584,7 +584,7 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2>' in first
-    assert f'{c["easy"] - 5} more are hidden on purpose' in first
+    assert f'{c["easy"] - 5} more are kept aside on purpose' in first
     assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
             'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
@@ -627,7 +627,7 @@ def test_each_group_says_under_its_heading_how_many_are_kept_aside():
     assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more are {HIDDEN}</p>'
             '</div>') in hidden_only
     early = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": []})
-    assert "hidden on purpose" not in early and 'class="group' not in early
+    assert "kept aside on purpose" not in early and 'class="group' not in early
 
 
 @pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR])
@@ -709,7 +709,7 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
     r = _result(*CHECK)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
-    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more is hidden on purpose",
+    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more is kept aside on purpose",
                    'id="details-h"'):
         assert needed in html, needed
     assert 'class="next' not in html and "Keep checking it" not in html
@@ -1037,7 +1037,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"(\d+) more (?:is|are) hidden on purpose", _text(html))
+    kept = re.findall(r"(\d+) more (?:is|are) kept aside on purpose", _text(html))
     assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------

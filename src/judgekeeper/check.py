@@ -103,7 +103,7 @@ NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your resul
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
-ONE_RUN = "One run, so a small change may be chance."
+ONE_RUN = "One run, so a small change may be a coincidence."
 NONE_IN = ("None of your {n} is in your new results. judgekeeper finds a marked answer by "
            "the same text, word for word, and the same question.")
 NEXT_GIVEN = ("Next: give `{command}` {results} for the LLM-as-a-judge your marks test, or run "

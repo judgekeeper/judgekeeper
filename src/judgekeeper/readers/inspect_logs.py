@@ -19,6 +19,9 @@ from __future__ import annotations
 import logging
 import math
 import re
+import signal
+import sys
+import threading
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -84,16 +87,48 @@ QUIET_LOGGERS = ("inspect_ai", "asyncio")
 @contextmanager
 def quiet() -> Iterator[None]:
     """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
-    said here, in plain words, never with its text). Put back afterwards."""
+    said here, in plain words, never with its text), and a Ctrl-C is noted (_stopping), as
+    inspect_ai's async reading can turn it into an error of its own. Put back afterwards."""
     loggers = [logging.getLogger(name) for name in QUIET_LOGGERS]
     levels = [logger.level for logger in loggers]
     for logger in loggers:
         logger.setLevel(logging.CRITICAL)
+    handler = None
+    if threading.current_thread() is threading.main_thread() and \
+            signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+        _stopping.clear()
+        handler = signal.signal(signal.SIGINT, _noted)
     try:
         yield
     finally:
+        if handler is not None:
+            signal.signal(signal.SIGINT, handler)
         for logger, level in zip(loggers, levels, strict=True):
             logger.setLevel(level)
+
+
+_stopping: list[bool] = []  # holds True once a Ctrl-C came while inspect_ai read
+
+
+def _noted(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first. What inspect_ai then leaves half
+    done (a coroutine closed, an async task's error) is not printed: the run says "Stopped."."""
+    _stopping.append(True)
+    sys.unraisablehook = _unsaid
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL + 1)
+    raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python finds only while closing what a Ctrl-C stopped: not printed."""
+
+
+def _unreadable(path: Path) -> Exception:
+    """The error for a log inspect_ai could not read, or the Ctrl-C that stopped it."""
+    if _stopping:
+        return KeyboardInterrupt()
+    return damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
+                                       "Inspect AI log")
 
 
 # What judgekeeper reads of a sample (and of its output, the completion only).
@@ -718,8 +753,7 @@ def _by_sample(path: Path, read_eval_log, read_by_id, read_one, sizes: dict[str,
                     while got:
                         yield got.pop().model_dump(mode="json", include=SAMPLE_FIELDS)
         except Exception:  # noqa: BLE001 - a sample cut short or not Inspect's
-            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
-                                              "an Inspect AI log") from None
+            raise _unreadable(path) from None
 
     data["samples"] = samples()
     return data
@@ -750,9 +784,8 @@ def _load(path: Path) -> dict:
                     return _by_sample(path, read_eval_log, read_by_id, read_one, sizes)
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
-            if is_eval:
-                raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
-                                                  "an Inspect AI log") from None
+            if is_eval or _stopping:
+                raise _unreadable(path) from None
             # a .json log inspect_ai refuses is read as without it: the same checks and words
     elif path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))
