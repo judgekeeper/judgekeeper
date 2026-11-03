@@ -2465,8 +2465,21 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")
     talk.say()
-    talk.para("Next: " + NEXT_CONTINUE.format(command=talk.command()))
+    talk.para("Next: " + NEXT_CONTINUE.format(command=_continue_command(talk, ws)))
     return EXIT_OK
+
+
+def _continue_command(talk: FrontTalk, ws: Workspace) -> str:
+    """The run that carries on the project after --stop: in its own folder, as the result
+    was made (result.json's flags: the pass mark in use, the flags that read the results,
+    how the page opens), so a scores project still reads its scores; else as typed."""
+    try:
+        flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
+    except (OSError, ValueError, AttributeError):
+        flags = None
+    if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
+        return talk.command()  # the paths it keeps are from the project folder
+    return start.command_from(flags)
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",
