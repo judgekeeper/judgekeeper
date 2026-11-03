@@ -1575,11 +1575,10 @@ def _each_kind(session: StartSession) -> dict:
 
 
 def _only_skipped(session: StartSession) -> int:
-    """How many answers are left to mark when each of them was skipped, else 0, and 0 when
-    marking them all can't bring a result (side_out_of_reach says so)."""
+    """How many answers are left to mark when each of them was skipped, else 0. Said also
+    when marking them all can't bring a result (side_out_of_reach), as the page says it."""
     left = [i for i in session.items if not i["label"]]
-    if not left or not all(i["deferred"] for i in left) or side_out_of_reach(
-            **_each_kind(session)):
+    if not left or not all(i["deferred"] for i in left):
         return 0
     return len(left)
 
@@ -2414,12 +2413,12 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     next_step = NEXT_MORE if enough else NEXT_MARK
     out_of_reach = not enough and side_out_of_reach(**_each_kind(session))
     few = out_of_reach or (not enough and len(session.items) < start.MIN_POOL)  # exit 3
-    if out_of_reach:  # as FAILS_OUT_OF_REACH says
-        next_step = start_label.NEXT_ALL_MARKED
-    elif not enough and n and waits is None and (skipped := _only_skipped(session)):
+    if not enough and n and waits is None and (skipped := _only_skipped(session)):
         next_step = start_label.next_only_skipped(  # the page that marks it: `mark`
             skipped, _command_of(talk, saved, "mark"), on_page=marking
         ).replace("{", "{{").replace("}", "}}")
+    elif out_of_reach:  # as FAILS_OUT_OF_REACH says
+        next_step = start_label.NEXT_ALL_MARKED
     elif not enough and len(session.items) < start.MIN_POOL:  # no link can appear
         next_step = NEXT_FEW_ANSWERS.format(n=len(session.items), min=start.MIN_POOL,
                                             command=_command_of(talk, saved, "mark")

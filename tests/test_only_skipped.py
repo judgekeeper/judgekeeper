@@ -108,10 +108,10 @@ def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, 
 
 
 @pytest.mark.parametrize("pass_marks, fail_marks, side", [(10, 26, "Pass"), (26, 10, "Fail")])
-def test_skipped_answers_that_cant_bring_a_result_say_to_run_the_eval(
+def test_skipped_answers_that_cant_bring_a_result_are_named_as_skipped(
         tmp_path, capsys, monkeypatch, pass_marks, fail_marks, side):
     """40 answers, 4 skipped and the rest marked, one side 5 marks short: marking the 4 can't
-    bring a result, so no line says to look at them again."""
+    bring a result. The lines say so, and that the 4 are the ones skipped, as the page does."""
     monkeypatch.chdir(tmp_path)
     promptfoo_project(tmp_path, split(20, 20), tag=" SECRET-TEXT")
     ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
@@ -121,8 +121,28 @@ def test_skipped_answers_that_cant_bring_a_result_say_to_run_the_eval(
         session.update({"id": item["id"], "seconds": 3, **(
             {"deferred": True} if k < 4 else {"label": marks[k - 4]})})
     out = _run(capsys)
-    assert "skipped" not in out, out
     assert (f"Only 4 answers are left to mark, not enough to reach 15 {side} marks, so run "
             "your eval on more questions.") in out, out
-    assert ("Next: run your eval on more questions, then run `judgekeeper --port 0 "
-            "--no-browser`. New answers are added to the ones you marked.") in out, out
+    assert ("The only answers left are the 4 you skipped. Mark them now, or run your eval on "
+            "more questions.") in out, out
+    assert NEXT.format(answers="the 4", mark="judgekeeper mark --port 0 --no-browser") in out, out
+
+
+@pytest.mark.parametrize("command", [["fix"], ["check"]])
+def test_fix_and_check_name_the_skipped_answers_left_when_too_few(tmp_path, capsys, monkeypatch,
+                                                                  command):
+    """8 answers, 6 marked and 2 skipped: too few for a result, and the 2 left are the
+    skipped ones. fix and check say so, in the page's words."""
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(4, 4), tag=" SECRET-TEXT")
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    session = start_label.StartSession(ws)
+    for k, item in enumerate(session.items):
+        session.update({"id": item["id"], "seconds": 3, **(
+            {"deferred": True} if k >= 6 else {"label": "pass" if k % 2 else "fail"})})
+    capsys.readouterr()
+    assert main(command) == 3
+    out = _flat(capsys.readouterr().out)
+    assert ("The only answers left are the 2 you skipped. Mark them now, or run your eval on "
+            "more questions.") in out, out
+    assert NEXT.format(answers="the 2", mark="judgekeeper mark") in out, out

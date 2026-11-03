@@ -1256,7 +1256,7 @@ def every_marked(ws: Workspace) -> bool:
 
 def out_of_reach(ws: Workspace) -> str | None:
     """front.FAILS_OUT_OF_REACH, as the plain run says it, when the answers left to mark can't
-    bring 15 marks of one kind; else None."""
+    bring 15 marks of one kind, with ONLY_SKIPPED when each of them was skipped; else None."""
     from judgekeeper import front
 
     try:
@@ -1271,8 +1271,10 @@ def out_of_reach(ws: Workspace) -> str | None:
                                    marked.count("fail"), marked.count("pass"))
     if not queue or not side or not left:  # none left: every answer is marked, said so
         return None
-    return front.FAILS_OUT_OF_REACH.format(
+    line = front.FAILS_OUT_OF_REACH.format(
         left=f"{plural(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH, side=side)
+    skipped = _skipped_left(ws)
+    return f"{line} {only_skipped(skipped)}" if skipped == left else line
 
 
 def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
@@ -1286,7 +1288,7 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     from judgekeeper.start import command_from
 
     left = _left_to_mark(ws)
-    skipped = _skipped_left(ws) if left != math.inf and need != math.inf else 0
+    skipped = _skipped_left(ws) if left != math.inf else 0
     if left >= need and not 0 < left == skipped:
         return step
     try:
