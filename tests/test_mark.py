@@ -140,7 +140,7 @@ def test_the_page_starts_with_the_commands_of_the_flags_given(here, capsys, page
 def test_too_few_answers_are_marked_anyway(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys, "mark")
-    assert code == 0, out
+    assert code == 3, out  # the page opens, and too few answers for a result exit 3
     assert "Step 2 of 5: Mark" in out and "You marked" not in out
 
 
