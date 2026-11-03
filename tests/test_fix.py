@@ -709,9 +709,11 @@ def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monke
     main(["--stop"])
     _, said = _main(capsys, "check", "--pass-if", "score>=0.72")
     assert "Compared with before: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
-    assert said.endswith('Next: mark more answers with `judgekeeper mark --pass-if '
-                         '"score>=0.5" --port 0 --no-browser`, then run `judgekeeper check '
-                         '--pass-if "score>=0.72"` again.'), said
+    from judgekeeper.textio import quote_arg
+
+    assert said.endswith(f"Next: mark more answers with `judgekeeper mark --pass-if "
+                         f"{quote_arg('score>=0.5')} --port 0 --no-browser`, then run "
+                         f"`judgekeeper check --pass-if {quote_arg('score>=0.72')}` again."), said
 
 
 def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, capsys):
@@ -784,11 +786,14 @@ def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, caps
     def busy(folder):
         raise label.PageBusy(label.BUSY)
 
+    from judgekeeper.textio import quote_arg
+
     ws, code, said = _adopted(here, capsys, monkeypatch, page=busy)
     assert code == 0, said
     assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
             "To open it with this one, run `judgekeeper --stop`, then "
-            '`judgekeeper mark --pass-if "score>=0.7" --port 0 --no-browser`.') in said, said
+            f"`judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 --no-browser`."
+            ) in said, said
     assert ws.data()["pass_mark"]["rule"] == "score>=0.7"
     assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == \
         "score>=0.7"
@@ -804,18 +809,22 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
 
     stopped = []
     monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder) or True)
+    from judgekeeper.textio import quote_arg
+
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
     assert ("Your marking page closed because it showed a different LLM-as-a-judge. To open it "
-            'with this one, run `judgekeeper mark --pass-if "score>=0.7" --port 0 '
-            '--no-browser`.') in said, said
+            f"with this one, run `judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 "
+            "--no-browser`.") in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
 
 def test_a_worse_pass_mark_keeps_the_old_one_and_asks_for_no_grading(here, capsys, monkeypatch):
+    from judgekeeper.textio import quote_arg
+
     ws, code, said = _adopted(here, capsys, monkeypatch, rule="score>=0.9")
-    step = ('Next: nothing to do; your pass mark stays score>=0.5. To try another, run '
-            '`judgekeeper check --pass-if "score>=N"`.')
+    step = ("Next: nothing to do; your pass mark stays score>=0.5. To try another, run "
+            f"`judgekeeper check --pass-if {quote_arg('score>=N')}`.")
     assert code == 1 and "Compared with before: worse" in said, said
     assert step in said and "again with it" not in said, said
     report = html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text(encoding="utf-8")))
@@ -1440,3 +1449,20 @@ def test_the_mistakes_line_names_both_kinds(easy, strict, said):
         [{"judge": "pass", "final": "pass", "output": "x"}] * 10
     first = fix.patterns(rows)[0]
     assert " ".join(first) == f"Your LLM-as-a-judge made {easy + strict} mistakes. {said}"
+
+
+def test_every_printed_pass_if_is_quoted_one_way(here, capsys):
+    """Over fix, a check whose pass mark is worse, one that is not sure, and a plain run:
+    each --pass-if value is quoted as quote_arg quotes it, so one output has one style."""
+    from judgekeeper.textio import quote_arg
+
+    score_project(here)
+    said = [_main(capsys, *argv)[1] for argv in (
+        ["fix"], ["check", "--pass-if", "score>=0.9"], ["check", "--pass-if", "score>=0.72"],
+        ["--pass-if", "score>=0.5", "--no-browser", "--port", "0"])]
+    main(["--stop"])
+    shown = re.findall(r"--pass-if (\S+?)(?=[`\s])", " ".join(" ".join(said).split()))
+    assert shown, said
+    for word in shown:
+        value = shlex.split(word)[0]
+        assert word == quote_arg(value) or value == "NAME", (word, said)

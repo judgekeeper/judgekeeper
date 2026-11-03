@@ -170,7 +170,7 @@ NEXT_WORSE_SAME = ("your model and rule are the same as before, so its grades ch
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
 NEXT_MARK_STAYS = ("nothing to do; your pass mark stays {rule}. To try another, run "
-                   "`{check} --pass-if \"{other}\"`.")
+                   "`{check} --pass-if {other}`.")  # other: quoted (quote_arg)
 # The marks test another judge now (taken on, or back to the marked one): the marking page,
 # which showed the one before, closes (_close_page)
 PAGE_CLOSED = ("Your marking page closed because it showed a different LLM-as-a-judge. To open "
@@ -2122,7 +2122,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                                 grades=not judge_setup.changes(old, new)):
         said.say()
     # the Next line, from the pass mark in use now: one taken on above, or the one kept
-    again = _command(state) + (f' --pass-if "{state.pass_if}"' if held and state.pass_if
+    again = _command(state) + (f" --pass-if {quote_arg(state.pass_if)}" if held and state.pass_if
                                else "")  # a held one is re-checked with it, never the old
     then: str | None = None
     asks = False  # whether it asks for new marks: none, if a new mark can only wait (below)
@@ -2489,7 +2489,8 @@ def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = F
         from judgekeeper.start_fix import _NUMBER
 
         other = re.sub(rf"(?<![\d.]){_NUMBER}\s*$", "N", pm["rule"])
-        return NEXT_MARK_STAYS.format(rule=pm["rule"], check=again or command, other=other)
+        return NEXT_MARK_STAYS.format(rule=pm["rule"], check=again or command,
+                                      other=quote_arg(other))
     if judge_setup.tool_only(old, new):
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
@@ -2736,7 +2737,7 @@ def _mark_flags(ws: Workspace) -> str:
     """The flags every `mark` a line names for this project carries (mark_here)."""
     pm = ws.data().get("pass_mark") or {}
     rule = pm.get("rule") if pm.get("source") == "pass_if" else None
-    return (f' --pass-if "{rule}"' if rule else "") + _page_flags(ws)
+    return (f" --pass-if {quote_arg(rule)}" if rule else "") + _page_flags(ws)
 
 
 def mark_more_step(ws: Workspace) -> str:

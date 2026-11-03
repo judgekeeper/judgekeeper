@@ -45,7 +45,7 @@ _RULE = re.compile(r"\A([A-Za-z_]\w*)?\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?|-?\.\
 _OPS = {">=": operator.ge, "<=": operator.le, ">": operator.gt, "<": operator.lt,
         "==": operator.eq}
 # Double quotes: they work in every shell, cmd.exe included.
-PASS_IF_EXAMPLE = '--pass-if "score>=0.5"'
+PASS_IF_EXAMPLE = f"--pass-if {quote_arg('score>=0.5')}"  # as every printed command
 
 
 class NormaliseError(Exception):
