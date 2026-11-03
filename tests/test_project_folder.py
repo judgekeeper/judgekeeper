@@ -629,6 +629,28 @@ def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     assert "changed since your marks" not in out
 
 
+def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
+        here, capsys, no_calls):
+    """`check` took on evals/results-v2.csv; `check evals/results.csv` goes back to the
+    marked LLM-as-a-judge and says the result is no longer about results-v2.csv."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # not worse: taken on
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    code, out, _ = run(capsys, "check", "evals/results.csv")
+    out = flat(out)
+    assert code == 0 and "back to the one you marked with (bike-grader-v1)" in out, out
+    assert ("Your last check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in out, out
+    again = run(capsys, "check", "evals/results.csv")  # the same results: the same words
+    assert flat(again[1]) == out, again
+
+
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
         here, capsys, no_calls):
     """The check read a newer file outside the project: a plain run on the project's file

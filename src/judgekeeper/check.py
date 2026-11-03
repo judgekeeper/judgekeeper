@@ -1626,6 +1626,7 @@ def repeats_line(found) -> str | None:
 GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
 BACK = ("Your LLM-as-a-judge is back to the one you marked with ({model}). Your marks' result "
         "still holds.")
+LAST_READ = "Your last check read {old}; this result is about {new} now."  # a back to another file
 ADDED = "You added {n} since your last check."
 
 
@@ -1701,6 +1702,7 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     data.pop("earlier_grades", None)
     if earlier:
         data["earlier_grades"] = earlier
+    data.pop("results_left", None)  # back_to_marked's: about the judge before this one
     _marked_rule_kept(data)
     data.update(picked=picked, queue=queue, rule=found.rule, one_rule=found.one_rule,
                 judge=found.judge, fingerprint=scrub_fingerprint(found.fingerprint),
@@ -2386,15 +2388,31 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
     if any(a.verdict != made_on.get(i) for i, a in graded.items()):
         return None
     restored = saved["setup_hash"] != judge_setup.hash_of(now)
+    new = found.results[0].rel if found.results else None
+    # the file the check the marks leave read (_adopt), kept to say on each "back" after
+    left = data.get("results_read") if restored else data.get("results_left")
+    left = left if isinstance(left, str) and left and new and left != new else None
     with page.one_at_a_time(ws.dir, say):  # two runs at once: one writes
         if restored:
             _restore(ws, found, now)
+            if left:
+                from judgekeeper.start_label import _write_json
+
+                _write_json(ws.start, {**ws.data(), "results_left": left})
         # the marks' grades from this judge: the next change is compared with them
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     if restored:
         _close_page(ws, say)
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
-    return BACK.format(model=", ".join(names) or "model not named")
+    back = BACK.format(model=", ".join(names) or "model not named")
+    if left:
+        from judgekeeper import textio
+
+        def shown(rel: str) -> str:
+            return Path(textio.shown_from_here(Path(textio.kept_at(rel, ws.root)))).as_posix()
+
+        back += " " + LAST_READ.format(old=shown(left), new=shown(new))
+    return back
 
 
 def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
