@@ -44,7 +44,7 @@ from judgekeeper import (
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import one_line, scrub, scrub_fingerprint, scrub_once, scrub_value
-from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks
+from judgekeeper.start_label import FOLDER, Workspace, every_marked, next_marks, out_of_reach
 from judgekeeper.textio import (
     ANYWHERE,
     flush_stdout,
@@ -1266,10 +1266,12 @@ def _not_set_up(path: str, state: State | None, said) -> int:
                   if marks.imported(marks.read(state.ws.marks), ids=set(state.marks))
                   else f"You marked {_n(len(values), 'answer')}")
         said.say(NOT_SET_UP)
+        reach = out_of_reach(state.ws)  # as the plain run: no mark left can bring a result
         said.para(SO_FAR.format(so_far=so_far, p=values.count("pass"), f=values.count("fail"))
-                  + " " + NEEDS.format(n=targets.ROUGH))
+                  + " " + NEEDS.format(n=targets.ROUGH) + (f" {reach}" if reach else ""))
         said.say()
-        said.say("Next: " + next_marks(state.ws, mark_more_step(state.ws)))
+        said.say("Next: " + next_marks(state.ws, mark_more_step(state.ws),
+                                       need=math.inf if reach else 1))
         return EXIT_NEEDS_YOU
     from judgekeeper import front
 

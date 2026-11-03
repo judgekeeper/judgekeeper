@@ -1244,6 +1244,27 @@ def every_marked(ws: Workspace) -> bool:
     return bool(queue) and all(q["id"] in counted for q in queue)
 
 
+def out_of_reach(ws: Workspace) -> str | None:
+    """front.FAILS_OUT_OF_REACH, as the plain run says it, when the answers left to mark can't
+    bring 15 marks of one kind; else None."""
+    from judgekeeper import front
+
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return None
+    groups = [q.get("group") for q in queue]
+    left = sum(q["id"] not in counted for q in queue)
+    marked = [counted[q["id"]] for q in queue if q["id"] in counted]
+    side = front.side_out_of_reach(groups.count("fail"), len(groups), left,
+                                   marked.count("fail"), marked.count("pass"))
+    if not queue or not side:
+        return None
+    return front.FAILS_OUT_OF_REACH.format(
+        left=f"{plural(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH, side=side)
+
+
 def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
     "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
@@ -1255,7 +1276,7 @@ def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     from judgekeeper.start import command_from
 
     left = _left_to_mark(ws)
-    skipped = _skipped_left(ws) if left != math.inf else 0
+    skipped = _skipped_left(ws) if left != math.inf and need != math.inf else 0
     if left >= need and not 0 < left == skipped:
         return step
     try:

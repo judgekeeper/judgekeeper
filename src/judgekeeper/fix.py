@@ -1307,12 +1307,15 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.next(f"run your eval once from this folder, then run `{program()}`.")
         return EXIT_NEEDS_YOU
     if split is None:
-        talk.para(NOT_ENOUGH)
         from judgekeeper.check import mark_more_step
+        from judgekeeper.start_label import out_of_reach
 
+        reach = out_of_reach(ws) if ws is not None else None  # as the plain run says
+        talk.para(NOT_ENOUGH + (f" {reach}" if reach else ""))
         step = (mark_more_step(ws) if ws is not None  # from here
                 else f"run `{program('mark')}` to mark more answers.")
-        talk.next(next_marks(ws, step) if ws is not None else step)
+        talk.next(next_marks(ws, step, need=math.inf if reach else 1) if ws is not None
+                  else step)
         return EXIT_NEEDS_YOU
     if split.fresh:  # new results from another tool are refused first (exit 2)
         if results is not None and _given(talk, state, m, results) is None:

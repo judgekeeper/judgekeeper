@@ -57,3 +57,22 @@ def test_a_port_the_open_page_kept_is_said(here, capsys):
     _main(capsys, "--no-browser", "--port", "9781")
     _, said = _main(capsys, "--no-browser", "--port", "9783")
     assert "so --port 9783 was not used." in _flat(said), said
+
+
+def test_check_with_too_few_answers_left_says_what_the_plain_run_says(here, capsys):
+    """24 answers, 20 marked (6 Fail), 4 left: no mark can bring 15 Fail marks, so check and
+    fix, as the plain run, say to run the eval on more questions, never to mark more."""
+    table_project(here, split(12, 12))
+    _main(capsys, "mark", "--no-browser", "--port", "0")
+    session = StartSession(Workspace(here))
+    for k, item in enumerate(session.items[:20]):
+        session.update({"id": item["id"], "label": "fail" if k < 6 else "pass", "seconds": 4})
+    _, plain = _main(capsys, "--no-browser", "--port", "0")
+    _, said = _main(capsys, "check")
+    _, fixing = _main(capsys, "fix")
+    line = ("Only 4 answers are left to mark, not enough to reach 15 Fail marks, so run your "
+            "eval on more questions.")
+    for out in (plain, said, fixing):
+        assert line in _flat(out), out
+    for out in (said, fixing):
+        assert "to mark more" not in out and "Next: run your eval on more questions" in out, out
