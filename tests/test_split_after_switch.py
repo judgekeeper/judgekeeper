@@ -95,3 +95,22 @@ def test_fix_new_starts_a_new_set_even_from_a_split_it_cannot_use(tmp_path, monk
     assert code == 3 and "can't use" not in out and "Only 7 answers are left" in out, out
     split = fix.read_split(ws)
     assert split.hidden == [] and len(split.seen) == len(FIRST) + 13, split
+
+
+def test_fix_reads_the_new_set_when_a_mark_kept_aside_in_it_is_taken_back(tmp_path,
+                                                                          monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    ws = _switched(tmp_path, capsys, skipped=None)
+    assert _jk(capsys, "fix")[0] == 0
+    split = fix.read_split(ws)
+    assert split.set == 2 and split.hidden, split
+    taken = split.hidden[-1]
+    lines = [json.loads(x) for x in ws.marks.read_text(encoding="utf-8").splitlines()[1:]]
+    mark = [x for x in lines if x.get("id") == taken][-1]["mark"]
+    StartSession(ws).update({"id": taken, "label": None, "seconds": 2})  # taken back
+    code, out = _jk(capsys, "fix")
+    assert code == 0 and "can't use" not in out, out
+    StartSession(ws).update({"id": taken, "label": mark, "seconds": 2})  # marked again
+    code, out = _jk(capsys, "fix")
+    assert code == 0 and "can't use" not in out, out
+    assert fix.read_split(ws).set == 2

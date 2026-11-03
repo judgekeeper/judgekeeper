@@ -455,11 +455,14 @@ def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     the most a later set's earlier sets can hold, since every mark made once a set begins is
     its own. A seen mark is its first Pass or Fail. A kept-aside one is its first Pass or Fail
     since it was last skipped or taken back: an answer skipped, or marked and taken back,
-    before a set began and marked after is the set's. None kept aside, or one never marked: 0."""
+    before a set began and marked after is the set's. One taken back since is left out. None
+    kept aside, one never marked, or every one taken back: 0."""
     m = read_cached(ws.marks, marks.read)
-    if not hidden or any(i not in m.fresh_mark for i in hidden):
+    if any(i not in m.first_mark for i in hidden):
         return 0
-    first = min(m.fresh_mark[i] for i in hidden)
+    first = min((m.fresh_mark[i] for i in hidden if i in m.fresh_mark), default=None)
+    if first is None:
+        return 0
     return sum(m.first_mark.get(i, first) < first for i in seen)
 
 
