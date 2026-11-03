@@ -723,7 +723,7 @@ def test_a_tracking_server_points_at_a_local_store_when_there_is_one(here, capsy
 
 def test_a_missing_path_is_a_usage_error(here, capsys):
     code, _, err = run(capsys, here / "nope")
-    assert code == 2 and "not found" in err
+    assert code == 2 and "There is no file or folder named nope in this folder." in err, err
 
 
 def test_a_wrong_tool_name_is_a_usage_error(here, capsys):
