@@ -273,10 +273,9 @@ def test_too_few_answers_needs_the_person(here, capsys):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys)
     assert code == 3
+    flat = " ".join(out.split())
     assert ("You have 10 answers with a clear grade. That is not enough answers for a first "
-            "result. A result needs at least 15 Pass and 15 Fail marks from you. It also needs "
-            "20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of "
-            "them, if there are fewer). So a first result needs at least 30 answers.") in " ".join(out.split())
+            "result. Next:") in flat
     line = assert_one_next_at_the_end(out)
     assert line == ("Next: mark these 10 now with `judgekeeper mark`. Your marks are kept. Then "
                     "run your eval to make more answers (that makes model calls), and run "

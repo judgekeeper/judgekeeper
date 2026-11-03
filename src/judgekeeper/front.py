@@ -1801,10 +1801,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     n = len(pool.answers)
     if n < start.MIN_POOL:
         talk.say()
-        needs = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
         talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
-                  f"for a first result. {needs} So a first result needs at least "
-                  f"{start.MIN_POOL} answers.")
+                  "for a first result.")
         raise talk.stop(EXIT_QUESTION, (
             f"mark {'this one' if n == 1 else f'these {n}'} now with "
             f"`{_command_of(talk, saved, 'mark')}`. Your marks are kept. Then run your eval to "

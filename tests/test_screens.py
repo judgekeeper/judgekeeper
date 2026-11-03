@@ -431,9 +431,7 @@ def test_too_few_answers_says_what_a_first_result_needs(here, capsys):
     assert code == 3
     text = " ".join(" ".join(lines).split())
     assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
-            "result. A result needs at least 15 Pass and 15 Fail marks from you. It also needs "
-            "20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of "
-            "them, if there are fewer). So a first result needs at least 30 answers.") in text
+            "result.") in text and "A result needs" not in text
 
 
 @pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])
