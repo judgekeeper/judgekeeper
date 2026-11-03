@@ -66,7 +66,7 @@ At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-r
 - **`load.py`:** downloads RAGTruth from the authors' GitHub repository at a pinned commit, checks the files' SHA-256, and keeps the test split's news summaries (`python3 -I load.py`). Its `cache/` folder holds the articles and summaries and is never committed.
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the first run and used unchanged for Opus.
-- **`measure/`:** the Measure screen of each run, all from commit `7059dbd` (Haiku and Sonnet graded on `bc0d099`, Opus, effort high and the extra medium runs, on `bfc3606`).
+- **`measure/`:** the Measure screen of each run, all from commit `7059dbd` (Haiku and Sonnet graded on `bc0d099`, Opus, effort high and the extra medium runs, on `bfc3606`). The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
 - **`opus-high-runs.json`, `opus-medium-runs.json`, `opus-notes.txt`:** for Opus, each answer's grade in the 3 runs (ids and grades only), and the dates, effort, token counts and cost.
 
 Each Measure screen in `measure/` starts with a header: the dataset, its commit, the subset and split, and where the grades come from. `sample-ids.json` holds the same in its own fields, unchanged, because the probes record its hash.

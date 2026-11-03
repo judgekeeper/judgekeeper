@@ -59,7 +59,7 @@ These answers were not asked again. The answers the provider declines to grade a
 
 - **`load.py`:** downloads the data (pinned revision, SHA-256 checked) and writes `cache/rows.jsonl`, which is never committed.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the setup, as frozen before the run. The config has two slots, `JUDGE_PROVIDER` and `JUDGE_EFFORT`.
-- **`measure/`:** the Measure screen of each run.
+- **`measure/`:** the Measure screen of each run. The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
 - **`ids-and-grades.csv`:** each answer's id, both Claude grades (`none` where there was no real decision), the GPT-4 grade and the experts' majority.
 - **`figures.json`:** the counts, ranges and kappa above. **`notes.txt`:** dates, effort, token counts, cost, and the answers with no real decision.
 
