@@ -28,7 +28,9 @@ def here(tmp_path, monkeypatch):
 
 
 def _press() -> None:
-    os.kill(os.getpid(), signal.SIGINT)
+    # raise_signal runs this process's own SIGINT handler, as a Ctrl-C does. Never
+    # os.kill(pid, SIGINT): on Windows that ends the process at once (TerminateProcess).
+    signal.raise_signal(signal.SIGINT)
 
 
 def _ran(main, argv=ARGV) -> int:
@@ -113,7 +115,7 @@ def test_a_ctrl_c_while_the_program_ends_is_ignored(tmp_path):
         import judgekeeper.__main__ as entry
 
         def pressed():
-            os.kill(os.getpid(), signal.SIGINT)
+            signal.raise_signal(signal.SIGINT)
             time.sleep(0.05)
             print("ignored:", signal.getsignal(signal.SIGINT) is signal.SIG_IGN)
 
