@@ -371,6 +371,61 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
     return None
 
 
+def cut_off(path: str | Path) -> bool:
+    """Whether a CSV or TSV file ends inside a quote, as records.load_json says of JSON that
+    stops inside a string: its last row's last cell, as written, is text holding a quote (one
+    not at the cell's start, which the reader keeps as text), and the file stops there or
+    that row has fewer cells than the header. Rows where every cell is empty are not rows."""
+    from contextlib import closing
+
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".tsv"):
+        return False
+    held: list[str] = []  # the lines of the row being read, as the file has them
+
+    def kept(lines):
+        for line in lines:
+            held.append(line)
+            yield line
+
+    with closing(utf8_lines(path, TableError)) as lines:  # never the whole text at once
+        first = next(lines, "")
+        delimiter = _delimiter(first, suffix)
+        reader = csv.reader(kept(itertools.chain([first], lines)) if first else iter(()),
+                            delimiter=delimiter)
+        names, last = next(reader, None), ""
+        held.clear()
+        for row in reader:
+            if any(c.strip() for c in row):
+                last = "".join(held)
+            held.clear()
+    if not names or not last:
+        return False
+    cells, stray, stops = _last_cell(last, delimiter)
+    return stray and (stops or cells < len(names))
+
+
+def _last_cell(row: str, delimiter: str) -> tuple[int, bool, bool]:
+    """Of one row as written: (its cells, whether its last cell is text holding a quote,
+    whether it stops with no line break), read as the csv module reads it."""
+    cells, state, stray = 1, "start", False
+    for c in row:
+        if c in "\r\n" and state != "quoted":
+            return cells, stray, False
+        if c == delimiter and state != "quoted":
+            cells, state, stray = cells + 1, "start", False
+        elif state == "start":
+            state = "quoted" if c == '"' else "in"
+        elif state == "in":
+            stray = stray or c == '"'
+        elif state == "quoted":
+            state = "after" if c == '"' else "quoted"
+        else:  # after a quote in a quoted cell: a doubled quote, or text after it
+            state = "quoted" if c == '"' else "in"
+    return cells, stray, True
+
+
 MORE_CELLS = "has more cells than its header"  # a quote closed in the wrong place made one row of two
 
 

@@ -716,6 +716,35 @@
     }
     return null;
   }
+  // table.cut_off: the file ends inside a quote, as JSON that stops inside a string: its last
+  // row's last cell, as written, is text holding a quote (one not at the cell's start, kept as
+  // text), and the file stops there or that row has fewer cells than the header. Rows where
+  // every cell is empty are not rows.
+  function cutOff(text, d) {
+    var header = null, last = null, cells = 1, state = 'start', stray = false, any = false, from = 0;
+    function end(at, stops) {
+      if (header === null) header = at > from ? cells : 0;  // an empty line: no header
+      else if (any) last = { cells: cells, stray: stray, stops: stops };
+      cells = 1; state = 'start'; stray = false; any = false;
+    }
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if ((c === '\n' || c === '\r') && state !== 'quoted') {
+        end(i, false);
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        from = i + 1;
+        continue;
+      }
+      if (c === d && state !== 'quoted') { cells += 1; state = 'start'; stray = false; continue; }
+      if (state === 'start') state = c === '"' ? 'quoted' : 'in';
+      else if (state === 'in') stray = stray || c === '"';
+      else if (state === 'quoted') state = c === '"' ? 'after' : 'quoted';
+      else state = c === '"' ? 'quoted' : 'in';  // after a quote in a quoted cell
+      if (/\S/.test(c) && (c !== '"' || state === 'in')) any = true;
+    }
+    if (from < text.length) end(text.length, true);
+    return !!(header && last && last.stray && (last.stops || last.cells < header));
+  }
   function wideMessage(wide) { return 'Line ' + wide.line + ' of this file ' + WIDE + wide.hint + '.'; }
   // table._rows_inside: how many lines of a cell read as a whole row, with a grade at `verdict`
   function rowsInside(cell, d, columns, verdict) {
@@ -1176,6 +1205,7 @@
         if (open !== null) return fail('open-quote', 'Line ' + open + " of this file has a quote that never closes, so the rows after it can't be read.");
         var wide = wideRow(fileText, d);
         if (wide !== null) return fail('wide-row', wideMessage(wide));
+        if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
@@ -1183,6 +1213,7 @@
       if (header.length >= 2 && openQuote(fileText, d) === null) {
         var wide2 = wideRow(fileText, d);
         if (wide2 !== null) return fail('wide-row', wideMessage(wide2));
+        if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
         var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
         if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
         return fail('not-recognised', NOT_COLUMNS(t2.header));

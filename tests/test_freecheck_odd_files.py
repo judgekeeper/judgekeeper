@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import front, start
+from judgekeeper import front, mapper, start
 from tests.test_freecheck_parity import NODE, _page, browser, tool
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="needs node to run the page's free check")
@@ -85,6 +85,40 @@ def test_a_quote_that_closes_only_on_a_later_row_names_its_line(tmp_path, grade)
     assert result["ok"] is False
     assert result["message"] == ("Line 6 of this file has a quote that never closes, so the "
                                  "rows after it can't be read.")
+
+
+@pytest.mark.parametrize("header", ["input,output,verdict", "question,answer,grade"])
+@pytest.mark.parametrize("more, end, suffix", [(0, "", ".csv"), (10, "", ".csv"),
+                                               (10, "\n", ".csv"), (10, "", ".tsv")])
+def test_a_table_cut_off_inside_a_quote_says_it_ends_in_the_middle(tmp_path, header, more,
+                                                                   end, suffix):
+    """Cut in a row's last cell, or part way through a row (with or without a line break)."""
+    sep = "\t" if suffix == ".tsv" else ","
+    rows = [f"question {i},answer {i},{'pass' if i % 2 else 'fail'}" for i in range(60)]
+    text = "\n".join([header, *rows]).replace(",", sep) + "\n"
+    path = tmp_path / f"judged{suffix}"
+    path.write_text(text[:len(text) // 3 + more] + '"unterminated' + end, encoding="utf-8")
+    if header.startswith("input"):
+        with pytest.raises(start.StartError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)\. Save it again from your eval tool\."):
+            start.find_judge(path)
+    else:  # read by its columns' names
+        with pytest.raises(mapper.MapError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)$"):
+            mapper.load_numbered(path)
+    result = browser(path)
+    assert result["ok"] is False
+    assert result["message"] == ("This file is cut off or damaged (it ends in the middle). Save "
+                                 "it again from your eval tool.")
+
+
+@pytest.mark.parametrize("last", ['q 12,a 12', 'q 12,"a 12, 5"" wide",pass', 'q 12,5" wide,fail'])
+def test_a_last_row_whole_or_with_no_quote_left_open_is_read(tmp_path, last):
+    rows = [f"question {i},answer {i},{'pass' if i % 2 else 'fail'}" for i in range(12)]
+    path = _csv(tmp_path / "judged.csv", "input,output,verdict", [*rows, last])
+    start.find_judge(path)
+    assert browser(path)["ok"] is True
+    assert _page(browser(path)) == tool(path)
 
 
 def test_a_long_answer_in_a_score_table_is_not_a_broken_quote(tmp_path):

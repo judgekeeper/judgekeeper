@@ -163,6 +163,7 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
         MORE_CELLS,
         capped,
         csv_numbered,
+        cut_off,
         header,
         open_quote,
         too_wide,
@@ -181,6 +182,10 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
         wide = wide_row_hint(path)
         if wide is not None:  # one row of two: the second one would be lost
             raise MapError(f"line {wide[0]} of {path.name} {MORE_CELLS}{wide[1]}")
+        if cut_off(path):  # its last row would be read as whole
+            from judgekeeper.records import CUT_OFF
+
+            raise MapError(f"{path.name} {CUT_OFF}")
         return capped([(n, {k: v for k, v in row.items() if k is not None})
                        for n, row in csv_numbered(text, suffix, MAX_ROWS)], path)
     if suffix == ".json":

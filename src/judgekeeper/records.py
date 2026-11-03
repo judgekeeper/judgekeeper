@@ -96,6 +96,8 @@ def damaged(path: str | Path, tool: str, how: str) -> Damaged:
 
 
 NESTED = f"is nested more than {MAX_NESTING} levels deep"  # the same on every Python
+CUT_OFF = "is cut off or damaged (it ends in the middle)"  # JSON, or a table (table.cut_off)
+CUT_OFF_FROM = "your eval tool"  # a table's: whatever wrote it
 # A JSON escape such as \\ud800 alone: it can't be hashed or written as UTF-8
 NOT_TEXT = "holds a character that isn't text (a lone surrogate such as \\ud800)"
 
@@ -110,7 +112,7 @@ def load_json(path: str | Path, tool: str):
         data = json.loads(text)
     except json.JSONDecodeError as e:
         cut = e.pos >= len(text.rstrip()) or e.msg.startswith("Unterminated string")
-        raise damaged(path, tool, "is cut off or damaged (it ends in the middle)" if cut
+        raise damaged(path, tool, CUT_OFF if cut
                       else "is damaged (it isn't valid JSON)") from None
     except RecursionError:  # Python before 3.14 stops here; 3.14 reads it: too_deep below
         raise damaged(path, tool, NESTED) from None

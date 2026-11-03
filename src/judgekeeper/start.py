@@ -40,6 +40,8 @@ from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
     CODE,
     CUT_END,
+    CUT_OFF,
+    CUT_OFF_FROM,
     DEFAULT_NAME,
     HUMAN,
     LLM,
@@ -65,6 +67,7 @@ from judgekeeper.table import (
     KNOWN_COLUMNS,
     MORE_CELLS,
     _blank,
+    cut_off,
     make_fingerprint,
     open_quote,
     read_table,
@@ -637,7 +640,8 @@ def read_results_table(path: Path) -> RecordList:
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
     `score` column the score --pass-if reads in place of the verdict (with no verdict
     column, the score column is the grade). A quote that never
-    closes stops it: the rows after it would be read as one cell."""
+    closes stops it: the rows after it would be read as one cell; so does a file cut off
+    inside a quote (table.cut_off)."""
     line = open_quote(path)
     if line is not None:
         raise StartError(f"line {line} of {path.name} has a quote that never closes, so the "
@@ -649,6 +653,9 @@ def read_results_table(path: Path) -> RecordList:
         line, hint = wide
         raise StartError(f"{path.name} {MORE_CELLS} (line {line}){hint}.",
                          f"fix line {line} of {path.name}, then run `{{command}}`.")
+    if cut_off(path):  # its last row would be read as whole, with an empty grade
+        cut = damaged(path, CUT_OFF_FROM, CUT_OFF)
+        raise StartError(str(cut), cut.next_step)
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
