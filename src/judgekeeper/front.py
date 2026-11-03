@@ -653,7 +653,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         rel = search.judge_only[0]
         talk.para(f"{rel} has your LLM-as-a-judge's verdicts but no answer text, so there's "
                   "nothing to show you for marking.")
-        raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was judged) to "
+        raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was graded) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None and search.no_question:
         rel = search.no_question[0]

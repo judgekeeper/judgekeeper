@@ -75,8 +75,7 @@ PAGE_SIZE = 100
 # Traces read from one experiment, newest first (MLflow's order): reading takes about 1 ms
 # each, so 100,000 would take minutes. Past it, CAPPED says so.
 MAX_TRACES = 30_000
-CAPPED = ("{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,} (reading "
-          "every trace of a very big experiment takes minutes).")
+CAPPED = "{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,}."
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
