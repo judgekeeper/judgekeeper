@@ -943,7 +943,7 @@ def shown_in(path, root) -> str:
             return real.relative_to(top).as_posix()
     except (OSError, RuntimeError, ValueError):
         pass
-    return shown_from_here(path)
+    return Path(shown_from_here(path)).as_posix()
 
 
 def _from_below_home(real: str, start) -> str | None:

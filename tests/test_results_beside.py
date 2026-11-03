@@ -134,6 +134,21 @@ def test_another_eval_beside_the_results_is_said_and_changes_nothing(here, capsy
     assert (here / ".judgekeeper" / "start.json").read_bytes() == start
 
 
+def test_the_other_eval_line_shows_a_typed_path_as_it_shows_the_marked_one(tmp_path,
+                                                                           monkeypatch):
+    """A typed path is joined with the system's separator (`sub2\\other.csv` on Windows),
+    the marked file is found whole: both are shown with `/`, as every path line is."""
+    from judgekeeper import project, textio
+
+    monkeypatch.chdir(tmp_path)
+    line = project.other_eval_line(Path("sub2") / "other.csv",
+                                   tmp_path.resolve() / "sub2" / "results.csv")
+    assert _other_eval("sub2/other.csv", "sub2/results.csv") in line, line
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    assert textio.shown_in(Path("sub2") / "results.json", elsewhere) == "sub2/results.json"
+
+
 @pytest.mark.parametrize("other", ["csv", "promptfoo"])
 @pytest.mark.parametrize("command", [["mark"], []])
 def test_a_plain_run_beside_another_eval_reads_the_marked_file(here, capsys, monkeypatch,
