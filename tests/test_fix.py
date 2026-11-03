@@ -580,6 +580,7 @@ def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here,
     assert f"pass mark 0.5 -> {rule.split('>=')[1]}" in said, said
     assert check.WRITTEN_FROM_MARK in said and "to write this rule" not in said, said
     assert "has not changed" not in said
+    printed = [said[said.index("Next:"):]]  # the commands printed from now on: never 0.5
     # the commands the result names read with the new pass mark, never the old one
     assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == rule
     report = ws.report_html.read_text(encoding="utf-8")
@@ -588,8 +589,15 @@ def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here,
     main(["--stop"])
     assert code == 0 and "changed since your marks" not in said, said
     assert " -> " not in said and "grades changed" not in said, said  # no change
+    printed.append(said)
     code, said = _main(capsys, "check", "--pass-if", rule)
     assert "has not changed since your last check" in said, said
+    printed += [said, _main(capsys, "check")[1], _main(capsys, "mark", "--pass-if", rule,
+                                                         "--no-browser", "--port", "0")[1]]
+    main(["--stop"])
+    printed.append(" ".join(run(capsys)[1].split()))
+    for said in printed:
+        assert "score>=0.5" not in said and "0.5 ->" not in said, said
 
 
 def test_a_plain_run_given_a_new_pass_mark_names_the_check_that_tests_it(here, capsys):
