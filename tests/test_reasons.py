@@ -779,8 +779,9 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
 
 
 def test_one_reason_says_how_many_more_and_how_to_give_them(here, capsys, monkeypatch):
-    """A reason given once suggests no line: suggestions.md and the terminal say so in the
-    same words, how many more answers it needs, and where reasons are given."""
+    """A reason given once suggests no line: suggestions.md says so, how many more answers it
+    needs, and where reasons are given. The terminal says no line is suggested yet and when
+    one is, in two sentences."""
     monkeypatch.setattr(fix, "HIDDEN_TENTHS", 3)
     ws, passes, _, _ = _ready(here)
     _say(ws, passes[0], reasons=["wrong_fact"])
@@ -793,7 +794,10 @@ def test_one_reason_says_how_many_more_and_how_to_give_them(here, capsys, monkey
                     "disagree on an answer there.")
     assert said in md.split("## Seen once")[0]
     flat = " ".join(out.split())
-    assert f"No rule line is suggested in .judgekeeper/fix/suggestions.md yet. {said}" in flat
+    assert ("No rule line is suggested in .judgekeeper/fix/suggestions.md yet. A line is "
+            "suggested once you give the same reason on at least 2 answers.") in flat
+    assert "None yet" not in flat and "Give the same reason" not in flat
+    assert "To add reasons" not in flat
     assert "Copy the ones you agree with" not in flat
 
 

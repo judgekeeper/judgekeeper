@@ -2070,11 +2070,11 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
-        suggested, once = reasons.suggestions(mistakes(seen_rows))
+        suggested, _ = reasons.suggestions(mistakes(seen_rows))
         talk.para(f"Suggestions from your reasons are in {_file(ws, SUGGESTIONS)}. Copy the ones "
                   "you agree with into your rule where your eval keeps it." if suggested else
                   f"No rule line is suggested in {_file(ws, SUGGESTIONS)} yet. "
-                  + reasons.none_yet(reasons.more_needed(once), mark_again(ws)))
+                  + reasons.SUGGESTED_ONCE.format(twice=reasons.TWICE))
         talk.say()
     line = tested and (pass_mark_line(ws, pm, tested) or (fresh and tried_line(tested)))
     held = held_line(m, split)

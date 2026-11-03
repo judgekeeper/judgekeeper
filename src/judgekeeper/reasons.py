@@ -636,8 +636,8 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
 
 
 MARKED_LINE = "The part you marked:"  # never suggested: it is the answer's own words
-NONE_YET = ("None yet. A line is suggested once you give the same reason on at least {twice} "
-            "answers.")
+SUGGESTED_ONCE = "A line is suggested once you give the same reason on at least {twice} answers."
+NONE_YET = "None yet. " + SUGGESTED_ONCE
 ONE_MORE = ("Give the same reason on one more answer.", "Give the same reason on {n} more answers.")
 ADD_REASONS = ("To add reasons, run `{command}` and open your result from the marking page. "
                "Say why you disagree on an answer there.")
