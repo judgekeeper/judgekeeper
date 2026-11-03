@@ -571,6 +571,7 @@ class Now:
     config: Path | None
     found: object | None = None
     newest: Path | None = None  # the newest results file (or store)
+    read: list[Path] | None = None  # every results file found, newest first (remembered too)
 
 
 def _now(state: State) -> tuple[Now | None, str | None]:
@@ -586,14 +587,16 @@ def _now(state: State) -> tuple[Now | None, str | None]:
         if same and isinstance(seen.get("newest"), str):
             configs = [Path(_at_root(str(p), root)) for p in seen.get("configs") or []]
             newest = Path(_at_root(seen["newest"], root))
-            return Now(seen["setup"], _newer(configs, newest), newest=newest), None
+            read = [Path(_at_root(str(p), root)) for p in seen["read"]]
+            return Now(seen["setup"], _newer(configs, newest), newest=newest, read=read), None
     found, problem = _newest(state)
     if found is None:
         return None, problem
     setup = judge_setup.of(found)
     if not state.pass_if:  # the results as they read without it
         _remember(state, found, setup)
-    return Now(setup, _config_newer(found), found, found.results[0].path), None
+    return Now(setup, _config_newer(found), found, found.results[0].path,
+               [r.path for r in found.results]), None
 
 
 def _change_lines(old: dict, new: dict, changed: list[str], full: bool) -> list[str]:
@@ -1830,8 +1833,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         now = Now(judge_setup.of(found), None, found, found.results[0].path)
     else:
         now, problem = _now(state)
-        kept = (last_read_file(state.ws, [r.path for r in now.found.results] if now.found
-                               else [now.newest]) if now is not None and now.newest else None)
+        kept = (last_read_file(state.ws, now.read or [now.newest])  # as a plain run asks
+                if now is not None and now.newest else None)
         if kept is not None:  # newer than the results here, which the search finds
             return full(str(kept), said, pass_if)
     found, new = (now.found, now.setup) if now is not None else (None, None)

@@ -1335,3 +1335,35 @@ def test_stop_names_the_pages_open_in_folders_below(here, capsys):
     assert page.is_open(here / "a" / ".judgekeeper") and page.is_open(here / "b" / ".judgekeeper")
     for name in ("a", "b"):
         assert "Closed the marking page." in run(capsys, f"{name}", "--stop")[1]
+
+
+def test_a_plain_check_and_a_plain_run_weigh_the_last_read_file_against_the_same_files(
+        here, capsys, no_calls, monkeypatch):
+    """Two results files in the project, and a check that read a third outside it: a plain
+    `check`, its results remembered or read, and a plain run ask about the file that check
+    read with the same files found here, so they can't pick different files."""
+    import os
+    from pathlib import Path
+
+    from judgekeeper import check as checking
+
+    verdicts = split(20, 20)
+    older = table_project(here, verdicts, name="evals/older.csv", model="bike-grader-v1")
+    os.utime(older, (older.stat().st_mtime - 100,) * 2)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    assert run(capsys, "check")[0] == 0  # remembers what it read here, for the next check
+    other = list(verdicts)
+    other[0] = not other[0]
+    outside = table_project(here.parent / "outside", other, model="bike-grader-v2")
+    assert run(capsys, "check", str(outside))[0] == 0
+    asked = []
+    real = checking.last_read_file
+    monkeypatch.setattr(checking, "last_read_file", lambda ws, results: asked.append(
+        sorted(Path(r).resolve() for r in results)) or real(ws, results))
+    for argv in (["check"], ["check"], []):
+        run(capsys, *argv)
+    assert len(asked) == 3 and asked[0] == asked[1] == asked[2], asked
+    assert len(asked[0]) == 2, asked
