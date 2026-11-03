@@ -1578,3 +1578,11 @@ def test_every_printed_pass_if_is_quoted_one_way(here, capsys):
     for word in shown:
         value = shlex.split(word)[0]
         assert word == quote_arg(value) or value == "NAME", (word, said)
+
+
+def test_the_inspect_regrade_note_names_what_s_refuses():
+    """The note says what fits_s refuses: any comma, colon or "#", with a space after or not."""
+    assert "`-S instructions=` takes a rule with no comma, colon or #." in fix.REGRADE["inspect"]
+    for rule in ("reply with GRADE:$LETTER", "a, b", "GRADE: C", "a # b"):
+        assert not fix.fits_s(rule), rule
+    assert fix.fits_s("Grade C only if polite")

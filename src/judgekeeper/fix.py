@@ -155,7 +155,7 @@ REGRADE = {
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own). "
                 "Give the options you set before again with `-S`, the grader's model too. "
                 "`-S instructions=` takes a "
-                "rule with no comma and no colon followed by a space. Otherwise, grade it "
+                "rule with no comma, colon or #. Otherwise, grade it "
                 "with Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
