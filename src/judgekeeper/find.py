@@ -492,7 +492,7 @@ class _Walk:
                 self.skip(path, NOT_UTF8)
                 return
             columns = table_columns(path)
-            if suffix in JSONL_SUFFIXES and is_records(columns):  # record()'s format, moved
+            if suffix in JSONL_SUFFIXES and is_records(columns):  # judgekeeper.record()'s format
                 self.add("records", path, size)
             elif is_table(columns):
                 why = table_problem(path, size, columns)
@@ -568,8 +568,8 @@ class _Walk:
                 self.search.notes.append(note)
 
 
-# judgekeeper's own output folders: 0.1's report folder (anchors.jsonl looks like a table)
-# and 0.1.3's demo data. They are never "your LLM-as-a-judge" or "your own format".
+# judgekeeper's own output folders (an old report folder holds anchors.jsonl, which looks like a
+# table, and the demo data). They are never "your LLM-as-a-judge" or "your own format".
 OWN_FOLDERS = ("judgekeeper-report",)
 OWN_PREFIXES = ("judgekeeper-demo",)
 VENV_MARKER = "pyvenv.cfg"  # every Python virtual environment holds one, whatever its name
@@ -587,6 +587,25 @@ def is_venv(folder: Path) -> bool:
         return (folder / VENV_MARKER).is_file()
     except OSError:
         return False
+
+
+def kind(entry: os.DirEntry) -> str | None:
+    """DIR or FILE for a plain folder or file, never through a link; None for anything else
+    (a link, a device, a pipe, a socket) and for an entry that can't be told what it is
+    (/dev/fd/3 from /): every walk skips those."""
+    try:
+        if entry.is_symlink():
+            return None
+        if entry.is_dir(follow_symlinks=False):
+            return DIR
+        if entry.is_file(follow_symlinks=False):
+            return FILE
+    except OSError:
+        pass
+    return None
+
+
+DIR, FILE = "dir", "file"
 
 
 def walked(entry: os.DirEntry) -> bool:
@@ -752,13 +771,12 @@ def _look_deeper(walk: _Walk) -> None:
         for entry in entries:
             if files >= MAX_FILES or _clock() - started > MAX_SECONDS:
                 return
-            if entry.is_symlink():
-                continue
+            what = kind(entry)
             path = Path(entry.path)
-            if entry.is_dir(follow_symlinks=False):
+            if what == DIR:
                 if walked(entry) and walk.depth(path) <= MAX_DEPTH + DEEPER:
                     queue.append(path)
-            elif entry.is_file(follow_symlinks=False):
+            elif what == FILE:
                 files += 1
                 if _results_like(path) or entry.name == "mlflow.db":
                     walk.skip(path, _down(walk.depth(path) - 1))

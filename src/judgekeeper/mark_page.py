@@ -34,6 +34,9 @@ FIRST = 2 * ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
+# under the headline: repeats are told, never shown (a repeat's card is not marked as one)
+REPEATS = ("Now and then an answer you marked comes back once, to see how steady your marks "
+           "are. Mark it as you see it.")
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
 SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
@@ -73,6 +76,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
   white-space: normal; text-align: right; }
+/* marks that wait: a row of its own under the top bar, so a long note never covers the list */
+.wait-note { flex: none; margin: 0; padding: 10px 28px; border-bottom: 1px solid var(--line);
+  font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.wait-note code { color: var(--text); }
 .see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none;
   white-space: nowrap; }
 .see:hover { text-decoration: underline; }
@@ -261,6 +268,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-top: 8px; padding-bottom: 8px; }
 }
 @media (max-width: 760px) {
+  .wait-note { padding: 10px 16px; }
   html, body { height: auto; }
   #app, .wrap { flex: none; min-height: 0; }
   .wrap { grid-template-columns: 1fr; height: auto; }
@@ -286,6 +294,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 BODY = """<div id="app">
 __TOP__
+<p class="wait-note" id="waiting" hidden></p>
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
@@ -313,6 +322,7 @@ __TOP__
   <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
     __BRAND__
     <h2 id="intro-title">__TITLE__</h2>
+    <p class="note" id="intro-note">__REPEATS__</p>
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
@@ -662,30 +672,44 @@ __TOP__
   }
 
   // The answers list: the person's own marks only, each answer once (never one shown again).
+  // Drawn in place: each row's link is kept and only its text, icon and state change, rows
+  // added or taken away only as the list grows or shrinks, so a click pressed on a row while
+  // a mark is saved still lands on it when it is let go.
   var DOT = {none: '__DOT_NONE__', pass: '__DOT_PASS__', fail: '__DOT_FAIL__'};
   var SAID = {pass: "marked Pass", fail: "marked Fail"};
+  function newRow() {
+    var li = el("li"), a = el("a", "item"), title = el("span", "q"), dot = el("span", "dot-wrap");
+    a.href = "#";
+    title.setAttribute("dir", "auto");
+    dot.setAttribute("aria-hidden", "true");
+    a.appendChild(el("span", "num")); a.appendChild(title); a.appendChild(dot);
+    a.appendChild(el("span", "sr"));
+    li.appendChild(a);
+    return li;
+  }
+  function setRow(a, it, k, shown) {
+    var parts = a.children, dot = it.label || "none";
+    a.setAttribute("data-k", String(k));
+    if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
+    else { a.removeAttribute("aria-current"); }
+    parts[0].textContent = shown < 100 ? ("0" + shown).slice(-2) : String(shown);
+    parts[1].textContent = firstLine(it);
+    if (parts[2].getAttribute("data-dot") !== dot) {  // the icon only when it changes
+      parts[2].setAttribute("data-dot", dot);
+      parts[2].innerHTML = DOT[dot];  // fixed icon markup only, no data
+    }
+    parts[3].textContent = ", " + (SAID[it.label] || (it.skipped ? "skipped" : "not marked"));
+  }
   function renderQueue() {
-    var list = $("queue");
-    list.textContent = "";
-    var shown = 0;
+    var list = $("queue"), shown = 0;
     items.forEach(function (it, k) {
       if (it.again != null) { return; }
-      var li = el("li"), a = el("a", "item");
+      if (!list.children[shown]) { list.appendChild(newRow()); }
+      setRow(list.children[shown].children[0], it, k, shown + 1);
       shown += 1;
-      a.href = "#"; a.setAttribute("data-k", String(k));
-      if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
-      a.appendChild(el("span", "num", shown < 100 ? ("0" + shown).slice(-2) : String(shown)));
-      var title = el("span", "q", firstLine(it));
-      title.setAttribute("dir", "auto");
-      a.appendChild(title);
-      var dot = el("span", "dot-wrap");
-      dot.setAttribute("aria-hidden", "true");
-      dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
-      a.appendChild(dot);
-      a.appendChild(el("span", "sr", ", " + (SAID[it.label] || (it.skipped ? "skipped" :
-        "not marked"))));
-      li.appendChild(a); list.appendChild(li);
     });
+    while (list.children.length > shown) {
+      list.removeChild(list.children[list.children.length - 1]); }
     var now = list.querySelector("[aria-current]");
     if (now && (now.offsetTop < list.scrollTop ||
                 now.offsetTop + now.offsetHeight > list.scrollTop + list.clientHeight)) {
@@ -707,8 +731,9 @@ __TOP__
     var marked = counts.correct + counts.wrong;
     var looked = marked + (counts.skipped || 0);
     // the bar follows how close the result is: Pass and Fail marks, each up to ROUGH
-    var share = status.first ? 1 : Math.min((Math.min(counts.correct, ROUGH) +
-      Math.min(counts.wrong, ROUGH)) / (2 * ROUGH), 0.9);
+    var toward = counts.toward || counts;  // a mark that waits counts for nothing
+    var share = status.first ? 1 : Math.min((Math.min(toward.correct, ROUGH) +
+      Math.min(toward.wrong, ROUGH)) / (2 * ROUGH), 0.9);
     var bar = $("progress"), on = Math.round(share * SEGMENTS);
     Array.prototype.forEach.call(bar.children, function (cell, i) {
       cell.classList.toggle("on", i < on); });
@@ -719,8 +744,10 @@ __TOP__
     var see = $("see"), keep = $("keep");
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
-    keep.hidden = status.ready || (!status.first && looked < FIRST);
+    keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST);
     keep.textContent = status.first ? WORDS.first : WORDS.wait;
+    $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
+    if (status.waiting) { setLine("waiting", status.waiting); }
   }
 
   function render() {
@@ -768,14 +795,16 @@ __TOP__
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
     if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
-    finish();
+    finish(changing);
   }
 
   // Nothing left to mark: the end card in the answer card's place. Every answer marked: the
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
-  // result, to leave them out).
-  function finish() {
+  // result, to leave them out). `stay`: every answer was marked already (the page opened so,
+  // or a mark was changed): the card says how to change a mark, and Z undoes as usual.
+  var changing = false;
+  function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
@@ -783,16 +812,24 @@ __TOP__
     if (!skipped) {
       setText("end-title", "You marked every answer.");
       $("again").hidden = true; $("end-note").hidden = false;
+      setText("end-note", "Opening your result\u2026");
       if (status.done) {
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
+        focusCard(); return;
+      }
+      if (stay) {  // a mark can still be changed; the bar links to the result
+        changing = true;
+        var n = counts.correct + counts.wrong;
+        setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
+        setText("end-note", WORDS.change);
         focusCard(); return;
       }
       window.location.href = url("/result");
       return;
     }
     $("end-note").hidden = true;
-    setText("end-title", (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
-      ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out.");
+    setText("end-title", (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany)
+      .replace("{n}", String(skipped)));
     setText("again", skipped === 1 ? "Look at it" : "Look at them");
     $("again").hidden = false;
     focusCard();  // the end card, not its button: no ring on open; Enter looks again
@@ -822,8 +859,8 @@ __TOP__
       if (items[k].again !== slot) { continue; }
       items.splice(k, 1); total -= 1;
       if (k < pos) { pos -= 1; }
-      history = history.filter(function (h) { return h !== k; })
-        .map(function (h) { return h > k ? h - 1 : h; });
+      history = history.filter(function (h) { return h.pos !== k; })
+        .map(function (h) { return h.pos > k ? {pos: h.pos - 1, was: h.was} : h; });
     }
   }
 
@@ -904,27 +941,32 @@ __TOP__
     if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
+    var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
+    if (was) { changing = true; }
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos);
+      it.label = value; it.skipped = false; history.push({pos: pos, was: was});
       hear(heard); next(); focusCard(); }, heard);
   }
 
   function skip(key) {
     if (ended || fresh() || locked(key)) { return; }
-    var it = items[pos];
+    var it = items[pos], was = it.label;
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos);
+      it.label = null; it.skipped = true; history.push({pos: pos, was: was});
       hear("Skipped."); next(); focusCard(); }, "Skipped.");
   }
 
+  // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
+  // ordinary mark line in marks.jsonl, so every step stays there).
   function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     var back = history.pop();
-    walkingSkipped = false; open(back);
+    walkingSkipped = false; open(back.pos);
     var it = items[pos];
-    send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); }, "Undone.");
+    send({label: back.was, deferred: false}, function () {
+      it.label = back.was; it.skipped = false; hear("Undone."); render(); focusCard(); },
+      "Undone.");
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
@@ -1002,8 +1044,8 @@ __TOP__
   });
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
-  if (left) { open(pos); } else { finish(); }
-  if (!seenIntro()) {
+  if (left) { open(pos); } else { finish(true); }
+  if (left && !seenIntro()) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }
@@ -1032,20 +1074,26 @@ def _progress() -> str:
             f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+# Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
-          "{command} in your project folder. Your marks are kept.")  # gone, or no answer
+             "the command at the bottom of this page. Your marks are kept.")
 
 
 def _words() -> str:
     """The link's and the line's words, as the page's script reads them: before the first
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
-    from judgekeeper.start_label import FIRST_NUMBERS
-    from judgekeeper.textio import program
+    from judgekeeper.front import CHANGE_MARK
+    from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark")))}
-    return json.dumps(words).replace("<", "\\u003c")
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
+             "change": CHANGE_MARK,
+             # the end card with only skipped answers left; the page puts in their number
+             "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
+             "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}")}
+    # no `_` either: a command can never hold a name the server fills in (_text)
+    return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 
 
 def _shown(value: str) -> str:
@@ -1096,6 +1144,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
+            .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__SHORT_Q__", str(SHORT_QUESTION))

@@ -51,7 +51,7 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     lines = text.splitlines()
     line = next(n for n, x in enumerate(lines, 1) if x.lstrip().startswith("value:"))
     assert _written(ws) == {
-        "prompts": ["{{answer}}"], "providers": ["echo"], "tests": "file://marked-answers.csv",
+        "prompts": ["{{answer}}"], "providers": ["echo"], "tests": "file://marked-answers.yaml",
         "defaultTest": {"options": {"provider": {"id": "openai:gpt-4.1-mini",
                                                  "config": {"temperature": 0}}},
                         "assert": [{"type": "llm-rubric", "value": RULE}]}}
@@ -63,6 +63,25 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     assert "Next: follow the three steps above." in flat
     assert "judgekeeper's docs/eval-tools.md shows the whole config" not in flat
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
+    # the same answers as the CSV, as promptfoo tests
+    import csv as csv_mod
+
+    with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
+        rows = list(csv_mod.DictReader(f))
+    tests = yaml.safe_load((ws.dir / "fix" / "marked-answers.yaml").read_text(encoding="utf-8"))
+    assert tests == [{"vars": {"question": r["question"], "answer": r["answer"]}} for r in rows]
+
+
+@pytest.mark.parametrize("answer", ["=SUM(A1:A9) is the total.", "+1 for asking", "-",
+                                    "@team will reply", "Plain."])
+def test_the_promptfoo_tests_hold_each_answer_exactly_and_the_csv_guards_it(answer):
+    from judgekeeper.table import guard_cell, unguard_cell
+
+    text = fix.tests_yaml([("What is it?", answer)])
+    assert yaml.safe_load(text) == [{"vars": {"question": "What is it?", "answer": answer}}]
+    assert unguard_cell(guard_cell(answer)) == answer  # the CSV's cell reads back the same
+    if answer[0] in "=+-@":
+        assert guard_cell(answer) == "'" + answer
 
 
 def test_a_rule_with_quotes_colons_and_new_lines_survives(tmp_path):
@@ -183,7 +202,7 @@ def test_check_with_too_few_of_the_same_answers_leads_with_the_steps(
     path = ws.dir / "fix" / "regrade.yaml"
     line = next(n for n, x in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
                 if x.lstrip().startswith("provider:"))
-    assert "Result: can't tell yet." in flat
+    assert "Compared with before: can't tell yet." in flat
     assert "wrote new answers" not in flat  # the 10 are answers it marked, not new ones
     assert ("can't tell yet. Your new results hold 4 of the answers you marked Pass and 6 you "
             "marked Fail; a re-check needs 15 of each. Grade the answers you marked: "
@@ -205,7 +224,8 @@ def test_check_with_too_few_of_the_same_answers_keeps_the_old_next_for_other_too
     flat = _flat(out)
     assert code == 3, out
     assert "wrote new answers" not in flat
-    assert ("Grade the answers you marked: Next: run `judgekeeper fix` to write the answers you "
+    assert "Grade the answers you marked" not in flat  # the Next line says it, once
+    assert ("a re-check needs 15 of each. Next: run `judgekeeper fix` to write the answers you "
             "marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again") in flat
     assert not (here / ".judgekeeper" / "fix" / "regrade.yaml").exists()
@@ -296,8 +316,8 @@ def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools
     code, out = run_any(capsys, "check", rows.name)
     flat = _flat(out)
     assert code == 3, out
-    assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
-            "marked instead: Next: run `judgekeeper fix` to write the answers you marked") in flat
+    assert ("Your eval wrote new answers, so there's nothing to compare. Next: run "
+            "`judgekeeper fix` to write the answers you marked") in flat  # said once, there
     assert "or start over on your new answers with `judgekeeper --new`." in flat
 
 
@@ -368,6 +388,23 @@ def test_the_docs_say_when_no_regrade_file_is_written():
             "is a named provider") in docs
     assert ("For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no "
             "file and prints the steps instead.") in docs
+
+
+def test_the_docs_example_has_the_tests_line_fix_writes():
+    """eval-tools.md shows the file `fix` writes (its tests are marked-answers.yaml, next to
+    it), and the line for a file you write yourself in your project folder."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).parent.parent / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    (block,) = re.findall(r"```yaml\n(.*?)```", text, flags=re.DOTALL)
+    assert yaml.safe_load(block)["tests"] == f"file://{fix.TESTS_FILE}"
+    docs = " ".join(text.split())
+    assert f"`{fix.TESTS_FILE}` (the same answers, exactly as marked) as its tests" in docs
+    assert ("Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and "
+            "run promptfoo from your project folder.") in docs
+    assert ("(from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`"
+            in docs)
 
 
 def test_any_field_that_may_hold_a_key_is_left_out():

@@ -364,7 +364,7 @@ def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tm
 
 def test_the_walk_ends_with_the_re_check(ic, monkeypatch, tmp_path):
     """With the new rule in the results: `check` re-tests it on the marks; no flag of the
-    automatic checks is run, and no step runs `judgekeeper start`, which is gone."""
+    automatic checks is run, and no step runs `judgekeeper start`."""
     check, ran, _, _ = _walk(ic, monkeypatch, "promptfoo", tmp_path)
     assert not [args for _, args, _, _ in ran if args[:1] == ["start"]]
     main = _in(ran, check.project)

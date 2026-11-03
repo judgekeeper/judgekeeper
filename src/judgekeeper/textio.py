@@ -115,19 +115,24 @@ SCRIPT_NAMES = ("judgekeeper", "judgekeeper.exe", "judgekeeper-script.py")
 _imports: dict[str, bool] = {}
 
 
+IMPORTED = "import judgekeeper, os; print(os.path.realpath(judgekeeper.__file__))"
+
+
 def imports_judgekeeper(python: str) -> bool:
-    """Whether `python` on the PATH can import judgekeeper (asked once per program found)."""
+    """Whether `python` on the PATH imports this judgekeeper, not another install (asked once
+    per program found)."""
     import shutil
 
     found = shutil.which(python)
     if found is None:
         return False
     if found not in _imports:
+        this = _same(os.path.join(os.path.dirname(os.path.realpath(__file__)), "__init__.py"))
         try:
-            done = subprocess.run([found, "-P", "-c", "import judgekeeper"], timeout=30,
-                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            done = subprocess.run([found, "-P", "-c", IMPORTED], timeout=30, text=True,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, check=False)
-            _imports[found] = done.returncode == 0
+            _imports[found] = done.returncode == 0 and _same(done.stdout.strip()) == this
         except (OSError, subprocess.SubprocessError):
             _imports[found] = False
     return _imports[found]
@@ -140,20 +145,27 @@ def _started_as_judgekeeper() -> bool:
     return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
 
 
-def command_path(path: str) -> str:
+def command_path(path: str, climb: bool = True) -> str:
     """`path` as a program to run from this folder (or run_from's), quoted: relative when the
     two share a folder below the top and the home folder's parents (shares_below_home), with
     a folder in it so the shell never looks it up on the PATH; else under the home folder as
     `~/...`: never the user name; else, or on another drive, the path as it is. From
     ANYWHERE: never relative. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it):
     the shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path
-    as it is; else from here, quoted (else the path as it is)."""
+    as it is; else from here, quoted (else the path as it is). Without `climb`, never a
+    path from here that climbs with `..` (a python run so warns, Python 3.14 with the home
+    path in it). A whole path is named without `..` in it (sys.executable may hold one), as
+    relpath names it from here."""
+    if os.path.isabs(path):
+        path = os.path.normpath(path)
     try:
         here = os.getcwd() if _from is None else _from
         shown = os.path.relpath(path, here) if here != ANYWHERE else None
         shared = os.path.commonpath([here, path]) if here != ANYWHERE else os.sep
     except (OSError, ValueError):
         shown = shared = None
+    if not climb and shown is not None and shown.replace("\\", "/").split("/")[0] == os.pardir:
+        shown = None
     if shown is not None and os.sep not in shown and "/" not in shown:
         shown = os.path.join(os.curdir, shown)
     if is_windows():  # never %USERPROFILE%: PowerShell doesn't read it
@@ -164,7 +176,7 @@ def command_path(path: str) -> str:
         return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
     if shared is None:
         return quote_arg(path)
-    if shares_below_home(shared):  # more than the top in common: from here
+    if shown is not None and shares_below_home(shared):  # more than the top in common
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
@@ -233,7 +245,7 @@ def off_path(any_start: bool = False) -> str | None:
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
-    python = f"{command_path(sys.executable)} -P -m judgekeeper"
+    python = f"{command_path(sys.executable, climb=False)} -P -m judgekeeper"
     if script:
         shown = command_path(os.path.abspath(typed))
         if is_windows() and not in_both_shells(shown) and in_both_shells(python):
@@ -246,10 +258,9 @@ def program(subcommand: str = "") -> str:
     """judgekeeper as the person runs it again: `uvx judgekeeper` when uvx started it (uvx
     puts no `judgekeeper` command on the PATH), `@<version>` only for a beta (uvx and pip skip
     betas unless the version is named), with the extras it was started with (uvx_with);
-    when the `judgekeeper` command is not on the PATH, the form that runs (off_path); else
-    `judgekeeper`; then the subcommand. Inside plainly(): never a path or a python."""
-    import shutil
-
+    when the `judgekeeper` command on the PATH is not this program (_on_path), the form that
+    runs (off_path); else `judgekeeper`; then the subcommand. Inside plainly(): never a path
+    or a python."""
     from judgekeeper import __version__
 
     name = "judgekeeper"
@@ -258,9 +269,50 @@ def program(subcommand: str = "") -> str:
     elif started_by_uvx():
         pin = f"@{__version__}" if is_prerelease() else ""
         name = uvx_with() if extras_here() else f"uvx judgekeeper{pin}"
-    elif not _plain and _started_as_judgekeeper() and not shutil.which("judgekeeper"):
+    elif not _plain and _started_as_judgekeeper() and not _on_path():
         name = off_path() or name
     return f"{name} {subcommand}" if subcommand else name
+
+
+def _on_path() -> bool:
+    """Whether the `judgekeeper` command the shell finds on the PATH is this program: the
+    script that started it (a link to it too), or one in this python's scripts folder (where
+    its python is, in a venv). Another install first on the PATH (an older one) would run
+    instead."""
+    import shutil
+
+    found = shutil.which("judgekeeper")
+    if not found:
+        return False
+    try:
+        real = _same(os.path.realpath(found))
+        typed = sys.argv[0] if sys.argv else ""
+        if typed and _same(os.path.realpath(typed)) == real:
+            return True
+        folders = {_same(os.path.dirname(os.path.abspath(found))), _same(os.path.dirname(real))}
+        return bool(folders & _scripts_folders())
+    except (OSError, ValueError):
+        return False
+
+
+def _same(path: str) -> str:
+    return os.path.normcase(os.path.normpath(path))
+
+
+def _scripts_folders() -> set[str]:
+    """The folders this python's scripts are in: its own folder (a venv's bin or Scripts),
+    and sysconfig's scripts folder."""
+    folders = {_same(os.path.dirname(os.path.abspath(sys.executable)))} if sys.executable \
+        else set()
+    try:
+        import sysconfig
+
+        scripts = sysconfig.get_path("scripts")
+    except Exception:  # noqa: BLE001 - a python that can't say where its scripts go
+        scripts = None
+    if scripts:
+        folders |= {_same(scripts), _same(os.path.realpath(scripts))}
+    return folders
 
 
 @contextmanager
@@ -448,9 +500,37 @@ last_read: str | None = None  # the name of the last file read_utf8 read, for an
 next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
 
 
+ctrl_c: list[bool] = []  # holds True once this run noted a Ctrl-C (note_ctrl_c)
+
+
+def note_ctrl_c(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first (cli.main puts it in for the run):
+    a library that swallows the KeyboardInterrupt (raised inside its import, where Python
+    would say "Exception ignored" with a traceback and go on) can't make the run carry on, and
+    nothing is printed for it: the run says "Stopped."."""
+    ctrl_c.append(True)
+    sys.unraisablehook = _unsaid
+    raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python could only print (a Ctrl-C swallowed, what it left half done): the run
+    is stopping, so it is not printed."""
+
+
+def stop_if_noted() -> None:
+    """A Ctrl-C a library swallowed stops the run here (cli._stopped), before its next line
+    or the next check of a long read, unless the run has said its Next: line."""
+    if ctrl_c and not next_said:
+        ctrl_c.clear()
+        raise KeyboardInterrupt
+
+
 def said_next(text: str) -> None:
-    """Note a line about to be printed: a Next: line ends what the command says."""
+    """Note a line about to be printed: a Next: line ends what the command says. After a
+    Ctrl-C a library swallowed, the run stops instead, before this line."""
     global next_said
+    stop_if_noted()
     if text.startswith("Next:"):
         next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
@@ -472,6 +552,7 @@ def reading(n: int, name: str | None = None) -> None:
         _reading.update(since=_clock(), said=None)
     if n % 500:
         return
+    stop_if_noted()  # a swallowed Ctrl-C: the read stops, not after the whole file
     now, said = _clock(), _reading["said"]
     if now - _reading["since"] < PROGRESS_AFTER or (said is not None
                                                     and now - said < PROGRESS_EVERY):
@@ -768,6 +849,17 @@ ANOTHER_DRIVE = ("<file>", "PATH")  # a path no Next: line can give from here
 
 
 def from_here(value: str, labels: bool, command: bool = False) -> str:
+    """_from_here, kept whole where a line wraps (_spaced)."""
+    shown = _from_here(value, labels, command)
+    if " " in shown:
+        _spaced.pop(shown, None)
+        _spaced[shown] = None
+        while len(_spaced) > SPACED_KEPT:
+            _spaced.pop(next(iter(_spaced)))
+    return shown
+
+
+def _from_here(value: str, labels: bool, command: bool = False) -> str:
     """A path given in full, as a Next: line repeats it: from the folder the command runs in
     when the two share a folder below the home folder's parents (shares_below_home); else in
     the home folder, `~/...` (_home_shown); else, or on another drive, `<file>` for --labels
@@ -806,6 +898,37 @@ def shares_below_home(shared: str) -> bool:
         return True
 
 
+def above_projects(folder) -> bool:
+    """Whether `folder` is a top folder (_is_top) or a folder above the home folder: no
+    project's folder, and a search below it would walk into home folders."""
+    try:
+        return not shares_below_home(os.path.realpath(folder))
+    except (OSError, ValueError):
+        return False
+
+
+def through_top(path) -> bool:
+    """Whether `path`, typed from here, climbs through a top folder or a folder above the home
+    folder (shares_below_home): a printed command names it as from_here does instead."""
+    try:
+        return _from_below_home(os.path.realpath(path), os.getcwd()) is None
+    except OSError:
+        return False
+
+
+def shown_in(path, root) -> str:
+    """A file found in the project folder `root` as Find's lines name it (File:, "looks
+    like", the question to save how to read it): from the project folder when this runs
+    there, else from here (shown_from_here)."""
+    try:
+        real, top = Path(path).resolve(), Path(root).resolve()
+        if real.is_relative_to(top) and Path.cwd().resolve() == top:
+            return real.relative_to(top).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        pass
+    return shown_from_here(path)
+
+
 def _from_below_home(real: str, start) -> str | None:
     """`real` from the folder `start` (`..` allowed, `/` between folders) when they share a
     folder below the home folder's parents (shares_below_home), else None."""
@@ -816,6 +939,48 @@ def _from_below_home(real: str, start) -> str | None:
     except ValueError:  # another drive (Windows)
         return None
     return rel.replace(os.sep, "/") if shares_below_home(shared) else None
+
+
+CUT = "\u2026"  # a folder in another person's home folder, cut short (folder_from_here)
+
+
+def folder_from_here(path) -> str:
+    """A folder as a line names it, to go to: from here when the two share a folder below the
+    home folder's parents (_from_below_home); else in the home folder, `~/...`; else in
+    another person's home folder (beside this one), `/.../its name`; else from here (another
+    drive: the path as it is). Never a user name. folder_of turns it back into the folder."""
+    real = os.path.realpath(path)
+    rel = _from_below_home(real, os.getcwd())
+    if rel is not None:
+        return rel
+    if (inside := _in_home(real)) is not None:
+        return _home_shown(inside)
+    try:
+        homes = os.path.dirname(os.path.realpath(Path.home()))
+        if os.path.commonpath([homes, real]) == homes and real != homes:
+            return f"{Path(real).anchor}{CUT}/{Path(real).name}".replace("\\", "/")
+        return os.path.relpath(real, os.getcwd()).replace(os.sep, "/")
+    except (OSError, RuntimeError, ValueError):  # another drive (Windows)
+        return Path(real).as_posix()
+
+
+def folder_of(shown: str, base) -> Path | str:
+    """The folder a folder_from_here name (from `base`) stands for; ANYWHERE when it was cut
+    short, so a command for it is one that runs in any folder."""
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return Path.home() / shown[len(form):]
+    if CUT in shown:
+        return ANYWHERE
+    return Path(base) / shown
+
+
+def cd_word(shown: str) -> str:
+    """A folder_from_here name as `cd` is given it: quoted, with `~/` outside the quotes."""
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return _home_command(shown[len(form):]) or quote_arg(shown)
+    return quote_arg(shown)
 
 
 def kept_path(path, root) -> str:
@@ -848,6 +1013,17 @@ def shown_from_here(value) -> str:
     text = os.fsdecode(value)
     shown = from_here(text, labels=False)
     return Path(text).name if shown in ANOTHER_DRIVE else shown
+
+
+def folder_words(shown: str) -> str:
+    """A folder from here as a sentence says it: never only dots before its full stop. "."
+    is "this folder", ".." "the folder above", "../.." "2 folders above"; else as it is."""
+    if shown in (".", "./"):
+        return "this folder"
+    parts = shown.replace("\\", "/").rstrip("/").split("/")
+    if parts and all(p == ".." for p in parts):
+        return "the folder above" if len(parts) == 1 else f"{len(parts)} folders above"
+    return shown
 
 
 def runnable(value: str, labels: bool) -> str:
@@ -914,8 +1090,8 @@ OLD_HOOK = ("Your git pre-commit hook still runs `judgekeeper check --fast`, whi
 
 def old_hook(path: str | Path) -> str | None:
     """OLD_HOOK when the git pre-commit hook of the repository `path` is in still runs
-    `judgekeeper check --fast` (gone in 1.0), else None. The hook is only read: judgekeeper
-    never edits it."""
+    `judgekeeper check --fast` (a command that no longer exists), else None. The hook is only
+    read: judgekeeper never edits it."""
     here = Path(path).resolve()
     for folder in (here, *here.parents):
         if (folder / ".git").exists():
@@ -949,7 +1125,11 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
     if WORKSPACE not in parts:
         return None
     folder = Path(*parts[:parts.index(WORKSPACE) + 1])
-    if folder.is_file():
+    try:
+        is_file, is_dir = folder.is_file(), folder.is_dir()
+    except OSError:  # in a folder that can't be read (/lost+found): not judgekeeper's own
+        return None
+    if is_file:
         return WORKSPACE_FILE, WORKSPACE_FILE_NEXT
     if isinstance(e, NotAFile):
         shown = "/".join(parts[parts.index(WORKSPACE):]).replace("{", "(").replace("}", ")")
@@ -957,7 +1137,7 @@ def workspace_problem(e: OSError) -> tuple[str, str] | None:
                 NOT_A_FILE_NEXT.replace("{path}", shown))
     if isinstance(e, FileBusyError):
         return WORKSPACE_BUSY, WORKSPACE_BUSY_NEXT
-    if isinstance(e, PermissionError) and folder.is_dir():  # else the project folder's
+    if isinstance(e, PermissionError) and is_dir:  # else the project folder's
         return WORKSPACE_DENIED, WORKSPACE_DENIED_NEXT
     return None
 
@@ -1087,13 +1267,15 @@ def held_lines(text: str) -> list[str]:
 
 
 WIDTH = 64  # what judgekeeper says wraps here; a command in backticks is never split
+_spaced: dict[str, None] = {}  # the paths with spaces from_here named: never split either
+SPACED_KEPT = 256
 WHOLE = ("Inspect AI", "left out")  # never split either: a name, and the words a line that
 # leaves a file out is found by
 
 
 def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
-    """`text` as lines of at most `width` characters (a longer command stays whole on its
-    own line), each starting with `indent`. Each line break in `text` (\\n) starts a new line;
+    """`text` as lines of at most `width` characters (a longer command, or a path with
+    spaces judgekeeper named, stays whole on its own line), each starting with `indent`. Each line break in `text` (\\n) starts a new line;
     every other one (\\r, U+2028...) is a space. A value read from a file goes in as one line
     (redact.one_line: a name, a model id, a held value), so only judgekeeper's own text breaks
     a line. Only a text that starts with "Next:" gives a line that starts with it: a name read
@@ -1110,7 +1292,8 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     text, links_back = stand_ins(keep_links(
         text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
     text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
-    keep = re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
+    keep = (re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
+            + sorted((p for p in _spaced if p in text), key=len, reverse=True))
     for part in keep:
         text = text.replace(part, part.replace(" ", "\0"))
     lines = []

@@ -283,7 +283,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     then = said[said.rindex("Next:"):]
     if tool == "inspect":  # the log is scored again, not marked-answers.csv
         assert then == (f"Next: score your log again with your new rule: run "
-                        f"`{fix.INSPECT_SCORE}` with `--output-file {fix.new_log(ws)}`, then "
+                        f"`{fix.inspect_score(ws)}` with `--output-file {fix.new_log(ws)}`, then "
                         f"run `judgekeeper fix {fix.new_log(ws)}`.")
     else:  # MLflow: a new run in its store
         assert (fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv") in then
@@ -458,7 +458,7 @@ def test_check_with_a_file_says_one_run_and_exits_1_only_over_20_points(here, ca
     with only_reads(monkeypatch):
         code, out = run(capsys, "check", path.name)
     assert code == 0, out
-    assert "One run, so a small change may be chance." in out
+    assert "One run, so a small change may be a coincidence." in out
 
     big = dict(small)
     for i in fails[:12]:  # 12 of 22: over 20 points lower
@@ -470,7 +470,7 @@ def test_check_with_a_file_says_one_run_and_exits_1_only_over_20_points(here, ca
     path.write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys, "check", path.name)
     assert code == 1, out
-    assert "One run, so a small change may be chance." in out
+    assert "One run, so a small change may be a coincidence." in out
     assert ws.marks.is_file()
 
 

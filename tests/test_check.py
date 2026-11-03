@@ -186,7 +186,8 @@ SCENE_6 = [
     "Your LLM-as-a-judge's model changed:",
     f"  {MODEL} -> {HAIKU}",
     "",
-    "Result: worse. Your new LLM-as-a-judge agrees with you less.",
+    "Compared with before: worse. Your new LLM-as-a-judge agrees with",
+    "you less on the answers you failed: 16 of 25, down from 25.",
     "",
     TABLE_HEAD,
     "  When you said Pass    25 of 25             25 of 25             No big drop",
@@ -267,7 +268,7 @@ def test_a_marked_empty_answer_is_found_by_its_question(here, capsys):
 
 
 def test_a_rule_taken_on_with_a_marked_empty_answer_has_not_changed_after(here, capsys):
-    """Its empty answer got no grade from the rule taken on, so every check after said "rule
+    """An empty answer that the rule taken on gives no grade: a later check must not say "rule
     changed" against the old rule again."""
     outputs = ["" if i == 3 else answer(i, TAG) for i in range(50)]
     _marked(here, outputs=outputs)
@@ -295,12 +296,22 @@ def test_a_model_change_rechecked_free(here, capsys):
     assert saved["models"] == [MODEL]  # after "Worse" the old judge stays the reference
 
 
+def test_worse_on_a_given_file_names_new_results_for_the_next_change(here, capsys):
+    _marked(here)
+    _results(here, LENIENT, model=HAIKU)
+    code, out = run(capsys, "results.json")
+    assert code == 1
+    assert _next(out) == ("Next: go back to your old LLM-as-a-judge, or try another change and "
+                          "run `judgekeeper check <new results file>` again.")
+
+
 def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _marked(here)
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert "Result: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge." in out
+    assert ("Compared with before: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge."
+            in " ".join(out.split()))
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
     assert ("On answers you fail, no drop, though these marks can't rule out one of up to 10 "
             "in every 100.") in " ".join(out.split())
@@ -662,3 +673,12 @@ def test_check_names_the_folders_when_the_newest_results_need_a_choice(here, cap
             "deepeval-results/test_run_20261101_155341.json` or `judgekeeper check "
             "deepeval-results-rule/test_run_20261101_155333.json`.") in text, out
     assert code == 3
+    title = "DeepEval results in more than one folder:"
+    lines = out.splitlines()
+    checked = lines[lines.index(title):lines.index(title) + 3]
+    assert all(len(x) > 66 for x in checked[1:]), checked  # long: unwrapped, one per folder
+    from judgekeeper.cli import main
+
+    assert main(["--no-browser"]) == 3  # plain judgekeeper says the same lines
+    plain = capsys.readouterr().out.splitlines()
+    assert plain[plain.index(title):plain.index(title) + 3] == checked

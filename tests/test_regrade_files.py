@@ -357,6 +357,21 @@ def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
     code, out = run(capsys, "check", write(here, "new.csv", mixed))
     assert code == 3, out
     assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out
+    assert "It finds a marked answer by the same text" in out  # 50 were not found
+
+
+def test_check_says_how_it_finds_answers_only_when_some_were_not_found(here, capsys):
+    """Every marked answer is in the new results, 5 with an error: none was missed, so the
+    line on how it finds them is not said."""
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) | ({"verdict": "error"} if i < 5 else {}) for i in range(N)]
+    _, out = run(capsys, "check", write(here, "new.csv", rows))
+    out = " ".join(out.split())
+    assert ("5 of your 60 marked answers had no grade in your new results, so judgekeeper left "
+            "them out.") in out, out
+    assert "5 of them are there with no decision" in out, out
+    assert "It finds a marked answer" not in out, out
 
 
 def test_check_on_unknown_grade_words_refuses_them(here, capsys):
@@ -378,7 +393,7 @@ def test_check_on_a_few_marked_answers_cant_tell(here, capsys):
     assert code == 3, out
     assert "40 of your 60 marked answers had no grade in your new results" in out
     assert "40 of them are there with no decision" in out
-    assert "Result: can't tell yet." in out and "has not changed" not in out
+    assert "Compared with before: can't tell yet." in out and "has not changed" not in out
 
 
 def test_check_past_the_row_cap_cant_tell(here, capsys):
@@ -473,8 +488,8 @@ def _odd_path(root, kind: str) -> str:
 @pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="no named pipes")
 @pytest.mark.parametrize("command", ["fix", "check"])
 @pytest.mark.parametrize("kind, said", [
-    ("missing", "There is no file or folder named new.csv here."),
-    ("dangling link", "There is no file or folder named new.csv here."),
+    ("missing", "There is no file named new.csv here."),
+    ("dangling link", "There is no file named new.csv here."),
     ("named pipe", "new.csv isn't a regular file: it is a named pipe."),
     ("device", "null isn't a regular file: it is a special file."),
     ("folder", ("new is a folder inside your project, not a results file or your project "

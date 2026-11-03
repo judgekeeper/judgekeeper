@@ -231,7 +231,7 @@ def test_the_page_is_one_screen_on_a_laptop_and_the_answer_always_has_room():
     # the answer keeps 35% of the main area, the question and the rule give way
     assert ".a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px);" in laptop
     assert ".row-q { flex: 0 1 auto; min-height: 0;" in laptop
-    assert "@media (max-width: 760px) {" in mark_page.STYLE  # the phone's CSS, as it was
+    assert "@media (max-width: 760px) {" in mark_page.STYLE  # the phone's CSS is still there
     short = mark_page.STYLE.split("@media (min-width: 761px) and (max-height: 800px) {", 1)[1]
     assert ".actions { padding-top: 12px; padding-bottom: 8px; }" in short and ".btn { height: 44px; }" in short
     page = mark_page.label_page("bot", "judgekeeper mark")
@@ -276,7 +276,7 @@ def test_the_opened_question_fades_while_there_is_more_below():
 CONTEXT = ("Context:\n" + "Pets in the cabin cost $125 each way. " * 30
            + "\n\nA missing bag must be reported within 24 hours.\n\n"
            + "Question: How long do I have to report a missing bag?")
-HIDDEN = "hidden on purpose, so a new rule can be tested on answers you haven't looked at again."
+HIDDEN = "kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
 
 
 HEAD_TAIL = """
@@ -447,7 +447,7 @@ def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in
     assert ".tbl td.ht { max-height: calc(5 * 1.55em); }" in laptop
     assert 'td.classList.contains("ht")' in report_page.SCRIPT  # always "Show all"
     plain = _html([{**_mistakes(1, 0)[0], "question": "Policy:\n" + "Bags are free. " * 40}])
-    assert 'class="ht"' not in plain  # no question at the end: 4 lines, as before
+    assert 'class="ht"' not in plain  # no question at the end: 4 lines
 
 
 def test_the_foot_line_sits_14px_under_the_text_on_both_pages():
@@ -524,7 +524,7 @@ def test_live_rows_ask_for_a_reason_behind_a_small_button():
     assert '<span class="said-now" hidden>' in line
     assert '<div class="why-body" id="wb-easy-0" hidden>' in html
     body = html.split('id="wb-easy-0" hidden>', 1)[1]
-    assert "Why did you mark it Fail?" in body and 'data-part="1"' in body  # the panel, as was
+    assert "Why did you mark it Fail?" in body and 'data-part="1"' in body  # the panel is there
 
 
 def test_a_saved_reason_shows_in_one_line_with_change():
@@ -640,7 +640,7 @@ def test_an_emoji_keeps_its_variation_selector_and_other_hidden_marks_still_go()
         assert redact.visible(f"\u2708{hidden}\ufe0fx") == "\u2708x"  # its own mark only
     # not after a letter or a sign: a name can't hide one
     assert redact.visible("openai:\ufe0fgpt\ufe0e") == "openai:gpt"
-    assert redact.printable("Fly \u2708\ufe0f \u200d") == "Fly \u2708 "  # the terminal: as now
+    assert redact.printable("Fly \u2708\ufe0f \u200d") == "Fly \u2708 "  # the terminal drops both
     page = start_label.result_html(_result(*NOT_GATE_TNR), fixing={"mistakes": [
         {"id": "a", "judge": "pass", "final": "fail", "question": "\u2708\ufe0f?",
          "answer": "Yes \u2708\ufe0f\u202e", "reason": "ok", "why": None}]})

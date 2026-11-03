@@ -119,6 +119,7 @@
     "unsure": 0,
     "after_result": 0
   },
+  "fix_ready": true,
   "smallest_drop": 30,
   "picks": [],
   "command": "judgekeeper",

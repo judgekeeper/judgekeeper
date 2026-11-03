@@ -200,9 +200,9 @@ def test_its_frame_is_the_sites_frame_with_links_from_the_root():
         assert rooted in text
 
 
-# Old addresses: a 301 to the page that has their content now. The pages that were removed
-# (reference, learn, and docs and how-it-works that led to them) get the page for a wrong
-# address, with its links to Home and the Guide.
+# Retired addresses: a 301 to the page that holds their content; those with no page left
+# (/docs, /how-it-works, /reference, /learn) get the page for a wrong address, with its links
+# to Home and the Guide.
 
 REDIRECTS = {"/setup": "/start#keys", "/assistant": "/start", "/own-metric": "/start#own-format",
              "/tutorial": "/start", "/guide": "/start"}

@@ -135,3 +135,23 @@ def test_held_values_on_the_page_are_scrubbed(monkeypatch, windows):
     html = mark_page.label_page(None, command, held=start.held_values(flags))
     assert KEY not in html
     assert "[REDACTED]" in html
+
+
+@pytest.mark.parametrize("tool", ["table", "mapped"])
+def test_an_own_file_names_its_llm_as_a_judge_not_its_grade_column(tool):
+    from judgekeeper.start_label import page_template
+
+    html = page_template({"tool": tool, "metric": "verdict", "results_files": ["results.csv"],
+                          "fingerprint": {"model": "acme-grader-2"},
+                          "rule": "Pass kind answers.", "one_rule": True})
+    text = _text(html)
+    assert "Metric" not in text and 'id="metric-name"' not in html
+    assert "acme-grader-2" in text
+
+
+def test_an_eval_tools_metric_still_shows():
+    from judgekeeper.start_label import page_template
+
+    html = page_template({"tool": "deepeval", "metric": "faithfulness",
+                          "fingerprint": {"model": "gpt-4.1"}})
+    assert "Metric faithfulness" in _text(html)

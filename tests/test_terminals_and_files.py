@@ -165,7 +165,7 @@ def test_a_folder_where_a_file_should_be_is_said_plainly(tmp_path, capsys):
     folder = tmp_path / "a-folder"
     folder.mkdir()
     with pytest.raises(LabelError, match="is a folder, but a file is needed there"):
-        make_server(LabelSession(sheet, folder), 0, page="")  # start's labels.csv
+        make_server(LabelSession(sheet, folder), 0, page="")  # the marks file's path is a folder
 
 
 def test_debug_adds_the_traceback_to_the_plain_line(tmp_path, capsys, monkeypatch):

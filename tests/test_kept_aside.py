@@ -85,7 +85,8 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     assert need["fixes 90%, breaks 2%"]["marks"] == n  # the site and reference say "also"
     slow = need["fixes 10%, breaks 5%"]["marks"]
     claim = (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
-             f"10 of its mistakes or a quarter of them is clear from about {n} marks, and one "
+             f"10 of its mistakes or a quarter of them usually gets a clear answer from about {n} "
+             f"marks, and one "
              f"that fixes 1 in 10 and breaks 5 in 100 right answers needs about {slow} ")
     assert claim in site
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))

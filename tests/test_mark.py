@@ -21,7 +21,7 @@ from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
-NEXT_OPEN = 'Next: mark answers until the link at the top shows your numbers, then click it.'
+NEXT_OPEN = 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 NEXT_LINK = NEXT_OPEN
 NEXT_KEEP = NEXT_OPEN
 NEXT_MORE = "Next: mark more answers, then run `judgekeeper` to see your updated result."
@@ -92,8 +92,8 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
         "hidden.",
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it."]
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it."]
     assert len(no_browser) == 1 and label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
@@ -189,29 +189,30 @@ def test_every_answer_marked_after_a_result_points_to_mark(here, capsys, pages):
     assert (here / ".judgekeeper" / "result.json").is_file()
     code, out, err = run(capsys, "mark")
     assert code == 0, out
-    assert "You have marked all 36 answers. There are no more to mark." in out
+    assert "You have marked all 36 answers." in out
     assert _check(out, err) == (
         "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
         "join the ones you marked.")
     assert "again to get new answers" not in out
-    assert len(pages[0]) == 1  # no page opened for it
+    assert len(pages[0]) == 1  # the page still open from marking: no new one
 
 
-def test_every_answer_marked_opens_no_page(here, capsys, pages):
+def test_every_answer_marked_keeps_the_page_to_change_a_mark(here, capsys, pages):
     promptfoo_project(here, split(20, 16))
     run(capsys, "mark")
     _click(start_label.Workspace(here))
     code, out, err = run(capsys, "mark")
     assert code == 0, out
-    assert "You have marked all 36 answers. There are no more to mark." in out
+    assert "You have marked all 36 answers." in out
+    assert "To change a mark, click it in the list." in " ".join(out.split()), out
     assert _check(out, err) == (  # new answers join as a batch once the eval ran again
         "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
         "join the ones you marked.")
     assert "run your eval again to get new answers" not in out
-    assert len(pages[0]) == 1
+    assert len(pages[0]) == 1  # the page still open from marking
 
 
-# Marks for another judge, or from 0.2: start over -----------------------------------------
+# Marks for another judge, or from an older judgekeeper: start over ------------------------
 
 def test_a_new_eval_run_goes_on_with_the_marks(here, capsys, pages):
     promptfoo_project(here, split(20, 16), tag=TAG)

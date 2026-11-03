@@ -99,8 +99,8 @@ def test_screen_1_the_first_run(here, capsys):
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it.",
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it.",
     ]
 
 
@@ -116,8 +116,8 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]
-    assert lines[-2:] == ["Next: mark answers until the link at the top shows your numbers,",
-                          "then click it."]
+    assert lines[-2:] == ['Next: mark answers on the page until a "See the numbers so far"',
+                          "link appears, then click it."]
 
 
 
@@ -155,8 +155,8 @@ def test_screen_2_again_before_a_first_result(here, capsys):
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it.",
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it.",
     ]
 
 
@@ -204,12 +204,16 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
         *HEAD,
         "Step 2 of 5: Mark",
         "",
-        "You have marked all 40 answers. There are no more to mark.",
+        "You have marked all 40 answers.",
+        "",
+        "The marking page is already running. To change a mark, click it",
+        "in the list.",
+        "Need its link? Run `judgekeeper mark --no-browser` to print it.",
         "",
         "Next: run your eval on more questions, then run",
         "`judgekeeper mark`: the new answers join the ones you marked.",
     ]
-    assert len(pages[0]) == started  # no page to open
+    assert len(pages[0]) == started  # the page still open from marking: no new one
 
 
 def test_screen_7_a_tool_with_no_results(here, capsys):

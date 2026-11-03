@@ -1,15 +1,15 @@
 """`--labels [FILE]`: Pass/Fail labels people already have, used as their marks.
 
-`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (`output` or
-`answer`), a label column (`label` or `human_label`), and optionally the question (`input` or
-`question`) and an `id`. `--labels` alone uses the labels people gave that are already in the
+`--labels FILE` reads them from a CSV, TSV or JSONL file: an answer column (any name the
+results reader takes: `output`, `answer`, `response`, ...), a label column (`label` or
+`human_label`), and optionally the question (`input`, `question` or `query`) and an `id`. `--labels` alone uses the labels people gave that are already in the
 results (start.Pool.humans). Asked for every time, never automatic.
 
 A label counts only for an answer the LLM-as-a-judge graded Pass or Fail (the queue in
 start.json), and for each repeat of it. A file's label finds its answer by id (with the same
 answer text), else by the exact answer text (check's normalising: line endings, the space at
 both ends, keys hidden, a spreadsheet's guard quote, accents written either way: Unicode NFC),
-with the question when one is given. Each label becomes one line of marks.jsonl
+with the question when one is given (a question that finds none: by the answer text alone). Each label becomes one line of marks.jsonl
 (marks.imported_line, "by": "file"); an answer that already has a mark keeps it. The words are
 read as grades are (normalise.Normaliser), with the project's label map; a word the person
 mapped to error is no decision, left out and counted; anything else stops before a line is
@@ -23,6 +23,7 @@ warning when p < CHECK_LEVEL in either group (looks_off). Never a stop.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 import unicodedata
@@ -31,21 +32,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from judgekeeper import marks
+from judgekeeper import marks, textio
+from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
-from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, runnable
+from judgekeeper.textio import ANOTHER_DRIVE, from_here, is_link, plural, quote_arg, runnable
 
 IN_RESULTS = "\0results"  # --labels with no FILE (argparse's const): never a file's name
 RESULTS_NAME = "your results"
-ANSWER_COLUMNS = ("output", "answer")
+ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant can't be told
 QUESTION_COLUMNS = ("input", "question")
+ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
+QUESTION_NAMES = QUESTION_WORDS  # never a prompt: it may hold a whole template
+COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 10
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
 NO_DECISION = "no_decision"
+BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
@@ -56,7 +62,8 @@ SKIPPED = (  # (reason, one, many): said in this order
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
      "{n} are for answers labelled both Pass and Fail"),
-    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"))
+    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"),
+    (BLANK, "{n} is blank", "{n} are blank"))
 WORDS_NEXT = ("run the same command again with `--label-map`, giving each of these words =pass, "
               "=fail or =error (no decision). An empty label cell skips that row.")
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
@@ -65,8 +72,7 @@ FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = ("Mark at least {n} more answers on the page to check the marks from {name}. Until "
-        "then, it's too early to tell.")
+GATE = "Mark at least {more} on the page to check the marks from {name}."
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
@@ -191,7 +197,7 @@ def _has_results(folder: Path) -> bool:
 
 def _used(column) -> bool:
     """A column read_file may use: an id, question, answer or label."""
-    return str(column).strip().lower() in (*ANSWER_COLUMNS, *QUESTION_COLUMNS, *LABEL_COLUMNS,
+    return str(column).strip().lower() in (*ANSWER_NAMES, *QUESTION_NAMES, *LABEL_COLUMNS,
                                            "id")
 
 
@@ -201,24 +207,71 @@ def _column(columns, wanted: tuple[str, ...]) -> str | None:
     return next((plain[w] for w in wanted if w in plain), None)
 
 
+TWICE = "{file} has two {kind} columns ({a} and {b}). Keep one, then run: `{command}`"
+
+
+def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
+    """A LabelsStop when two columns mean the same thing (`label` and `Label`, `output` and
+    `answer`): which one is meant can't be told."""
+    for kind, wanted in (("label", LABEL_COLUMNS), ("answer", ANSWER_COLUMNS),
+                         ("question", QUESTION_COLUMNS), ("id", ("id",))):
+        same = [c for c in columns if str(c).strip().lower() in wanted]
+        if len(same) > 1:
+            given = (runnable(str(path), labels=True) if str(path.parent) != "."
+                     else quote_arg(path.name))
+            raise LabelsStop([TWICE.format(file=path.name, kind=kind, a=str(same[0]).strip(),
+                                           b=str(same[1]).strip(),
+                                           command=command("--labels", given))])
+
+
+NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
+         "human_label).")
+NEEDS_ANSWER = "{file} needs an answer column ({answers})."  # it has a label column
+NEEDS_LABEL = "{file} needs a label column (label or human_label)."  # it has an answer column
+
+
+def _or(words) -> str:
+    return ", ".join(words[:-1]) + f" or {words[-1]}"
+
+
+def _has(path: Path) -> str:
+    """" It has: <its columns>.", the first COLUMNS_SHOWN of them, or "" when none is read."""
+    from judgekeeper.redact import one_line
+    from judgekeeper.table import columns
+
+    names = [one_line(str(c).strip()) for c in columns(path) if str(c).strip()]
+    if not names:
+        return ""
+    more = len(names) - COLUMNS_SHOWN
+    shown = ", ".join(names[:COLUMNS_SHOWN]) + (f" and {more} more" if more > 0 else "")
+    return f" It has: {scrub(shown)}."
+
+
 def read_file(path: Path, label_map: dict | None = None,
-              mine: str | dict | None = None) -> list[Label]:
+              mine: str | dict | None = None,
+              command: Callable[..., str] | None = None) -> list[Label]:
     """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
-    the columns, has no label in any cell, or holds a number or a word that isn't Pass or Fail
-    (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
-    word."""
+    the columns, has two columns for the same thing (_twice; `command`: the command run),
+    has no label in any cell, or holds a number or a word that isn't Pass or Fail
+    (read_marks; `mine`: the person's own --label-map). A row with a blank label is kept with
+    no mark (""), so the labels skipped add up (BLANK); one with no answer either is no label
+    (an empty line)."""
     from judgekeeper import find
-    from judgekeeper.table import TableError, open_quote, read_kept
+    from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
+    from judgekeeper.table import written_header as header_of
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
         raise LabelsStop([(f"judgekeeper reads labels from a CSV, TSV or JSONL file; {name} is "
                            "none of these.")])
+    again = f"Fix it, then run {textio.program()} again."  # the program as typed, as LINK
     try:
         line = open_quote(path) if path.suffix.lower() in (".csv", ".tsv") else None
         if line is not None:
-            raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
-                               "then run judgekeeper again.")])
+            raise LabelsStop([f"{name} has a quote that never closes (line {line}). {again}"])
+        wide = wide_row_hint(path)
+        if wide is not None:  # the second row's answer and label would be lost
+            raise LabelsStop([f"{name} {MORE_CELLS} (line {wide[0]}){wide[1]}. {again}"])
         rows = read_kept(path, _used)  # every row (the size question guards), its cells
         # used only: a big notes column is never held
     except TableError as e:
@@ -226,11 +279,14 @@ def read_file(path: Path, label_map: dict | None = None,
     if not rows:
         raise LabelsStop([f"{name} has no labels."])
     columns = list(dict.fromkeys(c for row in rows for c in row))
-    out_col, label_col = _column(columns, ANSWER_COLUMNS), _column(columns, LABEL_COLUMNS)
-    if out_col is None or label_col is None:
-        raise LabelsStop([(f"{name} needs an answer column (output or answer) and a label column "
-                           "(label or human_label).")])
-    in_col, id_col = _column(columns, QUESTION_COLUMNS), _column(columns, ("id",))
+    written = header_of(path) if path.suffix.lower() in (".csv", ".tsv") else []
+    _twice(path, written or columns, _plain(command))  # as written: the same name twice too
+    out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
+    if out_col is None or label_col is None:  # only what is missing is asked for
+        needs = (NEEDS if out_col is None and label_col is None
+                 else NEEDS_ANSWER if out_col is None else NEEDS_LABEL)
+        raise LabelsStop([needs.format(file=name, answers=_or(ANSWER_NAMES)) + _has(path)])
+    in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)
     if all(mark is None for mark in read):
@@ -238,6 +294,8 @@ def read_file(path: Path, label_map: dict | None = None,
     out = []
     for row, mark in zip(rows, read, strict=True):
         if mark is None:
+            if not _blank(row.get(out_col)):  # skipped, and said so (_match)
+                out.append(Label(mark="", output=None))
             continue
         given_id = row.get(id_col) if id_col else None
         out.append(Label(mark=mark, output=_scrubbed(row.get(out_col)),
@@ -257,10 +315,23 @@ def _blank(value) -> bool:
     return value is None or isinstance(value, str) and not value.strip()
 
 
+def _one_or_zero(value):
+    """A number equal to 1 or 0 (`1.0`, `0.0`, as a spreadsheet or pandas writes them) as
+    "1" or "0"; any other value as it is."""
+    if isinstance(value, bool) or not _numeric(value):
+        return value
+    try:
+        number = float(str(value).strip())
+    except ValueError:
+        return value
+    return "1" if number == 1 else "0" if number == 0 else value
+
+
 def read_marks(values: list, label_map: dict | None, name: str,
                mine: str | dict | None = None) -> list[str | None]:
     """Each value as "pass" or "fail" (None when blank), read with `label_map` (the
-    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0), or "error"
+    defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0, a number
+    equal to 1 or 0 too), or "error"
     for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
     than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
     says how to map them (never a command with guessed values: it would be copied)."""
@@ -274,7 +345,7 @@ def read_marks(values: list, label_map: dict | None, name: str,
             out.append(None)
             continue
         try:
-            verdict = norm(value).verdict
+            verdict = norm(_one_or_zero(value)).verdict
         except UnmappedValue:
             verdict = None
         if verdict in ("pass", "fail"):
@@ -363,21 +434,39 @@ def _base(answer_id: str) -> str:
     return head if head and n.isdigit() else answer_id
 
 
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+
+
+def left_kept(left: dict, kept: dict | None = None) -> dict:
+    """The answers the judge gave no clear grade (start.Pool.left), as start.json keeps them
+    with the pool, added to `kept`: their ids, and a short hash of each answer's text
+    (check._text). Later results (a regrade of the marked answers) may not hold them."""
+    from judgekeeper.check import _text
+
+    kept = kept if isinstance(kept, dict) else {}
+    ids = {i for i in kept.get("ids") or [] if isinstance(i, str)} | set(left)
+    texts = {t for t in kept.get("texts") or [] if isinstance(t, str)} | {
+        _digest(_text(_nfc(r.output))) for _, r in left.values()}
+    return {"ids": sorted(ids), "texts": sorted(texts)}
+
+
 def match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-          left: dict | None = None) -> Plan:
+          left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue the labels are for (_match), each text made ready for
     matching once (check.texts_once)."""
     from judgekeeper.check import texts_once
 
     with texts_once():
-        return _match(found_labels, pool_rows, queue, left)
+        return _match(found_labels, pool_rows, queue, left, kept)
 
 
 def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
-           left: dict | None = None) -> Plan:
+           left: dict | None = None, kept: dict | None = None) -> Plan:
     """Which answers of the queue (`pool_rows`: pool.jsonl by id) the labels are for. `left`:
-    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), to tell
-    those from answers not in the results."""
+    the answers the judge gave no clear grade (start.Pool.left: id -> (kind, record)), and
+    `kept` those start.json keeps (left_kept), to tell them from answers not in the
+    results."""
     from judgekeeper.check import _candidates, _index, _text
 
     order = [q["id"] for q in queue if q["id"] in pool_rows]
@@ -390,9 +479,8 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         by_text.setdefault(_text(a.output), []).append(a)
     by_id = {_nfc(k): v for k, v in by_base.items()}
     index = _index(answers)
-    left = left or {}
-    left_keys = set(left)
-    left_text = {_text(_nfc(r.output)) for _, r in left.values()}
+    left = left_kept(left or {}, kept)
+    left_keys, left_text = set(left["ids"]), set(left["texts"])
 
     wanted: dict[str, set[str]] = {}
     targets_of: list[tuple[Label, list[str]]] = []
@@ -401,6 +489,9 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         hits: list = []
         if label.mark == ERROR:  # no decision, by the person's map
             plan.skip(NO_DECISION)
+            continue
+        if not label.mark:  # a blank label cell (read_file)
+            plan.skip(BLANK)
             continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
@@ -417,13 +508,13 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
                         if not text or _text(a.output) == text]  # an empty cell: not given
             if not hits and not _blank(question):
                 hits = _candidates(index, {"input": question, "output": output})
-            elif not hits:
+            if not hits:  # no question, or one that finds no answer: by the text alone
                 hits = by_text.get(text, []) if text else []
                 if len({_text(a.input) for a in hits}) > 1:
                     plan.skip(MORE_THAN_ONE)
                     continue
             if not hits:
-                plan.skip(NOT_GRADED if text and text in left_text else NO_MATCH)
+                plan.skip(NOT_GRADED if text and _digest(text) in left_text else NO_MATCH)
                 continue
         ids = list(dict.fromkeys(a.id for a in hits))
         targets_of.append((label, ids))
@@ -509,7 +600,7 @@ def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
     out doesn't match; else "Nothing added" and why each was left out."""
     if plan.marks:
         return None
-    if set(plan.skipped) <= {NO_MATCH}:
+    if set(plan.skipped) - {BLANK} <= {NO_MATCH}:  # a blank one tells nothing
         return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
                             "the answer text is the same, word for word.")])
     return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])
@@ -540,7 +631,8 @@ def still_needed(page: dict[str, int], left: dict[str, int]) -> int:
 def gate_line(n: int, imported: dict | None) -> str | None:
     if not n or not imported:
         return None
-    return GATE.format(n=n, name=names(imported.get("from") or ["a file"]))
+    more = f"{n} more answer{'' if n == 1 else 's'}"
+    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]))
 
 
 def fisher_p(a: int, b: int, c: int, d: int) -> float:

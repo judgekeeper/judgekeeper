@@ -86,9 +86,9 @@ def test_unstamped_and_broken_lines_are_not_counted(tmp_path):
         f.write("\n")
     m = marks.read(path)
     assert m.counted() == {"a": "pass"}
-    assert m.not_counted == 3
+    assert m.not_counted == 2 and m.unreadable == 1  # the broken line is said apart
     assert marks.not_counted_line(m.not_counted) == (
-        "3 lines in marks.jsonl were not made on the page and are not counted.")
+        "2 lines in marks.jsonl were not made on the page and are not counted.")
     assert marks.not_counted_line(1) == (
         "1 line in marks.jsonl was not made on the page and is not counted.")
     assert marks.not_counted_line(0) is None
@@ -269,3 +269,23 @@ def test_a_mark_made_on_the_page_mid_run_is_seen(ws):
         assert marks.read(ws.marks).counted() == {first: "pass", second: "fail"}
         session.update({"id": first, "label": "fail", "seconds": 4})  # changed on the page
         assert marks.read(ws.marks).counted()[first] == "fail"
+
+
+@pytest.mark.parametrize(("steps", "changed"), [
+    ([("pass", False), ("fail", True)], True),  # changed after seeing the grades
+    ([("pass", False), ("fail", True), ("pass", True)], False),  # Z: back to the mark it had
+    ([("pass", False), ("fail", False), ("pass", True)], True),  # held Fail when it saw them
+    ([("pass", False), ("fail", False), ("fail", False)], False),  # every change blind
+    ([("fail", False), ("pass", True), ("fail", True), ("pass", True)], True),
+])
+def test_a_mark_counts_as_changed_after_the_grades_when_it_differs_from_the_mark_it_had_then(
+        tmp_path, steps, changed):
+    """The mark an answer had when the grades were first seen is its last mark before its
+    first stamped line: a final mark that differs from it counts, one back to it doesn't, and
+    an answer never changed after the grades never counts."""
+    path = _new(tmp_path)
+    for mark, after in steps:
+        marks.append(path, marks.stamp("a", mark, "pass", 2, "s", after_result=after))
+    m = marks.read(path)
+    assert ("a" in m.after_result) is changed
+    assert marks.made(m)["after_result"] == int(changed)

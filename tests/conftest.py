@@ -18,6 +18,32 @@ def no_browser(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_ctrl_c_left():
+    """A Ctrl-C a test noted never reaches a later test: the Ctrl-C handler, the notes
+    (textio.ctrl_c, inspect_logs._stopping) and what a noted Ctrl-C quiets for the rest of a
+    stopped run (sys.unraisablehook, the asyncio logger) are as they were before it."""
+    import logging
+    import signal
+    import sys
+    import threading
+
+    main = threading.current_thread() is threading.main_thread()
+    handler = signal.getsignal(signal.SIGINT) if main else None
+    hook, asyncio_level = sys.unraisablehook, logging.getLogger("asyncio").level
+    yield
+    from judgekeeper import textio
+
+    textio.ctrl_c.clear()
+    reader = sys.modules.get("judgekeeper.readers.inspect_logs")
+    if reader is not None:
+        reader._stopping.clear()
+    if main and signal.getsignal(signal.SIGINT) is not handler:
+        signal.signal(signal.SIGINT, handler)
+    sys.unraisablehook = hook
+    logging.getLogger("asyncio").setLevel(asyncio_level)
+
+
+@pytest.fixture(autouse=True)
 def repo_stays_clean():
     """No test leaves judgekeeper's own files in the repo it runs from."""
     root = Path(__file__).parent.parent

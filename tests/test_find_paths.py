@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import judgekeeper
-from judgekeeper import recorder
+from judgekeeper import recorder, textio
 from judgekeeper.cli import main
 
 
@@ -26,6 +26,9 @@ def test_records_at_the_project_root_are_named_from_here(tmp_path, monkeypatch, 
     finally:
         main(["--stop"])
     out = capsys.readouterr().out
-    up = "/".join([".."] * depth)
-    assert f"at the project root: reading them in {up}." in out, out
+    up = "the folder above" if depth == 1 else f"{depth} folders above"
+    assert f"at the project root: reading them in {up}." in " ".join(out.split()), out
+    assert all(len(line) <= textio.WIDTH for line in out.splitlines()
+               if "record() saves" in line or "reading them in" in line), out
+    assert "Files:           " + "../" * depth + ".judgekeeper/records/, 1 file" in out, out
     assert str(tmp_path) not in out and str(tmp_path.resolve()) not in out

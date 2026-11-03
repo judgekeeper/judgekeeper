@@ -266,3 +266,56 @@ def test_the_readmes_measure_step_says_what_a_result_needs():
     measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))
     assert f"at least {targets.ROUGH} Pass and {targets.ROUGH} Fail marks" in measure
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+
+
+def test_the_reference_says_which_marks_wait_in_the_words_check_uses():
+    """After `check` takes on a new LLM-as-a-judge that graded only some answers, a later mark
+    on an answer it didn't grade waits; the reference says so with the result's own words."""
+    from judgekeeper import check
+
+    text = REFERENCE.read_text(encoding="utf-8")
+    section = text[text.index("## check:"):text.index("\n## ", text.index("## check:") + 1)]
+    para = next(p for p in section.split("\n\n") if p.startswith("**Marks that wait.**"))
+    flat = " ".join(para.split())
+    wait = check.WAIT.split("your new LLM-as-a-judge ", 1)[1]  # "has no Pass or Fail grade ..."
+    assert wait.rstrip(".") in flat
+    assert check.WAIT_COUNT.format(run="run `judgekeeper check <new results file>`") in flat
+
+
+# The marking page and the documents your LLM-as-a-judge was given --------------------------
+
+def test_the_docs_say_the_marking_page_leaves_out_the_documents():
+    """DeepEval's retrieval_context is never read, so a faithfulness check is marked with the
+    documents open; elsewhere they show only when they are part of the question."""
+    deepeval = _flat(_tools()["DeepEval"])
+    assert ("The marking page shows the question (`input`) and the answer (`actual_output`), "
+            "not the documents your LLM-as-a-judge was given (`retrieval_context`, `context`). "
+            "For a faithfulness check, keep those documents open while you mark.") in deepeval
+    marking = _flat(_sections()["judgekeeper: find, mark, measure"])
+    assert ("It shows the question and the answer, not the documents your LLM-as-a-judge was "
+            "given, unless they are part of the question (such as a promptfoo var). For a "
+            "faithfulness check, keep those documents open while you mark.") in marking
+    reader = ROOT / "src" / "judgekeeper" / "readers" / "deepeval.py"
+    assert "retrieval" not in reader.read_text(encoding="utf-8").lower()  # never read
+
+
+def test_the_reference_says_where_kappa_is_and_that_it_never_decides():
+    numbers = _flat(_sections()["How the numbers are worked out"])
+    assert ('so it is shown under "More details" on the result page and in report.html, and '
+            "never decides the result: TPR and TNR do.") in numbers
+    assert "only in the report's More details" not in numbers
+
+
+def test_the_reference_says_when_a_kept_mark_is_counted():
+    """The kept count is only for labels that differ from the mark; the same labels again say
+    "Nothing new" (labels.said)."""
+    from judgekeeper.labels import Added, Plan, said
+
+    assert said(Added(same=3), Plan(), "a.csv") == [
+        "Nothing new: the labels in a.csv are already your marks."]
+    assert said(Added(kept=2, same=1), Plan(), "a.csv") == [
+        "Kept your earlier mark on 2 answers that a.csv labels differently."]
+    again = _flat(_sections()["Bring labels you already have"])
+    assert ("An answer you already marked keeps your mark, from the page or an earlier import; "
+            "when a label differs from your mark, judgekeeper says how many it kept. The same "
+            'labels again say "Nothing new".') in again

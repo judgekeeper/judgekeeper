@@ -1,11 +1,12 @@
-"""The reasons and the screens around them: an own button
-renamed on every answer, reasons for the other side, a mark changed and changed back, overlapping marked parts, the mark command said three times, a
-program that sends no `seconds`, the old pre-commit line, and Ctrl-C under `python -m`. Every
-fixture here is made up.
+"""The reasons and the screens around them: an own button renamed on every answer, reasons for
+the other side, a mark changed and changed back, overlapping marked parts, the mark command said
+three times, a program that sends no `seconds`, the old pre-commit line, and Ctrl-C under
+`python -m`. Every fixture here is made up.
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 
@@ -89,8 +90,8 @@ def test_the_same_note_is_written_once_with_its_count_in_suggestions_md():
 
 # With the page closed, Measure names the mark command once ------------------------------
 
-def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, pages,  # noqa: F811
-                                                                  no_browser):
+def test_measure_with_the_page_closed_asks_why_with_the_mark_command(here, capsys,  # noqa: F811
+                                                                    pages, no_browser):
     ws = project(here, marked=0)  # a result with disagreements, answers left, the page closed
     session = start_label.StartSession(ws)
     labels = {i["id"]: "pass" if _person(question(_index(ws, i["id"])), N // 2) else "fail"
@@ -102,7 +103,9 @@ def test_measure_with_the_page_closed_names_the_mark_command_once(here, capsys, 
         code, out = _run(capsys)
         assert code == 0, out
         assert "You and your LLM-as-a-judge disagreed on" in out, out
-        assert " ".join(out.split()).count("`judgekeeper mark`") == 1, out
+        assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+                         r"`judgekeeper mark`\.", " ".join(out.split())), out
+        assert "The Next step below" not in out, out
         assert_one_next_at_the_end(out)
 
 
@@ -177,7 +180,7 @@ def test_ctrl_c_while_the_commands_load_exits_130_under_python_m(tmp_path):
     done = subprocess.run([sys.executable, "-m", "jk_interrupted"], capture_output=True,
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL, cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
     assert "Traceback" not in done.stdout + done.stderr
 
 
@@ -207,9 +210,26 @@ def test_a_ctrl_c_during_a_slow_import_stops_the_run_after_it(tmp_path):
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL,
                           cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
     assert "RAN" not in done.stdout
     assert "Traceback" not in done.stdout + done.stderr
+
+
+def test_a_ctrl_c_while_the_commands_load_names_the_program_and_flags(capsys, monkeypatch):
+    """A press in the first tenth of a second (the commands still loading): the Next: line
+    names the program as typed, with the flags, as a later Ctrl-C does."""
+    from judgekeeper import __main__ as entry
+    from judgekeeper import textio
+
+    def pressed_while_loading():  # holds nothing to put back, as off the main thread
+        entry._pressed = True
+
+    monkeypatch.setattr(entry, "_hold", pressed_while_loading)
+    monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
+    assert entry.main(["--no-browser", "--port", "9642"]) == 130
+    out = capsys.readouterr().out
+    assert out.splitlines()[-2:] == [
+        "Stopped.", "Next: run `venv/bin/judgekeeper --no-browser --port 9642` to carry on."]
 
 
 def test_the_entry_leaves_ctrl_c_as_it_found_it():

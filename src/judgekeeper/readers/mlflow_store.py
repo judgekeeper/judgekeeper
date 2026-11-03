@@ -73,10 +73,9 @@ TRACE_OUTPUTS = "mlflow.traceOutputs"
 SCORER_ERROR = "SCORER_ERROR"  # how mlflow.genai.evaluate saves a scorer that raised
 PAGE_SIZE = 100
 # Traces read from one experiment, newest first (MLflow's order): reading takes about 1 ms
-# each, so 100,000 took minutes. Past it, CAPPED says so.
+# each, so 100,000 would take minutes. Past it, CAPPED says so.
 MAX_TRACES = 30_000
-CAPPED = ("{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,} (reading "
-          "every trace of a very big experiment takes minutes).")
+CAPPED = "{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,}."
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
@@ -87,8 +86,8 @@ STORE_LIMIT = 10 * 10**9  # bytes: mlflow.db with its -wal and -shm files, copie
 # a metric's history and a logged dataset's meta.yaml, which can be MBs
 SMALL_LIMIT = 2**20  # bytes
 LARGE_LIMIT = 100 * 2**20
-# The SMALL_LIMIT files together: many runs with 1,500 tags of 1 MB each (sparse, so a few KB
-# on disk) took 44 s and 4 GB for 60 runs
+# The SMALL_LIMIT files together: 60 runs with 1,500 tags of 1 MB each (sparse, so a few KB
+# on disk) would take 4 GB and about 44 s to read.
 SMALL_TOTAL = 200 * 2**20
 TRACE_FOLDERS = ("tags", "request_metadata", "assessments")
 # MLflow's own folders in a folder store; it takes any other folder for an experiment's

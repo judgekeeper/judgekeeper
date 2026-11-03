@@ -46,7 +46,7 @@ def _as_before(ws, blank, grade: str = "error") -> list[dict]:
             for r in regraded(ws, grade=_old_grade)]
 
 
-# D1: no grade is never "changes nothing" ------------------------------------------------------
+# No grade is never "changes nothing" ----------------------------------------------------------
 
 @pytest.mark.parametrize("k", [1, 3])
 def test_unchanged_grades_with_some_ungraded_are_counted(here, capsys, k):
@@ -92,7 +92,7 @@ def test_answers_missing_and_ungraded_say_an_error_only_for_an_error(here, capsy
     assert ("such as an error" in out) == bool(why)
 
 
-# D2: the refusal first, and a replay says where its result came from -------------------------
+# The refusal first, and a replay says where its result came from -----------------------------
 
 def _hidden_numbers(ws) -> list[int]:
     split = tf._split(ws)
@@ -158,7 +158,7 @@ def test_a_table_with_the_grades_of_an_earlier_file_names_both(here, capsys):
     assert "The result above is from" not in out
 
 
-# D3: check names the earlier result in fix's own words ----------------------------------------
+# check names the earlier result in fix's own words --------------------------------------------
 
 def test_check_names_an_earlier_result_in_fixs_words(here, capsys):
     """A rule that only breaks 3 answers kept aside: fix says it leans toward worse, and check

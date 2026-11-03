@@ -3,9 +3,10 @@
     python scripts/make_social_preview.py                  # writes website/assets/social-preview.png
     python scripts/make_social_preview.py --chrome PATH    # a Chrome or Chromium to use
 
-It writes a small page with the site's colours and fonts (website/assets/fonts/) and the logo
-at left, alone, so with a small ™ at its top right: the headline, the five steps and the two install commands. Headless Chrome takes it as a
-1200 x 630 PNG. scripts/share_preview.py holds the picture's size and alt text.
+It writes a small page with the site's colours and fonts (website/assets/fonts/): the logo at
+left with a small ™ at its top right, and at right the headline, the five steps and the two
+install commands. Headless Chrome takes it as a 1200 x 630 PNG. scripts/share_preview.py holds
+the picture's size and alt text.
 Standard library only.
 """
 

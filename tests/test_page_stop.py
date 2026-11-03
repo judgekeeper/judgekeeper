@@ -103,9 +103,9 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
 @pytest.mark.parametrize("tool", ["csv", "mlflow"])
 def test_wait_with_a_result_and_answers_left_serves_until_ctrl_c(tmp_path, capsys, monkeypatch,
                                                                  request, tool):
-    """The result, then the page: --wait served it, but asked its own page, not served yet,
-    whether it was open, and stopped at once (busy, exit 3), its server.json left. Ctrl-C
-    after the result's Next: line adds no second one."""
+    """The result, then the page: --wait serves the page and must not ask its own, not yet
+    served, page whether it is open (that would stop at once with "busy", exit 3, and leave
+    server.json behind). Ctrl-C after the result's Next: line adds no second one."""
     import shutil
 
     from judgekeeper import judge_setup, start, start_label

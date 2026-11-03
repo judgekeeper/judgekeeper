@@ -1,6 +1,6 @@
 """`judgekeeper fix`: where the LLM-as-a-judge goes wrong, and a fair test of a new rule.
 
-First run (Screen 5a): half of the marks are set aside and hidden (of each group: the
+First run: half of the marks are set aside and hidden (of each group: the
 LLM-as-a-judge's passes and fails, where the person agrees and where not; at least 5 marked Pass
 and 5 marked Fail); the patterns in the LLM-as-a-judge's mistakes on the other marks;
 .judgekeeper/fix/mistakes.md with each of those mistakes and the LLM-as-a-judge's own reason;
@@ -9,7 +9,7 @@ to grade again; Next: grade them again with a new rule and give `judgekeeper fix
 Nothing about a hidden mark (its id or its text) is printed or written outside split.json and
 marked-answers.csv, which never says which answers are hidden.
 
-Screen 5b: `judgekeeper fix <new results file>` reads the new grades of the hidden marks from
+Second run: `judgekeeper fix <new results file>` reads the new grades of the hidden marks from
 the file and gives the verdict from targets.fix_verdict. No test calls an API.
 """
 
@@ -18,10 +18,12 @@ from __future__ import annotations
 import contextlib
 import csv
 import dataclasses
+import html
 import io
 import json
 import os
 import re
+import shlex
 import stat
 import time
 from pathlib import Path
@@ -235,7 +237,7 @@ def test_new_after_three_rules_keeps_waiting_for_new_marks(here, capsys):
     assert fix.read_split(ws).fresh == {"want": 10} and after["hidden"] == []
 
 
-# Screen 5a -----------------------------------------------------------------------------------
+# The first run: clues and mistakes -----------------------------------------------------------
 
 def test_the_first_run(here, capsys, monkeypatch):
     ws = project(here)
@@ -414,6 +416,32 @@ def test_a_table_judge_grades_the_answers_again_with_its_own_code(here, capsys, 
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
 
 
+@pytest.mark.parametrize("columns, named", [
+    ("input,output,verdict", "`input`, `output`, `verdict`"),
+    ("Input,Output,judge_verdict", "`Input`, `Output`, `judge_verdict`")])
+def test_own_code_is_told_the_first_files_column_names(here, capsys, monkeypatch, columns,
+                                                      named):
+    from tests.start_projects import table_project
+
+    path = table_project(here, [True] * 25 + [False] * 25)
+    text = path.read_text(encoding="utf-8")
+    path.write_text(columns + text[text.index("\n"):], encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--no-browser"]) == 0
+        main(["--stop"])
+    session = StartSession(Workspace(here))
+    for n, item in enumerate(session.items):
+        label = session.groups[item["id"]]
+        session.update({"id": item["id"], "seconds": 5,
+                        "label": ("fail" if label == "pass" else "pass") if n < 6 else label})
+    with only_reads(monkeypatch):
+        _, out = run(capsys)
+    flat = " ".join(out.split())
+    assert (f"{fix.OWN} Save the new grades in a file like your first one, with its column "
+            f"names ({named}).") in flat, flat
+    assert "as its input" not in flat
+
+
 def _marked_own(here, argv=()) -> Workspace:
     """Step 1 run on `here` and every answer marked, 6 it passed marked Fail: the same
     counts of Pass and Fail marks whatever order the queue is in."""
@@ -485,10 +513,11 @@ def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
 
 # The pass mark (free) -------------------------------------------------------------------------
 
-def score_project(root) -> Workspace:
+def score_project(root, extra: int = 0) -> Workspace:
     """A table judge that gives scores, passed at 0.5. The person fails what it passed with a
-    score under 0.7: a better pass mark is 0.7."""
+    score under 0.7: a better pass mark is 0.7. `extra` answers more are left unmarked."""
     scores = [0.52 + 0.019 * i for i in range(25)] + [0.02 + 0.019 * i for i in range(25)]
+    scores += [0.3 + 0.03 * k for k in range(extra)]
     with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])
@@ -502,6 +531,8 @@ def score_project(root) -> Workspace:
     by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
     for item in session.items:
         i = int(re.search(r"Question (\d+)\?", json.dumps(by_id[item["id"]]["input"]))[1])
+        if i >= 50:
+            continue
         label = "pass" if scores[i] >= 0.7 else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
@@ -519,11 +550,407 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
                   r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
-    assert 'Use `--pass-if "score>=0.7"`.' in flat
+    assert 'Use `--pass-if "score>=0.7"`: run `judgekeeper check --pass-if "score>=0.7"`.' in flat
     split = _split(ws)
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
     assert test["n"] == len(split["hidden"])
+
+
+def _main(capsys, *argv):
+    code = main(list(argv))
+    out, err = capsys.readouterr()
+    return code, " ".join((out + err).split())
+
+
+def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here, capsys,
+                                                                           monkeypatch):
+    """Every printed step works: `fix` names `check --pass-if`, which reads the results with
+    that pass mark, compares it on the marks (picked from the marks, so it may read high) and
+    takes it on; later runs with that pass mark find no change."""
+    from judgekeeper import check
+
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")  # result.json
+    main(["--stop"])
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    with only_reads(monkeypatch):
+        flat = " ".join(run(capsys)[1].split())
+    m = re.search(r'Use `--pass-if "(score>=0\.\d+)"`: run `judgekeeper check --pass-if '
+                  r'"(score>=0\.\d+)"`\.', flat)
+    assert m and m[1] == m[2], flat
+    rule = m[1]
+    code, said = _main(capsys, "check", "--pass-if", rule)
+    assert code == 0, said
+    assert f"pass mark 0.5 -> {rule.split('>=')[1]}" in said, said
+    assert check.WRITTEN_FROM_MARK in said and "to write this rule" not in said, said
+    assert "has not changed" not in said
+    printed = [said[said.index("Next:"):]]  # the commands printed from now on: never 0.5
+    # the commands the result names read with the new pass mark, never the old one
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == rule
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert "score&gt;=0.5" not in report and "score>=0.5" not in report
+    code, said = _main(capsys, "--pass-if", rule, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert code == 0 and "changed since your marks" not in said, said
+    assert " -> " not in said and "grades changed" not in said, said  # no change
+    printed.append(said)
+    code, said = _main(capsys, "check", "--pass-if", rule)
+    assert "has not changed since your last check" in said, said
+    printed += [said, _main(capsys, "check")[1], _main(capsys, "mark", "--pass-if", rule,
+                                                         "--no-browser", "--port", "0")[1]]
+    main(["--stop"])
+    printed.append(" ".join(run(capsys)[1].split()))
+    for said in printed:
+        assert "score>=0.5" not in said and "0.5 ->" not in said, said
+
+
+def test_a_plain_run_given_a_new_pass_mark_names_the_check_that_tests_it(here, capsys):
+    score_project(here)
+    _, said = _main(capsys, "--pass-if", "score>=0.7", "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "pass mark 0.5 -> 0.7" in said, said
+    assert 'Next: run `judgekeeper check --pass-if "score>=0.7"`' in said, said
+
+
+def test_check_with_a_pass_mark_the_eval_sets_says_where_to_change_it(here, capsys):
+
+    score_project(here)
+    ws = Workspace(here)
+    data = ws.data()
+    data["pass_mark"] = {**data["pass_mark"], "source": "promptfoo"}
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.7")
+    assert code == 2, said
+    assert ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in your "
+            "eval, so change it there, run your eval, then run `judgekeeper check`.") in said, said
+
+
+def test_check_with_a_pass_mark_for_grades_that_are_no_scores_says_what_it_is_for(here, capsys):
+    project(here)
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.5")
+    assert code == 2, said
+    assert ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
+            "Pass or Fail, so run `judgekeeper check` without it.") in said, said
+
+
+def _marks_with(said: str, rule: str) -> None:
+    """Every `mark` the output names carries the pass mark: without it, mark can't read the
+    scores."""
+    named = re.findall(r"`judgekeeper mark[^`]*`", said)
+    assert named, said
+    for command in named:
+        assert f'--pass-if "{rule}"' in command or f"--pass-if '{rule}'" in command, said
+
+
+def test_every_mark_a_scores_project_names_carries_its_pass_mark(here, capsys):
+    ws = score_project(here)
+    session = StartSession(ws)
+    for item in session.items[12:]:  # too few marks for fix and check
+        session.update({"id": item["id"], "label": None})
+    _, said = _main(capsys, "fix")
+    _marks_with(said, "score>=0.5")
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.7")
+    _marks_with(said, "score>=0.5")  # the pass mark is not taken on: too few marks
+    from judgekeeper import mark_page
+
+    page = mark_page.label_page(None, 'judgekeeper mark --pass-if "score>=0.5"')
+    assert 'judgekeeper mark --pass-if "score>=0.5"' in html.unescape(re.sub(r"<[^>]+>", "", page))
+
+
+def _rule_in_use(ws) -> str:
+    """The pass mark start.json and result.json read the scores with: the same in both."""
+    rule = ws.data()["pass_mark"]["rule"]
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == rule
+    return rule
+
+
+@pytest.mark.parametrize("extra", [20, 0])
+def test_every_step_after_a_new_pass_mark_keeps_it(here, capsys, extra):
+    """A "Not sure" pass mark is taken on: every command its Next names, run in turn, reads
+    the scores with it and never goes back to the old one."""
+    ws = score_project(here, extra=extra)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.72")
+    assert code == 0 and "Compared with before: not sure" in said, said
+    assert _rule_in_use(ws) == "score>=0.72"
+    step = said[said.rfind("Next:"):]
+    _marks_with(step, "score>=0.72")
+    for command in re.findall(r"`(judgekeeper [^`]*)`", step):
+        argv = shlex.split(command)[1:]
+        if argv[0] == "mark" and extra:  # as the person typed them first: no browser
+            assert argv[-3:] == ["--port", "0", "--no-browser"], command
+        elif argv[0] == "mark":  # every answer marked: the same command on every page,
+            argv += ["--no-browser", "--port", "0"]  # which never repeats the page's flags
+        _, out = _main(capsys, *argv)
+        main(["--stop"])
+        capsys.readouterr()
+        assert _rule_in_use(ws) == "score>=0.72", (command, out)
+        assert "back to the one you marked with" not in out, out
+
+
+def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monkeypatch):
+    """A "Not sure" with a big drop keeps the old pass mark: its Next re-checks the one tried,
+    never the old one again."""
+    verdict = targets.paired_verdict
+    monkeypatch.setattr(targets, "paired_verdict", lambda *a: {
+        **(v := verdict(*a)), "exit_worse": v["exit_worse"] or v["verdict"] == "not_sure"})
+    ws = score_project(here, extra=20)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.72")
+    assert "Compared with before: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
+    assert said.endswith('Next: mark more answers with `judgekeeper mark --pass-if '
+                         '"score>=0.5" --port 0 --no-browser`, then run `judgekeeper check '
+                         '--pass-if "score>=0.72"` again.'), said
+
+
+def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, capsys):
+    score_project(here)
+    ws = Workspace(here)
+    data = ws.data()
+    data["pass_mark"] = {k: v for k, v in data["pass_mark"].items() if k not in ("rule", "key")}
+    data["pass_mark"]["source"] = "mapped"
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.7")
+    assert code == 2, said
+    assert ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in "
+            "judgekeeper.toml [start], so change pass_mark there, then run `judgekeeper check`."
+            ) in said, said
+
+
+def test_a_plain_run_never_names_a_check_that_refuses_its_pass_mark(here, capsys):
+    """A pass mark the eval sets can't be tried with `check --pass-if`: the plain run's Next
+    says where to change it, as the check would."""
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    data = ws.data()
+    data["pass_mark"] = {**data["pass_mark"], "source": "promptfoo"}
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    _, said = _main(capsys, "--pass-if", "score>=0.7", "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "check --pass-if" not in said, said
+    assert ("Next: your pass mark is set in your eval, so change it there, run your eval, then "
+            "run `judgekeeper check`.") in said, said
+
+
+def _adopted(here, capsys, monkeypatch, rule="score>=0.7", page=None):
+    """score_project with its result, fix run once, then `check --pass-if rule` (with
+    label.is_open as `page` when given)."""
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    run(capsys)
+    if page is not None:
+        monkeypatch.setattr(label, "is_open", page)
+    return ws, *_main(capsys, "check", "--pass-if", rule)
+
+
+def test_at_a_terminal_the_pass_mark_asked_again_is_the_one_in_use(here, capsys, monkeypatch):
+    """A plain run asks the pass mark again (no --pass-if typed): its default is the one a
+    check took on, so Enter keeps it."""
+    import builtins
+
+    from judgekeeper import start
+
+    ws, code, said = _adopted(here, capsys, monkeypatch)
+    assert code == 0 and _rule_in_use(ws) == "score>=0.7", said
+    asked = []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": asked.append(prompt) or "")
+    _, said = _main(capsys, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "Pass when the score is at least" in asked[0] and "0.7" in asked[0], asked
+    assert "0.5" not in asked[0], asked
+    assert _rule_in_use(ws) == "score>=0.7", said
+
+
+def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, capsys,
+                                                                      monkeypatch):
+    """The page is asked last: a page that does not answer leaves start.json, result.json,
+    report.html and mistakes.md all on the new pass mark, and says how to open it again."""
+
+    def busy(folder):
+        raise label.PageBusy(label.BUSY)
+
+    ws, code, said = _adopted(here, capsys, monkeypatch, page=busy)
+    assert code == 0, said
+    assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
+            "To open it with this one, run `judgekeeper --stop`, then "
+            '`judgekeeper mark --pass-if "score>=0.7" --port 0 --no-browser`.') in said, said
+    assert ws.data()["pass_mark"]["rule"] == "score>=0.7"
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == \
+        "score>=0.7"
+    report = ws.report_html.read_text(encoding="utf-8")
+    assert "score&gt;=0.5" not in report and "score>=0.5" not in report
+    mistakes = (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8")
+    fix.refresh_mistakes(ws)  # already about the new pass mark: written again, the same
+    assert (ws.dir / "fix" / "mistakes.md").read_text(encoding="utf-8") == mistakes
+
+
+def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
+    from judgekeeper import background, check
+
+    stopped = []
+    monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder) or True)
+    _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
+    assert code == 0 and stopped, said
+    assert ("Your marking page closed because it showed a different LLM-as-a-judge. To open it "
+            'with this one, run `judgekeeper mark --pass-if "score>=0.7" --port 0 '
+            '--no-browser`.') in said, said
+    assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
+
+
+def test_a_worse_pass_mark_keeps_the_old_one_and_asks_for_no_grading(here, capsys, monkeypatch):
+    ws, code, said = _adopted(here, capsys, monkeypatch, rule="score>=0.9")
+    step = ('Next: nothing to do; your pass mark stays score>=0.5. To try another, run '
+            '`judgekeeper check --pass-if "score>=N"`.')
+    assert code == 1 and "Compared with before: worse" in said, said
+    assert step in said and "again with it" not in said, said
+    report = html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text(encoding="utf-8")))
+    shown = step.removeprefix("Next: n").replace("`", "")  # "Nothing to do" on the page
+    assert "N" + shown in " ".join(report.split()), report
+    _, said = _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "again with it" not in said, said
+
+
+def test_every_pass_mark_check_says_it_may_read_high(here, capsys, monkeypatch):
+    """A pass mark `fix` never tested may still be one picked by looking at the marks."""
+    from judgekeeper import check
+
+    ws, code, said = _adopted(here, capsys, monkeypatch, rule="score>=0.66")
+    assert code == 0 and "pass mark 0.5 -> 0.66" in said, said
+    caveat = ("If you picked this pass mark by looking at your marks, this may read a few "
+              "points high.")
+    assert check.WRITTEN_FROM_MARK == caveat and caveat in said, said
+    _, said = _main(capsys, "--pass-if", "score>=0.66", "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert caveat in said, said
+    assert caveat in " ".join(ws.report_html.read_text(encoding="utf-8").split())
+
+
+def test_fix_never_offers_the_pass_mark_in_use(here, capsys, monkeypatch):
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    flat = " ".join(run(capsys)[1].split())
+    m = re.search(r'run `judgekeeper check --pass-if "(score>=0\.\d+)"`', flat)
+    assert m, flat
+    code, said = _main(capsys, "check", "--pass-if", m[1])
+    assert code == 0, said
+    session = StartSession(ws)  # mistakes left on the new pass mark: fix says more than "none"
+    shown = set(json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))["visible"])
+    for item in [i for i in session.items if i["id"] in shown and i["label"] == "fail"][:3]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 5})
+    flat = " ".join(run(capsys)[1].split())
+    assert "mistakes" in flat and "nothing to fix" not in flat, flat
+    assert "A better pass mark" not in flat and "instead of 0.5" not in flat, flat
+
+
+def test_a_pass_mark_taken_on_after_fix_found_none_better_is_tested_again(here, capsys,
+                                                                          monkeypatch):
+    """fix found the pass mark in use fits best; a check then took on another one: fix tests
+    from that one, as it was never tested."""
+    from judgekeeper import start_fix
+
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)  # before any split is made
+    ws = score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    choose = start_fix.choose_mark
+    monkeypatch.setattr(start_fix, "choose_mark", lambda rows, current, *a, **k: current)
+    run(capsys)
+    assert _split(ws)["pass_mark"] == {"old": 0.5, "op": ">="}
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.66")
+    assert code == 0 and _rule_in_use(ws) == "score>=0.66", said
+    monkeypatch.setattr(start_fix, "choose_mark", choose)
+    flat = " ".join(run(capsys)[1].split())
+    test = _split(ws)["pass_mark"]
+    assert test["old"] == 0.66 and test["new"] != 0.66, test
+    assert test in _split(ws)["tests"]
+    assert "instead of 0.66" in flat, flat
+
+
+def trade_project(root) -> Workspace:
+    """Scores passed at 0.5, every answer marked. 0.66 fixes 14 of the answers the person
+    failed but breaks 6 of the 43 they passed: better overall, worse on the passed side."""
+    passed = [0.56, 0.58, 0.6, 0.62, 0.63, 0.64] + [0.7 + 0.007 * k for k in range(37)]
+    failed = ([0.1 + 0.017 * k for k in range(20)] + [0.505 + 0.01 * k for k in range(14)]
+              + [0.7 + 0.02 * k for k in range(10)])
+    scores = passed + failed
+    with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        for i, s in enumerate(scores):
+            w.writerow([question(i, TAG), answer(i, TAG), f"{s:.3f}"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--pass-if", "score>=0.5", "--no-browser", "--port", "0"]) == 0
+        main(["--stop"])
+    ws = Workspace(root)
+    session = StartSession(ws)
+    by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    for item in sorted(session.items, key=lambda it: it["id"]):
+        i = int(re.search(r"Question (\d+)\?", json.dumps(by_id[item["id"]]["input"]))[1])
+        session.update({"id": item["id"], "label": "pass" if i < len(passed) else "fail",
+                        "seconds": 5})
+    with contextlib.redirect_stdout(io.StringIO()):
+        main(["--no-browser", "--port", "0", "--pass-if", "score>=0.5"])
+        main(["--stop"])
+    return ws
+
+
+@pytest.mark.parametrize("seed", [0, 1, 7])
+def test_fix_offers_no_pass_mark_check_would_call_worse(here, capsys, monkeypatch, seed):
+    """fix's test is on the marks kept aside, overall; check's rule is per side, on every
+    mark: a pass mark it offers is one check takes on, so the steps never go in a circle."""
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: seed % n)
+    ws = trade_project(here)
+    flat = " ".join(run(capsys)[1].split())
+    offered = re.search(r'run `judgekeeper check --pass-if "(score>=[\d.]+)"`', flat)
+    if offered:
+        _, said = _main(capsys, "check", "--pass-if", offered[1])
+        assert "Compared with before: worse" not in said and _rule_in_use(ws) == offered[1], said
+    held = re.search(r"judgekeeper also tried a pass mark of ([\d.]+) instead of 0\.5: it "
+                     r"fixes more answers overall, but agrees with you less on the answers you "
+                     r"passed \((\d+) of 43, down from 43\), so `check` would call it worse\.",
+                     flat)
+    assert offered or held, flat
+    if held:
+        assert f'--pass-if "score>={held[1]}"' not in flat, flat
+
+
+def test_fix_never_offers_a_pass_mark_check_found_worse(here, capsys, monkeypatch):
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    ws = trade_project(here)
+    first = " ".join(run(capsys)[1].split())
+    held = re.search(r"also tried a pass mark of ([\d.]+)", first)
+    assert held, first
+    _, said = _main(capsys, "check", "--pass-if", f"score>={held[1]}")
+    assert "Compared with before: worse" in said and _rule_in_use(ws) == "score>=0.5", said
+    flat = " ".join(run(capsys)[1].split())
+    assert f"You tried a pass mark of {held[1]} with `check`, and it was worse." in flat, flat
+    assert "also tried" not in flat and f'--pass-if "score>={held[1]}"' not in flat, flat
+
+
+def test_a_worse_headline_names_the_side_that_dropped(here, capsys):
+    """More answers agree overall, but fewer of the ones you passed: the line says which."""
+    from judgekeeper import check
+
+    trade_project(here)
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.66")
+    assert ("Compared with before: worse. Your new LLM-as-a-judge agrees with you less on the "
+            "answers you passed: 37 of 43, down from 43.") in said, said
+    both = {"passed": {"verdict": "worse", "n": 43, "old_right": 43, "new_right": 37},
+            "failed": {"verdict": "worse", "n": 44, "old_right": 30, "new_right": 25}}
+    assert check.result_line(both) == (
+        "Compared with before: worse. Your new LLM-as-a-judge agrees with you less on the "
+        "answers you passed (37 of 43, down from 43) and on the answers you failed (25 of 44, "
+        "down from 30).")
 
 
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])
@@ -545,7 +972,26 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
     assert "also tried a pass mark" not in " ".join(out.split())
 
 
-# The test of a new rule (Screen 5b) ------------------------------------------------------------
+# The test of a new rule ------------------------------------------------------------------------
+
+@pytest.mark.parametrize(("metric", "scorer"), [
+    ("model_graded_qa", "model_graded_qa"), ("grader.accuracy", "grader"),
+    ("my_pkg/qa", "my_pkg/qa"), ("model_graded_qa() (claude-sonnet-4-5)", "<name>"),
+    (None, "<name>")])
+def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, metric, scorer):
+    """Copied and run as it is: a placeholder only for what is not known. The log is kept
+    from Inspect's log folder; a dict score's LLM-as-a-judge is named scorer.key."""
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "tech facts.eval").write_text("x", encoding="utf-8")
+    ws = Workspace(tmp_path)
+    ws.dir.mkdir()
+    data = {"tool": "inspect", "metric": metric, "results_files": ["tech facts.eval"]}
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    assert fix.inspect_score(ws) == (f"inspect score 'logs/tech facts.eval' --scorer {scorer} "
+                                     "--action overwrite")
+    ws.start.write_text(json.dumps({**data, "results_files": ["gone.eval"]}), encoding="utf-8")
+    assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
+
 
 def _hidden_counts(ws) -> tuple[int, int, int]:
     """(hidden, the old rule's right answers, fixed) when the new rule agrees with every mark."""
@@ -582,8 +1028,10 @@ def test_new_results_are_tested_on_the_hidden_marks_and_the_math_gives_the_verdi
     kind = targets.fix_verdict(fixed, 0, n).kind
     assert kind in ("better", "safe")
     assert fix.RESULT[kind] in flat
-    assert flat.endswith(f"Next: keep your new rule, then run `judgekeeper check {new.name}` "
-                         "to re-check it on all your marks.")
+    assert flat.endswith(
+        "Next: copy your new rule from .judgekeeper/fix/regrade.yaml (line "
+        f"{_value_line(ws)}) into promptfooconfig.yaml (line 5), then run "
+        f"`judgekeeper check {new.name}` to re-check it on all your marks.")
 
 
 def test_new_results_with_the_judge_named_otherwise_say_the_name_and_the_command(
@@ -659,8 +1107,8 @@ def test_three_rules_then_a_fresh_set_of_hidden_marks(here, capsys):
     flat = " ".join(out.split())
     assert code == 3 and len(_split(ws)["tests"]) == 3  # the set is retired: no 4th test
     assert "You have tested 3 rules on these marks kept aside." in flat
-    assert ("Mark about 40 more answers for a clear answer (at least 10; with fewer than about "
-            "40, the result will often be \"can't tell yet\").") in flat  # how many, plainly
+    assert ("Only 20 answers are left to mark. Mark them, or add more answers to your "
+            "results.") in flat  # never more than are left (80 answers, 60 marked)
     assert flat.endswith("Next: mark more answers with `judgekeeper mark` (at least 10 more), "
                          "then run `judgekeeper fix` again: they become a new set of marks kept "
                          "aside, and your new results are tested on them.")

@@ -352,8 +352,8 @@ def test_a_printed_command_with_a_home_path_runs_as_pasted_from_the_top_folder(
 
 
 def test_the_file_line_from_the_top_folder_names_no_user(home, tmp_path, monkeypatch):
-    """Screen 1's File: line for results outside the project, run from `/`: `~/...`, never
-    Users/<name>/..."""
+    """The File: line of the first look for results outside the project, run from `/`:
+    `~/...`, never Users/<name>/..."""
     from types import SimpleNamespace
 
     from judgekeeper import front, textio

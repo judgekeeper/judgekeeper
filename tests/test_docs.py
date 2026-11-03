@@ -1,5 +1,5 @@
-"""The README and the docs folder: what each holds, in the agreed words. The README's numbers
-come from the committed reports in docs/examples/.
+"""The README and the docs folder: what each holds, in plain words. The README's numbers come
+from the committed reports in docs/examples/.
 """
 
 from __future__ import annotations
@@ -126,11 +126,10 @@ def test_the_readme_says_where_its_coverage_figures_are():
     line = next(x for x in _readme().splitlines() if x.startswith("- [Simulation]"))
     assert f"held the true value {average} times in 100 on average" in line
     assert "never fewer" not in line
-    # the reference says where the average and the lowest are (and, by test_coverage, repeats
-    # neither figure)
+    # the reference quotes the average and says where the lowest are
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     again = min(grid["batches"]["general"]["per_metric"].values())
-    assert ("The average is the chosen level's Average, in the report's first table. The lowest, "
+    assert (f"{average} times in 100 on average (the report's first table). The lowest, "
             f"{again * 100:.1f}, is after grading again with 10 marks in each group, in batches "
             "(table \"Batches\"). Before grading again, the lowest is "
             f"{lowest}, when marking stops as early as it can: 15 of your Passes, 15 of "
@@ -257,8 +256,7 @@ def test_the_demo_script_checks_the_outline_of_every_frame():
 def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
     """The card (centred over the answer area) is shown in the first marking frames, then it is
     gone: from then on the part of the answer area below any answer text (the card's second
-    headline line and its button, rows 358 to 455) is the page's background, to within 4 levels
-    (a faded card the WebP kept as a faint ghost showed up to 17 above)."""
+    headline line and its button, rows 358 to 455) is the page's background, to within 4 levels."""
     background = (11, 12, 14)
     states = []
     for n, frame in _demo_frames():
@@ -271,3 +269,115 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
     assert states and states[0] == "card", states
     assert 1 <= states.count("card") <= 4 and set(states) <= {"card", "clean"}, states
     assert states == sorted(states, key=lambda state: state != "card"), states  # card, then none
+
+
+# Lines the README and the Guide keep -----------------------------------------------------------
+
+def _step(n: int) -> str:
+    """Step n's line, with the short lines indented under it."""
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith(f"{n}. "))
+    under = []
+    for x in lines[at + 1:]:
+        if not x.startswith("   - "):
+            break
+        under.append(x.strip())
+    return " ".join([lines[at], *under])
+
+
+def _guide(wanted: str) -> str:
+    from tests.website_pages import WEBSITE, parse
+
+    root = parse(WEBSITE / "start.html")
+    (el,) = [e for e in root.iter() if e.attrs.get("id") == wanted]
+    return " ".join(el.text().replace("’", "'").split())
+
+
+STEADY = ("Once in a while an answer you marked comes back a second time, to see how steady "
+          "your marks are. Mark it as you see it.")
+
+
+def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("2. "))
+    assert lines[at].startswith("2. **Mark:** a page opens in your browser. Mark answers Pass or "
+                                "Fail; the LLM-as-a-judge's grade stays hidden.")
+    under = lines[at + 1:at + 4]
+    assert [x[:5] for x in under] == ["   - "] * 3
+    assert STEADY in under[0] and NO_BROWSER in under[1] and "--labels" in under[2]
+
+
+def test_the_mark_step_says_a_marked_answer_comes_back():
+    """About 1 in 20 answers comes back once, so the person's own steadiness can be seen."""
+    assert STEADY in _step(2)
+    assert STEADY in _guide("step-mark")
+
+
+NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the "
+              "link to open instead.")
+
+
+def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
+    """--no-browser prints the link; marks made through a link printed with no terminal (a
+    coding agent read it) get a note on the result, in the words the result uses."""
+    from judgekeeper.start_label import link_lines
+
+    assert NO_BROWSER in _step(2)
+    install = _flat(_sections(_readme())["Install"])
+    (note,) = link_lines({"printed": 2})
+    said = ("The result will say your marks came through a link the agent printed. If you "
+            "marked them yourself, you can ignore that.")
+    assert said in install
+    assert "came through a link printed with no terminal" in note
+    assert "If you marked them yourself, nothing to do." in note
+
+
+def test_the_readme_says_kappa_never_decides():
+    """The result comes from the TPR and TNR ranges only (targets.level); kappa is under
+    More details on the result page and in report.html."""
+    import inspect
+
+    from judgekeeper import report_page, targets
+
+    assert "kappa" not in inspect.getsource(targets.level).lower()
+    assert '<h2 id="details-h">More details</h2>' in inspect.getsource(report_page)
+    kappa = next(x for x in _sections(_readme())["The numbers"].splitlines()
+                 if x.startswith("- **Kappa:**"))
+    assert ('it is under "More details" on the result page and in report.html, and never '
+            "decides the result (TPR and TNR do).") in kappa
+
+
+def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
+    from judgekeeper import fix
+
+    step = _step(4)
+    assert ("It is a loop: change the rule (with promptfoo, usually in "
+            "`.judgekeeper/fix/regrade.yaml`; when it can't write one, `fix` says how), grade "
+            "again, then run `judgekeeper fix <new results file>`.") in step
+    assert ("with promptfoo, usually `.judgekeeper/fix/regrade.yaml`), then run "
+            "`judgekeeper check <new results file>`.") in _step(5)
+    assert "With few marks, \"can't tell yet\" is a normal answer." in step
+    assert "Result: can't tell yet." in fix.RESULT["same"]
+
+
+def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
+    """Grading only the marked answers again compares on them; a mark made later waits until
+    every answer is graded, in the words `check` uses (check.WAIT_NEXT): said the same way in
+    the README, the guide and eval-tools.md."""
+    from judgekeeper import check
+
+    grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
+    said = (f"Grading only your marked answers is enough to compare the two. To count new marks, "
+            f"{grade_all}.")
+    assert said in _step(5)
+    assert said in _guide("step-check")
+    assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
+
+
+def test_the_readme_says_marking_every_answer_leaves_no_range():
+    """With every answer of a group marked its share is known (the reference's maths)."""
+    numbers = _flat(_sections(_readme())["The numbers"])
+    assert ('TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" '
+            "(when you mark every answer, the numbers are exact and have no range).") in numbers
+    reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
+    assert "With every answer of a group marked, its share is known, so it has no range." in reference

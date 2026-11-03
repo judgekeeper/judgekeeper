@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import signal
 import sys
 import textwrap
+import threading
 import traceback
 from pathlib import Path
 
@@ -67,6 +69,8 @@ NEXT_HELP = "run `{command}` to see the options."
 NEXT_REMOVED = "run `{command}` in your project."
 NEXT_STOPPED = "run `{command}` to carry on."
 NEXT_BUSY = "run `{command}` again."
+NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
+PAGE_FLAGS = ("--port", "--no-browser")
 
 MESSAGE = "Check your LLM-as-a-judge in 5 steps."
 STEPS = """\
@@ -95,8 +99,8 @@ COMMANDS_HELP = (
     ("check", "re-check your LLM-as-a-judge on your marks after a change"),
 )
 HELP_WIDTH = 80
-# Removed commands: the 0.1 CI gate, setup (part of judgekeeper now) and start (its steps are
-# judgekeeper, mark, fix and check now). Each prints one line and exits 2.
+# Commands that no longer exist (the CI gate, setup, start and the rest): each prints one line
+# and exits 2.
 REMOVED = ("init", "judge", "validate", "baseline", "gate", "migrate", "import", "setup",
            "start")
 
@@ -314,6 +318,10 @@ def _parser() -> argparse.ArgumentParser:
                     help="a new results file or MLflow store (mlflow.db or an mlruns/ "
                          "folder), or your project folder (default: this folder, with its "
                          "newest results)")
+    ck.add_argument("--pass-if", metavar="RULE",
+                    help="re-check with this pass mark for your LLM-as-a-judge's scores (the "
+                         "one fix suggests), e.g. 'score>=0.7', instead of the one you marked "
+                         "with")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
@@ -378,7 +386,7 @@ def cmd_mark(args) -> int:
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path)
+    return check.run(args.path, pass_if=args.pass_if)
 
 
 def cmd_fix(args) -> int:
@@ -453,6 +461,23 @@ def _command(args_list: list[str]) -> str | None:
     return name if name in (*COMMANDS, *REMOVED) else None
 
 
+def _without_page_flags(args_list: list[str]) -> list[str]:
+    """The arguments with --port (and its value) and --no-browser left out."""
+    out, skip = [], False
+    for i, arg in enumerate(args_list):
+        if skip:
+            skip = False
+        elif arg == "--":  # what follows is a path, never a flag
+            return out + args_list[i:]
+        elif arg == "--port":
+            skip = True
+        elif arg == "--no-browser" or arg.startswith("--port="):
+            continue
+        else:
+            out.append(arg)
+    return out
+
+
 def parse_args(args_list: list[str]) -> argparse.Namespace:
     """The arguments as `main` reads them: a command's own, or those of `judgekeeper` with no
     command (`command` None). A removed command, or arguments that do not parse, raise
@@ -463,6 +488,10 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
         print(f"judgekeeper {command} was removed. Run {program()} in your project.",
               file=sys.stderr)
         _next(NEXT_REMOVED.replace("{command}", program()))
+        raise SystemExit(EXIT_USAGE)
+    if command in ("fix", "check") and (kept := _without_page_flags(args_list)) != args_list:
+        print(NO_PAGE.format(command=command), file=sys.stderr)
+        _next(f"run `{program(' '.join(textio.quote_arg(a) for a in kept))}`.")
         raise SystemExit(EXIT_USAGE)
     parser = _parser() if command else _front_parser()
     if command:  # an unknown flag is said by the command itself, with its own usage
@@ -476,25 +505,87 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
+def _forget_ctrl_c() -> None:
+    """No Ctrl-C noted by an earlier run in this process reaches this one, or the next."""
+    textio.ctrl_c.clear()
+    reader = sys.modules.get("judgekeeper.readers.inspect_logs")
+    if reader is not None:
+        reader._stopping.clear()
+
+
+def _ours(handler) -> bool:
+    """A Ctrl-C handler judgekeeper puts in (textio.note_ctrl_c, the Inspect AI reader's)."""
+    return handler is textio.note_ctrl_c or \
+        getattr(handler, "__module__", None) == "judgekeeper.readers.inspect_logs"
+
+
+def _note_ctrl_c():
+    """Put textio.note_ctrl_c in for the run in place of Python's own Ctrl-C handler; the
+    handler to put back afterwards, or None (not the main thread, or a handler of someone
+    else's). One of judgekeeper's own left from before (a reader closed late) is Python's
+    own again afterwards."""
+    _forget_ctrl_c()
+    if threading.current_thread() is not threading.main_thread():
+        return None
+    found = signal.getsignal(signal.SIGINT)
+    if found is not signal.default_int_handler and not _ours(found):
+        return None
+    signal.signal(signal.SIGINT, textio.note_ctrl_c)
+    return signal.default_int_handler
+
+
+def _late(signum, frame) -> None:
+    """A Ctrl-C once the command is done (its result being said and flushed, the entry
+    point's last lines): only noted, so the result is printed whole and no traceback."""
+
+
+def _late_in(held) -> None:
+    """_late in place of judgekeeper's Ctrl-C handler, when main put one in (`held`)."""
+    if held is not None:
+        signal.signal(signal.SIGINT, _late)
+
+
+def put_back() -> None:
+    """Python's own Ctrl-C handler back in place of _late (the one _note_ctrl_c replaced):
+    the very last step."""
+    if signal.getsignal(signal.SIGINT) is _late:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+def main(argv: list[str] | None = None, last: bool = True) -> int:
+    """The commands. `last`: put Python's Ctrl-C handler back before returning; else the
+    caller (the entry point) does, as its very last step (put_back)."""
     project.forget()  # a test or a long session may run many commands in one process
+    held = _note_ctrl_c()
     try:
-        code = _main(argv)
-    except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
-        code = EXIT_OK
-    except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
         try:
-            code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
-        except OSError:  # stdout can't take "Stopped.": still stopped
-            code = EXIT_STOPPED
+            try:
+                code = _main(argv)
+            finally:
+                _late_in(held)  # done: a Ctrl-C from here is only noted
+            if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
+                raise KeyboardInterrupt
+        except BrokenPipeError:  # piped into a program that stopped reading (`| head`)
+            code = EXIT_OK
+        except KeyboardInterrupt:  # before a command started (the flags): as _main says it
+            _late_in(held)  # pressed before the line above: "Stopped." is said whole
+            try:
+                code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
+            except OSError:  # stdout can't take "Stopped.": still stopped
+                code = EXIT_STOPPED
+    finally:
+        _forget_ctrl_c()  # a note never outlives its run
     # A closed or broken stream shows here, not in Python's own flush at exit (exit 120): the
     # code stays
     flush_stdout()
     flush_stdout(err=True)
+    if last:
+        put_back()
     return code
 
 
 def _stopped(args_list: list[str]) -> int:
+    textio.ctrl_c.clear()  # said here: the Next: line below is the run's own
     if textio.next_said:  # the run was done: no second Next: line
         return EXIT_STOPPED
     _say("")
@@ -513,7 +604,7 @@ def _main(argv: list[str] | None) -> int:
     except SystemExit as e:
         if e.code in (0, None):
             return EXIT_OK
-        if _command(args_list) not in REMOVED:  # a removed command said its Next: line
+        if not textio.next_said:  # a removed command or a page flag said its Next: line
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:

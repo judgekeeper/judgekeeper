@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from judgekeeper import mapper, own_format, settings, start
+from judgekeeper import mapper, own_format, settings, start, textio
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import scrub
@@ -28,7 +28,7 @@ MAX_PATHS = 24
 RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one judgekeeper.record() "
                f"line where it runs: {own_format.RECORD_URL} shows the line.")
 NOT_UTF8 = "is not saved as UTF-8 text"  # textio.not_utf8_message
-QUOTE = re.compile(r"line (\d+) of .+ has a quote that never closes")
+QUOTE = re.compile(r"line (\d+) of .+ (has a quote that never closes|has more cells than its)")
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 
 
@@ -42,9 +42,9 @@ def cannot(talk: Talk, rel: str, why: str):
     quote = QUOTE.match(why)
     if quote:  # the file is read once the quote is closed
         _para(talk, f"{why[:1].upper()}{why[1:]}.")
-        return talk.stop(EXIT_USAGE, f"close the quote on line {quote[1]} of "
-                                     f"{Path(rel).name}, then run `{talk.command()}`.",
-                         as_given=True)
+        fix = "close the quote on" if "never closes" in quote[2] else "fix"
+        return talk.stop(EXIT_USAGE, f"{fix} line {quote[1]} of {Path(rel).name}, then run "
+                                     f"`{talk.command()}`.", as_given=True)
     if NOT_UTF8 in why:  # the file is read once it is saved as UTF-8
         _para(talk, f"{why}.")
         return talk.stop(EXIT_USAGE, f"save {Path(rel).name} as UTF-8, then run "
@@ -102,6 +102,9 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         lines.append(f"  model:           {judge_model} (given with --judge-model)")
     elif g.model_key:
         lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
+    elif g.model_refused:  # never shown as read
+        lines.append(f"  model:           {g.model_refused} holds no model's name "
+                     "(add --judge-model NAME)")
     else:
         lines.append("  model:           not in the file (add --judge-model NAME)")
     if g.kind == "score":
@@ -247,6 +250,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
     from judgekeeper.readers.mapped import read_mapped
 
     rel = path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+    file, rel = rel, textio.shown_in(path, root)  # kept in judgekeeper.toml; said as File: is
     try:
         units = [u for _, u in mapper.load_numbered(path)]
         g = mapper.guess(units)
@@ -254,8 +258,9 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         raise cannot(talk, rel, str(e)) from None
     lines = "" if path.suffix.lower() == ".json" else \
         f" ({len(units)} {'line' if len(units) == 1 else 'lines'})"  # one JSON document: none
-    talk.say(f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
-             if found else f"{rel}{lines}:")
+    getattr(talk, "para", talk.say)(  # wrapped on `judgekeeper`'s screens; the path stays whole
+        f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
+        if found else f"{rel}{lines}:")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
     talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
     for p in listed[:MAX_PATHS]:
@@ -306,7 +311,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
             hint=""):
         m["leave_out"] = True
     op = g.pass_op if mark is not None and g.pass_op != ">=" else None
-    saved = settings.StartSettings(source="map", file=rel, judge=judge, pass_mark=mark,
+    saved = settings.StartSettings(source="map", file=file, judge=judge, pass_mark=mark,
                                    pass_op=op, model=kept, map=m)
     try:
         records = [r for _, recs in read_mapped(path, {**m, "judge": judge, "pass_mark": mark,

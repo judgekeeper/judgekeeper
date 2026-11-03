@@ -63,11 +63,13 @@ from judgekeeper.records import (
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import (
     KNOWN_COLUMNS,
+    MORE_CELLS,
     _blank,
     make_fingerprint,
     open_quote,
     read_table,
     sheet_id,
+    wide_row_hint,
 )
 from judgekeeper.textio import (
     flush_stdout,
@@ -198,9 +200,12 @@ def repeated_flags(path: str | Path = ".", port: int = DEFAULT_PORT, no_browser:
 def path_word(path: str | Path, kept: bool = False) -> str:
     """The path a command is given, as a printed command repeats it: one typed in full is
     said from here in a terminal (textio.runnable), never the whole path; one kept in a file
-    or on the page (`kept`) is from the project folder already (front._flags_of)."""
+    or on the page (`kept`) is from the project folder already (front._flags_of). One typed
+    from here through a top folder (textio.through_top) is said as a whole one is."""
     if not kept and os.path.isabs(str(path)):
         return textio.runnable(str(path), labels=False)
+    if not kept and textio.through_top(path):
+        return textio.runnable(os.path.abspath(path), labels=False)
     return quote_arg(path, kept)
 
 
@@ -259,6 +264,28 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
     saved_flags), written again by repeated_flags: never a command's text read from a file."""
     return " ".join((textio.program(subcommand),
                      *repeated_flags(kept=kept, **saved_flags(flags))))
+
+
+def saved_back(back) -> dict | None:
+    """How to come back to a page as typed where it was started (front._back): the path as
+    given there and the program as typed there, each one line of text; else None."""
+    def ok(value) -> bool:
+        return isinstance(value, str) and value.isprintable() and 0 < len(value) < 4096
+
+    if isinstance(back, dict) and ok(back.get("path")) and ok(back.get("program")):
+        return {"path": back["path"], "program": back["program"]}
+    return None
+
+
+def come_back(flags, back=None) -> str:
+    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: typed
+    where the page was started (`back`, saved_back) when known, else in the project folder
+    (command_from)."""
+    back = saved_back(back)
+    if back is None:
+        return command_from(flags, "mark", kept=True)
+    words = repeated_flags(kept=True, **{**saved_flags(flags), "path": back["path"]})
+    return " ".join((f"{back['program']} mark", *words))
 
 
 def kept_check(path, root) -> str:
@@ -596,6 +623,14 @@ def _models_named(rows: list[dict], column: str) -> bool:
                                 for v in values)
 
 
+def model_column(rows: list[dict], columns) -> tuple[str | None, bool]:
+    """The column that names the LLM-as-a-judge's model (judge_model, else model) and whether
+    it names one (mapper.names_models, the rule a JSONL's judge_model field has too)."""
+    column = next((c for c in ("judge_model", "model") if c in columns
+                   and any(not _blank(row.get(c)) for row in rows)), None)
+    return column, column is not None and mapper.names_models([row.get(column) for row in rows])
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
@@ -609,6 +644,11 @@ def read_results_table(path: Path) -> RecordList:
                          "rows after it can't be read.",
                          f"close the quote on line {line} of {path.name}, then run "
                          "`{command}`.")
+    wide = wide_row_hint(path)
+    if wide is not None:  # one row of two: the second one's answer would be lost
+        line, hint = wide
+        raise StartError(f"{path.name} {MORE_CELLS} (line {line}){hint}.",
+                         f"fix line {line} of {path.name}, then run `{{command}}`.")
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
@@ -617,8 +657,8 @@ def read_results_table(path: Path) -> RecordList:
     columns = list(dict.fromkeys(k for row in rows for k in row))
     if "output_a" in columns and "output_b" in columns:
         raise StartError(PAIRWISE)
-    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but a
-                and not (c == "judge" and _models_named(rows, c))]  # judge column of gpt-4o
+    verdicts = [c for c in find.VERDICT_COLUMNS if c in columns  # each one is a judge, but not
+                and not (c == "judge" and _models_named(rows, c))]  # a "judge" column of names
     if verdicts:  # and a 0/1 column named for a judge (llm_judge), the judge-named first
         verdicts = mapper._judge_first(verdicts + [
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
@@ -636,6 +676,9 @@ def read_results_table(path: Path) -> RecordList:
                              f"of {path.name}, then run `{{command}}`.")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
+    model_at, named = model_column(rows, columns)
+    if model_at and not named:  # "string_match": a rule's name, not a model's
+        records.model_refused, model_at = model_at, None
     if "id" in columns and not own:
         records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     for n, row in enumerate(rows, 1):
@@ -643,9 +686,7 @@ def read_results_table(path: Path) -> RecordList:
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
-        model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
-        if not mapper._model_like(model):  # "string_match": a rule's name, not a model's
-            model = None
+        model = row.get(model_at) if model_at else None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         for verdict in verdicts:
             records.append(ScoreRecord(
@@ -747,21 +788,28 @@ def _read_records(talk: Talk, results: list[find.Result]) -> list[Loaded]:
         except RecordsError as e:
             text = str(e).removeprefix(f"{r.path.name} is damaged: ")
             text = text[text.find("line "):] if "line " in text else text
-            talk.say(f"  {r.rel} could not be read ({text.rstrip('.')}), so it was left out.")
+            talk.say(f"  {_here(r)} could not be read ({text.rstrip('.')}), so it was left out.")
             continue
         if len(records) > room:
             del records[room:]
             cut = True
         room -= len(records)
         if CUT_END in records.notes:
-            talk.say(f"  Note: the last line of {r.rel} was cut short (the program stopped while "
+            talk.say(f"  Note: the last line of {_here(r)} was cut short (the program stopped while "
                      "writing it) and was left out.")
         for warning in records.warnings:
             talk.say(f"  {warning}")
         loaded.append(Loaded(r.rel, records))
     if cut:
-        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=_folder_of(results[0]))}")
+        here = Path(_here(results[0])).parent.as_posix()
+        folder = _here(results[0]) if here == "." else f"{here}/"
+        talk.say(f"  {RECORDS_CAPPED.format(n=table.MAX_ROWS, folder=folder)}")
     return loaded
+
+
+def _here(result: find.Result) -> str:
+    """A records file as a line names it: from where the command runs (shown_from_here)."""
+    return textio.shown_from_here(result.path)
 
 
 def given_model(fp: dict, root) -> str | None:
@@ -1082,6 +1130,7 @@ class Found:
     rule_field: str | None = None  # Inspect: "instructions" or "template", the rule's field
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
+    model_refused: str | None = None  # a model column that names no model (not read)
     experiment: str | None = None  # MLflow: the experiment read
     stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
@@ -1223,8 +1272,8 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {shown_path(root)}. judgekeeper looked "
-             f"{find.looked(root).replace(' from ' + root.name, '')}.")
+    talk.say(f"No saved eval results found in {textio.folder_words(shown_path(root))}. "
+             f"judgekeeper looked {find.looked(root).replace(' from ' + root.name, '')}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
                  + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
@@ -1390,7 +1439,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                   else f"{rel} {how}, so it was left out.")
     above = _read_above(root, found, tool)
     if above is not None and above[0] == "records":  # record() saves at the project root
-        talk.say(RECORDS_ABOVE.format(root=textio.shown_from_here(above[1])))  # `..`, never whole
+        above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
+        _note(talk, RECORDS_ABOVE.format(root=above_here))
         talk.say()
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
@@ -1404,7 +1454,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {find.NAMES[tool]} results found in {shown_path(root)}.")
+            raise StartError(f"No saved {find.NAMES[tool]} results found in "
+                             f"{textio.folder_words(shown_path(root))}.")
         available = [tool]
     if not available:
         if found.too_big():  # said above, with how to read them anyway
@@ -1719,13 +1770,13 @@ def _promptfoo_configs(root: Path) -> dict[str, str | None]:
             continue
         for entry in entries:
             path = Path(entry.path)
-            if entry.is_symlink():
-                continue
-            if entry.is_dir(follow_symlinks=False):
+            what = find.kind(entry)  # a device, a pipe or a link: skipped
+            if what == find.DIR:
                 if find._walked(entry.name) and len(path.relative_to(root).parts) < \
                         find.TABLE_DEPTH:
                     queue.append(path)
-            elif path.suffix.lower() in CONFIG_SUFFIXES and looked < MAX_CONFIGS:
+            elif what == find.FILE and path.suffix.lower() in CONFIG_SUFFIXES and \
+                    looked < MAX_CONFIGS:
                 looked += 1
                 config, description = _promptfoo_config(path)
                 if config:
@@ -1828,7 +1879,7 @@ def _choose_metric(talk: Talk, newest: Loaded, metric: str | None,
         raise _no_judge(talk, kind, [newest.label], _rules_in_code(newest.records, kind))
     if metric is None and prefer in counts:
         return prefer
-    if metric == OLD_DEFAULT_NAME and metric not in counts:  # saved before 1.1
+    if metric == OLD_DEFAULT_NAME and metric not in counts:  # the old default name: use the new one
         metric = DEFAULT_NAME
     if metric is not None and metric not in counts:  # a name start.json keeps with its keys
         # hidden: the one it stands for
@@ -2173,6 +2224,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=(_inspect_field(records) if kind == "inspect" and rule else
                              _geval_field(records) if kind == "deepeval" and rule else None),
                  models=models, model_source=model_source, experiment=name,
+                 model_refused=first.records.model_refused,
                  stopped=list(dict.fromkeys(n for x in used for n in x.records.notes))
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,

@@ -105,6 +105,19 @@ def counting(data: dict, labels: dict[str, str], known: tuple | None = None) -> 
     return out
 
 
+def graded(data: dict, labels: dict[str, str]) -> dict[str, str]:
+    """The marks on answers the LLM-as-a-judge now has graded. A mark on an answer only an
+    earlier judge graded (`earlier_grades`, check._adopt) waits: it is never counted as this
+    judge's grade, and counts once `check` gets this judge's grade on it."""
+    earlier = set(data.get("earlier_grades") or [])
+    return {i: m for i, m in labels.items() if i not in earlier} if earlier else labels
+
+
+def waiting(data: dict, labels: dict[str, str]) -> int:
+    """How many of the marks `labels` wait (graded)."""
+    return len(labels) - len(graded(data, labels))
+
+
 def counted_labels(data: dict, labels: dict[str, str]) -> dict[str, str]:
     """The marks of the batches that count."""
     batch = of(data)
@@ -285,7 +298,10 @@ def add(ws, found) -> int:
                                      "seed": data.get("seed")}]
     added.append({"batch": batch, "results_files": list(found.used), "added_at": utc_now(),
                   "seed": seed, "answers": len(named)})
+    from judgekeeper.labels import left_kept
+
     data.update(queue=queue, batches=added, pool_sha256=pool_sha, updated_at=utc_now(),
+                left=left_kept(found.pool.left, data.get("left")),
                 results_seen=results_key(found),
                 pool={**(data.get("pool") or {}), "answers": len(queue),
                       "pass": kinds.count("pass"), "fail": kinds.count("fail")})

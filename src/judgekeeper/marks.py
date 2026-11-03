@@ -10,9 +10,10 @@ import and "from": the file's base name, or "results" for the labels already in 
 
 A reason line (reasons.py) carries the same mark and changes only the reasons, so the mark
 keeps its own time. The last line for an answer wins. A line without its stamps (`by`, `at`,
-`sitting`), or one that can't be read, is not counted, and the result says how many. The file
-holds no answer or input text: that stays in pool.jsonl. Lines are only ever added, never
-through a link.
+`sitting`) is not counted, and the result says how many; one that can't be read (cut by a full
+disk or a power cut) is left out, and the run says so. The file holds no answer or input text:
+that stays in pool.jsonl. Lines are only ever added, never through a link, and a cut last line
+gets its newline first.
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ FROM_RESULTS = "results"  # "from" of the labels already in the results
 STAMPS = ("by", "at", "sitting")
 PRINTED = "printed"
 BROWSER_ENV = "browser-env"  # the page was opened by the program named in BROWSER
-ASKED = "asked"  # before 1.1: a link printed at a terminal with --no-browser (read, not said)
+ASKED = "asked"  # a link printed at a terminal with --no-browser (read, not said)
 LINKS = (PRINTED, BROWSER_ENV, ASKED)
 
 
@@ -187,7 +188,7 @@ def append(path: str | Path, data: dict) -> None:
     path = Path(path)
     _refuse_links(path)
     with open_private(path, "a", encoding="utf-8", newline="\n") as f:
-        f.write(_line(data))
+        f.write(_cut(path) + _line(data))
 
 
 def append_all(path: str | Path, lines: list[dict]) -> None:
@@ -197,14 +198,28 @@ def append_all(path: str | Path, lines: list[dict]) -> None:
     path = Path(path)
     _refuse_links(path)
     with open_private(path, "a", encoding="utf-8", newline="\n") as f:
-        f.write("".join(_line(x) for x in lines))
+        f.write(_cut(path) + "".join(_line(x) for x in lines))
+
+
+def _cut(path: Path) -> str:
+    """"\n" when the file's last line was cut (no newline at its end: a full disk, a power
+    cut during a write), so that the next line never joins it; else ""."""
+    try:
+        with open(path, "rb") as f:
+            if f.seek(0, os.SEEK_END) == 0:
+                return ""
+            f.seek(-1, os.SEEK_END)
+            return "" if f.read(1) == b"\n" else "\n"
+    except FileNotFoundError:
+        return ""
 
 
 @dataclass
 class Marks:
     header: dict | None = None
     last: dict[str, dict] = field(default_factory=dict)  # answer id -> its last stamped line
-    not_counted: int = 0  # lines without their stamps, or that can't be read
+    not_counted: int = 0  # lines without their stamps
+    unreadable: int = 0  # lines that can't be read (one cut by a full disk or a power cut)
     after_result: set[str] = field(default_factory=set)  # changed after the grades were shown
     gap: dict[str, float] = field(default_factory=dict)  # answer id -> seconds since the mark
     # before it in the same sitting, by `at`: the timing when the page sent no `seconds`
@@ -279,7 +294,7 @@ def _parse(text: str) -> Marks:
         try:
             x = loads(raw)
         except ValueError:
-            out.not_counted += 1
+            out.unreadable += 1
             continue
         if n == 0 and isinstance(x, dict) and x.get("marks") == VERSION:
             out.header = x
@@ -395,3 +410,12 @@ def not_counted_line(n: int) -> str | None:
     if n == 1:
         return f"1 line in {FILE} was not made on the page and is not counted."
     return f"{n} lines in {FILE} were not made on the page and are not counted."
+
+
+def unreadable_line(m: Marks) -> str | None:
+    """Said once by the run that reads the marks: lines that can't be read are left out."""
+    n = m.unreadable
+    if not n:
+        return None
+    lines = "1 line" if n == 1 else f"{n} lines"
+    return f"{lines} in .judgekeeper/{FILE} could not be read; the others are used."

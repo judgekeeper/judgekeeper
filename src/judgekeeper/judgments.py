@@ -133,8 +133,8 @@ def read_run(path: str | Path) -> tuple[dict, dict[str, dict]]:
     records: dict[str, dict] = {}
     for rec in rows[1:]:
         if rec.get("type") != "judgment" or "id" not in rec:
-            raise JudgmentsError(f"{shown_path(path)}: malformed judgment line {rec!r:.80}")
+            raise JudgmentsError(f"{shown_path(path)}: malformed grade line {rec!r:.80}")
         if "fingerprint" not in rec:
-            raise JudgmentsError(f"{shown_path(path)}: judgment {rec['id']} has no fingerprint")
+            raise JudgmentsError(f"{shown_path(path)}: grade {rec['id']} has no fingerprint")
         records[rec["id"]] = rec
     return header, records

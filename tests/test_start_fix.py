@@ -64,6 +64,9 @@ def test_the_mark_choice_on_a_hand_worked_example():
     assert start_fix.choose_mark(fits, 0.5, ">=", weights) == 0.5
     lower = [("pass", "pass", 0.2), ("pass", "fail", 0.6), ("fail", "fail", 0.9)]
     assert start_fix.choose_mark(lower, 0.7, "<=", weights) == 0.4
+    # A mark held back is passed over for the next best; the current mark never is.
+    assert start_fix.choose_mark(items, 0.5, ">=", weights, skip=lambda m: m == 0.7) != 0.7
+    assert start_fix.choose_mark(fits, 0.5, ">=", weights, skip=lambda m: True) == 0.5
 
 
 def test_the_mark_is_the_shortest_number_inside_its_gap():

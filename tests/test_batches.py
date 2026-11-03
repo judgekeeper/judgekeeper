@@ -1,8 +1,7 @@
 """New eval answers join the marking as batches.
 
 - With one batch, every number is the one judgekeeper gives with no batches, to the last digit
-  (fixtures/batches/one-batch.json, saved from judgekeeper before batches and saved again when
-  the draws changed for small pools and for fresh verdicts).
+  (the numbers are saved in fixtures/batches/one-batch.json).
 - A second batch is added when the newest results hold new graded answers and the LLM-as-a-judge
   is the same; never when the LLM-as-a-judge changed.
 - The marking page offers the newest batch first, half passed and half failed.
@@ -59,7 +58,7 @@ def _jsonable(x):
     return json.loads(json.dumps(x, sort_keys=True, default=str))
 
 
-# With one batch, today's numbers --------------------------------------------------------------
+# With one batch, the same numbers as with no batches ------------------------------------------
 
 @pytest.mark.parametrize("key", [k for k in BEFORE["pure"] if k.startswith("corrected")])
 def test_one_batch_gives_the_same_corrected_numbers(key):
@@ -697,9 +696,9 @@ def test_one_newer_answer_needs_a_mark():
         "first.")
 
 
-# the mark command once on the result screen ----------------------------------------------
+# the result screen asks why with the mark command ---------------------------------------
 
-def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
+def test_the_result_screen_asks_why_with_the_mark_command(here, capsys, pages):
     promptfoo_project(here, split(30, 30))
     ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
     person = {i: ("fail" if i in (1, 2, 3) else "pass") if i < 30
@@ -713,8 +712,9 @@ def test_the_result_screen_names_the_mark_command_once(here, capsys, pages):
     assert "Too early to tell" in out or "too early to tell" in out, out
     run(capsys, "--stop")
     _, out, _ = run(capsys, "--no-browser")
-    assert flat(out).count("judgekeeper mark") == 1, out
-    assert "The Next step below also lets you say why on these." in flat(out)
+    assert "The Next step below" not in flat(out), out
+    assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+                     r"`judgekeeper mark --no-browser`\.", flat(out)), out
     assert _next(out) == "Next: run `judgekeeper mark --no-browser` to mark more answers."
 
 

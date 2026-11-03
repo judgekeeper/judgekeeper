@@ -14,6 +14,7 @@ No test calls an AI API.
 
 from __future__ import annotations
 
+import html as html_text
 import json
 import os
 import re
@@ -43,7 +44,7 @@ def here(tmp_path, monkeypatch):
 
 # The wording sweep --------------------------------------------------------------------------
 
-OLD_WORDS = [  # (where, the old text)
+OLD_WORDS = [  # (where, text that must not appear)
     ("src", r"Re-checked for free"),
     ("README.md", r"checks its grades for free"),
     ("README.md", r"never runs your app"),
@@ -452,3 +453,10 @@ def test_the_not_saved_line_names_how_to_open_the_page_again():
 
     assert NO_ANSWER in mark_page.label_page(None)
     assert "terminal" not in mark_page.label_page(None).split("Not saved")[1][:200]
+    # a command typed in another folder, or a path held back as NAME, is the footer's alone
+    page = mark_page.label_page(None, "../.venv/bin/judgekeeper mark p2 --port 9611",
+                                held=["p2"])
+    line = page.split("Not saved")[1][:200]
+    assert NO_ANSWER in page and "p2" not in line and ".venv" not in line
+    shown = html_text.unescape(re.sub(r"<[^>]+>", "", page))
+    assert "../.venv/bin/judgekeeper mark p2 --port 9611" in shown and "NAME: p2" in shown

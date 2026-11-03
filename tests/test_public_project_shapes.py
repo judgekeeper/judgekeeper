@@ -488,7 +488,7 @@ def test_a_judge_table_with_no_answer_column_is_named(here, capsys, name, column
     assert (f"{name} has your LLM-as-a-judge's verdicts but no answer text, so there's nothing to show "
             "you for marking.") in flat(out)
     line = assert_one_next_at_the_end(out)
-    assert "add the answer column (the text that was judged)" in flat(out)
+    assert "add the answer column (the text that was graded)" in flat(out)
     assert "`judgekeeper`" in line
 
 

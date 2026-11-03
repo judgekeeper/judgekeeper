@@ -9,7 +9,7 @@
 - A wrong PATH, or a folder under the project, says where it looked.
 - No "since the last check" before any check; a missing results file is said plainly.
 - Output piped into a program that stops reading ends quietly.
-- Screen 6a: the agreed words for "nothing changed" and "changed after your last eval run".
+- The words for "nothing changed" and "changed after your last eval run".
 No test calls an API: check only reads the results files.
 """
 
@@ -50,7 +50,7 @@ def _lock(root, version: str, later: float = 0) -> None:
         os.utime(path, (stamp, stamp))
 
 
-# Screen 6a ------------------------------------------------------------------------------------
+# The words for "nothing changed" and "changed after your last eval run" -----------------------
 
 def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     _marked(here)
@@ -92,7 +92,7 @@ def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here
     said = _flat(out)
     assert code == 3, out
     assert "rule changed" in said and "40 of your 50 marked answers had no grade" in said, out
-    assert "Result: can't tell yet." in said
+    assert "Compared with before: can't tell yet." in said
     assert "wrote new answers" not in said and "nothing to compare" not in said, out
     assert "Grade the answers you marked: 1. Change the grader in" in said, out
 
@@ -145,7 +145,7 @@ def test_a_path_that_does_not_exist(here, capsys):
     _marked(here)
     code, out = run(capsys, "nope.json")
     assert code == 2
-    assert "There is no file or folder named nope.json here." in out
+    assert "There is no file named nope.json here." in out
     assert _next(out) == ("Next: give `judgekeeper check` your new results file, or run it in "
                           "your project folder.")
 
@@ -252,7 +252,7 @@ def test_a_worse_judge_stays_worse_until_it_goes_back(here, capsys):
     _results(here, MARKED)  # back to the old judge
     code, out = run(capsys)
     assert code == 0 and "has not changed" not in out
-    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)  # v2-bugfix-2 LE3
+    assert "Your LLM-as-a-judge is back to the one you marked with" in _flat(out)
 
 
 def test_after_worse_judgekeeper_still_points_at_check(here, capsys):

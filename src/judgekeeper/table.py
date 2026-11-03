@@ -138,6 +138,41 @@ def header(text: str, suffix: str) -> list[str]:
         return []
 
 
+def written_header(path: str | Path) -> list[str]:
+    """A CSV or TSV file's column names as written in it (the same name twice too), read one
+    line at a time as read_kept does: a big file is never held. [] when it can't be read."""
+    from contextlib import closing
+
+    path = Path(path)
+    try:
+        with closing(utf8_lines(path, TableError)) as lines:
+            first = next(lines, "")
+            reader = csv.reader(itertools.chain([first], lines) if first else iter(()),
+                                delimiter=_delimiter(first, path.suffix.lower()))
+            return next(reader, [])
+    except (OSError, TableError, csv.Error):
+        return []
+
+
+def columns(path: str | Path) -> list[str]:
+    """The column names of a CSV, TSV or JSONL file as written in it (a JSONL file's first
+    object's keys), or [] when it can't be read."""
+    path = Path(path)
+    try:
+        text = read_utf8(path, TableError)
+    except (OSError, TableError):
+        return []
+    suffix = path.suffix.lower()
+    if suffix in (".csv", ".tsv"):
+        return header(text, suffix)
+    line = next((line for _, line in _lines(text) if line.strip()), "")
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    return [k for k in row if isinstance(k, str)] if isinstance(row, dict) else []
+
+
 def _lines(text: str):
     """(line number, line) of JSONL text, split at "\n" only (textio.jsonl_lines), one at a
     time: a big file is never held as a list of lines."""
@@ -267,6 +302,8 @@ def problem(path: str | Path) -> str | None:
     try:
         if open_quote(path) is not None:
             return "has a quote that never closes"
+        if wide_row(path) is not None:
+            return MORE_CELLS
         if suffix in (".csv", ".tsv"):
             text = read_utf8(path, TableError)
             too_wide(header(text, suffix), path, TableError)
@@ -285,10 +322,11 @@ def open_quote(path: str | Path, loose: bool = False) -> int | None:
     """The line where a quoted cell of a CSV or TSV file starts that swallows the rows after
     it (its quote never closes, or closes only rows later), or None. A cell swallowed rows
     when a quote closes on a later line that began as a row, with text after it, or two
-    lines or more inside it read as whole rows: one value per column, and a grade in the verdict column (or, with
-    none, the score column) when the table has one (an answer over several lines, with
-    commas, is not a row); with `loose`, when it holds a line break at all (a hint, not a
-    finding)."""
+    lines or more inside it read as whole rows: one value per column, and a grade in the
+    grade column (the verdict column; with none, the score or a labels file's label column);
+    a table with none of these is not guessed at (an answer or a note over several lines,
+    with commas, is not a row); with `loose`, when it holds a line break at all (a hint, not
+    a finding)."""
     from judgekeeper.find import VERDICT_COLUMNS
 
     path = Path(path)
@@ -316,8 +354,11 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
                 if verdict is None:  # find.grade_columns: with no verdict column, the score
                     verdict = next((i for i, c in enumerate(header)
                                     if column_name(c) == "score"), None)
-            elif any(loose or (len(header) >= 3 and _rows_inside(cell, delimiter,
-                                                                 len(header), verdict) >= 2)
+                if verdict is None:  # a labels file: its label
+                    verdict = next((i for i, c in enumerate(header)
+                                    if column_name(c) in ("human_label", "label")), None)
+            elif any(loose or (len(header) >= 3 and verdict is not None
+                               and _rows_inside(cell, delimiter, len(header), verdict) >= 2)
                      for cell in row if "\n" in cell):
                 return start
             start = reader.line_num + 1
@@ -330,6 +371,53 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
     return None
 
 
+MORE_CELLS = "has more cells than its header"  # a quote closed in the wrong place made one row of two
+
+
+def wide_row(path: str | Path) -> int | None:
+    """The line a row of a CSV or TSV file starts on that has more cells with text than its
+    header has columns, or None: a stray quote that a later quote closes reads two rows as
+    one, and the second one's cells would be lost. Empty cells past the header (a
+    spreadsheet's trailing commas) are fine. The rows read_table reads, read as it reads
+    them."""
+    found = wide_row_hint(path)
+    return found and found[0]
+
+
+QUOTE_HINT = ": a quote may be closed in the wrong place"
+
+
+def wide_row_hint(path: str | Path) -> tuple[int, str] | None:
+    """wide_row's line, and QUOTE_HINT when that row holds a quote ("" for a row with no
+    quote: a cell too many, plainly)."""
+    from contextlib import closing
+
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".tsv"):
+        return None
+    held: list[str] = []  # the lines of the row being read, as the file has them
+
+    def kept(lines):
+        for line in lines:
+            held.append(line)
+            yield line
+
+    with closing(utf8_lines(path, TableError)) as lines:
+        first = next(lines, "")
+        reader = csv.reader(kept(itertools.chain([first], lines)) if first else iter(()),
+                            delimiter=_delimiter(first, suffix))
+        names = next(reader, None)
+        start = reader.line_num + 1
+        held.clear()
+        for cells in itertools.islice(reader, MAX_ROWS + 1):
+            if names is not None and any(c.strip() for c in cells[len(names):]):
+                return start, QUOTE_HINT if any('"' in line for line in held) else ""
+            start = reader.line_num + 1
+            held.clear()
+    return None
+
+
 def _line(path: Path, number: int) -> str:
     """Line `number` (from 1) of the file at `path`, split as csv.reader splits lines."""
     from contextlib import closing
@@ -338,14 +426,13 @@ def _line(path: Path, number: int) -> str:
         return next(itertools.islice(lines, number - 1, None), "")
 
 
-def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int | None) -> int:
+def _rows_inside(cell: str, delimiter: str, columns: int, verdict: int) -> int:
     """How many lines of a cell read as a whole row of `columns` values, with a grade at
-    `verdict` (when the table has a verdict column)."""
+    `verdict`."""
     from judgekeeper.mapper import _verdict_value
 
     rows = (next(csv.reader([line], delimiter=delimiter), []) for line in cell.split("\n"))
-    return sum(len(r) == columns and (verdict is None or _verdict_value(r[verdict]))
-               for r in rows)
+    return sum(len(r) == columns and _verdict_value(r[verdict]) for r in rows)
 
 
 def kind_of(columns) -> str:

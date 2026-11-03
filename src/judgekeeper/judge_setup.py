@@ -409,6 +409,11 @@ def changes(old: dict, new: dict) -> list[str]:
     return out
 
 
+def mark_only(old: dict, new: dict) -> bool:
+    """Whether only the pass mark changed: the same judge, read with another pass mark."""
+    return _differ(old, new) == {"pass_mark"}
+
+
 def tool_only(old: dict, new: dict) -> bool:
     """Whether only the eval tool's version changed (and with it, maybe, its own grading
     prompt): the judge's rule, model and pass mark are the same."""

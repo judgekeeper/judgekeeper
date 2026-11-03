@@ -221,7 +221,7 @@ def test_a_table_of_a_million_rows_is_read_up_to_the_cap(here, capsys):
     assert (out + err).count(said) == 1, out + err
     pool = (here / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(pool) == table.MAX_ROWS
-    assert seconds < 60, seconds  # it took 100 seconds and 4 GB before the cap
+    assert seconds < 60, seconds  # without the cap this read takes about 100 seconds and 4 GB
 
 
 def test_reading_a_million_rows_stays_small(tmp_path):

@@ -184,7 +184,7 @@ def test_an_opened_row_shows_its_whole_text_without_scroll_boxes():
     assert "60vh" not in html
 
 
-# Found by hand: an open box's tab stop and focus ----------------------------------------------
+# An open box's tab stop and focus -------------------------------------------------------------
 
 def test_the_next_answer_shuts_the_question_and_its_tab_stop():
     data = _data(2)
@@ -244,7 +244,7 @@ def test_a_flag_keeps_its_tags_and_stray_tags_still_go():
     assert redact.visible("a\U000E0067\U000E007Fb") == "ab"  # no black flag before them
     assert redact.visible("\U0001F3F4\U000E0067\U000E0062x") == "\U0001F3F4x"  # never ended
     assert redact.visible("\U0001F3F4\u200b\U000E0067\U000E007F") == "\U0001F3F4"
-    assert redact.printable(england) == "\U0001F3F4"  # the terminal: as before
+    assert redact.printable(england) == "\U0001F3F4"  # the terminal prints it unchanged
 
 
 def _tags(text: str) -> str:
@@ -260,7 +260,7 @@ def test_only_a_real_subdivision_flag_keeps_its_tags():
         assert redact.visible("\U0001F3F4" + _tags(hidden) + "!") == "\U0001F3F4!"
 
 
-# Found by hand: names kept through fix and a grade of marked-answers.csv again ----------------
+# Names kept through fix and a grade of marked-answers.csv again -------------------------------
 
 SYSTEM = "You are the support assistant.\nAnswer from the policy only."
 CHAT = "user: Where is my bag?\nassistant: Let me look.\nuser: Is it lost?"
@@ -659,7 +659,7 @@ def test_a_field_the_same_in_every_row_is_shown_once_folded():
     assert html.index('class="same"') < html.index("<table")
     for k in range(4):
         assert f"Q {k}?" in html
-    # one row, or a field that differs: in its row, as before
+    # one row, or a field that differs: shown in its row
     one = report_page._groups({"easy": 1, "strict": 0}, {"mistakes": _rows(2, prompt)[1:]})
     assert 'class="same"' not in one and report_page._e(prompt) in one
     rows = _rows(2, prompt)

@@ -13,7 +13,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 judgekeeper never runs your eval tool and never asks your LLM-as-a-judge itself. To test a new rule, `judgekeeper fix` writes every answer you marked in `.judgekeeper/fix/marked-answers.csv`, with two columns, `question` and `answer`. You grade those answers again with your new rule in your eval tool, keeping your LLM-as-a-judge's name the same, save the results, and run `judgekeeper fix <new results file>`. Each tool's part below says how. `fix` and `check` read the new results with the choices you made at the start (`--metric`, `--experiment`), so you don't give them again.
 
-To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by the same text, word for word, and the same question, and running your eval again usually makes new answers, which it can't compare.
+To re-check after you change your LLM-as-a-judge, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`) the same way, then run `judgekeeper check <new results file>`. It finds the answers you marked by their exact text and question. Running your eval again usually makes new answers, which it can't compare. Grading only your marked answers is enough to compare the two. To count new marks, grade all your answers with your new LLM-as-a-judge.
 
 ## How failed calls are spotted
 
@@ -37,12 +37,12 @@ judgekeeper
 
 Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`. When results are only in promptfoo's database, it prints how to save them: `promptfoo eval -o promptfoo-results.json`, or `promptfoo list evals` and `promptfoo export eval <id> -o promptfoo-results.json`. It runs neither. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` shows is the assertion's `value`, unless it differs per test. An assertion's `threshold` is its pass mark: `check` notices when it changes, and `fix` may test a better one. The question is the test's vars; a test with no vars (questions written in `prompts:`) is asked by its prompt. Ids are the test's `description` when each is unique, else a hash of its vars.
 
-To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.csv` as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
+To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.yaml` (the same answers, exactly as marked) as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
 
 ```yaml
 prompts: ['{{answer}}']
 providers: [echo]
-tests: file://.judgekeeper/fix/marked-answers.csv
+tests: file://marked-answers.yaml
 defaultTest:
   options:
     provider: <your grader model>  # your grader and its config, as before
@@ -52,11 +52,13 @@ defaultTest:
       value: Your new rule. The question was {{question}}.
 ```
 
+Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and run promptfoo from your project folder.
+
 Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
 
 For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
 
-The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json`, then `judgekeeper fix new.json`.
+The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json` (from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`.
 
 **Traps.**
 
@@ -75,13 +77,13 @@ deepeval test run test_judge.py
 judgekeeper --metric "Correctness [GEval]"
 ```
 
-Tested with DeepEval 4.2, the version in tests/fixtures. It reads the newest `test_run_<date>.json` in your results folder (`DEEPEVAL_RESULTS_FOLDER`, or `DisplayConfig(results_folder=...)` in `evaluate()`), else `.deepeval/.latest_run_full.json`, which every run overwrites. Results are saved only by `deepeval test run` or `evaluate()`: calling a metric's `measure()` directly saves nothing. `--metric` is the metric's `name` (GEval: `"<name> [GEval]"`). The grade is `success`, or `score` with `--pass-if`. The rule `fix` shows is a GEval's evaluation steps or criteria. To grade the same answers again, make one `LLMTestCase(input=row["question"], actual_output=row["answer"])` for each row of `marked-answers.csv`, with any field your metric also reads, such as `expected_output`, added back by its question, and run your metric with its new rule and the same `name` through `deepeval test run` or `evaluate()`. The run is saved as a new `test_run_<date>.json` in your results folder: run `judgekeeper fix deepeval-results/test_run_<date>.json` (your `DEEPEVAL_RESULTS_FOLDER`). `fix` and `check` keep the `--metric` you chose at the start. The version comes from your project's pin (`uv.lock`, `poetry.lock`, `pyproject.toml` or `requirements*.txt`).
+Tested with DeepEval 4.2, the version in tests/fixtures. It reads the newest `test_run_<date>.json` in your results folder (`DEEPEVAL_RESULTS_FOLDER`, or `DisplayConfig(results_folder=...)` in `evaluate()`), else `.deepeval/.latest_run_full.json`, which every run overwrites. Results are saved only by `deepeval test run` or `evaluate()`: calling a metric's `measure()` directly saves nothing. `--metric` is the metric's `name` (GEval: `"<name> [GEval]"`). The grade is `success`, or `score` with `--pass-if`. The rule `fix` shows is a GEval's evaluation steps or criteria. To grade the same answers again, make one `LLMTestCase(input=row["question"], actual_output=row["answer"])` for each row of `marked-answers.csv`, with any field your metric also reads, such as `expected_output`, added back by its question, and run your metric with its new rule and the same `name` through `deepeval test run` or `evaluate()`. The run is saved as a new `test_run_<date>.json` in your results folder: run `judgekeeper fix deepeval-results/test_run_<date>.json` (your `DEEPEVAL_RESULTS_FOLDER`). `fix` and `check` keep the `--metric` you chose at the start. The version comes from your project's pin (`uv.lock`, `poetry.lock`, `pyproject.toml` or `requirements*.txt`). The marking page shows the question (`input`) and the answer (`actual_output`), not the documents your LLM-as-a-judge was given (`retrieval_context`, `context`). For a faithfulness check, keep those documents open while you mark.
 
 **Traps.**
 
 - **Default test case names are positional.** Without `LLMTestCase(name=...)`, ids are made from the input and answer, with a warning.
 - **The temperature is not written.** The provider comes from the model name's suffix (`(Anthropic)`); a bare name is OpenAI.
-- **The prompt hash is kept per answer.** A GEval given only `criteria=` writes its evaluation steps with its model for each answer, so the prompt differs per answer: each judgment keeps its own prompt hash, and the run and `judge.json` keep none. Give `evaluation_steps=[...]` for one prompt.
+- **The prompt hash is kept per answer.** A GEval given only `criteria=` writes its evaluation steps with its model for each answer, so the prompt differs per answer: each grade keeps its own prompt hash, and the run and `judge.json` keep none. Give `evaluation_steps=[...]` for one prompt.
 - **An empty answer** is saved as an error: no real decision.
 - **`DEEPEVAL_LOCAL_STORE=sqlite`** writes no JSON. Leave it unset.
 
@@ -142,11 +144,11 @@ Tested with MLflow 3.16, the version in tests/fixtures. The extra allows MLflow 
 
 ## A CSV, TSV or JSONL file
 
-A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as my-judge-v1, is not one); with several, it asks which. A `model` or `judge_model` column names the model. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
+A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as my-judge-v1, is not one); with several, it asks which. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name such as `string_match`. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
 
 ## Results in a format of its own
 
-With no eval tool found, it looks for a JSON, JSONL or CSV file changed in the last 90 days with a score-like key (`score`, `scores`, `verdict`, `pass`, `passed`, `success`, `label`) next to an input-like and an output-like key. It shows how it would read the file (paths, never values) and asks whether that is right, then asks only what the file cannot tell. A blank, `NaN`, `error`, `N/A` or `null` score is no decision. `--yes` never accepts a reading it is unsure of. With your yes, it saves the reading in `judgekeeper.toml` (`[start]`), for files inside the project only. A key that names your LLM-as-a-judge's model, such as `judge_model` or a `model` or `grader` inside a `judge` object (`judge.grader`), is read as the model when its value looks like a model's name; `--judge-model` wins over it for that run only. To grade the same answers again, grade `marked-answers.csv` with your own code and save the new grades in the same shape as your results file. Otherwise turn the file into a CSV, or use [`judgekeeper.record()`](reference.md#record-save-your-own-llm-as-a-judges-verdicts-with-one-line).
+With no eval tool found, it looks for a JSON, JSONL or CSV file changed in the last 90 days with a score-like key (`score`, `scores`, `verdict`, `pass`, `passed`, `success`, `label`) next to an input-like and an output-like key. It shows how it would read the file (paths, never values) and asks whether that is right, then asks only what the file cannot tell. A blank, `NaN`, `error`, `N/A` or `null` score is no decision. `--yes` never accepts a reading it is unsure of. With your yes, it saves the reading in `judgekeeper.toml` (`[start]`), for files inside the project only. A key that names your LLM-as-a-judge's model, such as `judge_model` or a `model` or `grader` inside a `judge` object (`judge.grader`), is read as the model when its values are names, by the same rule as a CSV's `judge_model` column (for `judge.grader`, when they look like a model's name); `--judge-model` wins over it for that run only. To grade the same answers again, grade `marked-answers.csv` with your own code and save the new grades in the same shape as your results file. Otherwise turn the file into a CSV, or use [`judgekeeper.record()`](reference.md#record-save-your-own-llm-as-a-judges-verdicts-with-one-line).
 
 ## judgekeeper.record()
 

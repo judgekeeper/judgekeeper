@@ -61,7 +61,7 @@ EVALUATOR_KEYS = ("provider", "model", "prompt", "temperature", "version", "prom
                   "snapshot", "endpoint", "rule")
 JSON_CELLS = ("metadata", "trajectory", "outcome")  # JSON text in a CSV cell
 DEFAULT_NAME = "LLM-as-a-judge"
-OLD_DEFAULT_NAME = "judge"  # record()'s default before 1.1: read as DEFAULT_NAME
+OLD_DEFAULT_NAME = "judge"  # record()'s old default name: read as DEFAULT_NAME
 BIG = 1_000_000  # bytes: a record larger than this is kept, with a warning
 _NUMBER = re.compile(r"\A([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)?\Z")  # after strip()
 
@@ -273,7 +273,7 @@ def problems(d: dict) -> list[str]:
 class Mark:
     """What a reader learned about one verdict that its file keeps no field for: held in memory
     only, for `start`'s judge check (judgekeeper.judge_check). Never written to any file and
-    never compared, so the records read exactly as before.
+    never compared, so it does not change how records compare or print.
 
     `problem`: the judge made no real decision: "error" (its call failed), "unreadable" (its
     reply could not be read) or "nothing_checked" (it checked nothing and the tool gave full
@@ -379,6 +379,7 @@ class RecordList(list):
         self.left_out: list = []
         self.unit = unit
         self.source: str | None = None
+        self.model_refused: str | None = None  # a model column that names no model
 
 
 # One damaged row ------------------------------------------------------------------------
@@ -763,6 +764,6 @@ def _consensus(fps: list) -> tuple[dict, list[str]]:
             known[f] = ENDPOINT_UNKNOWN
     if not differ:
         return known, []
-    note = (f"Judgments disagree on the LLM-as-a-judge's {', '.join(differ)}: the run header "
-            "records these as unknown and each judgment keeps its own.")
+    note = (f"Grades disagree on the LLM-as-a-judge's {', '.join(differ)}: the run header "
+            "records these as unknown and each grade keeps its own.")
     return known, [note]

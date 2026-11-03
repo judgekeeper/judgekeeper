@@ -27,6 +27,7 @@ from judgekeeper import __version__, check, find, fix, judge_setup, page, start,
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project, unwrapped
+from tests.test_flow_across_runs import now_part
 from tests.test_front import flat, next_lines, run
 from tests.test_only_reads import only_reads
 
@@ -376,6 +377,135 @@ def test_a_file_in_a_project_with_its_own_session_is_never_added_here(here, caps
     assert (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes() == marks_before
 
 
+@pytest.mark.parametrize("session", [False, True])
+def test_a_file_in_a_nearby_project_is_refused_with_or_without_its_session(
+        here, capsys, monkeypatch, session):
+    """From a folder with no project, a results file in a project below belongs to that
+    project, whether it has been used or not: never a session here."""
+    (here / "f02").mkdir()
+    (here / "f02" / "pyproject.toml").write_text("[project]\nname = 'f02'\n", encoding="utf-8")
+    if session:
+        _session_in(here / "f02" / "evals", capsys, monkeypatch, 0)
+        run(capsys, "--stop")
+    else:
+        table_project(here / "f02" / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "f02/evals/results.csv", "--no-browser")
+    assert code == 3, out + err
+    assert "These results belong to the project in f02/" in flat(out), out
+    assert not (here / ".judgekeeper").exists()
+
+
+@pytest.mark.parametrize("session", [False, True])
+def test_check_of_a_file_in_a_nearby_project_names_that_project(here, capsys, monkeypatch,
+                                                                session):
+    """`check f02/evals/results.csv` from a folder with no project says whose results they
+    are and where to check them, as the plain run does."""
+    (here / "f02").mkdir()
+    (here / "f02" / "pyproject.toml").write_text("[project]\nname = 'f02'\n", encoding="utf-8")
+    if session:
+        _session_in(here / "f02" / "evals", capsys, monkeypatch, 0)
+        run(capsys, "--stop")
+    else:
+        table_project(here / "f02" / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "check", "f02/evals/results.csv")
+    assert code == 3, out + err
+    owner = "f02/evals" if session else "f02"  # where the session is, else the project
+    assert (f"These results belong to the project in {owner}/. To check them, run "
+            f"`judgekeeper` in {owner}/.") in flat(out), out
+    assert "No marks in" not in out and not (here / ".judgekeeper").exists()
+
+
+def test_one_project_below_and_none_here_is_checked_in_its_own_folder(here, capsys,
+                                                                       monkeypatch):
+    """A folder with no project and one project below it with results: the plain run sends
+    you there, never starts a session here."""
+    (here / "p2").mkdir()
+    (here / "p2" / "pyproject.toml").write_text("[project]\nname = 'p2'\n", encoding="utf-8")
+    table_project(here / "p2", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert ("These results belong to the project in p2/. To check them, run `judgekeeper` "
+            "in p2/.") in flat(out), out
+    assert not (here / ".judgekeeper").exists()
+
+
+def _projects_in_outer(here, names) -> None:
+    for name in names:
+        (here / "outer" / name).mkdir(parents=True)
+        (here / "outer" / name / "pyproject.toml").write_text(
+            f"[project]\nname = '{name}'\n", encoding="utf-8")
+        table_project(here / "outer" / name, split(20, 16), tag=name)
+
+
+def test_one_project_below_a_folder_given_by_path_is_named_from_here(here, capsys,
+                                                                      monkeypatch):
+    _projects_in_outer(here, ["p2"])
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert ("These results belong to the project in outer/p2/. To check them, run "
+            "`judgekeeper` in outer/p2/.") in flat(out), out
+    assert _next(out) == "Next: run `judgekeeper` in outer/p2/."
+
+
+def test_projects_below_a_folder_given_by_path_are_named_from_here(here, capsys, monkeypatch):
+    _projects_in_outer(here, ["a", "b"])
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert "outer/a/ and outer/b/ hold eval results" in flat(out), out
+    assert _next(out) == ("Next: go to one of those folders (`cd outer/a`), then run "
+                          "`judgekeeper` there.")
+
+
+def test_a_session_below_a_folder_given_by_path_is_named_from_here(here, capsys, monkeypatch):
+    (here / "outer" / ".git").mkdir(parents=True)
+    _session_in(here / "outer" / "sub1", capsys, monkeypatch, 4)
+    run(capsys, "--stop")
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "outer", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 3, out + err
+    assert "outer/sub1/ already holds your judgekeeper session (4 marks)" in flat(out), out
+    assert _next(out) == ("Next: go to that folder (`cd outer/sub1`), then run `judgekeeper` "
+                          "there.")
+
+
+def test_results_in_one_plain_folder_below_still_start_here(here, capsys, monkeypatch):
+    """evals/ is no project of its own: its results are this folder's."""
+    table_project(here / "evals", split(20, 16))
+    monkeypatch.chdir(here)
+    code, out, err = run(capsys, "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert code == 0, out + err
+    assert (here / ".judgekeeper" / "start.json").is_file()
+
+
+@pytest.mark.parametrize(("where", "command", "given", "shown"), [
+    ("p11/sub", "fix", "..", ".."), ("", "fix", "p11", "p11"), ("", "check", "p11", "p11")])
+def test_too_few_marks_name_the_project_in_the_mark_command(here, capsys, monkeypatch, where,
+                                                             command, given, shown):
+    """Run from another folder, the mark command it prints runs in the project, named from
+    where you are."""
+    (here / "p11" / "sub").mkdir(parents=True)
+    (here / "p11" / "pyproject.toml").write_text("[project]\nname = 'p11'\n", encoding="utf-8")
+    table_project(here / "p11", split(20, 16))
+    monkeypatch.chdir(here / "p11")
+    assert run(capsys, "--no-browser", "--port", "0")[0] == 0
+    run(capsys, "--stop")
+    _mark(Workspace(here / "p11"), only=range(3))
+    monkeypatch.chdir(here / where)
+    code, out, err = run(capsys, command, given)
+    assert code != 0, out + err
+    assert f"Next: run `judgekeeper mark {shown}` to mark more answers." in flat(out), out
+
+
 # Every answer marked, too few of one kind ---------------------------------------------------
 
 def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
@@ -492,6 +622,318 @@ def _rule_project(root, verdicts, rule):
     (root / "results.json").write_text(json.dumps(data), encoding="utf-8")
 
 
+FLIP = (0, 4, 8, 12, 24, 28, 32)  # the person disagrees with the first grades on these
+
+
+def _checked_outside(here, capsys, worse: bool) -> None:
+    """Marked against a table judge in evals/; a check passes on evals/support-evals-v2.csv,
+    graded as the person marks (`worse`: then a check finds a file outside the project worse);
+    or (not `worse`) the passing check is of a file outside the project."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/support-evals.csv")
+    assert run(capsys)[0] == 0
+    person = [(not v) if i in FLIP else v for i, v in enumerate(verdicts)]
+    _mark(Workspace(here), {i: "pass" if v else "fail" for i, v in enumerate(person)})
+    run(capsys)
+    if worse:
+        table_project(here, person, name="evals/support-evals-v2.csv")
+        assert run(capsys, "check", "evals/support-evals-v2.csv")[0] == 0
+        outside = table_project(here.parent / "outside", [not v for v in person])
+        assert run(capsys, "check", str(outside))[0] == 1
+    else:
+        outside = table_project(here.parent / "outside", person)
+        assert run(capsys, "check", str(outside))[0] == 0
+
+
+def test_after_a_worse_check_the_judge_is_the_one_before_it(here, capsys, no_calls):
+    """The last check found its LLM-as-a-judge worse, so it was not taken on: the one marks
+    test is the one from before that check, not the one it re-tested."""
+    _checked_outside(here, capsys, worse=True)
+    out = flat(run(capsys)[1])
+    assert "the one your last check re-tested" not in out, out
+    assert ("Your answers were graded again. Your LLM-as-a-judge is the one you had before your "
+            "last check, so your marks still test it.") in out, out
+
+
+def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
+    """A check took on another model from a file outside the project; a plain run keeps that
+    result, and the project's own file, typed, graded by the model the marks were made with,
+    is read again: "back", as for promptfoo."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # the other model differs on one answer: not worse
+    outside = table_project(here.parent / "outside", other, model="bike-grader-v2")
+    assert run(capsys, "check", str(outside))[0] == 0
+    out = flat(run(capsys)[1])
+    assert "back to the one you marked with" not in out, out
+    assert "in ../outside/results.csv, the file your last check read." in out, out
+    out = flat(run(capsys, "evals/results.csv")[1])
+    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
+            "marks' result still holds.") in out, out
+    assert "changed since your marks" not in out
+
+
+def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
+        here, capsys, no_calls):
+    """`check` took on evals/results-v2.csv; `check evals/results.csv` goes back to the
+    marked LLM-as-a-judge and says the result is no longer about results-v2.csv."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]  # not worse: taken on
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    code, out, _ = run(capsys, "check", "evals/results.csv")
+    out = flat(out)
+    assert code == 0 and "back to the one you marked with (bike-grader-v1)" in out, out
+    assert ("Your last check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in out, out
+    later = [flat(run(capsys, "check", "evals/results.csv")[1]) for _ in range(2)]
+    assert ("An earlier check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in later[0], later[0]
+    assert "Your last check read" not in later[0] and later[1] == later[0], later
+
+
+def test_a_check_back_after_a_worse_one_never_says_the_last_check_read_the_kept_file(
+        here, capsys, no_calls):
+    """results-v2.csv was taken on, then a check of results-v3.csv was worse: the last check
+    read results-v3.csv, so going back names results-v2.csv as an earlier check's."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    worse = [v if k % 3 == 0 else not v for k, v in enumerate(verdicts)]
+    table_project(here, worse, name="evals/results-v3.csv", model="bike-grader-v3")
+    assert run(capsys, "check", "evals/results-v3.csv")[0] == 1
+    out = flat(run(capsys, "check", "evals/results.csv")[1])
+    assert "back to the one you marked with (bike-grader-v1)" in out, out
+    assert ("An earlier check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in out, out
+    assert "Your last check read" not in out, out
+
+
+def _taken_on_v2(here, capsys) -> Workspace:
+    """Marks made on evals/results.csv (bike-grader-v1), then a check that took on
+    evals/results-v2.csv (bike-grader-v2)."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    return Workspace(here)
+
+
+CLOSED_BACK = ("Your marking page closed because it showed a different LLM-as-a-judge. To open "
+               "it with this one, run `judgekeeper mark evals/results.csv`.")
+
+
+def _page_open(monkeypatch, stops=True) -> list:
+    """A marking page open on the old LLM-as-a-judge: `background.stop` closes it, or with
+    `stops` False finds it still there."""
+    from judgekeeper import background, label
+
+    stopped = []
+    monkeypatch.setattr(label, "is_open", lambda folder: True)
+    monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder) or stops)
+    return stopped
+
+
+def test_a_plain_run_back_on_the_marked_file_names_the_page_after_its_step(
+        here, capsys, no_calls, monkeypatch):
+    _taken_on_v2(here, capsys)
+    stopped = _page_open(monkeypatch)
+    code, said, err = run(capsys, "evals/results.csv", "--no-browser", "--port", "0")
+    out = flat(said)
+    assert code == 0 and stopped, out + err
+    assert CLOSED_BACK in out, out
+    assert out.index("Step 3 of 5: Measure") < out.index(CLOSED_BACK), out
+    assert out.index("back to the one you marked with") < out.index(CLOSED_BACK), out
+    _page_line_stands_apart(said)
+
+
+def test_mark_back_on_the_marked_file_says_nothing_of_the_page(here, capsys, no_calls,
+                                                                 monkeypatch):
+    _taken_on_v2(here, capsys)
+    stopped = _page_open(monkeypatch)
+    _, out, _ = run(capsys, "mark", "evals/results.csv", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert stopped and "Your marking page" not in flat(out), flat(out)
+
+
+def test_a_check_back_on_the_marked_file_names_that_file_for_the_page(here, capsys, no_calls,
+                                                                        monkeypatch):
+    _taken_on_v2(here, capsys)
+    _page_open(monkeypatch)
+    code, out, _ = run(capsys, "check", "evals/results.csv")
+    assert code == 0 and CLOSED_BACK in flat(out), flat(out)
+    _page_line_stands_apart(out)
+
+
+def _page_line_stands_apart(out: str) -> None:
+    """The page's line is a paragraph of its own: a blank line before it."""
+    lines = out.splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("Your marking page closed"))
+    assert lines[at - 1] == "", out
+
+
+def test_a_check_that_takes_on_a_given_file_names_it_for_the_page(here, capsys, no_calls,
+                                                                    monkeypatch):
+    """`mark` alone reads the newest results, which may not be the file the check took on."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    _page_open(monkeypatch)
+    code, out, _ = run(capsys, "check", "evals/results-v2.csv")
+    assert code == 0 and ("Your marking page closed because it showed a different "
+                          "LLM-as-a-judge. To open it with this one, run `judgekeeper mark "
+                          "evals/results-v2.csv`.") in flat(out), flat(out)
+
+
+def test_a_page_that_is_still_there_after_it_was_closed_is_said_so(here, capsys, no_calls,
+                                                                     monkeypatch):
+    _taken_on_v2(here, capsys)
+    _page_open(monkeypatch, stops=False)
+    _, out, _ = run(capsys, "check", "evals/results.csv")
+    out = flat(out)
+    assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
+            "To open it with this one, run `judgekeeper --stop`, then `judgekeeper mark "
+            "evals/results.csv`.") in out, out
+    assert "page closed" not in out, out
+
+
+def _first_and_new(tool: str, root, verdicts, new: bool) -> str:
+    """`tool`'s results for `verdicts`: the first ones in the project (False), or ones graded
+    by another LLM-as-a-judge in .judgekeeper/fix/ (True). Where they are, from `root`."""
+    from tests.start_projects import deepeval_data
+
+    if tool == "table":
+        name = ".judgekeeper/fix/new.csv" if new else "evals/results.csv"
+        table_project(root, verdicts, name=name, model="bike-grader-v2" if new else "bike-grader-v1")
+        return name
+    name = ".judgekeeper/fix/new.json" if new else (
+        "results.json" if tool == "promptfoo" else ".deepeval/.latest_run_full.json")
+    data = (promptfoo_data(verdicts, rubric="A new rule." if new else "The old rule.")
+            if tool == "promptfoo" else deepeval_data(verdicts, model="gpt-4.1-mini" if new
+                                                      else "gpt-4.1"))
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_text(json.dumps(data), encoding="utf-8")
+    return name
+
+
+@pytest.mark.parametrize("tool", ["table", "promptfoo", "deepeval"])
+def test_a_plain_run_after_a_check_of_a_file_in_fix_keeps_reading_it(here, capsys, no_calls,
+                                                                       tool):
+    """A check took on results in .judgekeeper/fix/, which the search never reads: a plain
+    run keeps its result, never goes back to the older results here."""
+    verdicts = split(20, 20)
+    _first_and_new(tool, here, verdicts, new=False)
+    assert run(capsys, "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(here)
+    _mark(ws)
+    run(capsys, "--no-browser", "--port", "0")  # the result
+    run(capsys, "--stop")
+    other = list(verdicts)
+    other[0] = not other[0]
+    name = _first_and_new(tool, here, other, new=True)
+    assert run(capsys, "check", name)[0] == 0
+    kept = judge_setup.read(ws)["setup_hash"], ws.data()["fingerprint"]
+    for _ in range(2):
+        code, out, err = run(capsys, "--no-browser", "--port", "0")
+        run(capsys, "--stop")
+        out = flat(out)
+        assert code == 0, out + err
+        assert "back to the one you marked with" not in out, out
+        assert (f"This result is about your LLM-as-a-judge in {name}, the file your last check "
+                "read.") in out, out
+        assert (judge_setup.read(ws)["setup_hash"], ws.data()["fingerprint"]) == kept
+    first = here / _first_and_new(tool, here, verdicts, new=False)  # the eval run again
+    later = (here / name).stat().st_mtime + 10
+    os.utime(first, (later, later))
+    out = flat(run(capsys, "--no-browser", "--port", "0")[1])
+    run(capsys, "--stop")
+    assert "back to the one you marked with" in out, out
+
+
+def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
+        here, capsys, no_calls):
+    """The check read a newer file outside the project: a plain run on the project's file
+    says "Reading evals/support-evals.csv.", never "the newest results here"."""
+    _checked_outside(here, capsys, worse=False)
+    out = flat(run(capsys)[1])
+    assert "Reading evals/support-evals.csv." in out and "the newest" not in out, out
+
+
+def test_after_a_check_of_a_file_outside_plain_runs_name_that_file(here, capsys, no_calls):
+    """The marks test the LLM-as-a-judge of a file outside the project; the project's own
+    file is older: every plain run says the result is about the file the check read, never
+    "grades changed" nor a plain `check` (that would re-check the older file)."""
+    _checked_outside(here, capsys, worse=False)
+    for _ in range(2):
+        out = flat(run(capsys)[1])
+        assert ("This result is about your LLM-as-a-judge in ../outside/results.csv, the file "
+                "your last check read.") in out, out
+        assert "grades changed" not in out and "the newest" not in out, out
+        assert ("Next: nothing to do. After you change your LLM-as-a-judge again, run "
+                "`judgekeeper check <new results file>`.") in out, out
+
+
+def _held_table(here, capsys, verdict: str) -> None:
+    """Marked as the person; a check took on v2; v3 graded 11 marks wrong, and `check` held it
+    (its saved verdict set to `verdict`, still held: "not_sure" with a big drop)."""
+    person = split(15, 15)
+
+    def flip(idx):
+        return [(not x) if i in idx else x for i, x in enumerate(person)]
+
+    table_project(here, flip({0, 1, 15, 16}), name="results.csv")
+    run(capsys)
+    _mark(Workspace(here), {i: "pass" if v else "fail" for i, v in enumerate(person)})
+    run(capsys)
+    table_project(here, flip({2, 3, 17, 18}), name="results-v2.csv")
+    assert run(capsys, "check", "results-v2.csv")[0] == 0
+    table_project(here, flip(set(range(6)) | set(range(15, 20))), name="results-v3.csv")
+    assert run(capsys, "check", "results-v3.csv")[0] == 1
+    history = Workspace(here).history_jsonl
+    lines = history.read_text(encoding="utf-8").splitlines()
+    last = json.loads(lines[-1])
+    for g in last["groups"].values():
+        if isinstance(g, dict) and g.get("verdict") == "worse":
+            g["verdict"] = verdict
+    history.write_text("\n".join([*lines[:-1], json.dumps(last)]) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("verdict", ["worse", "not_sure"])
+def test_after_a_held_check_every_plain_run_says_which_judge_it_is_about(here, capsys, no_calls,
+                                                                         verdict):
+    """The check found the new results worse (or not sure, with a big drop), so the marks
+    still test the LLM-as-a-judge from before it: every plain run on those results says so."""
+    _held_table(here, capsys, verdict)
+    for _ in range(2):
+        out = flat(run(capsys)[1])
+        assert "This result is about your LLM-as-a-judge as it was" in out, out
+
+
 def test_marks_added_after_a_check_are_re_checked(here, capsys, no_calls):
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     _rule_project(here, split(25, 25), RULE_A)
@@ -529,7 +971,7 @@ def test_after_a_check_the_result_and_fix_are_about_the_new_judge(here, capsys, 
     assert "Your LLM-as-a-judge is the same" in out or "Your LLM-as-a-judge changed" not in out
     run(capsys, "fix")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
-    assert RULE_B in mistakes and RULE_A not in mistakes
+    assert RULE_B in mistakes and RULE_A not in now_part(mistakes)
     assert mistakes.count("## [M") == 1
 
 
@@ -683,7 +1125,7 @@ def test_a_judge_model_given_once_is_remembered(here, capsys):
     code, out, _ = run(capsys)
     assert code == 0, out
     assert "changed" not in out
-    assert _next(out) == 'Next: mark answers until the link at the top shows your numbers, then click it.'
+    assert _next(out) == 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 
 
 def test_check_then_judgekeeper_keeps_the_given_model(here, capsys):
@@ -811,7 +1253,7 @@ def test_stop_in_a_project_below_leaves_the_page_above_open(here, capsys, monkey
     assert "Closed the marking page." in run(capsys, "--stop")[1]
 
 
-def _reads_any_project_above(root):  # results_above before a project kept to itself
+def _reads_any_project_above(root):  # stand-in rule: reads any project folder above
     up = find.project_folder(root)
     found = None if up is None else find.search(up)
     return up if found is not None and any(found.readable(t) for t in find.TOOLS) else None

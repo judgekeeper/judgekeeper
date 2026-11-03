@@ -19,6 +19,9 @@ from __future__ import annotations
 import logging
 import math
 import re
+import signal
+import sys
+import threading
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,6 +29,7 @@ from dataclasses import replace
 from itertools import accumulate, pairwise
 from pathlib import Path
 
+from judgekeeper import textio
 from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
     CODE,
@@ -84,16 +88,58 @@ QUIET_LOGGERS = ("inspect_ai", "asyncio")
 @contextmanager
 def quiet() -> Iterator[None]:
     """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
-    said here, in plain words, never with its text). Put back afterwards."""
+    said here, in plain words, never with its text), and a Ctrl-C is noted (_stopping), as
+    inspect_ai's async reading can turn it into an error of its own: that error ends the read
+    as a Ctrl-C (one a library swallowed stops the run at its Next: line, textio.ctrl_c). Put
+    back afterwards, the note cleared, so a later read never sees it (the samples generator,
+    read after _load's quiet() ends, has a quiet() of its own)."""
     loggers = [logging.getLogger(name) for name in QUIET_LOGGERS]
     levels = [logger.level for logger in loggers]
     for logger in loggers:
         logger.setLevel(logging.CRITICAL)
+    handler = None
+    if threading.current_thread() is threading.main_thread() and \
+            signal.getsignal(signal.SIGINT) in (signal.default_int_handler, textio.note_ctrl_c):
+        _stopping.clear()
+        handler = signal.signal(signal.SIGINT, _noted)
     try:
         yield
+    except Exception:
+        if handler is not None and _stopping:  # inspect_ai's own error for the Ctrl-C
+            raise KeyboardInterrupt from None
+        raise
     finally:
+        if handler is not None:
+            if signal.getsignal(signal.SIGINT) is _noted:  # closed late (a samples generator):
+                signal.signal(signal.SIGINT, handler)  # the run's own put back, never an old one
+            _stopping.clear()
         for logger, level in zip(loggers, levels, strict=True):
             logger.setLevel(level)
+
+
+_stopping: list[bool] = []  # holds True once a Ctrl-C came while inspect_ai read
+
+
+def _noted(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first. What inspect_ai then leaves half
+    done (a coroutine closed, an async task's error) is not printed: the run says "Stopped."."""
+    _stopping.append(True)
+    textio.ctrl_c.append(True)  # the run stops even if this one is swallowed (cli.main)
+    sys.unraisablehook = _unsaid
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL + 1)
+    raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python finds only while closing what a Ctrl-C stopped: not printed."""
+
+
+def _unreadable(path: Path) -> Exception:
+    """The error for a log inspect_ai could not read, or the Ctrl-C that stopped it."""
+    if _stopping:
+        return KeyboardInterrupt()
+    return damaged(path, "Inspect AI", "can't be read: it may be cut short, or not an "
+                                       "Inspect AI log")
 
 
 # What judgekeeper reads of a sample (and of its output, the completion only).
@@ -112,20 +158,12 @@ SAMPLE_LIMIT = 200 * 2**20
 # aside) grow with them: summaries.json, reductions.json, _journal/summaries/...
 HEADER_PARTS = frozenset({"header.json", "_journal/start.json"})
 HEADER_LIMIT = 50 * 2**20  # bytes: one of HEADER_PARTS unpacked
-# bytes: one text (a JSON string) in a sample. inspect_ai's read takes time that grows faster
-# than a text's length, and far faster with its escapes (\n, \"): on a Mac, inspect_ai 0.3.285,
-# a screenshot as base64 of 20 MB reads in 1.0 s, of 32 MB in 2.6 s, two of 32 MB in 5.1 s;
-# 32 MB of tool output with a newline every 32 characters in 5.7 s, every 8 in 13.6 s; text
-# made only of escapes: 8 MB in 8.9 s, 32 MB in minutes. So a text over LONG_TEXT (as before:
-# any text up to it) may hold at most one escape for every ESCAPE_SPACING characters, and the
-# texts over LONG_TEXT may add up to LONG_TEXTS_LIMIT in the whole log: about 11.4 s at most.
-# A sample of 200 MB in 8 MB texts reads in about 11 s. The time follows the escapes: texts of
-# escapes only take, per million escapes, 1.06 s in 8 MB texts, 0.34 s in 2 MB ones, 0.21 s
-# in 1 MB, 0.12 s in 256 KB, 0.09 s in 64 KB (a sample of 200 MB of them: about 100 s in 8 MB
-# texts, 21 s in 1 MB, 12 s in 256 KB); JSON kept as a string, an escape every 6.6
-# characters, 20 texts of 1.5 MB (4.8 million escapes) in 1.6 s. So the escapes in texts over
-# COUNTED_TEXT may add up to ESCAPES_LIMIT in the whole log: about 11.7 s at most, in 8 MB
-# texts. COUNTED_TEXT is not under STEP, so such a text spans steps.
+# bytes: one text (a JSON string) in a sample. inspect_ai reads long texts slowly, and much
+# slower when they hold many escapes (\n, \"): a 32 MB text of escapes takes minutes. So a text
+# over LONG_TEXT may hold at most one escape for every ESCAPE_SPACING characters, and all such
+# texts together may add up to LONG_TEXTS_LIMIT in a log. The escapes in texts over
+# COUNTED_TEXT may add up to ESCAPES_LIMIT in a log. Both keep a read to about 12 seconds at
+# most. COUNTED_TEXT is not under STEP, so such a text spans steps.
 MAX_STRING = 32 * 2**20
 LONG_TEXT = 8 * 2**20
 ESCAPE_SPACING = 32
@@ -718,8 +756,7 @@ def _by_sample(path: Path, read_eval_log, read_by_id, read_one, sizes: dict[str,
                     while got:
                         yield got.pop().model_dump(mode="json", include=SAMPLE_FIELDS)
         except Exception:  # noqa: BLE001 - a sample cut short or not Inspect's
-            raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
-                                              "an Inspect AI log") from None
+            raise _unreadable(path) from None
 
     data["samples"] = samples()
     return data
@@ -750,9 +787,8 @@ def _load(path: Path) -> dict:
                     return _by_sample(path, read_eval_log, read_by_id, read_one, sizes)
                 return read_eval_log(str(path)).model_dump(mode="json")
         except Exception:  # noqa: BLE001 - a log cut short, empty or not Inspect's
-            if is_eval:
-                raise damaged(path, "Inspect AI", "can't be read: it may be cut short, or not "
-                                                  "an Inspect AI log") from None
+            if is_eval or _stopping:
+                raise _unreadable(path) from None
             # a .json log inspect_ai refuses is read as without it: the same checks and words
     elif path.suffix.lower() == ".eval":
         raise RecordsError(EVAL_NEEDS_EXTRA.format(path=path, get=get_extra("inspect")))

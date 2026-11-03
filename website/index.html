@@ -109,8 +109,8 @@ one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
 hidden.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</pre>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</pre>
     <div class="term-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">Example with made-up answers</span><a class="tf-link" href="examples/site-example/report.html">see its report</a></div>
 <template data-screen="find">$ judgekeeper
 judgekeeper 1.1.0
@@ -143,8 +143,8 @@ one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
 hidden.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</template>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</template>
 <template data-screen="mark">$ judgekeeper
 judgekeeper 1.1.0
 
@@ -159,8 +159,8 @@ on answers it failed (or all of them, when there are fewer).
 The marking page is still open in your browser. The bar at the
 top fills as you mark.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</template>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</template>
 <template data-screen="measure">$ judgekeeper
 judgekeeper 1.1.0
 
@@ -176,7 +176,7 @@ You and your LLM-as-a-judge disagreed on 16 of 37 answers.
 
 Tell judgekeeper why you disagree on these 8: run
 `judgekeeper mark`.
-8 more are hidden on purpose, so a new rule can be tested on
+8 more are kept aside on purpose, so a new rule can be tested on
 answers you haven't looked at again.
 `judgekeeper fix` uses your reasons to find where your
 LLM-as-a-judge goes wrong.
@@ -184,8 +184,9 @@ LLM-as-a-judge goes wrong.
 How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 63% (between 52% and 70%)
   When you say Fail, it also says Fail: about 49% (between 38% and 66%)
-The result line uses wider ranges than these, so a lucky streak
-can't decide it. You can look after every mark.
+The result line uses wider ranges than these, so a few marks
+that agree by coincidence can't decide it. You can look at the
+result after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
@@ -248,9 +249,9 @@ Your LLM-as-a-judge, tested on the 19 marks kept aside:
 Result: your new rule is better. A difference this large is
 unlikely to be a coincidence.
 
-Next: keep your new rule, then run
-`judgekeeper check new-rule.json` to re-check it on all your
-marks.</template>
+Next: copy your new rule into promptfooconfig.yaml (line 14),
+then run `judgekeeper check new-rule.json` to re-check it on all
+your marks.</template>
 <template data-screen="check">$ judgekeeper check
 judgekeeper 1.1.0
 
@@ -261,7 +262,8 @@ New results: results.json
 Your LLM-as-a-judge's model changed:
   my-judge-v1 -&gt; my-judge-v2
 
-Result: worse. Your new LLM-as-a-judge agrees with you less.
+Compared with before: worse. Your new LLM-as-a-judge agrees with
+you less on the answers you passed: 6 of 20, down from 12.
 
 Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
   When you said Pass    12 of 20             6 of 20              Worse
@@ -272,7 +274,7 @@ On answers you pass, agreement drops by about 30 in every 100
 On answers you fail, no drop, though these marks can't rule out
 one of up to 19 in every 100.
 
-One run, so a small change may be chance.
+One run, so a small change may be a coincidence.
 
 Next: go back to your old LLM-as-a-judge, or try another change
 and run `judgekeeper check` again.</template>

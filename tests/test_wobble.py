@@ -52,8 +52,8 @@ def _coverage(pi, n, flip, runs, systematic=0.0, seed=11):
 
 @pytest.mark.parametrize("flip", [0.05, 0.10])
 def test_a_wobbling_judge_passing_most_answers_is_covered(flip):
-    """The rows the statistics review found at 52 and 74 in 100, when every agreeing group of
-    marks counted as exact: judge passes 90%, 15 marks per group."""
+    """A judge that passes 90% of the answers, 15 marks per group, and changes some grades when
+    asked again: the ranges hold the true rates at least 93 times in 100."""
     got = _coverage(0.9, 15, flip, 300)
     assert got["tpr"] >= 0.93 and got["tnr"] >= 0.93, got
 

@@ -87,7 +87,9 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert "Which LLM-as-a-judge do you want to check?" in out
     assert "Leave them out?" in asked[3]
     assert "judgekeeper.toml" in asked[4]
-    assert "history/evals.jsonl looks like your LLM-as-a-judge's results in a format of its own" in out
+    assert ("history/evals.jsonl looks like your LLM-as-a-judge's results in a format of its "
+            "own") in " ".join(out.split())
+    assert all(len(line) <= 64 for line in out.splitlines() if "looks like" in line), out
     assert "cases[].A.output" in out and 'cases[].A.scores."Safe wording".score' in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
     assert "Eval tool:       your own format" in out
@@ -460,8 +462,8 @@ def test_a_json_document_is_not_counted_in_lines(tmp_path, capsys, terminal):
     answers += ["", ""]
     code, out = check(capsys, tmp_path)
     assert code == 0, out
-    assert ("results.json looks like your LLM-as-a-judge's results in a format of its own.\n"
-            "What it holds:") in out
+    assert ("results.json looks like your LLM-as-a-judge's results in a\n"
+            "format of its own.\nWhat it holds:") in out
 
 
 def test_a_model_not_in_the_file_says_how_to_give_it(tmp_path, capsys, terminal):

@@ -23,7 +23,7 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, WIDER
+from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, wider
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -187,12 +187,18 @@ REASONS_SCRIPT = """
         if (open && row && !row.hidden && row.getAttribute("aria-expanded") !== "true") {
           row.click(); }
       });
-      function send() {
+      // A reason picked, or typed and Enter pressed: the box closes, the line shows it.
+      function shut() {
+        add.setAttribute("aria-expanded", "false");
+        document.getElementById(add.getAttribute("aria-controls")).hidden = true;
+        add.focus();
+      }
+      function send(close) {
         clearTimeout(timer); sent = input.value; saved.textContent = "";
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; line(); return; }
+            if (r.ok) { saved.textContent = "Saved"; line(); if (close) { shut(); } return; }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
@@ -213,7 +219,7 @@ REASONS_SCRIPT = """
       }
       each(box.querySelectorAll("[aria-pressed]"), function (b) {
         b.addEventListener("click", function () {
-          b.setAttribute("aria-pressed", String(!on(b))); send(); });
+          b.setAttribute("aria-pressed", String(!on(b))); send(true); });
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";
@@ -226,7 +232,10 @@ REASONS_SCRIPT = """
         clearTimeout(timer); timer = setTimeout(send, PAUSE);
       });
       input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); if (input.value !== sent) { send(); } }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (input.value !== sent) { send(true); } else { shut(); }
+        }
       });
       input.addEventListener("blur", function () { if (input.value !== sent) { send(); } });
       document.addEventListener("selectionchange", function () {
@@ -313,6 +322,7 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .more:hover { color: var(--text); background: var(--hover); }
 .tbl { margin-top: 28px; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
+.tbl.no-reason col.c2 { width: 72%; }
 /* the small labels: the marking page's .label */
 .tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
@@ -412,6 +422,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
   max-width: 80ch; }
 .panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
+.panel.no-range col.d2 { width: 52%; }
 .panel th { padding: 0 24px 10px 0; }
 .panel thead td { border-bottom: 1px solid var(--line); }
 .panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
@@ -461,6 +472,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl colgroup { display: none; }
   .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
     border-bottom: 1px solid var(--line); }
+  .tbl.no-reason tr { grid-template-columns: 28fr 72fr; }
   .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
   .tbl thead th { padding-bottom: 14px; }
   .tbl tbody tr { padding: 22px 0; }
@@ -634,7 +646,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     command in the saved copy; with every answer marked, what comes next
     (start_label.all_marked_lines). After a check found the new judge worse, the next step
     that check gave (`worse`), unless the Last check block `above` gives it."""
-    from judgekeeper.start_label import all_labeled
+    from judgekeeper.start_label import all_labeled, next_only_skipped, only_skipped
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
@@ -642,10 +654,14 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         headline = VERDICTS[None]
     if worse:
         then = "" if above else _code_line(worse)
-    elif cls != "plain":
+    elif cls != "plain" or r.get("only_wait"):  # no mark counts now: the wait line says it
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
+    elif r.get("only_skipped"):  # the headline is too early to tell: the rest of the line
+        n = r["only_skipped"]
+        then = (f"{_e(only_skipped(n))} "
+                f"{_code_line(next_only_skipped(n, commands(r)['more']))}")
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
@@ -655,8 +671,38 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
     gate = gate_line(r.get("import_gate"), r.get("imported"))  # imported marks, unchecked
     gate = f'<p class="lead">{_files(_term(gate), r)}</p>' if gate else ""
+    written = "".join(f'<p class="lead">{_term(x.strip())}</p>'  # as `check` said it
+                      for x in r.get("written_from") or [])
+    written += waiting_html(r)
     return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-            f'class="{cls}">{_term(headline)}</h1>{gate}<p class="lead">{lead}</p></section>')
+            f'class="{cls}">{_term(headline)}</h1>{written}{gate}<p class="lead">{lead}</p>'
+            "</section>")
+
+
+def waiting_html(r: dict) -> str:
+    """The marks that wait (batches.graded) and how to count them, as Measure says it; with
+    none waiting but no answer left that a mark counts on (only_wait), that, and how to mark
+    more."""
+    from judgekeeper.check import WAIT, WAIT_COUNT, WAIT_GROUP, WAIT_MORE, no_grade_left
+
+    k = r.get("waiting")
+    if not k and not r.get("only_wait"):
+        return ""
+    from judgekeeper import textio
+
+    command = r.get("waiting_check") or "judgekeeper check"  # named plainly (result.json)
+    typed = textio.program("check")  # report.html: plainly too; the live page: its own
+    with textio.plainly():
+        plain = textio.program("check")
+    if typed != plain and command.startswith(f"{plain} "):
+        command = typed + command[len(plain):]
+    run = f"run <code>{look.command(_e(command))}</code>"
+    first, then = ((WAIT.format(k=k), WAIT_COUNT) if k
+                   else (no_grade_left(r), WAIT_GROUP if r.get("wait_group") else WAIT_MORE))
+    if k and r.get("wait_group"):  # and the group no mark can move
+        first = f"{first} {no_grade_left(r)}"
+    count = _term(then.format(run="\0")).replace("\0", run)
+    return f'<p class="lead">{_term(first)} {count}</p>'
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -940,14 +986,17 @@ def _made(r: dict) -> str:
 
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           left_out: int = 0, same: tuple = ()) -> str:
+           left_out: int = 0, same: tuple = (), reasons_given: bool = True) -> str:
     """One group of disagreements: its title, how many more are kept aside (`kept`), the
-    table, then "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
+    table (its REASON column only when an answer marked has a reason: `reasons_given`), then
+    "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show all" (SCRIPT) at the right; in report.html the person's
     reasons, read-only."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
+    third = (('<col class="c3">', f'<th scope="col">{REASON}</th>') if reasons_given
+             else ("", ""))  # the REASON column's col and heading
     body = []
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
@@ -961,16 +1010,17 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
-                    f'<td colspan="3" class="why-cell">{foot}</td></tr>')
+                    + (f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
+                       if reasons_given else "")
+                    + f'<td colspan="{3 if reasons_given else 2}" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
             f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
-            f'<table class="tbl" id="t-{key}"><colgroup><col class="c1"><col class="c2">'
-            '<col class="c3"></colgroup><thead><tr><th scope="col">Question</th>'
-            f'<th scope="col">Answer</th><th scope="col">{REASON}</th></tr></thead>'
+            f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
+            f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
+            f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table>{more}</section>')
 
 
@@ -979,7 +1029,7 @@ REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 def kept_line(n: int) -> str:
     """How many more disagreements are kept aside, in words (the terminal says them too)."""
-    return (f'{n} more {"is" if n == 1 else "are"} hidden on purpose, so a new rule can be '
+    return (f'{n} more {"is" if n == 1 else "are"} kept aside on purpose, so a new rule can be '
             "tested on answers you haven't looked at again.")
 
 
@@ -1049,14 +1099,15 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
                            f'{_e(WHY_USES)}</p></div>')
             first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
-                              (fixing or {}).get("left_out", 0), names))
+                              (fixing or {}).get("left_out", 0), names,
+                              (fixing or {}).get("reasons_given", True)))
         else:
             left += kept
     if left:
         out.append(f'<div class="band kept-after">{_kept(left)}</div>')
     asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
     if asked and not live and mark:
-        tell = say_why_run(asked, mark)
+        tell = say_why_run(asked, mark, len(mistakes) - asked)
         out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
     return "".join(out)
 
@@ -1066,20 +1117,48 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     range is too wide for a result (the headline says it is too early to tell). Too early to
     tell when there is no number yet. A range of no width is not shown: the number says why
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
-    to the same percent are shown with one decimal, and so is the value, so it always sits
-    inside its range ("about 99.3% (between 99.1% and 99.3%)")."""
+    to the same percent are shown with one decimal, then two, and so is the value, so it
+    always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
+    with two decimals too are no range to show: "about 99.3% (almost exact)". Neither the
+    value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
+    99.96%"; an end past two decimals reads "99.99%" or "0.01%", never "over" or "under"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
-        return f"{_pct(value)} ({why or EVERY_MARKED})", "–"
-    if _pct(lo) == _pct(hi):
-        return f"about {value:.1%}", f"{lo:.1%} and {hi:.1%}"
-    return f"about {_pct(value)}", f"{_pct(lo)} and {_pct(hi)}"
+        return f"{share(value)} ({why or EVERY_MARKED})", "–"
+    for places in range(3):
+        if f"{lo:.{places}%}" != f"{hi:.{places}%}":
+            ends = _end(lo, places), _end(hi, places)
+            if ends[0] != ends[1]:
+                return _about(share(value, places)), " and ".join(ends)
+            break
+    return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+
+
+def _end(x: float, places: int) -> str:
+    return share(x, places).removeprefix("over ").removeprefix("under ")
+
+
+def share(x: float, places: int = 0) -> str:
+    """`x` as a percent with `places` decimals, or one or two more when fewer would read 100%
+    or 0% though it is not exactly 1 or 0 ("99.6%", never "100%" for 499 of 501); past two
+    decimals, "over 99.99%" or "under 0.01%"."""
+    for n in range(places, 3):
+        text = f"{x:.{n}%}"
+        if x in (0, 1) or float(text[:-1]) not in (0, 100):
+            return text
+    return "over 99.99%" if x > 0.5 else "under 0.01%"
+
+
+def _about(shown: str) -> str:
+    return shown if shown.startswith(("over ", "under ")) else f"about {shown}"
 
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
+ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1098,11 +1177,20 @@ def why_no_range(key: str, every: bool, pool: dict | None = None) -> str:
     return EVERY_MARKED
 
 
+ON_ANSWERS = " in the {n} answers this result is on"  # a newer batch is not counted yet
+
+
 def why_for(r: dict, key: str) -> str:
-    """why_no_range for a result: its count left to mark and its groups' sizes."""
+    """why_no_range for a result: its count left to mark and its groups' sizes. When the
+    result is on fewer batches than the results hold, the bracket names the answers it is on
+    (ON_ANSWERS): the newer ones are not all marked."""
     g = r.get("groups") or {}
     pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
-    return why_no_range(key, r.get("left") == 0, pool)
+    why = why_no_range(key, r.get("left") == 0 and not r.get("waiting"), pool)
+    on = r.get("batches") or {}
+    if why != SAME_GRADE and on.get("waiting") and len(on.get("counted") or []) < (on.get("of") or 0):
+        why += ON_ANSWERS.format(n=on["answers"])
+    return why
 
 
 def _caption(r: dict) -> str:
@@ -1131,16 +1219,25 @@ def _main_lines(r: dict) -> str:
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
+    ranged = shows_range(r)
     body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
-                   f'<td data-label="Between">{_e(between)}</td></tr>'
-                   for name, est, between in rows)
+                   + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
+                   + "</tr>" for name, est, between in rows)
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
-            f'with you"><table class="panel"><caption>{_caption(r)}</caption>'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(WIDER)}</p>' if shows_range(r) else "")
+            f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
+            f"<tbody>{body}</tbody></table>"
+            + (f'<p class="note wider">{_e(wider(r))}</p>' if ranged else "")
             + "</section>")
+
+
+def _panel_open(ranged: bool, caption: str = "") -> str:
+    """An estimates table's start: its columns and heads, with no Between column when no row
+    has a range (every answer marked)."""
+    return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
+            '<colgroup><col class="d1"><col class="d2">'
+            + ('<col class="d3">' if ranged else "") + "</colgroup>"
+            '<thead><tr><td></td><th scope="col">Estimate</th>'
+            + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
 def _details(r: dict) -> str:
@@ -1148,19 +1245,18 @@ def _details(r: dict) -> str:
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        shown, lo = f"{shown} ({why_for(r, 'kappa')})", None
+        why = why_for(r, "kappa") if targets.width_word([lo, hi]) == "exact" else ALMOST_EXACT
+        shown, lo = f"{shown} ({why})", None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">'
-            f'{shown}</td><td data-label="Between">'
-            f'{f"{_two(lo)} and {_two(hi)}" if lo is not None else "–"}</td></tr>')
+    ranged = lo is not None and hi is not None
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">{shown}</td>'
+            + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
+            + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
-            '</summary><table class="panel">'
-            '<colgroup><col class="d1"><col class="d2"><col class="d3"></colgroup>'
-            '<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-            f"</tr></thead><tbody>{body}</tbody></table></details>")
+            f"</summary>{_panel_open(ranged)}<tbody>{body}</tbody></table></details>")
 
 
 def _next(r: dict, back: str | None) -> str:
@@ -1176,7 +1272,11 @@ def _next(r: dict, back: str | None) -> str:
     saved = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
              "folder. You can close this page.</p>")
     out = [saved]
-    if step == "fix":
+    if step == "fix" and r.get("fix_ready") is False:  # `fix` would say this: mark more
+        from judgekeeper.fix import NOT_ENOUGH
+
+        out.append(f"<p>{_e(NOT_ENOUGH)}</p>")
+    elif step == "fix":
         out.append("<p>Next, in your terminal, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '
@@ -1187,7 +1287,8 @@ def _next(r: dict, back: str | None) -> str:
                    '</code> after '
                    f"you change your {TERM}.</p>")
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
-    more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
+    # with every answer marked, or only answers a mark would wait on, nothing sends to marking
+    more = r.get("left") != 0 and not r.get("only_wait")
     if more and back is not None and shows_range(r):  # exact numbers: no more marks to ask for
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
                    "<p>It closes by itself after 30 minutes without use. Closed? Run "
@@ -1195,6 +1296,11 @@ def _next(r: dict, back: str | None) -> str:
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
                    "there.</p>")
+    elif back is not None:  # every answer marked: a mark can still be changed
+        out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                   "it again.</p>")
+    else:
+        out.append(f"<p>To change a mark, run {mark} in your project folder.</p>")
     return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
             f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
 
@@ -1211,13 +1317,19 @@ def _last_check(last: dict | None, worse: str) -> str:
             f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
+STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "
+                "start it that way.")
+
+
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
-         worse: str | None = None, last: dict | None = None) -> str:
+         worse: str | None = None, last: dict | None = None, started_else: bool = False) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of What next; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
-    copy keeps it too."""
+    and of What next; `last`: that check (check.last_check), said at the top;
+    `started_else`: report.html of a run not started as its commands name the program
+    (STARTED_ELSE under them). The page carries its Content-Security-Policy in a meta tag, so
+    the saved copy keeps it too."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -1239,6 +1351,9 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     if not worse:
         parts.append(_next(r, back))
     parts.append(held_note(r, "".join(parts)))
+    if started_else:
+        note = _e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>")
+        parts.append(f'<div class="band"><p class="note">{note}</p></div>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
     if live and 'class="why"' in "".join(parts):

@@ -161,7 +161,7 @@ def test_check_with_too_few_marked_answers_found_cant_tell(here, capsys, monkeyp
     code, out = run(capsys, "check", _jsonl(here / "few.jsonl", rows).name)
     said = flat(out)
     assert code == 3, out
-    assert "Result: can't tell yet." in said
+    assert "Compared with before: can't tell yet." in said
     assert "a re-check needs 15 of each" in said
     assert ("Next: run `judgekeeper fix` to write the answers you marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again with your LLM-as-a-judge "
@@ -213,7 +213,9 @@ def _marked_inspect_log(here, capsys) -> tuple:
     said = flat(out)
     new = fix.new_log(ws)
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
-    assert (f"run `{fix.INSPECT_SCORE}` with `--output-file {new}`, then run "
+    assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
+                                     "--action overwrite")
+    assert (f"run `{fix.inspect_score(ws)}` with `--output-file {new}`, then run "
             f"`judgekeeper fix {new}`") in said
     assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space "
             "(Inspect reads `-S` values as YAML and cuts them at commas); else grade it with "

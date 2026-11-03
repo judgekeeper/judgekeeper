@@ -121,8 +121,8 @@ def test_a_folder_store_reads_and_stays_as_it_was(tmp_path, monkeypatch):
 
 
 # Only plain files are copied ---------------------------------------------------------------
-# A link named mlflow.db-wal copied any file on the computer to the temporary folder (a 1.8 GB
-# system file in 3 s), and a pipe waited forever. Each part is looked at (lstat) first.
+# A link named mlflow.db-wal could pull any file on the computer into the temporary folder, and
+# a pipe could make the read wait forever. Each part is looked at (lstat) first.
 
 POSIX = pytest.mark.skipif(os.name == "nt", reason="links and pipes need rights on Windows")
 
