@@ -113,7 +113,7 @@ def test_the_result_page_does_not_ask_for_more_marks_under_exact_numbers(one_gra
     page = _mark(one_grade, ["pass"] * 4 + ["fail"])
     html = start_label.live_result(ws, page, back="/?token=t")
     assert "Want more certain numbers" not in html and "Keep marking" not in html
-    assert "To mark more" not in html
+    assert "To mark more, run <code>" in html  # fix needs more marks: the way to them
 
 
 def test_a_result_with_ranges_still_asks_for_more_marks():

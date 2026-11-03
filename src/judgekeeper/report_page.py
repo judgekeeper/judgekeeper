@@ -1310,6 +1310,8 @@ def _next(r: dict, back: str | None) -> str:
         out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>. It '
                    f"closes by itself after 30 minutes without use. Then run {mark} to open it "
                    "again.</p>")
+    elif more and step == "fix" and r.get("fix_ready") is False:  # NOT_ENOUGH: how to mark more
+        out.append(f"<p>To mark more, run {mark} in your project folder.</p>")
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
         pass
     elif back is not None:  # every answer marked: a mark can still be changed
