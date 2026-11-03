@@ -1233,7 +1233,7 @@ def _main_lines(r: dict) -> str:
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
             f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
             f"<tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(wider(r, page=True))}</p>' if ranged else "")
+            + (f'<p class="note wider">{_e(wider(r))}</p>' if ranged else "")
             + "</section>")
 
 

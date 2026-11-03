@@ -413,7 +413,11 @@ def test_the_readme_says_marking_every_answer_leaves_no_range():
     """With every answer of a group marked its share is known (the reference's maths)."""
     numbers = _flat(_sections(_readme())["The numbers"])
     assert ('TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" '
-            "(when you mark every answer, the numbers are exact and have no range).") in numbers
+            "(when you mark every answer, the numbers have no range). The result says \"good "
+            'enough to use" only when a wider range (99%) starts at 80% or more for both. That '
+            "way you can look after every mark. The numbers are about the answers in your "
+            "results, worked out from the ones you marked. They are not a promise about new "
+            "answers.") in numbers  # word for word
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "With every answer of a group marked, its share is known, so it has no range." in reference
 

@@ -103,19 +103,14 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER_ONLY = ("The Result line is more careful than these ranges, so a few marks that agree "
-              "by coincidence can't decide it.")
-AFTER_EVERY_MARK = " You can look at the result after every mark."
-# ...on the result page and in report.html, whose verdict is the heading, not a Result line
-WIDER_PAGE_ONLY = ("The result at the top is more careful than these ranges, so a few marks that "
-                   "agree by coincidence can't decide it.")
+WIDER_ONLY = "The result line uses wider ranges than these, so a lucky streak can't decide it."
+AFTER_EVERY_MARK = " You can look after every mark."
 
 
-def wider(r: dict, page: bool = False) -> str:
-    """WIDER_ONLY (WIDER_PAGE_ONLY on a page) and AFTER_EVERY_MARK, without it while a new mark
-    could only wait (only_wait)."""
-    only = WIDER_PAGE_ONLY if page else WIDER_ONLY
-    return only if r.get("only_wait") else only + AFTER_EVERY_MARK
+def wider(r: dict) -> str:
+    """WIDER_ONLY and AFTER_EVERY_MARK, without it while a new mark could only wait
+    (only_wait)."""
+    return WIDER_ONLY if r.get("only_wait") else WIDER_ONLY + AFTER_EVERY_MARK
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "To tell judgekeeper why you disagree on {n} of them{have}, run `{command}`."
 SAY_WHY_RUN_ONE = "To tell judgekeeper why you disagree on this one{have}, run `{command}`."

@@ -1166,19 +1166,16 @@ def test_the_wider_ranges_note_shows_only_with_a_range_on_screen():
         assert '<p class="note wider">' in start_label.result_html(one, back=back)
 
 
-def test_the_pages_wider_ranges_note_names_the_result_at_the_top():
-    """The page has no Result line: its verdict is the heading, so the note under the ranges
-    points there. The terminal, which prints a Result line, keeps its own words."""
+def test_the_wider_ranges_note_is_the_same_on_the_pages_and_in_the_terminal():
     r = _result(30, 900, 30, 30, 25, 5, left=875)
+    line = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
+            "You can look after every mark.")  # word for word
     for back in ("/?token=t", None):  # the result page, report.html
-        note = unescape(_part(start_label.result_html(r, back=back), '<p class="note wider">',
-                              "</p>"))
-        assert note == start_label.wider(r, page=True)
-        assert note.startswith("The result at the top is more careful") and "Result line" not in note
-    assert start_label.wider(r).startswith("The Result line is more careful")
-    assert start_label.wider(r, page=True).endswith("You can look at the result after every mark.")
+        assert unescape(_part(start_label.result_html(r, back=back), '<p class="note wider">',
+                              "</p>")) == line
+    assert start_label.wider(r) == line
     waits = {**r, "only_wait": True}  # nothing to say about the next mark while marks wait
-    assert start_label.wider(waits, page=True) == start_label.WIDER_PAGE_ONLY
+    assert start_label.wider(waits) == line.split(" You can")[0]
 
 
 @pytest.mark.parametrize("page", ["result page", "report.html"])
