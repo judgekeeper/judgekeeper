@@ -1268,21 +1268,12 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say(f"Next: {front.run_there([owner], Path.cwd())}")
         return EXIT_NEEDS_YOU
     folder = _project(given)
-    from judgekeeper import project, textio
+    from judgekeeper import project
 
     apart = project.kept_apart(folder, given if given.is_file() else None)
     if apart is not None:  # by the rule every command keeps: their own marks, made there
-        marked, files = apart
-        here = folder.resolve() == Path.cwd().resolve()
-        shown = textio.folder_from_here(folder)
-        said.say((f"No marks for these results yet: they get their own marks "
-                  f"{'here' if here else f'in {shown}/'}. "
-                  + (f"The marks in {textio.folder_from_here(marked)}/ are for "
-                     f"{', '.join(files)}." if files else "")).strip())
-        said.say()
-        run = (f"`{program()}` here" if here else
-               f"`{front._program_there([shown], Path.cwd())}` in {shown}/")
-        said.say(f"Next: run {run} to mark answers for them.")
+        for line in own_marks_lines(folder, *apart):
+            said.say(line)
         return EXIT_NEEDS_YOU
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
     this = f"this folder ({folder.name})" if folder.name else "this folder"  # / has no name
@@ -1298,6 +1289,24 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     said.say()
     said.say(f"Next: run `{program('check')} {quote_arg(where)}`.")
     return EXIT_NEEDS_YOU
+
+
+def own_marks_lines(folder: Path, marked: Path, files: list[str]) -> list[str]:
+    """check's lines for results in `folder` that get their own marks there, not those in
+    `marked` (for `files`): where, and the run that makes them. A folder no line can send
+    the person to by its name (in another person's home folder) is "that folder"."""
+    from judgekeeper import front, textio
+
+    here = folder.resolve() == Path.cwd().resolve()
+    shown = textio.folder_from_here(folder)
+    where = ("here" if here else "in that folder" if textio.cut_short(shown)
+             else f"in {shown}/")
+    first = (f"No marks for these results yet: they get their own marks {where}. "
+             + (f"The marks in {textio.folder_from_here(marked)}/ are for {', '.join(files)}."
+                if files else "")).strip()
+    run = (f"`{program()}` here" if here else
+           front.run_there([shown], Path.cwd()).removeprefix("run ").removesuffix("."))
+    return [first, "", f"Next: run {run} to mark answers for them."]
 
 
 def _tested_rule(state: State, found) -> str | None:

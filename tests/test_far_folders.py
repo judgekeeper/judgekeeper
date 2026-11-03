@@ -85,3 +85,18 @@ def test_marking_more_in_a_folder_it_cant_name_gives_no_path_to_type(home, monke
     assert " PATH" not in out, out
     assert "Next: go to your project folder, then run `" in out, out
     assert out.endswith(" mark` there to mark more answers."), out
+
+
+def test_own_marks_in_a_folder_it_cant_name_are_said_as_that_folder(home, monkeypatch):
+    """check's line for results that get their own marks, in a folder in another person's
+    home folder: "that folder", never the cut name as a place to go."""
+    from judgekeeper import check
+
+    folder = home.parent / "bob" / "proj two"
+    folder.mkdir(parents=True)
+    monkeypatch.chdir(home.parent.parent)
+    lines = check.own_marks_lines(folder, home.parent / "bob", ["results.csv"])
+    text = " ".join(lines)
+    assert "they get their own marks in that folder" in text, text
+    assert "Next: run `" in text and "` in that folder to mark answers for them." in text, text
+    assert "` in /…/" not in text and "own marks in /…/" not in text, text
