@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise KeyboardInterrupt
         except KeyboardInterrupt:
             _release(held)
-            code = _stopped()
+            code = _stopped(sys.argv[1:] if argv is None else argv)
         else:
             code = run(argv)
     finally:
@@ -83,11 +83,26 @@ def _end_now(code: int) -> None:
     os._exit(code)
 
 
-def _stopped() -> int:
-    """Ctrl-C before the commands were loaded: said as cli.py says it, in its plainest form
-    (the command as run would need them loaded)."""
+def _stopped(argv: list[str]) -> int:
+    """Ctrl-C while the commands loaded: said as cli.py says it, the program as typed and the
+    flags given. When the commands could not be loaded, the plain name and the flags."""
+    try:
+        from judgekeeper import cli, textio
+
+        stop, first = cli._stopped, cli.command_first
+        textio.next_said = False  # this run has said nothing yet (as cli._main starts)
+    except (Exception, KeyboardInterrupt):  # noqa: BLE001 - not loaded: said plainly below
+        stop = None
+    if stop is not None:
+        try:
+            return stop(first(list(argv)))
+        except OSError:  # stdout can't take it: still stopped
+            return EXIT_STOPPED
+    import shlex
+
+    command = " ".join(["judgekeeper", *(shlex.quote(a) for a in argv if a != "--debug")])
     print("\nStopped.")
-    print("Next: run `judgekeeper` to carry on.")
+    print(f"Next: run `{command}` to carry on.")
     return EXIT_STOPPED
 
 
