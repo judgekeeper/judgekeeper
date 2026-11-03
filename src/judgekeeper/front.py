@@ -899,6 +899,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     if all(_numeric(v) for v in values):
         if not terminal and (rule := _rule_in_use(found)) != PASS_IF:  # measured: it is saved
             again = talk.command("--pass-if", rule)
+            talk.step = None  # a saved pass mark: past Find, so no "Step 1 of 5: Find" above it
             talk.para(f"Your pass mark is {_saved_pass_mark(found)['rule']}. Without a terminal, "
                       f"give it again: `{again}`.")
             raise talk.stop(EXIT_QUESTION, f"run `{again}`.")
