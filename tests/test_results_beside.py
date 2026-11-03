@@ -42,7 +42,7 @@ def _store(root, capsys, marker) -> bytes:
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
-    code, out, err = run(capsys, *argv, *(PAGE if argv[:1] != ("check",) else ()))
+    code, out, err = run(capsys, *argv, *(PAGE if argv[:1] not in (("check",), ("fix",)) else ()))
     run(capsys, "--stop")
     return code, flat(out + err)
 
@@ -113,7 +113,7 @@ def _write_other(here, other: str) -> str:
 
 
 @pytest.mark.parametrize("other", ["csv", "promptfoo"])
-@pytest.mark.parametrize("command", [["mark"], [], ["check"]])
+@pytest.mark.parametrize("command", [["mark"], [], ["check"], ["fix"]])
 @pytest.mark.parametrize("inside", [True, False])
 def test_another_eval_beside_the_results_is_said_and_changes_nothing(here, capsys, monkeypatch,
                                                                      other, command, inside):

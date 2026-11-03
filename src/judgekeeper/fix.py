@@ -1255,6 +1255,14 @@ def run(path: str = ".", new: bool = False) -> int:
                   "again with your new rule, or run it in your project folder.")
         return EXIT_USAGE
     state = _state(talk.path)
+    from judgekeeper import project
+
+    if state is not None and results is not None and results.is_file() and (
+            marked := project.other_eval(state.ws.root, results)) is not None:
+        talk.say(STEP)  # as check and mark: never read as new results
+        talk.say()
+        talk.para(project.other_eval_line(results, marked))
+        return EXIT_NEEDS_YOU
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
     if m is not None and m.data.get("rule") is None:
