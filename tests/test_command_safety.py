@@ -636,6 +636,29 @@ def test_a_python_path_never_climbs_with_dot_dot(monkeypatch, tmp_path):
     assert textio.program("mark") == f"{outside} -P -m judgekeeper mark"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_python_path_with_dot_dot_in_it_is_named_without_it(monkeypatch, tmp_path):
+    """sys.executable itself may hold `..` (a venv made as `nf09/../v314`): outside the home
+    folder it is named without it, as it is under the home folder (Python 3.14 warns twice,
+    with sys.prefix, when its own path climbs)."""
+    home = tmp_path / "home"
+    (home / "work").mkdir(parents=True)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    monkeypatch.chdir(home / "work")
+    climbs = os.path.join(str(tmp_path / "opt" / "nf09"), os.pardir, "v314", "bin", "python")
+    monkeypatch.setattr(sys, "executable", climbs)
+    outside = tmp_path / "opt" / "v314" / "bin" / "python"
+    assert textio.program("mark") == f"{outside} -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", os.path.join(str(home / "kit" / "a"), os.pardir,
+                                                        ".venv", "bin", "python"))
+    assert textio.program("mark") == "~/kit/.venv/bin/python -P -m judgekeeper mark"
+
+
 def test_a_python_path_never_climbs_on_windows_either(monkeypatch, tmp_path):
     monkeypatch.setattr("shutil.which", lambda name: None)
     monkeypatch.delenv("UV", raising=False)

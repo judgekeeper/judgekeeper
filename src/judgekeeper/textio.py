@@ -154,7 +154,10 @@ def command_path(path: str, climb: bool = True) -> str:
     the shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path
     as it is; else from here, quoted (else the path as it is). Without `climb`, never a
     path from here that climbs with `..` (a python run so warns, Python 3.14 with the home
-    path in it)."""
+    path in it). A whole path is named without `..` in it (sys.executable may hold one), as
+    relpath names it from here."""
+    if os.path.isabs(path):
+        path = os.path.normpath(path)
     try:
         here = os.getcwd() if _from is None else _from
         shown = os.path.relpath(path, here) if here != ANYWHERE else None
