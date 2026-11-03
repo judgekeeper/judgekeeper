@@ -311,7 +311,7 @@ NEXT_WAIT = ("Next: grade all your answers with your new LLM-as-a-judge, then ru
 def _no_mark_more(text: str) -> None:
     low = text.lower()
     for words in ("mark at least", "mark more answers", "keep marking", "marked every answer",
-                  "run your eval on more questions"):
+                  "run your eval on more questions", "result after every mark"):
         assert words not in low, (words, text)
 
 
@@ -340,6 +340,33 @@ def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
     status = StartSession(ws).state()["status"]
     assert status["only_wait"] is True and check.NO_GRADE_LEFT in status["waiting"], status
     _no_mark_more(status["text"])
+
+
+def _mark_says(ws: Workspace, capsys) -> str:
+    code, out = _jk(capsys, "mark", "v2.json", "--no-browser", "--port", "0")
+    closed(ws)
+    assert code == 0, out
+    text = flat(out)
+    _no_mark_more(text)
+    assert "more precise" not in text and NEXT_WAIT in text, out
+    return text
+
+
+def test_mark_says_a_new_mark_can_only_wait(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    ws = _imported_wait(tmp_path, capsys, page=0)
+    assert check.NO_GRADE_LEFT in _mark_says(ws, capsys)
+
+
+def test_mark_says_how_many_marks_wait(imported_wait):
+    ws, capsys = imported_wait
+    assert check.WAIT.format(k=10) in _mark_says(ws, capsys)
+
+
+def test_mark_names_the_group_no_mark_can_move(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    ws = _imported_wait(tmp_path, capsys, also=[26, 27, 28, 29], page=0)
+    assert check.NO_GRADE_IN.format(did="failed", name="labels.csv") in _mark_says(ws, capsys)
 
 
 def test_while_only_marks_that_wait_are_left_the_open_page_asks_for_no_marks(imported_wait):
@@ -410,6 +437,13 @@ def test_every_answer_marked_and_some_waiting_say_only_the_wait(tmp_path, monkey
         "<new results file>", "results-v2.csv") in text or NEXT_WAIT in text, out
     _no_mark_more(text)
     _no_mark_more(_text(ws.report_html.read_text(encoding="utf-8")))
+    code, out = _jk(capsys, "mark", "--no-browser", "--port", "0")  # every answer is marked
+    closed(ws)
+    text = flat(out)
+    assert "You have marks on all 80 answers." in text and check.WAIT.format(k=5) in text, out
+    assert NEXT_WAIT.replace("<new results file>", "results-v2.csv") in text or \
+        NEXT_WAIT in text, out
+    _no_mark_more(text)
 
 
 def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_check(
@@ -428,16 +462,52 @@ def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_chec
     assert r["verdict_level"] in ("gate", "not_gate"), r["verdict_level"]
 
 
-def test_with_graded_answers_left_the_gate_counts_only_those(tmp_path, monkeypatch, capsys):
-    """V2 graded 3 answers no one marked: the gate asks for at most those 3, and the page
-    still asks for marks."""
+def test_a_group_whose_answers_left_all_wait_holds_the_check_and_is_named(
+        tmp_path, monkeypatch, capsys):
+    """V2 graded 3 answers no one marked, all in the group the first rule failed; every
+    answer left in the group it passed waits. That group still needs page marks, so no page
+    mark can finish the check of the imported marks: nothing asks for marks (no gate line),
+    the line names the group, and the step is to grade every answer, then check."""
     monkeypatch.chdir(tmp_path)
     ws = _imported_wait(tmp_path, capsys, also=LATER[-3:])
     r = _result(ws)
-    assert r["waiting"] == 10 and r["import_gate"] == 3, r.get("import_gate")
-    assert r["verdict_level"] == "too_early" and not r.get("only_wait")
+    assert r["waiting"] == 10 and not r.get("import_gate"), r.get("import_gate")
+    assert r["verdict_level"] == "too_early" and r["only_wait"] is True, r
+    assert r["wait_group"] == "pass", r.get("wait_group")
+    _says_the_group_waits(ws, capsys, "passed")
+
+
+def test_a_group_left_with_only_waiting_answers_is_named_while_the_other_has_some(
+        tmp_path, monkeypatch, capsys):
+    """V2 graded 4 more answers the first rule passed; every answer left that it failed
+    waits: marks on the 4 can't finish the check either."""
+    monkeypatch.chdir(tmp_path)
+    ws = _imported_wait(tmp_path, capsys, also=[26, 27, 28, 29], page=0)
+    r = _result(ws)
+    assert "waiting" not in r and not r.get("import_gate"), r.get("import_gate")
+    assert r["only_wait"] is True and r["wait_group"] == "fail", r
+    _says_the_group_waits(ws, capsys, "failed")
+
+
+def _says_the_group_waits(ws: Workspace, capsys, did: str) -> None:
+    line = check.NO_GRADE_IN.format(did=did, name="labels.csv")
+    assert line == ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left that "
+                    f"your old one {did}, so your marks from labels.csv can't be checked until "
+                    "it grades them.")
+    code, out = _jk(capsys, "v2.json", "--no-browser", "--port", "0")
+    out += _jk(capsys, "v2.json", "--no-browser", "--port", "0")[1]  # the page open now
+    closed(ws)
+    text = flat(out)
+    assert code == 0 and line in text and NEXT_WAIT in text, out
+    assert check.NO_GRADE_LEFT not in text, out
+    _no_mark_more(text)
+    for page in (_text(ws.report_html.read_text(encoding="utf-8")),
+                 _text(start_label.live_result(ws, StartSession(ws), back="/"))):
+        assert line in page and check.NO_GRADE_LEFT not in page, page
+        _no_mark_more(page)
     status = StartSession(ws).state()["status"]
-    assert not status.get("only_wait"), status
+    assert status["only_wait"] is True and line in status["waiting"], status
+    _no_mark_more(status["text"])
 
 
 def test_going_back_to_an_older_file_never_calls_it_the_newest(adopted):

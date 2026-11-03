@@ -824,7 +824,7 @@ def mark_changed(old: dict, new: dict) -> bool:
             != (new.get("pass_mark") or {}).get("mark"))
 
 
-def written_from_lines(ws: Workspace) -> list[str]:
+def written_from_lines(ws: Workspace, more: bool | None = None) -> list[str]:
     """What `check` says under its result after it took on a rule (or pass mark) `fix` tested
     on these marks: WRITTEN_FROM, then the new judge on the marks made since (_after_lines),
     worked out from the marks as they are now. [] when the judge now is not one such check
@@ -850,7 +850,9 @@ def written_from_lines(ws: Workspace) -> list[str]:
              if str((m.last.get(i) or {}).get("at") or "") > since}
     picked, pool = batches.strata(data)
     never = set(data.get("earlier_grades") or ())  # a mark there only waits
-    more = any(q["id"] not in every and q["id"] not in never for q in data.get("queue") or [])
+    if more is None:  # `more`: False while no new mark can move the result (only_wait)
+        more = any(q["id"] not in every and q["id"] not in never
+                   for q in data.get("queue") or [])
     return [written_from(took[-1].get("before") or {}, took[-1]["after"]),
             *_after_lines(fresh, tested, picked, pool,
                           every=every_marked(ws) and len(marked) == len(every), more=more)]
@@ -865,6 +867,22 @@ WAIT_COUNT = "To count them, " + WAIT_NEXT
 NO_GRADE_LEFT = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left to "
                  "mark, so a new mark can't count yet.")
 WAIT_MORE = "To count new marks, first " + WAIT_NEXT
+# One group still needs page marks to check the imported marks, and every answer left there
+# waits ({did}: the group, as the old LLM-as-a-judge graded it; {name}: where they came from)
+NO_GRADE_IN = ("Your new LLM-as-a-judge has no Pass or Fail grade on the answers left that your "
+               "old one {did}, so your marks from {name} can't be checked until it grades them.")
+
+
+def no_grade_left(r: dict) -> str:
+    """NO_GRADE_IN for the result's `wait_group` (start_label.stuck_groups), else
+    NO_GRADE_LEFT."""
+    from judgekeeper.labels import GROUP_DID, names
+
+    group = r.get("wait_group")
+    if group not in GROUP_DID:
+        return NO_GRADE_LEFT
+    return NO_GRADE_IN.format(did=GROUP_DID[group],
+                              name=names((r.get("imported") or {}).get("from") or ["a file"]))
 
 
 def wait_file(ws: Workspace) -> str:
@@ -890,14 +908,17 @@ def wait_run(ws: Workspace) -> str:
     return _run_in(ws, wait_file(ws), _away(ws))
 
 
-def wait_lines(ws: Workspace, k: int, only: bool = False) -> list[str]:
+def wait_lines(ws: Workspace, k: int, only: bool = False,
+               none_left: str = NO_GRADE_LEFT) -> list[str]:
     """What the marking page says while `k` marks wait: WAIT, then how to count them; with
-    none waiting but `only` (no answer left to mark has the new judge's grade), NO_GRADE_LEFT,
-    then how to mark more."""
+    none waiting but `only` (no answer left to mark has the new judge's grade), `none_left`
+    (no_grade_left), then how to mark more. A group no mark can move is named with the wait
+    too."""
     run = f"run `{wait_command(ws)}`"
+    group = none_left != NO_GRADE_LEFT and only
     if k:
-        return [WAIT.format(k=k), WAIT_COUNT.format(run=run)]
-    return [NO_GRADE_LEFT, WAIT_MORE.format(run=run)] if only else []
+        return [WAIT.format(k=k), *([none_left] if group else []), WAIT_COUNT.format(run=run)]
+    return [none_left, WAIT_MORE.format(run=run)] if only else []
 
 
 def _markable_left(state: State, found) -> bool:

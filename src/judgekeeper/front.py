@@ -1944,7 +1944,39 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
         talk.say()
     first, step = _all_marked_lines(talk, ws, counts, saved)
     talk.para(first)
+    if (waits := _waits(ws, StartSession(ws))) is not None:  # no eval run on more helps
+        _say_waits(talk, waits)
+        step = _wait_step(ws)
     raise talk.stop(EXIT_QUESTION, then or step.removeprefix("Next: "))
+
+
+def _waits(ws: Workspace, session: StartSession) -> dict | None:
+    """The result (start_label.compute) when marks wait or a new mark could only wait
+    (only_wait): what Measure says then, `mark` says too. None otherwise."""
+    data = ws.data()
+    if not (data.get("earlier_grades") or batches.waiting(data, session.marked())):
+        return None  # a mark waits only on an answer the judge now never graded
+    try:
+        r = start_label.compute(ws, session)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return r if r.get("waiting") or r.get("only_wait") else None
+
+
+def _say_waits(talk: FrontTalk, r: dict) -> None:
+    """The wait lines, as Measure says them."""
+    from judgekeeper import check as checking
+
+    if r.get("waiting"):
+        talk.para(checking.WAIT.format(k=r["waiting"]))
+    if r.get("wait_group") or r.get("only_wait") and not r.get("waiting"):
+        talk.para(checking.no_grade_left(r))
+
+
+def _wait_step(ws: Workspace) -> str:
+    from judgekeeper import check as checking
+
+    return "Next: " + checking.WAIT_NEXT.format(run=checking.wait_run(ws))
 
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
@@ -1958,7 +1990,7 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
     no terminal (no link printed) how to print its link. None for any other page."""
     if not opened.kept or talk.options["no_browser"]:
         return None
-    talk.para(f"{IN_BROWSER} {after}")
+    talk.para(f"{IN_BROWSER} {after}".rstrip())
     if shown == page.KEPT:
         talk.para(CLOSED_IT.format(command=talk.command("--no-browser")))
     return True
@@ -2018,6 +2050,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
         talk.say(f"You have {'marks on' if some_imported else 'marked'} all "
                  f"{_n(n, 'answer')}.")  # the page didn't mark the imported ones
+        waits = _waits(ws, session)
+        if waits is not None:  # the step is grading them again, not more questions
+            _say_waits(talk, waits)
         talk.say()
         for line in head:
             talk.para(line)
@@ -2038,6 +2073,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
         talk.para("Next: " + then if then  # the new answers wait for a check
+                  else _wait_step(ws) if waits is not None
                   else _all_marked_lines(talk, ws, counts, saved)[1])  # they join later
         if opened is not None and opened.server is not None:
             page.serve(opened.server)
@@ -2048,6 +2084,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.para(line)
     if head:
         talk.say()
+    waits = _waits(ws, session) if n else None  # no line asks for a mark that can only wait
     if n:
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
         waiting = n - len(counted)
@@ -2064,22 +2101,24 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
             _needs_each_kind(talk, session)
-        elif gate := _import_gate(ws, session):  # as the result says it
+        elif waits is None and (gate := _import_gate(ws, session)):  # as the result says it
             talk.para(gate)
+        if waits is not None:
+            _say_waits(talk, waits)
         talk.say()
-    after = PRECISE if enough else BAR if n else SHOWS
+    after = "" if waits is not None else PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
         _needs_each_kind(talk, session)
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
     if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
-        talk.para(f"The marking page is still open in your browser. {after}")
+        talk.para(f"The marking page is still open in your browser. {after}".rstrip())
     else:
         opened, shown = _open(talk, ws, wait, saved)
         again = " again" if n and not marking else ""
-        if _kept(talk, opened, shown, after) is None:
-            talk.para(f"The marking page is open in your browser{again}. {after}"
+        if _kept(talk, opened, shown, after) is None and (shown == page.BROWSER or after):
+            talk.para(f"The marking page is open in your browser{again}. {after}".rstrip()
                       if shown == page.BROWSER else after)
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
@@ -2087,7 +2126,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     next_step = NEXT_MORE if enough else NEXT_MARK
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
-    talk.para("Next: " + next_step.format(command=command))
+    talk.para(_wait_step(ws) if waits is not None
+              else "Next: " + next_step.format(command=command))
     return EXIT_OK
 
 
@@ -2238,8 +2278,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line)
     if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
         talk.para(checking.WAIT.format(k=r["waiting"]))
-    elif r.get("only_wait"):  # none yet, but a new mark could only wait
-        talk.para(checking.NO_GRADE_LEFT)
+    if r.get("wait_group") or r.get("only_wait") and not r.get("waiting"):
+        talk.para(checking.no_grade_left(r))  # none yet, but a new mark could only wait
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
@@ -2269,7 +2309,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         for line in estimate_lines(r):
             talk.say(line)
         if report_page.shows_range(r):  # with no range shown, nothing is wider
-            talk.para(start_label.WIDER)
+            talk.para(start_label.wider(r))
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
     if assumes:
         talk.say()

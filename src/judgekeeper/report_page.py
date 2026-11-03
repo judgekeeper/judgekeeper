@@ -23,7 +23,7 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, WIDER
+from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, wider
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -679,7 +679,7 @@ def waiting_html(r: dict) -> str:
     """The marks that wait (batches.graded) and how to count them, as Measure says it; with
     none waiting but no answer left that a mark counts on (only_wait), that, and how to mark
     more."""
-    from judgekeeper.check import NO_GRADE_LEFT, WAIT, WAIT_COUNT, WAIT_MORE
+    from judgekeeper.check import WAIT, WAIT_COUNT, WAIT_MORE, no_grade_left
 
     k = r.get("waiting")
     if not k and not r.get("only_wait"):
@@ -693,7 +693,9 @@ def waiting_html(r: dict) -> str:
     if typed != plain and command.startswith(f"{plain} "):
         command = typed + command[len(plain):]
     run = f"run <code>{look.command(_e(command))}</code>"
-    first, then = (WAIT.format(k=k), WAIT_COUNT) if k else (NO_GRADE_LEFT, WAIT_MORE)
+    first, then = (WAIT.format(k=k), WAIT_COUNT) if k else (no_grade_left(r), WAIT_MORE)
+    if k and r.get("wait_group"):  # and the group no mark can move
+        first = f"{first} {no_grade_left(r)}"
     count = _term(then.format(run="\0")).replace("\0", run)
     return f'<p class="lead">{_term(first)} {count}</p>'
 
@@ -1219,7 +1221,7 @@ def _main_lines(r: dict) -> str:
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
             f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
             f"<tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(WIDER)}</p>' if ranged else "")
+            + (f'<p class="note wider">{_e(wider(r))}</p>' if ranged else "")
             + "</section>")
 
 

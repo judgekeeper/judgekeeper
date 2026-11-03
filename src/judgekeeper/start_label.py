@@ -103,8 +103,14 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER = ("The result line uses wider ranges than these, so a few marks that agree by "
-         "coincidence can't decide it. You can look at the result after every mark.")
+WIDER_ONLY = ("The result line uses wider ranges than these, so a few marks that agree by "
+              "coincidence can't decide it.")
+WIDER = WIDER_ONLY + " You can look at the result after every mark."
+
+
+def wider(r: dict) -> str:
+    """WIDER, without its "after every mark" while a new mark could only wait (only_wait)."""
+    return WIDER_ONLY if r.get("only_wait") else WIDER
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
 SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
 SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
@@ -658,6 +664,31 @@ def import_check(m: marks.Marks, data: dict, ids: set,
     imported = marks.imported(m, ids=ids)
     if not imported:
         return None, 0, None
+    counts, left = _import_left(m, data, ids, markable)
+    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
+    return imported, needed, labels_mod.looks_off(counts)
+
+
+def stuck_groups(m: marks.Marks, data: dict, ids: set) -> list[str]:
+    """The groups where the check of the imported marks (import_check) still needs page
+    marks, but every answer left waits (earlier_grades): no page mark can finish the check
+    until the new LLM-as-a-judge grades them. [] without imported marks."""
+    from judgekeeper import labels as labels_mod
+
+    if not data.get("earlier_grades") or not marks.imported(m, ids=ids):
+        return []
+    counts, every = _import_left(m, data, ids, markable=False)
+    _, markable = _import_left(m, data, ids, markable=True)
+    return [g for g in ("pass", "fail")
+            if labels_mod.still_needed({g: sum(counts[g]["page"])}, {g: every[g]})
+            and not markable[g]]
+
+
+def _import_left(m: marks.Marks, data: dict, ids: set,
+                 markable: bool) -> tuple[dict, dict[str, int]]:
+    """import_check's counts per group (labels.by_group) and the answers left in each."""
+    from judgekeeper import labels as labels_mod
+
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
@@ -672,8 +703,7 @@ def import_check(m: marks.Marks, data: dict, ids: set,
 
     left = {g: sum(q["group"] == g and batch.get(q["id"], 1) in on and left_in(q)
                    for q in data["queue"]) for g in ("pass", "fail")}
-    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
-    return imported, needed, labels_mod.looks_off(counts)
+    return counts, left
 
 
 def start_status(session: StartSession, run: str | None = None) -> dict:
@@ -684,8 +714,10 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     data = ws.cached_data()
     graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
     known = ws.cached_strata()
+    few = True  # too few marks for a result: a stuck group (stuck_groups) holds nothing yet
     if has_result(batches.counted_strata(data, graded, known)):  # as the result counts them
-        status = status_of(result_numbers(data, batches.counted_labels(data, graded), known))
+        numbers = result_numbers(data, batches.counted_labels(data, graded), known)
+        status, few = status_of(numbers), numbers["check"] == "too_few"
     else:
         status = strata_status([])
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
@@ -703,7 +735,16 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     from judgekeeper import check
 
     only = only_wait(data, session)
-    wait = check.wait_lines(ws, len(session.marked()) - len(graded), only)
+    group = None
+    if not few and ws.marks.is_file() and data.get("earlier_grades"):
+        m = marks.read(ws.marks)
+        ids = set(batches.counted_labels(data, graded))
+        if import_check(m, data, ids)[1] and (stuck := stuck_groups(m, data, ids)):
+            only = True  # no page mark can finish the check of the imported marks
+            group = {"wait_group": stuck[0] if len(stuck) == 1 else None,
+                     "imported": marks.imported(m, ids=ids)}
+    wait = check.wait_lines(ws, len(session.marked()) - len(graded), only,
+                            check.no_grade_left(group or {}))
     if wait:  # said once, in the status area: else the result never moves, with no word why
         status["waiting"] = " ".join(wait)
     if only:  # no mark can move the result: the wait line is the step
@@ -1522,13 +1563,6 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["judge_check"] = data["judge_check"]
     k = batches.waiting(data, session.marked())
     only = only_wait(data, session)
-    if k or only:  # on answers the judge now never graded: kept, not counted (batches.graded)
-        from judgekeeper import check, textio
-
-        with textio.plainly():  # result.json and report.html name the program plainly
-            r.update(waiting_check=check.wait_command(ws))
-        if k:
-            r["waiting"] = k
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
@@ -1538,10 +1572,22 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if imported:
         r["imported"] = imported
     if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
-        shown = (import_check(m, data, set(labels), markable=True)[1]
+        stuck = stuck_groups(m, data, set(labels))  # a group no page mark can move
+        shown = (0 if stuck else import_check(m, data, set(labels), markable=True)[1]
                  if data.get("earlier_grades") else needed)
         r.update(import_gate=shown, verdict_level="too_early")  # 0: no page mark counts now
         r["verdict"] = _verdict(r)
+        if stuck:
+            only = True
+            if len(stuck) == 1:  # both: none left to mark counts (NO_GRADE_LEFT)
+                r["wait_group"] = stuck[0]
+    if k or only:  # on answers the judge now never graded: kept, not counted (batches.graded)
+        from judgekeeper import check, textio
+
+        with textio.plainly():  # result.json and report.html name the program plainly
+            r.update(waiting_check=check.wait_command(ws))
+        if k:
+            r["waiting"] = k
     if only:
         r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
@@ -1551,7 +1597,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     from judgekeeper import check
 
     r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
-    written = check.written_from_lines(ws)  # a rule check took on was written from these marks
+    written = check.written_from_lines(ws, more=False if only else None)  # a rule check took
+    # on was written from these marks
     if written:
         r["written_from"] = written
     return r
