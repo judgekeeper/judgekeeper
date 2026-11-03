@@ -12,12 +12,18 @@ import pytest
 
 pytest.importorskip("inspect_ai")
 
-from judgekeeper.readers import inspect_logs  # noqa: E402
+from judgekeeper.readers import inspect_logs
 
 
 def _write(path: Path, n: int, ids: list | None) -> Path:
-    from inspect_ai.log import (EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec,
-                                write_eval_log)
+    from inspect_ai.log import (
+        EvalConfig,
+        EvalDataset,
+        EvalLog,
+        EvalSample,
+        EvalSpec,
+        write_eval_log,
+    )
     from inspect_ai.scorer import Score
 
     dataset = EvalDataset(name="arith", samples=n, **({} if ids is None else {"sample_ids": ids}))
