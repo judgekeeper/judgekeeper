@@ -1844,12 +1844,12 @@ _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function
 INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
 # The new rule, by the option the log set it in: model_graded_qa reads a template from a file
 NEW_RULE = {"instructions": "<new rule>", "template": "<file with the new rule>"}
-NOW_RULE = {"instructions": "<your rule>", "template": "<file with your rule>"}  # check
-NOT_IN_S = ("Put your rule in place of `<your rule>`. A rule with a comma, or a colon followed "
+NOW_RULE = {"instructions": "<current rule>", "template": "<file with the current rule>"}  # check
+NOT_IN_S = ("Put your rule in place of `<current rule>`. A rule with a comma, or a colon followed "
             "by a space, can't go in `-S`. Grade the log with Inspect's score() in Python "
             "then, as " + EVAL_TOOLS + " shows.")
 # A scorer of the person's own may take its template as text, not a file
-OWN_TEMPLATE = ("<new rule, as your scorer takes it>", "<your rule, as your scorer takes it>")
+OWN_TEMPLATE = ("<new rule, as your scorer takes it>", "<current rule, as your scorer takes it>")
 
 
 def _marked_log(ws: Workspace) -> tuple[str | None, str]:

@@ -2474,7 +2474,7 @@ def regrade_marked(state: State, every: bool = False, found=None) -> str:
         log = quote_arg(fix.new_log(ws))
         now = fix.now_options(ws, found) if found is not None else {}
         command = fix.inspect_score(ws, log, now=now)
-        note = f" {fix.NOT_IN_S}" if "<your rule>" in command else ""
+        note = f" {fix.NOT_IN_S}" if fix.NOW_RULE["instructions"] in command else ""
         return (f"score your {'whole ' if every else ''}marked log again with your "
                 f"LLM-as-a-judge as it is now: run `{command}` and then "
                 f"{_run_in(ws, log, _away(ws))}.{note}")
