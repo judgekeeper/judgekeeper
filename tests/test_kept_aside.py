@@ -84,16 +84,21 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     # reference, checked below)
     assert need["fixes 90%, breaks 2%"]["marks"] == n  # the site and reference say "also"
     slow = need["fixes 10%, breaks 5%"]["marks"]
+    # "breaks at most 2 in 100": 80 or fewer for 9 in 10 and a quarter; 1 in 10 or a quarter
+    # that breaks 5 in 100: the slow number
+    assert all(need[f"fixes {f}%, breaks {b}%"]["marks"] <= n for f in (25, 90) for b in (0, 2))
+    assert need["fixes 25%, breaks 5%"]["marks"] == slow
     claim = (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
-             f"10 of its mistakes or a quarter of them usually gets a clear answer from about {n} "
-             f"marks, and one "
-             f"that fixes 1 in 10 and breaks 5 in 100 right answers needs about {slow} ")
+             f"10 of its mistakes or a quarter of them, and breaks at most 2 in 100 right "
+             f"answers, usually gets a clear answer from about {n} marks, and one that fixes 1 "
+             f"in 10 or a quarter and breaks 5 in 100 right answers needs about {slow} ")
     assert claim in site
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
     assert (f"gets a clear answer most of the time from about {n} marks, mostly \"Safe to "
-            f"try\"; one that fixes almost all of them, also from about {n}; one that fixes 1 "
-            f"in 10 and breaks 5 in 100 right answers, from about {slow}.") in reference
+            f"try\"; one that fixes almost all of them and breaks few, also from about {n}; one "
+            f"that fixes 1 in 10 or a quarter and breaks 5 in 100 right answers, from about "
+            f"{slow}.") in reference
     # "by mistake is rare but not zero ... only for rules close to no change"
     assert "by mistake is rare but not zero, and happens only for rules close to no change" \
         in reference

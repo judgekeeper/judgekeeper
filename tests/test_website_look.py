@@ -910,9 +910,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
              "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes or a "
-             "quarter of them usually gets a clear answer from about 80 marks, and one that "
-             "fixes 1 in 10 and "
-             "breaks 5 in 100 right answers needs about 160 (simulation).")],
+             "quarter of them, and breaks at most 2 in 100 right answers, usually gets a clear "
+             "answer from about 80 marks, and one that fixes 1 in 10 or a quarter and breaks 5 "
+             "in 100 right answers needs about 160 (simulation).")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
              "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
