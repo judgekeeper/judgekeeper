@@ -1184,9 +1184,9 @@ def run(path: str = ".", new: bool = False) -> int:
         return EXIT_NEEDS_YOU
     if split is None:
         talk.para(NOT_ENOUGH)
-        from judgekeeper.check import _here
+        from judgekeeper.check import mark_here
 
-        mark = _here(ws, "mark") if ws is not None else program("mark")  # from here
+        mark = mark_here(ws) if ws is not None else program("mark")  # from here
         step = f"run `{mark}` to mark more answers."
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
@@ -1246,7 +1246,9 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     talk.para(more_marks_line(ws))
     then = (": they become a new set of marks kept aside, and your new results are tested on "
             "them" if tested else ": they become a new set of marks kept aside")
-    talk.next(next_marks(ws, f"mark more answers with `{program('mark')}` (at least {left} "
+    from judgekeeper.check import mark_here
+
+    talk.next(next_marks(ws, f"mark more answers with `{mark_here(ws)}` (at least {left} "
                              f"more), then run `{talk.command()}` again{then}.", need=left))
     return EXIT_NEEDS_YOU
 
@@ -2004,7 +2006,9 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
                 f"run `{talk.command()} {_new_results(ws)}` again.")
     if every_marked(ws):  # none left to mark: more marks would need more questions
         return CANT_SETTLE.format(command=f"{talk.command()} {_new_results(ws)}")
-    return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
+    from judgekeeper.check import mark_here
+
+    return next_marks(ws, f"mark more answers with `{mark_here(ws)}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 
 

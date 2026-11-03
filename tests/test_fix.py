@@ -630,6 +630,30 @@ def test_check_with_a_pass_mark_for_grades_that_are_no_scores_says_what_it_is_fo
             "Pass or Fail, so run `judgekeeper check` without it.") in said, said
 
 
+def _marks_with(said: str, rule: str) -> None:
+    """Every `mark` the output names carries the pass mark: without it, mark can't read the
+    scores."""
+    named = re.findall(r"`judgekeeper mark[^`]*`", said)
+    assert named, said
+    for command in named:
+        assert f'--pass-if "{rule}"' in command or f"--pass-if '{rule}'" in command, said
+
+
+def test_every_mark_a_scores_project_names_carries_its_pass_mark(here, capsys):
+    ws = score_project(here)
+    session = StartSession(ws)
+    for item in session.items[12:]:  # too few marks for fix and check
+        session.update({"id": item["id"], "label": None})
+    _, said = _main(capsys, "fix")
+    _marks_with(said, "score>=0.5")
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.7")
+    _marks_with(said, "score>=0.5")  # the pass mark is not taken on: too few marks
+    from judgekeeper import mark_page
+
+    assert 'run judgekeeper mark --pass-if' in mark_page.label_page(
+        None, 'judgekeeper mark --pass-if "score>=0.5"').replace("\\u0022", '"')
+
+
 def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, capsys):
     score_project(here)
     ws = Workspace(here)

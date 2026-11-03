@@ -1056,16 +1056,15 @@ NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it 
           "{command} in your project folder. Your marks are kept.")  # gone, or no answer
 
 
-def _words() -> str:
+def _words(command: str) -> str:
     """The link's and the line's words, as the page's script reads them: before the first
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
-    can't be saved."""
+    can't be saved, which names `command`, the one the page says to come back with."""
     from judgekeeper.front import CHANGE_MARK
     from judgekeeper.start_label import FIRST_NUMBERS
-    from judgekeeper.textio import program
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark"))),
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(scrub(command) or "")),
              "change": CHANGE_MARK}
     return json.dumps(words).replace("<", "\\u003c")
 
@@ -1120,7 +1119,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__TITLE__", _text(TITLE))
             .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
-            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
+            .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words(command))
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)

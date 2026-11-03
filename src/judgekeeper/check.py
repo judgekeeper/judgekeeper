@@ -1201,7 +1201,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if state is not None:
         said.say(NOT_SET_UP)
         said.say()
-        said.say("Next: " + next_marks(state.ws, f"run `{_here(state.ws, 'mark')}` to mark more "
+        said.say("Next: " + next_marks(state.ws, f"run `{mark_here(state.ws)}` to mark more "
                                                  "answers."))
         return EXIT_NEEDS_YOU
     from judgekeeper import front
@@ -1949,10 +1949,10 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     elif picked["ask"]:
         need = PICK_MARKS - picked["new_marks"]
         then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=_here(state.ws, "mark"), n=need, command=_command(state)), need=need)
+            mark=mark_here(state.ws), n=need, command=_command(state)), need=need)
     elif unsure:
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
-            mark=_here(state.ws, "mark"), command=_command(state)))
+            mark=mark_here(state.ws), command=_command(state)))
     before = _saved_result(state.ws) or _from_marks(state.ws)  # marked on the page only
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
@@ -1993,7 +1993,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     if then is None and level in ("check", "too_early") and (after or {}).get("only_wait"):
         then = "Next: " + WAIT_NEXT.format(run=wait_run(state.ws))  # a new mark only waits
     elif then is None and level in ("check", "too_early"):  # nothing to do is not so
-        then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=_here(state.ws, "mark")))
+        then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=mark_here(state.ws)))
     said.say(then or _next_same(state))
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
 
@@ -2425,7 +2425,7 @@ def _close_page(ws: Workspace, say) -> bool:
     from judgekeeper import background
     from judgekeeper.label import LabelError, is_open
 
-    mark = _mark_again(ws)
+    mark = mark_here(ws)
     try:
         if not is_open(ws.dir):
             return False
@@ -2437,9 +2437,9 @@ def _close_page(ws: Workspace, say) -> bool:
     return True
 
 
-def _mark_again(ws: Workspace) -> str:
+def mark_here(ws: Workspace) -> str:
     """`mark` for this project from here: with its pass mark when it was given with
-    --pass-if, which `mark` reads the scores with too."""
+    --pass-if, which `mark` needs to read the scores. Every `mark` a line names is this."""
     pm = ws.data().get("pass_mark") or {}
     rule = pm.get("rule") if pm.get("source") == "pass_if" else None
     return _here(ws, "mark") + (f' --pass-if "{rule}"' if rule else "")
