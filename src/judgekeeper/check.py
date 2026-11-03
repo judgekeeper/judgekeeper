@@ -2265,7 +2265,7 @@ def regrade_marked(state: State, every: bool = False) -> str:
         log = quote_arg(fix.new_log(ws))
         return (f"score your {'whole ' if every else ''}marked log again with your "
                 f"LLM-as-a-judge as it is now: run "
-                f"`{fix.INSPECT_SCORE}` with `--output-file {log}`, then "
+                f"`{fix.inspect_score(ws)}` with `--output-file {log}`, then "
                 f"{_run_in(ws, log, _away(ws))}.")
     return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now",
                             every)

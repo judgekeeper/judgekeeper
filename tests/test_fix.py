@@ -878,6 +878,25 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
 
 # The test of a new rule ------------------------------------------------------------------------
 
+@pytest.mark.parametrize(("metric", "scorer"), [
+    ("model_graded_qa", "model_graded_qa"), ("grader.accuracy", "grader"),
+    ("my_pkg/qa", "my_pkg/qa"), ("model_graded_qa() (claude-sonnet-4-5)", "<name>"),
+    (None, "<name>")])
+def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, metric, scorer):
+    """Copied and run as it is: a placeholder only for what is not known. The log is kept
+    from Inspect's log folder; a dict score's LLM-as-a-judge is named scorer.key."""
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "tech facts.eval").write_text("x", encoding="utf-8")
+    ws = Workspace(tmp_path)
+    ws.dir.mkdir()
+    data = {"tool": "inspect", "metric": metric, "results_files": ["tech facts.eval"]}
+    ws.start.write_text(json.dumps(data), encoding="utf-8")
+    assert fix.inspect_score(ws) == (f"inspect score 'logs/tech facts.eval' --scorer {scorer} "
+                                     "--action overwrite")
+    ws.start.write_text(json.dumps({**data, "results_files": ["gone.eval"]}), encoding="utf-8")
+    assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
+
+
 def _hidden_counts(ws) -> tuple[int, int, int]:
     """(hidden, the old rule's right answers, fixed) when the new rule agrees with every mark."""
     split, marks = _split(ws), fix.Marks(ws)

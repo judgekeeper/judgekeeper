@@ -1393,7 +1393,7 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
         tool = None
     if tool == "inspect":  # the log itself is scored again
         log = quote_arg(new_log(ws))
-        return (f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
+        return (f"score your log again with your new rule: run `{inspect_score(ws)}` with "
                 f"`--output-file {log}`, then {talk.run(log)}.")
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
 
@@ -1643,12 +1643,15 @@ def _first_file(ws: Workspace) -> str | None:
 
 
 NEW_LOG = "new.eval"
-INSPECT_SCORE = "inspect score <log> --scorer <name> --action overwrite"
+# What is not known stays a placeholder (inspect_score)
+INSPECT_SCORE = "inspect score {log} --scorer {scorer} --action overwrite"
+_SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
 
 
-def new_log(ws: Workspace) -> str:
-    """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
-    with the others rather than in a second folder of logs."""
+def _marked_log(ws: Workspace) -> tuple[str | None, str]:
+    """(the log the marks test now, from the project folder, or None when it is not there;
+    the folder new_log puts the regraded one in). start.json keeps it from the project, or
+    from Inspect's log folder."""
     import os
 
     try:
@@ -1658,12 +1661,32 @@ def new_log(ws: Workspace) -> str:
     root = Path(ws.root)
     logs = Path(os.environ.get("INSPECT_LOG_DIR") or "logs")  # Inspect AI's log folder
     bases = [Path("."), *([logs] if not logs.is_absolute() and ".." not in logs.parts else [])]
-    folder = "."
-    if files and isinstance(files[0], str):  # named from the project, or from the log folder
-        folder = next(((base / files[0]).parent.as_posix() for base in bases
-                       if (root / base / files[0]).is_file()),
-                      Path(files[0]).parent.as_posix())
+    if not files or not isinstance(files[0], str):
+        return None, "."
+    there = next(((base / files[0]).as_posix() for base in bases
+                  if (root / base / files[0]).is_file()), None)
+    return there, Path(there).parent.as_posix() if there else Path(files[0]).parent.as_posix()
+
+
+def new_log(ws: Workspace) -> str:
+    """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
+    with the others rather than in a second folder of logs."""
+    folder = _marked_log(ws)[1]
     return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
+
+
+def inspect_score(ws: Workspace) -> str:
+    """INSPECT_SCORE with the marked log and its scorer, so it runs as it is copied: the
+    scorer is the LLM-as-a-judge's metric (`scorer.key` for a dict score). A placeholder
+    stays only for what is not known (a log gone, a name `--scorer` can't take)."""
+    log = _marked_log(ws)[0]
+    try:
+        metric = ws.data().get("metric")
+    except (OSError, ValueError, AttributeError):
+        metric = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    return INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>",
+                                scorer=name if _SCORER.fullmatch(name) else "<name>")
 
 
 def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
@@ -1680,7 +1703,7 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
         return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
-        talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
+        talk.next(f"change your scorer's rule, run `{inspect_score(ws)}` with `--output-file {log}`, "
                   f"then {talk.run(log)}.")
         return
     store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
@@ -1720,7 +1743,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if data.get("tool") == "inspect":  # the log itself is scored again
             log = quote_arg(new_log(ws))
             talk.next(f"nothing to fix. To test another rule anyway, score your log again "
-                      f"with it: run `{INSPECT_SCORE}` with `--output-file {log}`, then "
+                      f"with it: run `{inspect_score(ws)}` with `--output-file {log}`, then "
                       f"{talk.run(log)}.")
             return EXIT_OK
         talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "

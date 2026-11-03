@@ -213,7 +213,9 @@ def _marked_inspect_log(here, capsys) -> tuple:
     said = flat(out)
     new = fix.new_log(ws)
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
-    assert (f"run `{fix.INSPECT_SCORE}` with `--output-file {new}`, then run "
+    assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
+                                     "--action overwrite")
+    assert (f"run `{fix.inspect_score(ws)}` with `--output-file {new}`, then run "
             f"`judgekeeper fix {new}`") in said
     assert ("`-S instructions=` takes a rule with no comma and no colon followed by a space "
             "(Inspect reads `-S` values as YAML and cuts them at commas); else grade it with "
