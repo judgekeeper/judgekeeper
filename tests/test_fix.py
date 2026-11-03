@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import shlex
 import stat
 import time
 from pathlib import Path
@@ -512,10 +513,11 @@ def test_question_and_answer_text_never_reach_the_terminal(here, capsys):
 
 # The pass mark (free) -------------------------------------------------------------------------
 
-def score_project(root) -> Workspace:
+def score_project(root, extra: int = 0) -> Workspace:
     """A table judge that gives scores, passed at 0.5. The person fails what it passed with a
-    score under 0.7: a better pass mark is 0.7."""
+    score under 0.7: a better pass mark is 0.7. `extra` answers more are left unmarked."""
     scores = [0.52 + 0.019 * i for i in range(25)] + [0.02 + 0.019 * i for i in range(25)]
+    scores += [0.3 + 0.03 * k for k in range(extra)]
     with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])
@@ -529,6 +531,8 @@ def score_project(root) -> Workspace:
     by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
     for item in session.items:
         i = int(re.search(r"Question (\d+)\?", json.dumps(by_id[item["id"]]["input"]))[1])
+        if i >= 50:
+            continue
         label = "pass" if scores[i] >= 0.7 else "fail"
         session.update({"id": item["id"], "label": label, "seconds": 5})
     return ws
@@ -652,6 +656,51 @@ def test_every_mark_a_scores_project_names_carries_its_pass_mark(here, capsys):
 
     assert 'run judgekeeper mark --pass-if' in mark_page.label_page(
         None, 'judgekeeper mark --pass-if "score>=0.5"').replace("\\u0022", '"')
+
+
+def _rule_in_use(ws) -> str:
+    """The pass mark start.json and result.json read the scores with: the same in both."""
+    rule = ws.data()["pass_mark"]["rule"]
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == rule
+    return rule
+
+
+@pytest.mark.parametrize("extra", [20, 0])
+def test_every_step_after_a_new_pass_mark_keeps_it(here, capsys, extra):
+    """A "Not sure" pass mark is taken on: every command its Next names, run in turn, reads
+    the scores with it and never goes back to the old one."""
+    ws = score_project(here, extra=extra)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.72")
+    assert code == 0 and "Result: not sure" in said, said
+    assert _rule_in_use(ws) == "score>=0.72"
+    step = said[said.rfind("Next:"):]
+    _marks_with(step, "score>=0.72")
+    for command in re.findall(r"`(judgekeeper [^`]*)`", step):
+        argv = shlex.split(command)[1:]
+        page = ["--no-browser", "--port", "0"] if argv[0] == "mark" else []
+        _, out = _main(capsys, *argv, *page)
+        main(["--stop"])
+        capsys.readouterr()
+        assert _rule_in_use(ws) == "score>=0.72", (command, out)
+        assert "back to the one you marked with" not in out, out
+
+
+def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monkeypatch):
+    """A "Not sure" with a big drop keeps the old pass mark: its Next re-checks the one tried,
+    never the old one again."""
+    verdict = targets.paired_verdict
+    monkeypatch.setattr(targets, "paired_verdict", lambda *a: {
+        **(v := verdict(*a)), "exit_worse": v["exit_worse"] or v["verdict"] == "not_sure"})
+    ws = score_project(here, extra=20)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.72")
+    assert "Result: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
+    assert said.endswith('Next: mark more answers with `judgekeeper mark --pass-if '
+                         '"score>=0.5"`, then run `judgekeeper check --pass-if "score>=0.72"` '
+                         'again.'), said
 
 
 def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, capsys):

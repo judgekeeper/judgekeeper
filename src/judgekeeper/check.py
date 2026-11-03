@@ -1953,23 +1953,6 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         said.say(line)
     if picks_lines(picked):
         said.say()
-    then: str | None = None  # the Next line, said once the result is made again below
-    asks = False  # whether it asks for new marks: none, if a new mark can only wait (below)
-    if worse:
-        then = "Next: " + worse_step(old, new, _next_change(state), state.ws,
-                                     again=_command(state))
-    elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
-        # more marks can't be made, and new answers would not help
-        then = "Next: " + regrade_marked(state, every=True)
-    elif picked["ask"]:
-        asks = True
-        need = PICK_MARKS - picked["new_marks"]
-        then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=mark_here(state.ws), n=need, command=_command(state)), need=need)
-    elif unsure:
-        asks = True
-        then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
-            mark=mark_here(state.ws), command=_command(state)))
     before = _saved_result(state.ws) or _from_marks(state.ws)  # marked on the page only
     held = any(g[k].get("exit_worse") for k in g)  # "Worse", or "Not sure" with a big drop
     big = any(g[k]["n"] and round(-g[k]["change"], 9) > targets.NO_DROP_MARGIN for k in g)
@@ -2000,6 +1983,26 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         _covered(state.ws)
     if not held and _close_page(state.ws, said.say):  # last: every file is written
         said.say()
+    # the Next line, from the pass mark in use now: one taken on above, or the one kept
+    again = _command(state) + (f' --pass-if "{state.pass_if}"' if held and state.pass_if
+                               else "")  # a held one is re-checked with it, never the old
+    then: str | None = None
+    asks = False  # whether it asks for new marks: none, if a new mark can only wait (below)
+    if worse:
+        then = "Next: " + worse_step(old, new, _next_change(state), state.ws,
+                                     again=_command(state))
+    elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
+        # more marks can't be made, and new answers would not help
+        then = "Next: " + regrade_marked(state, every=True)
+    elif picked["ask"]:
+        asks = True
+        need = PICK_MARKS - picked["new_marks"]
+        then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
+            mark=mark_here(state.ws), n=need, command=again), need=need)
+    elif unsure:
+        asks = True
+        then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
+            mark=mark_here(state.ws), command=again))
     after = (_saved_result(state.ws) or _from_marks(state.ws)) if not held else None
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
