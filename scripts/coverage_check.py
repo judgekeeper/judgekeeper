@@ -901,11 +901,11 @@ def markdown(result: dict) -> str:
                      f"{'yes' if v['passes'] else 'no'} |")
     before = result["corrected"]["before"]
     n = result["corrected"]["narrower"]
-    lines += ["", (f"Chosen level: **{'none' if level is None else f'{level:.0%}'}**. Before this "
-              f"change (Wilson corners): lowest cell {_pct(before['min_cell'])}, average "
+    lines += ["", (f"Chosen level: **{'none' if level is None else f'{level:.0%}'}**. The earlier "
+              f"method (Wilson corners) had lowest cell {_pct(before['min_cell'])}, average "
               f"{_pct(before['mean'])}. The ranges now are {_pct(n['mean'])}% narrower on "
               f"average ({_pct(n['min'])}% to {_pct(n['max'])}% by cell and number)."), "",
-              (f"## `judgekeeper`: per cell, before (Wilson corners) and now (Jeffreys "
+              (f"## `judgekeeper`: per cell, earlier method (Wilson corners) and now (Jeffreys "
               f"{'n/a' if level is None else f'{level:.0%}'})"), "",
               "Coverage % / average width, before → now.", "",
               "| pi | a | w | n | TPR | TNR | Real pass rate |", "|---|---|---|---|---|---|---|"]
@@ -921,7 +921,8 @@ def markdown(result: dict) -> str:
     g = result["general"]
     lines += ["", "## After grading again: new results from your eval tool (`weighted.general`)", "",
               "A steady LLM-as-a-judge: grading again, it gives the same verdicts. TPR and TNR.", "",
-              (f"Before (stratified bootstrap): lowest cell {_pct(g['before']['min_cell'])}, "
+              (f"The earlier method (stratified bootstrap) had lowest cell "
+              f"{_pct(g['before']['min_cell'])}, "
               f"average {_pct(g['before']['mean'])}. Now ({g['now_method']}): lowest cell "
               f"{_pct(g['now']['min_cell'])}, average {_pct(g['now']['mean'])}."), "",
               ("Lowest cell per number, before → now: " + "; ".join(

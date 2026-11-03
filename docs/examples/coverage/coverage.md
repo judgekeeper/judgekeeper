@@ -15,9 +15,9 @@ Rule: the first of 95%, 96%, 97% whose ranges hold the true TPR, TNR and real pa
 | 97% | 94.4 | 97.7 | yes |
 | 98% | 95.3 | 98.5 | yes |
 
-Chosen level: **96%**. Before this change (Wilson corners): lowest cell 96.1, average 99.3. The ranges now are 27.1% narrower on average (7.3% to 52.3% by cell and number).
+Chosen level: **96%**. The earlier method (Wilson corners) had lowest cell 96.1, average 99.3. The ranges now are 27.1% narrower on average (7.3% to 52.3% by cell and number).
 
-## `judgekeeper`: per cell, before (Wilson corners) and now (Jeffreys 96%)
+## `judgekeeper`: per cell, earlier method (Wilson corners) and now (Jeffreys 96%)
 
 Coverage % / average width, before → now.
 
@@ -136,7 +136,7 @@ Coverage % / average width, before → now.
 
 A steady LLM-as-a-judge: grading again, it gives the same verdicts. TPR and TNR.
 
-Before (stratified bootstrap): lowest cell 53.8, average 95.3. Now (jeffreys): lowest cell 95.9, average 97.9.
+The earlier method (stratified bootstrap) had lowest cell 53.8, average 95.3. Now (jeffreys): lowest cell 95.9, average 97.9.
 
 Lowest cell per number, before → now: TPR 92.4 → 96.4; TNR 53.8 → 95.9. Kappa is given without a range, as in judgekeeper's result.
 
