@@ -428,13 +428,88 @@ def test_a_regraded_copy_beside_says_whose_grades_the_numbers_use(here, capsys, 
     capsys.readouterr()
     assert ("Your answers were graded again in results-regraded.json, and 7 of your marked "
             "answers got a different grade. The numbers below still use the grades in "
-            "results.json. To compare, run `judgekeeper check results-regraded.json`.") in said
+            "results.json. To compare, run `judgekeeper check`.") in said
     assert "the newest results here" not in said and "still test it" not in said, said
+    if not command:  # the step after it is that check, never "nothing to do"
+        assert ("Next: run `judgekeeper check` to compare the new grades with your marks."
+                in said and "nothing to do" not in said), said
     if not command:  # the result: about the same file as the numbers
         result = json.loads(ws.result_json.read_text(encoding="utf-8"))
         assert result["judge"]["results_files"] == ["results.json"]
         # report.html names no results file, so never the other one
         assert "results-regraded.json" not in ws.report_html.read_text(encoding="utf-8")
+
+
+def test_results_graded_again_in_place_say_the_numbers_use_the_grades_from_before(here, capsys):
+    """The marked results file itself graded again: it no longer holds the grades the
+    numbers use, so they are the grades from before, never that file again."""
+    _marked(here)
+    _regraded(here, [*range(4), *range(25, 28)], name="results.json")
+    main(["--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    assert ("Your answers were graded again in results.json, and 7 of your marked answers got "
+            "a different grade. The numbers below still use the grades from before. To "
+            "compare, run `judgekeeper check`.") in said, said
+    assert "still use the grades in" not in said, said
+    assert "Next: run `judgekeeper check` to compare the new grades with your marks." in said
+
+
+def _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, project, here):
+    """A copy graded again beside the marks of the project folder `project`, a plain run
+    given that folder from `here` (home folder `home`): what it says."""
+    import os
+    import time
+
+    monkeypatch.setenv("HOME", str(home))
+    for folder in (home, project, here):
+        folder.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(project)
+    _marked(project)
+    _regraded(project, [*range(4), *range(25, 28)], name="results-regraded.json")
+    later = time.time() + 60
+    os.utime(project / "results-regraded.json", (later, later))
+    monkeypatch.chdir(here)
+    given = os.path.relpath(project, here)
+    main([given, "--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop", given])
+    capsys.readouterr()
+    return said
+
+
+def _compare_commands(said: str) -> list[str]:
+    import re
+
+    return [*re.findall(r"To compare, run `([^`]+)`\.", said),
+            *re.findall(r"Next: run `([^`]+)` to compare", said)]
+
+
+def test_the_compare_command_runs_from_the_folder_the_project_was_given_from(
+        tmp_path, monkeypatch, capsys):
+    """`judgekeeper ../proj` from a folder beside it: the command names the project folder,
+    as the other Next lines do, so it runs as printed from there and compares."""
+    home = tmp_path / "home"
+    said = _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, home / "proj",
+                               home / "other")
+    assert _compare_commands(said) == ["judgekeeper check ../proj"] * 2, said
+    code, out = run(capsys, "../proj")  # drops under 20 points: worse, exit 0
+    assert code == 0 and "Compared with before: worse." in _flat(out), out
+    assert ("Same model and rule as before, yet 7 of your marked answers got a different grade"
+            in _flat(out)), out
+
+
+def test_the_compare_command_for_a_project_no_line_can_name_is_the_other_lines_form(
+        tmp_path, monkeypatch, capsys):
+    """A project outside the home folder, given from inside it: no line names its path
+    (never the whole path), so the command has the form every other line has there."""
+    from judgekeeper import start
+
+    home = tmp_path / "home"
+    said = _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, tmp_path / "proj",
+                               home / "other")
+    other_lines = f"judgekeeper check {start.path_word('../../proj')}"
+    assert _compare_commands(said) == [other_lines] * 2, said
+    assert "results-regraded.json`" not in said, said
 
 
 def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
