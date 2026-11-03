@@ -382,8 +382,9 @@ def test_without_a_terminal_the_pass_mark_question_names_the_mark_in_use(here, c
     main(["--stop"])
     assert code == 3, out
     line = assert_one_next_at_the_end(out)
-    assert line.startswith("Next: decide which score counts as a pass"), line
+    assert line.startswith("Next: run `"), line
     assert f"--pass-if {quote_arg('score>=0.585')}`" in line and "score>=N" not in line, line
+    assert "Your pass mark is score>=0.585. Without a terminal, give it again:" in out, out
 
 
 def test_words_need_a_label_map(here, capsys):

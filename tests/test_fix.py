@@ -697,6 +697,25 @@ def test_every_step_after_a_new_pass_mark_keeps_it(here, capsys, extra):
         assert "back to the one you marked with" not in out, out
 
 
+def test_a_plain_run_with_no_terminal_says_the_saved_pass_mark_to_give_again(here, capsys):
+    """Measured on scores, then run with no terminal and no --pass-if: it says the saved pass
+    mark and the command that gives it again, never that the results say no pass mark."""
+    from judgekeeper.textio import quote_arg
+
+    score_project(here)
+    _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
+    main(["--stop"])
+    _main(capsys, "check", "--pass-if", "score>=0.72")
+    code, said = _main(capsys, "--no-browser", "--port", "0")
+    main(["--stop"])
+    command = f"judgekeeper --port 0 --no-browser --pass-if {quote_arg('score>=0.72')}"
+    assert code == 3, said
+    assert (f"Your pass mark is score>=0.72. Without a terminal, give it again: `{command}`."
+            ) in said, said
+    assert "do not say which score passes" not in said, said
+    assert said.endswith(f"Next: run `{command}`."), said
+
+
 def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monkeypatch):
     """A "Not sure" with a big drop keeps the old pass mark: its Next re-checks the one tried,
     never the old one again."""

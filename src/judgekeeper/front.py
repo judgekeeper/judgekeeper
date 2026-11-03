@@ -874,6 +874,11 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         _add_label_map(talk, f"P={('pass', 'fail')[i]}")
         return
     if all(_numeric(v) for v in values):
+        if not terminal and (rule := _rule_in_use(found)) != PASS_IF:  # measured: it is saved
+            again = talk.command("--pass-if", rule)
+            talk.para(f"Your pass mark is {_saved_pass_mark(found)['rule']}. Without a terminal, "
+                      f"give it again: `{again}`.")
+            raise talk.stop(EXIT_QUESTION, f"run `{again}`.")
         talk.say(f"Your LLM-as-a-judge's decisions are scores ({_shown(values)}), and the results "
                  "do not say which score passes.")
         if not terminal:
