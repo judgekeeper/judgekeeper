@@ -60,7 +60,7 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "New results: results.json", "",
+        "Results: results.json", "",
         "Your LLM-as-a-judge has not changed since you marked your answers.",
         "Same model, same rule, same eval tool.", "",
         "Next: nothing to do. Run `judgekeeper check` again after you",
@@ -124,7 +124,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "New results: results.json", "",
+        "Results: results.json", "",
         "Your LLM-as-a-judge's settings changed after your last eval run,",
         "so the grades judgekeeper has are out of date.", "",
         "Next: run your eval again, then run `judgekeeper check`."]

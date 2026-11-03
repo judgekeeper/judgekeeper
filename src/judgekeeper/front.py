@@ -136,6 +136,7 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
+GROUP_MARKS = "You have {p} on answers your LLM-as-a-judge passed and {f} on answers it failed."
 NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
              "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
@@ -150,6 +151,7 @@ NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update you
                "`{command}`.")
 NEXT_FIX = "to improve your LLM-as-a-judge's rule, run `{command}`."
 NEXT_CONTINUE = "run `{command}` when you want to continue."
+PORT_KEPT = "The marking page is already open on port {port}, so --port {asked} was not used."
 STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
               "narrower, so the numbers are more certain.")
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
@@ -356,6 +358,9 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     try:
         if stop:
             return _stop(talk, path)
+        uri = str(talk.options.get("tracking_uri") or "")
+        if not path.exists() and not uri.startswith(start.SERVERS):
+            raise not_found(path)  # no step ran: the error alone
         if talk.labels is not None or not marking and not _started(path):  # an import
             talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
@@ -1551,6 +1556,13 @@ def _needs_each_kind(talk, session: StartSession) -> None:
     talk.para(needs_each_kind(said=talk.few_fails, **_each_kind(session)))
 
 
+def _group_marks(session: StartSession) -> str:
+    """GROUP_MARKS: the marks on answers the LLM-as-a-judge passed and on those it failed."""
+    marked = [i for i in session.items if i["label"] in ("pass", "fail")]
+    passed = sum(session.groups.get(i["id"]) == "pass" for i in marked)
+    return GROUP_MARKS.format(p=_n(passed, "mark"), f=len(marked) - passed)
+
+
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
     """The line that says how many page marks a coloured verdict still needs to check the
     marks brought with --labels (labels.gate_line); None when none are needed."""
@@ -2222,6 +2234,10 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     except KeyboardInterrupt:  # before its link was printed: no page is left running
         page.close(ws, opened)
         raise
+    asked = talk.options.get("port")
+    if opened is not None and opened.kept and asked not in (None, 0, DEFAULT_PORT) and (
+            asked != opened.port):
+        talk.para(PORT_KEPT.format(port=opened.port, asked=asked))
     if not shown:
         if opened is not None and opened.server is None:
             background.stop(ws.dir)
@@ -2308,6 +2324,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
             _needs_each_kind(talk, session)
+            if min(n_pass, n_fail) >= targets.ROUGH:  # what is missing: the groups' marks
+                talk.para(_group_marks(session))
             if skipped := _only_skipped(session) if waits is None else 0:
                 talk.para(start_label.only_skipped(skipped))
         elif waits is None and (gate := _import_gate(ws, session)):  # as the result says it

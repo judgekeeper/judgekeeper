@@ -2194,7 +2194,7 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     if given_results(path):
         from judgekeeper import textio
 
-        line = f"New results: {textio.line_path(path)}"
+        line = f"{_results_label(state, Path(path))}: {textio.line_path(path)}"
         why = textio.name_only_why(os.path.realpath(path))
         if Path(path).is_file() and why and not textio.found_again(path, state.ws.root):
             line += "\n" + KEPT_NAME.format(name=Path(path).name, where=NAME_ONLY[why])
@@ -2210,7 +2210,21 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     newest = Path(now.newest).resolve()
     shown = (newest.relative_to(root).as_posix() if newest.is_relative_to(root)
              else textio.line_path(newest))
-    return f"New results: {shown}"
+    return f"{_results_label(state, newest)}: {shown}"
+
+
+def _results_label(state: State, path: Path) -> str:
+    """"Results" for a file the marks were made from (start.json's results files), even
+    graded again in place: it is not new; else "New results"."""
+    try:
+        base = start.results_path(state.ws.root, state.data)
+        base = base if base.is_dir() else base.parent
+        files = [base / f for f in state.data.get("results_files") or [] if isinstance(f, str)]
+        if any(f.is_file() and os.path.samefile(f, path) for f in files):
+            return "Results"
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return "New results"
 
 
 def last_read_file(ws: Workspace, results: list[Path]) -> Path | None:

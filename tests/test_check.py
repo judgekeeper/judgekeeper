@@ -181,7 +181,7 @@ TABLE_HEAD = "Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge"
 SCENE_6 = [
     "Step 5 of 5: Re-check",
     "",
-    "New results: results.json",
+    "Results: results.json",
     "",
     "Your LLM-as-a-judge's model changed:",
     f"  {MODEL} -> {HAIKU}",
@@ -626,7 +626,7 @@ def test_new_results_given_in_full_are_named_from_here(here, capsys):
     _marked(here)
     _results(here, MARKED, model=HAIKU)
     _, out = run(capsys, str(here / "results.json"))
-    assert "New results: results.json" in out.splitlines(), out
+    assert "Results: results.json" in out.splitlines(), out
     assert str(here) not in out and str(here.resolve()) not in out
 
 

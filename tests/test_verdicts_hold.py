@@ -355,7 +355,7 @@ def test_check_names_what_it_read_and_notes_newer_results_elsewhere(here, capsys
                  "Grade it C or I, any way.", created="2026-10-28T10:00:00+00:00")
     code, again = run(capsys, "check")
     assert code == 0, again
-    assert ("New results: new.json Newer Inspect AI results are in logs/new2.json, outside your "
+    assert ("Results: new.json Newer Inspect AI results are in logs/new2.json, outside your "
             "saved choice. To check them: `judgekeeper check logs/new2.json`.") in again, again
     assert "has not changed since your last check" in again, again  # read as always
 
@@ -395,7 +395,7 @@ def test_no_note_for_an_older_promptfoo_run_copied_in(here, capsys, monkeypatch)
     old.write_text(json.dumps(data), encoding="utf-8")
     capsys.readouterr()
     code, out = run(capsys, "check")
-    assert code == 0 and "New results: results.json" in out and "Newer" not in out, out
+    assert code == 0 and "Results: results.json" in out and "Newer" not in out, out
 
 
 def test_the_inspect_regrade_lines_keep_the_log_folder_after_a_check(here, capsys, monkeypatch):
