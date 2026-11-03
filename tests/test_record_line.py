@@ -363,3 +363,11 @@ def test_record_is_in_the_package_api():
     from judgekeeper import record
 
     assert record is recorder.record
+
+
+def test_the_docstring_names_the_default_name():
+    """help(judgekeeper.record) gives the name a record gets with none given."""
+    from judgekeeper import recorder
+
+    doc = " ".join(recorder.record.__doc__.split())
+    assert f'default "{recorder.DEFAULT_NAME}"' in doc
