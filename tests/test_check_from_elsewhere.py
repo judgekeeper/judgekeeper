@@ -242,6 +242,27 @@ def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, m
         assert _program_in(line, proj, home) == tool, (line, out)
 
 
+@pytest.mark.parametrize("where", ["above", "far"])
+def test_check_sending_you_to_a_project_names_the_program_from_there(home, monkeypatch,
+                                                                     capsys, where):
+    """`check` on a results file of a project with a session of its own, from another
+    folder: the program in "run ... in <project>/" as it is typed there."""
+    from tests.test_earlier_grades import adopt
+
+    proj = home / "Desktop" / "Testing Judge" / "team" / "proj s3"
+    proj.mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    adopt(proj, capsys)
+    away = proj.parent if where == "above" else home.parent.parent
+    monkeypatch.chdir(away)
+    tool = _started(monkeypatch, home)
+    code, out = _run(capsys, "check", os.path.relpath(proj / "v2.json", away))
+    lines = [x for x in _commands(out) if "judgekeeper" in x]
+    assert lines and "proj s3/" in out, out
+    for line in lines:
+        assert _program_in(line, proj, home) == tool, (line, out)
+
+
 @pytest.mark.parametrize(("given", "said"), [
     ("{home}/Desktop/Testing Judge/c2-new/missing.csv",
      "There is no file named missing.csv in ../c2-new/."),
