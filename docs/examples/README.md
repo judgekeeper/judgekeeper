@@ -12,6 +12,6 @@ One line per folder: what it is, the commit it ran on, the model and the date.
 - **`ragtruth-qa/`**: two Claude LLM-as-a-judge setups on RAGTruth's question answers, 1 run each, with RAGTruth's human labels as the marks. Graded on commit `bfc3606` (2026-10-30), judgekeeper's steps run again from the saved results on `7059dbd` (2026-11-01); Claude Haiku 5.5 and Claude Sonnet 5.5.
 - **`real-data-check/`**: judgekeeper's ranges on 5 real LLM-as-a-judge setups from 3 public datasets (LLMBar, MT-Bench, LLMJudge). Made by `scripts/real_data_check.py`; numbers from commit `c4d49c3`; their saved verdicts (Claude Haiku 4.5 on LLMBar, GPT-4 on MT-Bench, 3 LLMJudge runs), no new model call; 2026-11-03.
 - **`records/`**: hand-written sample files in the records format, for the reference. Not a run; no model.
-- **`site-example/`**: the project the website's home page shows, with made-up answers and marks. Commit `af1aad3`; LLM-as-a-judge named `my-judge-v1`, not called; 2026-10-24.
+- **`site-example/`**: the project the website's home page shows, with made-up answers and marks. Commit `1bf0ee2`; LLM-as-a-judge named `my-judge-v1`, not called; 2026-11-03.
 
 Note: judgekeeper only reads files and makes no AI call. In `ragtruth/` and `probes/`, promptfoo asked the models. The parts of `coverage/` about grading again simulate new results from your eval tool.
