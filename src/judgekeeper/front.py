@@ -45,6 +45,7 @@ from judgekeeper import labels as labels_mod
 from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
+from judgekeeper.mark_page import SEE_FIRST
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import scrub, scrub_fingerprint
@@ -126,7 +127,8 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
+NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
+             "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
