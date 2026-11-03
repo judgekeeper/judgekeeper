@@ -365,12 +365,10 @@ def test_the_welcome_box_is_a_modal_over_the_whole_window():
     assert ".scrim { position: fixed; inset: 0;" in page
     assert '<button type="button" class="go" id="intro-ok">Start marking</button>' in page
     box = page.split('id="intro-box"')[1].split('tabindex="-1">', 1)[1].split("</div>\n</div>")[0]
-    # the logo, the headline, the line about repeats, the button
-    assert " ".join(re.sub(r"<[^>]+>", " ", box).split()) == (
-        "judgekeeper ™ Mark each answer Pass or Fail. Now and then an answer you marked comes "
-        "back once, to see how steady your marks are. Mark it as you see it. Start marking")
-    assert ('<p class="note" id="intro-note">Now and then an answer you marked comes back '
-            "once, to see how steady your marks are. Mark it as you see it.</p>") in box
+    assert re.sub(r"<[^>]+>", " ", box).split() == [  # the logo, the headline, the button
+        "judgekeeper", "™", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
+    # no other line: the logo's own tags, the headline and the button
+    assert set(re.findall(r"<(\w+)", box)) == {"span", "svg", "path", "sup", "h2", "button"}
 
 
 def test_the_welcome_box_is_centred_green_and_plain():
