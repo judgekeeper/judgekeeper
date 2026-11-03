@@ -1678,7 +1678,8 @@ def _promptfoo_grader(ws: Workspace, data: dict) -> tuple[str, str | None, dict]
 
 
 # regrade.yaml's comments, on the lines they are about (so the line numbers said stay)
-ECHO_NOTE = "  # echo returns each answer you marked as it is: no new answers, no model call"
+ECHO_NOTE = ("  # echo gives back each answer you marked as it is, so no new answers are made. "
+             "The grader below still calls its model.")
 TESTS_NOTE = "  # the answers you marked"
 RULE_NOTE = ("  # your rule: change it here. {{question}} is the question, {{answer}} the "
              "answer")

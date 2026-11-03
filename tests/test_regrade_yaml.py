@@ -71,6 +71,10 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
             ".judgekeeper/fix/new.json` "
             "3. Then: `judgekeeper fix .judgekeeper/fix/new.json`") in _no_calls(flat)
     assert re.search(CALLS, flat), flat  # what step 2 costs: one model call per marked answer
+    # the echo line's note agrees with that: no new answers, yet the grader calls its model
+    (echo,) = [x for x in lines if x.startswith("providers:")]
+    assert echo.endswith(fix.ECHO_NOTE) and "still calls its model" in fix.ECHO_NOTE, echo
+    assert "no model call" not in text
     assert "Next: follow the three steps above." in flat
     assert "docs/eval-tools.md shows the whole config" not in flat
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
