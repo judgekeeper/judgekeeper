@@ -710,6 +710,7 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
     kept = _kept_experiment(path) if talk.options["experiment"] is None else None
     kept_map = _kept_label_map(path) if talk.options["label_map"] is None and saved is None \
         else None
+    kept_tool = _kept_tool(path) if saved is None else None
     while True:
         options = {k: talk.options[k] for k in FIND}
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
@@ -723,18 +724,22 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             options["experiment"] = kept
         if options["label_map"] is None:
             options["label_map"] = kept_map
+        if options["tool"] is None and options["tracking_uri"] is None:
+            options["tool"] = kept_tool
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
                                          only=only, **{**options, "judge_model": given or
                                                        options["judge_model"]})
             except StartError:
-                if given is None and kept is None:
+                if given is None and kept is None and kept_tool is None:
                     raise
                 if given is not None:
                     given = None  # the results name the model now
-                else:
+                elif kept is not None:
                     kept = None  # the experiment is gone: asked again
+                else:
+                    kept_tool = None  # its results are gone: found again
                 continue
         except RecordsError as e:
             raise start.usage_error(e) from None
@@ -742,6 +747,21 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             _ignored(talk, found)
             return found
         _unread_values(talk, found)
+
+
+def _kept_tool(path: Path) -> str | None:
+    """The eval tool the marks were made on, kept in start.json, for a run on the project
+    folder with no judgekeeper.toml: read again with no --tool, as `check` reads it."""
+    if not path.is_dir():
+        return None
+    ws = Workspace(project.project_of(path))
+    try:
+        if not ws.start.is_file() or start._saved(ws.root) is not None:
+            return None
+        tool = ws.data().get("tool")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return tool if tool in find.TOOLS else None
 
 
 def _kept_experiment(path: Path) -> str | None:

@@ -16,7 +16,13 @@ import pytest
 
 from judgekeeper import __version__, background, label, marks, page, start, start_label
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project, records_project, save_result, split
+from tests.start_projects import (
+    promptfoo_project,
+    records_project,
+    save_result,
+    split,
+    table_project,
+)
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
@@ -70,6 +76,21 @@ def test_a_question_is_the_same_as_judgekeepers(here, capsys, pages):
         "`judgekeeper mark --tool NAME`.")
     assert not (here / ".judgekeeper" / "marks.jsonl").exists()
     assert pages[0] == []
+
+
+@pytest.mark.parametrize("argv", [[], ["mark"]])
+def test_marking_started_reads_its_eval_tool_without_asking(here, capsys, pages, argv):
+    """Two eval tools' results in the folder: the one marking started on is read again by a
+    plain run, as `check` reads it."""
+    promptfoo_project(here, split(20, 16))
+    table_project(here, split(18, 18))
+    code, out, _ = run(capsys, "--tool", "promptfoo", "--port", "0", "--no-browser")
+    assert code == 0, out
+    code, out, err = run(capsys, *argv, "--port", "0", "--no-browser")
+    assert code == 0, out
+    assert "Saved results from more than one eval tool" not in out and "--tool" not in out
+    assert _check(out, err) == NEXT_OPEN
+    assert start_label.Workspace(here).data()["tool"] == "promptfoo"
 
 
 # No marking started -----------------------------------------------------------------------
