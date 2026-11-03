@@ -1903,7 +1903,8 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
     command. `rule`: the new rule goes in with `-S`, in the option the log set it in, or
     `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule.
     `now` (check): the LLM-as-a-judge as it is now (now_options): its rule when `-S` can take
-    it, its grader model, its grader role; else the marked log's grader model."""
+    it, its grader model, its grader role. The marked log's grader model only when the newest
+    results could not be read, and never with a grader role: `model` wins over the role."""
     log = _marked_log(ws)[0]
     try:
         data = ws.data()
@@ -1920,10 +1921,10 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
     if now is not None and field == "instructions" and fits_s(now.get("rule")):
         value = now["rule"]
     option = f" -S {field}={quote_arg(value)}" if rule and field else ""
-    model = (now or {}).get("model") or (
-        _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None)
-    option += f" -S model={quote_arg(model)}" if model else ""
     role = (now or {}).get("role")
+    model = (now or {}).get("model") if (now or {}).get("read") else (
+        _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None)
+    option += f" -S model={quote_arg(model)}" if model and not role else ""
     option += f" --model-role grader={quote_arg(role)}" if role else ""
     command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
                                    rule=option)
@@ -1947,6 +1948,7 @@ def now_options(ws: Workspace, found) -> dict:
     results = getattr(found, "results", None) or []
     if not results:
         return out
+    out["read"] = True  # what it holds is the LLM-as-a-judge now, a model or none
     try:
         metric = ws.data().get("metric")
     except (OSError, ValueError, AttributeError):

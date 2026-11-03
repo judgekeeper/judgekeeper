@@ -222,6 +222,24 @@ def test_check_gives_inspect_the_rule_and_grader_model_as_they_are_now(here, cap
     assert code in (0, 1) and "Compared with before:" in out, out
 
 
+
+def test_check_gives_no_grader_model_the_newest_log_does_not_name(monkeypatch):
+    """`model` wins over the grader role in model_graded_qa: with a role, or with a newest log
+    whose scorer has no model, check's command gives no `-S model=` from the marked log. Only
+    with no newest log read, and in fix's command, the marked log's grader model is given."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(fix, "_marked_log", lambda ws: ("logs/a.eval", "logs"))
+    monkeypatch.setattr(fix, "_scorer_model", lambda ws, log, scorer: "mockllm/grader")
+    ws = SimpleNamespace(data=lambda: {"metric": "model_graded_qa", "rule_field": "instructions"})
+    role = fix.inspect_score(ws, "x", now={"read": True, "rule": "r", "role": "mockllm/grader3"})
+    assert "-S model" not in role and "--model-role grader=mockllm/grader3" in role, role
+    assert "-S model" not in fix.inspect_score(ws, "x", now={"read": True, "rule": "r"})
+    given = fix.inspect_score(ws, "x", now={"read": True, "rule": "r", "model": "mockllm/g2"})
+    assert "-S model=mockllm/g2" in given, given
+    assert "-S model=mockllm/grader" in fix.inspect_score(ws, "x", now={"rule": "r"})
+    assert "-S model=mockllm/grader" in fix.inspect_score(ws, "x")
+
 def test_a_rule_inspect_s_cannot_take_is_left_for_the_person_to_put_in(tmp_path):
     """A rule with a comma or a colon can't go in `-S` whole: check's command keeps a
     placeholder, and says how to grade with such a rule."""
