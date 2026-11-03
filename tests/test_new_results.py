@@ -245,7 +245,30 @@ def test_a_rule_inspect_s_cannot_take_is_left_for_the_person_to_put_in(tmp_path)
     placeholder, and says how to grade with such a rule."""
     assert not fix.fits_s("Old rule. GRADE: C or GRADE: I.") and not fix.fits_s("a, b")
     assert fix.fits_s("New rule. GRADE C or GRADE I.") and not fix.fits_s("- a list")
-    assert "score() in Python" in fix.NOT_IN_S and fix.EVAL_TOOLS in fix.NOT_IN_S
+    assert fix.NOT_IN_S == (
+        "Put your rule in place of `<current rule>`. A rule with a comma, or a colon followed by "
+        "a space, can't go in `-S`. Grade the log with Inspect's score() in Python, as "
+        f"{fix.EVAL_TOOLS} shows.")
+
+
+def test_a_known_rule_inspect_s_cannot_take_gets_no_command_to_fill_in(here, capsys,
+                                                                       monkeypatch):
+    """judgekeeper knows the rule and `-S` can't take it: no command with a placeholder the
+    rule can't go in, only the way that takes it. A rule not known keeps the command."""
+    pytest.importorskip("inspect_ai")
+    from judgekeeper.check import _state, regrade_marked
+
+    _marked_inspect_log(here, capsys)
+    rule = "New rule, with a comma: GRADE C or I"
+    monkeypatch.setattr(fix, "now_options", lambda ws, found: {"read": True, "rule": rule})
+    said = regrade_marked(_state("."), every=True, found=object())
+    assert said == (
+        "score your whole marked log again with your LLM-as-a-judge as it is now, with "
+        f"Inspect's score() in Python, as {fix.EVAL_TOOLS} shows, and then run "
+        "`judgekeeper check logs/new.eval`."), said
+    monkeypatch.setattr(fix, "now_options", lambda ws, found: {"read": True, "rule": None})
+    said = regrade_marked(_state("."), every=True, found=object())
+    assert "<current rule>" in said and said.endswith(fix.NOT_IN_S), said
 
 
 # Inspect AI: the log graded again ----------------------------------------------------------------

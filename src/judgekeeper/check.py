@@ -2480,10 +2480,16 @@ def regrade_marked(state: State, every: bool = False, found=None) -> str:
         log = quote_arg(fix.new_log(ws))
         now = fix.now_options(ws, found) if found is not None else {}
         command = fix.inspect_score(ws, log, now=now)
-        note = f" {fix.NOT_IN_S}" if fix.NOW_RULE["instructions"] in command else ""
+        then = _run_in(ws, log, _away(ws))
+        held = fix.NOW_RULE["instructions"] in command  # the rule is not in the command
+        if held and isinstance(now.get("rule"), str) and now["rule"].strip():
+            # the rule is known, and -S can't take it: no command to fill in
+            return (f"score your {'whole ' if every else ''}marked log again with your "
+                    f"LLM-as-a-judge as it is now, with Inspect's score() in Python, as "
+                    f"{fix.EVAL_TOOLS} shows, and then {then}.")
+        note = f" {fix.NOT_IN_S}" if held else ""
         return (f"score your {'whole ' if every else ''}marked log again with your "
-                f"LLM-as-a-judge as it is now: run `{command}` and then "
-                f"{_run_in(ws, log, _away(ws))}.{note}")
+                f"LLM-as-a-judge as it is now: run `{command}` and then {then}.{note}")
     return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now",
                             every)
 
