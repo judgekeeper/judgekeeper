@@ -974,8 +974,12 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     pm = m.data.get("pass_mark")
     if not _follows(m, pm):
         return None
-    if split.pass_mark is not None:
-        return split.pass_mark or None
+    saved = split.pass_mark
+    if saved is not None and (not saved or (saved.get("old"), saved.get("op")) == (
+            pm["mark"], pm["op"])):
+        return saved or None
+    if saved and saved.get("new") == pm["mark"] and saved.get("op") == pm["op"]:
+        return None  # the mark it found is the one in use now: nothing better was tested
     rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
     pool = m.data.get("pool") or {}
     if len(set(m.batch.values())) > 1:  # each answer weighs by its stratum

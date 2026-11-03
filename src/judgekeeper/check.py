@@ -149,6 +149,14 @@ NEXT_CHOOSE = f"Next: run `{program()}` to make that choice, then run `{{command
 NEXT_WORSE = "go back to {back}, or try another change and run `{command}` again."
 # A judge whose results hold no rule (a table): it changes only where the eval keeps it
 NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regrade}"
+# A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
+NEXT_MARK_STAYS = ("nothing to do; your pass mark stays {rule}. To try another, run "
+                   "`{check} --pass-if \"{other}\"`.")
+# An adopting check closes the marking page, which showed the judge before (_close_page)
+PAGE_CLOSED = ("Your marking page closed, as it showed the LLM-as-a-judge before this one. To "
+               "open it again, run `{mark}`.")
+PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show the LLM-as-a-judge "
+                  "before this one. To open it again, run `{stop}`, then `{mark}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -739,13 +747,24 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
 
 WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
                 "points high.")
-WRITTEN_FROM_MARK = ("This includes marks you looked at to pick this pass mark, so it may read "
-                     "a few points high.")
+# true of every pass-mark change, whoever picked it (fix tests one on the marks it shows)
+WRITTEN_FROM_MARK = ("If you picked this pass mark by looking at your marks, this may read a few "
+                     "points high.")
 # `check --pass-if` on a judge whose pass mark is not read with --pass-if
 NO_SCORES = ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
              "Pass or Fail, so run `{check}` without it.")
-MARK_ELSEWHERE = ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in "
-                  "your eval, so change it there, run your eval, then run `{check}`.")
+MARK_SET_IN = {  # where a pass mark not given with --pass-if is changed (start_fix.where_lines)
+    "eval": "is set in your eval, so change it there, run your eval, then run `{check}`",
+    "toml": "is set in judgekeeper.toml [start], so change pass_mark there, then run `{check}`"}
+MARK_ELSEWHERE = "--pass-if is only for a pass mark you gave with --pass-if; yours {where}."
+NEXT_MARK_ELSEWHERE = "your pass mark {where}."  # a plain run given --pass-if for one of those
+
+
+def mark_set_in(pm: dict, check: str) -> str:
+    """MARK_SET_IN for start.json's pass mark `pm`: judgekeeper.toml [start] for a mapped
+    file's saved mark, else the eval."""
+    toml = pm.get("source") == "mapped" and not pm.get("key")
+    return MARK_SET_IN["toml" if toml else "eval"].format(check=check)
 AFTER_NONE = "On marks made after this change: {said}."
 AFTER_MORE = " Mark more answers to see it on answers it was not written for."
 AFTER_NUMBERS = 10  # of each kind: their numbers are shown
@@ -795,10 +814,14 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
 
 def written_from(old: dict, new: dict) -> str:
     """WRITTEN_FROM, or for a change of the pass mark alone (one `fix` picked), its words."""
-    mark_only = (old.get("rule_hash") == new.get("rule_hash")
-                 and (old.get("pass_mark") or {}).get("mark")
-                 != (new.get("pass_mark") or {}).get("mark"))
-    return WRITTEN_FROM_MARK if mark_only else WRITTEN_FROM
+    return WRITTEN_FROM_MARK if mark_changed(old, new) else WRITTEN_FROM
+
+
+def mark_changed(old: dict, new: dict) -> bool:
+    """Whether the pass mark changed and the rule did not."""
+    return (old.get("rule_hash") == new.get("rule_hash")
+            and (old.get("pass_mark") or {}).get("mark")
+            != (new.get("pass_mark") or {}).get("mark"))
 
 
 def written_from_lines(ws: Workspace) -> list[str]:
@@ -809,7 +832,8 @@ def written_from_lines(ws: Workspace) -> list[str]:
     saved = judge_setup.read(ws)
     now = saved.get("setup_hash") if isinstance(saved, dict) else None
     checks = _history(ws)
-    took = [x for x in checks if x.get("from_fix") and isinstance(x.get("after"), dict)
+    took = [x for x in checks if isinstance(x.get("after"), dict)
+            and (x.get("from_fix") or judge_setup.mark_only(x.get("before") or {}, x["after"]))
             and judge_setup.hash_of(x["after"]) == now]
     if now is None or not took:
         return []
@@ -1849,7 +1873,9 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     picked, pool = _picks(state)
     g = groups(state.marks, old_verdicts, tested, picked, pool)
     pick = rule_changed(changed) and from_fix(state.ws, old, new)
-    fresh = _made_after(state, _first_seen(state, old, new), tested) if pick else None
+    may_be_picked = pick or judge_setup.mark_only(old, new)  # a pass mark: maybe by looking
+    fresh = (_made_after(state, _first_seen(state, old, new), tested) if may_be_picked
+             else None)
     kinds = list(fresh.values()) if fresh is not None else []
     if min(kinds.count("pass"), kinds.count("fail")) >= AFTER_HEADLINE:
         g = groups(fresh, old_verdicts, tested, picked, pool)  # the headline now
@@ -1894,7 +1920,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         said.say()
     then: str | None = None  # the Next line, said once the result is made again below
     if worse:
-        then = "Next: " + worse_step(old, new, _next_change(state), state.ws)
+        then = "Next: " + worse_step(old, new, _next_change(state), state.ws,
+                                     again=_command(state))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
         then = "Next: " + regrade_marked(state, every=True)
@@ -1927,13 +1954,14 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         judge_setup.save(state.ws, new, found.metric)
         with page.one_at_a_time(state.ws.dir, said.say):  # two runs at once: one writes
             _adopt(state.ws, found, tested)
-        _close_page(state.ws)
         _refresh_mistakes(state.ws)
     _report(state.ws, adopted=not held, worse=worse_step(
         old, new, start.kept_check(state.path, state.ws.root), state.ws, kept=True)
             if worse else None)
     if not given_results(path):
         _covered(state.ws)
+    if not held and _close_page(state.ws, said.say):  # last: every file is written
+        said.say()
     after = (_saved_result(state.ws) or _from_marks(state.ws)) if not held else None
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
@@ -2205,12 +2233,22 @@ def _sizes(pool: dict) -> dict[str, int]:
     return {g: sum(n for (_, k), n in pool.items() if k == g) for g in ("pass", "fail")}
 
 
-def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = False) -> str:
+def worse_step(old: dict, new: dict, command: str, ws: Workspace, kept: bool = False,
+               again: str | None = None) -> str:
     """The next step after "Worse" (without "Next: "), the same in `check`, `judgekeeper` and
     report.html: go back to the old judge (or tool version), or change the judge. A judge
     whose results hold no rule then grades the same marked answers again: running the eval
     again would make new answers, which can't be compared. `kept`: for report.html, which
-    names marked-answers.csv from the project folder, as `command` (start.kept_check) does."""
+    names marked-answers.csv from the project folder, as `command` (start.kept_check) does.
+    A pass mark tried with --pass-if alone: the old one stays, and `again` (default
+    `command`), the check that reads these results, tries another."""
+    pm = ws.data().get("pass_mark") or {}
+    if (judge_setup.mark_only(old, new) and pm.get("source") == "pass_if"
+            and isinstance(pm.get("rule"), str)):
+        from judgekeeper.start_fix import _NUMBER
+
+        other = re.sub(rf"(?<![\d.]){_NUMBER}\s*$", "N", pm["rule"])
+        return NEXT_MARK_STAYS.format(rule=pm["rule"], check=again or command, other=other)
     if judge_setup.tool_only(old, new):
         tool = find.NAMES.get(new.get("tool"), new.get("tool"))
         return NEXT_WORSE.format(back=f"the old version of {tool} ({old.get('tool_version')})",
@@ -2324,7 +2362,7 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
         # the marks' grades from this judge: the next change is compared with them
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     if restored:
-        _close_page(ws)
+        _close_page(ws, say)
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     return BACK.format(model=", ".join(names) or "model not named")
 
@@ -2353,17 +2391,37 @@ def _pass_if_refused(state: State) -> str | None:
     pm = state.data.get("pass_mark") or {}
     if pm.get("source") == "pass_if":
         return None
-    return (MARK_ELSEWHERE if pm else NO_SCORES).format(check=_here(state.ws, "check"))
+    check = _here(state.ws, "check")
+    return (MARK_ELSEWHERE.format(where=mark_set_in(pm, check)) if pm
+            else NO_SCORES.format(check=check))
 
 
-def _close_page(ws: Workspace) -> None:
+def _close_page(ws: Workspace, say) -> bool:
     """The marks test another judge now: an open marking page would still show the one
-    before, so it closes (as for a new batch), and the next `mark` opens it fresh."""
+    before, so it closes (as for a new batch), and the next `mark` opens it fresh. Says so
+    (PAGE_CLOSED), or that the page did not answer (PAGE_NO_ANSWER): never an error, as the
+    check is written. Whether it said a line."""
     from judgekeeper import background
-    from judgekeeper.label import is_open
+    from judgekeeper.label import LabelError, is_open
 
-    if is_open(ws.dir):
+    mark = _mark_again(ws)
+    try:
+        if not is_open(ws.dir):
+            return False
         background.stop(ws.dir)
+    except (LabelError, OSError):
+        say(PAGE_NO_ANSWER.format(stop=_here(ws, "--stop"), mark=mark))
+        return True
+    say(PAGE_CLOSED.format(mark=mark))
+    return True
+
+
+def _mark_again(ws: Workspace) -> str:
+    """`mark` for this project from here: with its pass mark when it was given with
+    --pass-if, which `mark` reads the scores with too."""
+    pm = ws.data().get("pass_mark") or {}
+    rule = pm.get("rule") if pm.get("source") == "pass_if" else None
+    return _here(ws, "mark") + (f' --pass-if "{rule}"' if rule else "")
 
 
 def _restore(ws: Workspace, found, setup: dict) -> None:

@@ -1930,7 +1930,7 @@ def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str]
     was = check.open_worse(ws, found)
     head.append(batches.waiting_line(n, changed, worse=was is not None))
     return (check.worse_step(was["before"], was["after"], _check_command(talk), ws) if was
-            else NEXT_CHECK.format(command=_recheck_command(talk)))
+            else _recheck_step(talk, ws))
 
 
 def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
@@ -2178,11 +2178,19 @@ def _check_command(talk: FrontTalk) -> str:
     return " ".join((program("check"), *path))
 
 
-def _recheck_command(talk: FrontTalk) -> str:
-    """The `check` that re-checks this run's LLM-as-a-judge: with the pass mark this run was
-    given (--pass-if), which `check` reads the scores with too."""
+def _recheck_step(talk: FrontTalk, ws: Workspace) -> str:
+    """The step that re-checks this run's LLM-as-a-judge: `check` with the pass mark this
+    run was given (--pass-if), which `check` reads the scores with too. A pass mark the eval
+    or judgekeeper.toml sets is changed there: `check --pass-if` would refuse it."""
     rule = talk.options.get("pass_if")
-    return _check_command(talk) + (f' --pass-if "{rule}"' if rule else "")
+    pm = ws.data().get("pass_mark") or {}
+    if rule and pm and pm.get("source") != "pass_if":
+        from judgekeeper import check
+
+        return check.NEXT_MARK_ELSEWHERE.format(
+            where=check.mark_set_in(pm, _check_command(talk)))
+    return NEXT_CHECK.format(command=_check_command(talk)
+                             + (f' --pass-if "{rule}"' if rule else ""))
 
 
 def _fix_command(talk: FrontTalk) -> str:
@@ -2310,7 +2318,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         next_step = worse_here
     elif check:
-        next_step = NEXT_CHECK.format(command=_recheck_command(talk))
+        next_step = _recheck_step(talk, ws)
     elif r.get("waiting") or only:  # only the judge's grades on them can count them
         next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark":  # too early to tell
