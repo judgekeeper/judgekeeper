@@ -858,10 +858,10 @@ def test_a_pass_mark_taken_on_after_fix_found_none_better_is_tested_again(here, 
     from that one, as it was never tested."""
     from judgekeeper import start_fix
 
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)  # before any split is made
     ws = score_project(here)
     _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
     main(["--stop"])
-    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     choose = start_fix.choose_mark
     monkeypatch.setattr(start_fix, "choose_mark", lambda rows, current, *a, **k: current)
     run(capsys)
