@@ -7,6 +7,8 @@ marked file. Results in a folder of their own still get their own marks."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from judgekeeper.start_label import Workspace
@@ -249,3 +251,23 @@ def test_results_of_one_tool_beside_join_when_they_share_questions(here, capsys,
             assert line in said, (argv, said)
         assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
         assert not (here / "evals" / ".judgekeeper").exists(), (argv, said)
+
+
+@pytest.mark.parametrize(("typed", "shown"), [
+    ("../../venv/bin/judgekeeper", "judgekeeper"),
+    ("venv/bin/python -P -m judgekeeper", "judgekeeper"),
+    ("~/venv/bin/judgekeeper", "judgekeeper"),
+    ("/opt/jk/bin/judgekeeper", "judgekeeper"),
+    ("..\\venv\\Scripts\\judgekeeper.exe", "judgekeeper"),
+    ("python3 -P -m judgekeeper", "python3 -P -m judgekeeper"),
+    ("uvx judgekeeper", "uvx judgekeeper"),
+    ("judgekeeper", "judgekeeper")])
+def test_the_other_eval_line_names_a_program_that_runs_in_the_new_folder(monkeypatch, typed,
+                                                                        shown):
+    """The line sends the person to a folder of its own: a program typed with a path in it
+    (from here, from home or whole) is plain `judgekeeper` there, never a path."""
+    from judgekeeper import project, textio
+
+    monkeypatch.setattr(textio, "program", lambda *a: typed)
+    line = project.other_eval_line(Path("evals/second.csv"), Path("evals/results.csv"))
+    assert line.endswith(f"put it in a folder of its own and run `{shown}` there."), line

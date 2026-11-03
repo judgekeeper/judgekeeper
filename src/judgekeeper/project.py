@@ -222,7 +222,17 @@ def other_eval_line(path: Path, marked: Path) -> str:
     from judgekeeper import textio
 
     return OTHER_EVAL.format(file=textio.shown_from_here(path),
-                             marked=textio.shown_from_here(marked), program=textio.program())
+                             marked=textio.shown_from_here(marked), program=_program_anywhere())
+
+
+def _program_anywhere() -> str:
+    """judgekeeper as typed in a folder of its own: as typed here when that holds no path
+    (`judgekeeper`, `uvx judgekeeper`, `python3 -P -m judgekeeper`), else plain `judgekeeper`:
+    a path from here runs wrong there, and a whole or home path is never printed."""
+    from judgekeeper import textio
+
+    typed = textio.program()
+    return "judgekeeper" if any(c in typed for c in "/\\~") else typed
 
 
 @lru_cache(maxsize=64)  # a run asks for each file more than once
