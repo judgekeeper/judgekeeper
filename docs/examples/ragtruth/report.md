@@ -59,7 +59,7 @@ At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-r
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Mistral-7B and Llama-2.
 - **The answers aren't fully independent:** the 200 come from 113 articles.
 - **Temperature 1,** because these models refuse 0.
-- **Never publish article text, the summaries or the LLM-as-a-judge reasons:** the reasons quote the articles. Publish only ids, grades, counts and ranges.
+- **No text is published:** no article text, summaries or LLM-as-a-judge reasons, because the reasons quote the articles. The repository holds only ids, grades, counts and ranges.
 
 ## Files
 

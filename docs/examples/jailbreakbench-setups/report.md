@@ -53,7 +53,7 @@ These answers were not asked again. The answers the provider declines to grade a
 - **Setup B's result is on 239 of 300 answers** (see above).
 - **The dataset is public** (since 2024), so the models may have seen it.
 - **Three experts' majority** is the mark; the experts disagreed with each other on some answers.
-- **Never publish the requests or the responses:** they are harmful. Only ids, grades, counts and ranges are published.
+- **No text is published:** the requests and the responses are harmful, so the repository holds only ids, grades, counts and ranges.
 
 ## Files
 

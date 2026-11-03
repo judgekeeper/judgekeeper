@@ -45,7 +45,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Llama-2 and Mistral-7B overviews, while 72 of the 100 Passes come from the two GPT models and only 9 of the 100 Fails do (`sample-ids.json`). A strong lean toward one family of writers.
 - **The answers aren't fully independent:** the 200 come from 113 businesses.
 - **Temperature 1,** because these models refuse 0.
-- **Never publish the data, the overviews or the LLM-as-a-judge reasons (the reasons quote them):** publish only ids, grades, counts and ranges.
+- **No text is published:** no data, overviews or LLM-as-a-judge reasons, because the reasons quote them. The repository holds only ids, grades, counts and ranges.
 
 ## Files
 
