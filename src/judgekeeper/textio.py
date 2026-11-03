@@ -212,6 +212,23 @@ def _home_shown(inside: str) -> str:
     return HOME_FORMS[0] + inside.replace(os.sep, "/")
 
 
+def home_folder_shown(path) -> str | None:
+    """A folder that is the home folder or inside it, as a line names it (_home_shown, with
+    its separator at the end: `~/`, `~/Desktop/`); else None."""
+    try:
+        real = os.path.realpath(path)
+        home = os.path.realpath(Path.home())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if os.path.normcase(real) == os.path.normcase(home):
+        return _home_shown("")
+    inside = _in_home(real)
+    if inside is None:
+        return None
+    shown = _home_shown(inside)
+    return shown + ("\\" if is_windows() else "/")
+
+
 def _home_command(inside: str) -> str | None:
     """`_home_shown`, quoted for a shell with the home part left outside the quotes (the
     shell reads it there; cmd reads %USERPROFILE% inside double quotes too). None when the
