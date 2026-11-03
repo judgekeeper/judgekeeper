@@ -418,16 +418,16 @@ def test_the_readme_says_marking_every_answer_leaves_no_range():
     assert "With every answer of a group marked, its share is known, so it has no range." in reference
 
 
-def test_the_docs_say_mark_asks_for_a_taken_on_pass_mark_again():
-    """After `check --pass-if` takes a pass mark on, `check` and `fix` read with it, while
+def test_the_docs_say_mark_asks_for_a_switched_to_pass_mark_again():
+    """After `check --pass-if` switches to a pass mark, `check` and `fix` read with it, while
     `mark` and a plain run ask for it again (the code: front's pass mark question)."""
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     changelog = _flat((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     assert ("Once `check` switches to it, later `check` and `fix` runs read your results with it. "
             "`mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the "
             "default;") in reference
-    assert ("once taken on, later `check` and `fix` runs read with it, and `mark` and a plain "
-            "`judgekeeper` ask for the pass mark again with it as the default.") in changelog
+    assert ("Once `check` switches to it, later `check` and `fix` runs read with it, and `mark` "
+            "and a plain `judgekeeper` ask for the pass mark again with it as the default.") in changelog
     for text in (reference, changelog):
         assert "`check`, `fix` and `mark` runs read" not in text
     assert ("If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark "

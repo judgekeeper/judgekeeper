@@ -10,10 +10,12 @@ judgekeeper needs no API key and makes no AI call. When you grade answers again,
 
 It hides:
 
-- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`) in your shell, in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) and in promptfoo's config `env:` block (not in one that is a link or over 1 MB, nor past the first 50 `.env` files in a folder: judgekeeper doesn't read that file, and says so);
+- the values of key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and any name ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`) in your shell, in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) and in promptfoo's config `env:` block;
 - keys by their shape: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, AWS secrets next to their name or key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…` and a JWT;
 - `Bearer …` and `Basic …` headers, and the login part of a URL: `https://user:password@`, `https://:password@`, or a long token alone;
 - a key split by a hidden character such as a zero-width joiner.
+
+judgekeeper skips a `.env` file or promptfoo config that is a link or is over 1 MB, and any `.env` file after the first 50 in a folder. It says so, because the keys in a skipped file are not hidden.
 
 ## The marking page
 
