@@ -455,14 +455,18 @@ def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     the most a later set's earlier sets can hold, since every mark made once a set begins is
     its own. A seen mark is its first Pass or Fail. A kept-aside one is its first Pass or Fail
     since it was last skipped or taken back: an answer skipped, or marked and taken back,
-    before a set began and marked after is the set's. One taken back since is left out. None
-    kept aside, one never marked, or every one taken back: 0."""
+    before a set began and marked after is the set's. One taken back since is left out; with
+    every one taken back, their first Pass or Fail ever. One never marked: 0. None kept aside
+    (a later set's, once every one is taken back and left out): every seen one, so
+    history.jsonl says."""
     m = read_cached(ws.marks, marks.read)
+    if not hidden:
+        return len(seen)
     if any(i not in m.first_mark for i in hidden):
         return 0
     first = min((m.fresh_mark[i] for i in hidden if i in m.fresh_mark), default=None)
-    if first is None:
-        return 0
+    if first is None:  # every one taken back
+        first = min(m.first_mark[i] for i in hidden)
     return sum(m.first_mark.get(i, first) < first for i in seen)
 
 
@@ -604,8 +608,9 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
             _note_set(ws, split, earlier=split.earlier)
         else:
             split.pending = new_ids
-    elif new_ids and split.hidden:  # new marks are kept aside at the same share, within each
-        # stratum, however many sittings they came in
+    elif new_ids and (split.hidden or split.set > 1):  # new marks are kept aside at the same
+        # share, within each stratum, however many sittings they came in; a later set's too
+        # once every one kept aside in it is taken back
         seen, hidden = _top_up(m, new_ids, set(known) & set(m.person), split.hidden,
                                random.Random(f"{split.seed}/{len(known)}"))
         split.seen += seen
