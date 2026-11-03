@@ -1169,7 +1169,7 @@ def no_such(path: str) -> str:
     """Nothing at the PATH given: by its name, in the folder it was looked for in, as a line
     names a path (shown_from_here, folder_words), else "here". A name with an extension is a
     file."""
-    from judgekeeper.textio import folder_words, shown_from_here
+    from judgekeeper.textio import ANOTHER_DRIVE, folder_words, from_here, shown_from_here
 
     given = Path(path)
     name = given.name or path
@@ -1177,6 +1177,13 @@ def no_such(path: str) -> str:
     if not given.name or str(given.parent) in ("", "."):
         return f"There is no {what} named {name} here."
     shown = shown_from_here(given.parent)
+    if given.anchor and from_here(str(given.parent), labels=False) in ANOTHER_DRIVE:
+        # named from nowhere near here: from the top as typed, or its own name under it
+        sep = "\\" if "\\" in path else "/"
+        top = path[:len(given.anchor)]
+        if given.parent.parent != given.parent.parent.parent:  # not right under the top
+            top += "\u2026" + sep
+        return f"There is no {what} named {name} in {top}{given.parent.name}{sep}."
     folder = folder_words(shown)
     if folder == shown:  # a folder's name: with its separator, as the other lines end it
         sep = "\\" if "\\" in shown else "/"

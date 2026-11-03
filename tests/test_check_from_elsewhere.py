@@ -249,6 +249,9 @@ def test_a_line_that_sends_you_to_a_project_names_the_program_from_there(home, m
     ("missing.csv", "There is no file named missing.csv here."),
     ("missing", "There is no file or folder named missing here."),
     ("../c9", "There is no file or folder named c9 in the folder above."),
+    # a folder named from nowhere near: as typed from the top, never as one here
+    ("/nonexistent-jk/x.csv", "There is no file named x.csv in /nonexistent-jk/."),
+    ("/nonexistent-jk/deep/x.csv", "There is no file named x.csv in /\u2026/deep/."),
 ])
 @pytest.mark.parametrize("command", ["check", "fix"])
 def test_a_missing_path_names_the_folder_it_was_looked_for_in(home, monkeypatch, capsys, given,
