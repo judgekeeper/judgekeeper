@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from judgekeeper import marks
+from judgekeeper import marks, textio
 from judgekeeper.mapper import OUTPUT_WORDS, QUESTION_WORDS
 from judgekeeper.normalise import ERROR, Normaliser, UnmappedValue, _numeric, parse_label_map
 from judgekeeper.redact import scrub
@@ -51,6 +51,7 @@ WORDS_SHOWN = 10
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
 NO_DECISION = "no_decision"
+BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
@@ -61,7 +62,8 @@ SKIPPED = (  # (reason, one, many): said in this order
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
      "{n} are for answers labelled both Pass and Fail"),
-    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"))
+    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"),
+    (BLANK, "{n} is blank", "{n} are blank"))
 WORDS_NEXT = ("run the same command again with `--label-map`, giving each of these words =pass, "
               "=fail or =error (no decision). An empty label cell skips that row.")
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
@@ -224,6 +226,8 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
 
 NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
          "human_label).")
+NEEDS_ANSWER = "{file} needs an answer column ({answers})."  # it has a label column
+NEEDS_LABEL = "{file} needs a label column (label or human_label)."  # it has an answer column
 
 
 def _or(words) -> str:
@@ -249,21 +253,25 @@ def read_file(path: Path, label_map: dict | None = None,
     """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
     the columns, has two columns for the same thing (_twice; `command`: the command run),
     has no label in any cell, or holds a number or a word that isn't Pass or Fail
-    (read_marks; `mine`: the person's own --label-map). A blank label is left out without a
-    word."""
+    (read_marks; `mine`: the person's own --label-map). A row with a blank label is kept with
+    no mark (""), so the labels skipped add up (BLANK); one with no answer either is no label
+    (an empty line)."""
     from judgekeeper import find
-    from judgekeeper.table import TableError, open_quote, read_kept
+    from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
     from judgekeeper.table import written_header as header_of
 
     name = path.name
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
         raise LabelsStop([(f"judgekeeper reads labels from a CSV, TSV or JSONL file; {name} is "
                            "none of these.")])
+    again = f"Fix it, then run {textio.program()} again."  # the program as typed, as LINK
     try:
         line = open_quote(path) if path.suffix.lower() in (".csv", ".tsv") else None
         if line is not None:
-            raise LabelsStop([(f"{name} has a quote that never closes (line {line}). Fix it, "
-                               "then run judgekeeper again.")])
+            raise LabelsStop([f"{name} has a quote that never closes (line {line}). {again}"])
+        wide = wide_row_hint(path)
+        if wide is not None:  # the second row's answer and label would be lost
+            raise LabelsStop([f"{name} {MORE_CELLS} (line {wide[0]}){wide[1]}. {again}"])
         rows = read_kept(path, _used)  # every row (the size question guards), its cells
         # used only: a big notes column is never held
     except TableError as e:
@@ -274,9 +282,10 @@ def read_file(path: Path, label_map: dict | None = None,
     written = header_of(path) if path.suffix.lower() in (".csv", ".tsv") else []
     _twice(path, written or columns, _plain(command))  # as written: the same name twice too
     out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
-    if out_col is None or label_col is None:
-        raise LabelsStop([NEEDS.format(file=name, answers=_or(ANSWER_NAMES))
-                          + _has(path)])
+    if out_col is None or label_col is None:  # only what is missing is asked for
+        needs = (NEEDS if out_col is None and label_col is None
+                 else NEEDS_ANSWER if out_col is None else NEEDS_LABEL)
+        raise LabelsStop([needs.format(file=name, answers=_or(ANSWER_NAMES)) + _has(path)])
     in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine)
@@ -285,6 +294,8 @@ def read_file(path: Path, label_map: dict | None = None,
     out = []
     for row, mark in zip(rows, read, strict=True):
         if mark is None:
+            if not _blank(row.get(out_col)):  # skipped, and said so (_match)
+                out.append(Label(mark="", output=None))
             continue
         given_id = row.get(id_col) if id_col else None
         out.append(Label(mark=mark, output=_scrubbed(row.get(out_col)),
@@ -479,6 +490,9 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         if label.mark == ERROR:  # no decision, by the person's map
             plan.skip(NO_DECISION)
             continue
+        if not label.mark:  # a blank label cell (read_file)
+            plan.skip(BLANK)
+            continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
             if not hits:
@@ -586,7 +600,7 @@ def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
     out doesn't match; else "Nothing added" and why each was left out."""
     if plan.marks:
         return None
-    if set(plan.skipped) <= {NO_MATCH}:
+    if set(plan.skipped) - {BLANK} <= {NO_MATCH}:  # a blank one tells nothing
         return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
                             "the answer text is the same, word for word.")])
     return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])

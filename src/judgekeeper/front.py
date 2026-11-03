@@ -45,6 +45,7 @@ from judgekeeper import labels as labels_mod
 from judgekeeper.fingerprint import rule_hash
 from judgekeeper.label import DEFAULT_PORT, is_open, is_page
 from judgekeeper.links import link
+from judgekeeper.mark_page import SEE_FIRST
 from judgekeeper.normalise import _numeric
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import scrub, scrub_fingerprint
@@ -118,13 +119,17 @@ ONE_GRADE = ("Your LLM-as-a-judge said {said} on every answer. Your result comes
              "mark one answer {other}.")
 FINDING = "finding {n} answers you mark Fail can take many marks."
 FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
+# ...unless too few answers are left to mark to reach them
+FAILS_OUT_OF_REACH = ("Only {left} left to mark, not enough to reach {n} Fail marks, so run "
+                      "your eval on more questions.")
 FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
+NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
+             "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
@@ -139,6 +144,7 @@ MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
 CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
+CHANGE_ON_RESULT = 'To change a mark, open the page and click "Change a mark".'  # its link
 IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
 # --no-browser opened none, so "in your browser" could be false
 CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
@@ -1427,14 +1433,20 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
     return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
 
 
-def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
+def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | None = None,
+                    fail_marks: int = 0) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
-    (`said`: Find said how few it failed in this run, so only that)."""
+    (`said`: Find said how few it failed in this run, so only that). With `left` answers to
+    mark (None: all of them) and `fail_marks` made, fewer left than Fail marks still needed
+    says so instead."""
     if answers and fails in (0, answers):  # one grade for every answer: exact numbers
         said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
         return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    if fails_out_of_reach(fails, answers, left, fail_marks):
+        return out + " " + FAILS_OUT_OF_REACH.format(
+            left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
         out += " " + (rest[:1].upper() + rest[1:] if said else
@@ -1442,9 +1454,25 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     return out
 
 
-def _needs_each_kind(talk, session: StartSession) -> None:
+def fails_out_of_reach(fails: int, answers: int, left: int | None = None,
+                       fail_marks: int = 0) -> bool:
+    """Whether marking the `left` answers can't reach targets.ROUGH Fail marks (`fail_marks`
+    made), when the LLM-as-a-judge failed `fails` of the `answers` and passed the others
+    (None: every answer is left)."""
+    one_grade = answers and fails in (0, answers)
+    return not one_grade and left is not None and left < targets.ROUGH - fail_marks
+
+
+def _each_kind(session: StartSession) -> dict:
+    """needs_each_kind's numbers for `session`, but `said`."""
     groups = list(session.groups.values())  # every answer to mark, each batch's too
-    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+    return {"fails": groups.count("fail"), "answers": len(groups),
+            "left": sum(not i["label"] for i in session.items),
+            "fail_marks": sum(i["label"] == "fail" for i in session.items)}
+
+
+def _needs_each_kind(talk, session: StartSession) -> None:
+    talk.para(needs_each_kind(said=talk.few_fails, **_each_kind(session)))
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
@@ -1494,7 +1522,10 @@ def found_block(found: start.Found, pass_if: str | None = None,
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
         lines.append(INDENT + repeats_note(answers, pool))
-    lines += [f"LLM-as-a-judge:  {_judge_value(found)}", *_rule_lines(found)]
+    lines.append(f"LLM-as-a-judge:  {_judge_value(found)}")
+    if found.model_refused and not found.models:  # so the column is not shown as read
+        lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
+    lines += _rule_lines(found)
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
@@ -1541,6 +1572,8 @@ def read_rows(found: start.Found, pass_if: str | None = None,
         rows = [("question", "the input column"), ("answer", "the output column"),
                 ("grade", grade)]
         model = next((c for c in ("judge_model", "model") if c in columns), None)
+        if not found.models or found.model_source:  # the column was not what was read
+            model = None
         labels = next((c for c in start.HUMAN_COLUMNS if c in columns), None)
         for what, column in (("reason", "reason" if "reason" in columns else None),
                              ("model", model),
@@ -1683,6 +1716,19 @@ def _flags_of(talk: FrontTalk, saved: bool, ws: Workspace) -> dict:
     if options.get("tracking_uri"):
         options["tracking_uri"] = _kept_uri(str(options["tracking_uri"]), ws.root)
     return start.run_flags(path, **options)
+
+
+def _back(talk: FrontTalk, saved: bool) -> dict | None:
+    """How to come back to the page as typed here (start.saved_back), for its footer: the
+    path given, from here (never a whole path), and the program as typed here. None when the
+    path can't be said from here (another drive)."""
+    path = answered(talk, saved)[0]
+    if path != "." and (os.path.isabs(path) or textio.through_top(path)):
+        try:
+            path = os.path.relpath(os.path.abspath(path))
+        except ValueError:
+            return None
+    return {"path": path, "program": program()}
 
 
 def _kept_uri(uri: str, root: Path) -> str:
@@ -2061,7 +2107,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
-                               say=talk.para)
+                               say=talk.para, back=_back(talk, saved))
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
@@ -2116,8 +2162,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
-            if _kept(talk, opened, shown, SAY_WHY) is None:
-                talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            why = f"{SAY_WHY} {CHANGE_ON_RESULT}"
+            if _kept(talk, opened, shown, why) is None:
+                talk.para(f"{RESULT_OPEN} {why}" if shown == page.BROWSER else why)
         else:
             opened, shown = _open(talk, ws, wait, saved)
             if _kept(talk, opened, shown, CHANGE_MARK) is None:
@@ -2175,6 +2222,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
+    if not enough and fails_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
+        next_step = start_label.NEXT_ALL_MARKED
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para(_wait_step(ws) if waits is not None

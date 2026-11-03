@@ -309,7 +309,8 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
 
 def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
     """`mark` with every answer marked: the page opens on a card that says how to change a
-    mark, not on the result; a mark changed from the list then opens the result."""
+    mark, not on the result; a mark changed from the list keeps that card (the bar links to
+    the result), and Z puts back the mark it had."""
     data = _data(3)
     for item in data["items"]:
         item["label"] = "pass"
@@ -321,14 +322,22 @@ def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
       var link = new El("a"); link.setAttribute("data-k", "2");
       ids["queue"].fire("click", {target: link}); await settle();
       var picked = ids["ans-status"].textContent;
+      counts.correct = 2;  // the server's counts: the 3 marks, one of them now changed
       key("ArrowLeft"); await settle(); later(500);
-      console.log(JSON.stringify({opened: opened, picked: picked, sent: sent.map(function (s) {
-        return [s.body.id, s.body.label]; }), href: window.location.href}));""", data=data)
-    assert got == {"opened": {"end": False, "title": "You have marked all 3 answers.",
-                              "note": "To change a mark, click it in the list.", "shown": True,
-                              "href": ""},
-                   "picked": "Marked Pass", "sent": [["a2", "fail"]],
-                   "href": "/result?token=t0k"}
+      var changed = {end: ids["end"].hidden, title: ids["end-title"].textContent,
+        note: ids["end-note"].textContent, href: window.location.href};
+      key("z"); await settle(); later(500);
+      var undone = {card: ids["answer-card"].hidden, status: ids["ans-status"].textContent};
+      console.log(JSON.stringify({opened: opened, picked: picked, changed: changed,
+        undone: undone, sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
+        end: ids["end"].hidden, href: window.location.href}));""", data=data)
+    marked_all = {"end": False, "title": "You have marked all 3 answers.",
+                  "note": "To change a mark, click it in the list."}
+    assert got == {"opened": {**marked_all, "shown": True, "href": ""},
+                   "picked": "Marked Pass", "changed": {**marked_all, "href": ""},
+                   "undone": {"card": False, "status": "Marked Pass"},
+                   "sent": [["a2", "fail"], ["a2", "pass"]],
+                   "end": True, "href": ""}
 
 
 def test_end_card_with_no_result_says_what_comes_next():
@@ -476,6 +485,23 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
       console.log(JSON.stringify({kept: tab.defaultPrevented, onButton: onButton,
         closed: ids["intro"].hidden}));""", seen_intro=False)
     assert got == {"kept": True, "onButton": True, "closed": True}
+
+
+def test_no_welcome_box_when_every_answer_is_marked():
+    """A first visit (the box never seen) to a page with every answer marked: no "Start
+    marking" box over "You have marked all N answers"; it still shows once answers are left."""
+    data = _data(3)
+    for item in data["items"]:
+        item["label"] = "pass"
+    data["counts"] = {"correct": 3, "wrong": 0, "skipped": 0}
+    got = _run("""
+      console.log(JSON.stringify({box: !ids["intro"].hidden, end: !ids["end"].hidden,
+        title: ids["end-title"].textContent, inert: document.getElementById("app").getAttribute("inert") !== null,
+        seen: stored["judgekeeper-intro-seen"] || null}));""", data=data, seen_intro=False)
+    assert got == {"box": False, "end": True, "title": "You have marked all 3 answers.",
+                   "inert": False, "seen": None}  # not seen yet: it shows when there is marking
+    got = _run('console.log(JSON.stringify({box: !ids["intro"].hidden}));', seen_intro=False)
+    assert got == {"box": True}
 
 
 def test_a_blocked_storage_still_shows_the_page_and_the_box():
@@ -839,6 +865,24 @@ def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
     assert got == {"at": "Question 1?", "reloads": 0}
 
 
+def test_z_on_a_first_mark_still_takes_it_back_and_on_a_changed_one_puts_the_old_back():
+    got = _run("""
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass, a first mark
+      key("z"); await settle(); later(500);           // taken back: a0 unmarked
+      var first = ids["ans-status"].textContent;
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass again, a1 shows
+      var link = new El("a"); link.setAttribute("data-k", "0");
+      ids["queue"].fire("click", {target: link}); await settle();
+      key("ArrowLeft"); await settle(); later(500);   // a0 changed to Fail
+      key("z"); await settle(); later(500);           // back to Pass
+      console.log(JSON.stringify({first: first, now: ids["ans-status"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+        data=_data(3))
+    assert got == {"first": "", "now": "Marked Pass",
+                   "sent": [["a0", "pass"], ["a0", None], ["a0", "pass"], ["a0", "fail"],
+                            ["a0", "pass"]]}
+
+
 def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
     """Marks on answers the new LLM-as-a-judge never graded count for nothing in the bar; the
     line under it says how many wait and how to count them, with the command as code."""
@@ -868,3 +912,58 @@ def test_with_only_marks_that_wait_left_the_page_never_says_keep_marking():
     assert _run(keep, data=_data(counts=counts, status=status)) == [False, False]
     assert _run(keep, data=_data(counts=counts, status={**status, "only_wait": True})) == [
         True, False]
+
+
+def test_a_saved_mark_keeps_the_list_rows_so_a_click_is_never_lost():
+    """The answers list is updated in place after each save (each row's link kept, only its
+    text, icon and state changed): a click pressed on a row while a mark is saved lands on the
+    same row when it is let go, and opens it."""
+    got = _run("""
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      function state(a) { return [a.getAttribute("aria-current"),
+        a.children[a.children.length - 1].textContent, a.children[2].innerHTML]; }
+      var before = rows(), icon = state(before[0])[2];
+      key("ArrowRight"); await settle();  // saved: the list is drawn again
+      var after = rows();
+      var same = before.length === after.length && before.every(function (a, i) {
+        return a === after[i]; });
+      var states = [state(after[0]), state(after[1])];
+      ids["queue"].fire("click", {target: before[3].children[1]}); await settle();
+      console.log(JSON.stringify({same: same, n: after.length, states: states,
+        iconChanged: states[0][2] !== icon, opened: ids["q-text"].textContent}));""")
+    assert got["same"] and got["n"] == 6
+    assert got["states"][0][:2] == [None, ", marked Pass"] and got["iconChanged"]
+    assert got["states"][1][:2] == ["true", ", not marked"]
+    assert got["opened"] == "Question 3?"
+
+
+@pytest.mark.parametrize("n", [8, 4])
+def test_the_list_grows_or_shrinks_with_the_answers_and_keeps_the_rows_it_has(n):
+    """A new list from the server (marks written elsewhere, /state) with more or fewer
+    answers: rows are added or taken away at the end; the rows kept are the same links."""
+    got = _run(f"var NEWN = {n};" + """
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      fetch = function (url, opts) {
+        if (url.indexOf("/state") === 0) {
+          var items = [];
+          for (var k = 0; k < NEWN; k++) { items.push({id: "a" + k, input: "Question " + k + "?",
+            output: "Answer " + k + ".", label: k === 0 ? "pass" : null, skipped: false}); }
+          return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+            {items: items, total: NEWN, start: 1, version: "v3",
+             counts: {correct: 1, wrong: 0, skipped: 0},
+             status: {text: "Keep going.", ready: false}}); }});
+        }
+        sent.push({url: url, body: JSON.parse(opts.body)});
+        return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+          {summary: {counts: {correct: 1, wrong: 0, skipped: 0}, version: "v3", before: "v2",
+                     status: {text: "Keep going.", ready: false}}}); }});
+      };
+      var before = rows();
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      var after = rows(), kept = Math.min(before.length, after.length);
+      console.log(JSON.stringify({n: after.length, same: before.slice(0, kept).every(
+        function (a, i) { return a === after[i]; }),
+        last: after[after.length - 1].children[1].textContent}));""", _data(version="v1"))
+    assert got == {"n": n, "same": True, "last": f"Question {n - 1}?"}

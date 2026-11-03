@@ -28,7 +28,7 @@ MAX_PATHS = 24
 RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one judgekeeper.record() "
                f"line where it runs: {own_format.RECORD_URL} shows the line.")
 NOT_UTF8 = "is not saved as UTF-8 text"  # textio.not_utf8_message
-QUOTE = re.compile(r"line (\d+) of .+ has a quote that never closes")
+QUOTE = re.compile(r"line (\d+) of .+ (has a quote that never closes|has more cells than its)")
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
 
 
@@ -42,9 +42,9 @@ def cannot(talk: Talk, rel: str, why: str):
     quote = QUOTE.match(why)
     if quote:  # the file is read once the quote is closed
         _para(talk, f"{why[:1].upper()}{why[1:]}.")
-        return talk.stop(EXIT_USAGE, f"close the quote on line {quote[1]} of "
-                                     f"{Path(rel).name}, then run `{talk.command()}`.",
-                         as_given=True)
+        fix = "close the quote on" if "never closes" in quote[2] else "fix"
+        return talk.stop(EXIT_USAGE, f"{fix} line {quote[1]} of {Path(rel).name}, then run "
+                                     f"`{talk.command()}`.", as_given=True)
     if NOT_UTF8 in why:  # the file is read once it is saved as UTF-8
         _para(talk, f"{why}.")
         return talk.stop(EXIT_USAGE, f"save {Path(rel).name} as UTF-8, then run "
@@ -102,6 +102,9 @@ def how_lines(g: mapper.Guess, judge_model: str | None = None) -> list[str]:
         lines.append(f"  model:           {judge_model} (given with --judge-model)")
     elif g.model_key:
         lines.append(f"  model:           {mapper.filled(g.model_key, side, judge)} ({g.model})")
+    elif g.model_refused:  # never shown as read
+        lines.append(f"  model:           {g.model_refused} holds no model's name "
+                     "(add --judge-model NAME)")
     else:
         lines.append("  model:           not in the file (add --judge-model NAME)")
     if g.kind == "score":

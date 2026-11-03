@@ -685,7 +685,8 @@ def test_ctrl_c_while_the_commands_load_says_stopped(monkeypatch, capsys):
     assert entry.main(["--no-browser"]) == 130
     out = capsys.readouterr()
     assert "Traceback" not in out.out + out.err
-    assert out.out.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert out.out.splitlines()[-2:] == ["Stopped.",
+                                         "Next: run `judgekeeper --no-browser` to carry on."]
 
 
 def test_ctrl_c_while_the_arguments_are_read_says_stopped(monkeypatch, capsys):

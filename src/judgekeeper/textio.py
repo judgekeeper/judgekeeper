@@ -145,20 +145,27 @@ def _started_as_judgekeeper() -> bool:
     return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
 
 
-def command_path(path: str) -> str:
+def command_path(path: str, climb: bool = True) -> str:
     """`path` as a program to run from this folder (or run_from's), quoted: relative when the
     two share a folder below the top and the home folder's parents (shares_below_home), with
     a folder in it so the shell never looks it up on the PATH; else under the home folder as
     `~/...`: never the user name; else, or on another drive, the path as it is. From
     ANYWHERE: never relative. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it):
     the shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path
-    as it is; else from here, quoted (else the path as it is)."""
+    as it is; else from here, quoted (else the path as it is). Without `climb`, never a
+    path from here that climbs with `..` (a python run so warns, Python 3.14 with the home
+    path in it). A whole path is named without `..` in it (sys.executable may hold one), as
+    relpath names it from here."""
+    if os.path.isabs(path):
+        path = os.path.normpath(path)
     try:
         here = os.getcwd() if _from is None else _from
         shown = os.path.relpath(path, here) if here != ANYWHERE else None
         shared = os.path.commonpath([here, path]) if here != ANYWHERE else os.sep
     except (OSError, ValueError):
         shown = shared = None
+    if not climb and shown is not None and shown.replace("\\", "/").split("/")[0] == os.pardir:
+        shown = None
     if shown is not None and os.sep not in shown and "/" not in shown:
         shown = os.path.join(os.curdir, shown)
     if is_windows():  # never %USERPROFILE%: PowerShell doesn't read it
@@ -169,7 +176,7 @@ def command_path(path: str) -> str:
         return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
     if shared is None:
         return quote_arg(path)
-    if shares_below_home(shared):  # more than the top in common: from here
+    if shown is not None and shares_below_home(shared):  # more than the top in common
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
@@ -238,7 +245,7 @@ def off_path(any_start: bool = False) -> str | None:
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
-    python = f"{command_path(sys.executable)} -P -m judgekeeper"
+    python = f"{command_path(sys.executable, climb=False)} -P -m judgekeeper"
     if script:
         shown = command_path(os.path.abspath(typed))
         if is_windows() and not in_both_shells(shown) and in_both_shells(python):
@@ -493,9 +500,37 @@ last_read: str | None = None  # the name of the last file read_utf8 read, for an
 next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
 
 
+ctrl_c: list[bool] = []  # holds True once this run noted a Ctrl-C (note_ctrl_c)
+
+
+def note_ctrl_c(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first (cli.main puts it in for the run):
+    a library that swallows the KeyboardInterrupt (raised inside its import, where Python
+    would say "Exception ignored" with a traceback and go on) can't make the run carry on, and
+    nothing is printed for it: the run says "Stopped."."""
+    ctrl_c.append(True)
+    sys.unraisablehook = _unsaid
+    raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python could only print (a Ctrl-C swallowed, what it left half done): the run
+    is stopping, so it is not printed."""
+
+
+def stop_if_noted() -> None:
+    """A Ctrl-C a library swallowed stops the run here (cli._stopped), before its next line
+    or the next check of a long read, unless the run has said its Next: line."""
+    if ctrl_c and not next_said:
+        ctrl_c.clear()
+        raise KeyboardInterrupt
+
+
 def said_next(text: str) -> None:
-    """Note a line about to be printed: a Next: line ends what the command says."""
+    """Note a line about to be printed: a Next: line ends what the command says. After a
+    Ctrl-C a library swallowed, the run stops instead, before this line."""
     global next_said
+    stop_if_noted()
     if text.startswith("Next:"):
         next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
@@ -517,6 +552,7 @@ def reading(n: int, name: str | None = None) -> None:
         _reading.update(since=_clock(), said=None)
     if n % 500:
         return
+    stop_if_noted()  # a swallowed Ctrl-C: the read stops, not after the whole file
     now, said = _clock(), _reading["said"]
     if now - _reading["since"] < PROGRESS_AFTER or (said is not None
                                                     and now - said < PROGRESS_EVERY):

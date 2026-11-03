@@ -672,30 +672,44 @@ __TOP__
   }
 
   // The answers list: the person's own marks only, each answer once (never one shown again).
+  // Drawn in place: each row's link is kept and only its text, icon and state change, rows
+  // added or taken away only as the list grows or shrinks, so a click pressed on a row while
+  // a mark is saved still lands on it when it is let go.
   var DOT = {none: '__DOT_NONE__', pass: '__DOT_PASS__', fail: '__DOT_FAIL__'};
   var SAID = {pass: "marked Pass", fail: "marked Fail"};
+  function newRow() {
+    var li = el("li"), a = el("a", "item"), title = el("span", "q"), dot = el("span", "dot-wrap");
+    a.href = "#";
+    title.setAttribute("dir", "auto");
+    dot.setAttribute("aria-hidden", "true");
+    a.appendChild(el("span", "num")); a.appendChild(title); a.appendChild(dot);
+    a.appendChild(el("span", "sr"));
+    li.appendChild(a);
+    return li;
+  }
+  function setRow(a, it, k, shown) {
+    var parts = a.children, dot = it.label || "none";
+    a.setAttribute("data-k", String(k));
+    if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
+    else { a.removeAttribute("aria-current"); }
+    parts[0].textContent = shown < 100 ? ("0" + shown).slice(-2) : String(shown);
+    parts[1].textContent = firstLine(it);
+    if (parts[2].getAttribute("data-dot") !== dot) {  // the icon only when it changes
+      parts[2].setAttribute("data-dot", dot);
+      parts[2].innerHTML = DOT[dot];  // fixed icon markup only, no data
+    }
+    parts[3].textContent = ", " + (SAID[it.label] || (it.skipped ? "skipped" : "not marked"));
+  }
   function renderQueue() {
-    var list = $("queue");
-    list.textContent = "";
-    var shown = 0;
+    var list = $("queue"), shown = 0;
     items.forEach(function (it, k) {
       if (it.again != null) { return; }
-      var li = el("li"), a = el("a", "item");
+      if (!list.children[shown]) { list.appendChild(newRow()); }
+      setRow(list.children[shown].children[0], it, k, shown + 1);
       shown += 1;
-      a.href = "#"; a.setAttribute("data-k", String(k));
-      if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
-      a.appendChild(el("span", "num", shown < 100 ? ("0" + shown).slice(-2) : String(shown)));
-      var title = el("span", "q", firstLine(it));
-      title.setAttribute("dir", "auto");
-      a.appendChild(title);
-      var dot = el("span", "dot-wrap");
-      dot.setAttribute("aria-hidden", "true");
-      dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
-      a.appendChild(dot);
-      a.appendChild(el("span", "sr", ", " + (SAID[it.label] || (it.skipped ? "skipped" :
-        "not marked"))));
-      li.appendChild(a); list.appendChild(li);
     });
+    while (list.children.length > shown) {
+      list.removeChild(list.children[list.children.length - 1]); }
     var now = list.querySelector("[aria-current]");
     if (now && (now.offsetTop < list.scrollTop ||
                 now.offsetTop + now.offsetHeight > list.scrollTop + list.clientHeight)) {
@@ -781,14 +795,16 @@ __TOP__
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
     if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
-    finish();
+    finish(changing);
   }
 
   // Nothing left to mark: the end card in the answer card's place. Every answer marked: the
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
-  // result, to leave them out).
-  function finish(opening) {
+  // result, to leave them out). `stay`: every answer was marked already (the page opened so,
+  // or a mark was changed): the card says how to change a mark, and Z undoes as usual.
+  var changing = false;
+  function finish(stay) {
     ended = true; busy = false;
     $("answer-card").hidden = true; $("end").hidden = false;
     renderQueue(); renderProgress();
@@ -801,7 +817,8 @@ __TOP__
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
       }
-      if (opening) {  // opened with every answer marked: a mark can still be changed
+      if (stay) {  // a mark can still be changed; the bar links to the result
+        changing = true;
         var n = counts.correct + counts.wrong;
         setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
         setText("end-note", WORDS.change);
@@ -842,8 +859,8 @@ __TOP__
       if (items[k].again !== slot) { continue; }
       items.splice(k, 1); total -= 1;
       if (k < pos) { pos -= 1; }
-      history = history.filter(function (h) { return h !== k; })
-        .map(function (h) { return h > k ? h - 1 : h; });
+      history = history.filter(function (h) { return h.pos !== k; })
+        .map(function (h) { return h.pos > k ? {pos: h.pos - 1, was: h.was} : h; });
     }
   }
 
@@ -924,27 +941,32 @@ __TOP__
     if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
+    var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
+    if (was) { changing = true; }
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos);
+      it.label = value; it.skipped = false; history.push({pos: pos, was: was});
       hear(heard); next(); focusCard(); }, heard);
   }
 
   function skip(key) {
     if (ended || fresh() || locked(key)) { return; }
-    var it = items[pos];
+    var it = items[pos], was = it.label;
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos);
+      it.label = null; it.skipped = true; history.push({pos: pos, was: was});
       hear("Skipped."); next(); focusCard(); }, "Skipped.");
   }
 
+  // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
+  // ordinary mark line in marks.jsonl, so every step stays there).
   function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     var back = history.pop();
-    walkingSkipped = false; open(back);
+    walkingSkipped = false; open(back.pos);
     var it = items[pos];
-    send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); }, "Undone.");
+    send({label: back.was, deferred: false}, function () {
+      it.label = back.was; it.skipped = false; hear("Undone."); render(); focusCard(); },
+      "Undone.");
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
@@ -1023,7 +1045,7 @@ __TOP__
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }
-  if (!seenIntro()) {
+  if (left && !seenIntro()) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }

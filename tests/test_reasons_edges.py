@@ -180,7 +180,7 @@ def test_ctrl_c_while_the_commands_load_exits_130_under_python_m(tmp_path):
     done = subprocess.run([sys.executable, "-m", "jk_interrupted"], capture_output=True,
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL, cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
     assert "Traceback" not in done.stdout + done.stderr
 
 
@@ -210,9 +210,26 @@ def test_a_ctrl_c_during_a_slow_import_stops_the_run_after_it(tmp_path):
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL,
                           cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` to carry on."]
     assert "RAN" not in done.stdout
     assert "Traceback" not in done.stdout + done.stderr
+
+
+def test_a_ctrl_c_while_the_commands_load_names_the_program_and_flags(capsys, monkeypatch):
+    """A press in the first tenth of a second (the commands still loading): the Next: line
+    names the program as typed, with the flags, as a later Ctrl-C does."""
+    from judgekeeper import __main__ as entry
+    from judgekeeper import textio
+
+    def pressed_while_loading():  # holds nothing to put back, as off the main thread
+        entry._pressed = True
+
+    monkeypatch.setattr(entry, "_hold", pressed_while_loading)
+    monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
+    assert entry.main(["--no-browser", "--port", "9642"]) == 130
+    out = capsys.readouterr().out
+    assert out.splitlines()[-2:] == [
+        "Stopped.", "Next: run `venv/bin/judgekeeper --no-browser --port 9642` to carry on."]
 
 
 def test_the_entry_leaves_ctrl_c_as_it_found_it():

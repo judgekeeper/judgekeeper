@@ -44,6 +44,21 @@ def _run(capsys, *argv):
     return code, out, err
 
 
+def test_the_link_stop_names_the_program_as_typed(tmp_path, capsys, pages, monkeypatch):
+    """Run by a path, "Remove it, then run ... again." names that path, as every other line
+    does."""
+    from judgekeeper import textio
+
+    project = tmp_path / "project"
+    promptfoo_project(project, split(20, 16))
+    (project / ".judgekeeper").mkdir()
+    _link(project / ".judgekeeper" / "start.json", _victim(tmp_path))
+    monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
+    code, _, err = _run(capsys, project)
+    assert code == 2
+    assert "Remove it, then run venv/bin/judgekeeper again." in " ".join(err.split()), err
+
+
 @pytest.mark.parametrize("name", ["pool.jsonl", "result.html", "start.json"])
 def test_a_link_in_the_folder_stops_it_and_changes_nothing(
         tmp_path, capsys, pages, name):

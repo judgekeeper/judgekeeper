@@ -116,8 +116,22 @@ def test_the_judge_line_names_the_models_the_tool_names(tmp_path):
     path = _csv(tmp_path / "judged.csv", "input,output,verdict,judge_model",
                 [*rows, "q 6,a 6,,old-model-made-up"])
     (judge,) = browser(path)["judges"]
-    assert judge["models"] == ["gpt-4.1"]
-    assert "LLM-as-a-judge:  gpt-4.1" in judge["lines"]
+    assert judge["models"] == ["gpt-4.1", "old-model-made-up"]  # a model column takes any name
+    assert "LLM-as-a-judge:  gpt-4.1, old-model-made-up" in judge["lines"]
+    assert _page(browser(path)) == tool(path)
+
+
+@pytest.mark.parametrize("value", ["judge-model-x", "string_match"])
+def test_a_model_column_is_read_or_said_as_the_tool_does(tmp_path, value):
+    rows = [f"q {i},a {i},{'pass' if i % 2 else 'fail'},{value}" for i in range(6)]
+    path = _csv(tmp_path / "judged.csv", "input,output,verdict,model", rows)
+    (judge,) = browser(path)["judges"]
+    named = value == "judge-model-x"
+    assert judge["models"] == ([value] if named else [])
+    assert (["model", "the model column"] in judge["readRows"]) is named
+    note = " " * 17 + "The model column holds no model's name."
+    assert (note in judge["lines"]) is not named
+    assert (note in front.found_block(start.find_judge(path))) is not named
     assert _page(browser(path)) == tool(path)
 
 

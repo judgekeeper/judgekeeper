@@ -63,11 +63,13 @@ from judgekeeper.records import (
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import (
     KNOWN_COLUMNS,
+    MORE_CELLS,
     _blank,
     make_fingerprint,
     open_quote,
     read_table,
     sheet_id,
+    wide_row_hint,
 )
 from judgekeeper.textio import (
     flush_stdout,
@@ -262,6 +264,28 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
     saved_flags), written again by repeated_flags: never a command's text read from a file."""
     return " ".join((textio.program(subcommand),
                      *repeated_flags(kept=kept, **saved_flags(flags))))
+
+
+def saved_back(back) -> dict | None:
+    """How to come back to a page as typed where it was started (front._back): the path as
+    given there and the program as typed there, each one line of text; else None."""
+    def ok(value) -> bool:
+        return isinstance(value, str) and value.isprintable() and 0 < len(value) < 4096
+
+    if isinstance(back, dict) and ok(back.get("path")) and ok(back.get("program")):
+        return {"path": back["path"], "program": back["program"]}
+    return None
+
+
+def come_back(flags, back=None) -> str:
+    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: typed
+    where the page was started (`back`, saved_back) when known, else in the project folder
+    (command_from)."""
+    back = saved_back(back)
+    if back is None:
+        return command_from(flags, "mark", kept=True)
+    words = repeated_flags(kept=True, **{**saved_flags(flags), "path": back["path"]})
+    return " ".join((f"{back['program']} mark", *words))
 
 
 def kept_check(path, root) -> str:
@@ -599,6 +623,14 @@ def _models_named(rows: list[dict], column: str) -> bool:
                                 for v in values)
 
 
+def model_column(rows: list[dict], columns) -> tuple[str | None, bool]:
+    """The column that names the LLM-as-a-judge's model (judge_model, else model) and whether
+    it names one (mapper.names_models, the rule a JSONL's judge_model field has too)."""
+    column = next((c for c in ("judge_model", "model") if c in columns
+                   and any(not _blank(row.get(c)) for row in rows)), None)
+    return column, column is not None and mapper.names_models([row.get(column) for row in rows])
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
@@ -612,6 +644,11 @@ def read_results_table(path: Path) -> RecordList:
                          "rows after it can't be read.",
                          f"close the quote on line {line} of {path.name}, then run "
                          "`{command}`.")
+    wide = wide_row_hint(path)
+    if wide is not None:  # one row of two: the second one's answer would be lost
+        line, hint = wide
+        raise StartError(f"{path.name} {MORE_CELLS} (line {line}){hint}.",
+                         f"fix line {line} of {path.name}, then run `{{command}}`.")
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
@@ -639,6 +676,9 @@ def read_results_table(path: Path) -> RecordList:
                              f"of {path.name}, then run `{{command}}`.")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
+    model_at, named = model_column(rows, columns)
+    if model_at and not named:  # "string_match": a rule's name, not a model's
+        records.model_refused, model_at = model_at, None
     if "id" in columns and not own:
         records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     for n, row in enumerate(rows, 1):
@@ -646,9 +686,7 @@ def read_results_table(path: Path) -> RecordList:
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
-        model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
-        if not mapper._model_like(model):  # "string_match": a rule's name, not a model's
-            model = None
+        model = row.get(model_at) if model_at else None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         for verdict in verdicts:
             records.append(ScoreRecord(
@@ -1092,6 +1130,7 @@ class Found:
     rule_field: str | None = None  # Inspect: "instructions" or "template", the rule's field
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
+    model_refused: str | None = None  # a model column that names no model (not read)
     experiment: str | None = None  # MLflow: the experiment read
     stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
@@ -2185,6 +2224,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=(_inspect_field(records) if kind == "inspect" and rule else
                              _geval_field(records) if kind == "deepeval" and rule else None),
                  models=models, model_source=model_source, experiment=name,
+                 model_refused=first.records.model_refused,
                  stopped=list(dict.fromkeys(n for x in used for n in x.records.notes))
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,

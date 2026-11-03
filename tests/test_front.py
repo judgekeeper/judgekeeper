@@ -90,7 +90,7 @@ def assert_one_next_at_the_end(out: str) -> str:
     return next_lines(out)[0]
 
 
-START = 'Next: mark answers until the link at the top shows your numbers, then click it.'
+START = 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 
 
 def flat(out: str) -> str:
