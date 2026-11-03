@@ -40,7 +40,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
    - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer).
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It is a loop: change the rule (with promptfoo, usually in `.judgekeeper/fix/regrade.yaml`; when it can't write one, `fix` says how), grade again, then run `judgekeeper fix <new results file>`. With few marks, "can't tell yet" is a normal answer.
-5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`; with promptfoo, usually `.judgekeeper/fix/regrade.yaml`), then run `judgekeeper check <new results file>`. Grading only those is a quick compare; to count new marks, grade all your answers with your new LLM-as-a-judge.
+5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`; with promptfoo, usually `.judgekeeper/fix/regrade.yaml`), then run `judgekeeper check <new results file>`. Grading only your marked answers is a quick compare; to count new marks, grade all your answers with your new LLM-as-a-judge.
 
 judgekeeper only reads files. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 

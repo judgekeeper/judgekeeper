@@ -919,7 +919,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
             ("judgekeeper finds the answers you marked in your new results by the same text, "
              "word for word, and the same question, compares the new grades with your marks, and tells you if your "
              "LLM-as-a-judge "
-             "still agrees with you. You don’t need to mark anything again.")]}
+             "still agrees with you. You don’t need to mark anything again. Grading only your "
+             "marked answers is a quick compare; to count new marks, grade all your answers "
+             "with your new LLM-as-a-judge.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
