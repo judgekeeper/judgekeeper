@@ -436,3 +436,17 @@ def test_the_lines_on_grading_again_link_the_eval_tools_page():
     for tool in ("promptfoo", "inspect"):
         assert fix.EVAL_TOOLS in fix.REGRADE[tool], tool
     assert not any("judgekeeper's docs/" in line for line in fix.REGRADE.values())
+
+
+@pytest.mark.parametrize(("marked", "new"), [
+    (("logs/results.eval", "logs"), "logs/new.eval"),
+    (("logs/new.eval", "logs"), "logs/new-2.eval"),  # a check took on new.eval
+    (("new.eval", "."), "new-2.eval"),
+    ((None, "."), "new.eval")])
+def test_the_new_log_is_never_the_log_the_marks_test(monkeypatch, tmp_path, marked, new):
+    """`inspect score <log> --output-file <log>` stops to ask before it writes over the log
+    it reads, and waits for ever with no one at the keyboard."""
+    from judgekeeper.start_label import Workspace
+
+    monkeypatch.setattr(fix, "_marked_log", lambda ws: marked)
+    assert fix.new_log(Workspace(tmp_path)) == new

@@ -1849,6 +1849,7 @@ def _first_file(ws: Workspace) -> str | None:
 
 
 NEW_LOG = "new.eval"
+NEW_LOG_TOO = "new-2.eval"  # when the marks test new.eval itself: never the log it reads
 # What is not known stays a placeholder (inspect_score)
 INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite"
 _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
@@ -1885,9 +1886,11 @@ def _marked_log(ws: Workspace) -> tuple[str | None, str]:
 
 def new_log(ws: Workspace) -> str:
     """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
-    with the others rather than in a second folder of logs."""
-    folder = _marked_log(ws)[1]
-    return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
+    with the others rather than in a second folder of logs. Never the marked log itself (a
+    check took on new.eval): `inspect score` would stop to ask before it writes over it."""
+    marked, folder = _marked_log(ws)
+    name = NEW_LOG_TOO if marked and Path(marked).name == NEW_LOG else NEW_LOG
+    return name if folder == "." else f"{folder}/{name}"
 
 
 def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
