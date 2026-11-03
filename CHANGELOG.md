@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (2026-11-02)
+## 1.1.0 (2026-11-03)
 - Bring labels you already have: `judgekeeper --labels <file>` or, for labels already in your results, `judgekeeper --labels`. Mark more on the page if needed.
 - The result page links back to the marking page, and says how to mark more after closing it (`judgekeeper mark`). When every answer is marked, the table has no "Between" column. Two range ends that look the same get a second decimal, or "almost exact". A number or a range end is never shown as 100% or 0% unless it is exactly that; a very narrow range is shown with decimals. Opening the result page before there is a result writes nothing. Its "What next" says the same as the terminal. "Its reason" shows only when some answers have a reason, and a saved reason closes its box. The marking page's status always agrees with the result page.
 - "Good enough" and "needs work" now need stronger evidence, so a lucky streak can't decide them. The first numbers wait for 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed. A good LLM-as-a-judge needs more marks than before to hear "good enough".
