@@ -993,8 +993,8 @@ def table_lines(g: dict) -> list[str]:
 def expect_lines(g: dict, unit_said: bool = False) -> list[str]:
     """What to expect, one line per group whose outcome says something: for Worse, by about
     how much agreement drops in every 100 answers and the range; for no big drop, the most
-    it could drop, or "no drop" when it didn't drop. A Not sure group gets no line: its word
-    says it. A clear rise in both groups is said last. The unit is "percentage points" the
+    it could drop, or "no drop" when it didn't drop. For Not sure, the drop seen and the
+    bigger one its marks can't rule out. A clear rise in both groups is said last. The unit is "percentage points" the
     first time on the screen (`unit_said`: the result line said it), "points" after."""
     out = []
     unit = ["points" if unit_said else "percentage points"]
@@ -1004,10 +1004,16 @@ def expect_lines(g: dict, unit_said: bool = False) -> list[str]:
         return said
     for key, _, said in SIDES:
         x = g[key]
-        if not x["n"] or x["verdict"] == "not_sure":
+        if not x["n"]:
             continue
         lead = f"On answers you {said},"
-        if x["verdict"] == "worse":
+        if x["verdict"] == "not_sure" and x["change"] < 0:
+            out.append(f"{lead} agreement drops by about {max(1, _points(x['change']))} {pts()}, though "
+                       f"these marks can't rule out a drop of up to {_worst(x['low'])} {pts()}.")
+        elif x["verdict"] == "not_sure":
+            out.append(f"{lead} no drop, though these marks can't rule out a drop of up to "
+                       f"{_worst(x['low'])} {pts()}.")
+        elif x["verdict"] == "worse":
             out.append(f"{lead} agreement drops by about {_points(x['change'])} {pts()} "
                        f"(somewhere between {_points(x['high'])} and {_worst(x['low'])}).")
         elif x["low"] >= 0:

@@ -605,6 +605,20 @@ def test_the_worst_end_of_a_range_is_rounded_up(low, up_to):
         check.expect_lines(g))
 
 
+def test_a_not_sure_group_says_how_big_a_drop_its_marks_cant_rule_out():
+    """Like a group with no big drop, a Not sure group gets its own line under the table."""
+    g = {"passed": _side("not_sure", -0.335, change=-0.087), "failed": _side("no_drop", -0.14)}
+    assert check.expect_lines(g)[:2] == [
+        ("On answers you pass, agreement drops by about 9 percentage points, though these "
+         "marks can't rule out a drop of up to 34 points."),
+        ("On answers you fail, no drop, though these marks can't rule out a drop of up to 14 "
+         "points.")]
+    g["passed"] = _side("not_sure", -0.335, change=0.0)
+    assert check.expect_lines(g)[0] == (
+        "On answers you pass, no drop, though these marks can't rule out a drop of up to 34 "
+        "percentage points.")
+
+
 def test_a_worse_range_rounds_only_its_far_end_up():
     g = {"passed": _side("no_drop", 0.01),
          "failed": _side("worse", -0.511, change=-0.364, high=-0.224)}
