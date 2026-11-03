@@ -32,8 +32,8 @@ from tests.start_projects import (
 
 PAGE = ("--no-browser", "--port", "0", "--yes")
 CMD = "judgekeeper --port 0 --no-browser"  # a command as these runs print it
-NEXT_WORDS = ("Next: run the same command again with `--label-map`, giving each of these words "
-              "=pass, =fail or =error (no decision). An empty label cell skips that row.")
+NEXT_WORDS = "Next: say what each one means, then run `{command}`."  # locked, word for word
+WORDS = '--label-map "WORD=pass,WORD=fail"'
 
 
 @pytest.fixture
@@ -292,9 +292,9 @@ def test_what_is_left_out_is_counted_by_reason(here, capsys):
                 "Skipped 5 labels:\n"
                 "  2 don't match any answer in your results (the answer text must be the same)\n"
                 "  1 is for an answer your LLM-as-a-judge didn't grade Pass or Fail\n"
-                "  2 are for 1 answer labelled both Pass and Fail\n") in flat(out)
+                "  2 are for answers labelled both Pass and Fail\n") in flat(out)
     said = out.split("Skipped 5 labels:\n")[1].splitlines()
-    assert said[0].startswith("  2 don't") and "  2 are for 1 answer labelled both Pass and Fail" \
+    assert said[0].startswith("  2 don't") and "  2 are for answers labelled both Pass and Fail" \
         in said
 
 
@@ -444,17 +444,17 @@ def test_unknown_words_stop_before_anything_is_written(here, capsys):
     assert code == 3
     text = flat(out)
     assert "Some labels in mine.csv aren't Pass or Fail: good, maybe, n/a." in text
-    assert (NEXT_WORDS) in text
-    assert "WORD=" not in text and "Your map so far" not in text
+    assert NEXT_WORDS.format(command=f"{CMD} --labels mine.csv {WORDS}") in text
     _nothing_written(Workspace(here))
 
 
-def test_at_most_ten_unknown_words_are_named_then_how_many_more(here, capsys):
+def test_at_most_five_unknown_words_are_named(here, capsys):
     table(here)
     write_labels(here / "mine.csv", [{"answer": answer(i), "label": "abcdefghijklmn"[i]}
                                      for i in range(14)])
     _, out = run(capsys, "--labels", "mine.csv")
-    assert "aren't Pass or Fail: a, b, c, d, e, f, g, h, i, j and 4 more." in flat(out)
+    assert "Some labels in mine.csv aren't Pass or Fail: a, b, c, d, e." in flat(out)
+    assert " more." not in flat(out)
 
 
 def test_numbers_are_refused(here, capsys):
@@ -471,8 +471,8 @@ def test_nothing_matching_stops(here, capsys):
     write_labels(here / "mine.csv", [{"answer": "Nothing like it.", "label": "pass"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    assert ("No labels in mine.csv match your results. Check that the answer text is "
-            "exactly the same.") in flat(out)
+    assert ("No labels in mine.csv match your results. Check that the answer text is the "
+            "same, word for word.") in flat(out)
     _nothing_written(Workspace(here))
 
 
@@ -486,12 +486,12 @@ def test_the_default_words_and_blank_labels(here, capsys):
     write_labels(here / "mine.csv", rows)
     _, out = run(capsys, "--labels", "mine.csv")
     assert "Added 4 marks from mine.csv (2 Pass, 2 Fail)." in flat(out)
-    assert "Skipped 1 label: 1 is blank" in flat(out)  # every row of the file is counted
+    assert "Skipped" not in out and "blank" not in out  # a blank label is skipped silently
 
 
-def test_the_skipped_count_adds_up_with_a_blank_label(here, capsys):
-    """31 rows: 29 added, 1 for no answer in the results, 1 with a blank label, so 2 skipped.
-    A row with no answer and no label (an empty line) is no label."""
+def test_a_blank_label_is_skipped_and_not_said(here, capsys):
+    """31 rows: 29 added, 1 for no answer in the results, 1 with a blank label, skipped and not
+    said. A row with no answer and no label (an empty line) is no label."""
     table(here)
     rows = [*labelled(range(29)), {"answer": "not in the results", "label": "pass"},
             {"answer": answer(30), "label": ""}, {"answer": "", "label": ""}]
@@ -499,8 +499,9 @@ def test_the_skipped_count_adds_up_with_a_blank_label(here, capsys):
     _, out = run(capsys, "--labels", "mine.csv")
     text = flat(out)
     assert "Added 29 marks from mine.csv" in text, out
-    assert ("Skipped 2 labels: 1 doesn't match any answer in your results (the answer text "
-            "must be the same) 1 is blank") in text, out
+    assert ("Skipped 1 label: 1 doesn't match any answer in your results (the answer text "
+            "must be the same)") in text, out
+    assert "blank" not in text
 
 
 def test_the_label_map_reads_other_words(here, capsys):
@@ -1019,7 +1020,7 @@ def test_unknown_words_in_a_file_given_in_full(tmp_path, monkeypatch, capsys):
     assert code == 3
     text = flat(out)
     assert "Some labels in words.csv aren't Pass or Fail: meh." in text
-    assert NEXT_WORDS in text and "WORD=" not in text
+    assert NEXT_WORDS.format(command=f"{CMD} --labels ../lf/words.csv {WORDS}") in text
     _no_full_path(out, tmp_path)
 
 
@@ -1149,7 +1150,7 @@ def test_labels_all_labelled_both_ways_say_so_and_add_nothing(here, capsys):
                                      {"answer": answer(6), "label": "fail"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    _nothing_added(out, "Skipped 2 labels:", "2 are for 1 answer labelled both Pass and Fail")
+    _nothing_added(out, "Skipped 2 labels:", "2 are for answers labelled both Pass and Fail")
     _nothing_written(Workspace(here))
 
 
@@ -1204,7 +1205,7 @@ def test_without_a_map_a_no_decision_word_still_asks(here, capsys):
     _nothing_written(Workspace(here))
 
 
-def test_the_words_left_name_the_map_so_far_and_never_a_guess(here, capsys):
+def test_the_words_left_keep_the_map_given_in_the_command(here, capsys):
     table(here)
     rows = [{"answer": answer(0), "label": "good"}, {"answer": answer(1), "label": "error"},
             {"answer": answer(2), "label": "meh"}]
@@ -1213,8 +1214,8 @@ def test_the_words_left_name_the_map_so_far_and_never_a_guess(here, capsys):
     assert code == 3
     text = flat(out)
     assert "Some labels in mine.csv aren't Pass or Fail: meh." in text
-    assert f"{NEXT_WORDS} Your map so far: `good=pass,error=error`." in text
-    assert "WORD=" not in text
+    assert NEXT_WORDS.format(command=f"{CMD} --labels mine.csv --label-map "
+                             '"good=pass,error=error,WORD=pass,WORD=fail"') in text
     _nothing_written(Workspace(here))
 
 

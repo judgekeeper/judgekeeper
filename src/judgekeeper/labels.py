@@ -47,11 +47,10 @@ QUESTION_NAMES = QUESTION_WORDS  # never a prompt: it may hold a whole template
 COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
-WORDS_SHOWN = 10
+WORDS_SHOWN = 5
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
 NO_DECISION = "no_decision"
-BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
@@ -61,20 +60,17 @@ SKIPPED = (  # (reason, one, many): said in this order
                      "apart)"),
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
-     "{n} are for {answers} labelled both Pass and Fail"),
-    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"),
-    (BLANK, "{n} is blank", "{n} are blank"))
-WORDS_NEXT = ("run the same command again with `--label-map`, giving each of these words =pass, "
-              "=fail or =error (no decision). An empty label cell skips that row.")
+     "{n} are for answers labelled both Pass and Fail"),
+    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"))
+WORDS_NEXT = "say what each one means, then run `{command}`."
+WORD_MAP = '"WORD=pass,WORD=fail"'  # in its quotes: a placeholder (front._with_given_map)
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
            "random and labelled without looking at your LLM-as-a-judge's grade.")
 FOUND = "Found {n} in your results. To use them as your marks, run `{command}`."
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = ("Mark at least {more} on the page to check the marks from {name}. To count marks from "
-        "a file, judgekeeper needs {k} marks made on the page, on answers your LLM-as-a-judge "
-        "passed and {k} on answers it failed (or all of them, if there are fewer).")
+GATE = "Mark {more} on the page to check the marks from {name}. Until then, it's too early to tell."
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
@@ -251,13 +247,14 @@ def _has(path: Path) -> str:
 
 def read_file(path: Path, label_map: dict | None = None,
               mine: str | dict | None = None,
-              command: Callable[..., str] | None = None) -> list[Label]:
+              command: Callable[..., str] | None = None,
+              given: str | None = None) -> list[Label]:
     """The labels in the file at `path`. A LabelsStop when it can't be read as labels, lacks
     the columns, has two columns for the same thing (_twice; `command`: the command run),
     has no label in any cell, or holds a number or a word that isn't Pass or Fail
-    (read_marks; `mine`: the person's own --label-map). A row with a blank label is kept with
-    no mark (""), so the labels skipped add up (BLANK); one with no answer either is no label
-    (an empty line)."""
+    (read_marks; `mine`: the person's own --label-map; `given`: the file as typed). A row with
+    a blank label is skipped, and not said; one with no answer either is no label (an empty
+    line)."""
     from judgekeeper import find
     from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
     from judgekeeper.table import written_header as header_of
@@ -290,7 +287,7 @@ def read_file(path: Path, label_map: dict | None = None,
         raise LabelsStop([needs.format(file=name, answers=_or(ANSWER_NAMES)) + _has(path)])
     in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
-    read = read_marks(values, label_map, name, mine)
+    read = read_marks(values, label_map, name, mine, given or path.name, command)
     if all(mark is None for mark in read):
         raise LabelsStop([f"Nothing added from {name}: every label cell is empty."])
     out = []
@@ -330,13 +327,15 @@ def _one_or_zero(value):
 
 
 def read_marks(values: list, label_map: dict | None, name: str,
-               mine: str | dict | None = None) -> list[str | None]:
+               mine: str | dict | None = None, given: str | None = None,
+               command: Callable[..., str] | None = None) -> list[str | None]:
     """Each value as "pass" or "fail" (None when blank), read with `label_map` (the
     defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0, a number
     equal to 1 or 0 too), or "error"
     for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
     than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
-    says how to map them (never a command with guessed values: it would be copied)."""
+    the command with --label-map, WORD in place of each (`given`: the labels file as typed,
+    None for the labels in the results)."""
     norm = Normaliser(label_map=None)
     norm.label_map = {**norm.label_map, **(label_map or {})}
     no_decision = {k for k, v in parse_label_map(mine).items() if v == ERROR}
@@ -364,20 +363,12 @@ def read_marks(values: list, label_map: dict | None, name: str,
     if numbers:
         raise LabelsStop(["Labels must be Pass or Fail, not numbers."])
     if words:
-        every = sorted({_word(w) for w in words})
-        shown = ", ".join(every[:WORDS_SHOWN]) + (f" and {len(every) - WORDS_SHOWN} more"
-                                                  if len(every) > WORDS_SHOWN else "")
-        so_far = f" Your map so far: `{_map_text(mine)}`." if mine else ""
+        shown = ", ".join(sorted({_word(w) for w in words})[:WORDS_SHOWN])
+        where = ("--labels",) if given is None else ("--labels", runnable(given, labels=True))
         raise LabelsStop([f"Some labels in {name} aren't Pass or Fail: {shown}."],
-                         WORDS_NEXT + so_far)
+                         WORDS_NEXT.format(command=_plain(command)(*where, "--label-map",
+                                                                   WORD_MAP)))
     return out
-
-
-def _map_text(mine: str | dict) -> str:
-    """The person's --label-map as they would type it."""
-    if isinstance(mine, dict):
-        return ",".join(f"{k}={v}" for k, v in mine.items())
-    return scrub(str(mine).strip())
 
 
 def _word(value) -> str:
@@ -399,7 +390,8 @@ def in_results(pool, metric: str | None = None, command: Callable[..., str] | No
     if metric is not None:
         named = {key for key, _, name in humans if name == metric}
         humans = [h for h in humans if h[0] not in named or h[2] == metric]
-    read = read_marks([value for _, value, _ in humans], pool.label_map, RESULTS_NAME, mine)
+    read = read_marks([value for _, value, _ in humans], pool.label_map, RESULTS_NAME, mine,
+                      command=command)
     return [Label(mark=mark, key=key) for (key, _, _), mark in zip(humans, read, strict=True)
             if mark is not None]
 
@@ -413,7 +405,6 @@ class Plan:
 
     marks: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
-    both: int = 0  # the answers the labels skipped as BOTH are for
 
     def skip(self, reason: str, n: int = 1) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + n
@@ -493,8 +484,7 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         if label.mark == ERROR:  # no decision, by the person's map
             plan.skip(NO_DECISION)
             continue
-        if not label.mark:  # a blank label cell (read_file)
-            plan.skip(BLANK)
+        if not label.mark:  # a blank label cell (read_file): skipped, and not said
             continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
@@ -524,7 +514,6 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         for i in ids:
             wanted.setdefault(i, set()).add(label.mark)
     both = {i for i, m in wanted.items() if len(m) > 1}
-    plan.both = len(both)
     for label, ids in targets_of:
         if both & set(ids):
             plan.skip(BOTH)
@@ -595,8 +584,7 @@ def skipped_lines(plan: Plan) -> list[str]:
     for reason, one, many in SKIPPED:
         k = plan.skipped.get(reason, 0)
         if k:
-            answers = plural(plan.both, "answer", "answers") if plan.both else "answers"
-            out.append("  " + (one if k == 1 else many).format(n=k, answers=answers))
+            out.append("  " + (one if k == 1 else many).format(n=k))
     return out
 
 
@@ -605,9 +593,9 @@ def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
     out doesn't match; else "Nothing added" and why each was left out."""
     if plan.marks:
         return None
-    if set(plan.skipped) - {BLANK} <= {NO_MATCH}:  # a blank one tells nothing
+    if set(plan.skipped) <= {NO_MATCH}:
         return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
-                            "the answer text is exactly the same.")])
+                            "the answer text is the same, word for word.")])
     return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])
 
 
@@ -637,7 +625,7 @@ def gate_line(n: int, imported: dict | None) -> str | None:
     if not n or not imported:
         return None
     more = f"{n} more answer{'' if n == 1 else 's'}"
-    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]), k=PAGE_MARKS)
+    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]))
 
 
 def fisher_p(a: int, b: int, c: int, d: int) -> float:

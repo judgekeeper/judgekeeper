@@ -483,7 +483,7 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
-                                                    talk.command)
+                                                    talk.command, talk.labels)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
