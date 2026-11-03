@@ -30,7 +30,7 @@ You can bring Pass/Fail labels you already have. A result now needs stronger evi
 - A plain `judgekeeper` that reads a newer results file than last time says which one. "Your answers were graded again" is said only when the grades changed. Some newer results count only once `check` switches to their grades. For these, with any eval tool, judgekeeper says whose grades the numbers still use (the file they came from, or the grades from before when that file itself was graded again). It also names the `check` that compares them. After a check found them worse, it names that check instead.
 - A new `--pass-if` or LLM-as-a-judge given before any mark reads the results again at once. Without a terminal to ask in, the pass mark question names the pass mark in use.
 - history.jsonl keeps each result's verdict.
-- Ctrl-C always stops with "Stopped." and exit code 130, with nothing more printed, also while judgekeeper starts or an Inspect AI log is read.
+- Ctrl-C always stops with exit code 130 and no Python traceback, also while judgekeeper starts or an Inspect AI log is read. It prints "Stopped." and a Next: line, unless the run had already printed its Next: line.
 - An Inspect AI `.eval` log whose header lists no sample ids (one written with inspect_ai's `write_eval_log`) is read: judgekeeper reads the samples it holds.
 - Large runs are faster: marks and answers are read once per run.
 - `record()`, `jk_record.py` and `jk_record.ts` name their records `LLM-as-a-judge` by default; older records still read.
