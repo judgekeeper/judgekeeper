@@ -358,7 +358,7 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    said = "The result also notes that your marks came through a link the agent printed."
+    said = "The result also notes that your marks came through a link judgekeeper printed."
     assert said in install
     assert "you can ignore" not in install
     assert "came through a link judgekeeper printed" in note

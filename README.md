@@ -28,11 +28,11 @@ judgekeeper
 ```
 In a uv virtual environment, install it with `uv pip install judgekeeper` instead.
 
-With no virtual environment, run `uvx judgekeeper`. Python 3.11 to 3.14.
+With no virtual environment, run `uvx judgekeeper`. judgekeeper runs on Python 3.11 to 3.14.
 
 Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. In your own file, judgekeeper looks for three columns: `input` (the question), `output` (the answer) and `verdict` (Pass or Fail from your LLM-as-a-judge). For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`).
 
-Using a coding agent? Give it this page. It runs the steps and gives you the marking page link. You mark, then it explains the result. The result also notes that your marks came through a link the agent printed.
+Using a coding agent? Give it this page. It runs the steps and gives you the marking page link. You mark, then it explains the result. The result also notes that your marks came through a link judgekeeper printed.
 
 ## The 5 steps
 
@@ -57,8 +57,8 @@ judgekeeper only reads files. It makes no AI call and needs no API key. See [SEC
 
 ## The numbers
 
-- **TPR:** of the answers you passed, how many it passed too. The result page calls it "When you say Pass, it also says Pass".
-- **TNR:** of the answers you failed, how many it failed too. The result page calls it "When you say Fail, it also says Fail".
+- **TPR:** of the answers you passed, how many it passed too. The result page calls it "When you say Pass, your LLM-as-a-judge also says Pass".
+- **TNR:** of the answers you failed, how many it failed too. The result page calls it "When you say Fail, your LLM-as-a-judge also says Fail".
 - **Kappa:** how much you agree beyond what matching at random would give; it is under "More details" on the result page and in report.html, and never decides the result (TPR and TNR do).
 
 TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" (when you mark every answer, the numbers are exact and have no range). The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look at the result after every mark, and a few marks that agree by coincidence can't decide it. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
@@ -67,9 +67,9 @@ How the numbers are worked out: [reference](https://github.com/judgekeeper/judge
 
 ## Checked on public data
 
-These runs use public datasets that people already labelled, and one simulation, so the true numbers are known. They test whether judgekeeper's ranges hold those numbers, and show what it says about real LLM-as-a-judge setups. Each line links its report.
+These runs use public datasets that people already labelled, made-up empty answers that should fail, and one simulation, so the true numbers are known. They test whether judgekeeper's ranges hold those numbers, and show what it says about real LLM-as-a-judge setups. Each line links its report.
 
-- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests with 100 marks each (all three numbers at once; another 100 tests give a slightly different count).
+- [JailbreakBench](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md): the ranges held the true values in 96 of 100 random tests with 100 marks each (TPR, TNR and kappa at once; another 100 tests give a slightly different count).
 - [RAGTruth](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth/report.md): news summaries. Three LLM-as-a-judge setups, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. Changing the model did not close the gap.
 - RAGTruth [question answers](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-qa/report.md) and [data-to-text](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ragtruth-data2txt/report.md): "needs work" in all 4 runs.
 - [JailbreakBench graded by two other setups](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench-setups/report.md): "needs work" for both; each passed more than half of the expert-failed answers it graded (setup B could not grade 61 of 300).

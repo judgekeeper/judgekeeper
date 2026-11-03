@@ -1,6 +1,6 @@
 # Third-party notices
 
-judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and judgekeeper's own LLM-as-a-judge verdicts on LLMBar.
+judgekeeper's example reports in `docs/examples/` use five public datasets. The datasets themselves are not in this repository: the loaders in `docs/examples/jailbreakbench/`, `docs/examples/jailbreakbench-setups/`, `docs/examples/ragtruth/`, `docs/examples/ragtruth-qa/` and `docs/examples/ragtruth-data2txt/`, and `scripts/real_data_check.py`, download them from their sources at a pinned revision. The repository holds only ids, grades, counts and ranges derived from them, and the verdicts of an LLM-as-a-judge run for this check on LLMBar.
 
 ## JailbreakBench
 
@@ -135,4 +135,4 @@ SOFTWARE.
 
 ## Fonts
 
-judgekeeper's report pages and the website use Manrope and JetBrains Mono, under the SIL Open Font License 1.1. The licence files ship next to the fonts, in `src/judgekeeper/fonts/` and `website/assets/fonts/`.
+judgekeeper's report pages and the website use Manrope and JetBrains Mono, under the SIL Open Font License 1.1. The license files ship next to the fonts, in `src/judgekeeper/fonts/` and `website/assets/fonts/`.
