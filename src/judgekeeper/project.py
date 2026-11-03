@@ -120,9 +120,9 @@ def _read_by(store: Path) -> list[str]:
 
 
 def _apart(here: Path, store: Path, given: Path | None) -> bool:
-    """Whether the results here (the one given, else those found in `here`) are other than
-    the ones the session in `store` reads, or files beside them: then they get their own
-    .judgekeeper/."""
+    """Whether the results here (the one given, else those found in `here`) are neither the
+    ones the session in `store` reads nor files beside them: then they get their own
+    .judgekeeper/. Another eval beside them is the session's to say no to (other_eval)."""
     try:
         stamp = Workspace(store).start.stat().st_mtime_ns
     except OSError:
@@ -133,6 +133,7 @@ def _apart(here: Path, store: Path, given: Path | None) -> bool:
 def forget() -> None:
     """Forget which results were found apart: each command looks again."""
     _apart_cached.cache_clear()
+    _same_eval_cached.cache_clear()
 
 
 @lru_cache(maxsize=64)  # one command asks many times; the answer is the same
@@ -148,18 +149,92 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
         mine = {r.path.resolve() for results in found.results.values() for r in results}
     if not mine:
         return False
-    theirs = [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
-    # a file beside one it reads is its own too when it is the same eval (new results of it)
-    return not all(any(m == t or m.is_relative_to(t) for t in theirs) or (
-        any(not t.is_dir() and m.parent == t.parent for t in theirs) and _same_eval(m, store))
-        for m in mine)
+    theirs = _theirs(store)
+    # a file beside one it reads is its own: new results of it join, another eval is said so
+    # (other_eval) and never gets marks of its own
+    return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent
+                       for t in theirs) for m in mine)
+
+
+def _theirs(store: Path) -> list[Path]:
+    """The results files (or folders) the session in `store` reads, as full paths."""
+    return [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
+
+
+OTHER_EVAL = ("{file} shares no answers with the results you marked ({marked}), so it looks "
+              "like another eval. To mark it, put it in a folder of its own and run `{program}` "
+              "there.")
+
+
+def other_eval(store: Path, path: Path) -> Path | None:
+    """The file the session in `store` reads that the results file `path` sits beside, when
+    `path` is another eval (not _same_eval): it is never read, marked or given marks of its
+    own (other_eval_line says why). None for one it reads, the same eval, or a file
+    elsewhere."""
+    path = Path(path).resolve()
+    if not Workspace(store).start.is_file() or not path.is_file():
+        return None
+    theirs = _theirs(store)
+    if any(path == t or path.is_relative_to(t) for t in theirs):
+        return None
+    beside = next((t for t in theirs if not t.is_dir() and path.parent == t.parent), None)
+    if beside is None:
+        return None
+    try:
+        stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
+    except OSError:
+        stamps = (0, 0)
+    return None if _same_eval_cached(path, Path(store).resolve(), stamps) else beside
+
+
+def others_beside(store: Path) -> list[tuple[Path, Path]]:
+    """(another eval, the file it sits beside) for each results file in the folder of a file
+    the session in `store` reads that is another eval (other_eval), by name."""
+    from judgekeeper import find
+
+    out, seen = [], set()
+    for t in _theirs(store):
+        folder = t.parent
+        if t.is_dir() or folder in seen:
+            continue
+        seen.add(folder)
+        try:
+            files = sorted(f for f in folder.iterdir() if f.is_file()
+                           and not f.name.startswith("."))
+        except OSError:
+            continue
+        for f in files:
+            try:
+                readable = find.classify_file(f) is not None
+            except (OSError, ValueError):
+                readable = False
+            if readable and (beside := other_eval(store, f)) is not None:
+                out.append((f.resolve(), beside))
+    return out
+
+
+def other_eval_line(path: Path, marked: Path) -> str:
+    """The line for `path`, another eval beside `marked`: both named from here."""
+    from judgekeeper import textio
+
+    return OTHER_EVAL.format(file=textio.shown_from_here(path),
+                             marked=textio.shown_from_here(marked), program=textio.program())
+
+
+@lru_cache(maxsize=64)  # a run asks for each file more than once
+def _same_eval_cached(path: Path, store: Path, stamps: tuple[int, int]) -> bool:
+    return _same_eval(path, store)
 
 
 def _same_eval(path: Path, store: Path) -> bool:
     """Whether the results file `path` is of the eval the session in `store` marks: read the
-    same way (its eval tool or format), with at least one of its answers (the same question,
-    or the same answer: an id made the same way). A tool read another way than one file at
-    a time (judgekeeper.record()'s files, an MLflow store) is the same eval by its tool."""
+    same way (its eval tool or format), with at least one of its answers word for word (the
+    same answers graded again: promptfoo's `echo` gives them other questions) or of its
+    questions (compared as text: promptfoo's are a dict of vars, Inspect AI's can be chat
+    messages); with no questions on either side, an answer id made the same way. A tool
+    read another way than one file at a time (judgekeeper.record()'s files, an MLflow store)
+    is the same eval by its tool. A file it can't read, or of a shape it can't compare, is
+    another eval: never an error here."""
     import json
 
     from judgekeeper import find, start
@@ -175,13 +250,31 @@ def _same_eval(path: Path, store: Path) -> bool:
         held = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
                 if line.strip()]
         records = start._read(find.Result(tool, path, path.name, path.stat().st_size)).records
-    except (OSError, ValueError, AttributeError, RecordsError, start.StartError,
-            *start.UNREADABLE):  # kept apart: the command says why it can't read it
+        held = [a for a in held if isinstance(a, dict)]
+        answers = {_as_text(a.get("output")) for a in held} - {""}
+        if answers & ({_as_text(r.output) for r in records} - {""}):  # graded again
+            return True
+        questions = {_as_text(a.get("input")) for a in held} - {""}
+        theirs = {_as_text(r.input) for r in records} - {""}
+        if questions and theirs:
+            return bool(questions & theirs)
+        ids = {str(a.get("id")) for a in held}
+        return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
+    except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
+            *start.UNREADABLE):  # another eval: the command says why it can't read it
         return False
-    ids = {str(a.get("id")) for a in held}
-    questions = {a.get("input") for a in held if a.get("input")}
-    return any(r.input in questions or str(r.target_id or "") in ids
-               or derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
+
+
+def _as_text(value) -> str:
+    """A question as text to compare: itself, or JSON with its keys in order (a dict of vars,
+    a list of messages); "" for none."""
+    import json
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
 
 
 def is_project(folder: Path) -> bool:

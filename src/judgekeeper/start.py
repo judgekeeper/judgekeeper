@@ -2044,6 +2044,19 @@ def _hide_keys(root: Path, talk: Talk | None = None, results=()) -> None:
             _note(talk, note)
 
 
+def _same_eval_only(path: Path, results: list) -> list:
+    """`results` without another eval beside a file the marks were made on
+    (project.other_eval): never read in their place. None left: why, in one line."""
+    from judgekeeper import project
+
+    store = project.project_of(path)
+    kept = [r for r in results if project.other_eval(store, r.path) is None]
+    if kept:
+        return kept
+    marked = project.other_eval(store, results[0].path)
+    raise StartError(project.other_eval_line(results[0].path, marked))
+
+
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
                experiment: str | None = None, pass_if: str | None = None,
                label_map: str | dict | None = None, judge_model: str | None = None,
@@ -2080,6 +2093,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     _hide_keys(root, talk, results)
     if only:
         results = [r for r in results if r.rel in only] or results
+    if Path(path).is_dir() and kind not in ("mlflow", "records") and results:
+        results = _same_eval_only(Path(path), results)
     name = None
     if kind == "mlflow":
         with trash_removed_at_end():

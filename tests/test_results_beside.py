@@ -1,8 +1,9 @@
 """A results file in the same folder as one the session above reads belongs to that session
 when it is the same eval (read the same way, with answers the session holds): from that
 folder every command uses the marks above, as it does from the project folder, and never
-starts a second .judgekeeper/ there. Another eval beside them, and results in a folder of
-their own, still get their own marks."""
+starts a second .judgekeeper/ there. Another eval beside them never joins, never gets its own
+marks and is never taken as a changed LLM-as-a-judge: a run says so, and keeps reading the
+marked file. Results in a folder of their own still get their own marks."""
 
 from __future__ import annotations
 
@@ -10,7 +11,14 @@ import pytest
 
 from judgekeeper.start_label import Workspace
 from tests import test_project_folder
-from tests.start_projects import promptfoo_project, split, table_project
+from tests.start_projects import (
+    _write_json,
+    deepeval_project,
+    inspect_data,
+    promptfoo_project,
+    split,
+    table_project,
+)
 from tests.test_front import flat, run
 from tests.test_project_folder import _mark, _marker
 
@@ -32,7 +40,7 @@ def _store(root, capsys, marker) -> bytes:
 
 
 def _said(capsys, *argv) -> tuple[int, str]:
-    code, out, err = run(capsys, *argv, *PAGE)
+    code, out, err = run(capsys, *argv, *(PAGE if argv[:1] != ("check",) else ()))
     run(capsys, "--stop")
     return code, flat(out + err)
 
@@ -86,27 +94,85 @@ def test_results_in_a_folder_of_their_own_still_get_their_own_marks(here, capsys
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
 
 
-@pytest.mark.parametrize("other", ["csv", "promptfoo"])
-@pytest.mark.parametrize("command", [["mark"], []])
-def test_another_eval_beside_the_results_gets_its_own_marks(here, capsys, monkeypatch, other,
-                                                            command):
-    """Other questions in a CSV, or a promptfoo file, beside the session's CSV: their own
-    marks in that folder, never joined to the session's nor asked to start over."""
-    before = _store(here, capsys, ".git")
+def _other_eval(file: str, marked: str) -> str:
+    return (f"{file} shares no answers with the results you marked ({marked}), so it looks like "
+            "another eval. To mark it, put it in a folder of its own and run `judgekeeper` "
+            "there.")
+
+
+def _write_other(here, other: str) -> str:
+    """Another eval beside the session's sub2/results.csv: other questions in a CSV, or a
+    promptfoo file. Its name."""
     if other == "csv":
         table_project(here, split(20, 16), name="sub2/other.csv", tag="another eval")
-        name = "other.csv"
-    else:
-        promptfoo_project(here / "sub2", split(20, 16), name="pf.json", config=False)
-        name = "pf.json"
-    monkeypatch.chdir(here / "sub2")
-    code, said = _said(capsys, *command, name)
-    assert code == 0, said
+        return "other.csv"
+    promptfoo_project(here / "sub2", split(20, 16), name="pf.json", config=False)
+    return "pf.json"
+
+
+@pytest.mark.parametrize("other", ["csv", "promptfoo"])
+@pytest.mark.parametrize("command", [["mark"], [], ["check"]])
+@pytest.mark.parametrize("inside", [True, False])
+def test_another_eval_beside_the_results_is_said_and_changes_nothing(here, capsys, monkeypatch,
+                                                                     other, command, inside):
+    """Given by path, from sub2/ or the project folder: the line, exit 3, and no marks, start
+    or second .judgekeeper/ anywhere; never asked to start over."""
+    before = _store(here, capsys, ".git")
+    start = (here / ".judgekeeper" / "start.json").read_bytes()
+    name = _write_other(here, other)
+    monkeypatch.chdir(here / "sub2" if inside else here)
+    file = name if inside else f"sub2/{name}"
+    code, said = _said(capsys, *command, file)
+    assert code == 3, said
+    assert _other_eval(file, "results.csv" if inside else "sub2/results.csv") in said, said
     assert "Start over" not in said and "changed since your marks" not in said, said
-    if not command:  # Find says so; `mark` starts on the page
-        assert "These results get their own marks here." in said, said
-    assert (here / "sub2" / ".judgekeeper" / "start.json").is_file(), said
+    assert "own marks" not in said, said
+    assert not (here / "sub2" / ".judgekeeper").exists(), said
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    assert (here / ".judgekeeper" / "start.json").read_bytes() == start
+
+
+@pytest.mark.parametrize("other", ["csv", "promptfoo"])
+@pytest.mark.parametrize("command", [["mark"], []])
+def test_a_plain_run_beside_another_eval_reads_the_marked_file(here, capsys, monkeypatch,
+                                                              other, command):
+    before = _store(here, capsys, ".git")
+    name = _write_other(here, other)
+    monkeypatch.chdir(here / "sub2")
+    code, said = _said(capsys, *command)
+    assert code == 0, said
+    assert _other_eval(name, "results.csv") in said, said
+    assert "own marks" not in said and "Start over" not in said, said
+    assert not (here / "sub2" / ".judgekeeper").exists(), said
+    assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+
+
+def test_the_newest_file_being_another_eval_beside_never_moves_the_plain_run(here, capsys,
+                                                                            monkeypatch):
+    """A session started by a plain run, which found evals/results.csv; later the newest
+    results in the project are evals/second.csv, another eval beside it. Run after run, the
+    plain run reads evals/results.csv and says why it leaves second.csv alone."""
+    _marker(here, ".git")
+    table_project(here, split(20, 16), name="evals/results.csv", tag="first")
+    assert run(capsys, *PAGE)[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    table_project(here, split(20, 16), name="evals/second.csv", tag="another eval")
+    monkeypatch.chdir(here)
+    for _ in range(2):
+        code, said = _said(capsys)
+        assert code == 0, said
+        assert _other_eval("evals/second.csv", "evals/results.csv") in said, said
+        assert "Read: evals/results.csv" in said or "(evals/results.csv" in said, said
+        assert "second.csv)" not in said and "Start over" not in said, said
+        assert "newer results" not in said.lower(), said
+        data = Workspace(here).data()
+        assert data["results_files"] == ["evals/results.csv"], data
+        assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+    code, said = _said(capsys, "check")
+    assert "second.csv" not in said.replace(_other_eval("evals/second.csv",
+                                                        "evals/results.csv"), ""), said
 
 
 @pytest.mark.parametrize("given", [True, False])
@@ -130,3 +196,56 @@ def test_check_in_a_folder_of_other_results_says_they_get_their_own_marks(here, 
     assert "Next: run `judgekeeper` here to mark answers for them." in said, said
     assert "Your marks are in" not in said and "check .." not in said, said
     assert not (here / "evals" / ".judgekeeper").exists()
+
+
+def _chat(verdicts, tag: str) -> dict:
+    """An Inspect AI log whose questions are chat messages, not text."""
+    data = inspect_data(verdicts, tag=tag)
+    for sample in data["samples"]:
+        sample["input"] = [{"role": "user", "content": sample["input"]}]
+    return data
+
+
+BESIDE = {  # tool: (the session's file, the file beside it, a writer of one)
+    "promptfoo": ("a.json", "b.json",
+                  lambda path, tag: promptfoo_project(path.parent, split(20, 16), name=path.name,
+                                                      config=False, tag=tag)),
+    "inspect": ("a.json", "b.json", lambda path, tag: _write_json(path, _chat(split(20, 16), tag))),
+    "deepeval": ("test_run_20261001_143217.json", "test_run_20261002_143217.json",
+                 lambda path, tag: deepeval_project(path.parent, split(20, 16), name=path.name,
+                                                    tag=tag)),
+}
+
+
+@pytest.mark.parametrize("same", [True, False])
+@pytest.mark.parametrize("tool", list(BESIDE))
+def test_results_of_one_tool_beside_join_when_they_share_questions(here, capsys, monkeypatch,
+                                                                   tool, same):
+    """A session on evals/<first> (promptfoo's questions are a dict of vars, Inspect's here a
+    list of chat messages), and a second file of the same tool beside it: with the same
+    questions it joins the session, from the project folder and from evals/; with other
+    questions it is another eval, said so, and never read or marked. Never an error."""
+    first, second, write = BESIDE[tool]
+    _marker(here, ".git")
+    write(here / "evals" / first, "one")
+    assert run(capsys, f"evals/{first}", *PAGE)[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    write(here / "evals" / second, "one" if same else "other")
+    for folder, argv in ((here, [f"evals/{second}"]), (here, ["mark", f"evals/{second}"]),
+                         (here, ["check", f"evals/{second}"]), (here / "evals", [second]),
+                         (here / "evals", [])):
+        monkeypatch.chdir(folder)
+        code, said = _said(capsys, *argv)
+        assert "didn't expect" not in said, (argv, said)
+        line = (_other_eval(f"evals/{second}", f"evals/{first}") if folder == here
+                else _other_eval(second, first))
+        if same:  # check: 5 marks are too few for a re-check
+            assert code == (3 if argv[:1] == ["check"] else 0), (argv, said)
+            assert "another eval" not in said, (argv, said)
+        else:
+            assert code == (3 if argv else 0), (argv, said)
+            assert line in said, (argv, said)
+        assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+        assert not (here / "evals" / ".judgekeeper").exists(), (argv, said)

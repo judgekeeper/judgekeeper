@@ -505,6 +505,14 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         # its own project's answers, never a batch here
         talk.para(_nested_line([owner], Path.cwd()))
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
+    store = project.project_of(asked)
+    if path.is_file() and (marked := project.other_eval(store, path)) is not None:
+        talk.para(project.other_eval_line(path, marked))  # never read, marked or set apart
+        raise talk.stop(EXIT_QUESTION)
+    if not asked.is_file():  # the marked file is read still: why not the other
+        for other, marked in project.others_beside(store):
+            talk.para(project.other_eval_line(other, marked))
+            talk.say()
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
