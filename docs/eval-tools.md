@@ -94,7 +94,19 @@ inspect eval task.py
 judgekeeper --metric model_graded_qa
 ```
 
-Tested with Inspect AI 0.3.273. Logs from 0.3.2 and 0.3.204 are tested too. Logs are in `./logs` or `INSPECT_LOG_DIR`. `.eval` logs need `pip install "judgekeeper[inspect]"` in your project's environment (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper`); else use `--log-format json` or `inspect log dump`. Logs in several folders are never read as one: it asks which and keeps the answer in `judgekeeper.toml`. `--metric` is the scorer's name under `samples[].scores`. Ids are `samples[].id`, repeats `samples[].epoch`. The rule `fix` shows is the scorer's instructions. To grade the same answers again, grade your log again, with no new answers: `inspect score <log> --scorer model_graded_qa -S instructions="<new rule>" --action overwrite --output-file logs/new.eval`. `--scorer` takes the scorer's name: `model_graded_qa` (or `inspect_ai/model_graded_qa`) for Inspect's own, `task.py@<name>` for a scorer of your own. `-S` sets the scorer's options: give the ones you set before again, such as `-S model=...`. Without the grader's model, Inspect grades with your task's own model and the grades can come back empty. When your log names the grader as the scorer's model, the command `fix` prints has it. When your rule is the scorer's template, put the new one in a file and give `-S template=<file>` in place of `-S instructions=`. `--action overwrite` replaces the old grades in the new log, so your scorer's name holds the new ones (Inspect's default, `append`, keeps both). `--output-file` writes a new log in your log folder (`logs/` here), so yours stays as it was and `check` finds the new one there. Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspect]`). A rule with a comma, or a colon followed by a space, needs Python: see the traps.
+Tested with Inspect AI 0.3.273. Logs from 0.3.2 and 0.3.204 are tested too. Logs are in `./logs` or `INSPECT_LOG_DIR`. `.eval` logs need `pip install "judgekeeper[inspect]"` in your project's environment (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper`); else use `--log-format json` or `inspect log dump`. Logs in several folders are never read as one: it asks which and keeps the answer in `judgekeeper.toml`.
+
+`--metric` is the scorer's name under `samples[].scores`. Ids are `samples[].id`, repeats `samples[].epoch`. The rule `fix` shows is the scorer's instructions.
+
+To grade the same answers again, grade your log again, with no new answers: `inspect score <log> --scorer model_graded_qa -S instructions="<new rule>" --action overwrite --output-file logs/new.eval`.
+
+- `--scorer` takes the scorer's name: `model_graded_qa` (or `inspect_ai/model_graded_qa`) for Inspect's own, `task.py@<name>` for a scorer of your own.
+- `-S` sets the scorer's options: give the ones you set before again, such as `-S model=...`. Without the grader's model, Inspect grades with your task's own model and the grades can come back empty. When your log names the grader as the scorer's model, the command `fix` prints has it.
+- When your rule is the scorer's template, put the new one in a file and give `-S template=<file>` in place of `-S instructions=`.
+- `--action overwrite` replaces the old grades in the new log, so your scorer's name holds the new ones (Inspect's default, `append`, keeps both).
+- `--output-file` writes a new log in your log folder (`logs/` here), so yours stays as it was and `check` finds the new one there.
+
+Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspect]`). A rule with a comma, or a colon followed by a space, needs Python: see the traps.
 
 **Traps.**
 
