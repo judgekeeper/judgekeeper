@@ -38,3 +38,31 @@ def test_stop_with_no_result_yet_names_the_plain_run(tmp_path, capsys, monkeypat
     monkeypatch.chdir(tmp_path)
     _, said = _main(capsys, "--stop")
     assert _next_command(said) == ["judgekeeper"], said
+
+
+def test_stop_before_a_result_names_the_port_of_the_page_it_closed(here, capsys):
+    """No result yet keeps the run's flags, but the page knows its port: the Next line
+    carries it, so the page opens where it was."""
+    from tests.start_projects import promptfoo_project, split
+
+    promptfoo_project(here, split(30, 30))
+    from judgekeeper.label import read_lock
+
+    _main(capsys, "--port", "9771", "--no-browser")
+    port = read_lock(here / ".judgekeeper")["port"]  # the tests' pages take a free port
+    code, said = _main(capsys, "--stop")
+    assert code == 0 and "Closed the marking page." in said, said
+    assert _next_command(said) == ["judgekeeper", "--port", str(port)], said
+    code, said = _main(capsys, "--stop")  # no page open: nothing to carry
+    assert _next_command(said) == ["judgekeeper"], said
+
+
+def test_stop_names_no_port_for_a_page_on_the_default_one(here, monkeypatch):
+    """The page on the default port (as a run with no --port opens it): plain."""
+    from judgekeeper import front
+    from judgekeeper.label import DEFAULT_PORT
+    from judgekeeper.start_label import Workspace
+
+    talk = front.FrontTalk(yes=False, path=".", options={})
+    assert front._continue_command(talk, Workspace(here), DEFAULT_PORT) == "judgekeeper"
+    assert front._continue_command(talk, Workspace(here), 9771) == "judgekeeper --port 9771"

@@ -331,13 +331,16 @@ def test_screen_9_stop(here, capsys):
     promptfoo_project(here, split(23, 17), rubric=RULE)
     screen(capsys)
     _mark(here, 2, 1)
+    from judgekeeper.label import read_lock
+
+    port = read_lock(here / ".judgekeeper")["port"]  # the tests' pages take a free port
     code, lines = screen(capsys, "--stop")
     assert code == 0
     assert lines == [
         *HEAD,
         "Closed the marking page. Your marks are saved.",
         "",
-        "Next: run `judgekeeper` when you want to continue.",
+        f"Next: run `judgekeeper --port {port}` when you want to continue.",
     ]
 
 

@@ -321,10 +321,12 @@ def test_stop_closes_the_open_page(here, capsys, pages):
     run(capsys, "mark")
     folder = here / ".judgekeeper"
     assert label.is_open(folder)
+    port = label.read_lock(folder)["port"]  # the tests' pages take a free port: carried
     code, out, _ = run(capsys, "mark", "--stop")
     assert code == 0
     assert "Closed the marking page." in out and "marks are saved" not in out
-    assert _check(out) == "Next: run `judgekeeper mark` when you want to continue."
+    assert _check(out) == (f"Next: run `judgekeeper mark --port {port}` when you want to "
+                           "continue.")
     assert not label.is_open(folder)
     code, out, _ = run(capsys, "mark", "--stop")
     assert code == 0 and "No marking page is open." in out
