@@ -139,6 +139,11 @@ NOT_ENOUGH = "That's not enough for a result yet."
 NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
              "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
+# ...fewer answers than a first result needs (start.MIN_POOL): as Find says it
+NEXT_FEW_ANSWERS = ("mark your {n} answers on the page: your marks are kept for when more "
+                    "answers come. A first result needs at least {min} answers, so then run your "
+                    "eval to make more answers (that makes model calls), and run `{command}` "
+                    "again.")
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
 NEXT_COMPARE = "run `{command}` to compare the new grades with your marks."  # after REGRADED
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
@@ -2334,6 +2339,10 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         next_step = start_label.next_only_skipped(  # the page that marks it: `mark`
             skipped, _command_of(talk, saved, "mark"), on_page=marking
         ).replace("{", "{{").replace("}", "}}")
+    elif not enough and len(session.items) < start.MIN_POOL:  # no link can appear
+        next_step = NEXT_FEW_ANSWERS.format(n=len(session.items), min=start.MIN_POOL,
+                                            command=_command_of(talk, saved, "mark")
+                                            ).replace("{", "{{").replace("}", "}}")
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para(_wait_step(ws) if waits is not None
