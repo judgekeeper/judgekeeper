@@ -1064,3 +1064,15 @@ def test_the_line_under_the_bar_says_a_first_result_needs_more_answers():
     assert _run(show, data=data) == [False, (
         f"A first result needs at least {start.MIN_POOL} answers. Your marks are kept for when "
         "more answers come.")]
+
+
+def test_a_named_part_equal_to_the_answer_shows_unless_it_is_the_answer():
+    def shown(parts):
+        got = _run("""console.log(JSON.stringify({text: ids["q-text"].textContent}));""",
+                   data=_data(1, items=[{"id": "a0", "output": "23", "label": None,
+                                         "skipped": False, "input": parts}]))
+        return got["text"]
+
+    text = shown([["question", "What is 38 - 15?"], ["i", "23"]])
+    assert text == "questionWhat is 38 - 15?i23", text  # each name above its value
+    assert shown([["question", "What is 38 - 15?"], ["answer", "23"]]) == "What is 38 - 15?"

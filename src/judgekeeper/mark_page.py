@@ -338,6 +338,7 @@ __TOP__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, ROUGH = __ROUGH__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
   var WORDS = __WORDS__;  // the link and the line under the bar (_words)
+  var OUTPUT_WORDS = __OUTPUT_WORDS__;  // the words of a part named as an answer
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -459,14 +460,21 @@ __TOP__
   }
   $("see").setAttribute("href", url("/result"));
 
-  // A question is text, or [[name, value], ...]. A part that is the answer itself is left
-  // out (it shows below); one part left shows as plain text, two or more under "Input", each
-  // name a small label above its value.
+  // A question is text, or [[name, value], ...]. A part named as an answer (mapper's
+  // OUTPUT_WORDS) that is the answer itself is left out (it shows below); any other part is
+  // kept, also one whose value happens to be the answer's text. One part left shows as plain
+  // text, two or more under "Input", each name a small label above its value.
+  function answerPart(name) {
+    return String(name).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase()
+      .split(/[^a-z0-9]+/).some(function (w) { return OUTPUT_WORDS.indexOf(w) > -1; });
+  }
   function question(it) {
     var value = it.input;
     if (!Array.isArray(value)) { return value == null ? "" : String(value); }
     var answer = String(it.output == null ? "" : it.output).trim();
-    value = value.filter(function (pair) { return String(pair[1]).trim() !== answer; });
+    value = value.filter(function (pair) {
+      return !(answerPart(pair[0]) && String(pair[1]).trim() === answer);
+    });
     return value.length > 1 ? value : value.length ? String(value[0][1]) : "";
   }
   function chars(text) { return Array.from(String(text)).length; }
@@ -1156,6 +1164,7 @@ def label_page(description: str | None, command: str | None = None,
     answer (_graded). `description` (the app the answers came from, as the results name it)
     is not shown: the results name one source, the same on every answer.
     The server fills in __DATA__, __TOKEN__ and __NONCE__."""
+    from judgekeeper.mapper import OUTPUT_WORDS
     from judgekeeper.textio import PLACEHOLDER, program
 
     command = command or program("mark")
@@ -1169,6 +1178,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__TITLE__", _text(TITLE))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
+            .replace("__OUTPUT_WORDS__", json.dumps(OUTPUT_WORDS))
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)
