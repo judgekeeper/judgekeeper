@@ -40,10 +40,10 @@ PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
 AGENT_LINE = ("Using a coding agent? Give it this page. It runs the steps and gives you the "
-              "marking page link. You mark, then it explains the result.")
-TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota: see "
-                  "[TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/"
-                  "TRADEMARKS.md).")
+              "marking page link; you mark, then it explains the result.")  # word for word
+TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/"
+                  "judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The "
+                  "Apache-2.0 license covers the code, not the name or logo.")  # word for word
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
 FONTS = WEBSITE / "assets" / "fonts"

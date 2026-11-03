@@ -350,17 +350,17 @@ NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-bro
               "link to open instead.")
 
 
-def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
+def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link():
     """--no-browser prints the link; marks made through a link printed with no terminal (a
-    coding agent read it) get a note on the result, in the words the result uses."""
+    coding agent read it) get a note on the result. The README's agent line says no more."""
     from judgekeeper.start_label import link_lines
 
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    said = "The result also notes that your marks came through a link judgekeeper printed."
-    assert said in install
-    assert "you can ignore" not in install
+    assert ("Using a coding agent? Give it this page. It runs the steps and gives you the "
+            "marking page link; you mark, then it explains the result.") in install
+    assert "came through a link" not in install
     assert "came through a link judgekeeper printed" in note
     assert "That's expected if you opened it yourself." in note
 

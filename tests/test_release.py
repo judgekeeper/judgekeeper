@@ -553,13 +553,14 @@ def test_every_local_link_in_the_built_pages_finds_its_file(tmp_path):
 
 
 def test_the_trademark_notice_is_at_the_end_of_the_readme_and_on_no_site_page(tmp_path):
-    notice = ("The Apache-2.0 license covers the code, not the name or logo. judgekeeper and the "
-              "judgekeeper logo are trademarks of Sathvik Thota: see [TRADEMARKS.md]("
-              "https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).")
+    notice = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/judgekeeper/"
+              "judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The Apache-2.0 license "
+              "covers the code, not the name or logo.")  # word for word, in this order
     assert (ROOT / "README.md").read_text(encoding="utf-8").rstrip().endswith(notice)
     _build_pages(tmp_path)
     pages = [*sorted((ROOT / "website").rglob("*.html")), *sorted(tmp_path.rglob("*.html"))]
-    assert pages and [p for p in pages if "trademarks of Sathvik" in p.read_text(encoding="utf-8")] == []
+    assert pages and [p for p in pages
+                      if "of Sathvik Thota. The Apache" in p.read_text(encoding="utf-8")] == []
 
 
 def test_every_page_in_the_sitemap_names_itself_as_canonical(tmp_path):

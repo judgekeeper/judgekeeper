@@ -32,7 +32,7 @@ With no virtual environment, run `uvx judgekeeper`. judgekeeper runs on Python 3
 
 Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. In your own file, judgekeeper looks for three columns: `input` (the question), `output` (the answer) and `verdict` (Pass or Fail from your LLM-as-a-judge). For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`).
 
-Using a coding agent? Give it this page. It runs the steps and gives you the marking page link. You mark, then it explains the result. The result also notes that your marks came through a link judgekeeper printed.
+Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
 
 ## The 5 steps
 
@@ -82,4 +82,4 @@ A [guide](https://www.judgekeeper.com/start.html) on the [website](https://www.j
 
 ## License
 
-The Apache-2.0 license covers the code, not the name or logo. judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota: see [TRADEMARKS.md](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md).
+judgekeeper and the judgekeeper logo are [trademarks](https://github.com/judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The Apache-2.0 license covers the code, not the name or logo.
