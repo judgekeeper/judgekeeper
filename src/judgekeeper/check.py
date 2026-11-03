@@ -1244,8 +1244,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if state is not None:
         said.say(NOT_SET_UP)
         said.say()
-        said.say("Next: " + next_marks(state.ws, f"run `{mark_here(state.ws)}` to mark more "
-                                                 "answers."))
+        said.say("Next: " + next_marks(state.ws, mark_more_step(state.ws)))
         return EXIT_NEEDS_YOU
     from judgekeeper import front
 
@@ -1259,7 +1258,7 @@ def _not_set_up(path: str, state: State | None, said) -> int:
     if given.is_file() and (owner := front._session_owning(given)) is not None:
         said.say(front._nested_line([owner], Path.cwd()))  # its own project's results
         said.say()
-        said.say(f"Next: run `{front._program_there([owner], Path.cwd())}` in {owner}/.")
+        said.say(f"Next: {front.run_there([owner], Path.cwd())}")
         return EXIT_NEEDS_YOU
     folder = _project(given)
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
@@ -2644,11 +2643,28 @@ def mark_here(ws: Workspace, file: str | None = None) -> str:
     read the scores. Every `mark` a line names is this."""
     from judgekeeper import textio
 
-    pm = ws.data().get("pass_mark") or {}
-    rule = pm.get("rule") if pm.get("source") == "pass_if" else None
     base = (f"{program('mark')} {runnable(textio.kept_at(file, ws.root), labels=False)}" if file
             else _here(ws, "mark"))
-    return base + (f' --pass-if "{rule}"' if rule else "") + _page_flags(ws)
+    return base + _mark_flags(ws)
+
+
+def _mark_flags(ws: Workspace) -> str:
+    """The flags every `mark` a line names for this project carries (mark_here)."""
+    pm = ws.data().get("pass_mark") or {}
+    rule = pm.get("rule") if pm.get("source") == "pass_if" else None
+    return (f' --pass-if "{rule}"' if rule else "") + _page_flags(ws)
+
+
+def mark_more_step(ws: Workspace) -> str:
+    """The step, without "Next: ", to mark more answers: `mark` for this project from here,
+    or, when its folder can't be named from here (in another person's home folder, say),
+    `mark` run there, with no path to type."""
+    from judgekeeper import textio
+
+    if _away(ws) and runnable(os.path.abspath(ws.root), labels=False) in textio.ANOTHER_DRIVE:
+        return (f"go to your project folder, then run `{program_in(ANYWHERE, 'mark')}"
+                f"{_mark_flags(ws)}` there to mark more answers.")
+    return f"run `{mark_here(ws)}` to mark more answers."
 
 
 def _page_flags(ws: Workspace) -> str:

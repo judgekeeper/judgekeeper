@@ -1277,10 +1277,10 @@ def run(path: str = ".", new: bool = False) -> int:
         return EXIT_NEEDS_YOU
     if split is None:
         talk.para(NOT_ENOUGH)
-        from judgekeeper.check import mark_here
+        from judgekeeper.check import mark_more_step
 
-        mark = mark_here(ws) if ws is not None else program("mark")  # from here
-        step = f"run `{mark}` to mark more answers."
+        step = (mark_more_step(ws) if ws is not None  # from here
+                else f"run `{program('mark')}` to mark more answers.")
         talk.next(next_marks(ws, step) if ws is not None else step)
         return EXIT_NEEDS_YOU
     if split.fresh:  # new results from another tool are refused first (exit 2)

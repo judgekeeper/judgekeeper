@@ -961,17 +961,38 @@ def _from_below_home(real: str, start) -> str | None:
 CUT = "\u2026"  # a folder in another person's home folder, cut short (folder_from_here)
 
 
+def home_word() -> str:
+    """The home folder itself as folder_from_here names it: `~`, `%USERPROFILE%` on Windows."""
+    return HOME_FORMS[1].rstrip("\\") if is_windows() else HOME_FORMS[0].rstrip("/")
+
+
+def _is_home(real: str) -> bool:
+    try:
+        return os.path.normcase(real) == os.path.normcase(os.path.realpath(Path.home()))
+    except (OSError, RuntimeError):
+        return False
+
+
+def cut_short(shown: str) -> bool:
+    """Whether a folder_from_here name is one in another person's home folder, cut short:
+    no line can send the person there by it."""
+    return CUT in shown
+
+
 def folder_from_here(path) -> str:
     """A folder as a line names it, to go to: from here when the two share a folder below the
     home folder's parents (_from_below_home); else in the home folder, `~/...`; else in
     another person's home folder (beside this one), `/.../its name`; else from here (another
-    drive: the path as it is). Never a user name. folder_of turns it back into the folder."""
+    drive: the path as it is). The home folder itself is `~` (`%USERPROFILE%` on Windows).
+    Never a user name. folder_of turns it back into the folder."""
     real = os.path.realpath(path)
     rel = _from_below_home(real, os.getcwd())
     if rel is not None:
         return rel
     if (inside := _in_home(real)) is not None:
         return _home_shown(inside)
+    if _is_home(real):
+        return home_word()
     try:
         homes = os.path.dirname(os.path.realpath(Path.home()))
         if os.path.commonpath([homes, real]) == homes and real != homes:
@@ -984,6 +1005,8 @@ def folder_from_here(path) -> str:
 def folder_of(shown: str, base) -> Path | str:
     """The folder a folder_from_here name (from `base`) stands for; ANYWHERE when it was cut
     short, so a command for it is one that runs in any folder."""
+    if shown == home_word():
+        return Path.home()
     for form in HOME_FORMS:
         if shown.startswith(form):
             return Path.home() / shown[len(form):]
@@ -994,6 +1017,8 @@ def folder_of(shown: str, base) -> Path | str:
 
 def cd_word(shown: str) -> str:
     """A folder_from_here name as `cd` is given it: quoted, with `~/` outside the quotes."""
+    if shown == home_word():
+        return shown
     for form in HOME_FORMS:
         if shown.startswith(form):
             return _home_command(shown[len(form):]) or quote_arg(shown)

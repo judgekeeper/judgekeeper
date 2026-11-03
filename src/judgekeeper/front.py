@@ -496,8 +496,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         folders = _from_here(path, folders)
         if len(folders) == 1:  # a project of its own: its results are checked there
             talk.para(_nested_line(folders, Path.cwd()))
-            raise talk.stop(EXIT_QUESTION,
-                            f"run `{_program_there(folders, Path.cwd())}` in {folders[0]}/.")
+            raise talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
         raise _go_to_one(talk, folders)
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
@@ -505,7 +504,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here
         talk.para(_nested_line([owner], Path.cwd()))
-        raise talk.stop(EXIT_QUESTION, f"run `{_program_there([owner], Path.cwd())}` in {owner}/.")
+        raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -898,13 +897,28 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
+OTHERS_HOME = "in another person's home folder, which judgekeeper doesn't name in full"
+
+
 def _nested_line(nested: list[str], base: Path) -> str:
     """Results in projects of their own below this one (find.nested_results, named from the
-    folder `base`): whose they are, and where to check them."""
+    folder `base`): whose they are, and where to check them. A folder in another person's
+    home folder (cut short) is said to be there."""
     named = start._and([f"{p}/" for p in nested])
-    where = start._or([f"{p}/" for p in nested])
+    cut = any(textio.cut_short(p) for p in nested)
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
-            f"{named}. To check them, run `{_program_there(nested, base)}` in {where}.")
+            f"{named}{f', {OTHERS_HOME}' if cut else ''}. To check them, "
+            f"{run_there(nested, base)}")
+
+
+def run_there(folders: list[str], base: Path) -> str:
+    """"run `<program>` in <folder>." for `folders` (named from `base`): "in that folder" when
+    one is cut short, which no one can go to by its name."""
+    if any(textio.cut_short(p) for p in folders):
+        where = "that folder" if len(folders) == 1 else "one of those folders"
+    else:
+        where = start._or([f"{p}/" for p in folders])
+    return f"run `{_program_there(folders, base)}` in {where}."
 
 
 def _from_here(base: Path, names: list[str]) -> list[str]:
@@ -938,8 +952,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
     if nested:
         nested = _from_here(root, nested)
         talk.para(_nested_line(nested, Path.cwd()))
-        where = start._or([f"{p}/" for p in nested])
-        return talk.stop(EXIT_QUESTION, f"run `{_program_there(nested, Path.cwd())}` in {where}.")
+        return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd()))
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
@@ -1023,6 +1036,8 @@ def _go_step(names: list[str], command: str) -> str:
     if command.startswith(here):
         with textio.run_from(textio.folder_of(names[0], Path.cwd())):
             command = program() + command[len(here):]
+    if textio.cut_short(names[0]):  # no `cd` can go there by its name
+        return f"go to {folder} ({OTHERS_HOME}), then run `{command}` there."
     return f"go to {folder} (`cd {textio.cd_word(names[0])}`), then run `{command}` there."
 
 
