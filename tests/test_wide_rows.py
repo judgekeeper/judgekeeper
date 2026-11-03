@@ -57,7 +57,7 @@ def test_labels_with_a_wide_row_stop_and_name_the_line(here, capsys):
     code, out = run(capsys, "--labels", "labels.csv")
     assert code == 3, out
     assert ("labels.csv has more cells than its header (line 6): a quote may be closed in the "
-            "wrong place. Fix it, then run `judgekeeper` again.") in flat(out), out
+            "wrong place. Fix it, then run judgekeeper again.") in flat(out), out
     assert not (here / ".judgekeeper" / "marks.jsonl").exists()
 
 
@@ -73,7 +73,7 @@ def test_the_labels_stop_names_the_program_as_typed(here, capsys, monkeypatch, s
     monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
     code, out = run(capsys, "--labels", "labels.csv")
     assert code == 3, out
-    assert "Fix it, then run `venv/bin/judgekeeper` again." in flat(out), out
+    assert "Fix it, then run venv/bin/judgekeeper again." in flat(out), out
     assert "run judgekeeper again" not in flat(out)
 
 

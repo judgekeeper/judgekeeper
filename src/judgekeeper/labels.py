@@ -261,7 +261,7 @@ def read_file(path: Path, label_map: dict | None = None,
     if path.suffix.lower() not in find.TABLE_SUFFIXES:
         raise LabelsStop([(f"judgekeeper reads labels from a CSV, TSV or JSONL file; {name} is "
                            "none of these.")])
-    again = f"Fix it, then run `{textio.program()}` again."  # the program as typed
+    again = f"Fix it, then run {textio.program()} again."  # the program as typed, as LINK
     try:
         line = open_quote(path) if path.suffix.lower() in (".csv", ".tsv") else None
         if line is not None:
