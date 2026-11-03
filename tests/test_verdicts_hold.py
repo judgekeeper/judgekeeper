@@ -212,8 +212,8 @@ def test_fix_with_a_file_rewrites_the_csv_that_lacks_answers_kept_aside(here, ca
     _mark(ws, lambda i: i >= 60)
     code, out = run(capsys, "fix", first.name)
     assert code == 3, out
-    assert ("judgekeeper wrote .judgekeeper/fix/marked-answers.csv again: it now holds every "
-            "answer you marked, with the answers kept aside your new results lack.") in out, out
+    assert ("judgekeeper wrote .judgekeeper/fix/marked-answers.csv again. It now also "
+            "holds the kept-aside answers missing from your new results.") in out, out
     assert ("Next: grade every answer in .judgekeeper/fix/marked-answers.csv again with your "
             "new rule, then run `judgekeeper fix <new results file>`.") in out, out
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:

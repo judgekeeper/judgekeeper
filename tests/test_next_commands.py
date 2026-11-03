@@ -145,7 +145,7 @@ def test_marked_line_is_the_same_everywhere(
     _mark_all(ws)
     assert main(["evals/results.csv", *FLAGS, "--yes"]) == 3
     terminal = " ".join(capsys.readouterr().out.split())
-    assert f"then run `{MARK}`: the new answers join the ones you marked." in terminal
+    assert f"then run `{MARK}`. New answers are added to the ones you marked." in terminal
     assert main(["--stop"]) == 0  # the page that run opened: this test opens its own
     capsys.readouterr()
     server = page.page_server(ws, 0, RUN)
@@ -155,13 +155,13 @@ def test_marked_line_is_the_same_everywhere(
     finally:  # never served: its socket and the project's lock, closed here
         server.httpd.server_close()
         server.release()
-    assert f"then run `{MARK}`: the new answers join the ones you marked." in card
-    assert (f"then run <code>{escape(MARK)}</code>: the new answers join the ones you "
+    assert f"then run `{MARK}`. New answers are added to the ones you marked." in card
+    assert (f"then run <code>{escape(MARK)}</code>. New answers are added to the ones you "
             "marked.") in unwrapped(html)
     assert not ws.report_html.exists()  # no result yet: nothing written, as in the terminal
     capsys.readouterr()
     assert main(shlex.split(MARK)[1:]) == 3  # nothing new yet: it says the same
     out = " ".join(capsys.readouterr().out.split())
-    assert f"then run `{MARK}`: the new answers join the ones you marked." in out, out
+    assert f"then run `{MARK}`. New answers are added to the ones you marked." in out, out
     assert {k: ws.data()[k] for k in READ} == first  # read the same way: nothing new to add
     assert StartSession(ws).counts()["correct"] == 50  # the marks are kept

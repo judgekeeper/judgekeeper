@@ -82,9 +82,9 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -191,8 +191,8 @@ def test_every_answer_marked_after_a_result_points_to_mark(here, capsys, pages):
     assert code == 0, out
     assert "You have marked all 36 answers." in out
     assert _check(out, err) == (
-        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
-        "join the ones you marked.")
+        "Next: run your eval on more questions, then run `judgekeeper mark`. New answers are "
+        "added to the ones you marked.")
     assert "again to get new answers" not in out
     assert len(pages[0]) == 1  # the page still open from marking: no new one
 
@@ -206,8 +206,8 @@ def test_every_answer_marked_keeps_the_page_to_change_a_mark(here, capsys, pages
     assert "You have marked all 36 answers." in out
     assert "To change a mark, click it in the list." in " ".join(out.split()), out
     assert _check(out, err) == (  # new answers join as a batch once the eval ran again
-        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
-        "join the ones you marked.")
+        "Next: run your eval on more questions, then run `judgekeeper mark`. New answers are "
+        "added to the ones you marked.")
     assert "run your eval again to get new answers" not in out
     assert len(pages[0]) == 1  # the page still open from marking
 
@@ -237,7 +237,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     _click(start_label.Workspace(here), 1)  # a mark to move
     code, out, err = run(capsys, "mark", "--metric", "safety")
     assert code == 3
-    assert "Your marks are for other results" in _flat(out) and "helpfulness" in out
+    assert "Your marks are for another LLM-as-a-judge" in _flat(out) and "helpfulness" in out
     assert f"1. {START_OVER}" in _flat(out)
     assert _check(out, err) == (
         "Next: run `judgekeeper mark --metric safety` in a terminal to answer, or "
@@ -257,7 +257,7 @@ def test_another_judge_with_no_marks_starts_over_without_asking(here, capsys, pa
     assert run(capsys, "mark", "--metric", "helpfulness")[0] == 0
     code, out, _ = run(capsys, "mark", "--metric", "safety")
     assert code == 0, out
-    assert START_OVER not in _flat(out) and "Your marks are for other results" not in out
+    assert START_OVER not in _flat(out) and "Your marks are for another LLM-as-a-judge" not in out
     ws = start_label.Workspace(here)
     assert ws.data()["metric"] == "safety"
     assert len([p for p in ws.dir.iterdir() if p.name.startswith("previous-")]) == 1
@@ -307,9 +307,9 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     said = out[:out.index("Next:")].splitlines()[2:]
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 

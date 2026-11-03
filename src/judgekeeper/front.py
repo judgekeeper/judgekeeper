@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -116,9 +117,9 @@ INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
 # Said where marking starts, before the page opens (and in the README and the reference)
-NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail, and "
+NEEDS_EACH_KIND = ("A result needs at least {n} Pass and {n} Fail marks from you. It also needs "
                    "{g} marks on answers your LLM-as-a-judge passed and {g} on answers it "
-                   "failed (or all of them, when there are fewer).")
+                   "failed (or all of them, if there are fewer).")
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
@@ -136,12 +137,12 @@ SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the wa
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-GROUP_MARKS = "You have {p} on answers your LLM-as-a-judge passed and {f} on answers it failed."
+GROUP_MARKS = "You marked {marked}. A result needs {need}."
 NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
              "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
 # ...fewer answers than a first result needs (start.MIN_POOL): as Find says it
-NEXT_FEW_ANSWERS = ("mark your {n} answers on the page: your marks are kept for when more "
+NEXT_FEW_ANSWERS = ("mark your {n} answers on the page. Your marks are kept for when more "
                     "answers come. A first result needs at least {min} answers, so then run your "
                     "eval to make more answers (that makes model calls), and run `{command}` "
                     "again.")
@@ -157,7 +158,7 @@ STILL_OPEN = ("The marking page is still open. Mark more answers to make these r
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
-SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
+SAY_WHY = "Where you and your LLM-as-a-judge disagree, say why. `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
 CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
 CHANGE_ON_RESULT = 'To change a mark, open the page and click "Change a mark".'  # its link
@@ -251,6 +252,8 @@ class FrontTalk(start.Talk):
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
         names = ", ".join(start.shown_name(str(v), quoted=True) if flag == "--metric"
+                          else f"table for {find.NAMES['table']}"
+                          if flag == "--tool" and v == "table"  # a CSV file: never a "table"
                           else quote_arg(str(v)) for v in values)
         if len(values) - keep > start.LIST_LIMIT:  # the list above holds the first ones; the
             # kept last options ("All, one at a time") are choices, not names
@@ -1565,7 +1568,25 @@ def _group_marks(session: StartSession) -> str:
     """GROUP_MARKS: the marks on answers the LLM-as-a-judge passed and on those it failed."""
     marked = [i for i in session.items if i["label"] in ("pass", "fail")]
     passed = sum(session.groups.get(i["id"]) == "pass" for i in marked)
-    return GROUP_MARKS.format(p=_n(passed, "mark"), f=len(marked) - passed)
+    sizes = Counter(session.groups.get(i["id"]) for i in session.items)
+    short = [(word, have, min(targets.FIRST_GROUP, sizes.get(side, 0)))
+             for side, word, have in (("pass", "passed", passed),
+                                      ("fail", "failed", len(marked) - passed))
+             if have < min(targets.FIRST_GROUP, sizes.get(side, 0))]
+    if not short:  # every group has its marks: what holds the result back is said elsewhere
+        short = [("passed", passed, targets.FIRST_GROUP),
+                 ("failed", len(marked) - passed, targets.FIRST_GROUP)]
+
+    def need(n: int) -> str:
+        return str(n) if n == targets.FIRST_GROUP else f"all {n}"
+    if len(short) == 1:
+        word, have, n = short[0]
+        return GROUP_MARKS.format(marked=f"{_n(have, 'answer')} your LLM-as-a-judge {word}",
+                                  need=need(n))
+    (_, p, np), (_, f, nf) = short
+    return GROUP_MARKS.format(
+        marked=f"{_n(p, 'answer')} your LLM-as-a-judge passed and {f} it failed",
+        need=f"{need(np)} of each" if np == nf else f"{need(np)} and {need(nf)}")
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
@@ -1748,14 +1769,14 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     n = len(pool.answers)
     if n < start.MIN_POOL:
         talk.say()
-        needs = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP).rstrip(".")
+        needs = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
         talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
-                  f"for a first result. {needs}, so at least {start.MIN_POOL} answers.")
+                  f"for a first result. {needs} So a first result needs at least "
+                  f"{start.MIN_POOL} answers.")
         raise talk.stop(EXIT_QUESTION, (
-            "run your eval to make more answers first (that makes model calls), then run "
-            f"`{talk.command()}` again; or mark {'this one' if n == 1 else f'these {n}'} now "
-            f"with `{_command_of(talk, saved, 'mark')}`: your marks are kept for when more "
-            "answers come."))
+            f"mark {'this one' if n == 1 else f'these {n}'} now with "
+            f"`{_command_of(talk, saved, 'mark')}`. Your marks are kept. Then run your eval to "
+            f"make more answers (that makes model calls), and run `{talk.command()}` again."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
 
@@ -1947,8 +1968,8 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
     if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
-        return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
-                 f"({tool}), and these results are of {found.judge}.")]
+        return [(f"Your marks are for another LLM-as-a-judge: {judge} ({tool}). These "
+                 f"results are from {found.judge}.")]
     if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew
         return []
     return [] if talk.new else None
@@ -2316,14 +2337,14 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if n:
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
         waiting = n - len(counted)
-        so_far = (f"You have {_n(n, 'mark')}"  # some came with --labels: not marked here
+        so_far = (_n(n, 'mark')  # some came with --labels: not marked here
                   if marks.imported(marks.read(ws.marks), ids=set(session.by_id))
                   else f"You marked {_n(n, 'answer')}")
-        if waiting:  # the counts before "not enough" are those that count, never the batch's
-            talk.para(f"{so_far} so far: {counted.count('pass')} Pass, "
-                      f"{counted.count('fail')} Fail count for a result, and {waiting} more "
-                      f"{'is' if waiting == 1 else 'are'} in a newer batch that doesn't count "
-                      "yet.")
+        if waiting:  # the counts before "not enough" are those that count, never the waiting
+            talk.para(f"{so_far} so far. {len(counted)} count for a result "
+                      f"({counted.count('pass')} Pass, {counted.count('fail')} Fail). "
+                      f"{waiting} more {'waits' if waiting == 1 else 'wait'} and "
+                      f"{'doesn' if waiting == 1 else 'don'}'t count yet.")
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:  # and why: what a result needs (also after an import came first)

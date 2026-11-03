@@ -441,8 +441,8 @@ def test_every_answer_marked_names_judgekeeper_mark_without_the_page_flags(run, 
     for name, html in (("result page", start_label.result_html(r, back="/?token=t")),
                        ("report.html", start_label.result_html(r))):
         text = _text(html)
-        assert (f"Run your eval on more questions, then run {new}: the new answers join the "
-                "ones you marked.") in text, name
+        assert (f"Run your eval on more questions, then run {new}. New answers are added to "
+                "the ones you marked.") in text, name
         assert "--port" not in text and "--no-browser" not in text, name
     assert f"`{new}`" in start_label.sentences(r)[1]
 

@@ -73,8 +73,8 @@ def test_the_kept_aside_count_is_under_its_own_group():
     # 18 you failed that it passed: 3 shown, 15 kept aside; 2 the other way: 1 shown, 1 kept
     html = _page(mistakes=(3, 1))
     easy, strict = _part(html, 'id="g-easy"'), _part(html, 'id="g-strict"')
-    assert '<p class="kept">15 more are' + KEPT + "</p>" in easy
-    assert '<p class="kept">1 more is' + KEPT + "</p>" in strict
+    assert '<p class="kept">15 more of these are' + KEPT + "</p>" in easy
+    assert '<p class="kept">1 more of these is' + KEPT + "</p>" in strict
     assert easy.index("kept aside on purpose") < easy.index("<table")
     assert "*" not in _text(html) and "a new rule fairly" not in html
 
@@ -83,7 +83,7 @@ def test_kept_aside_with_no_list_comes_after_the_lists():
     html = _page(mistakes=(2, 0))  # the 2 failed by it, passed by you: all kept aside
     assert 'id="g-strict"' not in html
     after = html.split('id="g-easy"', 1)[1].split("</section>", 1)[1]
-    assert '<p class="kept">2 more are' + KEPT + "</p>" in after.split('class="details', 1)[0]
+    assert '<p class="kept">2 more disagreements are' + KEPT + "</p>" in after.split('class="details', 1)[0]
     assert html.count(KEPT) == 2
 
 
@@ -245,7 +245,7 @@ def test_the_copy_script_is_the_websites_and_clears_its_selection():
 
 def test_report_html_keeps_one_closing_line():
     text = _text(_page(mistakes=(2, 0)))
-    assert "Tell judgekeeper why you disagree on these" in text
+    assert "To tell judgekeeper why you disagree on" in text
     assert "uses your reasons" not in text and "Optional: tell judgekeeper" not in text
 
 

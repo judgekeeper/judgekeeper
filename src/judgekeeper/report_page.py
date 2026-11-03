@@ -1019,7 +1019,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
+            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept, of_these=True)}'
             f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
             f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
             f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
@@ -1029,15 +1029,17 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
 REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 
-def kept_line(n: int) -> str:
-    """How many more disagreements are kept aside, in words (the terminal says them too)."""
-    return (f'{n} more {"is" if n == 1 else "are"} kept aside on purpose, so a new rule can be '
-            "tested on answers you haven't looked at again.")
+def kept_line(n: int, of_these: bool = False) -> str:
+    """How many more disagreements are kept aside, in words (the terminal says them too);
+    `of_these`: under one group's list, so the count is that group's."""
+    what = "of these" if of_these else "disagreement" if n == 1 else "disagreements"
+    return (f'{n} more {what} {"is" if n == 1 else "are"} kept aside on purpose, so a new rule '
+            "can be tested on answers you haven't looked at again.")
 
 
-def _kept(n: int) -> str:
+def _kept(n: int, of_these: bool = False) -> str:
     """How many more of a group are kept aside, or nothing."""
-    return f'<p class="kept">{kept_line(n)}</p>' if n else ""
+    return f'<p class="kept">{kept_line(n, of_these)}</p>' if n else ""
 
 
 def kept_count(c: dict, mistakes: list[dict]) -> int:
@@ -1224,7 +1226,8 @@ def _main_lines(r: dict) -> str:
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     ranged = shows_range(r)
-    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
+    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="{_head(ranged)}">'
+                   f"{_e(est)}</td>"
                    + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
                    + "</tr>" for name, est, between in rows)
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
@@ -1234,13 +1237,19 @@ def _main_lines(r: dict) -> str:
             + "</section>")
 
 
+def _head(ranged: bool) -> str:
+    """The numbers' column head: "Estimate" with a range, else (every answer marked, so the
+    numbers are exact) "Value"."""
+    return "Estimate" if ranged else "Value"
+
+
 def _panel_open(ranged: bool, caption: str = "") -> str:
     """An estimates table's start: its columns and heads, with no Between column when no row
     has a range (every answer marked)."""
     return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
             '<colgroup><col class="d1"><col class="d2">'
             + ('<col class="d3">' if ranged else "") + "</colgroup>"
-            '<thead><tr><td></td><th scope="col">Estimate</th>'
+            f'<thead><tr><td></td><th scope="col">{_head(ranged)}</th>'
             + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
@@ -1256,7 +1265,7 @@ def _details(r: dict) -> str:
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     ranged = lo is not None and hi is not None
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">{shown}</td>'
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{shown}</td>'
             + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
             + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
@@ -1317,8 +1326,8 @@ def _last_check(last: dict | None, worse: str) -> str:
     judge = f"Your new {TERM}" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
     said = "".join(f"<p>{_term(x)}</p>" for x in last.get("lines") or [])
     return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
-            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still your old "
-            f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
+            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still about your "
+            f"old {TERM}.</p>{said}<p>{_code_line(worse)}</p></section>")
 
 
 STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "

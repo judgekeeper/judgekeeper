@@ -34,8 +34,8 @@ from tests.test_only_reads import only_reads
 LINK = page.LINK
 ALL_MARKED = ("You've marked every answer: 28 Pass, 12 Fail. A result needs at least 15 of "
               "each.")
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-                   "answers join the ones you marked.")
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+                   "are added to the ones you marked.")
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
 
@@ -674,8 +674,8 @@ def test_a_table_judge_back_on_the_marked_model_says_so(here, capsys, no_calls):
     assert "back to the one you marked with" not in out, out
     assert "in ../outside/results.csv, the file your last check read." in out, out
     out = flat(run(capsys, "evals/results.csv")[1])
-    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
-            "marks' result still holds.") in out, out
+    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). The result "
+            "from your marks still stands.") in out, out
     assert "changed since your marks" not in out
 
 
@@ -705,8 +705,8 @@ def test_a_plain_check_reads_the_file_the_last_check_read_as_a_plain_run_does(
     later = outside.stat().st_mtime + 10
     os.utime(mine, (later, later))  # the eval ran again: its newest results are read
     out = flat(run(capsys, "check")[1])
-    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). Your "
-            "marks' result still holds.") in out, out
+    assert ("Your LLM-as-a-judge is back to the one you marked with (bike-grader-v1). The result "
+            "from your marks still stands.") in out, out
 
 
 def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
@@ -799,8 +799,8 @@ def _taken_on_v2(here, capsys) -> Workspace:
     return Workspace(here)
 
 
-CLOSED_BACK = ("Your marking page closed because it showed a different LLM-as-a-judge. To open "
-               "it with this one, run `judgekeeper mark evals/results.csv`.")
+CLOSED_BACK = ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and they now test a different "
+               "one. To open the page for it, run `judgekeeper mark evals/results.csv`.")
 
 
 def _page_open(monkeypatch, stops=True) -> list:
@@ -865,8 +865,8 @@ def test_a_check_that_takes_on_a_given_file_names_it_for_the_page(here, capsys, 
     table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
     _page_open(monkeypatch)
     code, out, _ = run(capsys, "check", "evals/results-v2.csv")
-    assert code == 0 and ("Your marking page closed because it showed a different "
-                          "LLM-as-a-judge. To open it with this one, run `judgekeeper mark "
+    assert code == 0 and ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and "
+                          "they now test a different one. To open the page for it, run `judgekeeper mark "
                           "evals/results-v2.csv`.") in flat(out), flat(out)
 
 

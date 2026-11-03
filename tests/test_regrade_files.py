@@ -154,7 +154,7 @@ def test_fix_with_none_kept_aside_says_how_it_finds_them(here, capsys):
         row["output"] = row["output"].replace("Answer", "Reply")
     code, out = run(capsys, "fix", write(here, "new.csv", rows))
     assert code == 3, out
-    assert "judgekeeper finds them by the same text, word for word, and the same question." in " ".join(out.split())
+    assert "judgekeeper matches an answer only when the question and the answer text are exactly the same." in " ".join(out.split())
 
 
 # Answers kept aside with no grade: never "better" ------------------------------------------------
@@ -225,7 +225,7 @@ def with_errors(ws: Workspace, answers) -> list[dict]:
 
 def counted(k: int, n: int) -> str:
     one = k == 1
-    return (f"{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+    return (f"{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
             f"counted {'it as its mistake' if one else 'them as its mistakes'}.")
 
 
@@ -360,7 +360,7 @@ def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
     code, out = run(capsys, "check", write(here, "new.csv", mixed))
     assert code == 3, out
     assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out
-    assert "It finds a marked answer by the same text" in out  # 50 were not found
+    assert "It matches a marked answer only when the question" in out  # 50 were not found
 
 
 def test_check_says_how_it_finds_answers_only_when_some_were_not_found(here, capsys):
@@ -449,7 +449,7 @@ def test_the_original_file_with_a_pinned_version_is_the_same_grades(here, capsys
     given = results.relative_to(here)
     code, out = run(capsys, "fix", given)
     assert code == 3, out
-    assert "These are the same grades as when you marked" in out
+    assert "These grades are the same as when you marked" in out
     assert json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))["tests"] == []
     code, out = run(capsys, "check", given)
     assert code == 0, out

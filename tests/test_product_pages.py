@@ -584,7 +584,7 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2>' in first
-    assert f'{c["easy"] - 5} more are kept aside on purpose' in first
+    assert f'{c["easy"] - 5} more of these are kept aside on purpose' in first
     assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
             'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
@@ -617,14 +617,14 @@ def test_each_group_says_under_its_heading_how_many_are_kept_aside():
                                                                     c["strict"] - 1)})
     easy = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert (f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2></div>'
-            f'<p class="kept">4 more are {HIDDEN}</p>') in easy
+            f'<p class="kept">4 more of these are {HIDDEN}</p>') in easy
     strict = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert f'<p class="kept">1 more is {HIDDEN}</p>' in strict
+    assert f'<p class="kept">1 more of these is {HIDDEN}</p>' in strict
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "more are hidden" not in none and "more is hidden" not in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
     assert 'id="g-strict"' not in hidden_only
-    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more are {HIDDEN}</p>'
+    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more disagreements are {HIDDEN}</p>'
             '</div>') in hidden_only
     early = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": []})
     assert "kept aside on purpose" not in early and 'class="group' not in early
@@ -709,7 +709,7 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
     r = _result(*CHECK)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
-    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more is kept aside on purpose",
+    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more of these is kept aside on purpose",
                    'id="details-h"'):
         assert needed in html, needed
     assert 'class="next' not in html and "Keep checking it" not in html
@@ -1037,7 +1037,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"(\d+) more (?:is|are) kept aside on purpose", _text(html))
+    kept = re.findall(r"(\d+) more (?:of these |disagreements? )?(?:is|are) kept aside on purpose", _text(html))
     assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------
@@ -1178,7 +1178,7 @@ def test_with_no_range_anywhere_there_is_no_between_column(page):
     tables = re.findall(r'<table class="panel no-range">.*?</table>', html, re.DOTALL)
     assert len(tables) == 2
     for table in tables:
-        assert '<th scope="col">Estimate</th></tr></thead>' in table
+        assert '<th scope="col">Value</th></tr></thead>' in table
         rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
         assert rows and all(row.count("<td") == 1 for row in rows)
     assert "you marked every answer" in _text(html)

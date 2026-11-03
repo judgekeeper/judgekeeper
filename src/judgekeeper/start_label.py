@@ -112,20 +112,20 @@ def wider(r: dict) -> str:
     """WIDER, without its "after every mark" while a new mark could only wait (only_wait)."""
     return WIDER_ONLY if r.get("only_wait") else WIDER
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
-SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
-SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
+SAY_WHY_RUN = "To tell judgekeeper why you disagree on {n} of them{have}, run `{command}`."
+SAY_WHY_RUN_ONE = "To tell judgekeeper why you disagree on this one{have}, run `{command}`."
 SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
 SAY_WHY_FIX = ("`{fix}` shows where your LLM-as-a-judge goes wrong, helps you write a better "
                "rule and tests it on marks kept aside. It uses your reasons.")
-NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
-                   "the ones you marked.")
+NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`. New answers are "
+                   "added to the ones you marked.")
 # Too early to tell, and only skipped answers left to mark (only_skipped): the result line in
 # the terminal and report.html, the marking page's bar and end card, in the same words
 ONLY_SKIPPED = ("The only {answers} left {are_is} {the_one} you skipped. Mark {them} now, or run "
                 "your eval on more questions.")
 ONLY_SKIPPED_CARD = ONLY_SKIPPED
 NEXT_ONLY_SKIPPED = ("mark {the_one} you skipped with `{command}`, or run your eval on more "
-                     "questions and run it again: the new answers join the ones you marked.")
+                     "questions and run it again. New answers are added to the ones you marked.")
 # ...said by `mark`, whose page is open: on the page, never the run just made again
 NEXT_ONLY_SKIPPED_PAGE = "mark {the_one} you skipped on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
@@ -1259,7 +1259,7 @@ def out_of_reach(ws: Workspace) -> str | None:
     marked = [counted[q["id"]] for q in queue if q["id"] in counted]
     side = front.side_out_of_reach(groups.count("fail"), len(groups), left,
                                    marked.count("fail"), marked.count("pass"))
-    if not queue or not side:
+    if not queue or not side or not left:  # none left: every answer is marked, said so
         return None
     return front.FAILS_OUT_OF_REACH.format(
         left=f"{plural(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH, side=side)
@@ -1339,8 +1339,9 @@ def quick_lines(made: dict | None, imported: dict | None = None) -> list[str]:
     n = made["marks"] - ((imported or {}).get("marks") or 0)  # the page's: an import has no time
     if not (quick and quick * 4 > n):
         return []
-    return [f"{quick} of your marks took under a second each. A result is only as good as the "
-            "marks." + (" This looks like a program, not a person." if quick * 2 > n else "")]
+    return [f"{quick} of your marks took under a second each."
+            + (" That is faster than a person reads, so a program may have made them."
+               if quick * 2 > n else "")]
 
 
 def second_thoughts(made: dict | None, real_pass: float | None = None,
@@ -1374,7 +1375,8 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
         return [(f"You saw {seen} twice and marked {'it' if n == 1 else 'each'} the same way "
                 "both times.")]
     out = [(f"You saw {seen} twice and marked {'it' if n == 1 else k} differently the second "
-           "time. Only your first mark counts.")]
+           "time. Only your first mark counts. A mark you change from the list replaces the "
+           "old one.")]
     if n >= SLIP_FROM and real_pass is not None:
         best = targets.best_possible(real_pass, targets.slip_rate(k / n))
         shown = dict(zip(("tpr", "tnr"), estimates or (), strict=False))
@@ -1387,8 +1389,7 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
     return out
 
 
-PRINTED_NOTE = ("a link printed with no terminal, so another program on this computer could "
-                "have made {them}")
+PRINTED_NOTE = "a link judgekeeper printed, which any program on this computer could also open"
 BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
                     "made {them}")
 LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
@@ -1405,7 +1406,7 @@ def link_lines(made: dict | None) -> list[str]:
         if n:
             them = "it" if n == 1 else "them"
             out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
-                       f"{them} yourself, nothing to do.")
+                       f"{them} yourself, you can ignore this.")
     return out  # a link printed at a terminal needs no note
 
 

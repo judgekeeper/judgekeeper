@@ -77,11 +77,11 @@ def test_a_rerun_with_new_text_says_how_many_marked_answers_it_holds(here, capsy
         said = _flat(out)
         assert code == 0 and "nothing to do" not in said, out
         assert ("20 of your 50 marked answers had no grade in your new results, so judgekeeper "
-                "left them out. It finds a marked answer by the same text, word for word, and the "
-                "same question.") in said
+                "left them out. It matches a marked answer only when the question and the answer text are exactly "
+                "the same.") in said
         command = " ".join(("judgekeeper check", *given))
-        assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results: "
-                              f"they join your marks as a new batch. Then run `{command}` again.")
+        assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results, "
+                              f"then run `{command}` again.")
 
 
 def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here, capsys):
@@ -188,10 +188,10 @@ def test_too_few_marks_says_how_many_in_measures_words(here, capsys):
     code, out = run(capsys)
     assert code == 3
     assert ("You have not marked enough answers yet for a re-check. You marked 35 answers so "
-            "far: 10 Pass, 25 Fail. A re-check needs at least 15 answers you mark Pass and 15 "
-            "you mark Fail.") in _flat(out)
-    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`: "
-                          "the new answers join the ones you marked.")  # every answer is marked
+            "far: 10 Pass, 25 Fail. A re-check needs at least 15 Pass and 15 Fail "
+            "marks from you.") in _flat(out)
+    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`. "
+                          "New answers are added to the ones you marked.")  # every answer is marked
 
 
 # A missing results file -----------------------------------------------------------------------
@@ -282,13 +282,13 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     code, out = run(capsys)
     assert code == 3
     flat = _flat(out)
-    assert ("None of your 50 marked answers is in your new results. judgekeeper finds a marked "
-            "answer by the same text, word for word, and the same question.") in flat
+    assert ("None of your 50 marked answers is in your new results. judgekeeper matches a marked "
+            "answer only when the question and the answer text are exactly the same.") in flat
     assert "labeled" not in flat
     assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
             "marked instead:") in flat
     assert "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml" in flat
-    assert _next(out) == ("Next: follow the three steps above; or start over on your new "
+    assert _next(out) == ("Next: follow the three steps above. Or start over on your new "
                           "answers with `judgekeeper --new`.")
     assert _history(ws) == []
 
@@ -368,8 +368,8 @@ def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
         assert "When you said Pass 25 of 25 19 of 25 Worse" in said
         assert "When you said Fail 25 of 25 20 of 25 Worse" in said
         assert _next(out) == (  # no old one to go back to: the same model and rule
-            "Next: your model and rule are the same as before, so your LLM-as-a-judge's grades "
-            "change from run to run. Make your rule clearer, grade your marked answers again, "
+            "Next: the same model and rule gave different grades, so "
+            "make your rule clearer. Grade your marked answers again, "
             "then run `judgekeeper check <new results file>`.")
     assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
 
@@ -403,9 +403,9 @@ def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
             "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
     assert ("Your last check found your LLM-as-a-judge in results.json worse, so the numbers "
             "below still use the grades from before.") in said  # graded again in place
-    assert said.endswith("Next: your model and rule are the same as before, so your "
-                         "LLM-as-a-judge's grades change from run to run. Make your rule "
-                         "clearer, grade your marked answers again, then run "
+    assert said.endswith("Next: the same model and rule gave different "
+                         "grades, so make your rule clearer. Grade "
+                         "your marked answers again, then run "
                          "`judgekeeper check`.")
     assert "graded again" not in said and "nothing to do" not in said
 

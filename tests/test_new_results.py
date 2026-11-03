@@ -64,7 +64,7 @@ def test_check_counts_an_answer_with_two_grades_against_the_judge(here, capsys, 
     code, out = run(capsys, "check", _jsonl(here / "twice.jsonl", rows).name)
     assert code == 1, out
     said = flat(out)
-    assert ("12 answers got different grades in your new results; counted against your "
+    assert ("12 answers got different grades in your new results. judgekeeper counts them against your "
             "LLM-as-a-judge.") in said
     assert "had no grade" not in said
 
@@ -79,7 +79,7 @@ def test_fix_counts_an_answer_with_two_grades_against_the_new_rule(here, capsys,
     rows.append((fixed[0], judge(fixed[0])))  # one fixed mistake again, with the old grade
     code, out = run(capsys, "fix", _jsonl(here / "twice.jsonl", rows).name)
     assert code == 0, out
-    assert ("1 answer got different grades in your new results; counted against your "
+    assert ("1 answer got different grades in your new results. judgekeeper counts them against your "
             "LLM-as-a-judge.") in flat(out)
     test = fix.read_split(ws).tests[-1]
     assert test["fixed"] == len(fixed) - 1 and test["n"] == len(kept)
@@ -131,7 +131,7 @@ def test_the_marked_results_again_are_no_rule_test(tool, here, capsys, monkeypat
     run(capsys, "fix")
     code, out = run(capsys, "fix", FIRST[tool])
     assert code == 3, out
-    assert ("These are the same grades as when you marked: give the results from after your "
+    assert ("These grades are the same as when you marked. Use the results from after your "
             "change.") in flat(out)
     assert "Result:" not in out
     assert fix.read_split(ws).tests == []
@@ -163,7 +163,7 @@ def test_check_with_too_few_marked_answers_found_cant_tell(here, capsys, monkeyp
     said = flat(out)
     assert code == 3, out
     assert "Compared with before: can't tell yet." in said
-    assert "a re-check needs 15 of each" in said
+    assert "A re-check needs 15 of each" in said
     assert ("Next: run `judgekeeper fix` to write the answers you marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again with your LLM-as-a-judge "
             "as it is now, then run `judgekeeper check <new results file>`.") in said, said

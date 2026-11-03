@@ -30,11 +30,11 @@ def test_the_reports_say_why_command_is_the_terminals(here, capsys, flags):
     capsys.readouterr()
     main(flags)
     said = _flat(capsys.readouterr().out)
-    terminal = re.search(r"Tell judgekeeper why you disagree on these \d+: run `([^`]+)`", said)
+    terminal = re.search(r"To tell judgekeeper why you disagree on \d+ of them, run `([^`]+)`", said)
     assert terminal, said
     page = html.unescape(re.sub(r"<[^>]+>", "", (here / ".judgekeeper" / "report.html")
                                 .read_text(encoding="utf-8")))
-    report = re.search(r"Tell judgekeeper why you disagree on these \d+: run ([^.]+?)\.",
+    report = re.search(r"To tell judgekeeper why you disagree on \d+ of them, run ([^.]+?)\.",
                        " ".join(page.split()))
     assert report, page[-2000:]
     assert report[1] == terminal[1], (report[1], terminal[1])

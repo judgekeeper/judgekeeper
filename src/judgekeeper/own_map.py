@@ -50,7 +50,7 @@ def cannot(talk: Talk, rel: str, why: str):
         return talk.stop(EXIT_USAGE, f"save {Path(rel).name} as UTF-8, then run "
                                      f"`{talk.command()}`.", as_given=True)
     _para(talk, f"judgekeeper cannot read {rel} by itself: {why}.")
-    _para(talk, f"Turn it into a CSV, as the Next: line says. {RECORD_DOOR}")
+    _para(talk, f"Turn it into a CSV (see Next below). {RECORD_DOOR}")
     return talk.stop(EXIT_USAGE, (
         f"turn {rel} into a CSV with the columns id, input, output, verdict (pass or fail) and "
         "reason, one CSV per LLM-as-a-judge, leaving out errors and scores made by a rule. Then "

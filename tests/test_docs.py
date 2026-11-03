@@ -361,8 +361,8 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     said = ("The result will say your marks came through a link the agent printed. If you "
             "marked them yourself, you can ignore that.")
     assert said in install
-    assert "came through a link printed with no terminal" in note
-    assert "If you marked them yourself, nothing to do." in note
+    assert "came through a link judgekeeper printed" in note
+    assert "If you marked them yourself, you can ignore this." in note
 
 
 def test_the_readme_says_kappa_never_decides():

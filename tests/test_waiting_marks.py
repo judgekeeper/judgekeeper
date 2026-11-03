@@ -50,7 +50,7 @@ def test_marks_made_after_the_change_wait_too(adopted):
     ws, _ = adopted
     lines = check.written_from_lines(ws)
     assert lines[0] == check.WRITTEN_FROM
-    assert "On marks made after this change: none yet." in lines[1], lines
+    assert "No marks made since this change yet." in lines[1], lines
     assert not any("15 Pass" in x or "%" in x for x in lines), lines
 
 
@@ -622,7 +622,7 @@ def test_results_that_grade_too_few_marks_never_send_you_to_a_check_that_cant_te
     closed(ws)
     assert code == 0, out
     text = flat(out)
-    assert ("Your new results hold 7 of the answers you marked Pass and 3 you marked Fail; a "
+    assert ("Your new results hold 7 of the answers you marked Pass and 3 you marked Fail. A "
             "re-check needs 15 of each, so this result has not changed.") in text, out
     assert "re-check your changed" not in text and step in text, out
 

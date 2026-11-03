@@ -292,9 +292,9 @@ def test_what_is_left_out_is_counted_by_reason(here, capsys):
                 "Skipped 5 labels:\n"
                 "  2 don't match any answer in your results (the answer text must be the same)\n"
                 "  1 is for an answer your LLM-as-a-judge didn't grade Pass or Fail\n"
-                "  2 are for answers labelled both Pass and Fail\n") in flat(out)
+                "  2 are for 1 answer labelled both Pass and Fail\n") in flat(out)
     said = out.split("Skipped 5 labels:\n")[1].splitlines()
-    assert said[0].startswith("  2 don't") and "  2 are for answers labelled both Pass and Fail" \
+    assert said[0].startswith("  2 don't") and "  2 are for 1 answer labelled both Pass and Fail" \
         in said
 
 
@@ -471,8 +471,8 @@ def test_nothing_matching_stops(here, capsys):
     write_labels(here / "mine.csv", [{"answer": "Nothing like it.", "label": "pass"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    assert ("No labels in mine.csv match your results. Check that the answer text is the same, "
-            "word for word.") in flat(out)
+    assert ("No labels in mine.csv match your results. Check that the answer text is "
+            "exactly the same.") in flat(out)
     _nothing_written(Workspace(here))
 
 
@@ -959,7 +959,7 @@ def test_step_2_after_an_import_says_marks_not_marked(here, capsys):
     write_labels(here / "mine.csv", labelled(range(10)))
     _, out = run(capsys, "--labels", "mine.csv")
     text = flat(out)
-    assert "You have 10 marks so far: 10 Pass, 0 Fail." in text
+    assert "10 marks so far: 10 Pass, 0 Fail." in text
     assert "You marked" not in text
 
 
@@ -1149,7 +1149,7 @@ def test_labels_all_labelled_both_ways_say_so_and_add_nothing(here, capsys):
                                      {"answer": answer(6), "label": "fail"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    _nothing_added(out, "Skipped 2 labels:", "2 are for answers labelled both Pass and Fail")
+    _nothing_added(out, "Skipped 2 labels:", "2 are for 1 answer labelled both Pass and Fail")
     _nothing_written(Workspace(here))
 
 

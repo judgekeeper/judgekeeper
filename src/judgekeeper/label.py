@@ -775,7 +775,7 @@ def _handler(server: LabelServer):
                     page = server.result(server.session, f"/?token={server.token}")
                 except OSError as e:  # .judgekeeper/ can't be written: say it, as /label does
                     said = str(describe_os_error(e) or e).rstrip(".")  # one full stop
-                    self._send(500, (f"Not saved: {said}. Your marks are saved; try again once "
+                    self._send(500, (f"Not saved: {said}. Your marks are saved. Try again once "
                                      "the folder can be written.").encode(),
                                "text/plain; charset=utf-8")
                     return

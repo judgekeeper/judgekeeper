@@ -194,8 +194,8 @@ SCENE_6 = [
     "  When you said Fail    25 of 25             16 of 25             Worse",
     "",
     "On answers you pass, no drop, though these marks can't rule out",
-    "a drop of up to 10 in every 100.",
-    "On answers you fail, agreement drops by about 36 in every 100",
+    "a drop of up to 10 percentage points.",
+    "On answers you fail, agreement drops by about 36 points",
     "(somewhere between 22 and 53).",
     "",
     check.ONE_RUN,
@@ -217,7 +217,7 @@ def _expect(old_wrong: int, new_wrong: int, n: int = 40) -> list[str]:
 def test_a_clear_rise_in_both_groups_is_said():
     lines = _expect(20, 0)
     assert lines[-1] == "Agreement rose in both groups."
-    assert not any("drop" in line and "none of the range" not in line for line in lines), lines
+    assert not any("drop" in line and "low end of the range" not in line for line in lines), lines
 
 
 def test_worse_while_the_other_group_rose_says_which_group_decides():
@@ -288,7 +288,7 @@ def test_a_model_change_rechecked_free(here, capsys):
     lines = out.splitlines()
     start_at = lines.index(SCENE_6[0])
     assert lines[start_at:start_at + len(SCENE_6)] == SCENE_6
-    for gone in ("can see a drop", "No drop seen", "%", "points", "right to wrong"):
+    for gone in ("can see a drop", "No drop seen", "%", "right to wrong"):
         assert gone not in out, gone  # counts only on this screen; the detail is on the report
     assert _next(out) == ("Next: go back to your old LLM-as-a-judge, or try another change and "
                           "run `judgekeeper check` again.")
@@ -310,11 +310,12 @@ def test_no_drop_exits_0_and_the_next_check_has_nothing_to_do(here, capsys):
     _results(here, MARKED, model=HAIKU)
     code, out = run(capsys)
     assert code == 0
-    assert ("Compared with before: no drop bigger than 20 in every 100 answers for your new LLM-as-a-judge."
+    assert ("Compared with before: no drop bigger than 20 percentage points for your new "
+            "LLM-as-a-judge."
             in " ".join(out.split()))
     assert "  When you said Fail    25 of 25             25 of 25             No big drop" in out
     assert ("On answers you fail, no drop, though these marks can't rule out a drop of up to "
-            "10 in every 100.") in " ".join(out.split())
+            "10 points.") in " ".join(out.split())
     assert "drops by no more than" not in out  # no answer went from right to wrong
     assert "turned" not in out
     assert _next(out) == ("Next: nothing to do. Run `judgekeeper check` again after you "
@@ -593,24 +594,24 @@ def test_the_worst_end_of_a_range_is_rounded_up(low, up_to):
     """A drop bound shown to the person rounds toward the bigger drop (−20.1 → 21), and a
     bound that is already whole stays whole (float noise in −0.07 * 100 is not a point)."""
     lines = check.paired_lines(_side("not_sure", low))
-    assert lines[0].endswith(f"It could be up to {up_to} points worse."), lines
+    assert lines[0].endswith(f"It could be up to {up_to} percentage points worse."), lines
     lines = check.paired_lines(_side("no_drop", low))
     assert lines[1] == f"These marks can't rule out a drop of up to {up_to} points.", lines
     g = {"passed": _side("no_drop", 0.01), "failed": _side("no_drop", low)}
     assert (f"On answers you fail, no drop, though these marks can't rule out a drop of up "
-            f"to {up_to} in every 100.") in check.expect_lines(g)
+            f"to {up_to} percentage points.") in check.expect_lines(g)
     g["failed"] = _side("no_drop", low, change=-0.0001)
-    assert f"On answers you fail, agreement drops by no more than {up_to} in every 100." in (
+    assert f"On answers you fail, agreement drops by no more than {up_to} percentage points." in (
         check.expect_lines(g))
 
 
 def test_a_worse_range_rounds_only_its_far_end_up():
     g = {"passed": _side("no_drop", 0.01),
          "failed": _side("worse", -0.511, change=-0.364, high=-0.224)}
-    assert ("On answers you fail, agreement drops by about 36 in every 100 (somewhere between "
+    assert ("On answers you fail, agreement drops by about 36 percentage points (somewhere between "
             "22 and 52).") in check.expect_lines(g)
     assert check.paired_lines(g["failed"])[1] == (
-        "That is about 36 points lower (between 22 and 52).")
+        "That is about 36 percentage points lower (between 22 and 52).")
 
 
 def test_a_bound_that_rounds_to_no_drop_is_left_out():
@@ -619,7 +620,8 @@ def test_a_bound_that_rounds_to_no_drop_is_left_out():
     assert "On answers you fail, no drop." in check.expect_lines(g)
     assert not any("rule out" in line for line in check.expect_lines(g))
     assert check.paired_lines(g["failed"]) == [
-        "No drop bigger than 20 points: 5 went from right to wrong, 2 from wrong to right."]
+        ("No drop bigger than 20 percentage points: 5 went from right to wrong, 2 from wrong "
+         "to right.")]
 
 
 def test_new_results_given_in_full_are_named_from_here(here, capsys):

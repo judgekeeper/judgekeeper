@@ -13,7 +13,7 @@ from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
 
 NEXT = ("Next: mark {answers} you skipped with `{mark}`, or run your eval on more questions and "
-        "run it again: the new answers join the ones you marked.")
+        "run it again. New answers are added to the ones you marked.")
 
 
 def _flat(text: str) -> str:
@@ -103,8 +103,8 @@ def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, 
     main(["--stop"])
     assert line in out and "Next: mark answers on the page" not in out, out
     assert ("Next: mark the one you skipped on the page, or run your eval on more "
-            "questions, then run `judgekeeper mark --port 0 --no-browser`: the new answers join "
-            "the ones you marked.") in out, out  # never `mark` again: its page is open
+            "questions, then run `judgekeeper mark --port 0 --no-browser`. New answers are added "
+            "to the ones you marked.") in out, out  # never `mark` again: its page is open
 
 
 @pytest.mark.parametrize("pass_marks, fail_marks, side", [(10, 26, "Pass"), (26, 10, "Fail")])
@@ -125,4 +125,4 @@ def test_skipped_answers_that_cant_bring_a_result_say_to_run_the_eval(
     assert (f"Only 4 answers are left to mark, not enough to reach 15 {side} marks, so run "
             "your eval on more questions.") in out, out
     assert ("Next: run your eval on more questions, then run `judgekeeper --port 0 "
-            "--no-browser`: the new answers join the ones you marked.") in out, out
+            "--no-browser`. New answers are added to the ones you marked.") in out, out

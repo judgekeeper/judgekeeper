@@ -962,9 +962,9 @@ def test_a_new_batchs_disagreements_get_boxes_the_same_way(here, served):
 
 # Getting back to the boxes later --------------------------------------------------------------
 
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-                   "answers join the ones you marked.")
-SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+                   "are added to the ones you marked.")
+SAY_WHY = "Where you and your LLM-as-a-judge disagree, say why. `fix` uses your reasons."
 
 
 def _run(capsys, *argv) -> tuple[int, str]:
@@ -1072,23 +1072,24 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     at = next(i for i, line in enumerate(lines) if line.startswith("  You failed "))
     n = len(passes) + len(fails)  # the disagreements the result page lists, each with a box
     assert n > 1 and f"disagreed on {n} of" not in out
-    tell = f"Tell judgekeeper why you disagree on these {n}: run `judgekeeper mark`."
+    tell = f"To tell judgekeeper why you disagree on {n} of them, run `judgekeeper mark`."
     uses = ("`judgekeeper fix` shows where your LLM-as-a-judge goes wrong, helps you write a "
             "better rule and tests it on marks kept aside. It uses your reasons.")
     end = lines.index("", at)  # the count may wrap: a blank line ends it
     assert all(line.startswith("  ") for line in lines[at:end]), lines[at:end]
-    assert lines[end + 1].startswith("Tell judgekeeper why"), lines[end:end + 2]
+    assert lines[end + 1].startswith("To tell judgekeeper why"), lines[end:end + 2]
     flat = " ".join(out.split())
     k = len(hidden)  # as the result page says it, so none look lost
-    kept = (f"{k} more {'is' if k == 1 else 'are'} kept aside on purpose, so a new rule can be "
+    what = "disagreement is" if k == 1 else "disagreements are"
+    kept = (f"{k} more {what} kept aside on purpose, so a new rule can be "
             "tested on answers you haven't looked at again.")
     assert f"{tell} {uses} {kept}" in flat and flat.index("You failed") < flat.index(tell)
-    assert out.count("Tell judgekeeper why") == 1
+    assert out.count("To tell judgekeeper why") == 1
     report = unwrapped(_report(ws))
     assert report.count(tell.replace("`judgekeeper mark`", "<code>judgekeeper mark</code>")) == 1
     assert "uses your reasons" not in report  # report.html: the one line only
-    assert report.index('id="g-easy"') < report.index("Tell judgekeeper")
-    assert "Tell judgekeeper why" not in _live(ws)  # the live page has the boxes
+    assert report.index('id="g-easy"') < report.index("To tell judgekeeper")
+    assert "To tell judgekeeper why" not in _live(ws)  # the live page has the boxes
 
 
 def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, capsys, pages,
@@ -1104,8 +1105,8 @@ def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, 
     assert code == 0, out
     flat = " ".join(out.split())
     have = "(2 more already have a reason)"
-    assert f"Tell judgekeeper why you disagree on these {n - 2} {have}:" in flat, out
-    assert f"disagree on these {n - 2} {have}:" in _report(ws).replace("\n", " ")
+    assert f"To tell judgekeeper why you disagree on {n - 2} of them {have}," in flat, out
+    assert f"disagree on {n - 2} of them {have}," in _report(ws).replace("\n", " ")
     _say(ws, passes[1], reasons=["wrong_fact"])
     _run(capsys)
     assert "(3 more already have a reason)" in _report(ws).replace("\n", " ")
@@ -1113,7 +1114,7 @@ def test_the_line_asking_why_counts_only_disagreements_with_no_reason_yet(here, 
         _say(ws, i, reasons=[], note="Wrong")
     code, out = _run(capsys)
     assert code == 0, out
-    assert "Tell judgekeeper why" not in out and "Tell judgekeeper why" not in _report(ws)
+    assert "To tell judgekeeper why" not in out and "To tell judgekeeper why" not in _report(ws)
 
 
 def test_measure_says_nothing_about_why_when_you_agreed_on_all(here, capsys, pages,
@@ -1240,10 +1241,10 @@ def test_the_reason_box_in_a_browser(here, tmp_path, width):
 
 
 @pytest.mark.parametrize("n, have, line", [
-    (5, 0, "Tell judgekeeper why you disagree on these 5: run `judgekeeper mark`."),
-    (5, 1, ("Tell judgekeeper why you disagree on these 5 (1 more already has a reason): "
+    (5, 0, "To tell judgekeeper why you disagree on 5 of them, run `judgekeeper mark`."),
+    (5, 1, ("To tell judgekeeper why you disagree on 5 of them (1 more already has a reason), "
             "run `judgekeeper mark`.")),
-    (1, 3, ("Tell judgekeeper why you disagree on this one (3 more already have a reason): "
+    (1, 3, ("To tell judgekeeper why you disagree on this one (3 more already have a reason), "
             "run `judgekeeper mark`."))])
 def test_the_line_asking_why_says_how_many_have_a_reason(n, have, line):
     assert start_label.say_why_run(n, "judgekeeper mark", have) == line

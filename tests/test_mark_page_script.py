@@ -1035,5 +1035,5 @@ def test_the_line_under_the_bar_says_a_first_result_needs_more_answers():
         item["label"] = "pass"
     show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
     assert _run(show, data=data) == [False, (
-        f"A first result needs at least {start.MIN_POOL} answers: your marks are kept for when "
+        f"A first result needs at least {start.MIN_POOL} answers. Your marks are kept for when "
         "more answers come.")]

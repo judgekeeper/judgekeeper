@@ -48,8 +48,8 @@ def test_check_with_every_answer_marked_says_to_run_the_eval_on_more(here, capsy
     _marked(here, capsys, split(15, 9))  # 24 of 24: too few Fail marks
     code, said = _said(capsys, "check")
     assert code == 3, said
-    assert _next(said) == ("run your eval on more questions, then run `judgekeeper mark`: the "
-                           "new answers join the ones you marked."), said
+    assert _next(said) == ("run your eval on more questions, then run `judgekeeper mark`. New "
+                           "answers are added to the ones you marked."), said
     _, plain = _said(capsys, "--no-browser", "--port", "0")
     assert _next(plain) == _next(said), plain
 
@@ -59,6 +59,6 @@ def test_check_with_only_a_skipped_answer_left_says_to_look_at_it_again(here, ca
     code, said = _said(capsys, "check")
     assert code == 3, said
     assert _next(said) == ("mark the one you skipped with `judgekeeper mark`, or run "
-                           "your eval on more questions and run it again: the new answers join "
-                           "the ones you marked."), said
+                           "your eval on more questions and run it again. New answers are added "
+                           "to the ones you marked."), said
     assert "to mark more answers" not in said, said

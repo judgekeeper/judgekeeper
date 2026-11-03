@@ -430,9 +430,9 @@ def test_a_plain_check_goes_back_to_a_file_outside_the_home_folder(home, tmp_pat
     kept = json.loads((proj / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
     assert USER not in json.dumps(kept), kept
     again = {"theirs": "results.csv is in another person's home folder, so judgekeeper keeps "
-                       "only its name: give its path again to check it next time.",
+                       "only its name. Give its path again to check it next time.",
              "yours": "results.csv is in a folder whose path holds your user name, so "
-                      "judgekeeper keeps only its name: give its path again to check it next "
+                      "judgekeeper keeps only its name. Give its path again to check it next "
                       "time."}.get(where, "keeps only its name")
     code, out, err = run(capsys, "check")
     plain = flat(out + err)

@@ -61,7 +61,7 @@ SKIPPED = (  # (reason, one, many): said in this order
                      "apart)"),
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
-     "{n} are for answers labelled both Pass and Fail"),
+     "{n} are for {answers} labelled both Pass and Fail"),
     (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"),
     (BLANK, "{n} is blank", "{n} are blank"))
 WORDS_NEXT = ("run the same command again with `--label-map`, giving each of these words =pass, "
@@ -72,7 +72,9 @@ FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = "Mark at least {more} on the page to check the marks from {name}."
+GATE = ("Mark at least {more} on the page to check the marks from {name}. A result with marks "
+        "from a file needs {k} page marks on answers your LLM-as-a-judge passed and {k} on "
+        "answers it failed (or all of them, if there are fewer).")
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
@@ -411,6 +413,7 @@ class Plan:
 
     marks: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
+    both: int = 0  # the answers the labels skipped as BOTH are for
 
     def skip(self, reason: str, n: int = 1) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + n
@@ -521,6 +524,7 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         for i in ids:
             wanted.setdefault(i, set()).add(label.mark)
     both = {i for i, m in wanted.items() if len(m) > 1}
+    plan.both = len(both)
     for label, ids in targets_of:
         if both & set(ids):
             plan.skip(BOTH)
@@ -591,7 +595,8 @@ def skipped_lines(plan: Plan) -> list[str]:
     for reason, one, many in SKIPPED:
         k = plan.skipped.get(reason, 0)
         if k:
-            out.append("  " + (one if k == 1 else many).format(n=k))
+            answers = plural(plan.both, "answer", "answers") if plan.both else "answers"
+            out.append("  " + (one if k == 1 else many).format(n=k, answers=answers))
     return out
 
 
@@ -602,7 +607,7 @@ def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
         return None
     if set(plan.skipped) - {BLANK} <= {NO_MATCH}:  # a blank one tells nothing
         return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
-                            "the answer text is the same, word for word.")])
+                            "the answer text is exactly the same.")])
     return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])
 
 
@@ -632,7 +637,7 @@ def gate_line(n: int, imported: dict | None) -> str | None:
     if not n or not imported:
         return None
     more = f"{n} more answer{'' if n == 1 else 's'}"
-    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]))
+    return GATE.format(more=more, name=names(imported.get("from") or ["a file"]), k=PAGE_MARKS)
 
 
 def fisher_p(a: int, b: int, c: int, d: int) -> float:

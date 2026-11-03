@@ -29,8 +29,8 @@ def test_marks_short_on_one_group_say_how_many_each_has(here, capsys):
     _, said = _main(capsys, "--no-browser", "--port", "0")
     said = _flat(said)
     assert "That's not enough for a result yet." in said, said
-    assert ("You have 28 marks on answers your LLM-as-a-judge passed and 10 on answers it "
-            "failed.") in said, said
+    assert ("You marked 10 answers your LLM-as-a-judge failed. A result needs 20."
+            ) in said, said
 
 
 def test_a_check_of_the_marked_file_names_it_as_results(here, capsys):

@@ -189,7 +189,7 @@ def _marked_records(root: Path, capsys, metric: str, rule: str,
 def test_a_metric_name_with_a_url_login_reaches_a_result(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     said = _marked_records(tmp_path, capsys, URL_METRIC, "Be polite.")
-    assert "Your marks are for other results" not in said
+    assert "Your marks are for another LLM-as-a-judge" not in said
     assert "Result:" in said and "S3cretWikiPass" not in said
     code = main(["check"])
     out = " ".join(capsys.readouterr().out.split())

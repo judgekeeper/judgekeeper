@@ -31,9 +31,9 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
              "still test it.")
 ADDED = "Your newest results have 36 answers you haven't seen. They're added for marking."
 LINK = "Open this link in your browser to mark answers:"
-PRINTED_LINE = ("{n} of your marks came through a link printed with no terminal, so another "
-                "program on this computer could have made them. If you marked them yourself, "
-                "nothing to do.")
+PRINTED_LINE = ("{n} of your marks came through a link judgekeeper printed, which any program "
+                "on this computer could also open. If you marked them yourself, you can ignore "
+                "this.")
 OPENING_BROWSER = "Opening the marking page in your browser…"
 START_OVER = ("Start over with these results? Your old marks move to "
               ".judgekeeper/previous-<date>/.")
@@ -131,9 +131,9 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "",
         "Step 2 of 5: Mark",
         "",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -167,9 +167,9 @@ def test_too_few_answers_is_asked_as_today(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys)
     assert code == 3
-    assert _check(out).endswith(
-        "or mark these 10 now with `judgekeeper mark`: your marks are kept for when more "
-        "answers come.")
+    assert _check(out) == (
+        "Next: mark these 10 now with `judgekeeper mark`. Your marks are kept. Then run your "
+        "eval to make more answers (that makes model calls), and run `judgekeeper` again.")
     assert pages[0] == []
 
 
@@ -194,9 +194,9 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
         "",
         "You marked 10 answers so far: 5 Pass, 5 Fail.",
         "That's not enough for a result yet.",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
@@ -343,7 +343,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     _click(start_label.Workspace(here), 1)  # a mark to move
     code, out, err = run(capsys, "--metric", "safety")
     assert code == 3
-    assert "Your marks are for other results" in _flat(out) and "helpfulness" in out
+    assert "Your marks are for another LLM-as-a-judge" in _flat(out) and "helpfulness" in out
     assert f"1. {START_OVER}" in _flat(out)
     assert _check(out, err) == (
         "Next: run `judgekeeper --metric safety` in a terminal to answer, or "

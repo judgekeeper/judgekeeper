@@ -103,7 +103,7 @@ def test_measure_with_the_page_closed_asks_why_with_the_mark_command(here, capsy
         code, out = _run(capsys)
         assert code == 0, out
         assert "You and your LLM-as-a-judge disagreed on" in out, out
-        assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+        assert re.search(r"To tell judgekeeper why you disagree on (\d+ of them|this one), run "
                          r"`judgekeeper mark`\.", " ".join(out.split())), out
         assert "The Next step below" not in out, out
         assert_one_next_at_the_end(out)
@@ -138,7 +138,7 @@ def _posted(path, gap: int, n: int = 60) -> None:
 def test_marks_posted_fast_without_seconds_look_like_a_program(tmp_path):
     _posted(tmp_path / "marks.jsonl", gap=0)
     lines = start_label.made_lines(marks.made(marks.read(tmp_path / "marks.jsonl")))
-    assert any("This looks like a program, not a person." in line for line in lines), lines
+    assert any("That is faster than a person reads, so a program may have made them." in line for line in lines), lines
 
 
 def test_marks_posted_slowly_without_seconds_are_not_called_a_program(tmp_path):

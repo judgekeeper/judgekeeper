@@ -234,7 +234,7 @@ def test_fix_keeps_aside_half_of_each_group_by_grade_and_mark(tmp_path, monkeypa
     split = json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))
     want = sum(math.ceil(n / 2) for n in cells.values())
     assert want == 32 and len(split["hidden"]) == want
-    assert f"The other {want} are kept aside" in out, out
+    assert f"The other {want} marks are kept aside" in out, out
     reference = " ".join((Path(__file__).parent.parent / "docs" / "reference.md").read_text(
         encoding="utf-8").split())
     assert ("**Marks kept aside:** half of each group, by your LLM-as-a-judge's grade and your "

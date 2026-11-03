@@ -320,7 +320,7 @@ def test_bad_tables_are_counted_once_and_the_good_one_is_read(here, capsys):
     code, out, err = run(capsys, "--no-browser", "--port", "0")
     assert code == 0, out + err
     flat = " ".join(out.split())
-    assert ("2 tables can't be read, so they were left out; the first, t/nul_results.csv, "
+    assert ("2 tables can't be read, so they were left out. The first, t/nul_results.csv, "
             "is not saved as UTF-8.") in flat
     assert flat.count("can't be read") == 1
     assert LINK in out

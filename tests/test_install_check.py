@@ -338,7 +338,7 @@ def test_two_more_projects_give_needs_work_and_too_early(ic, monkeypatch, tmp_pa
         assert f"Result: {said}" in " ".join(runs[1][1]) and runs[1][2] == (code,)
     early = _in(ran, check.other("too early"))[1][1]
     printed = ("Next: run your eval on more questions, then run\n"
-               "`judgekeeper mark`: the new answers join the ones you marked.")
+               "`judgekeeper mark`. New answers are added to the ones you marked.")
     assert re.search(early[-1], printed)
     assert not re.search(early[-1], printed.replace("more questions", "more answers"))
     # Marked in order: the main project, then needs work, then too early.
@@ -389,7 +389,7 @@ def test_with_uvx_every_step_runs_judgekeeper_through_uvx(ic, monkeypatch, tmp_p
     assert "uvx" not in first and ic.uvx_next(check.version) in result
     early = _in(ran, check.other("too early"))[1][1]
     assert re.search(early[-1], "Next: run your eval on more questions, then run\n"
-                     "`uvx judgekeeper@1.0.0 mark`: the new answers join the ones you marked.")
+                     "`uvx judgekeeper@1.0.0 mark`. New answers are added to the ones you marked.")
 
 
 @pytest.mark.parametrize(("version", "pre"), [("1.0.0", False), ("1.0.0rc1", True),

@@ -94,11 +94,11 @@ def _made(seen, changed):
     (1, 0, "You saw 1 answer twice and marked it the same way both times."),
     (3, 0, "You saw 3 answers twice and marked each the same way both times."),
     (1, 1, ("You saw 1 answer twice and marked it differently the second time. Only your "
-           "first mark counts.")),
+           "first mark counts. A mark you change from the list replaces the old one.")),
     (3, 1, ("You saw 3 answers twice and marked 1 differently the second time. Only your "
-           "first mark counts.")),
+           "first mark counts. A mark you change from the list replaces the old one.")),
     (4, 2, ("You saw 4 answers twice and marked 2 differently the second time. Only your "
-           "first mark counts.")),
+           "first mark counts. A mark you change from the list replaces the old one.")),
 ])
 def test_the_repeat_line(seen, changed, said):
     assert start_label.second_thoughts(_made(seen, changed), real_pass=0.8) == [said]
@@ -109,7 +109,7 @@ def test_from_20_repeats_with_a_change_it_says_what_a_perfect_judge_would_show()
     lines = start_label.second_thoughts(_made(20, 4), real_pass=0.8, estimates=(0.6, 0.6))
     assert lines == [
         ("You saw 20 answers twice and marked 4 differently the second time. Only your first "
-        "mark counts."),
+        "mark counts. A mark you change from the list replaces the old one."),
         (f"At this rate, even a perfect LLM-as-a-judge would agree with you only about "
         f"{round(best['tpr'] * 100)}% when you say Pass and {round(best['tnr'] * 100)}% when "
         "you say Fail.")]
@@ -134,7 +134,8 @@ def test_no_perfect_judge_line_under_a_number_shown(estimates):
     assert round(best["tpr"] * 100) < 92 and round(best["tnr"] * 100) < 93
     lines = start_label.second_thoughts(_made(20, 4), real_pass=0.5086, estimates=estimates)
     assert lines == [("You saw 20 answers twice and marked 4 differently the second time. Only "
-                      "your first mark counts.")]
+                      "your first mark counts. A mark you change from the list replaces the "
+                      "old one.")]
 
 
 def test_the_perfect_judge_line_stays_when_the_ceiling_is_not_under_a_number_shown():

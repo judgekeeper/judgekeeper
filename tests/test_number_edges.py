@@ -92,7 +92,7 @@ def test_no_output_says_exactly():
     """A number with no range says why ("you marked every answer"), never "exactly"."""
     files = [p for p in SRC.rglob("*") if p.suffix in (".py", ".html", ".js", ".css")]
     found = [f"{p.name}: {text[:60]!r}" for p in files for text in _said(p)
-             if re.search(r"\bexactly\b", text, re.IGNORECASE)]
+             if re.search(r"\bexactly\b(?! the same)", text, re.IGNORECASE)]  # text that matches
     assert not found
 
 

@@ -16,8 +16,8 @@ from tests.test_front import assert_one_next_at_the_end
 from tests.test_mark import _click
 from tests.test_reasons import _post
 
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-                   "answers join the ones you marked.")
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+                   "are added to the ones you marked.")
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ def test_mark_at_the_result_page_says_how_to_change_a_mark(here, capsys, pages, 
     main(["--stop"])
     assert code == 0, out
     flat = " ".join(out.split())
-    assert "Say why on the answers" in flat, out
+    assert "Where you and your LLM-as-a-judge disagree, say why." in flat, out
     assert CHANGE_ON_RESULT in flat, out
 
 

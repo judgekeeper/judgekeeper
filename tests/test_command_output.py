@@ -38,7 +38,7 @@ def here(tmp_path, monkeypatch):
 # A page opened by the program named in BROWSER -----------------------------------------------
 
 BROWSER_LINE = ("{n} of your marks came through a page opened by the program named in BROWSER, "
-                "so a program could have made them. If you marked them yourself, nothing to do.")
+                "so a program could have made them. If you marked them yourself, you can ignore this.")
 
 
 def _lines(ws) -> list[dict]:
@@ -76,11 +76,10 @@ def test_marks_mostly_under_a_second_look_like_a_program():
     made = {"marks": 40, "pass": 20, "fail": 20, "sittings": 1, "seconds": 0,
             "under_second": 30, "not_counted": 0, "printed": 0, "browser_env": 0}
     said = start_label.made_lines(made)
-    assert ("30 of your marks took under a second each. A result is only as good as the marks. "
-            "This looks like a program, not a person.") in said
+    assert ("30 of your marks took under a second each. "
+            "That is faster than a person reads, so a program may have made them.") in said
     made["under_second"] = 15  # more than a quarter, not more than half
-    assert ("15 of your marks took under a second each. A result is only as good as the "
-            "marks.") in start_label.made_lines(made)
+    assert "15 of your marks took under a second each." in start_label.made_lines(made)
 
 
 def test_the_docs_never_say_the_marks_are_yours():
@@ -458,7 +457,7 @@ def test_a_split_the_sign_test_does_not_pass_is_cant_tell_yet():
     assert targets.fix_verdict(2, 8, 26).kind == "leans worse"  # p = 0.11
     assert fix.RESULT["leans worse"] == "Result: can't tell yet. That leans toward worse."
     assert targets.fix_verdict(0, 12, 26).kind == "worse"
-    assert fix.RESULT["worse"] == "Result: it looks worse."
+    assert fix.RESULT["worse"] == "Result: your new rule looks worse."
 
 
 def test_a_bad_pass_if_is_not_repeated_in_the_next_line(here, capsys):
@@ -503,7 +502,7 @@ def test_the_table_depth_is_said_alike_in_the_terminal_and_the_reference():
     from judgekeeper import find
 
     said = find.looked(ROOT)
-    assert "(tables: 2 folders deep)" in said and "1 folder down" not in said
+    assert "(2 for CSV, TSV and JSONL files)" in said and "1 folder down" not in said
     ref = " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
     assert "A CSV, TSV or JSONL file at most two folders deep" in ref
 
@@ -529,7 +528,7 @@ def test_or_save_comes_after_its_first_choice(capsys):
     with pytest.raises(start.Stop):
         raise own_map.cannot(talk, "history/evals.jsonl", "no LLM-as-a-judge verdicts were found in it")
     out = " ".join(capsys.readouterr().out.split())
-    first = "Turn it into a CSV, as the Next: line says."
+    first = "Turn it into a CSV (see Next below)."
     assert first in out and out.index(first) < out.index("Or save your LLM-as-a-judge's decisions")
 
 
@@ -959,8 +958,8 @@ def test_marks_under_a_second_are_said_on_the_result_page_and_report_too(here, c
     _click(ws, seconds=0.2)
     code, out, _ = run(capsys)
     assert code == 0, out
-    line = ("36 of your marks took under a second each. A result is only as good as the marks. "
-            "This looks like a program, not a person.")
+    line = ("36 of your marks took under a second each. "
+            "That is faster than a person reads, so a program may have made them.")
     assert line in _flat(out)
     report = ws.report_html.read_text(encoding="utf-8")
     assert report.count(line) == 1

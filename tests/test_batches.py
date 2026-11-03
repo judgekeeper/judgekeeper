@@ -427,8 +427,8 @@ def test_marks_of_a_batch_that_does_not_count_are_not_shown(here):
 
 # Every answer marked: the Next: line points to `judgekeeper mark` ------------------------------
 
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-                   "answers join the ones you marked.")
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+                   "are added to the ones you marked.")
 
 
 def test_every_answer_marked_points_to_mark(here, capsys, pages):
@@ -670,8 +670,8 @@ def test_a_waiting_batchs_marks_are_named_apart(here, capsys, pages):
     _, out, _ = run(capsys, "--no-browser")
     text = flat(out)
     # the counts before "not enough" are the ones that count; the waiting batch's said apart
-    assert ("You marked 37 answers so far: 20 Pass, 14 Fail count for a result, and 3 more "
-            "are in a newer batch that doesn't count yet.") in text, out
+    assert ("You marked 37 answers so far. 34 count for a result (20 Pass, 14 Fail). "
+            "3 more wait and don't count yet.") in text, out
     assert "21 Pass" not in text and "16 Fail" not in text
     assert "That's not enough for a result yet." in text
     assert text.index("count for a result") < text.index("not enough for a result yet")
@@ -713,7 +713,7 @@ def test_the_result_screen_asks_why_with_the_mark_command(here, capsys, pages):
     run(capsys, "--stop")
     _, out, _ = run(capsys, "--no-browser")
     assert "The Next step below" not in flat(out), out
-    assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+    assert re.search(r"To tell judgekeeper why you disagree on (\d+ of them|this one), run "
                      r"`judgekeeper mark --no-browser`\.", flat(out)), out
     assert _next(out) == "Next: run `judgekeeper mark --no-browser` to mark more answers."
 

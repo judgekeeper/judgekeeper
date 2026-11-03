@@ -91,7 +91,7 @@ def test_a_result_that_cant_be_saved_has_one_full_stop(tmp_path, monkeypatch, wi
         assert resp.status == 500 and said.startswith("Not saved: cannot write ")
         last = ("If the file is open in Excel or another program, close it first."
                 if windows else "or change the folder's permissions.")
-        assert ".." not in said and f"{last} Your marks are saved; try again" in said
+        assert ".." not in said and f"{last} Your marks are saved. Try again" in said
         assert said.endswith("once the folder can be written.")
         assert ("permissions. If the file is open" in said) is windows
     finally:

@@ -72,8 +72,8 @@ MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
 FRESH = 10  # new marks that make a new set of hidden marks
 CLEAR = 40  # new marks that most often give a new set a clear answer
-CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}; with fewer "
-              f"than about {CLEAR}, the result will often be \"can't tell yet\").")
+CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}). With fewer "
+              f"than about {CLEAR}, the result will often be \"can't tell yet\".")
 ONLY_LEFT = "Only {n} left to mark. Mark them, or add more answers to your results."
 NONE_LEFT = "No answers are left to mark. Add more answers to your results."
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
@@ -83,12 +83,12 @@ RESULT = {
     "better": ("Result: your new rule is better. A difference this large is unlikely to be a "
                "coincidence."),
     "safe": ("Result: safe to try. Not clearly better yet, but unlikely to be more than 10 "
-             "points worse."),
+             "percentage points worse."),
     "leans better": ("Result: can't tell yet. That leans toward better, but a split this small "
                      "could easily be a coincidence."),
     "same": "Result: can't tell yet. The two rules look about the same here.",
     "leans worse": "Result: can't tell yet. That leans toward worse.",
-    "worse": "Result: it looks worse.",  # only past the sign test
+    "worse": "Result: your new rule looks worse.",  # only past the sign test
 }
 LEANS = ("leans better", "same", "leans worse")
 
@@ -102,7 +102,7 @@ def shown_kind(kind: str, fixed: int, broke: int) -> str:
     return "leans better" if fixed > broke else "same" if fixed == broke else "leans worse"
 
 
-CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
+CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside. 'Better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
 CANT_SETTLE = ("these marks can't settle it. Keep your old rule, or try another change and run "
@@ -112,27 +112,27 @@ MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grad
            "ungraded would look better than it is.")
 MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no decision from "
                 "your new rule{why}: more than half, too many to test it on.")
-COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
            "counted {them}.")
 REGRADE_SAME = "grade every answer in {answers} again with your new rule, then {run}."
-REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
-           "answers kept aside your new results lack.")
+REWROTE = ("judgekeeper wrote {answers} again. It now also holds the kept-aside answers "
+           "missing from your new results.")
 NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
 # The same rule and model as a file tested before, with other grades: the way to test them
 TEST_AS_NEW = "To test these grades as a new LLM-as-a-judge, change its rule and grade again."
-SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
+SAME_GRADES = ("These grades are the same as when you marked. Use the results from after your "
                "change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
            "is now, only from one before it, so judgekeeper leaves {them} out.")
-TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} {answers} kept aside it had "
-        "not graded yet: judgekeeper keeps {them} as its {grades}.")
+TOOK = ("Your LLM-as-a-judge had not graded {k} kept-aside {answers} before. judgekeeper now "
+        "uses {these} new {grades} for {them}.")
 
 
 def took_line(k: int) -> str:
     """TOOK for `k` answers."""
     one = k == 1
     return TOOK.format(k=k, answers="answer" if one else "answers", them="it" if one else "them",
-                       grades="grade" if one else "grades")
+                       grades="grade" if one else "grades", these="this" if one else "these")
 
 
 NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge as it is now, "
@@ -144,16 +144,13 @@ UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade t
 EVAL_TOOLS = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
-    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
-                  "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
-                  "`defaultTest.options.provider` and the same `metric:` with your new rule; "
-                  "the rule's variables are the file's columns, `{{question}}` and "
-                  "`{{answer}}`. Save with `-o`. " + EVAL_TOOLS + " shows the whole config."),
+    "promptfoo": (f"promptfoo: grade {ANSWERS} again with your new rule, with the `echo` "
+                  "provider and no new answers. " + EVAL_TOOLS + " shows the whole config."),
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
                 "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
                 "give the options you set before again with `-S`. `-S instructions=` takes a "
-                "rule with no comma and no colon followed by a space; else grade it with "
-                "Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
+                "rule with no comma and no colon followed by a space. Otherwise, grade it "
+                "with Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
                 "to yours, so yours stays as it was and `judgekeeper check` finds the new "
@@ -161,8 +158,8 @@ REGRADE = {
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
                "under the same name."),
     "deepeval": (f"DeepEval: make one test case for each row of {ANSWERS} (`question` is the "
-                 "input, `answer` is the actual_output; add any other field your metric reads, "
-                 "such as expected_output). Run your metric with its new rule and the same name "
+                 "input, and `answer` is the actual_output). Add any other field your metric reads, "
+                 "such as expected_output. Run your metric with its new rule and the same name "
                  "through `deepeval test run`. It saves a new test_run_<date>.json in your "
                  "results folder."),
 }
@@ -172,10 +169,10 @@ OWN = f"Grade {ANSWERS} with your own code."
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
 TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers exactly, no guard
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
-                 "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
+                 "2. Run: `npx promptfoo eval -c {config} -o {new}`{calls}\n"
                  "3. Then{where}: `{command} {after}`")
 FOLLOW_STEPS = "follow the three steps above."
-NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}; {answers} has only question and answer."
+NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}, but {answers} has only question and answer."
 NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
 RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
                 "new grades, then {run}.")
@@ -687,7 +684,8 @@ def patterns(rows: list[dict], mark: float | None = None,
     made = f"Your LLM-as-a-judge made {n} mistakes."
     if aside:
         made = (f"Your LLM-as-a-judge made {n} mistakes on the {len(rows)} marks used here. "
-                f"The other {aside} {'is' if aside == 1 else 'are'} kept aside to test a new "
+                f"The other {plural(aside, 'mark')} {'is' if aside == 1 else 'are'} kept aside to "
+                "test a new "
                 "rule.")
     easy = "it said Pass where you said Fail"
     strict = "it said Fail where you said Pass"
@@ -715,7 +713,7 @@ def patterns(rows: list[dict], mark: float | None = None,
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
             out.append([(f"When {name}, the answers are long (about {_about(long)} words, "
-                         f"against {_about(usual)}).")])
+                         f"while the others average {_about(usual)}).")])
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
@@ -1165,7 +1163,8 @@ def tried_line(test: dict) -> str:
     old = f"{test['old']:g}"
     return (f"judgekeeper also tried a pass mark of {test['new']:g} instead of {old} on the "
             f"marks kept aside (fixed {test['fixed']}, broke {test['broke']}): not clearly "
-            f"better, so keep {old}. That used up one test on these marks.")
+            f"better, so keep {old}. Each test on the same kept-aside marks makes them a little "
+            "less reliable.")
 
 
 # Saying it ----------------------------------------------------------------------------------
@@ -1364,10 +1363,9 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     were given, and wait for that set."""
     want = split.fresh["want"]
     if split.fresh.get("asked"):
-        talk.para(f"You asked for a new set of marks kept aside (`{program('fix')} --new`). The "
-                  "marks you have made are all seen now, so the new set is made of new marks.")
+        talk.para("Your next marks will form a new set kept aside.")
     elif split.fresh.get("adopted"):
-        talk.para("You took on a rule tested on these marks kept aside. Testing the next rule "
+        talk.para("You switched to a rule tested on these marks kept aside. Testing the next rule "
                   "on the same marks would make a coincidence look like a better rule.")
     else:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
@@ -1642,6 +1640,13 @@ def _promptfoo_grader(ws: Workspace, data: dict) -> tuple[str, str | None, dict]
     return (metric, None, {}) if reader.judge_type(metric) == metric else None
 
 
+# regrade.yaml's comments, on the lines they are about (so the line numbers said stay)
+ECHO_NOTE = "  # echo returns each answer you marked as it is: no new answers, no model call"
+TESTS_NOTE = "  # the answers you marked"
+RULE_NOTE = ("  # your rule: change it here. {{question}} is the question, {{answer}} the "
+             "answer")
+
+
 def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     """The text of fix/regrade.yaml: the marked answers as tests, the `echo` provider, the
     grader the results name, the same assertion type (and metric name) with the rule as its
@@ -1660,8 +1665,8 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     kind, config = found[:2], found[2]
     kept, left = _without_keys(config)
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
-             "providers: [" + _yaml_string("echo") + "]",
-             "tests: " + _yaml_string(f"file://{TESTS_FILE}"),
+             "providers: [" + _yaml_string("echo") + "]" + ECHO_NOTE,
+             "tests: " + _yaml_string(f"file://{TESTS_FILE}") + TESTS_NOTE,
              "defaultTest:",
              "  options:",
              *("    " + LEFT_OUT.format(name=one_line(scrub(name))) for name in left),
@@ -1669,7 +1674,7 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
              "  assert:",
              "    - type: " + _yaml_string(kind[0]),
              *(["      metric: " + _yaml_string(kind[1])] if kind[1] else []),
-             "      value: " + _yaml_string(rule)]
+             "      value: " + _yaml_string(rule) + RULE_NOTE]
     return "\n".join(lines) + "\n"
 
 
@@ -1720,11 +1725,25 @@ def regrade_steps(ws: Workspace, command: str, what: str = "rule",
         return None
     shown = f"{shown_folder(ws)}/{FOLDER}"
     new = quote_arg(f"{shown}/{NEW_JSON}")
-    return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line,
+    n = _answer_rows(ws)
+    calls = (f" It calls your LLM-as-a-judge's model {n} times, once for each marked answer, "
+             "with your own API key." if n > 1 else " It calls your LLM-as-a-judge's model "
+             "once, with your own API key." if n else "")
+    return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line, calls=calls,
                                 config=quote_arg(f"{shown}/{REGRADE_FILE}"), new=new,
                                 where=", in your project folder" if away else "",
                                 after=quote_arg(f"{ws.dir.name}/{FOLDER}/{NEW_JSON}") if away
                                 else new, command=command)
+
+
+def _answer_rows(ws: Workspace) -> int:
+    """How many answers marked-answers.csv holds (0 when it can't be read): the model calls a
+    regrade of it makes."""
+    try:
+        with (_folder(ws) / ANSWERS).open(encoding="utf-8", newline="") as f:
+            return max(sum(1 for _ in csv.reader(f)) - 1, 0)
+    except (OSError, UnicodeDecodeError, csv.Error):
+        return 0
 
 
 def not_a_column(ws: Workspace) -> list[str]:
@@ -2046,7 +2065,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
-                  f"judgekeeper finds them by the same text, word for word, and the same question.")
+                  "judgekeeper matches an answer only when the question and the answer text are "
+                  "exactly the same.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU

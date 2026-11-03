@@ -883,7 +883,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
                           "of your marks to be measured. You need at least 15 Pass and 15 Fail "
                           "marks and 20 marks on answers your LLM-as-a-judge passed and 20 on "
-                          "answers it failed (or all of them, when there are fewer). Mark more "
+                          "answers it failed (or all of them, if there are fewer). Mark more "
                           "answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")

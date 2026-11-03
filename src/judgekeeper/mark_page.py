@@ -1079,7 +1079,7 @@ __TOP__
 
 
 KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
-FEW_ANSWERS = "A first result needs at least {n} answers: your marks are kept for when more answers come."
+FEW_ANSWERS = "A first result needs at least {n} answers. Your marks are kept for when more answers come."
 SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
 SEE_READY = "See your result"
 

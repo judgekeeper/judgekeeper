@@ -58,7 +58,7 @@ PICKS = 10  # ports tried when one judgekeeper picked is taken before the page b
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
 STARTS_AGAIN = "The marking page starts again for this command's flags. Your marks stay."
-ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
+ANOTHER_PROJECT = "A marking page for another project is open. Close it there with `{command}`."
 OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 

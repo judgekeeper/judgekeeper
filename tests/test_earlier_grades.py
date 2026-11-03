@@ -152,6 +152,6 @@ def test_a_new_set_writes_marked_answers_csv_again(adopted):
 
 
 def test_the_grades_taken_on_one_answer_kept_aside_say_one_answer():
-    assert "on 1 answer kept aside it had not graded yet: judgekeeper keeps it as its grade." in (
-        fix.took_line(1))
-    assert "on 2 answers kept aside it had not graded yet" in fix.took_line(2)
+    assert fix.took_line(1) == ("Your LLM-as-a-judge had not graded 1 kept-aside answer before. "
+                                "judgekeeper now uses this new grade for it.")
+    assert "not graded 2 kept-aside answers before" in fix.took_line(2)

@@ -337,7 +337,7 @@ def test_the_drop_line_gives_both_ends_of_the_range():
     g = targets.paired_verdict(0, 12, 30)
     assert paired_lines(g) == [
         "Worse: 12 answers went from right to wrong, and none from wrong to right.",
-        "That is about 40 points lower (between 27 and 55).",
+        "That is about 40 percentage points lower (between 27 and 55).",
     ]
 
 
@@ -640,7 +640,7 @@ def test_a_file_that_cannot_be_read_keeps_the_flags_in_its_next_line(here, capsy
     line = assert_one_next_at_the_end(out)
     assert "<the CSV>" not in line and "--port 9100" in line
     said = flat(out)  # "Or save..." comes after its first choice
-    assert said.index("Turn it into a CSV, as the Next: line says.") < said.index("Or save")
+    assert said.index("Turn it into a CSV (see Next below).") < said.index("Or save")
 
 
 # Judge-check files only when they list something ------------------------------------

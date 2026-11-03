@@ -122,7 +122,9 @@ def test_after_15_page_marks_in_each_group_the_verdict_is_as_usual(here, capsys)
     _page(ws, {i: "pass" for i in range(20, 34)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys)
     assert _result(ws)["import_gate"] == 1  # 14 in the pass group: one more
-    assert ("Mark at least 1 more answer on the page to check the marks from mine.csv."
+    assert ("Mark at least 1 more answer on the page to check the marks from mine.csv. A result "
+            "with marks from a file needs 15 page marks on answers your LLM-as-a-judge passed "
+            "and 15 on answers it failed (or all of them, if there are fewer)."
             in flat(out)), out
     _page(ws, {34: "pass"})
     _, out = run(capsys)
@@ -180,7 +182,7 @@ def test_mark_says_how_many_page_marks_the_imported_marks_still_need(here, capsy
     write_labels(here / "mine.csv", rows)
     run(capsys, "--labels", "mine.csv")
     _, out = run(capsys, "mark")
-    assert "You have 40 marks so far: 20 Pass, 20 Fail." in out
+    assert "40 marks so far: 20 Pass, 20 Fail." in out
     assert GATE.format(n=30, name="mine.csv") in flat(out)
     _page(Workspace(here), {i: "pass" for i in range(20, 35)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys, "mark")
@@ -194,10 +196,10 @@ def test_an_import_first_with_too_few_says_what_a_result_needs(here, capsys):  #
     write_labels(here / "mine.csv", rows)
     _, out = run(capsys, "--labels", "mine.csv")
     said = flat(out)
-    assert ("You have 38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
-            "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+    assert ("38 marks so far: 20 Pass, 18 Fail. That's not enough for a result yet. "
+            "A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks "
             "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
-            "when there are fewer).") in said
+            "if there are fewer).") in said
 
 
 def test_mark_with_every_answer_marked_and_some_imported_says_marks_on_all(here, capsys, pages):  # noqa: F811

@@ -30,7 +30,7 @@ def test_mark_with_too_few_answers_says_to_run_the_eval_on_more(here, capsys, ma
     main(["mark", "--no-browser", "--port", "0"])
     said = _flat(capsys.readouterr().out)
     main(["--stop"])
-    assert said.endswith("Next: mark your 24 answers on the page: your marks are kept for when "
+    assert said.endswith("Next: mark your 24 answers on the page. Your marks are kept for when "
                          "more answers come. A first result needs at least 30 answers, so then "
                          "run your eval to make more answers (that makes model calls), and run "
                          "`judgekeeper mark --port 0 --no-browser` again."), said

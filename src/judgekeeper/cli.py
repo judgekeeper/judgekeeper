@@ -364,7 +364,7 @@ def _labels_arg(p: argparse.ArgumentParser) -> None:
 
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
-                   help="when your LLM-as-a-judge's grades are scores: which pass, e.g. "
+                   help="when your LLM-as-a-judge gives scores: which scores pass, e.g. "
                         "'score>=0.5'")
     p.add_argument("--label-map", metavar="MAP",
                    help="more spellings of your LLM-as-a-judge's grades, e.g. 'good=pass,bad=fail' "

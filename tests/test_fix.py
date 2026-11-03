@@ -205,7 +205,7 @@ def test_the_split_stays_until_new(here, capsys):
     code, out = run(capsys, "--new")
     flat = " ".join(out.split())
     assert code == 3, out
-    assert "You asked for a new set of marks kept aside (`judgekeeper fix --new`)." in flat
+    assert "Your next marks will form a new set kept aside." in flat
     assert flat.endswith("Next: mark more answers with `judgekeeper mark` (at least 10 more), "
                          "then run `judgekeeper fix` again: they become a new set of marks kept "
                          "aside.")
@@ -257,7 +257,7 @@ def test_the_first_run(here, capsys, monkeypatch):
     # every clue names the LLM-as-a-judge and says Pass and Fail plainly
     assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
         f"Your LLM-as-a-judge made {len(seen)} mistakes on the {len(split['visible'])} marks "
-        f"used here. The other {len(split['hidden'])} are kept aside to test a new rule. In "
+        f"used here. The other {len(split['hidden'])} marks are kept aside to test a new rule. In "
         f"{passed}, it said Pass where you said Fail{other}. Its rule may be too easy.")
     assert "of your marks are kept aside" not in flat  # said once, with the mistakes
     saved = next(n for n, line in enumerate(lines) if line.startswith("All "))
@@ -274,7 +274,8 @@ def test_the_first_run(here, capsys, monkeypatch):
         "answers only, so you can't tell which are kept aside. "
         f"1. Change the rule in .judgekeeper/fix/regrade.yaml (line {_value_line(ws)}). "
         "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
-        ".judgekeeper/fix/new.json` "
+        f".judgekeeper/fix/new.json` It calls your LLM-as-a-judge's model {N} times, once for "
+        "each marked answer, with your own API key. "
         "3. Then: `judgekeeper fix .judgekeeper/fix/new.json` "
         "Next: follow the three steps above.")
     for gone in ("hidden", "set aside", "Each mistake, with", "Clues", "passed but you failed",
@@ -285,7 +286,7 @@ def test_the_first_run(here, capsys, monkeypatch):
 
 def test_the_deepeval_regrade_line_says_to_add_the_fields_the_metric_reads():
     line = fix.regrade_line("deepeval")
-    assert "add any other field your metric reads, such as expected_output" in line
+    assert "Add any other field your metric reads, such as expected_output" in line
 
 
 def test_marked_answers_csv_holds_every_marked_answer_and_nothing_else(here, capsys):
@@ -335,7 +336,7 @@ def test_mistakes_md_layout(here, capsys):
     said = [x.strip() for x in said[:said.index("")]]
     # the same sentences the terminal prints (which wraps them, and says which marks the
     # mistakes are on)
-    terminal = re.sub(r" on the \d+ marks used here\. The other \d+ are kept aside to test a "
+    terminal = re.sub(r" on the \d+ marks used here\. The other \d+ marks are kept aside to test a "
                       r"new rule\.", ".", " ".join(said))
     assert " ".join(x for x in clues if x) == terminal
     rule_at = lines.index("## Your LLM-as-a-judge's rule now")
@@ -486,7 +487,7 @@ def test_a_plain_table_on_record_marks_says_to_call_record_again(here, capsys):
     code, out = run(capsys, "regraded.csv")
     assert code == 2, out
     flat = " ".join(out.split())
-    assert "regraded.csv is a plain table of results, but your marks are on " \
+    assert "regraded.csv is a results file, but your marks are on " \
            "judgekeeper.record() results." in flat
     assert flat.endswith(f"Next: {RECORD_AGAIN[0].lower()}{RECORD_AGAIN[1:]}")
 
@@ -632,7 +633,7 @@ def test_check_with_a_pass_mark_the_eval_sets_says_where_to_change_it(here, caps
     ws.start.write_text(json.dumps(data), encoding="utf-8")
     code, said = _main(capsys, "check", "--pass-if", "score>=0.7")
     assert code == 2, said
-    assert ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in your "
+    assert ("--pass-if is only for a pass mark you gave with --pass-if. Yours is set in your "
             "eval, so change it there, run your eval, then run `judgekeeper check`.") in said, said
 
 
@@ -640,7 +641,7 @@ def test_check_with_a_pass_mark_for_grades_that_are_no_scores_says_what_it_is_fo
     project(here)
     code, said = _main(capsys, "check", "--pass-if", "score>=0.5")
     assert code == 2, said
-    assert ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
+    assert ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores. Yours gives "
             "Pass or Fail, so run `judgekeeper check` without it.") in said, said
 
 
@@ -746,7 +747,7 @@ def test_check_with_a_pass_mark_kept_in_the_toml_says_to_change_it_there(here, c
     ws.start.write_text(json.dumps(data), encoding="utf-8")
     code, said = _main(capsys, "check", "--pass-if", "score>=0.7")
     assert code == 2, said
-    assert ("--pass-if is only for a pass mark you gave with --pass-if; yours is set in "
+    assert ("--pass-if is only for a pass mark you gave with --pass-if. Yours is set in "
             "judgekeeper.toml [start], so change pass_mark there, then run `judgekeeper check`."
             ) in said, said
 
@@ -834,8 +835,8 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
 
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
-    assert ("Your marking page closed because it showed a different LLM-as-a-judge. To open it "
-            f"with this one, run `judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 "
+    assert ("Your marking page closed. It was for the LLM-as-a-judge your marks tested before this check, and they now test a different one. To "
+            f"open the page for it, run `judgekeeper mark --pass-if {quote_arg('score>=0.7')} --port 0 "
             "--no-browser`.") in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
@@ -844,7 +845,7 @@ def test_a_worse_pass_mark_keeps_the_old_one_and_asks_for_no_grading(here, capsy
     from judgekeeper.textio import quote_arg
 
     ws, code, said = _adopted(here, capsys, monkeypatch, rule="score>=0.9")
-    step = ("Next: nothing to do; your pass mark stays score>=0.5. To try another, run "
+    step = ("Next: nothing to do. Your pass mark stays score>=0.5. To try another, run "
             f"`judgekeeper check --pass-if {quote_arg('score>=N')}`.")
     assert code == 1 and "Compared with before: worse" in said, said
     assert step in said and "again with it" not in said, said
@@ -1001,7 +1002,8 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
     flat = " ".join(out.split())
     m = re.search(r"judgekeeper also tried a pass mark of (0\.\d+) instead of 0\.5 on the marks "
                   r"kept aside \(fixed (\d+), broke (\d+)\): not clearly better, so keep 0\.5\. "
-                  r"That used up one test on these marks\.", flat)
+                  r"Each test on the same kept-aside marks makes them a little less reliable\.",
+                  flat)
     assert m, flat
     assert "A better pass mark" not in flat
     (test,) = [t for t in _split(ws)["tests"] if t["kind"] == "pass mark"]
@@ -1442,10 +1444,10 @@ def test_the_long_answer_clue_reads_plainly():
             + [{"judge": "fail", "final": "pass", "output": long_out}] * 4
             + [{"judge": j, "final": j, "output": short_out} for j in ("pass", "fail")] * 4)
     lines = fix.pattern_lines(rows)
-    assert ("When it said Pass and you said Fail, the answers are long (about 12 words, "
-            "against 3).") in lines
-    assert ("When it said Fail and you said Pass, the answers are long (about 12 words, "
-            "against 3).") in lines
+    assert ("When it said Pass and you said Fail, the answers are long (about 12 words, while the others "
+            "average 3).") in lines
+    assert ("When it said Fail and you said Pass, the answers are long (about 12 words, while the others "
+            "average 3).") in lines
     assert not any("where you said" in x and x.startswith("Where") for x in lines)
 
 

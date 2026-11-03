@@ -160,7 +160,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
         assert "Step" in out
         assert not says_mark(_next(out)), out
     assert "run your eval on more questions" in _next(said[4])  # fix after the rule was adopted
-    assert "You took on a rule tested on these marks kept aside." in flat(said[4])
+    assert "You switched to a rule tested on these marks kept aside." in flat(said[4])
     assert "You have tested" not in flat(said[4]) + flat(said[5])  # taking one on is no test
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in now_part(mistakes)  # the judge they test now
@@ -333,7 +333,7 @@ def test_fix_for_a_table_judge_keeps_marks_aside(here, capsys):
     code, out = _jk(capsys, "fix")
     assert code == 0, out
     kept = len(fix.read_split(Workspace(here)).hidden)
-    assert f"The other {kept} are kept aside to test a new rule." in flat(out)
+    assert f"The other {kept} marks are kept aside to test a new rule." in flat(out)
     assert _next(out).endswith("then run `judgekeeper fix <new results file>`.")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert "found it worse" not in mistakes  # no check: the mistakes of the LLM-as-a-judge marked
@@ -684,8 +684,8 @@ def test_check_names_a_plain_table_in_words_that_read_right(tmp_path, capsys, mo
     assert code == 2
     assert ("other.json holds promptfoo results, but your marks are on your own results "
             "file.") in said, said
-    assert ("Next: give `judgekeeper check` your new results file for the LLM-as-a-judge your "
-            "marks test,") in said, said
+    assert ("Next: run `judgekeeper check <new results file>`, or run `judgekeeper check` in your "
+            "project folder") in said, said
     assert "a plain table results" not in said and "new a plain table" not in said
 
 
@@ -701,9 +701,9 @@ def test_check_names_another_tools_plain_table_in_words_that_read_right(tmp_path
     code, out = _jk(capsys, "check", "other/mine.csv")
     said = flat(out)
     assert code == 2
-    assert "mine.csv is a plain table of results, but your marks are on promptfoo results." \
+    assert "mine.csv is a results file, but your marks are on promptfoo results." \
         in said, said
-    assert "Next: give `judgekeeper check` your new promptfoo results for" in said, said
+    assert "Next: run `judgekeeper check <new results file>`, or run" in said, said
 
 
 def test_inspect_fix_given_another_tools_results_says_to_score_the_log_again(tmp_path, capsys,
@@ -865,8 +865,8 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
     assert "go back to" not in out and "go back to" not in _report(here).lower()
     code, out = _check(capsys)
     assert code == 0, out
-    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
-            "still holds.") in flat(out)
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). The result from your "
+            "marks still stands.") in flat(out)
     assert "has not changed since your last check" not in out
     assert judge_models(ws) == [MODEL]
 
@@ -885,8 +885,8 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     assert judge_models(ws) == [NEW]
     _results(here, MARKED)
     out = _jk(capsys)[1]
-    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
-            "still holds.") in flat(out), out
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). The result from your "
+            "marks still stands.") in flat(out), out
     assert judge_models(ws) == [MODEL]
     assert "picked" not in ws.data()
     agreed = [line for line in before.splitlines() if "You and your LLM-as-a-judge" in line]
@@ -990,7 +990,7 @@ def test_a_group_of_15_needs_all_15_not_20(here, capsys):
     promptfoo_project(here, split(15, 40))
     _, out = _jk(capsys)
     assert ("20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or "
-            "all of them, when there are fewer).") in flat(out)
+            "all of them, if there are fewer).") in flat(out)
     ws = Workspace(here)
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}

@@ -709,8 +709,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
         if result == "too early":
             # Every answer is marked: the new answers come from the eval (it may wrap).
             more = (r"Next:\s+run\s+your\s+eval\s+on\s+more\s+questions,\s+then\s+run\s+"
-                    r"`[^`]*judgekeeper(@\S+)?\s+mark`:\s+the\s+new\s+answers\s+join\s+the\s+"
-                    r"ones\s+you\s+marked\.")
+                    r"`[^`]*judgekeeper(@\S+)?\s+mark`\.\s+New\s+answers\s+are\s+added\s+to\s+"
+                    r"the\s+ones\s+you\s+marked\.")
             self.mark_step(f"{n}. judgekeeper prints the result: too early to tell",
                            self.front(), [RESULT[result], r"Step 3 of 5: Measure", more],
                            ok_codes=(3,), cwd=cwd)

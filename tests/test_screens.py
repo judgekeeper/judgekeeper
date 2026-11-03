@@ -76,9 +76,9 @@ FIRST = [
     "",
 ]
 NEEDS = [
-    "A result needs at least 15 answers you mark Pass and 15 you mark",
-    "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-    "on answers it failed (or all of them, when there are fewer).",
+    "A result needs at least 15 Pass and 15 Fail marks from you. It",
+    "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+    "on answers it failed (or all of them, if there are fewer).",
     "",
 ]
 MARK_TEXT = [
@@ -149,9 +149,9 @@ def test_screen_2_again_before_a_first_result(here, capsys):
         "",
         "You marked 12 answers so far: 8 Pass, 4 Fail.",
         "That's not enough for a result yet.",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
@@ -212,7 +212,8 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
         "Need its link? Run `judgekeeper mark --no-browser` to print it.",
         "",
         "Next: run your eval on more questions, then run",
-        "`judgekeeper mark`: the new answers join the ones you marked.",
+        "`judgekeeper mark`. New answers are added to the ones you",
+        "marked.",
     ]
     assert len(pages[0]) == started  # the page still open from marking: no new one
 
@@ -266,7 +267,7 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "Step 1 of 5: Find",
         "",
         "No eval results found in this folder (my-app). judgekeeper",
-        "looked 4 folders down (tables: 2 folders deep).",
+        "looked 4 folders down (2 for CSV, TSV and JSONL files).",
         "judgekeeper can read results from promptfoo, DeepEval,",
         "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input,",
         "output and verdict columns.",
@@ -401,7 +402,7 @@ def test_old_marks_from_another_tool_give_no_mixed_result(here, capsys):
     code, lines = screen(capsys)
     text = "\n".join(lines)
     assert code == 3
-    assert "Your marks are for other results" in " ".join(text.split())
+    assert "Your marks are for another LLM-as-a-judge" in " ".join(text.split())
     assert "Start over with these results?" in text
     for word in ("Step 3 of 5", "your LLM-as-a-judge also passed", "Of the answers you passed"):
         assert word not in text, word
@@ -430,9 +431,9 @@ def test_too_few_answers_says_what_a_first_result_needs(here, capsys):
     assert code == 3
     text = " ".join(" ".join(lines).split())
     assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
-            "result. A result needs at least 15 answers you mark Pass and 15 you mark Fail, and "
-            "20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all "
-            "of them, when there are fewer), so at least 30 answers.") in text
+            "result. A result needs at least 15 Pass and 15 Fail marks from you. It also needs "
+            "20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of "
+            "them, if there are fewer). So a first result needs at least 30 answers.") in text
 
 
 @pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])

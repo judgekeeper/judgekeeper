@@ -422,4 +422,4 @@ def unreadable_line(m: Marks) -> str | None:
     if not n:
         return None
     lines = "1 line" if n == 1 else f"{n} lines"
-    return f"{lines} in .judgekeeper/{FILE} could not be read; the others are used."
+    return f"{lines} in .judgekeeper/{FILE} could not be read. The others are used."
