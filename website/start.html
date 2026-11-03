@@ -108,7 +108,7 @@
       <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
       <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper
 judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pre>
-      <p>It saves in <code>.judgekeeper/records/</code> in your project folder. That is the nearest folder above your code that has a <code>pyproject.toml</code>, <code>setup.py</code>, <code>judgekeeper.toml</code>, <code>requirements*.txt</code> or <code>.git</code> (in a git repository with none of the others, its top folder). Run <code>judgekeeper</code> there.</p>
+      <p>It saves in <code>.judgekeeper/records/</code> in your project folder. That is the folder your program runs in, or the nearest one above it, that has a <code>pyproject.toml</code>, <code>setup.py</code>, <code>judgekeeper.toml</code>, <code>requirements*.txt</code> or <code>.git</code> (in a git repository with none of the others, its top folder). Run <code>judgekeeper</code> there.</p>
       <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
     </div>
   </div>
