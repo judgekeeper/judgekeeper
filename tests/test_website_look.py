@@ -807,10 +807,10 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
         ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
                 "verdict=grade)")),
-        ("p", ("It saves in .judgekeeper/records/ in your project folder: the nearest folder up "
-              "from where your code runs with a pyproject.toml, setup.py, judgekeeper.toml, "
-              "requirements*.txt or .git, so in a git repository with none of the others, its "
-              "top folder. Run judgekeeper there.")),
+        ("p", ("It saves in .judgekeeper/records/ in your project folder. That is the nearest "
+              "folder above your code that has a pyproject.toml, setup.py, judgekeeper.toml, "
+              "requirements*.txt or .git (in a git repository with none of the others, its top "
+              "folder). Run judgekeeper there.")),
         ("p", ("Your LLM-as-a-judge gives a score instead of Pass or Fail? The full reference "
               "shows how to set where Pass starts, and every other option."))]
     assert [_flat(b) for p in _all(own, "p") for b in _all(p, "b")] == [
@@ -914,18 +914,15 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
-             "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes or a "
-             "quarter of them, and breaks at most 2 in 100 right answers, usually gets a clear "
-             "answer from about 80 marks, and one that fixes 1 in 10 or a quarter and breaks 5 "
-             "in 100 right answers needs about 160 (simulation).")],
+             "depends on how big the change is: see the reference.")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
              "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
              ".judgekeeper/fix/regrade.yaml), "
              "then run:"),
-            ("judgekeeper finds the answers you marked in your new results by the same text, "
-             "word for word, and the same question, compares the new grades with your marks, and tells you if your "
-             "LLM-as-a-judge "
+            ("judgekeeper finds the answers you marked in your new results. It matches a marked "
+             "answer only when the question and the answer text are exactly the same. Then it "
+             "compares the new grades with your marks and tells you if your LLM-as-a-judge "
              "still agrees with you. You don’t need to mark anything again. Grading only your "
              "marked answers is enough to compare the two. To count new marks, grade all your answers "
              "with your new LLM-as-a-judge.")]}

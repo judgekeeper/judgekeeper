@@ -4,7 +4,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 ## How it looks
 
-- Inside your project folder, four folders deep (a CSV, TSV or JSONL table: two). A results file outside it is read only when you name it.
+- Inside your project folder, four folders deep (a CSV, TSV or JSONL file: two). A results file outside it is read only when you name it.
 - It skips `.git`, `node_modules`, virtual environments (any folder holding `pyvenv.cfg`) and hidden folders, except `.deepeval` and `.judgekeeper/records/`. It does not follow symbolic links. It stops after 5,000 files or 2 seconds, and says so.
 - A results file over 200 MB is listed, not read, unless you name it and say yes.
 - When it finds nothing, it names the results-like files it left out (too deep, links, not UTF-8, Excel workbooks) with the command that reads each.
@@ -146,7 +146,7 @@ Tested with MLflow 3.16. The extra allows MLflow 3.1 or newer. It reads the asse
 
 ## A CSV, TSV or JSONL file
 
-A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as my-judge-v1, is not one); with several, it asks which. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name such as `string_match`. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a wrong table shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
+A CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, one file per LLM-as-a-judge. `judge_verdict` or `judge` also work as the grade column (a `judge` column of model names, such as my-judge-v1, is not one); with several, it asks which. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name such as `string_match`. `id` (when unique) and `reason` are read. With `--pass-if`, a `score` column is read instead. It prints the columns it read, one row each, so a file read the wrong way shows at once. A `;` file reads `0,42` as 0.42. Save Excel files as CSV UTF-8. To grade the same answers again, grade `marked-answers.csv` with your own code, and save a file with the same column names as your first one: its `question` as `input`, its `answer` as `output`, and the new grade as `verdict`. Then run `judgekeeper fix <new file>`.
 
 ## Results in a format of its own
 
@@ -154,4 +154,4 @@ With no eval tool found, it looks for a JSON, JSONL or CSV file changed in the l
 
 ## judgekeeper.record()
 
-`record()` saves in `.judgekeeper/records/` in your project folder: the nearest folder up from where your code runs with a `pyproject.toml`, `setup.py`, `judgekeeper.toml`, `requirements*.txt` or `.git`. In a git repository with none of the others, that is its top folder, so run `judgekeeper` there. `judgekeeper` reads every file in `.judgekeeper/records/` written by the newest file's LLM-as-a-judge as one set; a newer file wins for a repeated answer. With several names, `--metric` picks one. A cut-short last line, or a file it cannot read, is left out with a note. To grade the same answers again, grade `marked-answers.csv` with your own code, call `judgekeeper.record()` again on the new grades, then run `judgekeeper fix .judgekeeper/records/<new file>`. How to write them: [record()](reference.md#record-save-your-own-llm-as-a-judges-verdicts-with-one-line).
+`record()` saves in `.judgekeeper/records/` in your project folder. That is the nearest folder above your code that has a `pyproject.toml`, `setup.py`, `judgekeeper.toml`, `requirements*.txt` or `.git` (in a git repository with none of the others, its top folder). Run `judgekeeper` there. `judgekeeper` reads every file in `.judgekeeper/records/` written by the newest file's LLM-as-a-judge as one set; a newer file wins for a repeated answer. With several names, `--metric` picks one. A cut-short last line, or a file it cannot read, is left out with a note. To grade the same answers again, grade `marked-answers.csv` with your own code, call `judgekeeper.record()` again on the new grades, then run `judgekeeper fix .judgekeeper/records/<new file>`. How to write them: [record()](reference.md#record-save-your-own-llm-as-a-judges-verdicts-with-one-line).

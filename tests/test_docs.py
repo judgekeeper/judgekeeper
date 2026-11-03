@@ -423,7 +423,7 @@ def test_the_docs_say_mark_asks_for_a_taken_on_pass_mark_again():
     `mark` and a plain run ask for it again (the code: front's pass mark question)."""
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     changelog = _flat((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
-    assert ("Once `check` takes it on, later `check` and `fix` runs read your results with it. "
+    assert ("Once `check` switches to it, later `check` and `fix` runs read your results with it. "
             "`mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the "
             "default;") in reference
     assert ("once taken on, later `check` and `fix` runs read with it, and `mark` and a plain "

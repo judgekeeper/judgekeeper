@@ -78,27 +78,26 @@ def test_the_readme_the_site_and_the_reference_say_what_the_report_shows():
     assert large["agree"] < 0.8 and large["better"] > 50
     readme = _flat((ROOT / "README.md").read_text(encoding="utf-8"))  # only the guarded words
     site = _flat((ROOT / "website" / "start.html").read_text(encoding="utf-8")).replace("’", "'")
-    assert LINK in (ROOT / "website/start.html").read_text(encoding="utf-8")
+    assert LINK not in (ROOT / "website/start.html").read_text(encoding="utf-8")  # in the reference
     need = result["needed"]
-    # the site: how many marks depends on how big the change is (the README leaves it to the
-    # reference, checked below)
-    assert need["fixes 90%, breaks 2%"]["marks"] == n  # the site and reference say "also"
+    # the Guide: how many marks depends on how big the change is (the README and the Guide leave
+    # the numbers to the reference, checked below)
+    assert need["fixes 90%, breaks 2%"]["marks"] == n  # the reference names both with one number
     slow = need["fixes 10%, breaks 5%"]["marks"]
     # "breaks at most 2 in 100": 80 or fewer for 9 in 10 and a quarter; 1 in 10 or a quarter
     # that breaks 5 in 100: the slow number
     assert all(need[f"fixes {f}%, breaks {b}%"]["marks"] <= n for f in (25, 90) for b in (0, 2))
     assert need["fixes 25%, breaks 5%"]["marks"] == slow
-    claim = (f"How many marks you need depends on how big the change is. A rule that fixes 9 in "
-             f"10 of its mistakes or a quarter of them, and breaks at most 2 in 100 right "
-             f"answers, usually gets a clear answer from about {n} marks, and one that fixes 1 "
-             f"in 10 or a quarter and breaks 5 in 100 right answers needs about {slow} ")
-    assert claim in site
+    # the Guide says it depends and points to the reference, which gives the numbers
+    assert ("How many marks you need depends on how big the change is: see the reference."
+            in re.sub(r"<[^>]+>", "", site))
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "examples/kept-aside/report.md" in reference
-    assert (f"gets a clear answer most of the time from about {n} marks, mostly \"Safe to "
-            f"try\"; one that fixes almost all of them and breaks few, also from about {n}; one "
-            f"that fixes 1 in 10 or a quarter and breaks 5 in 100 right answers, from about "
-            f"{slow}.") in reference
+    assert (f"A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
+            f"and breaks at most 2 in 100 right answers, usually gets a clear answer from about "
+            f"{n} marks. For the rule that fixes a quarter, that answer is mostly \"Safe to "
+            f"try\". One that fixes 1 in 10 or a quarter, and breaks 5 in 100 right answers, gets "
+            f"a clear answer from about {slow}.") in reference
     # "by mistake is rare but not zero ... only for rules close to no change"
     assert "by mistake is rare but not zero, and happens only for rules close to no change" \
         in reference
