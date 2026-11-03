@@ -285,6 +285,22 @@ def test_the_end_card_with_more_than_one_skipped_answer_left():
                              "your eval on more questions."), "again": "Look at them"}
 
 
+@pytest.mark.parametrize(("n", "title"), [
+    (1, "1 skipped answer. Look again, or leave it out."),
+    (2, "2 skipped answers. Look again, or leave them out."),
+])
+def test_with_a_result_the_end_card_never_says_to_run_the_eval_for_skipped_answers(n, title):
+    """With a coloured result already, only skipped answers left: look again or leave them
+    out. "Run your eval on more questions" is for a result that is too early to tell."""
+    got = _run(f"""
+      popped = true; status = {{text: "Ready.", ready: true, headline: "Good enough"}};
+      for (var i = 0; i < {n}; i++) {{ key("s"); await settle(); later(500); }}
+      for (var i = {n}; i < 3; i++) {{ key("ArrowRight"); await settle(); later(500); }}
+      console.log(JSON.stringify({{title: ids["end-title"].textContent,
+        again: ids["again"].hidden}}));""", data=_data(3))
+    assert got == {"title": title, "again": False}
+
+
 def test_end_card_focus_and_enter():
     got = _run("""
       key("s"); await settle(); later(500);
