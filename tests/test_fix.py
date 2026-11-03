@@ -954,7 +954,7 @@ def test_fix_offers_no_pass_mark_check_would_call_worse(here, capsys, monkeypatc
     if offered:
         _, said = _main(capsys, "check", "--pass-if", offered[1])
         assert "Compared with before: worse" not in said and _rule_in_use(ws) == offered[1], said
-    held = re.search(r"judgekeeper also tried a pass mark of ([\d.]+) instead of 0\.5: it "
+    held = re.search(r"judgekeeper also tried a pass mark of ([\d.]+) instead of 0\.5\. It "
                      r"fixes more answers overall, but agrees with you less on the answers you "
                      r"passed \((\d+) of 43, down from 43\), so `check` would call it worse\.",
                      flat)
@@ -994,6 +994,7 @@ def test_a_worse_headline_names_the_side_that_dropped(here, capsys):
 
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])
 def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypatch, kind):
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 7)  # one split, the same each run
     ws = score_project(here)
     verdict = targets.fix_verdict
     monkeypatch.setattr(targets, "fix_verdict",

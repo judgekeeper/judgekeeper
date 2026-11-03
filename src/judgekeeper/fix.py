@@ -1081,12 +1081,12 @@ def held_line(m: Marks, split: Split) -> str | None:
                         for key in ("passed", "failed") if g[key]["verdict"] == "worse")
     fixed = sum(g[k]["now_right"] for k in ("passed", "failed"))
     broke = sum(g[k]["now_wrong"] for k in ("passed", "failed"))
-    lead = "it fixes more answers overall, but agrees" if fixed > broke else "it agrees"
+    lead = "It fixes more answers overall, but agrees" if fixed > broke else "It agrees"
     return HELD.format(new=f"{best:g}", old=f"{current:g}", lead=lead, less=less)
 
 
 # A pass mark held back (held_line): check would call it worse, or a check did
-HELD = ("judgekeeper also tried a pass mark of {new} instead of {old}: {lead} with you less "
+HELD = ("judgekeeper also tried a pass mark of {new} instead of {old}. {lead} with you less "
         "{less}, so `check` would call it worse.")
 TRIED_WORSE = "You tried a pass mark of {new} with `check`, and it was worse."
 KEEP = " Keep {old}."  # after it, when no other pass mark is offered
