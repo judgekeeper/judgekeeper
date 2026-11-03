@@ -174,9 +174,19 @@ def test_a_path_given_in_full_is_shown_from_here_or_by_its_name(here, tmp_path_f
     missing = folder / "data" / "missing.csv"
     code, out, err = run(capsys, str(missing))
     assert code != 0
-    shown = "data/missing.csv" if given == "inside" else "missing.csv"
-    assert f"file or folder not found: {shown}" in _flat(out + err)
+    said = _flat(out + err)
+    assert "There is no file named missing.csv in " in said and "not found" not in said, said
+    if given == "inside":
+        assert "There is no file named missing.csv in data/." in said, said
     _no_whole_path(out + err, here, folder)
+
+
+@pytest.mark.parametrize("command", [[], ["mark"], ["--stop"]])
+def test_a_missing_path_is_said_as_check_says_it(here, capsys, command):
+    code, out, err = run(capsys, *command, "missing.csv")
+    said = _flat(out + err)
+    assert code == 2, said
+    assert "There is no file named missing.csv here." in said and "not found" not in said, said
 
 
 def test_shown_path_keeps_a_relative_path_as_given(here):

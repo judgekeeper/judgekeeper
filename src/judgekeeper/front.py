@@ -57,7 +57,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    shown_path,
     wrap,
 )
 
@@ -605,14 +604,16 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
 
 
 def not_found(path: Path) -> StartError:
-    """PATH is not there; a single word is taken for a command that does not exist."""
+    """PATH is not there, in the words `check` says it with (check.no_such); a single word is
+    taken for a command that does not exist."""
+    from judgekeeper.check import no_such
+
     word = str(path)
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", word):
         return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
                           f"named {word} here.", f"run `{program()}`, or "
                                                  f"`{program()} --help` to see the commands.")
-    return StartError(f"file or folder not found: {shown_path(path)}",
-                      "check the path, then run `{command}`.")
+    return StartError(no_such(word), "check the path, then run `{command}`.")
 
 
 def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettings | None]:
