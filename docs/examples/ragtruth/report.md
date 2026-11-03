@@ -52,7 +52,7 @@ At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-r
 
 ## Limits
 
-- **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
+- **The answers are old:** from 2023 models, in a public dataset since 2024, so the LLM-as-a-judge models may have seen them.
 - **News summaries only,** and one rule.
 - **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels have a ceiling:** two annotators agreed on 91.8% of answers (the RAGTruth paper, arXiv:2401.00396, section 3.3, page 4).
