@@ -390,6 +390,10 @@ def test_results_that_grade_the_answers_left_get_them_out_of_waiting(
     assert code == 0 and "Next: nothing to do" not in out and NEXT_WAIT not in out, out
     assert ("Your new results grade 20 answers that had no grade before. judgekeeper adds "
             "these grades, so your marks on those answers count now.") in out, out
+    assert "after this change" not in out, out  # the LLM-as-a-judge has not changed
+    if command[0] == "check":
+        assert ("Next: your result is too early to tell. Mark more answers with "
+                "`judgekeeper mark --port 0 --no-browser`.") in out, out
     from judgekeeper import check
 
     assert check.took_left(1) == ("Your new results grade 1 answer that had no grade before. "

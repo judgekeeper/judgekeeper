@@ -147,6 +147,8 @@ NEW_RESULTS = "<new results file>"
 # After a check took on the new judge and the overall result changed (start_label.VERDICTS)
 RESULT_NOW = "Your result is now: {verdict}"
 NEXT_EARLY = "the result after this change is too early to tell. Mark more answers with `{mark}`."
+# after grades taken in (took_left): no change to say
+NEXT_TOOK_EARLY = "your result is too early to tell. Mark more answers with `{mark}`."
 NEXT_EVAL = "Next: run your eval again, then run `{command}`."
 NEXT_RUN_EVAL = "Next: run your eval once, then run `{command}` again."
 CHOOSE = f"they need a choice first, such as which results to read: run `{program()}` to make it"
@@ -1919,7 +1921,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                 said.say(took)
                 said.say()
                 after = _saved_result(state.ws) or {}
-                said.say("Next: " + (next_marks(state.ws, NEXT_EARLY.format(
+                said.say("Next: " + (next_marks(state.ws, NEXT_TOOK_EARLY.format(
                     mark=mark_here(state.ws))) if after.get("verdict_level") in (
                         "check", "too_early") else _next_same(state).removeprefix("Next: ")))
                 return EXIT_OK
