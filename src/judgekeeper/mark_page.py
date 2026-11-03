@@ -156,6 +156,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
   text-align: center; }
+.end.only { justify-content: center; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   max-width: 32ch; }
 .end .note { margin: 0; color: var(--muted); font-size: 15px; }
@@ -353,7 +354,7 @@ __TOP__
   var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
-  var walkingSkipped = false;  // "Look at them": going through the skipped answers
+  var walkingSkipped = false;  // "Mark them" or "Look at them": going through the skipped ones
   var lockUntil = 0;         // clicks are ignored until then, after each mark
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
@@ -638,7 +639,7 @@ __TOP__
   }
   if (answerArea()) { answerArea().addEventListener("scroll", fade); }
   window.addEventListener && window.addEventListener("resize", function () {
-    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); });
+    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); fitEnd(); });
   // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
   // back), also held, Home and End to its top and bottom; the open question or rule instead
   // while it has focus. Not on a phone, where the page itself scrolls.
@@ -811,7 +812,8 @@ __TOP__
   var changing = false;
   function finish(stay) {
     ended = true; busy = false;
-    $("answer-card").hidden = true; $("end").hidden = false;
+    $("answer-card").hidden = true; $("end").hidden = false; $("end").classList.remove("only");
+    fitEnd();
     renderQueue(); renderProgress();
     var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
@@ -839,9 +841,22 @@ __TOP__
       ? (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
         ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out."
       : (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany).replace("{n}", String(skipped)));
-    setText("again", skipped === 1 ? "Look at it" : "Look at them");
+    var ready = !!(status && status.ready);  // else only the skipped answers are left: centred
+    setText("again", ready ? (skipped === 1 ? "Look at it" : "Look at them")
+      : (skipped === 1 ? "Mark it" : "Mark them"));
+    $("end").classList.toggle("only", !ready);
+    fitEnd();
     $("again").hidden = false;
     focusCard();  // the end card, not its button: no ring on open; Enter looks again
+  }
+  // On a phone the list follows the card: the card alone fills the rest of the screen, so
+  // its words sit in the middle as they do beside the list
+  function fitEnd() {
+    var e = $("end");
+    e.style.minHeight = "";
+    if (e.hidden || !e.classList.contains("only") || !media("(max-width: 760px)")) { return; }
+    var top = e.getBoundingClientRect().top + (window.scrollY || 0);
+    e.style.minHeight = Math.max(0, window.innerHeight - top) + "px";
   }
   function lookAgain() { walkingSkipped = true; open(nextIndex(0)); focusCard(); }
   $("again").addEventListener("click", lookAgain);

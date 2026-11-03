@@ -120,15 +120,14 @@ SAY_WHY_FIX = ("`{fix}` shows where your LLM-as-a-judge goes wrong, helps you wr
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
 # Too early to tell, and only skipped answers left to mark (only_skipped): the result line in
-# the terminal and report.html, the Next line, and the marking page's end card
-ONLY_SKIPPED = ("Only your {n} skipped {answers} {are} left to mark: look at {them} again, or "
-                "run your eval on more questions.")
-ONLY_SKIPPED_CARD = ("Only your {n} skipped {answers} {are} left. Look at {them} again, or run "
-                     "your eval on more questions.")
-NEXT_ONLY_SKIPPED = ("look at your skipped {answers} again with `{command}`, or run your eval on "
-                     "more questions and run it again: the new answers join the ones you marked.")
+# the terminal and report.html, the marking page's bar and end card, in the same words
+ONLY_SKIPPED = ("The only {answers} left {are_is} {the_one} you skipped. Mark {them} now, or run "
+                "your eval on more questions.")
+ONLY_SKIPPED_CARD = ONLY_SKIPPED
+NEXT_ONLY_SKIPPED = ("mark {the_one} you skipped with `{command}`, or run your eval on more "
+                     "questions and run it again: the new answers join the ones you marked.")
 # ...said by `mark`, whose page is open: on the page, never the run just made again
-NEXT_ONLY_SKIPPED_PAGE = "look at your skipped {answers} again on the page, or " + NEXT_ALL_MARKED
+NEXT_ONLY_SKIPPED_PAGE = "mark {the_one} you skipped on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -1172,8 +1171,8 @@ def all_labeled(r: dict) -> bool:
 
 def _skipped_words(n: int) -> dict:
     one = n == 1
-    return {"n": n, "answers": "answer" if one else "answers", "are": "is" if one else "are",
-            "them": "it" if one else "them"}
+    return {"n": n, "answers": "answer" if one else "answers", "are_is": "is" if one else "are",
+            "the_one": "the one" if one else f"the {n}", "them": "it" if one else "them"}
 
 
 def only_skipped(n: int, words: str = ONLY_SKIPPED) -> str:

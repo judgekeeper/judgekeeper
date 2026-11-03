@@ -12,8 +12,8 @@ from judgekeeper import start, start_label
 from judgekeeper.cli import main
 from tests.start_projects import promptfoo_project, split
 
-NEXT = ("Next: look at your skipped {answers} again with `{mark}`, or run your eval on more "
-        "questions, then run `{mark}`: the new answers join the ones you marked.")
+NEXT = ("Next: mark {answers} you skipped with `{mark}`, or run your eval on more questions and "
+        "run it again: the new answers join the ones you marked.")
 
 
 def _flat(text: str) -> str:
@@ -48,10 +48,10 @@ def _run(capsys) -> str:
 
 
 @pytest.mark.parametrize("skip, line, answers", [
-    (1, ("Only your 1 skipped answer is left to mark: look at it again, or run your eval on "
-         "more questions."), "answer"),
-    (3, ("Only your 3 skipped answers are left to mark: look at them again, or run your eval "
-         "on more questions."), "answers"),
+    (1, ("The only answer left is the one you skipped. Mark it now, or run your eval on more "
+         "questions."), "the one"),
+    (3, ("The only answers left are the 3 you skipped. Mark them now, or run your eval on more "
+         "questions."), "the 3"),
 ])
 def test_only_skipped_answers_left_says_to_look_again_or_run_the_eval(
         tmp_path, capsys, monkeypatch, skip, line, answers):
@@ -65,7 +65,7 @@ def test_only_skipped_answers_left_says_to_look_again_or_run_the_eval(
     report = _flat(html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))))
     assert line in report and "to mark more answers" not in report, report
     then = NEXT.format(answers=answers, mark="judgekeeper mark").replace("`", "")
-    assert then.replace("Next: look", "Look") in report, report
+    assert then.replace("Next: mark", "Mark") in report, report
 
 
 def test_an_answer_left_that_was_never_skipped_still_says_mark_more(tmp_path, capsys,
@@ -91,18 +91,18 @@ def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, 
         session.update({"id": item["id"], "seconds": 3, **(
             {"deferred": True} if item["id"] == skip else {"label": groups[item["id"]]})})
     out = _run(capsys)
-    line = ("Only your 1 skipped answer is left to mark: look at it again, or run your eval on "
-            "more questions.")
+    line = ("The only answer left is the one you skipped. Mark it now, or run your eval on more "
+            "questions.")
     assert line in out and "Next: mark answers on the page" not in out, out
     # the page where it can be marked, never the run just made again
-    assert NEXT.format(answers="answer", mark="judgekeeper mark --port 0 --no-browser") in out, out
+    assert NEXT.format(answers="the one", mark="judgekeeper mark --port 0 --no-browser") in out, out
     assert not ws.report_html.exists()  # before a first result there is no report
     capsys.readouterr()
     main(["mark", "--no-browser", "--port", "0"])
     out = _flat(capsys.readouterr().out)
     main(["--stop"])
     assert line in out and "Next: mark answers on the page" not in out, out
-    assert ("Next: look at your skipped answer again on the page, or run your eval on more "
+    assert ("Next: mark the one you skipped on the page, or run your eval on more "
             "questions, then run `judgekeeper mark --port 0 --no-browser`: the new answers join "
             "the ones you marked.") in out, out  # never `mark` again: its page is open
 

@@ -269,9 +269,9 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
     assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0}
     assert got["back"] == "Question 0?"
     # The end card in the answer card's place: the title, one button, no note, no result yet
-    assert got["end"] == [False, True, False, True, "Look at it", "2 marked", ""]
-    assert got["title"] == ("Only your 1 skipped answer is left. Look at it again, or run your "
-                            "eval on more questions.")
+    assert got["end"] == [False, True, False, True, "Mark it", "2 marked", ""]
+    assert got["title"] == ("The only answer left is the one you skipped. Mark it now, or run "
+                            "your eval on more questions.")
     assert got["again"] == "Question 0?"
 
 
@@ -282,8 +282,8 @@ def test_the_end_card_with_more_than_one_skipped_answer_left():
       key("ArrowRight"); await settle(); later(500);
       console.log(JSON.stringify({title: ids["end-title"].textContent,
         again: ids["again"].textContent}));""", data=_data(3))
-    assert got == {"title": ("Only your 2 skipped answers are left. Look at them again, or run "
-                             "your eval on more questions."), "again": "Look at them"}
+    assert got == {"title": ("The only answers left are the 2 you skipped. Mark them now, or run "
+                             "your eval on more questions."), "again": "Mark them"}
 
 
 @pytest.mark.parametrize(("n", "title"), [
@@ -997,7 +997,8 @@ def test_the_line_under_the_bar_says_only_skipped_answers_are_left_as_the_card_d
         item["label"] = "pass"
     data["items"][59]["skipped"] = True
     show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
-    card = "Only your 1 skipped answer is left. Look at it again, or run your eval on more questions."
+    card = ("The only answer left is the one you skipped. Mark it now, or run your eval on more "
+            "questions.")
     assert _run(show, data=data) == [False, card]
     data["counts"] = {"correct": 45, "wrong": 13, "skipped": 1}
     data["items"][58]["label"] = None
