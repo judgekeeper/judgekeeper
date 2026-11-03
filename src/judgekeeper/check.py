@@ -1698,6 +1698,10 @@ def repeats_line(found) -> str | None:
 
 
 GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
+# The same model and rule (both in the results), graded again: the grades still differ
+SAME_RULE_GRADES = ("Same model and rule as before, yet {k} of your marked answers got a "
+                    "different grade: your LLM-as-a-judge doesn't always grade the same answer "
+                    "the same way.")
 BACK = ("Your LLM-as-a-judge is back to the one you marked with ({model}). Your marks' result "
         "still holds.")
 # A "back" to another file than the last check read: said on that check, then on the later
@@ -1707,12 +1711,15 @@ EARLIER_READ = "An earlier check read {old}; this result is about {new} now."
 ADDED = "You added {n} since your last check."
 
 
-def grades_changed(ws: Workspace, found) -> int:
+def grades_changed(ws: Workspace, found, ruled: bool = False) -> int:
     """For a judge whose results hold no rule (a table, say): on how many marked answers its
     grades in the newest results differ from the ones judge.json's judge gave. A rule changed
-    in code shows only there; the new grades are in the file, so no AI call re-checks them."""
+    in code shows only there; the new grades are in the file, so no AI call re-checks them.
+    `ruled` (check): a judge whose results hold its rule too, the same model and rule graded
+    again."""
     saved = judge_setup.read(ws)
-    if saved is None or saved["setup"].get("rule_hash") is not None or found.rule is not None:
+    if saved is None or not ruled and (saved["setup"].get("rule_hash") is not None
+                                       or found.rule is not None):
         return 0
     try:
         data = ws.data()
@@ -1942,7 +1949,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     changed = judge_setup.changes(old, new)
     if not changed and added:  # marks made since the last check: that change again
         old, changed = before, judge_setup.changes(before, new)
-    grades = 0 if changed or found is None else grades_changed(state.ws, found)
+    grades = 0 if changed or found is None else grades_changed(state.ws, found, ruled=True)
     if not changed and not grades:
         if found is not None and _too_few(said, state, found):  # "no change" only on what
             return EXIT_NEEDS_YOU  # the results hold
@@ -1986,7 +1993,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         return EXIT_OK
 
     for line in _change_lines(old, new, changed, full=True) if changed else [
-            GRADES.format(k=grades)]:
+            (SAME_RULE_GRADES if new.get("rule_hash") else GRADES).format(k=grades)]:
         said.say(line)
     new_marks = _made_since_last_check(state, added)
     if new_marks:  # only marks really made since; the others the last check could not test
@@ -2517,7 +2524,8 @@ def open_worse(ws: Workspace, found, held: bool = False) -> dict | None:
     time = str(last.get("time") or "")
     if not held and any(str((read.last.get(i) or {}).get("at") or "") > time for i in counted):
         return None
-    if now.get("rule_hash") is None:  # a table: the same grades as that check saw
+    if now.get("rule_hash") is None or judge_setup.hash_of(last["before"]) == \
+            judge_setup.hash_of(now):  # a table, or graded again: the grades that check saw
         old = {**{q["id"]: q["group"] for q in data.get("queue") or []},
                **_read_verdicts(ws, saved["setup_hash"])}
         flips = sorted(i for i, v in _free(found, counted, ws).items()

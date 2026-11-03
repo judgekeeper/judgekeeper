@@ -328,3 +328,64 @@ def test_a_closed_pipe_ends_quietly(here, capsys, monkeypatch):
     monkeypatch.setattr(sys, "stdout", _Closed())
     assert main(["check"]) == 0
     assert capsys.readouterr().err == ""
+
+
+# The same rule and model, graded again with other grades --------------------------------------
+
+def _regraded(root, flips, name="regraded.json"):
+    """A copy of the marked promptfoo results, same model and rule, with the grades of the
+    answers `flips` turned over (the LLM-as-a-judge graded them again)."""
+    from tests.start_projects import split
+    from tests.test_check import MODEL
+
+    verdicts = split(25, 25)
+    for i in flips:
+        verdicts[i] = not verdicts[i]
+    data = promptfoo_data(verdicts, model=MODEL, tag=TAG, created="2026-10-13T09:00:00Z")
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    _write(root / name, data)
+
+
+def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
+    """Same model and rule, yet 11 of the marked answers got another grade: check compares
+    them as usual and says why first. After "Worse" the grades it was marked on stay the
+    reference, so checking again says the same, as for a table's new grades."""
+    ws = _marked(here)
+    _regraded(here, [*range(6), *range(25, 30)])
+    for _ in range(2):
+        code, out = run(capsys, "regraded.json")
+        said = _flat(out)
+        assert code == 1, out
+        assert ("Same model and rule as before, yet 11 of your marked answers got a different "
+                "grade: your LLM-as-a-judge doesn't always grade the same answer the same way."
+                ) in said
+        assert "has not changed" not in said and "nothing to do" not in said
+        assert said.index("doesn't always grade") < said.index("Compared with before: worse.")
+        assert "When you said Pass 25 of 25 19 of 25 Worse" in said
+        assert "When you said Fail 25 of 25 20 of 25 Worse" in said
+    assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
+
+
+def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
+    """One grade turned over on a marked answer: compared, no big drop, and taken on, so the
+    next check has nothing new."""
+    _marked(here)
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    assert code == 0, out
+    assert ("Same model and rule as before, yet 1 of your marked answers got a different grade"
+            in said)
+    code, out = run(capsys, "regraded.json")
+    assert code == 0 and "doesn't always grade" not in _flat(out), out
+    assert "has not changed since your last check" in _flat(out), out
+
+
+def test_the_same_rule_model_and_grades_has_not_changed(here, capsys):
+    _marked(here)
+    _regraded(here, [])
+    code, out = run(capsys, "regraded.json")
+    assert code == 0
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
+    assert "Same model, same rule, same eval tool." in out
+    assert "doesn't always grade" not in _flat(out)
