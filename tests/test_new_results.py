@@ -450,3 +450,17 @@ def test_the_new_log_is_never_the_log_the_marks_test(monkeypatch, tmp_path, mark
 
     monkeypatch.setattr(fix, "_marked_log", lambda ws: marked)
     assert fix.new_log(Workspace(tmp_path)) == new
+
+
+def test_with_no_grader_model_known_the_next_step_names_the_log_given(monkeypatch, tmp_path):
+    """No command is printed then, so no new.eval is written: `fix` runs again on the log the
+    person gave, once they score it again."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(fix, "scorer_model", lambda ws: None)
+    monkeypatch.chdir(tmp_path)
+    ws = SimpleNamespace(cached_data=lambda: {"tool": "inspect"}, data=dict, root=tmp_path)
+    talk = SimpleNamespace(run=lambda log: f"run `judgekeeper fix {log}`")
+    assert fix._no_grades_next(talk, ws, tmp_path / "logs" / "nograde.eval") == (
+        "give `inspect score` the `-S` options your scorer was set up with, its model too, then "
+        "run `judgekeeper fix logs/nograde.eval`.")

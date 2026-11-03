@@ -1565,9 +1565,10 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
 
 
-def _no_grades_next(talk: Talk, ws: Workspace) -> str:
+def _no_grades_next(talk: Talk, ws: Workspace, given: Path) -> str:
     """The next step when the new results hold no grade at all: for Inspect AI, the command
-    with the grader model when the log names it, else the options to give again."""
+    with the grader model when the log names it (it writes new_log), else the options to give
+    again, and `fix` on the log `given` once scored again."""
     try:
         tool = ws.cached_data().get("tool")
     except (OSError, ValueError, AttributeError):
@@ -1579,7 +1580,7 @@ def _no_grades_next(talk: Talk, ws: Workspace) -> str:
         return (f"score your log again with your new rule and your grader model: run "
                 f"`{inspect_score(ws, log)}` and then {talk.run(log)}.")
     return (f"give `inspect score` the `-S` options your scorer was set up with, its model "
-            f"too, then {talk.run(log)}.")
+            f"too, then {talk.run(quote_arg(line_path(given)))}.")
 
 
 def _yaml_string(text) -> str:
@@ -2240,7 +2241,7 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if blank and not ids and not gone:  # not one grade: say so, never the same Next as before
         talk.para(NO_GRADES.format(n=len(blank)))
         talk.para(NO_GRADES_INSPECT if m.data.get("tool") == "inspect" else NO_GRADES_OTHER)
-        talk.next(_no_grades_next(talk, ws))
+        talk.next(_no_grades_next(talk, ws, path))
         return EXIT_NEEDS_YOU
     if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those;
         k = len(lack) if gone else len(blank)  # before a replay: this file can't test it
