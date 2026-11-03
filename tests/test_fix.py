@@ -1047,7 +1047,8 @@ def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, m
 @pytest.mark.parametrize(("scorer", "field", "option"), [
     ("grader", "instructions", f"instructions={textio.quote_arg('<new rule>')}"),
     ("model_graded_qa", "template", f"template={textio.quote_arg('<file with the new rule>')}"),
-    ("grader", "template", "template='<new rule as your scorer takes it>'")])
+    ("grader", "template",
+     f"template={textio.quote_arg('<new rule as your scorer takes it>')}")])
 def test_the_inspect_score_command_sets_the_option_the_rule_is(tmp_path, scorer, field, option):
     """The rule goes in the option the log set it in, for any scorer. Inspect's own scorer
     reads a template from a file, so a rule with commas or colons reaches it whole. A scorer
