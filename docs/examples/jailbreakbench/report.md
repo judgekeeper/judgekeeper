@@ -152,16 +152,18 @@ Every draw's estimates and ranges are in `two-batches/draws.csv`.
 
 ## One draw on commit `6437d85`
 
-The first draw of the check (100 marks, one batch) was run once more on an older build, judgekeeper 1.0.0b2, commit `6437d85`. It is one random draw, and it was not run again on later builds. Measure printed, in the wording of an older version (`measure-round-1.txt`, the result lines copied exactly):
+The first draw of the check (100 marks, one batch) was run once more on an older build, judgekeeper 1.0.0b2, commit `6437d85`. It is one random draw; no new draw was made on later builds. Its screen is `measure-round-1.txt`. The same 100 marks (the answers marked in `ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.0 through the page's own calls, with no AI call. Measure gave the same numbers and the same result. Its result lines on 1.1.0, copied exactly:
 
 ```
-Result: your judge is good enough to use.
-You and your judge disagreed on 7 of 100 answers.
+Result: your LLM-as-a-judge is good enough to use.
+You and your LLM-as-a-judge disagreed on 7 of 100 answers.
 
-  You passed 57 answers. Of those, your judge passed 50 and failed 7.
-  You failed 43 answers. Of those, your judge passed 0 and failed 43.
+  You passed 57 answers. Of those, your LLM-as-a-judge passed 50
+  and failed 7.
+  You failed 43 answers. Of those, your LLM-as-a-judge passed 0
+  and failed 43.
 
-How often your judge agrees with you (estimates):
+How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 92% (between 85% and 96%)
   When you say Fail, it also says Fail: about 100% (between 92% and 100%)
 ```
@@ -192,19 +194,23 @@ judgekeeper shows half Pass and half Fail answers from the LLM-as-a-judge, so it
 
 ### After 200 marks
 
-The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed, in the wording of an older version (`first-run/measure-round-2.txt`, the result lines copied exactly):
+The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed its screen (`first-run/measure-round-2.txt`). The same 200 marks (the answers marked in `first-run/ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.0 through the page's own calls, with no AI call. Its result lines on 1.1.0, copied exactly:
 
 ```
-Result: your judge is good enough to use.
-You and your judge disagreed on 20 of 200 answers.
+Result: too early to tell. Mark more answers to get a result.
+You and your LLM-as-a-judge disagreed on 20 of 200 answers.
 
-  You passed 108 answers. Of those, your judge passed 94 and failed 14.
-  You failed 92 answers. Of those, your judge passed 6 and failed 86.
+  You passed 108 answers. Of those, your LLM-as-a-judge passed
+  94 and failed 14.
+  You failed 92 answers. Of those, your LLM-as-a-judge passed 6
+  and failed 86.
 
-How often your judge agrees with you (estimates):
+How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 91% (between 86% and 95%)
   When you say Fail, it also says Fail: about 90% (between 82% and 96%)
 ```
+
+On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use". 1.1.0 gives the result from a wider range (99%), and for Fail that range still reaches below 80%, so it says "too early to tell". The counts, estimates and ranges are the same on both.
 
 The report page (`report.html`) gives kappa 0.81, range 0.70 to 0.88.
 
@@ -221,7 +227,7 @@ The second 100 happened to split exactly like the first (47, 3, 7, 43). So the e
 The marking page picks its 100 answers at random, so a new project folder gets a different 100. The first draw ran again in 20 fresh folders (`first-run/repeat-draws.csv`).
 
 - In all 20, the real TPR, TNR and kappa were each inside judgekeeper's range.
-- After 100 marks, 7 of the 20 said "Your judge is good enough to use." The other 13 said "Too early to tell", because the Fail range still reached below 80%. None said the LLM-as-a-judge needs work.
+- In 7 of the 20 draws, judgekeeper 1.0.0b2 gave the result "good enough to use". The other 13 said "too early to tell", because the Fail range still reached below 80%. None said the LLM-as-a-judge needs work.
 - Disagreements in the 100 ranged from 7 to 16.
 
 So with 100 marks, whether you get a verdict yet depends on which answers you were shown.
@@ -243,11 +249,11 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 - **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the draw on `6437d85`. No text.
 - **`measure-round-1.txt`, `true-figures.json`:** the Measure screen and the figures of the draw on `6437d85`.
 - **`two-batches/`** (250 marks per draw): `draws.csv` (each draw's counts, ranges and inside yes/no), `summary.json` (the real values and the 20-draw result), and draw 1's Measure screens after batch 1 and after both batches.
-- **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id.
+- **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id. Its result line is judgekeeper 1.0.0's; on the same marks 1.1.0 says "too early to tell" (see "After 200 marks").
 - **`first-run/`:** the first run's Measure screens, report page after 100 marks, ids and grades, figures, and the 20 repeat draws.
 
 Every CSV, text and JSON file here starts with the same header: the dataset, its revision, the subset and split, and where the grades come from. The report pages carry it as a comment.
 
-Both report pages were rebuilt with judgekeeper 1.0.0 from the committed grades and marks, with no AI call; their counts, estimates and ranges are the same as the runs gave. The Measure `.txt` files are the runs' own output.
+Both report pages were rebuilt with judgekeeper 1.0.0 from the committed grades and marks, with no AI call; their counts, estimates and ranges are the same as the runs gave. The Measure `.txt` files are the runs' own output. The two screens quoted under "One draw on commit `6437d85`" and "After 200 marks" are judgekeeper 1.1.0's, made again from the same marks with no AI call.
 
 Data: JailbreakBench, Chao et al., NeurIPS 2024 Datasets and Benchmarks Track, MIT license, Copyright (c) 2023 JailbreakBench Team. The license and the full citation are in [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md).

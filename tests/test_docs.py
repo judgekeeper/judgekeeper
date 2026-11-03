@@ -428,3 +428,23 @@ def test_the_docs_say_mark_asks_for_a_taken_on_pass_mark_again():
             "`judgekeeper` ask for the pass mark again with it as the default.") in changelog
     for text in (reference, changelog):
         assert "`check`, `fix` and `mark` runs read" not in text
+
+
+def test_the_jailbreakbench_screens_are_what_this_version_prints():
+    """The two Measure screens in the JailbreakBench report are this version's (made again
+    from the committed marks), and the old first run's "good enough to use" at 200 marks is
+    named as judgekeeper 1.0.0b2's, not given as today's result."""
+    import re
+
+    text = (ROOT / "docs" / "examples" / "jailbreakbench" / "report.md").read_text(encoding="utf-8")
+    flat = _flat(text)
+    assert not re.search(r"\byour judge\b", text, re.IGNORECASE)
+    assert "in the wording of an older version" not in text
+    after_200 = flat.split("### After 200 marks", 1)[1].split("###", 1)[0]
+    assert "Result: too early to tell. Mark more answers to get a result." in after_200
+    assert "Result: your LLM-as-a-judge is good enough to use." not in after_200
+    assert ('On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use"' in after_200)
+    draw = flat.split("## One draw on commit `6437d85`", 1)[1].split("## ", 1)[0]
+    assert "Result: your LLM-as-a-judge is good enough to use." in draw
+    assert ('In 7 of the 20 draws, judgekeeper 1.0.0b2 gave the result "good enough to use".'
+            in flat)
