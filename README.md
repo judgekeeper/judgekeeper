@@ -53,7 +53,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
    - Grading only your marked answers is enough to compare the two. To count new marks, grade all your answers with your new LLM-as-a-judge.
    - If you switched to a new pass mark with `judgekeeper check --pass-if`, a plain `judgekeeper` and `judgekeeper mark` ask for the pass mark again, with the new one as the default.
 
-judgekeeper only reads files. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
+judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
 ## The numbers
 

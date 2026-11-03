@@ -778,7 +778,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "judgekeeper only reads files. It makes no AI call and needs no API key. "
+        "judgekeeper reads your results files and writes only in .judgekeeper/, plus "
+        "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
     # the steps and the windows below are as wide as the top section: "The 5 steps." starts

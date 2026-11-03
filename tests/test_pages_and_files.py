@@ -70,7 +70,9 @@ def test_the_old_words_are_gone():
 def test_the_new_words():
     assert start_label.GITIGNORE.startswith("# judgekeeper's files hold your answers. ")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "judgekeeper only reads files. It makes no AI call and needs no API key." in readme
+    assert ("judgekeeper reads your results files and writes only in `.judgekeeper/`, plus "
+            "`judgekeeper.toml` after you say yes. It makes no AI call and needs no API "
+            "key.") in readme
     assert "Fix and Re-check run your eval tool" not in readme
     assert "![judgekeeper finds the results, opens the marking page" in readme
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
