@@ -720,6 +720,23 @@ def test_the_calm_line_shows_once_enough_are_looked_at_and_no_result_yet():
             "enough Pass and Fail marks.</p>") in page
 
 
+def test_a_card_shown_again_still_lets_the_bar_say_only_a_skipped_answer_is_left():
+    """An answer shown again adds a card, never an answer: with every other answer marked and
+    one skipped, the line under the bar says what the end card says."""
+    data = _data(60, counts={"correct": 30, "wrong": 29, "skipped": 1},
+                 status={"text": "x", "first": False, "ready": False})
+    for i, it in enumerate(data["items"]):
+        it.update({"label": "pass" if i % 2 else "fail"} if i else {"skipped": True})
+    data["items"].insert(1, {"id": "a5", "input": "Question 5?", "output": "Answer 5.",
+                             "label": None, "skipped": False, "again": 0})
+    data["total"], data["start"] = 61, 1
+    got = _run("""
+      console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));""",
+               data=data)
+    assert got == [False, ("The only answer left is the one you skipped. Mark it now, or run "
+                           "your eval on more questions.")]
+
+
 def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_marking():
     got = _run("""
       key("ArrowRight"); await settle();

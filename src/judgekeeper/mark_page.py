@@ -745,10 +745,12 @@ __TOP__
     var see = $("see"), keep = $("keep");
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
-    var few = total < WORDS.minPool;  // fewer answers than a first result needs: said at once
+    // the answers, without the cards shown again (each adds one to `total`, never a mark)
+    var answers = total - items.filter(function (it) { return it.again != null; }).length;
+    var few = answers < WORDS.minPool;  // fewer answers than a first result needs: said at once
     keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST && !few);
     // only skipped answers left (nothing else to mark): what the card in the middle says
-    var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= total;
+    var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= answers;
     keep.textContent = onlySkipped ? (skippedLeft === 1 ? WORDS.skippedOne : WORDS.skippedMany
       ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first
       : few ? WORDS.few : WORDS.wait;
