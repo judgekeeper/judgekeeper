@@ -2,7 +2,7 @@
 
 Written by `scripts/kept_aside_check.py`; do not edit by hand.
 
-`judgekeeper fix` keeps half of each group of marks aside (rounded up, at least 5 Pass and 5 Fail) and tests a new rule on those only. Here, made-up cases go through judgekeeper's own split and its own verdict, with new rules whose true effect is known. How many marks a clear answer needs depends on how much better or worse the new rule is: small improvements need many more marks. Marks come as the marking page offers them: 15 the LLM-as-a-judge passed and 15 it failed first, then in the pool's own mix; the LLM-as-a-judge passes 50% or 80% of 10,000 answers. 20,000 made-up cases per row, seed 20261027, commit `d71d89c`. No AI call.
+`judgekeeper fix` keeps half of each group of marks aside (rounded up, at least 5 Pass and 5 Fail) and tests a new rule on those only. Here, made-up cases go through judgekeeper's own split and its own verdict, with new rules whose true effect is known. How many marks a clear answer needs depends on how much better or worse the new rule is: small improvements need many more marks. Marks come as the marking page offers them: 15 the LLM-as-a-judge passed and 15 it failed first, then in the pool's own mix; the LLM-as-a-judge passes 50% or 80% of 10,000 answers. 20,000 made-up cases per row, seed 20261027, commit `e8de85d`. No AI call.
 
 ## The result
 
