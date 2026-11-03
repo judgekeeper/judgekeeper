@@ -745,7 +745,10 @@ __TOP__
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
     keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST);
-    keep.textContent = status.first ? WORDS.first : WORDS.wait;
+    // only skipped answers left (nothing else to mark): what the card in the middle says
+    var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= total;
+    keep.textContent = onlySkipped ? (skippedLeft === 1 ? WORDS.skippedOne : WORDS.skippedMany
+      ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first : WORDS.wait;
     $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
     if (status.waiting) { setLine("waiting", status.waiting); }
   }

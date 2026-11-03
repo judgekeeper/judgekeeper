@@ -984,3 +984,22 @@ def test_the_list_grows_or_shrinks_with_the_answers_and_keeps_the_rows_it_has(n)
         function (a, i) { return a === after[i]; }),
         last: after[after.length - 1].children[1].textContent}));""", _data(version="v1"))
     assert got == {"n": n, "same": True, "last": f"Question {n - 1}?"}
+
+
+@pytest.mark.parametrize("first", [False, True])
+def test_the_line_under_the_bar_says_only_skipped_answers_are_left_as_the_card_does(first):
+    """59 of 60 marked and 1 skipped, no coloured result: the line under the bar says what
+    the card in the middle says, never to keep going. With an answer left: keep going."""
+    data = _data(60, counts={"correct": 45, "wrong": 14, "skipped": 1},
+                 status={"text": "x", "first": first, "ready": False})
+    for item in data["items"][:59]:
+        item["label"] = "pass"
+    data["items"][59]["skipped"] = True
+    show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
+    card = "Only your 1 skipped answer is left. Look at it again, or run your eval on more questions."
+    assert _run(show, data=data) == [False, card]
+    data["counts"] = {"correct": 45, "wrong": 13, "skipped": 1}
+    data["items"][58]["label"] = None
+    said = _run(show, data=data)[1]
+    assert said == (mark_page.KEEP_GOING if not first else
+                    "Your first numbers are in. Too early to tell: keep marking.")
