@@ -313,7 +313,7 @@ def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
     model = f" -S model={quote_arg('mockllm/grader')}" if option else ""  # roles are kept
     assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
                                      f"-S instructions={quote_arg('<new rule>')}{model} "
-                                     "--action overwrite")
+                                     "--action overwrite --overwrite")
     assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
     assert (f"run `{fix.inspect_score(ws, new)}` with your new rule in place of `<new rule>`, "
             f"then run `judgekeeper fix {new}`") in said
@@ -368,6 +368,17 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     assert test["rule_hash"] == rule_hash(new_rule)  # the rule in the command reached the scorer
     code, out = run(capsys, "check")  # the new log, with the others: no choice to make
     assert "need a choice" not in out and "run your eval once" not in out, out
+
+    # a second rule: the same command, its new log there now, runs with no question asked
+    argv = [a.replace(new_rule, "Second rule. GRADE C or GRADE I.") for a in argv]
+    done = subprocess.run(
+        [sys.executable, "-c", cli, "score", *argv, "--model-role", "grader=mockllm/model",
+         "--display", "none"],
+        cwd=here, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
+        check=False)
+    assert done.returncode == 0, done.stdout + done.stderr
+    code, out = run(capsys, "fix", new)
+    assert fix.read_split(ws).tests[-1]["rule_hash"] == rule_hash("Second rule. GRADE C or GRADE I.")
 
 
 # Inspect's command line, where only the grader model's reply holds a grade (the task's model

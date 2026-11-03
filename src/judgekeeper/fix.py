@@ -1855,7 +1855,9 @@ def _first_file(ws: Workspace) -> str | None:
 NEW_LOG = "new.eval"
 NEW_LOG_TOO = "new-2.eval"  # when the marks test new.eval itself: never the log it reads
 # What is not known stays a placeholder (inspect_score)
-INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite"
+# --overwrite: the new log may be there from an earlier regrade, and inspect score would stop
+# to ask before writing over it
+INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite --overwrite"
 _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
 INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
 # The new rule, by the option the log set it in: model_graded_qa reads a template from a file

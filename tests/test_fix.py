@@ -1037,9 +1037,9 @@ def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, m
     ws.start.write_text(json.dumps(data), encoding="utf-8")
     log = textio.quote_arg("logs/tech facts.eval")  # as the shell here takes it
     assert fix.inspect_score(ws) == (f"inspect score {log} --scorer {scorer}{rule} "
-                                     "--action overwrite")
+                                     "--action overwrite --overwrite")
     assert fix.inspect_score(ws, rule=False) == (f"inspect score {log} --scorer {scorer} "
-                                                 "--action overwrite")
+                                                 "--action overwrite --overwrite")
     ws.start.write_text(json.dumps({**data, "results_files": ["gone.eval"]}), encoding="utf-8")
     assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
 
@@ -1061,7 +1061,7 @@ def test_the_inspect_score_command_sets_the_option_the_rule_is(tmp_path, scorer,
                                     "results_files": ["a.eval"], "rule_field": field}),
                         encoding="utf-8")
     assert fix.inspect_score(ws) == (f"inspect score logs/a.eval --scorer {scorer} "
-                                     f"-S {option} --action overwrite")
+                                     f"-S {option} --action overwrite --overwrite")
 
 
 def _hidden_counts(ws) -> tuple[int, int, int]:
