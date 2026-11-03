@@ -115,9 +115,7 @@ MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no
 # Every answer kept aside is there, none with a Pass or Fail: the grader did not grade
 NO_GRADES = ("Your new results have no grades. None of the {n} answers kept aside got a Pass "
              "or Fail from your new rule.")
-NO_GRADES_INSPECT = ("Inspect may have graded with your task's own model, not your grader model. "
-                     "Check the `-S` options you gave `inspect score`. Give again each option "
-                     "your scorer was set up with, its model too.")
+NO_GRADES_INSPECT = "Inspect may have graded with your task's own model, not your grader model."
 NO_GRADES_OTHER = "Check that your LLM-as-a-judge ran with its model and your new rule."
 COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
            "counted {them}.")

@@ -372,7 +372,8 @@ def test_a_grader_set_as_the_scorers_model_is_in_the_command_fix_prints(here, ca
     said = flat(out)
     assert code != 0 and "Result:" not in said, said
     assert fix.NO_GRADES.format(n=len(fix.read_split(ws).hidden)) in said, said
-    assert fix.NO_GRADES_INSPECT in said, said
+    assert ("Inspect may have graded with your task's own model, not your grader model. "
+            "Next:") in said, said
     assert said.endswith(f"run `{fix.inspect_score(ws, quote_arg(new))}` and then run "
                          f"`judgekeeper fix {new}`."), said
     (here / new).unlink()  # else Inspect asks before it writes over it
