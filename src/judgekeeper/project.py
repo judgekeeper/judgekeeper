@@ -158,7 +158,8 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
 def _same_eval(path: Path, store: Path) -> bool:
     """Whether the results file `path` is of the eval the session in `store` marks: read the
     same way (its eval tool or format), with at least one of its answers (the same question,
-    or the same answer: an id made the same way)."""
+    or the same answer: an id made the same way). A tool read another way than one file at
+    a time (judgekeeper.record()'s files, an MLflow store) is the same eval by its tool."""
     import json
 
     from judgekeeper import find, start
@@ -169,6 +170,8 @@ def _same_eval(path: Path, store: Path) -> bool:
         tool = json.loads(ws.start.read_text(encoding="utf-8")).get("tool")
         if not tool or find.classify_file(path) != tool:
             return False
+        if tool not in ("table", "inspect", *start.FILE_READERS):
+            return True
         held = [json.loads(line) for line in ws.pool.read_text(encoding="utf-8").splitlines()
                 if line.strip()]
         records = start._read(find.Result(tool, path, path.name, path.stat().st_size)).records
