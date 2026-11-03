@@ -1042,20 +1042,23 @@ def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, m
     assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
 
 
-@pytest.mark.parametrize(("field", "option"), [
-    ("instructions", f"instructions={textio.quote_arg('<new rule>')}"),
-    ("template", f"template={textio.quote_arg('<file with the new rule>')}")])
-def test_the_inspect_score_command_sets_the_option_the_rule_is(tmp_path, field, option):
-    """The rule goes in the option the log set it in, for any scorer. A template is read
-    from a file, so a rule with commas or colons reaches it whole."""
+@pytest.mark.parametrize(("scorer", "field", "option"), [
+    ("grader", "instructions", f"instructions={textio.quote_arg('<new rule>')}"),
+    ("model_graded_qa", "template", f"template={textio.quote_arg('<file with the new rule>')}"),
+    ("grader", "template", f"template={textio.quote_arg(fix.OWN_TEMPLATE[0])}")])
+def test_the_inspect_score_command_sets_the_option_the_rule_is(tmp_path, scorer, field, option):
+    """The rule goes in the option the log set it in, for any scorer. Inspect's own scorer
+    reads a template from a file, so a rule with commas or colons reaches it whole. A scorer
+    of the person's own may take it as text: the command says to give it as that scorer
+    takes it."""
     (tmp_path / "logs").mkdir()
     (tmp_path / "logs" / "a.eval").write_text("x", encoding="utf-8")
     ws = Workspace(tmp_path)
     ws.dir.mkdir()
-    ws.start.write_text(json.dumps({"tool": "inspect", "metric": "grader",
+    ws.start.write_text(json.dumps({"tool": "inspect", "metric": scorer,
                                     "results_files": ["a.eval"], "rule_field": field}),
                         encoding="utf-8")
-    assert fix.inspect_score(ws) == ("inspect score logs/a.eval --scorer grader "
+    assert fix.inspect_score(ws) == (f"inspect score logs/a.eval --scorer {scorer} "
                                      f"-S {option} --action overwrite")
 
 

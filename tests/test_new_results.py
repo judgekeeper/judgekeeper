@@ -6,6 +6,7 @@ already has, repeats, and too few marked answers to tell.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -178,6 +179,57 @@ def test_inspect_check_with_too_few_says_to_score_the_whole_log_again(here, caps
         "score your whole marked log again with your LLM-as-a-judge as it is now: run "), log
 
 
+def test_check_gives_inspect_the_rule_and_grader_model_as_they_are_now(here, capsys):
+    """A changed LLM-as-a-judge whose new log holds too few marked answers: check's command
+    scores the marked log with the new rule and the new grader model (never Inspect's stock
+    rule, never the task's model), Inspect's own command line takes it, and check reads the
+    log it writes."""
+    pytest.importorskip("inspect_ai")
+    import shlex
+    import subprocess
+    import sys
+
+    from inspect_ai import Task
+    from inspect_ai import eval as run_eval
+    from inspect_ai._cli.score import score_command
+    from inspect_ai.dataset import Sample
+    from inspect_ai.model import ModelOutput, get_model
+    from inspect_ai.scorer import model_graded_qa
+    from inspect_ai.solver import generate
+
+    _, ws = _marked_inspect_log(here, capsys, option=True)
+    rule = "New rule. GRADE C or GRADE I."
+    grader = get_model("mockllm/grader2", custom_outputs=[
+        ModelOutput.from_content("mockllm/grader2", "GRADE: C") for _ in range(5)])
+    task = Task(dataset=[Sample(input=f"Question {i}?", target=f"Answer {i}") for i in range(5)],
+                solver=generate(), scorer=model_graded_qa(instructions=rule, model=grader))
+    run_eval(task, model="mockllm/model", display="none", log_dir=str(here / "logs"))
+    code, out = run(capsys, "check")
+    said = flat(out)
+    assert code == 3 and "A re-check needs 15 of each" in said, out
+    new = fix.new_log(ws)
+    command = re.search(r"run `(inspect score [^`]*)`", said)[1]
+    assert f"-S instructions={quote_arg(rule)}" in command, said
+    assert f"-S model={quote_arg('mockllm/grader2')}" in command, said
+    assert fix.NOT_IN_S not in said  # the rule went in whole
+    argv = shlex.split(command)[2:]
+    assert "model=mockllm/grader2" in score_command.make_context("score", list(argv)).params["s"]
+    done = subprocess.run([sys.executable, "-c", GRADER_ONLY, "score", *argv, "--display",
+                           "none"], cwd=here, capture_output=True, text=True, timeout=300,
+                          stdin=subprocess.DEVNULL, check=False)
+    assert done.returncode == 0, done.stdout + done.stderr
+    code, out = run(capsys, "check", new)
+    assert code in (0, 1) and "Compared with before:" in out, out
+
+
+def test_a_rule_inspect_s_cannot_take_is_left_for_the_person_to_put_in(tmp_path):
+    """A rule with a comma or a colon can't go in `-S` whole: check's command keeps a
+    placeholder, and says how to grade with such a rule."""
+    assert not fix.fits_s("Old rule. GRADE: C or GRADE: I.") and not fix.fits_s("a, b")
+    assert fix.fits_s("New rule. GRADE C or GRADE I.") and not fix.fits_s("- a list")
+    assert "score() in Python" in fix.NOT_IN_S and fix.EVAL_TOOLS in fix.NOT_IN_S
+
+
 # Inspect AI: the log graded again ----------------------------------------------------------------
 
 def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
@@ -282,7 +334,7 @@ GRADER_ONLY = ("import sys; from inspect_ai.model._providers.mockllm import Mock
                "init = MockLLM.__init__\n"
                "def mine(self, model_name, *a, **k):\n"
                "    init(self, model_name, *a, **k)\n"
-               "    if model_name == 'grader': self.default_output = 'GRADE: C'\n"
+               "    if model_name.startswith('grader'): self.default_output = 'GRADE: C'\n"
                "MockLLM.__init__ = mine\n"
                "from inspect_ai._cli.main import main; sys.argv[0] = 'inspect'; main()")
 

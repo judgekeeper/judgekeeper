@@ -1837,6 +1837,12 @@ _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function
 INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
 # The new rule, by the option the log set it in: model_graded_qa reads a template from a file
 NEW_RULE = {"instructions": "<new rule>", "template": "<file with the new rule>"}
+NOW_RULE = {"instructions": "<your rule>", "template": "<file with your rule>"}  # check
+NOT_IN_S = ("Put your rule in place of `<your rule>`. A rule with a comma, or a colon followed "
+            "by a space, can't go in `-S`. Grade the log with Inspect's score() in Python "
+            "then, as " + EVAL_TOOLS + " shows.")
+# A scorer of the person's own may take its template as text, not a file
+OWN_TEMPLATE = ("<new rule, as your scorer takes it>", "<your rule, as your scorer takes it>")
 
 
 def _marked_log(ws: Workspace) -> tuple[str | None, str]:
@@ -1866,13 +1872,16 @@ def new_log(ws: Workspace) -> str:
     return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
 
 
-def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True) -> str:
+def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
+                  now: dict | None = None) -> str:
     """INSPECT_SCORE with the marked log and its scorer, so it runs as it is copied: the
     scorer is the LLM-as-a-judge's metric (`scorer.key` for a dict score). A placeholder
     stays only for what is not known (a log gone, a name `--scorer` can't take, the new
     rule). `out`: the new log it writes (`--output-file`, quoted already), in the one
     command. `rule`: the new rule goes in with `-S`, in the option the log set it in, or
-    `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule."""
+    `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule.
+    `now` (check): the LLM-as-a-judge as it is now (now_options): its rule when `-S` can take
+    it, its grader model, its grader role; else the marked log's grader model."""
     log = _marked_log(ws)[0]
     try:
         data = ws.data()
@@ -1883,12 +1892,53 @@ def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True) -> s
     scorer = name if _SCORER.fullmatch(name) else "<name>"
     if field not in NEW_RULE:
         field = "instructions" if scorer in INSPECT_OWN else None
-    option = f" -S {field}={quote_arg(NEW_RULE[field])}" if rule and field else ""
-    model = _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None
+    rules = NEW_RULE if now is None else NOW_RULE
+    value = rules.get(field) if field != "template" or scorer in INSPECT_OWN else (
+        OWN_TEMPLATE[now is not None])  # only Inspect's own scorers read a template file
+    if now is not None and field == "instructions" and fits_s(now.get("rule")):
+        value = now["rule"]
+    option = f" -S {field}={quote_arg(value)}" if rule and field else ""
+    model = (now or {}).get("model") or (
+        _scorer_model(ws, log, scorer) if log and scorer != "<name>" else None)
     option += f" -S model={quote_arg(model)}" if model else ""
+    role = (now or {}).get("role")
+    option += f" --model-role grader={quote_arg(role)}" if role else ""
     command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
                                    rule=option)
     return f"{command} --output-file {out}" if out else command
+
+
+def fits_s(rule) -> bool:
+    """Whether `-S` takes `rule` whole: Inspect reads -S values as YAML and splits text at
+    commas, so no comma, no colon, no "#", on one line, not starting with a YAML sign."""
+    return (isinstance(rule, str) and 0 < len(rule) <= 500 and rule.isprintable()
+            and not re.search(r"[,:#]", rule) and not re.match(r"[\s\[\]{}&*!|>'\"%@`-]", rule))
+
+
+def now_options(ws: Workspace, found) -> dict:
+    """For `check`: the LLM-as-a-judge as the newest results hold it, for inspect_score: its
+    rule, the model its scorer was given, and its grader role when the marked log's differs
+    (`inspect score` keeps the marked log's roles)."""
+    from judgekeeper.readers.inspect_logs import _model, eval_header
+
+    out: dict = {"rule": getattr(found, "rule", None)}
+    results = getattr(found, "results", None) or []
+    if not results:
+        return out
+    try:
+        metric = ws.data().get("metric")
+    except (OSError, ValueError, AttributeError):
+        metric = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    if _SCORER.fullmatch(name):
+        out["model"] = _scorer_model(ws, str(results[0].path), name)
+    role = _model((eval_header(results[0].path).get("model_roles") or {}).get("grader"))[0]
+    marked = _marked_log(ws)[0]
+    was = _model((eval_header(Path(ws.root) / marked).get("model_roles") or {}).get(
+        "grader"))[0] if marked else None
+    if isinstance(role, str) and role.isprintable() and "+" not in role and role != was:
+        out["role"] = role
+    return out
 
 
 def scorer_model(ws: Workspace) -> str | None:

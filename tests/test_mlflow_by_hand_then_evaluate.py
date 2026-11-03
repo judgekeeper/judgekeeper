@@ -12,7 +12,6 @@ import sys
 
 import pytest
 
-from judgekeeper import fix
 from judgekeeper.cli import main
 
 HEAD = r"""

@@ -2032,7 +2032,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                     said.say()
                     said.say("Next: " + fix.FOLLOW_STEPS)
                 else:
-                    said.say("Next: " + regrade_marked(state, every=True))
+                    said.say("Next: " + regrade_marked(state, every=True, found=found))
                 return EXIT_OK
             said.say()
             said.say(_next_same(state))
@@ -2150,7 +2150,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
                                      again=_command(state))
     elif (picked["ask"] or unsure) and n < total and every:  # marks the results did not hold:
         # more marks can't be made, and new answers would not help
-        then = "Next: " + regrade_marked(state, every=True)
+        then = "Next: " + regrade_marked(state, every=True, found=found)
     elif picked["ask"]:
         asks = True
         need = PICK_MARKS - picked["new_marks"]
@@ -2373,14 +2373,14 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        lines, step = _few_step(state, c)
+        lines, step = _few_step(state, c, found)
         for line in lines:
             said.say(line)
         said.say("Next: " + step)
     return few
 
 
-def _few_step(state: State, asked: int) -> tuple[list[str], str]:
+def _few_step(state: State, asked: int, found=None) -> tuple[list[str], str]:
     """How to grade the marked answers again when the results hold too few of them: the
     lines before the Next line, and its step (without "Next: "). For promptfoo, the
     regrade.yaml steps; else the Next line says how. `asked`: how many marked questions the
@@ -2391,7 +2391,7 @@ def _few_step(state: State, asked: int) -> tuple[list[str], str]:
     if steps:  # a ready config: change the grader in it
         return [GRADE_MARKED if asked else GRADE_SAME, *steps.split("\n"), ""], fix.FOLLOW_STEPS
     # new answers can't be compared; the Next line says how to grade them
-    return [WROTE_NEW] if asked else [], regrade_marked(state, every=True)
+    return [WROTE_NEW] if asked else [], regrade_marked(state, every=True, found=found)
 
 
 def too_few_here(ws: Workspace, found) -> tuple[str, list[str], str] | None:
@@ -2409,7 +2409,7 @@ def too_few_here(ws: Workspace, found) -> tuple[str, list[str], str] | None:
         return None
     state = State(ws=ws, path=".", data=data, marks=m, saved={})
     gone = [i for i in m if i not in matched]
-    lines, step = _few_step(state, _asked_again(found, gone, ws) if gone else 0)
+    lines, step = _few_step(state, _asked_again(found, gone, ws) if gone else 0, found)
     return (FEW_HERE.format(p=kinds.count("pass"), f=kinds.count("fail"), need=targets.ROUGH),
             lines, step)
 
@@ -2446,11 +2446,12 @@ def _asked_again(found, ids, ws: Workspace) -> int:
         for q in _marked_question(row.get("input"), row.get("output"))))
 
 
-def regrade_marked(state: State, every: bool = False) -> str:
+def regrade_marked(state: State, every: bool = False, found=None) -> str:
     """The way to new grades on the answers marked (without "Next: "): grade them again as
     the eval tool does, then `check` the new results. Running the eval again would make new
     answers, which can't be compared. `every`: the new results left some out, so it says to
-    grade every one."""
+    grade every one. `found`: the new results, whose rule and grader model Inspect's command
+    gives again."""
     from judgekeeper import fix
 
     ws, tool = state.ws, state.data.get("tool")
@@ -2459,14 +2460,16 @@ def regrade_marked(state: State, every: bool = False) -> str:
     if store:
         return (f"evaluate {'all ' if every else ''}the same traces again with your "
                 f"LLM-as-a-judge as it is now "
-                f"(`mlflow.genai.evaluate()`), then run `{check} {store}`: it reads the newest "
+                f"(`mlflow.genai.evaluate()`), then run `{check} {store}`. It reads the newest "
                 f"run.")
     if tool == "inspect":
         log = quote_arg(fix.new_log(ws))
+        now = fix.now_options(ws, found) if found is not None else {}
+        command = fix.inspect_score(ws, log, now=now)
+        note = f" {fix.NOT_IN_S}" if "<your rule>" in command else ""
         return (f"score your {'whole ' if every else ''}marked log again with your "
-                f"LLM-as-a-judge as it is now: run "
-                f"`{fix.inspect_score(ws, log, rule=False)}` and then "
-                f"{_run_in(ws, log, _away(ws))}.")
+                f"LLM-as-a-judge as it is now: run `{command}` and then "
+                f"{_run_in(ws, log, _away(ws))}.{note}")
     return _regrade_answers(ws, fix._file(ws, fix.ANSWERS), "your LLM-as-a-judge as it is now",
                             every)
 
