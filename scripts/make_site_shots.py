@@ -7,8 +7,8 @@ It makes a sample project in a temporary folder whose LLM-as-a-judge decided on 
 saved with judgekeeper.record(): no judge is called and no API key is read. Then it runs
 `judgekeeper --wait` there at a pseudo-terminal, as a person does, so the link is not one
 printed for a program and the result page has no note about it. It marks the answers through
-the page's own HTTP calls (POST /label) and takes label.webp, result.webp and
-docs/assets/readme-label.png with headless Chrome over its DevTools protocol.
+the page's own HTTP calls (POST /label) and takes label.webp and result.webp with headless
+Chrome over its DevTools protocol.
 
 Each picture must be under 250 KB; the WebP quality goes down until it is.
 Standard library only, plus judgekeeper itself.
@@ -38,8 +38,6 @@ import judgekeeper
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "website" / "assets" / "shots"
-README_SHOT = ROOT / "docs" / "assets" / "readme-label.png"  # the README's marking page
-README_WIDTH = 1600
 CHROME_PORT = 8803  # Chrome's DevTools
 WIDTH, HEIGHT, SCALE = 1440, 900, 2
 MAX_BYTES = 250_000
@@ -385,13 +383,6 @@ class Chrome:
         path.write_bytes(data)
         return len(data), quality
 
-    def png(self, path: Path, width: int) -> int:
-        """Save the viewport as PNG, `width` pixels wide: its bytes."""
-        clip = {"x": 0, "y": 0, "width": WIDTH, "height": HEIGHT, "scale": width / WIDTH / SCALE}
-        data = base64.b64decode(self.call("Page.captureScreenshot", format="png", clip=clip)["data"])
-        path.write_bytes(data)
-        return len(data)
-
     def close(self) -> None:
         try:
             self.socket.close()
@@ -427,10 +418,8 @@ def mark(start: Start, items: list[dict]) -> None:
         start.post("/label", {"id": item["id"], "label": my_mark(item), "seconds": SECONDS})
 
 
-def label_and_result(chrome: Chrome, folder: Path, out: Path,
-                     readme: Path | None = None) -> list[Path]:
-    """Mark part of the way and take the labeling page (also as the README's PNG, when
-    `readme`); mark the rest and take the result."""
+def label_and_result(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
+    """Mark part of the way and take the labeling page; mark the rest and take the result."""
     start = Start(folder)
     try:
         items = start.get("/state")["items"]
@@ -447,10 +436,6 @@ def label_and_result(chrome: Chrome, folder: Path, out: Path,
             raise SystemExit("the first-time card is still showing")
         label = out / "label.webp"
         report(label, chrome.shot(label))
-        if readme is not None:
-            size = chrome.png(readme, README_WIDTH)
-            print(f"{readme.relative_to(ROOT) if readme.is_relative_to(ROOT) else readme}: "
-                  f"{size / 1000:.0f} KB")
         mark(start, items[first:])
         chrome.visit(start.address("/result"), settle=4.0)  # the result draws itself
         result = out / "result.webp"
@@ -481,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         make_project(folder)
         chrome = Chrome(chrome_path, work / "chrome")
-        label_and_result(chrome, folder, args.out, README_SHOT if args.out == OUT else None)
+        label_and_result(chrome, folder, args.out)
     finally:
         if chrome is not None:
             chrome.close()
