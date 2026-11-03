@@ -374,8 +374,9 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
 def cut_off(path: str | Path) -> bool:
     """Whether a CSV or TSV file ends inside a quote, as records.load_json says of JSON that
     stops inside a string: its last row's last cell, as written, is text holding a quote (one
-    not at the cell's start, which the reader keeps as text), and the file stops there or
-    that row has fewer cells than the header. Rows where every cell is empty are not rows."""
+    not at the cell's start, which the reader keeps as text) or text after a closing quote,
+    and the file stops there or that row has fewer cells than the header. Rows where every
+    cell is empty are not rows."""
     from contextlib import closing
 
     path = Path(path)
@@ -407,8 +408,9 @@ def cut_off(path: str | Path) -> bool:
 
 
 def _last_cell(row: str, delimiter: str) -> tuple[int, bool, bool]:
-    """Of one row as written: (its cells, whether its last cell is text holding a quote,
-    whether it stops with no line break), read as the csv module reads it."""
+    """Of one row as written: (its cells, whether its last cell is text holding a quote or
+    text after a closing quote, whether it stops with no line break), read as the csv module
+    reads it."""
     cells, state, stray = 1, "start", False
     for c in row:
         if c in "\r\n" and state != "quoted":
@@ -421,8 +423,9 @@ def _last_cell(row: str, delimiter: str) -> tuple[int, bool, bool]:
             stray = stray or c == '"'
         elif state == "quoted":
             state = "after" if c == '"' else "quoted"
-        else:  # after a quote in a quoted cell: a doubled quote, or text after it
-            state = "quoted" if c == '"' else "in"
+        else:  # after a quote in a quoted cell: a doubled quote, or text after it, which the
+            # csv module reads on from with the quote dropped
+            state, stray = ("quoted", stray) if c == '"' else ("in", True)
     return cells, stray, True
 
 

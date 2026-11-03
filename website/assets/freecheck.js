@@ -718,8 +718,8 @@
   }
   // table.cut_off: the file ends inside a quote, as JSON that stops inside a string: its last
   // row's last cell, as written, is text holding a quote (one not at the cell's start, kept as
-  // text), and the file stops there or that row has fewer cells than the header. Rows where
-  // every cell is empty are not rows.
+  // text) or text after a closing quote, and the file stops there or that row has fewer cells
+  // than the header. Rows where every cell is empty are not rows.
   function cutOff(text, d) {
     var header = null, last = null, cells = 1, state = 'start', stray = false, any = false, from = 0;
     function end(at, stops) {
@@ -739,7 +739,8 @@
       if (state === 'start') state = c === '"' ? 'quoted' : 'in';
       else if (state === 'in') stray = stray || c === '"';
       else if (state === 'quoted') state = c === '"' ? 'after' : 'quoted';
-      else state = c === '"' ? 'quoted' : 'in';  // after a quote in a quoted cell
+      else if (c === '"') state = 'quoted';  // after a quote in a quoted cell: a doubled quote
+      else { state = 'in'; stray = true; }  // or text after it, read on with the quote dropped
       if (/\S/.test(c) && (c !== '"' || state === 'in')) any = true;
     }
     if (from < text.length) end(text.length, true);

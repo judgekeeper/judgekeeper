@@ -112,6 +112,30 @@ def test_a_table_cut_off_inside_a_quote_says_it_ends_in_the_middle(tmp_path, hea
                                  "it again from your eval tool.")
 
 
+@pytest.mark.parametrize("last, cut", [('q 12,"a 12, as our policy "unterminated', True),
+                                       ('q 12,"a 12, as our "p', True),
+                                       ('q 12,"a 12, a ""quoted"" word."', False),
+                                       ('q 12,"a 12, 5"" wide",pass', False)])
+def test_a_table_cut_in_a_quoted_cell_just_after_a_quote(tmp_path, last, cut):
+    """Text after a closing quote, where the file stops: cut off; doubled quotes: whole."""
+    rows = [f'question {i},"answer {i}, in full.",{"pass" if i % 2 else "fail"}'
+            for i in range(12)]
+    path = tmp_path / "judged.csv"
+    path.write_text("\n".join(["input,output,verdict", *rows, last]), encoding="utf-8")
+    result = browser(path)
+    if cut:
+        with pytest.raises(start.StartError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)\. Save it again from your eval tool\."):
+            start.find_judge(path)
+        assert result["ok"] is False
+        assert result["message"] == ("This file is cut off or damaged (it ends in the middle). "
+                                     "Save it again from your eval tool.")
+    else:
+        start.find_judge(path)
+        assert result["ok"] is True
+        assert _page(result) == tool(path)
+
+
 @pytest.mark.parametrize("last", ['q 12,a 12', 'q 12,"a 12, 5"" wide",pass', 'q 12,5" wide,fail'])
 def test_a_last_row_whole_or_with_no_quote_left_open_is_read(tmp_path, last):
     rows = [f"question {i},answer {i},{'pass' if i % 2 else 'fail'}" for i in range(12)]
