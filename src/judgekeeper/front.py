@@ -1393,7 +1393,7 @@ def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | No
         said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
         return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
-    if left is not None and left < targets.ROUGH - fail_marks:  # can't be reached by marking
+    if fails_out_of_reach(fails, answers, left, fail_marks):
         return out + " " + FAILS_OUT_OF_REACH.format(
             left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
@@ -1403,12 +1403,25 @@ def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | No
     return out
 
 
-def _needs_each_kind(talk, session: StartSession) -> None:
+def fails_out_of_reach(fails: int, answers: int, left: int | None = None,
+                       fail_marks: int = 0) -> bool:
+    """Whether marking the `left` answers can't reach targets.ROUGH Fail marks (`fail_marks`
+    made), when the LLM-as-a-judge failed `fails` of the `answers` and passed the others
+    (None: every answer is left)."""
+    one_grade = answers and fails in (0, answers)
+    return not one_grade and left is not None and left < targets.ROUGH - fail_marks
+
+
+def _each_kind(session: StartSession) -> dict:
+    """needs_each_kind's numbers for `session`, but `said`."""
     groups = list(session.groups.values())  # every answer to mark, each batch's too
-    left = sum(not i["label"] for i in session.items)
-    fail_marks = sum(i["label"] == "fail" for i in session.items)
-    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails, left=left,
-                              fail_marks=fail_marks))
+    return {"fails": groups.count("fail"), "answers": len(groups),
+            "left": sum(not i["label"] for i in session.items),
+            "fail_marks": sum(i["label"] == "fail" for i in session.items)}
+
+
+def _needs_each_kind(talk, session: StartSession) -> None:
+    talk.para(needs_each_kind(said=talk.few_fails, **_each_kind(session)))
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
@@ -2087,6 +2100,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
+    if not enough and fails_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
+        next_step = start_label.NEXT_ALL_MARKED
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para("Next: " + next_step.format(command=command))
