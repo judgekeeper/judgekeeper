@@ -249,9 +249,8 @@ def test_a_rule_inspect_s_cannot_take_is_left_for_the_person_to_put_in(tmp_path)
     assert not fix.fits_s("Old rule. GRADE: C or GRADE: I.") and not fix.fits_s("a, b")
     assert fix.fits_s("New rule. GRADE C or GRADE I.") and not fix.fits_s("- a list")
     assert fix.NOT_IN_S == (
-        "Put your rule in place of `<current rule>`. A rule with a comma, or a colon followed by "
-        "a space, can't go in `-S`. Grade the log with Inspect's score() in Python, as "
-        f"{fix.EVAL_TOOLS} shows.")
+        "Put your rule in place of `<current rule>`. For a rule with a comma, colon or #, use "
+        f"Inspect's score() in Python, as {fix.EVAL_TOOLS} shows.")
 
 
 def test_a_known_rule_inspect_s_cannot_take_gets_no_command_to_fill_in(here, capsys,
@@ -330,7 +329,7 @@ def _marked_inspect_log(here, capsys, option: bool = False) -> tuple:
     assert fix.EVAL_TOOLS in fix.REGRADE["inspect"] and "score() in Python" in said
     assert fix.EVAL_TOOLS == "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
     tools = (Path(__file__).parents[1] / "docs" / "eval-tools.md").read_text(encoding="utf-8")
-    assert "- **A new rule with a comma, or a colon followed by a space.**" in tools
+    assert "- **A new rule with a comma, colon or #.**" in tools
     return log, ws
 
 

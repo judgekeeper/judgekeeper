@@ -106,7 +106,7 @@ To grade the same answers again, grade your log again, with no new answers: `ins
 - `--action overwrite` replaces the old grades in the new log, so your scorer's name holds the new ones (Inspect's default, `append`, keeps both).
 - `--output-file` writes a new log in your log folder (`logs/` here), so yours stays as it was and `check` finds the new one there.
 
-Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspect]`). A rule with a comma, or a colon followed by a space, needs Python: see the traps.
+Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspect]`). For a rule with a comma, colon or #, use Python: see the traps.
 
 **Traps.**
 
@@ -115,7 +115,7 @@ Then run `judgekeeper fix logs/new.eval` (a `.eval` log needs `judgekeeper[inspe
 - **Code scorers** (`match`, `includes`, `exact`, `pattern`, `f1`, `answer`) are left out, and so is a sample that failed before scoring.
 - **The grading template.** The prompt hash covers the `template` and `instructions` options, not Inspect's default template. Set `template` to track it.
 - **Grades the grader skips.** A grader model that leaves out the `GRADE:` line ("Grade not found in model output") gives that answer no decision. In `judgekeeper fix <log>`, each one kept aside counts as the new rule's mistake, and it says how many; with more than half ungraded, grade the log again. `check` leaves them out and says how many.
-- **A new rule with a comma, or a colon followed by a space.** `inspect score -S instructions="…"` breaks such a rule: Inspect reads `-S` values as YAML, so a colon followed by a space (`GRADE: C`) makes it something other than text, then splits text at commas. Grade the log again with Inspect's `score()` in Python instead, which keeps the whole rule under your scorer's name:
+- **A new rule with a comma, colon or #.** `inspect score -S instructions="…"` breaks such a rule: Inspect reads `-S` values as YAML, so a colon followed by a space (`GRADE: C`) makes it something other than text, then splits text at commas. Grade the log again with Inspect's `score()` in Python instead, which keeps the whole rule under your scorer's name:
 
   ```python
   from pathlib import Path
