@@ -221,7 +221,7 @@ def test_what_next_has_the_websites_command_box():
     assert "<p>Next, in your terminal, in your project folder:</p>" in fix
     assert "marked-answers.csv" not in fix and "In your project folder" not in fix
     assert '<div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" ' \
-           'data-copy aria-label="Copy the command">' in fix
+           'data-copy aria-label="Copy command: judgekeeper fix">' in fix
     assert '<svg class="i-copy"' in fix and '<svg class="i-tick"' in fix
     assert '<span class="copied" aria-live="polite"></span>' in fix
     style = report_page.STYLE

@@ -986,9 +986,10 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
         "judgekeeper mark", "judgekeeper fix", "judgekeeper fix new-results.json",
         "judgekeeper check new-results.json",
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
-    for box in boxes:
+    for box in boxes:  # each button is named by the command it copies
         (button,) = _all(box, "button", "copy")
-        assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
+        command = _flat(_all(box, "code")[0])
+        assert "data-copy" in button.attrs and button.attrs["aria-label"] == f"Copy command: {command}"
         assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
@@ -1345,11 +1346,13 @@ def test_guide_page_pictures_after_first_paragraph():
 def test_on_a_phone_the_guides_pictures_open_full_size():
     """Each picture is a plain link to its file, and a small "Tap to enlarge" under it shows
     on phones only."""
-    for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
+    for step, picture, page in (("step-mark", "label.webp", "marking"),
+                                ("step-measure", "result.webp", "result")):
         body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
         (figure,) = _all(body, "figure", "gx-shot")
         (link,) = _all(figure, "a")
-        assert link.attrs == {"href": f"assets/shots/{picture}"}, step
+        assert link.attrs == {"href": f"assets/shots/{picture}",
+                              "aria-label": f"Enlarge the picture of the {page} page"}, step
         assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
         after = [el for el in body.children if isinstance(el, Element)]
         tap = after[after.index(figure) + 1]

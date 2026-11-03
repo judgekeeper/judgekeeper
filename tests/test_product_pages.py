@@ -734,7 +734,7 @@ def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
     assert SAVED in part
     assert "<p>Next, in your terminal, in your project folder:</p>" in part
     assert (f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
-            'aria-label="Copy the command">') in part
+            f'aria-label="Copy command: {fix}">') in part
     assert "Nothing more to do" not in part
     assert part.index("saved in this project") < part.index("Next, in your terminal") \
         < part.index('class="cmd"')

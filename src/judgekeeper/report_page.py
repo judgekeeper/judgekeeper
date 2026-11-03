@@ -1293,7 +1293,8 @@ def _next(r: dict, back: str | None) -> str:
         out.append("<p>Next, in your terminal, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '
-                   f'class="copy" data-copy aria-label="Copy the command">{COPY_ICONS}</button>'
+                   f'class="copy" data-copy aria-label="Copy command: {_e(commands(r)["fix"])}">'
+                   f"{COPY_ICONS}</button>"
                    "</div>")
     else:
         out.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
