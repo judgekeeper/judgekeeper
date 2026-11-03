@@ -37,7 +37,7 @@
     grading: ["LLM-as-a-judge's decisions", 'PROMPTFOO_STRIP_GRADING_RESULT']
   };
 
-  var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your project.";
+  var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow, with its inspect or mlflow extra: run uvx --from \"judgekeeper[inspect]\" judgekeeper (or \"judgekeeper[mlflow]\") in your project.";
   // a table whose columns it can't place: the columns it found, and those it reads
   function NOT_COLUMNS(columns) {
     var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
@@ -56,7 +56,8 @@
   var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var EMPTY = 'This file is empty.';
-  var FULL_TOOL = 'Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in your project.';
+  var INSPECT_TOOL = 'Inspect AI logs are read by the full tool, with its inspect extra: run uvx --from "judgekeeper[inspect]" judgekeeper in your project.';
+  var MLFLOW_TOOL = 'MLflow results are read by the full tool, with its mlflow extra: run uvx --from "judgekeeper[mlflow]" judgekeeper in your project.';
   var EXCEL_FILE = "Excel files aren't read. Save it as CSV UTF-8.";
   var SPREADSHEET_FILE = "Spreadsheet files aren't read. Save it as CSV UTF-8.";
   // first bytes: a zip (Inspect's .eval log, or an Excel or OpenDocument spreadsheet) and an
@@ -1202,7 +1203,7 @@
       if (zip === 'excel') return fail('excel', EXCEL_FILE);
       if (zip === 'spreadsheet') return fail('excel', SPREADSHEET_FILE);
       if (zip === 'opendocument') return fail('not-recognised', NOT_RECOGNISED);
-      return fail('full-tool', FULL_TOOL);
+      return fail('full-tool', bytes[0] === ZIP_START[0] ? INSPECT_TOOL : MLFLOW_TOOL);
     }
     var fileText;
     try { fileText = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { return fail('not-utf8', NOT_UTF8); }
@@ -1387,6 +1388,7 @@
 
   var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
   var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
+  var NEXT_FULL_TOOL = 'pick another file, or run that command in your project.';
 
   // A line of the terminal: [class, text] parts; the class is one of Home's terminal colours
   function termLine(parts) {
@@ -1515,17 +1517,17 @@
       boxShows(fileName || 'your file');
     }
 
-    function showError(message, fileName) {
+    function showError(message, fileName, kind) {
       begin(fileName);
       var pre = el('pre', 'fc-term');
       termTop(pre);
       pre.appendChild(termLine([['t-warn', message]]));
-      termNext(pre, NEXT_AFTER_ERROR);
+      termNext(pre, kind === 'full-tool' ? NEXT_FULL_TOOL : NEXT_AFTER_ERROR);
       out.appendChild(pre);
     }
 
     function show(result, count, fileName) {
-      if (!result.ok) return showError(result.message, fileName);
+      if (!result.ok) return showError(result.message, fileName, result.kind);
       begin(result.file);
       if (count > 1) out.appendChild(el('p', 'fc-many', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
       var current = 0;

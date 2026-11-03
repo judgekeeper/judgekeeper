@@ -115,7 +115,8 @@ def _options() -> set[str]:
 
 
 # Flags of the eval tools whose commands the Reference shows (promptfoo, Inspect AI)
-OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples"}
+OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples",
+               "--from"}  # uvx --from "judgekeeper[inspect]"
 
 
 def _every_text(page: Path) -> str:

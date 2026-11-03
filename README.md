@@ -27,7 +27,7 @@ pip install judgekeeper
 judgekeeper
 ```
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
-Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"`.
+Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`).
 
 Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result. The result will say your marks came through a link the agent printed. If you marked them yourself, you can ignore that.
 

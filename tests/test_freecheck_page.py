@@ -121,8 +121,9 @@ NOT_CHECKED = {
     "page-records.jsonl": ("This is a judgekeeper.record() file. This page does not read it: "
                            "run uvx judgekeeper in your project for this file."),
     "not-results.json": ("This doesn't look like results judgekeeper can read in the browser. "
-                         "The tool also reads Inspect AI and MLflow: run uvx judgekeeper in "
-                         "your project."),
+                         "The tool also reads Inspect AI and MLflow, with its inspect or mlflow "
+                         'extra: run uvx --from "judgekeeper[inspect]" judgekeeper (or '
+                         '"judgekeeper[mlflow]") in your project.'),
     "table-output.json": ("This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's "
                           "own decisions. Save the full results with promptfoo eval -o "
                           "results.json."),
@@ -142,8 +143,10 @@ def test_a_file_the_page_does_not_check_says_what_to_do(name, said):
     assert not result["ok"] and result["message"] == said
 
 
-FULL_TOOL = ("Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in "
-             "your project.")
+INSPECT_TOOL = ('Inspect AI logs are read by the full tool, with its inspect extra: run '
+                'uvx --from "judgekeeper[inspect]" judgekeeper in your project.')
+MLFLOW_TOOL = ('MLflow results are read by the full tool, with its mlflow extra: run '
+               'uvx --from "judgekeeper[mlflow]" judgekeeper in your project.')
 
 
 @needs_node
@@ -153,7 +156,7 @@ def test_an_inspect_eval_file_says_the_full_tool_reads_it(tmp_path):
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("header.json", '{"eval": {"task": "task"}}')
     result = browser(path)
-    assert not result["ok"] and result["message"] == FULL_TOOL
+    assert not result["ok"] and result["message"] == INSPECT_TOOL
 
 
 @needs_node
@@ -164,7 +167,7 @@ def test_an_mlflow_store_says_the_full_tool_reads_it(tmp_path):
         db.execute("CREATE TABLE assessments (assessment_id TEXT)")
         db.commit()
     result = browser(path)
-    assert not result["ok"] and result["message"] == FULL_TOOL
+    assert not result["ok"] and result["message"] == MLFLOW_TOOL
 
 
 @needs_node

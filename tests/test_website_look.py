@@ -752,7 +752,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
         ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
-         '"judgekeeper[inspect]".'),
+         '"judgekeeper[inspect]"; with uv, uvx --from "judgekeeper[mlflow]" judgekeeper or '
+         'uvx --from "judgekeeper[inspect]" judgekeeper.'),
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
@@ -1169,8 +1170,9 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert _flat(link) == "next step: install judgekeeper →"
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
-            'browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your '
-            'project.";') in script
+            'browser. The tool also reads Inspect AI and MLflow, with its inspect or mlflow '
+            'extra: run uvx --from \\"judgekeeper[inspect]\\" judgekeeper (or '
+            '\\"judgekeeper[mlflow]\\") in your project.";') in script
 
 
 def test_waiting_terminal_uses_the_codes_labels(tmp_path):
