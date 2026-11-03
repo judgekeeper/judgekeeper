@@ -80,7 +80,7 @@ def test_promptfoo_check_on_a_few_answers_cant_tell_yet(here, capsys):
     assert code == 3, out  # 2 of the 5 were marked Fail: too few to call it a drop
     assert ("45 of your 50 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out)
-    assert "Result: can't tell yet." in out and "Re-checked on" not in out
+    assert "Compared with before: can't tell yet." in out and "Re-checked on" not in out
     assert judge_models(ws) == [MODEL]  # the old judge stays
 
 
@@ -448,7 +448,7 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys):
     _, out = _check(capsys)
     assert ("30 of your 40 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out), out
-    assert "Result: can't tell yet." in out
+    assert "Compared with before: can't tell yet." in out
     _rubric(here, split(20, 20), RULE_B)  # then the whole eval
     _, out = _check(capsys)
     assert "You added" not in out, out  # no mark was made since
@@ -950,7 +950,7 @@ def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(her
     assert trigger.count("back") == 1
     code, out = _check(capsys, "new.json")  # a change again: compared with the rule marked on
     assert code == 0 and "Your LLM-as-a-judge changed: rule changed." in flat(out), out
-    assert "Result: worse" not in out
+    assert "Compared with before: worse" not in out
 
 
 def test_measure_says_right_under_the_result_how_many_got_no_grade(here, capsys):

@@ -80,11 +80,13 @@ NO_DROP = round(targets.NO_DROP_MARGIN * 100)
 VERDICT_WORDS = {"worse": "Worse", "not_sure": "Not sure", "better": "Better",
                  "no_drop": f"No drop bigger than {NO_DROP} points"}
 # The screen: the result first, then the table's outcome word per group
-RESULT = {"worse": "Result: worse. Your new LLM-as-a-judge agrees with you less.",
-          "not_sure": ("Result: not sure. These marks can't tell whether your new LLM-as-a-judge "
-                       "agrees with you less."),
-          "no_drop": (f"Result: no drop bigger than {NO_DROP} in every 100 answers for your new "
-                      "LLM-as-a-judge.")}
+RESULT = {"worse": "Compared with before: worse. Your new LLM-as-a-judge agrees with you less.",
+          "not_sure": ("Compared with before: not sure. These marks can't tell whether your new "
+                       "LLM-as-a-judge agrees with you less."),
+          "no_drop": (f"Compared with before: no drop bigger than {NO_DROP} in every 100 answers "
+                      "for your new LLM-as-a-judge.")}
+# worse, with the side or sides that dropped (result_line)
+WORSE_ON = "Compared with before: worse. Your new LLM-as-a-judge agrees with you less on "
 TABLE_WORDS = {"worse": "Worse", "not_sure": "Not sure", "no_drop": "No big drop",
                "better": "Better"}
 BETTER_LINE = "Better: your new LLM-as-a-judge agrees with you more on this side."
@@ -127,7 +129,7 @@ CHANGED = ("Your new results ask {c} of those questions again with a different a
            "eval wrote new answers, and judgekeeper compares only the answers you marked.")
 EARLIER = ("{k} of your marked answers {have} no grade from your old LLM-as-a-judge, so "
            "judgekeeper left {them} out of the table.")
-TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
+TOO_FEW = ("Compared with before: can't tell yet. Your new results hold {p} of the answers you marked Pass and "
            "{f} you marked Fail; a re-check needs {need} of each.")
 # A plain run on results `check` can't tell from (too_few_here): the marks still test the old
 FEW_HERE = ("Your new results hold {p} of the answers you marked Pass and {f} you marked Fail; a "
@@ -997,10 +999,25 @@ def expect_lines(g: dict) -> list[str]:
     return out
 
 
-def _say_result(said: Said, g: dict) -> None:
+def result_line(g: dict) -> str | None:
+    """The check's headline (RESULT); worse names the side or sides that dropped, with how
+    many of its marks the new judge agrees with, and the old one did."""
     kind = outcome(g)
-    if kind:
-        said.para(RESULT[kind])
+    worse = [(key, g[key]) for key, _, _ in SIDES if g[key]["n"] and g[key]["verdict"] == "worse"]
+    if kind != "worse" or not worse:
+        return RESULT.get(kind) if kind else None
+    def on(key, x):
+        return f"the answers you {key}", f"{x['new_right']} of {x['n']}, down from {x['old_right']}"
+    if len(worse) == 1:
+        side, counts = on(*worse[0])
+        return f"{WORSE_ON}{side}: {counts}."
+    return WORSE_ON + " and on ".join("{} ({})".format(*on(*w)) for w in worse) + "."
+
+
+def _say_result(said: Said, g: dict) -> None:
+    line = result_line(g)
+    if line:
+        said.para(line)
         said.say()
 
 

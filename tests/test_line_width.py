@@ -10,7 +10,7 @@ from tests import test_fix as base
 
 here = base.here  # the fixture: a project folder
 
-LONG = ("Result: no drop", "On answers you", "On marks made after")
+LONG = ("Compared with before: no drop", "On answers you", "On marks made after")
 
 
 def _long(out: str) -> list[str]:
@@ -26,7 +26,7 @@ def test_the_check_lines_wrap_at_the_same_width(here, capsys):
     capsys.readouterr()
     main(["check"])
     out = capsys.readouterr().out
-    assert "Result: no drop bigger than" in out, out
+    assert "Compared with before: no drop bigger than" in out, out
     assert "On answers you pass" in " ".join(out.split()), out
     assert _long(out) == [], out
 

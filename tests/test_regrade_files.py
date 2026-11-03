@@ -393,7 +393,7 @@ def test_check_on_a_few_marked_answers_cant_tell(here, capsys):
     assert code == 3, out
     assert "40 of your 60 marked answers had no grade in your new results" in out
     assert "40 of them are there with no decision" in out
-    assert "Result: can't tell yet." in out and "has not changed" not in out
+    assert "Compared with before: can't tell yet." in out and "has not changed" not in out
 
 
 def test_check_past_the_row_cap_cant_tell(here, capsys):

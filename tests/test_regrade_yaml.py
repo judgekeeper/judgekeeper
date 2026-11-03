@@ -202,7 +202,7 @@ def test_check_with_too_few_of_the_same_answers_leads_with_the_steps(
     path = ws.dir / "fix" / "regrade.yaml"
     line = next(n for n, x in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
                 if x.lstrip().startswith("provider:"))
-    assert "Result: can't tell yet." in flat
+    assert "Compared with before: can't tell yet." in flat
     assert "wrote new answers" not in flat  # the 10 are answers it marked, not new ones
     assert ("can't tell yet. Your new results hold 4 of the answers you marked Pass and 6 you "
             "marked Fail; a re-check needs 15 of each. Grade the answers you marked: "

@@ -673,7 +673,7 @@ def test_every_step_after_a_new_pass_mark_keeps_it(here, capsys, extra):
     _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
     main(["--stop"])
     code, said = _main(capsys, "check", "--pass-if", "score>=0.72")
-    assert code == 0 and "Result: not sure" in said, said
+    assert code == 0 and "Compared with before: not sure" in said, said
     assert _rule_in_use(ws) == "score>=0.72"
     step = said[said.rfind("Next:"):]
     _marks_with(step, "score>=0.72")
@@ -700,7 +700,7 @@ def test_a_held_not_sure_pass_mark_is_re_checked_with_itself(here, capsys, monke
     _main(capsys, "--pass-if", "score>=0.5", "--no-browser", "--port", "0")
     main(["--stop"])
     _, said = _main(capsys, "check", "--pass-if", "score>=0.72")
-    assert "Result: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
+    assert "Compared with before: not sure" in said and _rule_in_use(ws) == "score>=0.5", said
     assert said.endswith('Next: mark more answers with `judgekeeper mark --pass-if '
                          '"score>=0.5" --port 0 --no-browser`, then run `judgekeeper check '
                          '--pass-if "score>=0.72"` again.'), said
@@ -808,7 +808,7 @@ def test_a_worse_pass_mark_keeps_the_old_one_and_asks_for_no_grading(here, capsy
     ws, code, said = _adopted(here, capsys, monkeypatch, rule="score>=0.9")
     step = ('Next: nothing to do; your pass mark stays score>=0.5. To try another, run '
             '`judgekeeper check --pass-if "score>=N"`.')
-    assert code == 1 and "Result: worse" in said, said
+    assert code == 1 and "Compared with before: worse" in said, said
     assert step in said and "again with it" not in said, said
     report = html.unescape(re.sub(r"<[^>]+>", "", ws.report_html.read_text(encoding="utf-8")))
     shown = step.removeprefix("Next: n").replace("`", "")  # "Nothing to do" on the page
@@ -914,7 +914,7 @@ def test_fix_offers_no_pass_mark_check_would_call_worse(here, capsys, monkeypatc
     offered = re.search(r'run `judgekeeper check --pass-if "(score>=[\d.]+)"`', flat)
     if offered:
         _, said = _main(capsys, "check", "--pass-if", offered[1])
-        assert "Result: worse" not in said and _rule_in_use(ws) == offered[1], said
+        assert "Compared with before: worse" not in said and _rule_in_use(ws) == offered[1], said
     held = re.search(r"judgekeeper also tried a pass mark of ([\d.]+) instead of 0\.5: it "
                      r"fixes more answers overall, but agrees with you less on the answers you "
                      r"passed \((\d+) of 43, down from 43\), so `check` would call it worse\.",
@@ -931,10 +931,26 @@ def test_fix_never_offers_a_pass_mark_check_found_worse(here, capsys, monkeypatc
     held = re.search(r"also tried a pass mark of ([\d.]+)", first)
     assert held, first
     _, said = _main(capsys, "check", "--pass-if", f"score>={held[1]}")
-    assert "Result: worse" in said and _rule_in_use(ws) == "score>=0.5", said
+    assert "Compared with before: worse" in said and _rule_in_use(ws) == "score>=0.5", said
     flat = " ".join(run(capsys)[1].split())
     assert f"You tried a pass mark of {held[1]} with `check`, and it was worse." in flat, flat
     assert "also tried" not in flat and f'--pass-if "score>={held[1]}"' not in flat, flat
+
+
+def test_a_worse_headline_names_the_side_that_dropped(here, capsys):
+    """More answers agree overall, but fewer of the ones you passed: the line says which."""
+    from judgekeeper import check
+
+    trade_project(here)
+    _, said = _main(capsys, "check", "--pass-if", "score>=0.66")
+    assert ("Compared with before: worse. Your new LLM-as-a-judge agrees with you less on the "
+            "answers you passed: 37 of 43, down from 43.") in said, said
+    both = {"passed": {"verdict": "worse", "n": 43, "old_right": 43, "new_right": 37},
+            "failed": {"verdict": "worse", "n": 44, "old_right": 30, "new_right": 25}}
+    assert check.result_line(both) == (
+        "Compared with before: worse. Your new LLM-as-a-judge agrees with you less on the "
+        "answers you passed (37 of 43, down from 43) and on the answers you failed (25 of 44, "
+        "down from 30).")
 
 
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])

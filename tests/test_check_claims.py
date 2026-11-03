@@ -92,7 +92,7 @@ def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here
     said = _flat(out)
     assert code == 3, out
     assert "rule changed" in said and "40 of your 50 marked answers had no grade" in said, out
-    assert "Result: can't tell yet." in said
+    assert "Compared with before: can't tell yet." in said
     assert "wrote new answers" not in said and "nothing to compare" not in said, out
     assert "Grade the answers you marked: 1. Change the grader in" in said, out
 

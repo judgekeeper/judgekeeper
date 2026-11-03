@@ -60,7 +60,7 @@ def _level(root) -> str:
 def test_a_result_that_changes_is_said_after_the_check(here, capsys):
     out = _checked(here, capsys, size=30, marked=60, against=7, changed=1)
     assert _level(here) == "not_gate"
-    assert "Result: no drop bigger than 20" in out, out
+    assert "Compared with before: no drop bigger than 20" in out, out
     assert "Your result is now: your LLM-as-a-judge needs work.\n" in out, out
     assert assert_one_next_at_the_end(out).startswith("Next: nothing to do."), out
 

@@ -157,7 +157,7 @@ def test_marks_added_after_two_changes_are_never_graded_by_the_first(here, capsy
     code, out = run(capsys, "check", "m3.csv")
     assert code == 0, out
     assert "You added 30 marks since your last check." in out, out
-    assert "Worse" not in out and "Result: worse" not in out, out
+    assert "Worse" not in out and "Compared with before: worse" not in out, out
     assert ("30 of your marked answers have no grade from your old LLM-as-a-judge, so "
             "judgekeeper left them out of the table.") in out, out
 
@@ -177,7 +177,7 @@ def test_a_table_under_the_first_models_name_is_still_compared(here, capsys):
     every_fail = _table(here / "af.csv", "gpt-4.1-mini", lambda i: i % 3 != 0)
     code, out = run(capsys, "check", every_fail.name)
     assert code == 1, out
-    assert "back to the one you marked with" not in out and "Result: worse" in out, out
+    assert "back to the one you marked with" not in out and "Compared with before: worse" in out, out
 
 
 # Answers kept aside that marked-answers.csv lacks ----------------------------------------------

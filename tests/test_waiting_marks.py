@@ -522,7 +522,7 @@ def test_a_not_sure_check_on_only_the_marked_answers_asks_for_no_marks(
                   name="results-v2.csv")
     code, out = _jk(capsys, "check", "results-v2.csv")
     text = flat(out)
-    assert code == 0 and "Result: not sure" in text, out
+    assert code == 0 and "Compared with before: not sure" in text, out
     _no_mark_more(text)
     assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in text, out
     _mark_says(ws, capsys, path="results-v2.csv")
@@ -548,7 +548,7 @@ def test_results_that_grade_too_few_marks_never_send_you_to_a_check_that_cant_te
     table_project(tmp_path, [(i % 3 == 0) if i in graded else "error" for i in range(120)],
                   name="results-v2.csv")
     out = _jk(capsys, "check", "results-v2.csv")[1]
-    assert "Result: can't tell yet" in flat(out), out
+    assert "Compared with before: can't tell yet" in flat(out), out
     step = flat(out)[flat(out).index("Next:"):]
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     closed(ws)
@@ -579,7 +579,7 @@ def test_promptfoo_results_that_grade_too_few_marks_give_checks_own_steps(
         [person[i] if i in graded else None for i in range(60)], model="openai:gpt-4.1")),
         encoding="utf-8")
     out = flat(_jk(capsys, "check", "results-v2.json")[1])
-    assert "Result: can't tell yet" in out and "regrade.yaml" in out, out
+    assert "Compared with before: can't tell yet" in out and "regrade.yaml" in out, out
     steps = out[out.index("Grade the answers you marked"):]
     code, said = _jk(capsys, "--no-browser", "--port", "0")
     closed(ws)

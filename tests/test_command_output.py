@@ -175,7 +175,7 @@ def _n03(root) -> Workspace:
     return ws
 
 
-NOT_SURE = ("Result: not sure. These marks can't tell whether your new LLM-as-a-judge agrees "
+NOT_SURE = ("Compared with before: not sure. These marks can't tell whether your new LLM-as-a-judge agrees "
             "with you less. Agreed with you: Old LLM-as-a-judge New LLM-as-a-judge When you said "
             "Pass 19 of 30 11 of 30 Not sure When you said Fail 19 of 30 11 of 30 Not sure")
 
