@@ -677,6 +677,18 @@ def test_a_waiting_batchs_marks_are_named_apart(here, capsys, pages):
     assert text.index("count for a result") < text.index("not enough for a result yet")
 
 
+def test_the_count_line_agrees_with_its_numbers():
+    """One mark that counts, or one that waits, is said in the singular."""
+    from judgekeeper.front import counted_line
+
+    assert counted_line("You marked 4 answers", ["pass"], 3) == (
+        "You marked 4 answers so far. 1 counts for a result (1 Pass, 0 Fail). 3 more wait and "
+        "don't count yet.")
+    assert counted_line("You marked 3 answers", ["pass", "fail"], 1) == (
+        "You marked 3 answers so far. 2 count for a result (1 Pass, 1 Fail). 1 more waits and "
+        "doesn't count yet.")
+
+
 def test_with_no_waiting_batch_the_count_line_is_as_before(here, capsys, pages):
     promptfoo_project(here, split(20, 14))
     ws = start_label.prepare(start.find_judge(here), say=lambda line: None)

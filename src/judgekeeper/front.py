@@ -2228,6 +2228,16 @@ def _waits(ws: Workspace, session: StartSession) -> dict | None:
     return r if r.get("waiting") or r.get("only_wait") else None
 
 
+def counted_line(so_far: str, counted: list[str], waiting: int) -> str:
+    """The marks so far, when some wait: those that count (with their Pass and Fail) and those
+    that wait, each said in the singular for one."""
+    one = len(counted) == 1
+    return (f"{so_far} so far. {len(counted)} {'counts' if one else 'count'} for a result "
+            f"({counted.count('pass')} Pass, {counted.count('fail')} Fail). "
+            f"{waiting} more {'waits' if waiting == 1 else 'wait'} and "
+            f"{'doesn' if waiting == 1 else 'don'}'t count yet.")
+
+
 def _say_waits(talk: FrontTalk, r: dict) -> None:
     """The wait lines, as Measure says them."""
     from judgekeeper import check as checking
@@ -2368,10 +2378,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
                   if marks.imported(marks.read(ws.marks), ids=set(session.by_id))
                   else f"You marked {_n(n, 'answer')}")
         if waiting:  # the counts before "not enough" are those that count, never the waiting
-            talk.para(f"{so_far} so far. {len(counted)} count for a result "
-                      f"({counted.count('pass')} Pass, {counted.count('fail')} Fail). "
-                      f"{waiting} more {'waits' if waiting == 1 else 'wait'} and "
-                      f"{'doesn' if waiting == 1 else 'don'}'t count yet.")
+            talk.para(counted_line(so_far, counted, waiting))
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:  # and why: what a result needs (also after an import came first)
