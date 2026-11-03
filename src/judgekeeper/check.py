@@ -131,8 +131,7 @@ TOO_FEW = ("Result: can't tell yet. Your new results hold {p} of the answers you
            "{f} you marked Fail; a re-check needs {need} of each.")
 # A plain run on results `check` can't tell from (too_few_here): the marks still test the old
 FEW_HERE = ("Your new results hold {p} of the answers you marked Pass and {f} you marked Fail; a "
-            "re-check needs {need} of each, so this result is still about your LLM-as-a-judge "
-            "as you marked it.")
+            "re-check needs {need} of each, so this result has not changed.")
 # Running the eval again makes new answers, which can't be compared: grade the marked ones
 WROTE_NEW = "Your eval wrote new answers, so there's nothing to compare."
 GRADE_MARKED = f"{WROTE_NEW} Grade the answers you marked instead:"  # before the steps

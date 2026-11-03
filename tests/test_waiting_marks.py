@@ -500,8 +500,7 @@ def test_results_that_grade_too_few_marks_never_send_you_to_a_check_that_cant_te
     assert code == 0, out
     text = flat(out)
     assert ("Your new results hold 7 of the answers you marked Pass and 3 you marked Fail; a "
-            "re-check needs 15 of each, so this result is still about your LLM-as-a-judge as "
-            "you marked it.") in text, out
+            "re-check needs 15 of each, so this result has not changed.") in text, out
     assert "re-check your changed" not in text and step in text, out
 
 
