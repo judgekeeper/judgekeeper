@@ -486,12 +486,12 @@ def test_the_default_words_and_blank_labels(here, capsys):
     write_labels(here / "mine.csv", rows)
     _, out = run(capsys, "--labels", "mine.csv")
     assert "Added 4 marks from mine.csv (2 Pass, 2 Fail)." in flat(out)
-    assert "Skipped" not in out and "blank" not in out  # a blank label is skipped silently
+    assert "Skipped 1 label: 1 is blank" in flat(out)  # every row of the file is counted
 
 
-def test_a_blank_label_is_skipped_and_not_said(here, capsys):
-    """31 rows: 29 added, 1 for no answer in the results, 1 with a blank label, skipped and not
-    said. A row with no answer and no label (an empty line) is no label."""
+def test_the_skipped_count_adds_up_with_a_blank_label(here, capsys):
+    """31 rows: 29 added, 1 for no answer in the results, 1 with a blank label, so 2 skipped.
+    A row with no answer and no label (an empty line) is no label."""
     table(here)
     rows = [*labelled(range(29)), {"answer": "not in the results", "label": "pass"},
             {"answer": answer(30), "label": ""}, {"answer": "", "label": ""}]
@@ -499,9 +499,8 @@ def test_a_blank_label_is_skipped_and_not_said(here, capsys):
     _, out = run(capsys, "--labels", "mine.csv")
     text = flat(out)
     assert "Added 29 marks from mine.csv" in text, out
-    assert ("Skipped 1 label: 1 doesn't match any answer in your results (the answer text "
-            "must be the same)") in text, out
-    assert "blank" not in text
+    assert ("Skipped 2 labels: 1 doesn't match any answer in your results (the answer text "
+            "must be the same) 1 is blank") in text, out
 
 
 def test_the_label_map_reads_other_words(here, capsys):

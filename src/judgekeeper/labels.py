@@ -51,6 +51,7 @@ WORDS_SHOWN = 5
 WORD_WIDTH = 40  # characters of a word shown
 NO_MATCH, NOT_GRADED, MORE_THAN_ONE, BOTH = "no_match", "not_graded", "ambiguous", "both"
 NO_DECISION = "no_decision"
+BLANK = "blank"  # a row with an answer and an empty label cell
 SKIPPED = (  # (reason, one, many): said in this order
     (NO_MATCH, "{n} doesn't match any answer in your results (the answer text must be the same)",
      "{n} don't match any answer in your results (the answer text must be the same)"),
@@ -61,7 +62,8 @@ SKIPPED = (  # (reason, one, many): said in this order
      "{n} match more than one answer (add a question column to tell them apart)"),
     (BOTH, "{n} is for an answer labelled both Pass and Fail",
      "{n} are for answers labelled both Pass and Fail"),
-    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"))
+    (NO_DECISION, "{n} labelled no decision", "{n} labelled no decision"),
+    (BLANK, "{n} is blank", "{n} are blank"))
 WORDS_NEXT = "say what each one means, then run `{command}`."
 WORD_MAP = '"WORD=pass,WORD=fail"'  # in its quotes: a placeholder (front._with_given_map)
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
@@ -253,8 +255,8 @@ def read_file(path: Path, label_map: dict | None = None,
     the columns, has two columns for the same thing (_twice; `command`: the command run),
     has no label in any cell, or holds a number or a word that isn't Pass or Fail
     (read_marks; `mine`: the person's own --label-map; `given`: the file as typed). A row with
-    a blank label is skipped, and not said; one with no answer either is no label (an empty
-    line)."""
+    a blank label is kept with no mark (""), so the labels skipped add up (BLANK); one with no
+    answer either is no label (an empty line)."""
     from judgekeeper import find
     from judgekeeper.table import MORE_CELLS, TableError, open_quote, read_kept, wide_row_hint
     from judgekeeper.table import written_header as header_of
@@ -484,7 +486,8 @@ def _match(found_labels: list[Label], pool_rows: dict, queue: list[dict],
         if label.mark == ERROR:  # no decision, by the person's map
             plan.skip(NO_DECISION)
             continue
-        if not label.mark:  # a blank label cell (read_file): skipped, and not said
+        if not label.mark:  # a blank label cell (read_file)
+            plan.skip(BLANK)
             continue
         if label.key is not None:  # from the results: its answer's own id
             hits = by_base.get(label.key, [])
@@ -593,7 +596,7 @@ def nothing_added(plan: Plan, source: str) -> LabelsStop | None:
     out doesn't match; else "Nothing added" and why each was left out."""
     if plan.marks:
         return None
-    if set(plan.skipped) <= {NO_MATCH}:
+    if set(plan.skipped) - {BLANK} <= {NO_MATCH}:  # a blank one tells nothing
         return LabelsStop([(f"No labels in {shown_name(source)} match your results. Check that "
                             "the answer text is the same, word for word.")])
     return LabelsStop([f"Nothing added from {shown_name(source)}.", *skipped_lines(plan)])
