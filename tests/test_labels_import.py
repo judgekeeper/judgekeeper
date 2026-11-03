@@ -96,8 +96,8 @@ def labelled(ids, mark=None) -> list[dict]:
 def test_labels_in_the_results_are_named_and_not_used_without_the_flag(here, capsys):
     table(here, extra={"human_label": ["pass"] * 20 + ["fail"] * 20})
     _code, out = run(capsys)
-    assert ("Found 40 Pass/Fail labels in your results. To use them as your marks, run: "
-            f"{CMD} --labels") in flat(out)
+    assert ("Found 40 Pass/Fail labels in your results. To use them as your marks, run `"
+            f"{CMD} --labels`.") in flat(out)
     assert "does not use them" not in out and "Added" not in out
     ws = Workspace(here)
     assert marks.read(ws.marks).counted() == {}
@@ -106,7 +106,7 @@ def test_labels_in_the_results_are_named_and_not_used_without_the_flag(here, cap
 def test_the_find_line_keeps_the_path_in_its_command(here, capsys):
     table(here / "evals", extra={"human_label": ["pass"] * 20 + ["fail"] * 20})
     _, out = run(capsys, "evals")
-    assert "run: judgekeeper evals --port 0 --no-browser --labels" in flat(out)
+    assert "run `judgekeeper evals --port 0 --no-browser --labels`." in flat(out)
 
 
 def test_one_label_in_the_results_is_said_in_the_singular(here, capsys):
@@ -169,8 +169,8 @@ def test_inspect_scores_edited_by_a_person_are_not_used(here, capsys):
     assert ws.data()["left_out"]["human_labels_not_used"] == 2  # counted and dropped, as in 1.0
     code, out = run(capsys, "--labels")
     assert code == 3
-    assert ("No Pass/Fail labels found in your results. To use labels from a file, run: "
-            f"{CMD} --labels <file>") in flat(out)
+    assert ("No Pass/Fail labels found in your results. To use labels from a file, run `"
+            f"{CMD} --labels <file>`.") in flat(out)
     assert marks.read(ws.marks).counted() == {}
 
 
@@ -210,8 +210,8 @@ def test_no_labels_in_the_results_stops(here, capsys):
     table(here)
     code, out = run(capsys, "--labels")
     assert code == 3
-    assert ("No Pass/Fail labels found in your results. To use labels from a file, run: "
-            f"{CMD} --labels <file>") in flat(out)
+    assert ("No Pass/Fail labels found in your results. To use labels from a file, run `"
+            f"{CMD} --labels <file>`.") in flat(out)
     assert not Workspace(here).marks.is_file()
 
 
@@ -368,8 +368,8 @@ def test_an_excel_file_is_refused(here, capsys):
     (here / "mine.xlsx").write_bytes(b"PK\x03\x04")
     code, out = run(capsys, "--labels", "mine.xlsx")
     assert code == 3
-    assert ("judgekeeper can't read Excel files. Save mine.xlsx as CSV, then run: "
-            f"{CMD} --labels mine.csv") in flat(out)
+    assert ("judgekeeper can't read Excel files. Save mine.xlsx as CSV, then run `"
+            f"{CMD} --labels mine.csv`.") in flat(out)
     _nothing_written(Workspace(here))
 
 
@@ -377,8 +377,8 @@ def test_a_missing_file(here, capsys):
     table(here)
     code, out = run(capsys, "--labels", "nope.csv")
     assert code == 3
-    assert ("Can't find nope.csv. Check the name and folder, then run: "
-            f"{CMD} --labels <file>") in flat(out)
+    assert ("Can't find nope.csv. Check the name and folder, then run `"
+            f"{CMD} --labels <file>`.") in flat(out)
     _nothing_written(Workspace(here))
 
 
@@ -934,8 +934,8 @@ def test_new_answers_with_labels_get_the_find_line(here, capsys):
     _, out = run(capsys)
     text = flat(out)
     assert "Your newest results have 10 answers you haven't seen." in text
-    assert ("Found 10 Pass/Fail labels in your results. To use them as your marks, run: "
-            f"{CMD} --labels") in text
+    assert ("Found 10 Pass/Fail labels in your results. To use them as your marks, run `"
+            f"{CMD} --labels`.") in text
 
 
 def test_labels_for_another_question_are_not_used(here, capsys):
@@ -984,8 +984,8 @@ def test_an_excel_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch,
     (lf / "labels.xlsx").write_bytes(b"PK\x03\x04")
     code, out = run(capsys, "--labels", str(lf / "labels.xlsx"))
     assert code == 3
-    assert ("judgekeeper can't read Excel files. Save labels.xlsx as CSV, then run: "
-            f"{CMD} --labels ../lf/labels.csv") in flat(out)
+    assert ("judgekeeper can't read Excel files. Save labels.xlsx as CSV, then run `"
+            f"{CMD} --labels ../lf/labels.csv`.") in flat(out)
     _no_full_path(out, tmp_path)
 
 
@@ -993,8 +993,8 @@ def test_a_missing_file_given_in_full_names_it_by_its_name(tmp_path, monkeypatch
     _, lf = _apart(tmp_path, monkeypatch)
     code, out = run(capsys, "--labels", str(lf / "nothere.csv"))
     assert code == 3
-    assert ("Can't find nothere.csv. Check the name and folder, then run: "
-            f"{CMD} --labels <file>") in flat(out)
+    assert ("Can't find nothere.csv. Check the name and folder, then run `"
+            f"{CMD} --labels <file>`.") in flat(out)
     _no_full_path(out, tmp_path)
 
 

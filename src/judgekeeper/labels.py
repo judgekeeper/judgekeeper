@@ -68,7 +68,7 @@ WORDS_NEXT = ("run the same command again with `--label-map`, giving each of the
               "=fail or =error (no decision). An empty label cell skips that row.")
 ASSUMES = ("{k} of your marks came from {name}. The numbers assume those answers were picked at "
            "random and labelled without looking at your LLM-as-a-judge's grade.")
-FOUND = ("Found {n} in your results. To use them as your marks, run: {command}")
+FOUND = "Found {n} in your results. To use them as your marks, run `{command}`."
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
@@ -161,15 +161,15 @@ def check_file(given: str, command: Callable[..., str] | None = None,
     if path.suffix.lower() in EXCEL:
         csv_name = runnable(str(path.with_suffix(".csv")) if str(path.parent) != "."
                             else f"{path.stem}.csv", labels=True)
-        raise LabelsStop([(f"judgekeeper can't read Excel files. Save {name} as CSV, then run: "
-                           f"{command('--labels', csv_name)}")])
+        raise LabelsStop([(f"judgekeeper can't read Excel files. Save {name} as CSV, then run "
+                           f"`{command('--labels', csv_name)}`.")])
     if is_link(path):
         kind = "folder" if os.path.isdir(path) else "file"
         raise LabelsStop([(f"{name} is a link to another {kind}. judgekeeper does not read "
                            "labels through links. Give the file itself.")])
     if not path.exists():
-        raise LabelsStop([(f"Can't find {name}. Check the name and folder, then run: "
-                           f"{command('--labels', '<file>')}")])
+        raise LabelsStop([(f"Can't find {name}. Check the name and folder, then run "
+                           f"`{command('--labels', '<file>')}`.")])
     if not path.is_file():
         from judgekeeper.textio import not_a_file_message
 
@@ -209,7 +209,7 @@ def _column(columns, wanted: tuple[str, ...]) -> str | None:
     return next((plain[w] for w in wanted if w in plain), None)
 
 
-TWICE = "{file} has two {kind} columns ({a} and {b}). Keep one, then run: `{command}`"
+TWICE = "{file} has two {kind} columns ({a} and {b}). Keep one, then run `{command}`."
 
 
 def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
@@ -395,7 +395,7 @@ def in_results(pool, metric: str | None = None, command: Callable[..., str] | No
     humans = list(pool.humans)
     if not humans:
         raise LabelsStop([("No Pass/Fail labels found in your results. To use labels from a "
-                           f"file, run: {_plain(command)('--labels', '<file>')}")])
+                           f"file, run `{_plain(command)('--labels', '<file>')}`.")])
     if metric is not None:
         named = {key for key, _, name in humans if name == metric}
         humans = [h for h in humans if h[0] not in named or h[2] == metric]

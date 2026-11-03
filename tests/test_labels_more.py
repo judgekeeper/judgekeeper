@@ -70,8 +70,8 @@ def test_two_columns_for_the_same_thing_stop_before_anything_is_written(here, ca
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3, out
     text = flat(out)
-    assert f"mine.csv has two {kind} columns ({pair}). Keep one, then run: " in text, text
-    command = text[text.index("Keep one, then run: ") + len("Keep one, then run: "):]
+    assert f"mine.csv has two {kind} columns ({pair}). Keep one, then run `" in text, text
+    command = text[text.index("Keep one, then run `") + len("Keep one, then run `"):]
     assert "--labels mine.csv" in command, command
     _nothing_written(Workspace(here))
 
@@ -98,7 +98,7 @@ def test_the_same_column_name_twice_stops_too(here, capsys, header, kind, pair, 
     code, out = run(capsys, "--labels", f"mine{suffix}")
     assert code == 3, out
     text = flat(out)
-    assert f"mine{suffix} has two {kind} columns ({pair}). Keep one, then run: " in text, text
+    assert f"mine{suffix} has two {kind} columns ({pair}). Keep one, then run `" in text, text
     _nothing_written(Workspace(here))
 
 
