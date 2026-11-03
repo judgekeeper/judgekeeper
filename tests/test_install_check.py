@@ -67,10 +67,10 @@ def test_in_the_second_project_the_person_mostly_disagrees(ic):
     assert len(disagree) == 47 and marks.count("pass") == 25 == marks.count("fail")
 
 
-def test_in_the_third_project_the_person_disagrees_on_9_too_few_to_tell(ic):
+def test_in_the_third_project_the_person_marks_too_few_fails_for_a_result(ic):
     disagree, marks = _disagree(ic, "too early")
-    assert disagree == [23, 24, 25, 26, 27, 28, 31, 32, 33]
-    assert marks.count("pass") == 25 == marks.count("fail")
+    assert disagree == list(range(29, 41))
+    assert marks.count("pass") == 40 and marks.count("fail") == 10  # a result needs 15
 
 
 @pytest.mark.parametrize(("i", "ok"), [(1, True), (28, True), (29, False), (50, False)])
@@ -325,25 +325,27 @@ def test_the_walk_goes_through_judgekeeper(ic, monkeypatch, tmp_path):
 
 def test_two_more_projects_give_needs_work_and_too_early(ic, monkeypatch, tmp_path):
     """Copies of the project with the same results, marked otherwise: mostly disagreeing,
-    "needs work" (exit 0); disagreeing on 9 of 50, "too early to tell" (exit 3), and the Next
+    "needs work" (exit 0); with only 10 Fail marks, no result yet (exit 3), and the Next
     line says to run the eval on more questions."""
     check, ran, posted, _ = _walk(ic, monkeypatch, "table", tmp_path)
-    for result, code, said in (("needs work", 0, "your LLM-as-a-judge needs work"),
-                               ("too early", 3, "too early to tell")):
+    for result, code, said in (("needs work", 0, "Result: your LLM-as-a-judge needs work"),
+                               ("too early", 3, ic.TOO_FEW)):
         folder = check.other(result)
         assert folder.parent == tmp_path and (folder / ic.MARKER).is_file()
         runs = _in(ran, folder)
         assert [args for args, _, _ in runs] == [["--no-browser", "--port", "5"],
                                                  ["--no-browser", "--port", "5"], ["--stop"]]
-        assert f"Result: {said}" in " ".join(runs[1][1]) and runs[1][2] == (code,)
+        assert said in " ".join(runs[1][1]) and runs[1][2] == (code,)
     early = _in(ran, check.other("too early"))[1][1]
     printed = ("Next: run your eval on more questions, then run\n"
                "`judgekeeper mark`. New answers are added to the ones you marked.")
     assert re.search(early[-1], printed)
+    assert re.search(ic.TOO_FEW, "You've marked every answer: 40 Pass, 10 Fail. A result needs at"
+                     "\nleast 15 of each.")
     assert not re.search(early[-1], printed.replace("more questions", "more answers"))
     # Marked in order: the main project, then needs work, then too early.
     labels = [body["label"] for _, _, path, body in posted if path == "/label"]
-    assert labels == ["pass", "pass", "fail", "pass", "pass", "pass", "pass", "fail", "fail"]
+    assert labels == ["pass", "pass", "fail", "pass", "pass", "pass", "pass", "pass", "pass"]
 
 
 def test_for_an_own_format_the_mapping_run_is_the_first_look(ic, monkeypatch, tmp_path):

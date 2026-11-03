@@ -21,7 +21,7 @@ What a stranger does, with nobody at the keyboard and no API key:
    who agrees with the judge on all but one, `judgekeeper` again for the result ("good
    enough"), `judgekeeper --stop`. Two copies of the project, with the same results, go the
    same way to the result with other marks: mostly against the judge ("needs work"), and
-   against it on 9 of 50 ("too early to tell", exit 3: run the eval on more questions). Then in
+   with only 10 Fail marks ("too early to tell", exit 3: run the eval on more questions). Then in
    the project `judgekeeper fix` (mistakes.md, and marked-answers.csv to grade again); then
    the new rule put in the tool's own file and the tool run again, and `judgekeeper check`
    (the re-check on the marks) and that the report is still there. judgekeeper's input is a closed
@@ -68,13 +68,17 @@ MARKER = ".made-by-install-check"  # only a folder holding this file is ever rem
 N = 50
 JUDGE_PASSES = frozenset(range(1, 29))  # the fake judge passes 1-28 and fails 29-50
 # The answers the stand-in person passes, by the result their 50 marks give: against the
-# judge on 29 only; on 47 (25 Pass, 25 Fail); on 23-28 and 31-33 (25 Pass, 25 Fail).
+# judge on 29 only; on 47 (25 Pass, 25 Fail); on 29-40 (40 Pass, 10 Fail: under the 15 Fail
+# marks a result needs, and every answer is marked).
 PERSON_PASSES = {"good enough": frozenset(range(1, 30)),
                  "needs work": frozenset(range(1, 4)) | frozenset(range(29, N + 1)),
-                 "too early": frozenset(range(1, 23)) | {31, 32, 33}}
+                 "too early": frozenset(range(1, 41))}
 RESULT = {"good enough": r"Result: your LLM-as-a-judge is good enough to use\.",
-          "needs work": r"Result: your LLM-as-a-judge needs work\.",
-          "too early": r"Result: too early to tell\."}
+          "needs work": r"Result: your LLM-as-a-judge needs work\."}
+# Every answer marked, with too few Fail marks: no result, and the marks stay in Step 2 (it may
+# wrap)
+TOO_FEW = (r"You've\s+marked\s+every\s+answer:\s+40\s+Pass,\s+10\s+Fail\.\s+A\s+result\s+"
+           r"needs\s+at\s+least\s+15\s+of\s+each\.")
 RULE_OLD = "Pass only if the answer gives the right sum."
 RULE_NEW = "Pass only if the answer gives the right sum, written as a number."
 OLLAMA_MODEL = "llama3.2:3b"
@@ -711,8 +715,8 @@ with open("evals/quiz-results.json", "w", encoding="utf-8") as f:
             more = (r"Next:\s+run\s+your\s+eval\s+on\s+more\s+questions,\s+then\s+run\s+"
                     r"`[^`]*judgekeeper(@\S+)?\s+mark`\.\s+New\s+answers\s+are\s+added\s+to\s+"
                     r"the\s+ones\s+you\s+marked\.")
-            self.mark_step(f"{n}. judgekeeper prints the result: too early to tell",
-                           self.front(), [RESULT[result], r"Step 3 of 5: Measure", more],
+            self.mark_step(f"{n}. judgekeeper says the marks can't give a result yet",
+                           self.front(), [TOO_FEW, r"Step 2 of 5: Mark", more],
                            ok_codes=(3,), cwd=cwd)
         else:
             self.mark_step(f"{n}. judgekeeper prints the result: {result}", self.front(),
