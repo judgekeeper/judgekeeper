@@ -136,7 +136,7 @@ Tested with MLflow 3.16. The extra allows MLflow 3.1 or newer. It reads the asse
 **Traps.**
 
 - **Trace ids change every run.** So ids are made from the trace's request input.
-- **Assessments logged outside `evaluate`** form one extra run, listed last.
+- **Assessments logged outside `evaluate`** form one extra run, which starts when the first of them was logged.
 - **The rule.** Only `make_judge` (MLflow 3.14+) saves its instructions; for other scorers the prompt hash and temperature are unknown.
 - **Errors** are no decision; the reason is the error's code, never its message.
 - **Code scorers** (a bare bool or number) and assessments on spans are left out, unless `--metric` names a span-only one.

@@ -173,7 +173,8 @@ def test_mlflow_notes_are_printed(here, capsys, store):
     assert ("8 assessments from code scorers (has_answer) are rules in code, not an "
             "LLM-as-a-judge: left out.") in flat(out)
     assert ("Some LLM-as-a-judge assessments carry no MLflow run id (logged by hand, outside an "
-            "evaluate run): they form one run, listed last.") in flat(out)
+            "evaluate run): they form one run, which starts when the first of them was "
+            "logged.") in flat(out)
     assert "Runs are MLflow runs in start order" not in out
     assert "MLFLOW_ALLOW_FILE_STORE" not in out
 
