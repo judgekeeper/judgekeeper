@@ -107,6 +107,33 @@ def test_the_lead_changelog_entry_has_its_release_date():
     date.fromisoformat(lead[2])  # a real day
 
 
+LEAD_BULLETS = [  # word for word, in this order, at the top of the 1.1.0 entry
+    ("- Bring labels you already have: `judgekeeper --labels <file>` or, for labels already in "
+     "your results, `judgekeeper --labels`. Mark more on the page if needed."),
+    ("- The result page links back to the marking page, and says how to mark more after closing "
+     "it (`judgekeeper mark`)."),
+    ("- \"Good enough\" and \"needs work\" now need stronger evidence, so a lucky streak can't "
+     "decide them. The first numbers wait for 20 marks on answers your LLM-as-a-judge passed "
+     "and 20 on answers it failed."),
+    ("- After your first 10 marks, about 1 in 20 marked answers comes back once, so you can see "
+     "how often your own marks change."),
+    ("- `fix` and `check` count each mark for its share of your answers, so \"Safe to try\" is "
+     "said by mistake less often."),
+    "- When you mark every answer, the numbers show no range.",
+]
+
+
+def test_the_1_1_0_entry_starts_with_its_six_bullets_and_keeps_each_short():
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    entry = text.split("## 1.1.0 (", 1)[1].split("\n## ", 1)[0].split("\n", 1)[1].strip()
+    lines = entry.splitlines()
+    assert lines[:6] == LEAD_BULLETS
+    assert all(line.startswith("- ") for line in lines)  # no paragraph before the list
+    for line in lines[6:]:  # the rest: two sentences at most, no "exact"
+        assert len(re.findall(r"[.!?](?:\s|$)", line.replace("...", ""))) <= 2, line
+        assert "exact" not in line.lower(), line
+
+
 # Workflows
 
 def test_release_workflow_runs_only_on_a_published_release():
