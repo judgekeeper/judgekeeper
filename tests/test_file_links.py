@@ -1,293 +1,149 @@
-"""A file a person is told to open is a link they can click in a terminal (OSC 8), and the
-same plain text as before everywhere else."""
+"""A file a person is told to open is printed as plain text, in a terminal too. A hidden link
+target would hold the whole path, and with it the user name, which no printed line shows."""
 
 from __future__ import annotations
 
+import getpass
 import io
 import os
 import re
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
 
-from judgekeeper import links
 from judgekeeper.cli import main
-from judgekeeper.links import file_url, keep, link
-from judgekeeper.redact import printable
+from judgekeeper.links import link
 from judgekeeper.textio import wrap
 from tests.start_projects import promptfoo_project, split
 
-OPT_OUTS = ("NO_COLOR", "JUDGEKEEPER_NO_LINKS")
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class Terminal(io.StringIO):
     def isatty(self):
-        super().isatty()  # a closed stream raises ValueError, as a real one does
         return True
 
 
-@pytest.fixture(autouse=True)
-def plain_env(monkeypatch):
-    for name in (*OPT_OUTS, "WT_SESSION"):
+def _terminal(monkeypatch):
+    """stdout is a terminal that names itself and could draw links."""
+    for name in ("NO_COLOR", "JUDGEKEEPER_NO_LINKS"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("TERM", "xterm-256color")
     monkeypatch.setenv("TERM_PROGRAM", "vscode")
-    monkeypatch.setattr(links, "is_windows", lambda: False)
+    monkeypatch.setattr(sys, "stdout", Terminal())
 
 
-def _osc8(url, text):
-    return f"\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\"
+def test_a_file_is_its_shown_text_in_a_terminal(tmp_path, monkeypatch):
+    _terminal(monkeypatch)
+    assert link(tmp_path / "report.html", ".judgekeeper/report.html") == ".judgekeeper/report.html"
 
 
-def test_terminal_wraps_the_shown_text_in_a_link(tmp_path):
-    path = tmp_path / "report.html"
-    shown = ".judgekeeper/report.html"
-    assert link(path, shown, stream=Terminal()) == _osc8(file_url(path), shown)
+def test_shown_text_defaults_to_the_path_as_given(tmp_path, monkeypatch):
+    _terminal(monkeypatch)
+    assert link(tmp_path / "rule.txt") == str(tmp_path / "rule.txt")
 
 
-def test_shown_text_defaults_to_the_path_as_given(tmp_path):
-    path = tmp_path / "rule.txt"
-    assert link(path, stream=Terminal()) == _osc8(file_url(path), str(path))
-
-
-def test_a_relative_path_links_to_its_absolute_file(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    windows = os.name == "nt"
-    url = file_url(os.path.join(".judgekeeper", "fix", "mistakes.md"), windows=windows)
-    assert url == file_url(tmp_path / ".judgekeeper" / "fix" / "mistakes.md", windows=windows)
-    assert url.startswith("file://") and url.endswith("/.judgekeeper/fix/mistakes.md")
-
-
-@pytest.mark.parametrize("stream", [io.StringIO(), object()])
-def test_not_a_terminal_is_plain_text(tmp_path, stream):
-    assert link(tmp_path / "report.html", ".judgekeeper/report.html",
-                stream=stream) == ".judgekeeper/report.html"
-
-
-def test_a_closed_stream_is_plain_text(tmp_path):
-    stream = Terminal()
-    stream.close()
-    assert link(tmp_path / "a.txt", "a.txt", stream=stream) == "a.txt"
-
-
-def test_stdout_is_the_default_stream(tmp_path, capsys):
-    assert link(tmp_path / "a.txt", "a.txt") == "a.txt"  # pytest's captured stdout is no terminal
-
-
-@pytest.mark.parametrize("name", OPT_OUTS)
-def test_each_opt_out_gives_plain_text(tmp_path, monkeypatch, name):
-    monkeypatch.setenv(name, "1")
-    assert link(tmp_path / "a.txt", "a.txt", stream=Terminal()) == "a.txt"
-
-
-@pytest.mark.parametrize("name", OPT_OUTS)
-def test_an_empty_opt_out_is_not_set(tmp_path, monkeypatch, name):
-    monkeypatch.setenv(name, "")
-    assert link(tmp_path / "a.txt", "a.txt", stream=Terminal()).startswith("\x1b]8;;")
-
-
-def test_a_dumb_terminal_gets_plain_text(tmp_path, monkeypatch):
-    monkeypatch.setenv("TERM", "dumb")
-    assert link(tmp_path / "a.txt", "a.txt", stream=Terminal()) == "a.txt"
-
-
-def test_the_old_windows_console_gets_plain_text(tmp_path, monkeypatch):
-    """The old console host prints the escape codes instead of a link."""
-    monkeypatch.setattr(links, "is_windows", lambda: True)
-    monkeypatch.delenv("TERM_PROGRAM")
-    monkeypatch.delenv("TERM", raising=False)
-    assert link(tmp_path / "a.txt", "a.txt", stream=Terminal()) == "a.txt"
-
-
-def test_windows_terminal_gets_a_link(tmp_path, monkeypatch):
-    monkeypatch.setattr(links, "is_windows", lambda: True)
-    monkeypatch.delenv("TERM_PROGRAM")
-    monkeypatch.setenv("WT_SESSION", "1")
-    assert link(tmp_path / "a.txt", "a.txt", stream=Terminal()).startswith("\x1b]8;;file:")
-
-
-def test_line_is_added_to_the_text_not_the_url(tmp_path):
-    path = tmp_path / "promptfooconfig.yaml"
-    shown = link(path, "promptfooconfig.yaml", line=14, stream=Terminal())
-    assert shown == _osc8(file_url(path), "promptfooconfig.yaml:14")
-
-
-def test_line_in_plain_text(tmp_path):
+def test_line_is_added_to_the_text(tmp_path, monkeypatch):
+    _terminal(monkeypatch)
     assert link(tmp_path / "c.yaml", "c.yaml", line=14) == "c.yaml:14"
 
 
-def test_posix_url_encodes_spaces_and_non_ascii():
-    assert (file_url("/home/ana/my evals/réponses #1.csv", windows=False)
-            == "file:///home/ana/my%20evals/r%C3%A9ponses%20%231.csv")
-
-
-def test_windows_drive_path():
-    assert (file_url(r"C:\Users\Ana Lee\project\.judgekeeper\report.html", windows=True)
-            == "file:///C:/Users/Ana%20Lee/project/.judgekeeper/report.html")
-
-
-def test_windows_non_ascii_path():
-    assert file_url(r"D:\données\règle.txt", windows=True) == (
-        "file:///D:/donn%C3%A9es/r%C3%A8gle.txt")
-
-
-def test_windows_network_share():
-    assert (file_url(r"\\server\share\evals\mistakes.md", windows=True)
-            == "file://server/share/evals/mistakes.md")
-
-
-def test_the_url_never_holds_a_control_character():
-    url = file_url("/tmp/a\x1b]8;;b\x07.txt", windows=False)
-    assert all(" " < ch < "\x7f" for ch in url)
-
-
-# Said on a screen ----------------------------------------------------------------------------
-
-LINK = re.compile(r"\x1b\]8;;([^\x1b]*)\x1b\\(.*?)\x1b\]8;;\x1b\\")
-
-
-def plain(out: str) -> str:
-    """`out` with each link back to the text it shows."""
-    return LINK.sub(r"\2", out)
-
-
-def linked(out: str) -> dict[str, str]:
-    """{the text shown: its URL} for each link in `out`."""
-    return {text: url for url, text in LINK.findall(out)}
-
-
-def test_a_link_made_here_passes_the_terminal_clean_up(tmp_path):
-    made = link(tmp_path / "report.html", ".judgekeeper/report.html", stream=Terminal())
-    text = f"Full report: {made} (open it\x07 in your browser)"
-    assert keep(text, printable) == f"Full report: {made} (open it in your browser)"
-
-
-def test_an_escape_code_from_anywhere_else_is_dropped(tmp_path):
+def test_an_escape_code_in_a_line_is_dropped():
     forged = "\x1b]8;;file:///etc/passwd\x1b\\results.json\x1b]8;;\x1b\\"
-    assert keep(f"File: {forged}", printable) == (
-        "File: ]8;;file:///etc/passwd\\results.json]8;;\\")
+    assert wrap(f"File: {forged}") == ["File: ]8;;file:///etc/passwd\\results.json]8;;\\"]
 
 
-def test_the_text_a_link_shows_is_cleaned_too(tmp_path):
-    made = link(tmp_path / "a.txt", "a\x07.txt", stream=Terminal())
-    assert keep(made, printable) == _osc8(file_url(tmp_path / "a.txt"), "a.txt")
+def test_the_fix_screen_in_a_terminal_has_no_escape_codes(tmp_path, monkeypatch, capsys):
+    from tests.test_fix import project
 
-
-@pytest.mark.parametrize("width", [20, 30, 40, 64])
-def test_a_link_wraps_where_its_text_would(tmp_path, width):
-    text = ("All 10 mistakes your LLM-as-a-judge made are saved in {}. Use it to write a "
-            "better rule.")
-    shown = ".judgekeeper/fix/mistakes.md"
-    made = link(tmp_path / "mistakes.md", shown, stream=Terminal())
-    lines = wrap(text.format(made), width=width)
-    assert [plain(line) for line in lines] == wrap(text.format(shown), width=width)
-    assert sum(made in line for line in lines) == 1
-
-
-@pytest.fixture
-def links_on(monkeypatch):
-    """A terminal that draws links, for what is printed to stdout only."""
-    monkeypatch.setattr(links, "_links_show", lambda stream: True)
-
-
-@pytest.fixture
-def here(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    return tmp_path
-
-
-def _front(capsys, *argv) -> str:
-    main([*argv, "--no-browser"])
-    main(["--stop"])
-    return capsys.readouterr().out
-
-
-def _url_of(path) -> str:
-    return file_url(Path(path).resolve())
-
-
-def _first_screen(folder: Path, monkeypatch, capsys) -> str:
-    """The first screen, its marking page's address (a new port and token each time) left out."""
-    folder.mkdir(parents=True)
+    folder = tmp_path / "support-bot"
+    folder.mkdir()
     monkeypatch.chdir(folder)
-    promptfoo_project(folder, [*split(18, 16), None, None, None])
-    return re.sub(r"http://127\.0\.0\.1:\S+", "PAGE", _front(capsys))
-
-
-def test_the_find_screen_links_the_results_file_and_the_list(tmp_path, capsys, monkeypatch):
-    out = _first_screen(tmp_path / "a" / "bot", monkeypatch, capsys)
-    monkeypatch.setattr(links, "_links_show", lambda stream: True)
-    here = tmp_path / "b" / "bot"
-    again = _first_screen(here, monkeypatch, capsys)
-    assert plain(again) == out
-    shown = linked(again)
-    assert shown["results.json"] == _url_of(here / "results.json")
-    assert shown[".judgekeeper/judge-check.csv"] == _url_of(here / ".judgekeeper" /
-                                                            "judge-check.csv")
-
-
-def test_the_shortened_rule_links_its_config(here, capsys, links_on):
-    promptfoo_project(here, split(20, 16), rubric="Grade it well. " * 20)
-    out = _front(capsys)
-    assert "(shortened; full rule in promptfooconfig.yaml)" in plain(out)
-    assert linked(out)["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
-
-
-@pytest.mark.parametrize("task, where", [
-    ('scorer = model_graded_qa(instructions=open("rule.txt").read())\n', "rule.txt"),
-    ('scorer = model_graded_qa(instructions="""{rule}""")\n', "support_task.py"),
-])
-def test_the_shortened_inspect_rule_names_the_file_it_is_read_from(here, capsys, links_on, task,
-                                                                   where):
-    import json
-
-    from tests.start_projects import inspect_data
-
-    rule = "Grade the answer as C (correct) or I (incorrect). " * 3
-    data = inspect_data(split(20, 16))
-    data["eval"]["scorers"][0]["options"]["instructions"] = rule
-    (here / "logs").mkdir()
-    (here / "logs" / "2026-10-02_support.json").write_text(json.dumps(data), encoding="utf-8")
-    (here / "support_task.py").write_text(task.format(rule=rule), encoding="utf-8")
-    (here / "rule.txt").write_text(rule, encoding="utf-8")
-    out = _front(capsys)
-    assert f"(shortened; full rule in {where})" in plain(out), out
-    assert linked(out)[where] == _url_of(here / where)
-
-
-def test_the_result_links_the_full_report(here, capsys, links_on):
-    from tests.test_fix import project
-
-    project(here)
-    out = _front(capsys)
-    assert "Full report: .judgekeeper/report.html (open it in your browser)" in plain(out)
-    assert linked(out)[".judgekeeper/report.html"] == _url_of(here / ".judgekeeper" /
-                                                              "report.html")
-
-
-def test_fix_links_every_file_it_asks_you_to_open(here, capsys, monkeypatch):
-    from tests.test_fix import project
-
-    project(here)
+    project(folder)
     capsys.readouterr()
+    for name in ("NO_COLOR", "JUDGEKEEPER_NO_LINKS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
     main(["fix"])
     out = capsys.readouterr().out
-    monkeypatch.setattr(links, "_links_show", lambda stream: True)
-    main(["fix"])
-    again = capsys.readouterr().out
-    assert plain(again) == out
-    shown = linked(again)
-    fix_folder = here / ".judgekeeper" / "fix"
-    assert shown[".judgekeeper/fix/mistakes.md"] == _url_of(fix_folder / "mistakes.md")
-    assert shown[".judgekeeper/fix/marked-answers.csv"] == _url_of(
-        fix_folder / "marked-answers.csv")
-    assert shown["promptfooconfig.yaml"] == _url_of(here / "promptfooconfig.yaml")
-    assert "\x1b" not in LINK.sub("", again)
+    assert ".judgekeeper/fix/mistakes.md" in out and "\x1b" not in out
 
 
-def test_a_piped_screen_has_no_escape_codes(here, capsys):
+# A real terminal ---------------------------------------------------------------------------------
+
+def _in_a_terminal(folder: Path, *argv: str) -> bytes:
+    """What `judgekeeper *argv` writes, run in `folder` in a pseudo-terminal."""
+    import pty
+
+    env = {k: v for k, v in os.environ.items() if k not in ("NO_COLOR", "JUDGEKEEPER_NO_LINKS")}
+    env.update(TERM="xterm-256color", PYTHONPATH=str(ROOT / "src"), BROWSER="true")
+    main_end, other_end = pty.openpty()
+    try:
+        proc = subprocess.Popen([sys.executable, "-m", "judgekeeper", *argv], cwd=folder,
+                                env=env, stdin=subprocess.DEVNULL, stdout=other_end,
+                                stderr=other_end)
+    finally:
+        os.close(other_end)
+    out = b""
+    deadline = time.monotonic() + 120
+    try:
+        while time.monotonic() < deadline:
+            try:
+                part = os.read(main_end, 65536)
+            except OSError:  # the program closed its end
+                break
+            if not part:
+                break
+            out += part
+        proc.wait(timeout=30)
+    finally:
+        os.close(main_end)
+        if proc.poll() is None:
+            proc.kill()
+    return out
+
+
+def _whole_paths(folder: Path) -> list[bytes]:
+    paths = {str(folder), str(folder.resolve()), str(Path.home()), str(Path.home().resolve())}
+    return [os.fsencode(p) for p in paths]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a pseudo-terminal is POSIX only")
+def test_a_terminal_shows_no_whole_path_and_no_user_name(tmp_path):
     from tests.test_fix import project
 
-    project(here)
-    main(["fix"])
-    assert "\x1b" not in capsys.readouterr().out
+    folder = tmp_path / "support-bot"
+    folder.mkdir()
+    first = tmp_path / "first-look"
+    first.mkdir()
+    promptfoo_project(first, [*split(18, 16), None, None])
+    here = os.getcwd()
+    os.chdir(folder)
+    try:
+        project(folder)
+    finally:
+        os.chdir(here)
+    try:
+        out = b"".join([
+            _in_a_terminal(first, "--no-browser", "--port", "0"),
+            _in_a_terminal(first, "--stop"),
+            _in_a_terminal(folder, "--no-browser", "--port", "0"),
+            _in_a_terminal(folder, "--stop"),
+            _in_a_terminal(folder, "fix"),
+        ])
+    finally:
+        for done in (first, folder):
+            _in_a_terminal(done, "--stop")
+    text = out.decode("utf-8", "replace")
+    assert "results.json" in text and "Full report: .judgekeeper/report.html" in text, text
+    assert ".judgekeeper/fix/mistakes.md" in text, text
+    assert b"\x1b]8;" not in out
+    for path in _whole_paths(folder) + _whole_paths(first):
+        assert path not in out, path
+    user = getpass.getuser()
+    if len(user) >= 3:
+        assert not re.search(rf"(?<![A-Za-z0-9]){re.escape(user)}(?![A-Za-z0-9])", text), text

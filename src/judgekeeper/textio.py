@@ -1379,12 +1379,9 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     import re
     import textwrap
 
-    from judgekeeper.links import keep as keep_links
-    from judgekeeper.links import stand_ins
     from judgekeeper.redact import one_line, scrub
 
-    text, links_back = stand_ins(keep_links(
-        text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
+    text = "\n".join(one_line(x) for x in (scrub(text) or "").split("\n"))
     text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
     keep = (re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
             + sorted((p for p in _spaced if p in text), key=len, reverse=True))
@@ -1394,4 +1391,4 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     for piece in text.split("\n"):
         lines += textwrap.wrap(piece, width, initial_indent=indent, subsequent_indent=indent,
                                break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
-    return [links_back(line.replace("\0", " ")) for line in lines]
+    return [line.replace("\0", " ") for line in lines]

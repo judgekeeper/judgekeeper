@@ -168,8 +168,8 @@ def rule_home(root: Path, tool: str, data: dict) -> str:
 
 
 def file_link(root: Path, name: str) -> str:
-    """`name`, a file a project file named, as a link when it is inside the project
-    (safe_path); else the plain name."""
+    """`name`, a file a project file named, as printed (links.link) when it is inside the
+    project (safe_path); else the plain name."""
     inside = safe_path(root, name)
     return link(Path(root) / inside, name) if inside else name
 
