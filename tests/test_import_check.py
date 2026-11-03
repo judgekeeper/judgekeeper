@@ -122,10 +122,12 @@ def test_after_15_page_marks_in_each_group_the_verdict_is_as_usual(here, capsys)
     _page(ws, {i: "pass" for i in range(20, 34)} | {i: "fail" for i in range(80, 95)})
     _, out = run(capsys)
     assert _result(ws)["import_gate"] == 1  # 14 in the pass group: one more
-    assert ("Mark at least 1 more answer on the page to check the marks from mine.csv. A result "
-            "with marks from a file needs 15 page marks on answers your LLM-as-a-judge passed "
-            "and 15 on answers it failed (or all of them, if there are fewer)."
-            in flat(out)), out
+    gate = labels.GATE.format(more="1 more answer", name="mine.csv", k=labels.PAGE_MARKS)
+    assert gate in flat(out), out
+    # no "A result needs" right under "Result: too early to tell", which is a result
+    needs = f"To count marks from a file, judgekeeper needs {labels.PAGE_MARKS} marks made on the page"
+    assert needs in gate
+    assert "A result with marks" not in flat(out)
     _page(ws, {34: "pass"})
     _, out = run(capsys)
     r = _result(ws)

@@ -72,9 +72,9 @@ FOUND = "Found {n} in your results. To use them as your marks, run `{command}`."
 # The check of imported marks against page marks (see the top)
 PAGE_MARKS = 15  # page marks per group of the LLM-as-a-judge before a verdict, and the check
 CHECK_LEVEL = 0.025  # 0.05 split over the two groups
-GATE = ("Mark at least {more} on the page to check the marks from {name}. A result with marks "
-        "from a file needs {k} page marks on answers your LLM-as-a-judge passed and {k} on "
-        "answers it failed (or all of them, if there are fewer).")
+GATE = ("Mark at least {more} on the page to check the marks from {name}. To count marks from "
+        "a file, judgekeeper needs {k} marks made on the page, on answers your LLM-as-a-judge "
+        "passed and {k} on answers it failed (or all of them, if there are fewer).")
 LOOKS_OFF = ("Your marks from {name} don't look like your marks on the page. Of the answers "
              "your LLM-as-a-judge {did}, you passed {x}% of those from {name} and {y}% of "
              "those you marked on the page. The numbers may be off.")
