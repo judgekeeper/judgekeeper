@@ -523,7 +523,7 @@ def test_every_answer_marked_with_too_few_fails_says_so(here, capsys, pages):
 
 def test_a_step_for_more_marks_than_are_left_says_run_your_eval(here, capsys):
     """After `check`, "mark 10 new answers" with one answer left, skipped: never more marks than
-    the answers there are to mark."""
+    the answers there are to mark, and the skipped one is to look at again."""
     promptfoo_project(here, split(20, 20))
     assert run(capsys)[0] == 0
     ws = Workspace(here)
@@ -532,8 +532,9 @@ def test_a_step_for_more_marks_than_are_left_says_run_your_eval(here, capsys):
     session.update({"id": next(i["id"] for i in session.items if not i["label"]),
                     "deferred": True})  # Skip
     step = "run `judgekeeper mark` to mark 10 new answers, then run `judgekeeper check` again."
-    assert start_label.next_marks(ws, step, need=10) == NEXT_ALL_MARKED.removeprefix("Next: ")
-    assert start_label.next_marks(ws, step, need=1) == step  # the skipped one is left to mark
+    skipped = start_label.next_only_skipped(1, "judgekeeper mark")
+    assert start_label.next_marks(ws, step, need=10) == skipped
+    assert start_label.next_marks(ws, step, need=1) == skipped  # only the skipped one is left
 
 
 def test_the_mark_command_never_repeats_the_pages_flags(here, capsys):
