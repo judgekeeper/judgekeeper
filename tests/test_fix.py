@@ -248,6 +248,8 @@ def test_the_first_run(here, capsys, monkeypatch):
     marks = fix.Marks(ws)
     seen = [i for i in split["visible"] if marks.person[i] != marks.judge[i]]
     passed = sum(marks.judge[i] == "pass" for i in seen)
+    failed = len(seen) - passed  # the other kind, said after it when there is one
+    other = f", and in {failed}, it said Fail where you said Pass" if failed else ""
     lines = out.splitlines()
     flat = " ".join(out.split())
     assert lines[:5] == [f"judgekeeper {__version__}", "", "Step 4 of 5: Fix", "",
@@ -256,7 +258,7 @@ def test_the_first_run(here, capsys, monkeypatch):
     assert flat.index("Where your LLM-as-a-judge goes wrong:") < flat.index(
         f"Your LLM-as-a-judge made {len(seen)} mistakes on the {len(split['visible'])} marks "
         f"used here. The other {len(split['hidden'])} are kept aside to test a new rule. In "
-        f"{passed}, it said Pass where you said Fail. Its rule may be too easy.")
+        f"{passed}, it said Pass where you said Fail{other}. Its rule may be too easy.")
     assert "of your marks are kept aside" not in flat  # said once, with the mistakes
     saved = next(n for n, line in enumerate(lines) if line.startswith("All "))
     found = " ".join(" ".join(lines[5:saved - 1]).split())
@@ -1422,3 +1424,19 @@ def test_with_every_answer_marked_and_no_result_yet_mark_keeps_the_pass_mark(her
     step = start_label.next_marks(ws, "mark more answers")
     assert step.startswith("run your eval on more questions"), step
     assert f"--pass-if {quote_arg('score>=0.5')}`" in step, step
+
+
+@pytest.mark.parametrize(("easy", "strict", "said"), [
+    (3, 2, ("In 3, it said Pass where you said Fail, and in 2, it said Fail where you said "
+            "Pass. Its rule may be too easy.")),
+    (1, 4, ("In 4, it said Fail where you said Pass, and in 1, it said Pass where you said "
+            "Fail. Its rule may be too strict.")),
+    (3, 0, "In 3, it said Pass where you said Fail. Its rule may be too easy."),
+])
+def test_the_mistakes_line_names_both_kinds(easy, strict, said):
+    """Both kinds of mistake, the larger first; a kind with none is left out."""
+    rows = [{"judge": "pass", "final": "fail", "output": "x"}] * easy + \
+        [{"judge": "fail", "final": "pass", "output": "x"}] * strict + \
+        [{"judge": "pass", "final": "pass", "output": "x"}] * 10
+    first = fix.patterns(rows)[0]
+    assert " ".join(first) == f"Your LLM-as-a-judge made {easy + strict} mistakes. {said}"

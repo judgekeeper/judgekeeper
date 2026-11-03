@@ -674,10 +674,12 @@ def patterns(rows: list[dict], mark: float | None = None,
                 "rule.")
     easy = "it said Pass where you said Fail"
     strict = "it said Fail where you said Pass"
+    other = {True: f", and in {fails}, {strict}" if fails else "",  # a kind with none: out
+             False: f", and in {passes}, {easy}" if passes else ""}
     if passes > fails:
-        out.append([f"{made} In {passes}, {easy}.", "Its rule may be too easy."])
+        out.append([f"{made} In {passes}, {easy}{other[True]}.", "Its rule may be too easy."])
     elif fails > passes:
-        out.append([f"{made} In {fails}, {strict}.", "Its rule may be too strict."])
+        out.append([f"{made} In {fails}, {strict}{other[False]}.", "Its rule may be too strict."])
     else:
         out.append([f"{made} In {passes}, {easy}. In the other {fails}, {strict}."])
     if mark is not None:
