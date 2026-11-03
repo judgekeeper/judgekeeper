@@ -390,6 +390,23 @@ def test_the_docs_say_when_no_regrade_file_is_written():
             "file and prints the steps instead.") in docs
 
 
+def test_the_docs_example_has_the_tests_line_fix_writes():
+    """eval-tools.md shows the file `fix` writes (its tests are marked-answers.yaml, next to
+    it), and the line for a file you write yourself in your project folder."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).parent.parent / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    (block,) = re.findall(r"```yaml\n(.*?)```", text, flags=re.DOTALL)
+    assert yaml.safe_load(block)["tests"] == f"file://{fix.TESTS_FILE}"
+    docs = " ".join(text.split())
+    assert f"`{fix.TESTS_FILE}` (the same answers, exactly as marked) as its tests" in docs
+    assert ("Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and "
+            "run promptfoo from your project folder.") in docs
+    assert ("(from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`"
+            in docs)
+
+
 def test_any_field_that_may_hold_a_key_is_left_out():
     config = {"temperature": 0, "maxTokens": 512, "max_tokens": 300, "apiBaseUrl": "http://x/v1",
               "apikey": SECRET, "secretkey": SECRET, "sessionToken": SECRET,

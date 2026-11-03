@@ -274,8 +274,15 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
 # Lines the README and the Guide keep -----------------------------------------------------------
 
 def _step(n: int) -> str:
-    return next(x for x in _sections(_readme())["The 5 steps"].splitlines()
-                if x.startswith(f"{n}. "))
+    """Step n's line, with the short lines indented under it."""
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith(f"{n}. "))
+    under = []
+    for x in lines[at + 1:]:
+        if not x.startswith("   - "):
+            break
+        under.append(x.strip())
+    return " ".join([lines[at], *under])
 
 
 def _guide(wanted: str) -> str:
@@ -288,6 +295,16 @@ def _guide(wanted: str) -> str:
 
 STEADY = ("Once in a while an answer you marked comes back a second time, to see how steady "
           "your marks are. Mark it as you see it.")
+
+
+def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("2. "))
+    assert lines[at].startswith("2. **Mark:** a page opens in your browser. Mark answers Pass or "
+                                "Fail; the LLM-as-a-judge's grade stays hidden.")
+    under = lines[at + 1:at + 4]
+    assert [x[:5] for x in under] == ["   - "] * 3
+    assert STEADY in under[0] and NO_BROWSER in under[1] and "--labels" in under[2]
 
 
 def test_the_mark_step_says_a_marked_answer_comes_back():
@@ -308,8 +325,8 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    said = ("The result then notes that your marks came through a link printed with no "
-            "terminal; if you marked them yourself, nothing to do.")
+    said = ("The result will say your marks came through a link the agent printed. If you "
+            "marked them yourself, you can ignore that.")
     assert said in install
     assert "came through a link printed with no terminal" in note
     assert "If you marked them yourself, nothing to do." in note
@@ -334,11 +351,26 @@ def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
     from judgekeeper import fix
 
     step = _step(4)
-    assert ("It is a loop: change the rule (with promptfoo, in "
-            "`.judgekeeper/fix/regrade.yaml`), grade again, then run "
-            "`judgekeeper fix <new results file>`.") in step
+    assert ("It is a loop: change the rule (with promptfoo, usually in "
+            "`.judgekeeper/fix/regrade.yaml`; when it can't write one, `fix` says how), grade "
+            "again, then run `judgekeeper fix <new results file>`.") in step
+    assert ("with promptfoo, usually `.judgekeeper/fix/regrade.yaml`), then run "
+            "`judgekeeper check <new results file>`.") in _step(5)
     assert "With few marks, \"can't tell yet\" is a normal answer." in step
     assert "Result: can't tell yet." in fix.RESULT["same"]
+
+
+def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
+    """Grading only the marked answers again compares on them; a mark made later waits until
+    every answer is graded, in the words `check` uses (check.WAIT_NEXT): said the same way in
+    the README, the guide and eval-tools.md."""
+    from judgekeeper import check
+
+    grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
+    said = f"Grading only your marked answers is a quick compare; to count new marks, {grade_all}."
+    assert said in _step(5)
+    assert said in _guide("step-check")
+    assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
 
 
 def test_the_readme_says_marking_every_answer_leaves_no_range():

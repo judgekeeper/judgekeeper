@@ -268,6 +268,20 @@ def test_the_readmes_measure_step_says_what_a_result_needs():
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
 
 
+def test_the_reference_says_which_marks_wait_in_the_words_check_uses():
+    """After `check` takes on a new LLM-as-a-judge that graded only some answers, a later mark
+    on an answer it didn't grade waits; the reference says so with the result's own words."""
+    from judgekeeper import check
+
+    text = REFERENCE.read_text(encoding="utf-8")
+    section = text[text.index("## check:"):text.index("\n## ", text.index("## check:") + 1)]
+    para = next(p for p in section.split("\n\n") if p.startswith("**Marks that wait.**"))
+    flat = " ".join(para.split())
+    wait = check.WAIT.split("your new LLM-as-a-judge ", 1)[1]  # "has no Pass or Fail grade ..."
+    assert wait.rstrip(".") in flat
+    assert check.WAIT_COUNT.format(command="judgekeeper check <new results file>") in flat
+
+
 # The marking page and the documents your LLM-as-a-judge was given --------------------------
 
 def test_the_docs_say_the_marking_page_leaves_out_the_documents():
