@@ -782,7 +782,8 @@ __TOP__
     shownAt = Date.now();
   }
 
-  function open(index) { ended = false; pos = index; render(); }
+  // A new answer opens with no word from the one before ("Marked Fail." was about that one)
+  function open(index) { ended = false; pos = index; clearTimeout(hearing); setText("done", ""); render(); }
 
   // The next answer still to mark (or, walking the skipped ones, still skipped), from `from`.
   // An answer shown again and skipped is not shown a third time.
@@ -899,8 +900,8 @@ __TOP__
     }).then(function (s) {
       items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
       version = s.version; history = []; walkingSkipped = false;
-      hear(heard);
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
+      hear(heard);
       if (popup && !readyShown && !ended) { showReady(); }
     }).catch(function () { window.location.reload(); });
   }
@@ -971,7 +972,7 @@ __TOP__
     if (was) { changing = true; }
     send({label: value}, function () {
       it.label = value; it.skipped = false; history.push({pos: pos, was: was});
-      hear(heard); next(); focusCard(); }, heard);
+      next(); hear(heard); focusCard(); }, heard);
   }
 
   function skip(key) {
@@ -979,7 +980,7 @@ __TOP__
     var it = items[pos], was = it.label;
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push({pos: pos, was: was});
-      hear("Skipped."); next(); focusCard(); }, "Skipped.");
+      next(); hear("Skipped."); focusCard(); }, "Skipped.");
   }
 
   // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an

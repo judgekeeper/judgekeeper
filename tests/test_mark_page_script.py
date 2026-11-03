@@ -870,6 +870,20 @@ STALE = """
 """
 
 
+def test_an_answer_opened_from_the_list_has_no_word_from_the_mark_before():
+    """"Marked Fail." is said after a mark, for a screen reader. Open another answer from the
+    list and it is gone: it was about the answer before, not this one."""
+    got = _run("""
+      function wait(ms) { return new Promise(function (r) { realTimeout(r, ms); }); }
+      key("ArrowLeft"); await settle(); await wait(250);
+      var after = ids["done"].textContent;
+      var link = new El("a"); link.setAttribute("data-k", "3");
+      ids["queue"].fire("click", {target: link}); await settle(); await wait(250);
+      console.log(JSON.stringify({after: after, opened: ids["done"].textContent,
+        at: ids["q-text"].textContent}));""", before="var realTimeout = setTimeout;\n")
+    assert got == {"after": "Marked Fail.", "opened": "", "at": "Question 3?"}
+
+
 def test_a_page_whose_marks_changed_takes_the_new_list_before_the_next_answer():
     got = _run("var BEFORE = 'v2';" + STALE + """
       key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
