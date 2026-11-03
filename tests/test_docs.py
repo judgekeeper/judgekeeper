@@ -428,6 +428,11 @@ def test_the_docs_say_mark_asks_for_a_taken_on_pass_mark_again():
             "`judgekeeper` ask for the pass mark again with it as the default.") in changelog
     for text in (reference, changelog):
         assert "`check`, `fix` and `mark` runs read" not in text
+    measure = next(x for x in (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+                   if x.startswith("3. **Measure:**"))
+    assert ("If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark "
+            "again, with the one you gave as the default; with no terminal, it prints the "
+            "`--pass-if` to give.") in measure
 
 
 def test_the_jailbreakbench_screens_are_what_this_version_prints():
