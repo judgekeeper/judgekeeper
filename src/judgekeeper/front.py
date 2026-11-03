@@ -1942,7 +1942,7 @@ def _checked_file(ws: Workspace, found: start.Found) -> str | None:
     from judgekeeper import check as checking
 
     path = checking.last_read_file(ws, [r.path for r in found.results])
-    return None if path is None else Path(textio.shown_from_here(path)).as_posix()
+    return None if path is None else textio.line_path(path)
 
 
 def _regraded_line(talk: FrontTalk, ws: Workspace, found: start.Found, k: int) -> str:

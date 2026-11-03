@@ -46,6 +46,7 @@ from judgekeeper.textio import (
     jsonl_lines,
     kept_at,
     kept_path,
+    line_path,
     loads,
     make_private,
     old_hook,
@@ -57,7 +58,6 @@ from judgekeeper.textio import (
     read_cached,
     runnable,
     said_next,
-    shown_from_here,
     wrap,
     write_replacing,
 )
@@ -1923,9 +1923,8 @@ def next_test(split: Split) -> int:
 
 
 def _shown_path(path: Path) -> str:
-    """A results file from here (textio.shown_from_here), a link they can click in a
-    terminal."""
-    return link(path, Path(shown_from_here(path)).as_posix())
+    """A results file from here (textio.line_path), a link they can click in a terminal."""
+    return link(path, line_path(path))
 
 
 def _better_needs(n: int, k: int) -> int:
@@ -2166,7 +2165,7 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
     talk.say()
     talk.para(RESULT.get(test.get("verdict"), ""))
     kept = test.get("file") if isinstance(test.get("file"), str) else None
-    file = Path(shown_from_here(kept_at(kept, ws.root))).as_posix() if kept else None
+    file = line_path(kept_at(kept, ws.root)) if kept else None
     source = (f"the result above is from {file or 'an earlier file'}"
               f"{f' on {day}' if day else ''}.")
     if blank:

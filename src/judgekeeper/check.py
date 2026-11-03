@@ -60,7 +60,6 @@ from judgekeeper.textio import (
     quote_arg,
     runnable,
     said_next,
-    shown_from_here,
     wrap,
     write_replacing,
 )
@@ -2193,7 +2192,7 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     if given_results(path):
         from judgekeeper import textio
 
-        line = f"New results: {Path(shown_from_here(path)).as_posix()}"
+        line = f"New results: {textio.line_path(path)}"
         why = textio.name_only_why(os.path.realpath(path))
         if Path(path).is_file() and why and not textio.found_again(path, state.ws.root):
             line += "\n" + KEPT_NAME.format(name=Path(path).name, where=NAME_ONLY[why])
@@ -2208,7 +2207,7 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     root = Path(state.ws.root).resolve()
     newest = Path(now.newest).resolve()
     shown = (newest.relative_to(root).as_posix() if newest.is_relative_to(root)
-             else Path(shown_from_here(newest)).as_posix())
+             else textio.line_path(newest))
     return f"New results: {shown}"
 
 
@@ -2624,7 +2623,7 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
         from judgekeeper import textio
 
         def shown(rel: str) -> str:
-            return Path(textio.shown_from_here(Path(textio.kept_at(rel, ws.root)))).as_posix()
+            return textio.line_path(Path(textio.kept_at(rel, ws.root)))
 
         # "last" only when the last check is the one that read it: not a "Worse" since
         last_read = restored and judge_setup.hash_of(last.get("after") or {}) == saved["setup_hash"]

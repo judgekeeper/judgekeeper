@@ -943,7 +943,7 @@ def shown_in(path, root) -> str:
             return real.relative_to(top).as_posix()
     except (OSError, RuntimeError, ValueError):
         pass
-    return Path(shown_from_here(path)).as_posix()
+    return shown_from_here(path)
 
 
 def _from_below_home(real: str, start) -> str | None:
@@ -1091,6 +1091,16 @@ def shown_from_here(value) -> str:
     text = os.fsdecode(value)
     shown = from_here(text, labels=False)
     return Path(text).name if shown in ANOTHER_DRIVE else shown
+
+
+def line_path(value) -> str:
+    """shown_from_here, for a line that names paths side by side: from here with `/` between
+    folders, a typed path too (as from_here names the ones it works out), and in the home
+    folder in its own form (`%USERPROFILE%\\...` on Windows), as every line names it."""
+    shown = shown_from_here(value)
+    if not is_windows() or shown.startswith(HOME_FORMS[1]):
+        return shown
+    return shown.replace("\\", "/")
 
 
 def folder_words(shown: str) -> str:

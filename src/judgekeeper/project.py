@@ -218,14 +218,12 @@ def _results(path: Path) -> bool:
 
 
 def other_eval_line(path: Path, marked: Path) -> str:
-    """The line for `path`, another eval beside `marked`: both named from here, with `/`
-    between folders as every path line shows them, a typed path too."""
+    """The line for `path`, another eval beside `marked`: both named as every path line names
+    them (textio.line_path), a typed path too."""
     from judgekeeper import textio
 
-    def shown(file: Path) -> str:
-        return Path(textio.shown_from_here(file)).as_posix()
-
-    return OTHER_EVAL.format(file=shown(path), marked=shown(marked), program=_program_anywhere())
+    return OTHER_EVAL.format(file=textio.line_path(path), marked=textio.line_path(marked),
+                             program=_program_anywhere())
 
 
 def _program_anywhere() -> str:
