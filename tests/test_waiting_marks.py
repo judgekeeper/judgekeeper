@@ -342,8 +342,8 @@ def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
     _no_mark_more(status["text"])
 
 
-def _mark_says(ws: Workspace, capsys) -> str:
-    code, out = _jk(capsys, "mark", "v2.json", "--no-browser", "--port", "0")
+def _mark_says(ws: Workspace, capsys, path: str = "v2.json") -> str:
+    code, out = _jk(capsys, "mark", path, "--no-browser", "--port", "0")
     closed(ws)
     assert code == 0, out
     text = flat(out)
@@ -444,6 +444,33 @@ def test_every_answer_marked_and_some_waiting_say_only_the_wait(tmp_path, monkey
     assert NEXT_WAIT.replace("<new results file>", "results-v2.csv") in text or \
         NEXT_WAIT in text, out
     _no_mark_more(text)
+
+
+def test_a_not_sure_check_on_only_the_marked_answers_asks_for_no_marks(
+        tmp_path, monkeypatch, capsys):
+    """Marks brought with --labels; the new results grade only the marked answers (the rest
+    `error`) and can't tell: "mark more" would only make marks that wait, so check's Next is
+    to grade every answer, then check, as Measure and `mark` say."""
+    from tests.start_projects import answer, question, table_project
+
+    monkeypatch.chdir(tmp_path)
+    person = [i < 30 for i in range(60)]
+    first = [i < 21 or 55 <= i < 60 for i in range(60)] + [i % 2 == 0 for i in range(60)]
+    table_project(tmp_path, first)
+    (tmp_path / "labels.csv").write_text("question,response,label\n" + "".join(
+        f"{question(i)},{answer(i)},{'pass' if p else 'fail'}\n" for i, p in enumerate(person)),
+        encoding="utf-8")
+    assert _jk(capsys, "--labels", "labels.csv", "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    table_project(tmp_path, [5 <= i < 30 or 30 <= i < 39 for i in range(60)] + ["error"] * 60,
+                  name="results-v2.csv")
+    code, out = _jk(capsys, "check", "results-v2.csv")
+    text = flat(out)
+    assert code == 0 and "Result: not sure" in text, out
+    _no_mark_more(text)
+    assert "Next: grade all your answers with your new LLM-as-a-judge, then run" in text, out
+    _mark_says(ws, capsys, path="results-v2.csv")
 
 
 def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_check(

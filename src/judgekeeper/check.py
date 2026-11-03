@@ -1940,6 +1940,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     if picks_lines(picked):
         said.say()
     then: str | None = None  # the Next line, said once the result is made again below
+    asks = False  # whether it asks for new marks: none, if a new mark can only wait (below)
     if worse:
         then = "Next: " + worse_step(old, new, _next_change(state), state.ws,
                                      again=_command(state))
@@ -1947,10 +1948,12 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         # more marks can't be made, and new answers would not help
         then = "Next: " + regrade_marked(state, every=True)
     elif picked["ask"]:
+        asks = True
         need = PICK_MARKS - picked["new_marks"]
         then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
             mark=mark_here(state.ws), n=need, command=_command(state)), need=need)
     elif unsure:
+        asks = True
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
             mark=mark_here(state.ws), command=_command(state)))
     before = _saved_result(state.ws) or _from_marks(state.ws)  # marked on the page only
@@ -1990,7 +1993,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         if after.get("written_from") and fresh is None:  # else said with the numbers above
             said.say(written_from(old, new))
         said.say()
-    if then is None and level in ("check", "too_early") and (after or {}).get("only_wait"):
+    if (then is None and level in ("check", "too_early") or asks) and (after or {}).get(
+            "only_wait"):
         then = "Next: " + WAIT_NEXT.format(run=wait_run(state.ws))  # a new mark only waits
     elif then is None and level in ("check", "too_early"):  # nothing to do is not so
         then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=mark_here(state.ws)))
