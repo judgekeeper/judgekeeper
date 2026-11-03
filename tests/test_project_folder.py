@@ -653,6 +653,29 @@ def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
     assert "Your last check read" not in later[0] and later[1] == later[0], later
 
 
+def test_a_check_back_after_a_worse_one_never_says_the_last_check_read_the_kept_file(
+        here, capsys, no_calls):
+    """results-v2.csv was taken on, then a check of results-v3.csv was worse: the last check
+    read results-v3.csv, so going back names results-v2.csv as an earlier check's."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    worse = [v if k % 3 == 0 else not v for k, v in enumerate(verdicts)]
+    table_project(here, worse, name="evals/results-v3.csv", model="bike-grader-v3")
+    assert run(capsys, "check", "evals/results-v3.csv")[0] == 1
+    out = flat(run(capsys, "check", "evals/results.csv")[1])
+    assert "back to the one you marked with (bike-grader-v1)" in out, out
+    assert ("An earlier check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in out, out
+    assert "Your last check read" not in out, out
+
+
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
         here, capsys, no_calls):
     """The check read a newer file outside the project: a plain run on the project's file

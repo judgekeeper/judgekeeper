@@ -2437,7 +2437,9 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
         def shown(rel: str) -> str:
             return Path(textio.shown_from_here(Path(textio.kept_at(rel, ws.root)))).as_posix()
 
-        then = LAST_READ if restored else EARLIER_READ
+        # "last" only when the last check is the one that read it: not a "Worse" since
+        last_read = restored and judge_setup.hash_of(last.get("after") or {}) == saved["setup_hash"]
+        then = LAST_READ if last_read else EARLIER_READ
         back += " " + then.format(old=shown(left), new=shown(new))
     return back
 
