@@ -167,7 +167,9 @@ def test_too_few_answers_is_asked_as_today(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys)
     assert code == 3
-    assert _check(out).endswith("or mark these 10 now with `judgekeeper mark`.")
+    assert _check(out).endswith(
+        "or mark these 10 now with `judgekeeper mark`: your marks are kept for when more "
+        "answers come.")
     assert pages[0] == []
 
 
