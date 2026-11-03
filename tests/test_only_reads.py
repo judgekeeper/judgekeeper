@@ -458,7 +458,7 @@ def test_check_with_a_file_says_one_run_and_exits_1_only_over_20_points(here, ca
     with only_reads(monkeypatch):
         code, out = run(capsys, "check", path.name)
     assert code == 0, out
-    assert "One run, so a small change may be chance." in out
+    assert "One run, so a small change may be a coincidence." in out
 
     big = dict(small)
     for i in fails[:12]:  # 12 of 22: over 20 points lower
@@ -470,7 +470,7 @@ def test_check_with_a_file_says_one_run_and_exits_1_only_over_20_points(here, ca
     path.write_text(json.dumps(data), encoding="utf-8")
     code, out = run(capsys, "check", path.name)
     assert code == 1, out
-    assert "One run, so a small change may be chance." in out
+    assert "One run, so a small change may be a coincidence." in out
     assert ws.marks.is_file()
 
 
