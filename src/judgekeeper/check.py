@@ -1264,6 +1264,22 @@ def _not_set_up(path: str, state: State | None, said) -> int:
         said.say(f"Next: {front.run_there([owner], Path.cwd())}")
         return EXIT_NEEDS_YOU
     folder = _project(given)
+    from judgekeeper import project, textio
+
+    apart = project.kept_apart(folder, given if given.is_file() else None)
+    if apart is not None:  # by the rule every command keeps: their own marks, made there
+        marked, files = apart
+        here = folder.resolve() == Path.cwd().resolve()
+        shown = textio.folder_from_here(folder)
+        said.say((f"No marks for these results yet: they get their own marks "
+                  f"{'here' if here else f'in {shown}/'}. "
+                  + (f"The marks in {textio.folder_from_here(marked)}/ are for "
+                     f"{', '.join(files)}." if files else "")).strip())
+        said.say()
+        run = (f"`{program()}` here" if here else
+               f"`{front._program_there([shown], Path.cwd())}` in {shown}/")
+        said.say(f"Next: run {run} to mark answers for them.")
+        return EXIT_NEEDS_YOU
     above = next((p for p in folder.parents if Workspace(p).start.is_file()), None)
     this = f"this folder ({folder.name})" if folder.name else "this folder"  # / has no name
     if above is None:

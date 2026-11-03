@@ -107,3 +107,26 @@ def test_another_eval_beside_the_results_gets_its_own_marks(here, capsys, monkey
         assert "These results get their own marks here." in said, said
     assert (here / "sub2" / ".judgekeeper" / "start.json").is_file(), said
     assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+
+
+@pytest.mark.parametrize("given", [True, False])
+def test_check_in_a_folder_of_other_results_says_they_get_their_own_marks(here, capsys,
+                                                                          monkeypatch, given):
+    """The session reads results.csv in the project folder; evals/ holds other results. From
+    evals/, `check` says what `mark` and a plain run do there: these get their own marks,
+    to be made with a plain run. It starts nothing itself."""
+    _marker(here, ".git")
+    table_project(here, split(20, 16), tag="top")
+    assert run(capsys, *PAGE)[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    table_project(here, split(20, 16), name="evals/results-v2.csv", tag="top")
+    monkeypatch.chdir(here / "evals")
+    code, out, err = run(capsys, "check", *(["results-v2.csv"] if given else []))
+    said = flat(out + err)
+    assert code == 3, said
+    assert ("No marks for these results yet: they get their own marks here. The marks in ../ "
+            "are for results.csv.") in said, said
+    assert "Next: run `judgekeeper` here to mark answers for them." in said, said
+    assert "Your marks are in" not in said and "check .." not in said, said
+    assert not (here / "evals" / ".judgekeeper").exists()
