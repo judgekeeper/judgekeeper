@@ -2415,6 +2415,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         next_step = _recheck_step(talk, ws)
     elif r.get("waiting") or only:  # only the judge's grades on them can count them
         next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
+    elif step == "mark" and r.get("only_skipped"):  # only a skipped one is left to mark
+        next_step = start_label.next_only_skipped(r["only_skipped"],
+                                                  _command_of(talk, saved, "mark"))
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first

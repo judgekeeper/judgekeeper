@@ -269,8 +269,20 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
     assert got["back"] == "Question 0?"
     # The end card in the answer card's place: the title, one button, no note, no result yet
     assert got["end"] == [False, True, False, True, "Look at it", "2 marked", ""]
-    assert got["title"] == "1 skipped answer. Look again, or leave it out."
+    assert got["title"] == ("Only your 1 skipped answer is left. Look at it again, or run your "
+                            "eval on more questions.")
     assert got["again"] == "Question 0?"
+
+
+def test_the_end_card_with_more_than_one_skipped_answer_left():
+    got = _run("""
+      key("s"); await settle(); later(500);
+      key("s"); await settle(); later(500);
+      key("ArrowRight"); await settle(); later(500);
+      console.log(JSON.stringify({title: ids["end-title"].textContent,
+        again: ids["again"].textContent}));""", data=_data(3))
+    assert got == {"title": ("Only your 2 skipped answers are left. Look at them again, or run "
+                             "your eval on more questions."), "again": "Look at them"}
 
 
 def test_end_card_focus_and_enter():

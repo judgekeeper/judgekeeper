@@ -646,7 +646,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     command in the saved copy; with every answer marked, what comes next
     (start_label.all_marked_lines). After a check found the new judge worse, the next step
     that check gave (`worse`), unless the Last check block `above` gives it."""
-    from judgekeeper.start_label import all_labeled
+    from judgekeeper.start_label import all_labeled, next_only_skipped, only_skipped
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
@@ -658,6 +658,10 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
+    elif r.get("only_skipped"):  # the headline is too early to tell: the rest of the line
+        n = r["only_skipped"]
+        then = (f"{_e(only_skipped(n))} "
+                f"{_code_line(next_only_skipped(n, commands(r)['more']))}")
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:

@@ -811,8 +811,8 @@ __TOP__
       return;
     }
     $("end-note").hidden = true;
-    setText("end-title", (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
-      ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out.");
+    setText("end-title", (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany)
+      .replace("{n}", String(skipped)));
     setText("again", skipped === 1 ? "Look at it" : "Look at them");
     $("again").hidden = false;
     focusCard();  // the end card, not its button: no ring on open; Enter looks again
@@ -1062,11 +1062,14 @@ def _words() -> str:
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
     from judgekeeper.front import CHANGE_MARK
-    from judgekeeper.start_label import FIRST_NUMBERS
+    from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
              "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
-             "change": CHANGE_MARK}
+             "change": CHANGE_MARK,
+             # the end card with only skipped answers left; the page puts in their number
+             "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
+             "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}")}
     # no `_` either: a command can never hold a name the server fills in (_text)
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 

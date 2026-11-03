@@ -118,6 +118,13 @@ SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
 SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
                    "the ones you marked.")
+# Too early to tell, and only skipped answers left to mark (only_skipped): the result line in
+# the terminal and report.html, the Next line, and the marking page's end card
+ONLY_SKIPPED = ("Only your {n} skipped {answers} {are} left to mark: look at {them} again, or "
+                "run your eval on more questions.")
+ONLY_SKIPPED_CARD = ("Only your {n} skipped {answers} {are} left. Look at {them} again, or run "
+                     "your eval on more questions.")
+NEXT_ONLY_SKIPPED = "look at your skipped {answers} again with `{command}`, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -1158,6 +1165,22 @@ def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
+def _skipped_words(n: int) -> dict:
+    one = n == 1
+    return {"n": n, "answers": "answer" if one else "answers", "are": "is" if one else "are",
+            "them": "it" if one else "them"}
+
+
+def only_skipped(n: int, words: str = ONLY_SKIPPED) -> str:
+    """ONLY_SKIPPED (or ONLY_SKIPPED_CARD) for `n` skipped answers."""
+    return words.format(**_skipped_words(n))
+
+
+def next_only_skipped(n: int, command: str) -> str:
+    """The Next step, without "Next: ", with only `n` skipped answers left to mark."""
+    return NEXT_ONLY_SKIPPED.format(command=command, **_skipped_words(n))
+
+
 # The page's own flags: how it opens, never how the results are read
 _PAGE_FLAGS = re.compile(r" --(?:port \d+|no-browser|wait|yes)(?= |$)")
 
@@ -1592,6 +1615,10 @@ def compute(ws: Workspace, session: StartSession) -> dict:
         r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
         r["imports_off"] = off
+    if (r["verdict_level"] in ("check", "too_early") and not only and not k
+            and 0 < r["left"] == r["skipped"]):  # a mark more can only be on a skipped one
+        r["only_skipped"] = r["left"]
+        r["verdict"] = f"{EARLY} {only_skipped(r['left'])}"
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
