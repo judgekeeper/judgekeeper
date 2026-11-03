@@ -740,7 +740,8 @@
       else if (state === 'in') stray = stray || c === '"';
       else if (state === 'quoted') state = c === '"' ? 'after' : 'quoted';
       else if (c === '"') state = 'quoted';  // after a quote in a quoted cell: a doubled quote
-      else { state = 'in'; stray = true; }  // or text after it, read on with the quote dropped
+      else if (c !== ' ' && c !== '\t') { state = 'in'; stray = true; }  // or text after it,
+      // read on with the quote dropped; a space or tab alone after it is no text
       if (/\S/.test(c) && (c !== '"' || state === 'in')) any = true;
     }
     if (from < text.length) end(text.length, true);

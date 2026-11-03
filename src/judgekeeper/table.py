@@ -423,9 +423,11 @@ def _last_cell(row: str, delimiter: str) -> tuple[int, bool, bool]:
             stray = stray or c == '"'
         elif state == "quoted":
             state = "after" if c == '"' else "quoted"
-        else:  # after a quote in a quoted cell: a doubled quote, or text after it, which the
-            # csv module reads on from with the quote dropped
-            state, stray = ("quoted", stray) if c == '"' else ("in", True)
+        elif c == '"':  # after a quote in a quoted cell: a doubled quote
+            state = "quoted"
+        elif c not in " \t":  # or text after it, which the csv module reads on from with the
+            # quote dropped; a space or tab alone after it is no text
+            state, stray = "in", True
     return cells, stray, True
 
 

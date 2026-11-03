@@ -115,9 +115,13 @@ def test_a_table_cut_off_inside_a_quote_says_it_ends_in_the_middle(tmp_path, hea
 @pytest.mark.parametrize("last, cut", [('q 12,"a 12, as our policy "unterminated', True),
                                        ('q 12,"a 12, as our "p', True),
                                        ('q 12,"a 12, a ""quoted"" word."', False),
-                                       ('q 12,"a 12, 5"" wide",pass', False)])
+                                       ('q 12,"a 12, 5"" wide",pass', False),
+                                       ('q 12,"a 12, as our " p', True),
+                                       ('q 12,"a 12.","pass" ', False),
+                                       ('q 12,"a 12.","pass"\t', False)])
 def test_a_table_cut_in_a_quoted_cell_just_after_a_quote(tmp_path, last, cut):
-    """Text after a closing quote, where the file stops: cut off; doubled quotes: whole."""
+    """Text after a closing quote, where the file stops: cut off; doubled quotes, or only a
+    space or tab after it: whole."""
     rows = [f'question {i},"answer {i}, in full.",{"pass" if i % 2 else "fail"}'
             for i in range(12)]
     path = tmp_path / "judged.csv"
