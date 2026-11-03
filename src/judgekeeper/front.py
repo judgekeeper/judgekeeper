@@ -1896,10 +1896,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     changed = [] if first or back or elsewhere else _changed(ws, found)
     grades = (0 if first or changed or back or elsewhere
               else check.grades_changed(ws, found))  # a table judge
-    added = 0
+    added, took = 0, None
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
+        took = check.take_new_grades(ws, found)  # grades on answers left that waited
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
         head.append(back)  # the judge marked on
@@ -1921,6 +1922,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(RAN_AGAIN if not ws.data().get("checked_at")
                     else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
+    if took:
+        head.append(took)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)

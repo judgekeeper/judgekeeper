@@ -1606,7 +1606,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
 
 def marks_digest(ws: Workspace, session: StartSession) -> str:
     """What a result is made from: the marks (answer and label, never a skip, and whether it
-    was brought with --labels: a page mark can check it) and the judge's verdicts."""
+    was brought with --labels: a page mark can check it), the judge's verdicts, and the
+    answers it has no grade on yet (earlier_grades: a mark there waits), when there are any."""
     import hashlib
 
     from judgekeeper import marks as marks_mod
@@ -1615,7 +1616,13 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
     marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") == marks_mod.BY_FILE]
                    for i in session.items if i["label"])
     verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
-    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
+    try:
+        never = sorted(ws.cached_data().get("earlier_grades") or [])
+    except (OSError, ValueError, AttributeError):
+        never = []
+    waits = b"\0" + json.dumps(never).encode("utf-8") if never else b""  # else as before
+    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts
+                          + waits).hexdigest()
 
 
 def _same_result(ws: Workspace, digest: str) -> dict | None:

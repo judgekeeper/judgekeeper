@@ -1868,6 +1868,15 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         else:
             said.say(_no_change(state))
             said.say(SAME if new.get("rule_hash") else SAME_GRADES)
+            took = take_new_grades(state.ws, found) if found is not None else None
+            if took:  # a change for marking: answers left that a mark counts on now
+                said.say(took)
+                said.say()
+                after = _saved_result(state.ws) or {}
+                said.say("Next: " + (next_marks(state.ws, NEXT_EARLY.format(
+                    mark=mark_here(state.ws))) if after.get("verdict_level") in (
+                        "check", "too_early") else _next_same(state).removeprefix("Next: ")))
+                return EXIT_OK
             if held is not None and held < len(state.marks):  # most were run again: new text
                 _say_left_out(said, found, [i for i in state.marks if i not in matched],
                               state.ws, len(state.marks))
@@ -2460,6 +2469,31 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None,
         then = LAST_READ if last_read else EARLIER_READ
         back += " " + then.format(old=shown(left), new=shown(new))
     return back
+
+
+# Results of the same judge grade answers it had not graded (earlier_grades): taken in
+TOOK_LEFT = ("Your new results grade {k} {answers} your LLM-as-a-judge had not graded yet: "
+             "judgekeeper keeps them as its grades, so a mark on them counts.")
+
+
+def take_new_grades(ws: Workspace, found) -> str | None:
+    """The judge the marks test now (unchanged in `found`) grades answers it had no grade on
+    (earlier_grades): start.json takes them (take_grades) and the result is made again, so
+    a mark there counts and a mark that waited is counted. The line that says so, else None."""
+    try:
+        earlier = list(ws.data().get("earlier_grades") or [])
+    except (OSError, ValueError, AttributeError):
+        return None
+    grades = {i: v for i, v in _free(found, earlier, ws).items() if v in ("pass", "fail")}
+    if not grades:
+        return None
+    with page.one_at_a_time(ws.dir, lambda line: None):  # two runs at once: one writes
+        take_grades(ws, grades)
+        waited = {i: grades[i] for i in marks.read(ws.marks).counted() if i in grades}
+        if waited:  # marks that waited: the next change is compared with these grades
+            _save_verdicts(ws, judge_setup.of(found), found, waited)
+    _report(ws, adopted=True)
+    return TOOK_LEFT.format(k=len(grades), answers="answer" if len(grades) == 1 else "answers")
 
 
 def take_grades(ws: Workspace, grades: dict[str, str]) -> None:

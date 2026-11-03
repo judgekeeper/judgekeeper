@@ -6,6 +6,7 @@ page say how many wait and how to count them."""
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -340,6 +341,60 @@ def test_right_after_a_check_that_graded_only_the_marks_nothing_asks_for_marks(
     status = StartSession(ws).state()["status"]
     assert status["only_wait"] is True and check.NO_GRADE_LEFT in status["waiting"], status
     _no_mark_more(status["text"])
+
+
+def _rows(path, keep) -> None:
+    """Only the rows of the answers `keep` (by index) stay in the table at `path`."""
+    import csv
+    import re
+
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.reader(f))
+    with path.open("w", encoding="utf-8", newline="") as f:
+        csv.writer(f).writerows([rows[0]] + [r for r in rows[1:] if int(re.search(
+            r"Question (\d+)\?", r[0])[1]) in keep])
+
+
+@pytest.mark.parametrize("command", [["check", "all-results-v2.csv"], ["--no-browser",
+                                                                      "--port", "0"]])
+def test_results_that_grade_the_answers_left_get_them_out_of_waiting(
+        tmp_path, monkeypatch, capsys, command):
+    """A check of the 40 marked answers alone took on bike-grader-v2: every answer left
+    waits. Then results with every answer, the same grades on the marked ones and the same
+    model: check takes in the new grades, so a mark there counts, never "nothing to do"."""
+    from tests.start_projects import table_project
+
+    monkeypatch.chdir(tmp_path)
+    verdicts = [i < 30 for i in range(60)]
+    table_project(tmp_path, verdicts, model="bike-grader-v1")
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    session = StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    marked = []
+    for item in session.items[:40]:
+        session.update({"id": item["id"], "label": groups[item["id"]], "seconds": 5})
+        marked.append(int(re.search(r"Question (\d+)\?", json.dumps(
+            session.raw[item["id"]]["input"]))[1]))
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0  # the result
+    closed(ws)
+    _rows(table_project(tmp_path, verdicts, name="new-results-v2.csv", model="bike-grader-v2"),
+          set(marked))
+    out = flat(_jk(capsys, "check", "new-results-v2.csv")[1])
+    assert NEXT_WAIT in out and _result(ws)["only_wait"] is True, out
+    table_project(tmp_path, verdicts, name="all-results-v2.csv", model="bike-grader-v2")
+    code, out = _jk(capsys, *command)
+    closed(ws)
+    out = flat(out)
+    assert code == 0 and "Next: nothing to do" not in out and NEXT_WAIT not in out, out
+    assert ("Your new results grade 20 answers your LLM-as-a-judge had not graded yet: "
+            "judgekeeper keeps them as its grades, so a mark on them counts.") in out, out
+    assert not _result(ws).get("only_wait") and not ws.data().get("earlier_grades")
+    code, out = _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    text = flat(out)
+    assert code == 0 and check.NO_GRADE_LEFT not in text and NEXT_WAIT not in text, out
 
 
 def _mark_says(ws: Workspace, capsys, path: str = "v2.json") -> str:
