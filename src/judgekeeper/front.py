@@ -2386,7 +2386,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
         talk.para(few[0])
         talk.say()
-        next_step = few[1]
+        for line in few[1]:  # check's own steps (promptfoo's regrade.yaml)
+            talk.say(line)
+        next_step = few[2]
     elif check:
         next_step = _recheck_step(talk, ws)
     elif r.get("waiting") or only:  # only the judge's grades on them can count them

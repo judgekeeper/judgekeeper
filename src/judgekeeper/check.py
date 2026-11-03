@@ -2173,34 +2173,45 @@ def _too_few(said: Said, state: State, found, looked=None) -> bool:
         said.say(TOO_FEW.format(p=kinds.count("pass"), f=kinds.count("fail"),
                                 need=targets.ROUGH))
         said.say()
-        steps = _steps(state)
-        if steps:  # a ready config: change the grader in it
-            said.say(GRADE_MARKED if c else GRADE_SAME)
-            for line in steps.split("\n"):
-                said.say(line)
-            said.say()
-            said.say("Next: " + fix.FOLLOW_STEPS)
-        else:  # new answers can't be compared; the Next line says how to grade them
-            if c:
-                said.say(WROTE_NEW)
-            said.say("Next: " + regrade_marked(state, every=True))
+        lines, step = _few_step(state, c)
+        for line in lines:
+            said.say(line)
+        said.say("Next: " + step)
     return few
 
 
-def too_few_here(ws: Workspace, found) -> tuple[str, str] | None:
+def _few_step(state: State, asked: int) -> tuple[list[str], str]:
+    """How to grade the marked answers again when the results hold too few of them: the
+    lines before the Next line, and its step (without "Next: "). For promptfoo, the
+    regrade.yaml steps; else the Next line says how. `asked`: how many marked questions the
+    results ask again with another answer (_asked_again)."""
+    from judgekeeper import fix
+
+    steps = _steps(state)
+    if steps:  # a ready config: change the grader in it
+        return [GRADE_MARKED if asked else GRADE_SAME, *steps.split("\n"), ""], fix.FOLLOW_STEPS
+    # new answers can't be compared; the Next line says how to grade them
+    return [WROTE_NEW] if asked else [], regrade_marked(state, every=True)
+
+
+def too_few_here(ws: Workspace, found) -> tuple[str, list[str], str] | None:
     """For a plain run on results whose LLM-as-a-judge changed: when they grade too few of
-    the marked answers for `check` to tell (_too_few), the line that says so and check's
-    step (without "Next: "): grade every marked answer again. None otherwise."""
-    m = {i: v for i, v in marks.read(ws.marks).counted().items() if v in ("pass", "fail")}
+    the marks check counts for it to tell (_too_few), the line that says so and check's own
+    step (_few_step: its lines, and the Next step). None otherwise."""
+    data = ws.data()
+    m = {i: v for i, v in batches.counted_labels(data, marks.read(ws.marks).counted()).items()
+         if v in ("pass", "fail")}  # as check counts them (_state)
     if not m:
         return None
     matched = lookup(found, m, ws)[0]
     kinds = [m[i] for i in matched]
     if not matched or min(kinds.count("pass"), kinds.count("fail")) >= targets.ROUGH:
         return None
-    state = State(ws=ws, path=".", data=ws.data(), marks=m, saved={})
+    state = State(ws=ws, path=".", data=data, marks=m, saved={})
+    gone = [i for i in m if i not in matched]
+    lines, step = _few_step(state, _asked_again(found, gone, ws) if gone else 0)
     return (FEW_HERE.format(p=kinds.count("pass"), f=kinds.count("fail"), need=targets.ROUGH),
-            regrade_marked(state, every=True))
+            lines, step)
 
 
 def _steps(state: State) -> str | None:

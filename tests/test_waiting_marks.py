@@ -504,6 +504,35 @@ def test_results_that_grade_too_few_marks_never_send_you_to_a_check_that_cant_te
     assert "re-check your changed" not in text and step in text, out
 
 
+def test_promptfoo_results_that_grade_too_few_marks_give_checks_own_steps(
+        tmp_path, monkeypatch, capsys):
+    """For promptfoo, check's step when too few marks are graded is the regrade.yaml steps:
+    a plain run on those results gives the same steps and the same Next."""
+    from tests.start_projects import answer, promptfoo_data, question
+
+    monkeypatch.chdir(tmp_path)
+    person = [i < 30 for i in range(60)]
+    (tmp_path / "results.json").write_text(json.dumps(promptfoo_data(person)), encoding="utf-8")
+    (tmp_path / "labels.csv").write_text("question,response,label\n" + "".join(
+        f"{question(i)},{answer(i)},{'pass' if p else 'fail'}\n" for i, p in enumerate(person)),
+        encoding="utf-8")
+    assert _jk(capsys, "--labels", "labels.csv", "--no-browser", "--port", "0")[0] == 0
+    ws = Workspace(tmp_path)
+    closed(ws)
+    graded = set(range(7)) | {30, 31, 32}  # 7 marked Pass, 3 marked Fail
+    (tmp_path / "results-v2.json").write_text(json.dumps(promptfoo_data(
+        [person[i] if i in graded else None for i in range(60)], model="openai:gpt-4.1")),
+        encoding="utf-8")
+    out = flat(_jk(capsys, "check", "results-v2.json")[1])
+    assert "Result: can't tell yet" in out and "regrade.yaml" in out, out
+    steps = out[out.index("Grade the answers you marked"):]
+    code, said = _jk(capsys, "--no-browser", "--port", "0")
+    closed(ws)
+    text = flat(said)
+    assert code == 0 and "so this result has not changed." in text, said
+    assert steps in text, said
+
+
 def test_once_check_grades_the_waiting_answers_their_marks_count_toward_the_check(
         tmp_path, monkeypatch, capsys):
     """Every other answer marked on the page while it waits; then every answer graded by the
