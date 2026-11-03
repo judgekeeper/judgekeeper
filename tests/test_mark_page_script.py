@@ -686,7 +686,8 @@ def _bar(counts: dict, ready: bool = False, first: bool | None = None) -> list:
     return _run("""
       console.log(JSON.stringify([ids["progress"].getAttribute("aria-valuenow"),
                                   ids["keep"].hidden, ids["keep"].textContent]));""",
-                data=_data(counts=counts, status={"text": "x", "first": first, "ready": ready}))
+                data=_data(60, counts=counts,  # enough answers for a first result
+                           status={"text": "x", "first": first, "ready": ready}))
 
 
 def test_the_bar_counts_pass_and_fail_each_up_to_the_rough_number_and_never_fills_before_ready():
@@ -1003,3 +1004,18 @@ def test_the_line_under_the_bar_says_only_skipped_answers_are_left_as_the_card_d
     said = _run(show, data=data)[1]
     assert said == (mark_page.KEEP_GOING if not first else
                     "Your first numbers are in. Too early to tell: keep marking.")
+
+
+def test_the_line_under_the_bar_says_a_first_result_needs_more_answers():
+    """24 answers, a few marked: no result can appear on the page, so the line under the bar
+    says what the terminal says, never to keep going for one."""
+    from judgekeeper import start
+
+    data = _data(24, counts={"correct": 4, "wrong": 2, "skipped": 0},
+                 status={"text": "x", "first": False, "ready": False})
+    for item in data["items"][:6]:
+        item["label"] = "pass"
+    show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
+    assert _run(show, data=data) == [False, (
+        f"A first result needs at least {start.MIN_POOL} answers: your marks are kept for when "
+        "more answers come.")]

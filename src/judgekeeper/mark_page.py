@@ -744,11 +744,13 @@ __TOP__
     var see = $("see"), keep = $("keep");
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
-    keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST);
+    var few = total < WORDS.minPool;  // fewer answers than a first result needs: said at once
+    keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST && !few);
     // only skipped answers left (nothing else to mark): what the card in the middle says
     var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= total;
     keep.textContent = onlySkipped ? (skippedLeft === 1 ? WORDS.skippedOne : WORDS.skippedMany
-      ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first : WORDS.wait;
+      ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first
+      : few ? WORDS.few : WORDS.wait;
     $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
     if (status.waiting) { setLine("waiting", status.waiting); }
   }
@@ -1060,6 +1062,7 @@ __TOP__
 
 
 KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
+FEW_ANSWERS = "A first result needs at least {n} answers: your marks are kept for when more answers come."
 SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
 SEE_READY = "See your result"
 
@@ -1087,6 +1090,7 @@ def _words() -> str:
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
     from judgekeeper.front import CHANGE_MARK
+    from judgekeeper.start import MIN_POOL
     from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
@@ -1094,7 +1098,9 @@ def _words() -> str:
              "change": CHANGE_MARK,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
-             "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}")}
+             "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}"),
+             # fewer answers than a first result needs (start.MIN_POOL): as `mark` says it
+             "few": FEW_ANSWERS.format(n=MIN_POOL), "minPool": MIN_POOL}
     # no `_` either: a command can never hold a name the server fills in (_text)
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 
