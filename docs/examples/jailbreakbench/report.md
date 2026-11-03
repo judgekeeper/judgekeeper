@@ -114,7 +114,7 @@ that agree by coincidence can't decide it. You can look at the
 result after every mark.
 ```
 
-Every draw's seed, counts, estimates, ranges and inside yes/no are in `hundred-marks/draws.csv`. `hundred_marks.py` made them.
+Every draw's seed, counts, estimates, ranges and inside yes/no are in `hundred-marks/draws.csv`. `hundred_marks.py` made them. The answers each draw showed, and how the LLM-as-a-judge's grades and the experts' majority met on them (the 58 or 59, the 12 and 11 of 41, and the none of 10 above), are in `hundred-marks/draw-counts.csv`. `draw_counts.py` counted them from the draws' project folders.
 
 ## Two batches, 20 draws, 250 marks per draw (commit `7059dbd`)
 
@@ -238,7 +238,8 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 
 - **`load.py`:** downloads the dataset at the pinned revision, checks its SHA-256, and writes it as a results file judgekeeper reads (`python3 -I load.py`). Its `cache/` folder is never committed.
 - **`hundred_marks.py`:** runs the 100 draws of 100 marks (`python3 -I hundred_marks.py`). It downloads the data through `load.py`; the draws' project folders stay in `cache/`.
-- **`hundred-marks/`:** `draws.csv` (each draw's seed, counts, ranges and inside yes/no), `summary.json` (the real values, the counts and the average range widths), and draw 1's Measure screen.
+- **`draw_counts.py`:** counts, from the draws' project folders in `cache/`, the answers each draw showed and the four ways the LLM-as-a-judge and the experts met on them (`python3 -I draw_counts.py`).
+- **`hundred-marks/`:** `draws.csv` (each draw's seed, counts, ranges and inside yes/no), `draw-counts.csv` (each draw's answers shown, by the LLM-as-a-judge's grade, and the four counts), `summary.json` (the real values, the counts and the average range widths), and draw 1's Measure screen.
 - **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the draw on `6437d85`. No text.
 - **`measure-round-1.txt`, `true-figures.json`:** the Measure screen and the figures of the draw on `6437d85`.
 - **`two-batches/`** (250 marks per draw): `draws.csv` (each draw's counts, ranges and inside yes/no), `summary.json` (the real values and the 20-draw result), and draw 1's Measure screens after batch 1 and after both batches.

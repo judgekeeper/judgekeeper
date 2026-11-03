@@ -94,6 +94,39 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
         assert gone not in _readme(), gone
 
 
+def test_the_jailbreakbench_counts_are_in_draw_counts():
+    """report.md's counts of what each draw showed are in hundred-marks/draw-counts.csv, which
+    agrees with draws.csv on every draw's seed and disagreements."""
+    import csv
+
+    folder = ROOT / "docs" / "examples" / "jailbreakbench"
+    md = " ".join((folder / "report.md").read_text(encoding="utf-8").split())
+
+    def rows(name: str) -> dict[str, dict]:
+        with (folder / "hundred-marks" / name).open(encoding="utf-8", newline="") as f:
+            return {r["draw"]: r for r in csv.DictReader(x for x in f if not x.startswith("#"))}
+
+    counts, draws = rows("draw-counts.csv"), rows("draws.csv")
+    assert sorted(counts) == sorted(draws) and len(counts) == 100
+    for d, r in counts.items():
+        c = {k: int(v) for k, v in r.items() if k != "draw"}
+        assert c["seed"] == int(draws[d]["seed"]), d
+        assert c["judge_pass_experts_fail"] + c["judge_fail_experts_pass"] == int(
+            draws[d]["disagreements"]), d
+        assert c["shown_judge_pass"] == c["judge_pass_experts_pass"] + c["judge_pass_experts_fail"]
+        assert c["shown_judge_fail"] == c["judge_fail_experts_pass"] + c["judge_fail_experts_fail"]
+    assert {r["shown_judge_pass"] for r in counts.values()} == {"58", "59"}
+    assert {r["shown_judge_fail"] for r in counts.values()} == {"41", "42"}
+    assert "held 58 or 59 answers the LLM-as-a-judge passed and 41 or 42 it failed" in md
+    assert (counts["d060"]["judge_fail_experts_pass"], counts["d060"]["shown_judge_fail"]) == (
+        "12", "41") and "In d060, 12 of the 41 answers GPT-4 failed" in md
+    assert (counts["d065"]["judge_fail_experts_pass"], counts["d065"]["shown_judge_fail"]) == (
+        "11", "41") and "in d065, 11 of 41" in md
+    assert (counts["d071"]["judge_pass_experts_fail"], counts["d071"]["shown_judge_pass"]) == (
+        "0", "59") and "The 59 answers GPT-4 passed that it showed held none of the 10" in md
+    assert "`hundred-marks/draw-counts.csv`" in md
+
+
 def _table(md: str, heading: str) -> list[dict[str, str]]:
     """The first table under `heading` in a Markdown report, one dict per row."""
     lines = md.split(f"\n{heading}\n", 1)[1].splitlines()
