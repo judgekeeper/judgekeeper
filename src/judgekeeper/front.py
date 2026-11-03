@@ -1253,15 +1253,15 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
     return out
 
 
-def _other_files(found: start.Found) -> str | None:
+def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     """Results files found next to the one read, never read with it: named (at most
-    OTHERS), with the command that checks one."""
+    OTHERS), with the command that checks one, the person's flags kept."""
     if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
     if not others:
         return None
-    commands = start._or([f"`{program()} {quote_arg(r)}`" for r in others])
+    commands = start._or([f"`{talk.command_at(r)}`" for r in others])
     return (f"Also found {start._and(others)}. To check "
             f"{'it' if len(others) == 1 else 'one'}, run {commands}.")
 
@@ -1784,7 +1784,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    for others in (_other_files(found), _other_projects(found), _nested_here(found),
+    for others in (_other_files(found, talk), _other_projects(found), _nested_here(found),
                    _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)

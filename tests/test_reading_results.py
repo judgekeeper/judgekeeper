@@ -282,7 +282,8 @@ def test_another_results_file_is_named_with_its_command(here, capsys):
     os.utime(here / "judge_b.csv", (now - 3600, now - 3600))
     code, out = find(capsys)
     assert code == 0, out
-    assert "Also found judge_b.csv. To check it, run `judgekeeper judge_b.csv`." in flat(out)
+    assert ("Also found judge_b.csv. To check it, run "
+            "`judgekeeper judge_b.csv --port 0 --no-browser`.") in flat(out)
 
 
 def test_other_promptfoo_files_are_named_with_their_commands_before_any_mark(here, capsys):
@@ -299,7 +300,8 @@ def test_other_promptfoo_files_are_named_with_their_commands_before_any_mark(her
     assert code == 0, out
     assert "File:            other.json" in out
     assert ("Also found results-regraded.json and results.json. To check one, run "
-            "`judgekeeper results-regraded.json` or `judgekeeper results.json`.") in flat(out)
+            "`judgekeeper results-regraded.json --port 0 --no-browser` or "
+            "`judgekeeper results.json --port 0 --no-browser`.") in flat(out)
 
 
 def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
@@ -311,7 +313,8 @@ def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
     assert code == 0, out
     read = re.search(r"File: +(\S+)", out)[1]
     other = ({"logs/a.json", "logs/b.json"} - {read}).pop()
-    assert f"Also found {other}. To check it, run `judgekeeper {other}`." in flat(out)
+    assert (f"Also found {other}. To check it, run "
+            f"`judgekeeper {other} --port 0 --no-browser`.") in flat(out)
 
 
 def test_at_most_three_other_files_are_named(here, capsys):
