@@ -355,4 +355,4 @@ The tests run on Linux, Windows and macOS.
 | 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
 | 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
-| 130 | stopped with Ctrl-C: it prints "Stopped." and what was saved stays saved | all |
+| 130 | stopped with Ctrl-C. What was saved stays saved. It prints "Stopped." and a Next: line, unless the run had already printed its Next: line | all |
