@@ -179,6 +179,7 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
          "mlflow": "MLflow keeps the LLM-as-a-judge's assessments once mlflow.genai.evaluate() "
                    "runs."}
 OTHERS = 3  # other projects named when run from a folder that holds several
+FILE_TOOLS = ("table", "promptfoo", "deepeval", "inspect")  # each results file is one run
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -1248,9 +1249,9 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
 
 
 def _other_files(found: start.Found) -> str | None:
-    """Tables of results found next to the one read, never read with it: named (at most
+    """Results files found next to the one read, never read with it: named (at most
     OTHERS), with the command that checks one."""
-    if found.tool != "table" or found.given:
+    if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
     if not others:
