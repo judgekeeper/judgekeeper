@@ -1932,7 +1932,7 @@ def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str]
     was = check.open_worse(ws, found)
     head.append(batches.waiting_line(n, changed, worse=was is not None))
     return (check.worse_step(was["before"], was["after"], _check_command(talk), ws) if was
-            else NEXT_CHECK.format(command=_check_command(talk)))
+            else NEXT_CHECK.format(command=_recheck_command(talk)))
 
 
 def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
@@ -2180,6 +2180,13 @@ def _check_command(talk: FrontTalk) -> str:
     return " ".join((program("check"), *path))
 
 
+def _recheck_command(talk: FrontTalk) -> str:
+    """The `check` that re-checks this run's LLM-as-a-judge: with the pass mark this run was
+    given (--pass-if), which `check` reads the scores with too."""
+    rule = talk.options.get("pass_if")
+    return _check_command(talk) + (f' --pass-if "{rule}"' if rule else "")
+
+
 def _fix_command(talk: FrontTalk) -> str:
     """`judgekeeper fix`, with the path when it is not this folder: `fix` takes no other flag."""
     return _check_command(talk).replace(program("check"), program("fix"), 1)
@@ -2305,7 +2312,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
         talk.say()
         next_step = worse_here
     elif check:
-        next_step = NEXT_CHECK.format(command=_check_command(talk))
+        next_step = NEXT_CHECK.format(command=_recheck_command(talk))
     elif r.get("waiting") or only:  # only the judge's grades on them can count them
         next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
     elif step == "mark":  # too early to tell

@@ -545,11 +545,60 @@ def test_a_better_pass_mark_is_tested_on_the_hidden_marks_for_free(here, capsys,
                   r"aside: fixed (\d+), broke (\d+), (better|safe to try)\)\.", flat)
     assert m, flat
     assert 0.6 < float(m[1]) <= 0.7
-    assert 'Use `--pass-if "score>=0.7"`.' in flat
+    assert 'Use `--pass-if "score>=0.7"`: run `judgekeeper check --pass-if "score>=0.7"`.' in flat
     split = _split(ws)
     (test,) = [t for t in split["tests"] if t["kind"] == "pass mark"]
     assert (test["fixed"], test["broke"]) == (int(m[2]), int(m[3]))
     assert test["n"] == len(split["hidden"])
+
+
+def _main(capsys, *argv):
+    code = main(list(argv))
+    out, err = capsys.readouterr()
+    return code, " ".join((out + err).split())
+
+
+def test_the_pass_mark_fix_suggests_is_re_checked_by_the_command_it_prints(here, capsys,
+                                                                           monkeypatch):
+    """Every printed step works: `fix` names `check --pass-if`, which reads the results with
+    that pass mark, compares it on the marks (picked from the marks, so it may read high) and
+    takes it on; later runs with that pass mark find no change."""
+    from judgekeeper import check
+
+    score_project(here)
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    with only_reads(monkeypatch):
+        flat = " ".join(run(capsys)[1].split())
+    m = re.search(r'Use `--pass-if "(score>=0\.\d+)"`: run `judgekeeper check --pass-if '
+                  r'"(score>=0\.\d+)"`\.', flat)
+    assert m and m[1] == m[2], flat
+    rule = m[1]
+    code, said = _main(capsys, "check", "--pass-if", rule)
+    assert code == 0, said
+    assert f"pass mark 0.5 -> {rule.split('>=')[1]}" in said, said
+    assert check.WRITTEN_FROM_MARK in said and "to write this rule" not in said, said
+    assert "has not changed" not in said
+    code, said = _main(capsys, "--pass-if", rule, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert code == 0 and "changed since your marks" not in said, said
+    code, said = _main(capsys, "check", "--pass-if", rule)
+    assert "has not changed since your last check" in said, said
+
+
+def test_a_plain_run_given_a_new_pass_mark_names_the_check_that_tests_it(here, capsys):
+    score_project(here)
+    _, said = _main(capsys, "--pass-if", "score>=0.7", "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "pass mark 0.5 -> 0.7" in said, said
+    assert 'Next: run `judgekeeper check --pass-if "score>=0.7"`' in said, said
+
+
+def test_check_with_a_pass_mark_for_grades_that_are_no_scores_says_what_it_is_for(here, capsys):
+    project(here)
+    code, said = _main(capsys, "check", "--pass-if", "score>=0.5")
+    assert code == 2, said
+    assert ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
+            "Pass or Fail, so run `judgekeeper check` without it.") in said, said
 
 
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])

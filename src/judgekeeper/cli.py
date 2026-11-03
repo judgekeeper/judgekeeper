@@ -316,6 +316,10 @@ def _parser() -> argparse.ArgumentParser:
                     help="a new results file or MLflow store (mlflow.db or an mlruns/ "
                          "folder), or your project folder (default: this folder, with its "
                          "newest results)")
+    ck.add_argument("--pass-if", metavar="RULE",
+                    help="re-check with this pass mark for your LLM-as-a-judge's scores (the "
+                         "one `fix` suggests), e.g. 'score>=0.7', instead of the one you "
+                         "marked with")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
@@ -380,7 +384,7 @@ def cmd_mark(args) -> int:
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path)
+    return check.run(args.path, pass_if=args.pass_if)
 
 
 def cmd_fix(args) -> int:

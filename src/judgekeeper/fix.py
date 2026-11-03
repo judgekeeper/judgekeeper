@@ -1017,7 +1017,13 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     if found:
         where = f"Change it in {found[0]}, line {found[1]}."
     else:
-        where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", where_lines(pm, test["new"])[0])
+        line = where_lines(pm, test["new"])[0]
+        where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", line)
+        given = re.search(r'--pass-if "[^"]*"', line)
+        if given:  # the check that re-checks it with that pass mark
+            from judgekeeper.check import _here
+
+            where = f"{where.removesuffix('.')}: run `{_here(ws, 'check')} {given[0]}`."
     return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
             f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
 

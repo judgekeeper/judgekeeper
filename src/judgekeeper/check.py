@@ -182,6 +182,7 @@ class State:
     marks: dict[str, str]  # answer id -> "pass" or "fail"
     saved: dict  # judge.json (judge_setup.read)
     lines: list[str] = field(default_factory=list)  # what is said, in order
+    pass_if: str | None = None  # `check --pass-if`: the pass mark to read the scores with
 
     @property
     def enough(self) -> bool:
@@ -219,7 +220,8 @@ def _newest(state: State):
     pm = data.get("pass_mark") or {}
     fp = data.get("fingerprint") or {}
     options = {"metric": data.get("metric"), "label_map": data.get("label_map"),
-               "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
+               "pass_if": state.pass_if or (pm.get("rule") if pm.get("source") == "pass_if"
+                                            else None),
                "store": data.get("mlflow_store"), "experiment": data.get("experiment")}
     try:
         where = root
@@ -307,7 +309,8 @@ def read_given(state: State, path: Path):
     fp = data.get("fingerprint") or {}
     tool, metric = data.get("tool"), data.get("metric")
     options = {"metric": metric, "label_map": data.get("label_map"),
-               "pass_if": pm.get("rule") if pm.get("source") == "pass_if" else None,
+               "pass_if": state.pass_if or (pm.get("rule") if pm.get("source") == "pass_if"
+                                            else None),
                "judge_model": start.given_model(fp, state.ws.root),
                "experiment": data.get("experiment")}
     name = _results(tool)
@@ -557,7 +560,7 @@ class Now:
 def _now(state: State) -> tuple[Now | None, str | None]:
     """(the judge in the newest results, None), from results-seen.json when nothing it
     depends on changed; else read, and remembered. (None, why) when it can't be read."""
-    seen = _seen(state.ws)
+    seen = None if state.pass_if else _seen(state.ws)  # a pass mark given: read with it
     root = state.ws.root
     if seen and seen.get("covered"):
         try:
@@ -572,7 +575,8 @@ def _now(state: State) -> tuple[Now | None, str | None]:
     if found is None:
         return None, problem
     setup = judge_setup.of(found)
-    _remember(state, found, setup)
+    if not state.pass_if:  # the results as they read without it
+        _remember(state, found, setup)
     return Now(setup, _config_newer(found), found, found.results[0].path), None
 
 
@@ -735,6 +739,13 @@ def groups(marked: dict[str, str], old: dict[str, str], new: dict[str, str],
 
 WRITTEN_FROM = ("This includes marks you looked at to write this rule, so it may read a few "
                 "points high.")
+WRITTEN_FROM_MARK = ("This includes marks you looked at to pick this pass mark, so it may read "
+                     "a few points high.")
+# `check --pass-if` on a judge whose pass mark is not read with --pass-if
+NO_SCORES = ("--pass-if sets the pass mark for an LLM-as-a-judge that gives scores; yours gives "
+             "Pass or Fail, so run `{check}` without it.")
+MARK_ELSEWHERE = ("--pass-if sets a pass mark given with --pass-if; yours is set in your eval, "
+                  "so change it there, run your eval, then run `{check}`.")
 AFTER_NONE = "On marks made after this change: {said}."
 AFTER_MORE = " Mark more answers to see it on answers it was not written for."
 AFTER_NUMBERS = 10  # of each kind: their numbers are shown
@@ -782,6 +793,14 @@ def _after_lines(fresh: dict[str, str], tested: dict[str, str], picked: dict[str
               for k in ("tpr", "tnr"))]
 
 
+def written_from(old: dict, new: dict) -> str:
+    """WRITTEN_FROM, or for a change of the pass mark alone (one `fix` picked), its words."""
+    mark_only = (old.get("rule_hash") == new.get("rule_hash")
+                 and (old.get("pass_mark") or {}).get("mark")
+                 != (new.get("pass_mark") or {}).get("mark"))
+    return WRITTEN_FROM_MARK if mark_only else WRITTEN_FROM
+
+
 def written_from_lines(ws: Workspace) -> list[str]:
     """What `check` says under its result after it took on a rule (or pass mark) `fix` tested
     on these marks: WRITTEN_FROM, then the new judge on the marks made since (_after_lines),
@@ -808,9 +827,9 @@ def written_from_lines(ws: Workspace) -> list[str]:
     picked, pool = batches.strata(data)
     never = set(data.get("earlier_grades") or ())  # a mark there only waits
     more = any(q["id"] not in every and q["id"] not in never for q in data.get("queue") or [])
-    return [WRITTEN_FROM, *_after_lines(fresh, tested, picked, pool,
-                                        every=every_marked(ws) and len(marked) == len(every),
-                                        more=more)]
+    return [written_from(took[-1].get("before") or {}, took[-1]["after"]),
+            *_after_lines(fresh, tested, picked, pool,
+                          every=every_marked(ws) and len(marked) == len(every), more=more)]
 
 
 # Marks on answers the judge now has never graded (batches.graded) ----------------------------
@@ -1664,9 +1683,10 @@ def _adopt(ws: Workspace, found, tested: dict[str, str]) -> None:
     _write_json(ws.start, data)
 
 
-def full(path: str, said: Said) -> int:
+def full(path: str, said: Said, pass_if: str | None = None) -> int:
     """`judgekeeper check [PATH]`: PATH a results file holds the new results; a folder (or
-    none) is the project, read at its newest results."""
+    none) is the project, read at its newest results. `pass_if`: read the scores with that
+    pass mark instead of the one marking started with (one `fix` suggested, say)."""
     problem = path_problem(path)
     if problem:
         said.say(problem)
@@ -1677,6 +1697,12 @@ def full(path: str, said: Said) -> int:
     state = _state(path)
     if state is None or not state.enough:
         return _not_set_up(path, state, said)
+    if pass_if is not None:
+        refused = _pass_if_refused(state)
+        if refused:
+            said.say(refused)
+            return EXIT_USAGE
+        state.pass_if = pass_if
     old = state.saved["setup"]
     if given_results(path):
         found, problem = read_given(state, Path(path))
@@ -1834,7 +1860,7 @@ def full(path: str, said: Said) -> int:
         said.say(f"On {on}:")
         said.say()
         _say_table(said, groups(state.marks, old_verdicts, tested, picked, pool))
-        said.say(WRITTEN_FROM)
+        said.say(written_from(old, new))
         said.say()
     else:
         _say_result(said, g)
@@ -1843,7 +1869,7 @@ def full(path: str, said: Said) -> int:
             said.say()
         _say_table(said, g)
         if fresh is not None:
-            said.say(WRITTEN_FROM)
+            said.say(written_from(old, new))
             for line in _after_lines(fresh, tested, picked, pool,
                                      every=every_marked(state.ws),
                                      more=_markable_left(state, found)):
@@ -1913,7 +1939,7 @@ def full(path: str, said: Said) -> int:
     if after and level and level != (before or {}).get("verdict_level"):
         said.say(RESULT_NOW.format(verdict=_verdict_words(after)))
         if after.get("written_from") and fresh is None:  # else said with the numbers above
-            said.say(WRITTEN_FROM)
+            said.say(written_from(old, new))
         said.say()
     if then is None and level in ("check", "too_early") and (after or {}).get("only_wait"):
         then = "Next: " + WAIT_NEXT.format(run=wait_run(state.ws))  # a new mark only waits
@@ -2321,6 +2347,15 @@ def take_grades(ws: Workspace, grades: dict[str, str]) -> None:
     _write_json(ws.start, data)
 
 
+def _pass_if_refused(state: State) -> str | None:
+    """Why `check --pass-if` can't read these results with it: grades that are no scores, or
+    a pass mark the eval sets itself. None when the scores are read with --pass-if."""
+    pm = state.data.get("pass_mark") or {}
+    if pm.get("source") == "pass_if":
+        return None
+    return (MARK_ELSEWHERE if pm else NO_SCORES).format(check=_here(state.ws, "check"))
+
+
 def _close_page(ws: Workspace) -> None:
     """The marks test another judge now: an open marking page would still show the one
     before, so it closes (as for a new batch), and the next `mark` opens it fresh."""
@@ -2424,7 +2459,7 @@ class _Printed(Said):
         _print(line)
 
 
-def run(path: str = ".") -> int:
+def run(path: str = ".", pass_if: str | None = None) -> int:
     """`judgekeeper check`. Returns the exit code."""
     _print(f"judgekeeper {__version__}")
     _print()
@@ -2435,7 +2470,7 @@ def run(path: str = ".") -> int:
         _print()
     _print(STEP)
     _print()
-    return full(path, _Printed())
+    return full(path, _Printed(), pass_if)
 
 
 __all__ = ["full", "groups", "run"]
