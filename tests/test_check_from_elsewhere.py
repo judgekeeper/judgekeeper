@@ -258,7 +258,7 @@ def test_check_sending_you_to_a_project_names_the_program_from_there(home, monke
     tool = _started(monkeypatch, home)
     code, out = _run(capsys, "check", os.path.relpath(proj / "v2.json", away))
     lines = [x for x in _commands(out) if "judgekeeper" in x]
-    assert lines and "proj s3/" in out, out
+    assert code == 3 and lines and "proj s3/" in out, out
     for line in lines:
         assert _program_in(line, proj, home) == tool, (line, out)
 
