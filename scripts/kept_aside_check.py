@@ -270,7 +270,7 @@ def markdown(result: dict) -> str:
               + " or ".join(_pct(x) for x in result["pis"]) + f" of {result['pool']:,} answers. "
               f"{result['cases']:,} made-up cases per row, seed {result['seed']}, commit "
               f"`{result['commit']}`. No AI call."), "",
-             "## The result", "", " ".join(sentences(result)), "",
+             "## The result", "", "\n".join(f"- {s}" for s in sentences(result)), "",
              "## Marks for a clear answer", "",
              ("The fewest marks tried (" + ", ".join(map(str, MARKS)) + ") at which `fix` "
               "gives a clear answer most of the time, whether the LLM-as-a-judge agrees with "
