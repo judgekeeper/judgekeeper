@@ -67,6 +67,7 @@
   var EXCEL_ENTRIES = ['[Content_Types].xml', 'xl/', '_rels/', 'docProps/'];
   var OPENDOCUMENT = 'application/vnd.oasis.opendocument.';  // the text of an OpenDocument's first entry, mimetype
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
+  var CUT_OFF = 'This file is cut off or damaged (it ends in the middle). Save it again from your eval tool.';
   var EVERY_ANSWER = 'your LLM-as-a-judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
@@ -132,6 +133,22 @@
     if (!FLOATS_SEEN) return null;
     var f = isObj(obj) ? FLOATS.get(obj) : null;
     return f && f[key] ? 'float' : 'int';
+  }
+
+  // records.load_json: JSON that stops inside a string or before its brackets close ends in the middle
+  function endsInTheMiddle(t) {
+    var depth = 0, inString = false, escaped = false;
+    for (var i = 0; i < t.length; i++) {
+      var c = t[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === '{' || c === '[') depth += 1;
+      else if (c === '}' || c === ']') depth -= 1;
+    }
+    return inString || depth > 0;
   }
 
   function tooDeep(data) {
@@ -1161,7 +1178,7 @@
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
-      if (/^\s*[\[{]/.test(fileText)) return fail('not-json', NOT_JSON);
+      if (/^\s*[\[{]/.test(fileText)) return fail('not-json', endsInTheMiddle(fileText) ? CUT_OFF : NOT_JSON);
       if (header.length >= 2 && openQuote(fileText, d) === null) {
         var wide2 = wideRow(fileText, d);
         if (wide2 !== null) return fail('wide-row', wideMessage(wide2));
