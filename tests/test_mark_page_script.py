@@ -149,12 +149,13 @@ def _data(n: int = 6, **extra) -> dict:
 def _run(scenario: str, data: dict | None = None, seen_intro: bool = True,
          before: str = "") -> dict:
     """Run the page's script (after `before`), then `scenario` (async JS that ends by printing
-    one JSON line)."""
+    one JSON line). `seen_intro` False: the project has no marks yet, so the server asks for
+    the welcome box (state()'s `intro`)."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("needs node to run the page's script")
-    code = (f"var DATA = {json.dumps(data or _data())};\n{DOM}\n"
-            + ('stored["judgekeeper-intro-seen"] = "1";\n' if seen_intro else "") + before
+    data = {**(data or _data()), **({} if seen_intro else {"intro": True})}
+    code = (f"var DATA = {json.dumps(data)};\n{DOM}\n" + before
             + _script() + "\n(async function () {\n" + scenario + "\n})();")
     with tempfile.TemporaryDirectory() as folder:  # a file: too long for a command line
         script = Path(folder) / "page.js"
@@ -470,11 +471,11 @@ def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():
       ids["intro-box"].fire("keydown", {key: "Enter"});
       later(500); key("ArrowRight"); await settle();
       console.log(JSON.stringify({open: open, focused: focused, whileOpen: whileOpen,
-        closed: ids["intro"].hidden, seen: stored["judgekeeper-intro-seen"],
+        closed: ids["intro"].hidden, stored: Object.keys(stored).length,
         after: sent.length, button: document.activeElement === ids["intro-ok"],
         inert: [inert, ids["app"].getAttribute("inert")]}));""",
                seen_intro=False, before="var inert = null;\n")
-    assert got == {"open": True, "focused": True, "whileOpen": 0, "closed": True, "seen": "1",
+    assert got == {"open": True, "focused": True, "whileOpen": 0, "closed": True, "stored": 0,
                    "after": 1, "button": False,  # the box, not its button: no ring on open
                    "inert": ["", None]}  # the page behind: inert while the box is open
 
@@ -504,8 +505,8 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
 
 
 def test_no_welcome_box_when_every_answer_is_marked():
-    """A first visit (the box never seen) to a page with every answer marked: no "Start
-    marking" box over "You have marked all N answers"; it still shows once answers are left."""
+    """A page the server asks the box on, with every answer marked: no "Start marking" box
+    over "You have marked all N answers"; it still shows once answers are left."""
     data = _data(3)
     for item in data["items"]:
         item["label"] = "pass"
@@ -513,9 +514,9 @@ def test_no_welcome_box_when_every_answer_is_marked():
     got = _run("""
       console.log(JSON.stringify({box: !ids["intro"].hidden, end: !ids["end"].hidden,
         title: ids["end-title"].textContent, inert: document.getElementById("app").getAttribute("inert") !== null,
-        seen: stored["judgekeeper-intro-seen"] || null}));""", data=data, seen_intro=False)
+        stored: Object.keys(stored).length}));""", data=data, seen_intro=False)
     assert got == {"box": False, "end": True, "title": "You have marked all 3 answers.",
-                   "inert": False, "seen": None}  # not seen yet: it shows when there is marking
+                   "inert": False, "stored": 0}
     got = _run('console.log(JSON.stringify({box: !ids["intro"].hidden}));', seen_intro=False)
     assert got == {"box": True}
 

@@ -1001,18 +1001,14 @@ __TOP__
     e.preventDefault();
   });
 
-  // The welcome box: once per browser (the browser's storage, when it allows it). The page
-  // behind it is inert. Enter or Esc starts; focus stays in the box; the button is not
-  // focused, so no ring shows.
-  var INTRO_KEY = "judgekeeper-intro-seen", box = $("intro-box");
-  function seenIntro() {
-    try { return window.localStorage.getItem(INTRO_KEY) === "1"; } catch (e) { return false; }
-  }
+  // The welcome box: while the project has no marks yet (the server says so with `intro`),
+  // on any port and in any browser. The page behind it is inert. Enter or Esc starts; focus
+  // stays in the box; the button is not focused, so no ring shows.
+  var box = $("intro-box");
   function startMarking() {
     $("intro").hidden = true; $("app").removeAttribute("inert");
     shownAt = Date.now();  // the answer is on screen from now
     freshUntil = shownAt + FRESH_MS;  // and a key within FRESH_MS of it is not meant for it
-    try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
   $("intro-ok").addEventListener("click", startMarking);
@@ -1049,7 +1045,7 @@ __TOP__
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }
-  if (left && !seenIntro()) {  // nothing left to mark: no box over "You have marked all"
+  if (left && data.intro === true) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }

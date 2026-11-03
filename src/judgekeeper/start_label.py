@@ -1058,7 +1058,8 @@ class StartSession(LabelSession):
             kinds = list(graded.values())
             counts["toward"] = {"correct": kinds.count("pass"), "wrong": kinds.count("fail")}
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": counts, "status": status, "version": self.version()}
+                "counts": counts, "status": status, "version": self.version(),
+                "intro": touched < 0}  # the welcome box: no answer marked or skipped yet
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
