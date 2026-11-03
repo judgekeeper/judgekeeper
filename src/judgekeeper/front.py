@@ -2505,7 +2505,7 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
         day = ""
     model = judge.get("model") or "model not named"
     rule = judge.get("rule_hash")
-    rule = f"rule {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
+    rule = f"rule ID {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
     return f"This result is about your LLM-as-a-judge as it was{day}: {model}, {rule}."
 
 
