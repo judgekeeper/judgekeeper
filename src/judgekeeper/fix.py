@@ -1862,7 +1862,7 @@ NOT_IN_S = ("Put your rule in place of `<current rule>`. A rule with a comma, or
             "by a space, can't go in `-S`. Grade the log with Inspect's score() in Python "
             "then, as " + EVAL_TOOLS + " shows.")
 # A scorer of the person's own may take its template as text, not a file
-OWN_TEMPLATE = ("<new rule, as your scorer takes it>", "<current rule, as your scorer takes it>")
+OWN_TEMPLATE = ("<new rule as your scorer takes it>", "<current rule as your scorer takes it>")
 
 
 def _marked_log(ws: Workspace) -> tuple[str | None, str]:
