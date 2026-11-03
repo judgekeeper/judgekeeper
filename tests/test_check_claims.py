@@ -553,6 +553,32 @@ def test_the_same_rule_model_and_grades_has_not_changed(here, capsys):
     assert "doesn't always grade" not in _flat(out)
 
 
+def test_a_check_on_a_given_file_names_one_mark_command(here, capsys):
+    """44 of 50 marked, a copy graded again given to `check`: the page's line and the Next
+    line name the same `mark`, of the file the check took on."""
+    from judgekeeper import start, start_label
+    from tests.start_projects import split
+    from tests.test_check import _results
+
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _results(here, split(25, 25))
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=lambda line: None)
+    session = StartSession(ws)
+    for q in ws.data()["queue"][:44]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    main(["mark", "--no-browser", "--port", "0"])
+    capsys.readouterr()
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0 and "run `judgekeeper mark regraded.json`." in said, out
+    assert said.count("`judgekeeper mark") == said.count("`judgekeeper mark regraded.json`") == 2
+
+
 def test_a_page_closed_for_new_grades_of_the_same_judge_says_older_grades(here, capsys):
     """Same model and rule, new grades taken on: the page showed the older grades, never a
     different LLM-as-a-judge."""

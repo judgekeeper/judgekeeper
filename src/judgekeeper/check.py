@@ -2146,6 +2146,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     if not held and _close_page(state.ws, said.say, file=taken,  # last: every file is written
                                 grades=not judge_setup.changes(old, new)):
         said.say()
+    mark = mark_here(state.ws, taken)  # the page's line names this `mark` too: one form
     # the Next line, from the pass mark in use now: one taken on above, or the one kept
     again = _command(state) + (f" --pass-if {quote_arg(state.pass_if)}" if held and state.pass_if
                                else "")  # a held one is re-checked with it, never the old
@@ -2161,11 +2162,11 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         asks = True
         need = PICK_MARKS - picked["new_marks"]
         then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=mark_here(state.ws), n=need, command=again), need=need)
+            mark=mark, n=need, command=again), need=need)
     elif unsure:
         asks = True
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(
-            mark=mark_here(state.ws), command=again))
+            mark=mark, command=again))
     after = (_saved_result(state.ws) or _from_marks(state.ws)) if not held else None
     level = (after or {}).get("verdict_level")
     if after and level and level != (before or {}).get("verdict_level"):
@@ -2178,7 +2179,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         wait = WAIT_NEXT if after.get("waiting") else NEXT_WAIT_MORE  # marks wait, or new ones would
         then = "Next: " + wait.format(run=wait_run(state.ws))
     elif then is None and level in ("check", "too_early"):  # nothing to do is not so
-        then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=mark_here(state.ws)))
+        then = "Next: " + next_marks(state.ws, NEXT_EARLY.format(mark=mark))
     said.say(then or _next_same(state))
     return EXIT_WORSE if big else EXIT_OK  # exit 1 only on a drop over NO_DROP points
 
