@@ -964,23 +964,51 @@ def by_stratum(m: Marks, ids: list[str], old: dict, new: dict) -> list[list[int]
     return [out[s] for s in sorted(out)]
 
 
-def test_pass_mark(m: Marks, split: Split) -> dict | None:
-    """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
-    scores (no AI call), once per set of hidden marks and pass mark in use: the test, also
-    kept in split.json, or None for a judge with no pass mark or when the pass mark already
-    fits best (kept as {"old", "op"}: the mark it was run for)."""
+def _check_drop(m: Marks, op: str, mark: float) -> dict | None:
+    """check's own rule (check.groups) on every mark it reads, for the pass mark `mark`
+    against the one in use: the groups, when check would call it worse; else None. fix's
+    test is overall, on the marks kept aside; check's is per side, on all of them."""
+    from judgekeeper.check import groups
     from judgekeeper.start import passes
-    from judgekeeper.start_fix import cell, cell_weights, choose_mark
 
-    pm = m.data.get("pass_mark")
-    if not _follows(m, pm):
-        return None
-    saved = split.pass_mark
-    ran_for = saved is not None and (saved.get("old"), saved.get("op")) == (pm["mark"], pm["op"])
-    if ran_for:  # run for the mark in use: the test, or nothing better than it
-        return saved if "new" in saved else None
-    if saved and saved.get("new") == pm["mark"] and saved.get("op") == pm["op"]:
-        return None  # the mark it found is the one in use now: nothing better was tested
+    ids = [i for i in m.person if i in m.judge and i not in m.earlier
+           and isinstance(m.scores.get(i), int | float)]
+    g = groups({i: m.person[i] for i in ids}, {i: m.judge[i] for i in ids},
+               {i: passes(m.scores[i], op, mark) for i in ids})
+    return g if any(g[k]["verdict"] == "worse" for k in ("passed", "failed")) else None
+
+
+def _tried_worse(ws: Workspace, op: str) -> set[float]:
+    """The pass marks a check (history.jsonl) found worse than the one before: never offered
+    again."""
+    from judgekeeper import check, judge_setup
+
+    out = set()
+    for x in check._history(ws):
+        before, after = x.get("before"), x.get("after")
+        if (x.get("kind") != "check" or not isinstance(before, dict)
+                or not isinstance(after, dict) or not judge_setup.mark_only(before, after)):
+            continue
+        if not any(isinstance(g, dict) and g.get("verdict") == "worse"
+                   for g in (x.get("groups") or {}).values()):
+            continue
+        pm = after.get("pass_mark") or {}
+        mark = pm.get("mark")
+        if pm.get("op") == op and isinstance(mark, int | float) and not isinstance(mark, bool):
+            out.add(round(float(mark), 9))
+    return out
+
+
+def _held_back(m: Marks, op: str):
+    """skip for choose_mark: a pass mark a check found worse, or one check would call worse."""
+    tried = _tried_worse(m.ws, op)
+    return lambda mark: round(mark, 9) in tried or _check_drop(m, op, mark) is not None
+
+
+def _mark_items(m: Marks, split: Split) -> tuple[list, dict]:
+    """(the seen marks as choose_mark takes them, their weights)."""
+    from judgekeeper.start_fix import cell, cell_weights
+
     rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
     pool = m.data.get("pool") or {}
     if len(set(m.batch.values())) > 1:  # each answer weighs by its stratum
@@ -990,9 +1018,64 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
                        ((q["id"], q["group"]) for q in m.data.get("queue") or []))
     seen = [rows[i] for i in split.seen]
     weights = cell_weights(list(rows.values()), seen, pool)
+    return [(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen], weights
+
+
+def held_line(m: Marks, split: Split) -> str | None:
+    """The pass mark that fits the seen marks best, when it is held back (_held_back): why,
+    in one line. None when it is not held back, or there is none better."""
+    from judgekeeper.start_fix import choose_mark
+
+    pm = m.data.get("pass_mark")
+    if not _follows(m, pm):
+        return None
     current, op = pm["mark"], pm["op"]
-    new = choose_mark([(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen],
-                      current, op, weights)
+    items, weights = _mark_items(m, split)
+    best = choose_mark(items, current, op, weights)
+    if best == current:
+        return None
+    if round(best, 9) in _tried_worse(m.ws, op):
+        return TRIED_WORSE.format(new=f"{best:g}")
+    g = _check_drop(m, op, best)
+    if g is None:
+        return None
+    less = " and ".join(f"on the answers you {key} ({g[key]['new_right']} of {g[key]['n']}, "
+                        f"down from {g[key]['old_right']})"
+                        for key in ("passed", "failed") if g[key]["verdict"] == "worse")
+    fixed = sum(g[k]["now_right"] for k in ("passed", "failed"))
+    broke = sum(g[k]["now_wrong"] for k in ("passed", "failed"))
+    lead = "it fixes more answers overall, but agrees" if fixed > broke else "it agrees"
+    return HELD.format(new=f"{best:g}", old=f"{current:g}", lead=lead, less=less)
+
+
+# A pass mark held back (held_line): check would call it worse, or a check did
+HELD = ("judgekeeper also tried a pass mark of {new} instead of {old}: {lead} with you less "
+        "{less}, so `check` would call it worse.")
+TRIED_WORSE = "You tried a pass mark of {new} with `check`, and it was worse."
+KEEP = " Keep {old}."  # after it, when no other pass mark is offered
+
+
+def test_pass_mark(m: Marks, split: Split) -> dict | None:
+    """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
+    scores (no AI call), once per set of hidden marks and pass mark in use: the test, also
+    kept in split.json, or None for a judge with no pass mark or when the pass mark already
+    fits best (kept as {"old", "op"}: the mark it was run for)."""
+    from judgekeeper.start import passes
+    from judgekeeper.start_fix import choose_mark
+
+    pm = m.data.get("pass_mark")
+    if not _follows(m, pm):
+        return None
+    held = _held_back(m, pm["op"])
+    saved = split.pass_mark
+    ran_for = saved is not None and (saved.get("old"), saved.get("op")) == (pm["mark"], pm["op"])
+    if ran_for and not ("new" in saved and held(saved["new"])):  # run for the mark in use:
+        return saved if "new" in saved else None  # the test, or nothing better than it
+    if saved and saved.get("new") == pm["mark"] and saved.get("op") == pm["op"]:
+        return None  # the mark it found is the one in use now: nothing better was tested
+    current, op = pm["mark"], pm["op"]
+    items, weights = _mark_items(m, split)
+    new = choose_mark(items, current, op, weights, skip=held)  # never one held back
     if new == current:
         split.pass_mark = {"old": current, "op": op}
         return None
@@ -1769,6 +1852,10 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
                   "you agree with into your rule where your eval keeps it.")
         talk.say()
     line = tested and (pass_mark_line(ws, pm, tested) or (fresh and tried_line(tested)))
+    held = held_line(m, split)
+    if held:  # the best fit, held back: why, and to keep the pass mark unless one follows
+        talk.para(held + ("" if line else KEEP.format(old=f"{pm['mark']:g}")))
+        talk.say()
     if line:
         talk.para(line)
         talk.say()

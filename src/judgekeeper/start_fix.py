@@ -76,10 +76,10 @@ def nice_mark(low: float, high: float) -> float:
 
 
 def choose_mark(items: list[tuple[str, str, float]], current: float, op: str,
-                weights: dict) -> float:
+                weights: dict, skip=None) -> float:
     """The pass mark that fits (group, final mark, score) items best: the best weighted
     (TPR + TNR) / 2 among a point between each two neighbouring scores; on a tie, the one
-    nearest the current mark, which wins its own ties."""
+    nearest the current mark, which wins its own ties. `skip(mark)`: a mark never chosen."""
     from judgekeeper.start import passes
 
     def fit(mark):
@@ -90,6 +90,8 @@ def choose_mark(items: list[tuple[str, str, float]], current: float, op: str,
     best, best_fit = current, fit(current)
     for low, high in itertools.pairwise(scores):
         mark = nice_mark(low, high)
+        if skip is not None and mark != current and skip(mark):
+            continue
         f = fit(mark)
         if f is None:
             continue

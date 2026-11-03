@@ -863,7 +863,7 @@ def test_a_pass_mark_taken_on_after_fix_found_none_better_is_tested_again(here, 
     main(["--stop"])
     monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
     choose = start_fix.choose_mark
-    monkeypatch.setattr(start_fix, "choose_mark", lambda rows, current, *a: current)
+    monkeypatch.setattr(start_fix, "choose_mark", lambda rows, current, *a, **k: current)
     run(capsys)
     assert _split(ws)["pass_mark"] == {"old": 0.5, "op": ">="}
     code, said = _main(capsys, "check", "--pass-if", "score>=0.66")
@@ -874,6 +874,67 @@ def test_a_pass_mark_taken_on_after_fix_found_none_better_is_tested_again(here, 
     assert test["old"] == 0.66 and test["new"] != 0.66, test
     assert test in _split(ws)["tests"]
     assert "instead of 0.66" in flat, flat
+
+
+def trade_project(root) -> Workspace:
+    """Scores passed at 0.5, every answer marked. 0.66 fixes 14 of the answers the person
+    failed but breaks 6 of the 43 they passed: better overall, worse on the passed side."""
+    passed = [0.56, 0.58, 0.6, 0.62, 0.63, 0.64] + [0.7 + 0.007 * k for k in range(37)]
+    failed = ([0.1 + 0.017 * k for k in range(20)] + [0.505 + 0.01 * k for k in range(14)]
+              + [0.7 + 0.02 * k for k in range(10)])
+    scores = passed + failed
+    with (root / "results.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", "verdict"])
+        for i, s in enumerate(scores):
+            w.writerow([question(i, TAG), answer(i, TAG), f"{s:.3f}"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert main(["--pass-if", "score>=0.5", "--no-browser", "--port", "0"]) == 0
+        main(["--stop"])
+    ws = Workspace(root)
+    session = StartSession(ws)
+    by_id = {r["id"]: r for r in map(json.loads, ws.pool.read_text(encoding="utf-8").splitlines())}
+    for item in sorted(session.items, key=lambda it: it["id"]):
+        i = int(re.search(r"Question (\d+)\?", json.dumps(by_id[item["id"]]["input"]))[1])
+        session.update({"id": item["id"], "label": "pass" if i < len(passed) else "fail",
+                        "seconds": 5})
+    with contextlib.redirect_stdout(io.StringIO()):
+        main(["--no-browser", "--port", "0", "--pass-if", "score>=0.5"])
+        main(["--stop"])
+    return ws
+
+
+@pytest.mark.parametrize("seed", [0, 1, 7])
+def test_fix_offers_no_pass_mark_check_would_call_worse(here, capsys, monkeypatch, seed):
+    """fix's test is on the marks kept aside, overall; check's rule is per side, on every
+    mark: a pass mark it offers is one check takes on, so the steps never go in a circle."""
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: seed % n)
+    ws = trade_project(here)
+    flat = " ".join(run(capsys)[1].split())
+    offered = re.search(r'run `judgekeeper check --pass-if "(score>=[\d.]+)"`', flat)
+    if offered:
+        _, said = _main(capsys, "check", "--pass-if", offered[1])
+        assert "Result: worse" not in said and _rule_in_use(ws) == offered[1], said
+    held = re.search(r"judgekeeper also tried a pass mark of ([\d.]+) instead of 0\.5: it "
+                     r"fixes more answers overall, but agrees with you less on the answers you "
+                     r"passed \((\d+) of 43, down from 43\), so `check` would call it worse\.",
+                     flat)
+    assert offered or held, flat
+    if held:
+        assert f'--pass-if "score>={held[1]}"' not in flat, flat
+
+
+def test_fix_never_offers_a_pass_mark_check_found_worse(here, capsys, monkeypatch):
+    monkeypatch.setattr(fix.secrets, "randbelow", lambda n: 0)
+    ws = trade_project(here)
+    first = " ".join(run(capsys)[1].split())
+    held = re.search(r"also tried a pass mark of ([\d.]+)", first)
+    assert held, first
+    _, said = _main(capsys, "check", "--pass-if", f"score>={held[1]}")
+    assert "Result: worse" in said and _rule_in_use(ws) == "score>=0.5", said
+    flat = " ".join(run(capsys)[1].split())
+    assert f"You tried a pass mark of {held[1]} with `check`, and it was worse." in flat, flat
+    assert "also tried" not in flat and f'--pass-if "score>={held[1]}"' not in flat, flat
 
 
 @pytest.mark.parametrize("kind", ["leans better", "same", "leans worse", "worse"])
