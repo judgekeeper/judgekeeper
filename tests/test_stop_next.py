@@ -123,9 +123,9 @@ def test_stop_names_no_fixed_port_for_a_page_on_any_free_port(here, capsys, resu
 
 
 
-@pytest.mark.parametrize("no_browser", [True, False])
+@pytest.mark.parametrize("quiet", [True, False])  # never no_browser: that is the fixture
 @pytest.mark.parametrize("result", [False, True])
-def test_stop_carries_the_closed_pages_own_flags(here, capsys, result, no_browser):
+def test_stop_carries_the_closed_pages_own_flags(here, capsys, result, quiet):
     """Its port and --no-browser as the page was started, the same with a result or not: a
     result made with --no-browser never adds it to a page started without it."""
     from tests.start_projects import promptfoo_project, split
@@ -134,8 +134,8 @@ def test_stop_carries_the_closed_pages_own_flags(here, capsys, result, no_browse
         _all_marked(here, capsys, "--port", "9781", "--no-browser")
     else:
         promptfoo_project(here, split(30, 30))
-    _main(capsys, "mark", "--port", "9783", *(["--no-browser"] if no_browser else []))
+    _main(capsys, "mark", "--port", "9783", *(["--no-browser"] if quiet else []))
     code, said = _main(capsys, "--stop")
     command = _next_command(said)
     assert code == 0 and command[command.index("--port") + 1] == "9783", said
-    assert ("--no-browser" in command) == no_browser, said
+    assert ("--no-browser" in command) == quiet, said

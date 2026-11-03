@@ -1,10 +1,32 @@
 """Fixtures shared by the tests: no real browser, and the MLflow stores."""
 
+import os
+import shutil
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
+NO_BROWSER = "a test tried to open a real browser"
+
+
+def _stop_browser(event, args):
+    if event == "webbrowser.open":
+        raise RuntimeError(f"{NO_BROWSER}: {args[0]}")
+
+
+STOP_BROWSER = f"""import sys
+
+
+def _stop_browser(event, args):
+    if event == "webbrowser.open":
+        raise RuntimeError("{NO_BROWSER}: " + str(args[0]))
+
+
+sys.addaudithook(_stop_browser)
+"""  # the same, as the sitecustomize of a Python a test starts
 
 
 @pytest.fixture(autouse=True)
@@ -54,8 +76,22 @@ def repo_stays_clean():
 
 
 def pytest_configure(config):
+    """No browser of the machine opens, even where the no_browser fixture does not reach (a
+    test that takes its name): webbrowser.open raises here, and in every Python a test starts
+    that reads PYTHONPATH, through a sitecustomize put first on it."""
     config.addinivalue_line("markers", "real_page: the marking page runs as its own process, "
                                        "as it does for a person")
+    sys.addaudithook(_stop_browser)
+    config._stop_browser = tempfile.mkdtemp(prefix="jk-no-browser-")
+    Path(config._stop_browser, "sitecustomize.py").write_text(STOP_BROWSER, encoding="utf-8")
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        [config._stop_browser, *filter(None, [os.environ.get("PYTHONPATH")])])
+
+
+def pytest_unconfigure(config):
+    folder = getattr(config, "_stop_browser", None)
+    if folder:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
