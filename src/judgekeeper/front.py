@@ -1461,6 +1461,16 @@ def _each_kind(session: StartSession) -> dict:
             "fail_marks": sum(i["label"] == "fail" for i in session.items)}
 
 
+def _only_skipped(session: StartSession) -> int:
+    """How many answers are left to mark when each of them was skipped, else 0, and 0 when
+    marking them all can't bring a result (fails_out_of_reach says so)."""
+    left = [i for i in session.items if not i["label"]]
+    if not left or not all(i["deferred"] for i in left) or fails_out_of_reach(
+            **_each_kind(session)):
+        return 0
+    return len(left)
+
+
 def _needs_each_kind(talk, session: StartSession) -> None:
     talk.para(needs_each_kind(said=talk.few_fails, **_each_kind(session)))
 
@@ -2189,6 +2199,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
             _needs_each_kind(talk, session)
+            if skipped := _only_skipped(session) if waits is None else 0:
+                talk.para(start_label.only_skipped(skipped))
         elif waits is None and (gate := _import_gate(ws, session)):  # as the result says it
             talk.para(gate)
         if waits is not None:
@@ -2214,6 +2226,8 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     next_step = NEXT_MORE if enough else NEXT_MARK
     if not enough and fails_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
         next_step = start_label.NEXT_ALL_MARKED
+    elif not enough and n and waits is None and (skipped := _only_skipped(session)):
+        next_step = start_label.next_only_skipped(skipped, "{command}")
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para(_wait_step(ws) if waits is not None

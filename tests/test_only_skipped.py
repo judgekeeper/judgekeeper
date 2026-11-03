@@ -75,3 +75,29 @@ def test_an_answer_left_that_was_never_skipped_still_says_mark_more(tmp_path, ca
     out = _run(capsys)
     assert "skipped" not in out, out
     assert "to mark more answers" in out, out
+
+
+def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, capsys,
+                                                                      monkeypatch):
+    """15 Pass and 15 Fail answers, one Fail skipped: no result yet, and the skipped one is
+    the only answer left that can bring it."""
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(15, 15), tag=" SECRET-TEXT")
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    session = start_label.StartSession(ws)
+    groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
+    skip = next(i for i in session.items if groups[i["id"]] == "fail")["id"]
+    for item in session.items:
+        session.update({"id": item["id"], "seconds": 3, **(
+            {"deferred": True} if item["id"] == skip else {"label": groups[item["id"]]})})
+    out = _run(capsys)
+    line = ("Only your 1 skipped answer is left to mark: look at it again, or run your eval on "
+            "more questions.")
+    assert line in out and "Next: mark answers on the page" not in out, out
+    assert NEXT.format(answers="answer", mark="judgekeeper --port 0 --no-browser") in out, out
+    assert not ws.report_html.exists()  # before a first result there is no report
+    capsys.readouterr()
+    main(["mark", "--no-browser", "--port", "0"])
+    out = _flat(capsys.readouterr().out)
+    main(["--stop"])
+    assert line in out and "Next: mark answers on the page" not in out, out
