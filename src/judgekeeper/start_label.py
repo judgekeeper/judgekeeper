@@ -125,6 +125,8 @@ ONLY_SKIPPED = ("Only your {n} skipped {answers} {are} left to mark: look at {th
 ONLY_SKIPPED_CARD = ("Only your {n} skipped {answers} {are} left. Look at {them} again, or run "
                      "your eval on more questions.")
 NEXT_ONLY_SKIPPED = "look at your skipped {answers} again with `{command}`, or " + NEXT_ALL_MARKED
+# ...said by `mark`, whose page is open: on the page, never the run just made again
+NEXT_ONLY_SKIPPED_PAGE = "look at your skipped {answers} again on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -1177,9 +1179,11 @@ def only_skipped(n: int, words: str = ONLY_SKIPPED) -> str:
     return words.format(**_skipped_words(n))
 
 
-def next_only_skipped(n: int, command: str) -> str:
-    """The Next step, without "Next: ", with only `n` skipped answers left to mark."""
-    return NEXT_ONLY_SKIPPED.format(command=command, **_skipped_words(n))
+def next_only_skipped(n: int, command: str, on_page: bool = False) -> str:
+    """The Next step, without "Next: ", with only `n` skipped answers left to mark (`command`:
+    `mark`). `on_page`: said by that `mark`, its page open."""
+    return (NEXT_ONLY_SKIPPED_PAGE if on_page else NEXT_ONLY_SKIPPED).format(
+        command=command, **_skipped_words(n))
 
 
 # The page's own flags: how it opens, never how the results are read

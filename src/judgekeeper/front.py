@@ -2298,7 +2298,9 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if not enough and side_out_of_reach(**_each_kind(session)):  # as FAILS_OUT_OF_REACH says
         next_step = start_label.NEXT_ALL_MARKED
     elif not enough and n and waits is None and (skipped := _only_skipped(session)):
-        next_step = start_label.next_only_skipped(skipped, "{command}")
+        next_step = start_label.next_only_skipped(  # the page that marks it: `mark`
+            skipped, _command_of(talk, saved, "mark"), on_page=marking
+        ).replace("{", "{{").replace("}", "}}")
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
     talk.para(_wait_step(ws) if waits is not None

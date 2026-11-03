@@ -94,13 +94,17 @@ def test_before_a_first_result_only_skipped_answers_left_say_the_same(tmp_path, 
     line = ("Only your 1 skipped answer is left to mark: look at it again, or run your eval on "
             "more questions.")
     assert line in out and "Next: mark answers on the page" not in out, out
-    assert NEXT.format(answers="answer", mark="judgekeeper --port 0 --no-browser") in out, out
+    # the page where it can be marked, never the run just made again
+    assert NEXT.format(answers="answer", mark="judgekeeper mark --port 0 --no-browser") in out, out
     assert not ws.report_html.exists()  # before a first result there is no report
     capsys.readouterr()
     main(["mark", "--no-browser", "--port", "0"])
     out = _flat(capsys.readouterr().out)
     main(["--stop"])
     assert line in out and "Next: mark answers on the page" not in out, out
+    assert ("Next: look at your skipped answer again on the page, or run your eval on more "
+            "questions, then run `judgekeeper mark --port 0 --no-browser`: the new answers join "
+            "the ones you marked.") in out, out  # never `mark` again: its page is open
 
 
 @pytest.mark.parametrize("pass_marks, fail_marks, side", [(10, 26, "Pass"), (26, 10, "Fail")])
