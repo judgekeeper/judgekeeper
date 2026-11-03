@@ -749,6 +749,25 @@ def _adopted(here, capsys, monkeypatch, rule="score>=0.7", page=None):
     return ws, *_main(capsys, "check", "--pass-if", rule)
 
 
+def test_at_a_terminal_the_pass_mark_asked_again_is_the_one_in_use(here, capsys, monkeypatch):
+    """A plain run asks the pass mark again (no --pass-if typed): its default is the one a
+    check took on, so Enter keeps it."""
+    import builtins
+
+    from judgekeeper import start
+
+    ws, code, said = _adopted(here, capsys, monkeypatch)
+    assert code == 0 and _rule_in_use(ws) == "score>=0.7", said
+    asked = []
+    monkeypatch.setattr(start, "_interactive", lambda: True)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": asked.append(prompt) or "")
+    _, said = _main(capsys, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert "Pass when the score is at least" in asked[0] and "0.7" in asked[0], asked
+    assert "0.5" not in asked[0], asked
+    assert _rule_in_use(ws) == "score>=0.7", said
+
+
 def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, capsys,
                                                                       monkeypatch):
     """The page is asked last: a page that does not answer leaves start.json, result.json,

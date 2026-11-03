@@ -788,6 +788,20 @@ def _add_label_map(talk: FrontTalk, extra: str) -> None:
     talk.set("label_map", f"{given},{extra}" if given else extra)
 
 
+def _mark_in_use(found: start.Found) -> str:
+    """The default for the pass mark asked: the one the marks read the scores with now (given
+    with --pass-if, or taken on by a check), when it is "at least"; else 0.5."""
+    try:
+        pm = Workspace(found.root).data().get("pass_mark") or {}
+    except (OSError, ValueError, AttributeError):
+        pm = {}
+    mark = pm.get("mark")
+    if pm.get("source") == "pass_if" and pm.get("op") == ">=" and isinstance(mark, (int, float)) \
+            and not isinstance(mark, bool):
+        return f"{mark:g}"
+    return "0.5"
+
+
 def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     """The judge's decisions hold values that are not Pass or Fail: ask what they mean (never
     a guess: a wrong one turns fails into passes)."""
@@ -815,7 +829,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
             raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
                                            f"`{talk.command('--pass-if', PASS_IF)}`.")
         while True:
-            answer = talk.ask("Pass when the score is at least", "0.5")
+            answer = talk.ask("Pass when the score is at least", _mark_in_use(found))
             if _numeric(answer):
                 talk.set("pass_if", f"score>={answer}")
                 return
