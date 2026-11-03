@@ -221,9 +221,8 @@ def test_a_ctrl_c_while_the_commands_load_names_the_program_and_flags(capsys, mo
     from judgekeeper import __main__ as entry
     from judgekeeper import textio
 
-    def pressed_while_loading():
+    def pressed_while_loading():  # holds nothing to put back, as off the main thread
         entry._pressed = True
-        return None
 
     monkeypatch.setattr(entry, "_hold", pressed_while_loading)
     monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")

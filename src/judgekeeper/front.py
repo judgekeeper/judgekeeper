@@ -117,6 +117,9 @@ ONE_GRADE = ("Your LLM-as-a-judge said {said} on every answer. Your result comes
              "mark one answer {other}.")
 FINDING = "finding {n} answers you mark Fail can take many marks."
 FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
+# ...unless too few answers are left to mark to reach them
+FAILS_OUT_OF_REACH = ("Only {left} left to mark, not enough to reach {n} Fail marks, so run "
+                      "your eval on more questions.")
 FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
@@ -1379,14 +1382,20 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
     return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
 
 
-def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
+def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | None = None,
+                    fail_marks: int = 0) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
-    (`said`: Find said how few it failed in this run, so only that)."""
+    (`said`: Find said how few it failed in this run, so only that). With `left` answers to
+    mark (None: all of them) and `fail_marks` made, fewer left than Fail marks still needed
+    says so instead."""
     if answers and fails in (0, answers):  # one grade for every answer: exact numbers
         said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
         return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    if left is not None and left < targets.ROUGH - fail_marks:  # can't be reached by marking
+        return out + " " + FAILS_OUT_OF_REACH.format(
+            left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
         out += " " + (rest[:1].upper() + rest[1:] if said else
@@ -1396,7 +1405,10 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
 
 def _needs_each_kind(talk, session: StartSession) -> None:
     groups = list(session.groups.values())  # every answer to mark, each batch's too
-    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+    left = sum(not i["label"] for i in session.items)
+    fail_marks = sum(i["label"] == "fail" for i in session.items)
+    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails, left=left,
+                              fail_marks=fail_marks))
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
