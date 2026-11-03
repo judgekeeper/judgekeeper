@@ -946,8 +946,20 @@ def write_suggestions(ws: Workspace, rows: list[dict]) -> bool:
         return False
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, reasons.suggestions_md(wrong))
+    with plainly():  # a file in .judgekeeper/: the command as anyone types it
+        command = mark_again(ws)
+    write_replacing(path, reasons.suggestions_md(wrong, command))
     return reasons.has_any(wrong)
+
+
+def mark_again(ws: Workspace) -> str:
+    """The `mark` command that opens the page where reasons are given, from the flags of the
+    run that made the result (report_page.commands), as the result page names it."""
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        r = None
+    return report_page.commands(r if isinstance(r, dict) else {})["mark"]
 
 
 def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
@@ -2057,8 +2069,11 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
+        suggested, once = reasons.suggestions(mistakes(seen_rows))
         talk.para(f"Suggestions from your reasons are in {_file(ws, SUGGESTIONS)}. Copy the ones "
-                  "you agree with into your rule where your eval keeps it.")
+                  "you agree with into your rule where your eval keeps it." if suggested else
+                  f"No rule line is suggested in {_file(ws, SUGGESTIONS)} yet. "
+                  + reasons.none_yet(reasons.more_needed(once), mark_again(ws)))
         talk.say()
     line = tested and (pass_mark_line(ws, pm, tested) or (fresh and tried_line(tested)))
     held = held_line(m, split)

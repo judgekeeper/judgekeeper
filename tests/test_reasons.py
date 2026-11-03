@@ -778,6 +778,33 @@ def test_suggestions_md_reason_lines(here, capsys, monkeypatch):
     assert not (ws.dir / "fix" / "rule.txt").exists()
 
 
+def test_one_reason_says_how_many_more_and_how_to_give_them(here, capsys, monkeypatch):
+    """A reason given once suggests no line: suggestions.md and the terminal say so in the
+    same words, how many more answers it needs, and where reasons are given."""
+    monkeypatch.setattr(fix, "HIDDEN_TENTHS", 3)
+    ws, passes, _, _ = _ready(here)
+    _say(ws, passes[0], reasons=["wrong_fact"])
+    _, out = run_fix(capsys)
+    md = (ws.dir / "fix" / "suggestions.md").read_text(encoding="utf-8")
+    said = reasons.none_yet(1, "judgekeeper mark")
+    assert said == ("None yet. A line is suggested once you give the same reason on at least 2 "
+                    "answers. Give a reason you used once on 1 more answer. To add reasons, run "
+                    "`judgekeeper mark` and open your result from the marking page. Say why you "
+                    "disagree on an answer there.")
+    assert said in md.split("## Seen once")[0]
+    flat = " ".join(out.split())
+    assert f"No rule line is suggested in .judgekeeper/fix/suggestions.md yet. {said}" in flat
+    assert "Copy the ones you agree with" not in flat
+
+
+def test_with_no_reason_left_two_are_needed():
+    assert reasons.none_yet(2, "judgekeeper mark") == (
+        "None yet. A line is suggested once you give the same reason on at least 2 answers. "
+        "To add reasons, run `judgekeeper mark` and open your result from the marking page. "
+        "Say why you disagree on an answer there.")
+    assert reasons.more_needed([]) == 2
+
+
 @pytest.mark.parametrize("reason, line", [
     ("wrong_fact", "Fail an answer with any wrong fact, even a small one."),
     ("no_answer", "Fail an answer that doesn't answer the question asked."),
