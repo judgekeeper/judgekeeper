@@ -59,7 +59,7 @@ def _version(monkeypatch, out, which="/usr/local/bin/judgekeeper") -> list[str]:
 def test_in_a_terminal_it_says_ready_and_what_to_run_next(monkeypatch, plain_env):
     lines = _version(monkeypatch, Terminal())
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: run judgekeeper"]
+                     "Next: run `judgekeeper`."]
 
 
 def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
@@ -69,7 +69,7 @@ def test_piped_it_prints_only_the_version(monkeypatch, plain_env):
 def test_without_the_command_on_path_it_names_python_m(monkeypatch, plain_env):
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: python == "python3")
     lines = _version(monkeypatch, Terminal(), which=None)
-    assert lines[1] == "Next: run python3 -P -m judgekeeper"
+    assert lines[1] == "Next: run `python3 -P -m judgekeeper`."
 
 
 def test_a_python_that_cannot_import_it_is_never_named(monkeypatch, plain_env, tmp_path):
@@ -77,7 +77,8 @@ def test_a_python_that_cannot_import_it_is_never_named(monkeypatch, plain_env, t
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
     monkeypatch.chdir(tmp_path)
     line = _version(monkeypatch, Terminal(), which=None)[1]
-    assert line == f"Next: run {textio.command_path(sys.executable, climb=False)} -P -m judgekeeper"
+    python = textio.command_path(sys.executable, climb=False)
+    assert line == f"Next: run `{python} -P -m judgekeeper`."
 
 
 def test_a_relative_judgekeeper_off_the_path_is_named_as_typed(monkeypatch, plain_env, tmp_path):
@@ -88,12 +89,12 @@ def test_a_relative_judgekeeper_off_the_path_is_named_as_typed(monkeypatch, plai
     monkeypatch.setattr(sys, "argv", ["venv311/bin/judgekeeper", "--version"])
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
     assert _version(monkeypatch, Terminal(), which=None)[1] == (
-        "Next: run venv311/bin/judgekeeper")
+        "Next: run `venv311/bin/judgekeeper`.")
 
 
 def test_the_python_m_it_names_runs_nothing_from_this_folder(monkeypatch, plain_env, tmp_path):
     """-P keeps this folder off the import path: a project's re.py or json.py never runs."""
-    command = _version(monkeypatch, Terminal(), which=None)[1].removeprefix("Next: run ")
+    command = _version(monkeypatch, Terminal(), which=None)[1].removeprefix("Next: run `")[:-2]
     for name in ("re", "json"):
         (tmp_path / f"{name}.py").write_text(
             f"open({str(tmp_path / 'ran')!r}, 'a').write({name!r})\n", encoding="utf-8")
@@ -109,7 +110,7 @@ def test_on_windows_without_the_command_on_path_it_names_py_m(monkeypatch, plain
     monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: python == "py")
     lines = _version(monkeypatch, Terminal(), which=None)
     assert lines == [f"✓ judgekeeper {__version__} is ready",
-                     "Next: run py -P -m judgekeeper"]
+                     "Next: run `py -P -m judgekeeper`."]
 
 
 def test_the_tick_needs_an_encoding_that_has_it(plain_env):
@@ -151,7 +152,7 @@ def test_it_never_warns_about_where_it_is_installed(monkeypatch, plain_env, outs
     if prefix:
         monkeypatch.setattr(sys, "prefix", prefix)
     assert _version(monkeypatch, Terminal()) == [f"✓ judgekeeper {__version__} is ready",
-                                                 "Next: run judgekeeper"]
+                                                 "Next: run `judgekeeper`."]
 
 
 def test_piped_outside_a_project_it_still_prints_only_the_version(monkeypatch, plain_env,

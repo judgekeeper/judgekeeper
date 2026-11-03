@@ -162,7 +162,7 @@ def version_lines(stream=None) -> list[str]:
         command = program()
     else:
         command = textio.off_path(any_start=True)
-    return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
+    return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run `{command}`."]
 
 
 class _Version(argparse.Action):

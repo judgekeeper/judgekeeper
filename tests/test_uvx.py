@@ -92,7 +92,7 @@ class Terminal(io.StringIO):
 
 def test_the_version_line_names_uvx(by_uvx, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)  # uvx puts nothing on the PATH
-    assert version_lines(Terminal())[1] == f"Next: run {UVX}"
+    assert version_lines(Terminal())[1] == f"Next: run `{UVX}`."
 
 
 def test_the_first_run_names_no_bare_command(here, capsys, by_uvx, no_browser):
