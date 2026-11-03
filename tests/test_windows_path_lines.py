@@ -51,3 +51,21 @@ def test_no_line_turns_a_shown_path_into_slashes_itself():
               for m in re.finditer(r"shown_from_here\([^\n]*\)\)\.as_posix\(\)",
                                    f.read_text(encoding="utf-8"))]
     assert turned == []
+
+
+def test_a_typed_path_found_from_elsewhere_has_slashes(windows, tmp_path):
+    """shown_in from another folder: a typed `sub2\\results.json` as every line shows it."""
+    (tmp_path / "elsewhere").mkdir()
+    assert textio.shown_in("sub2\\results.json", tmp_path / "elsewhere") == "sub2/results.json"
+
+
+def test_the_compare_command_has_slashes_as_the_line_beside_it(windows, monkeypatch):
+    """`judgekeeper Desktop\\proj` in the home folder: the regrade line names
+    Desktop/proj/results.json, and its command the project the same way."""
+    from types import SimpleNamespace
+
+    from judgekeeper import front
+
+    monkeypatch.chdir(Path.home())
+    typed = SimpleNamespace(path="Desktop\\proj")
+    assert front._check_command(typed) == "judgekeeper check Desktop/proj"

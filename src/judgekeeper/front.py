@@ -2529,8 +2529,10 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
 
 
 def _check_command(talk: FrontTalk) -> str:
-    """`judgekeeper check`, with the path when it is not this folder."""
-    path = [] if talk.path == "." else [start.path_word(talk.path)]
+    """`judgekeeper check`, with the path when it is not this folder: a typed one with `/`
+    between folders, as the line beside it names the files in it (textio.line_path)."""
+    typed = talk.path if os.path.isabs(str(talk.path)) else Path(talk.path).as_posix()
+    path = [] if talk.path == "." else [start.path_word(typed)]
     return " ".join((program("check"), *path))
 
 
