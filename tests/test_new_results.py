@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from judgekeeper import fix
+from judgekeeper.textio import quote_arg
 from tests.test_only_reads import (
     FIRST,
     WRONG,
@@ -214,6 +215,7 @@ def _marked_inspect_log(here, capsys) -> tuple:
     new = fix.new_log(ws)
     assert new == "logs/new.eval"  # next to the marked log, where `check` finds it
     assert fix.inspect_score(ws) == (f"inspect score logs/{log.name} --scorer model_graded_qa "
+                                     f"-S instructions={quote_arg('<new rule>')} "
                                      "--action overwrite")
     assert fix.inspect_score(ws, new) == f"{fix.inspect_score(ws)} --output-file {new}"
     assert (f"run `{fix.inspect_score(ws, new)}` and then run `judgekeeper fix {new}`") in said
@@ -228,28 +230,33 @@ def _marked_inspect_log(here, capsys) -> tuple:
 
 
 def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkeypatch):
-    """The command fix prints for Inspect AI, run for real: the new grades are under the
-    scorer's own name in a new log, fix reads them as the new rule, and the log the marks were
-    made on stays as it was."""
+    """The command fix prints for Inspect AI, run for real with the new rule in its place: the
+    new grades are under the scorer's own name in a new log, fix reads them as the new rule,
+    and the log the marks were made on stays as it was."""
     pytest.importorskip("inspect_ai")
     import hashlib
+    import shlex
     import subprocess
     import sys
 
     from judgekeeper import judge_setup
+    from judgekeeper.fingerprint import rule_hash
 
     log, ws = _marked_inspect_log(here, capsys)
     new = fix.new_log(ws)
-    new_rule = "New rule. GRADE: C or GRADE: I."
+    new_rule = "New rule. GRADE C or GRADE I."
     before = hashlib.sha256(log.read_bytes()).hexdigest()
+    printed = shlex.split(fix.inspect_score(ws, quote_arg(new)))  # its paths have no "\\"
+    assert printed[:2] == ["inspect", "score"] and "instructions=<new rule>" in printed
+    argv = [f"instructions={new_rule}" if a == "instructions=<new rule>" else a
+            for a in printed[2:]]
     # Inspect's own command line, with a grader whose reply holds a grade
     cli = ("import sys; from inspect_ai.model._providers.mockllm import MockLLM; "
            "MockLLM.default_output = 'GRADE: C'; from inspect_ai._cli.main import main; "
            "sys.argv[0] = 'inspect'; main()")
     done = subprocess.run(
-        [sys.executable, "-c", cli, "score", str(log), "--scorer", "model_graded_qa",
-         "-S", f'instructions="{new_rule}"', "--model-role", "grader=mockllm/model",
-         "--action", "overwrite", "--output-file", new, "--display", "none"],
+        [sys.executable, "-c", cli, "score", *argv, "--model-role", "grader=mockllm/model",
+         "--display", "none"],
         cwd=here, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL,
         check=False)
     assert done.returncode == 0, done.stdout + done.stderr
@@ -261,6 +268,7 @@ def test_inspect_score_as_fix_says_gives_fix_the_new_grades(here, capsys, monkey
     test = fix.read_split(ws).tests[-1]
     marked_rule = (judge_setup.read(ws) or {})["setup"]["rule_hash"]
     assert test["rule_hash"] and test["rule_hash"] != marked_rule
+    assert test["rule_hash"] == rule_hash(new_rule)  # the rule in the command reached the scorer
     code, out = run(capsys, "check")  # the new log, with the others: no choice to make
     assert "need a choice" not in out and "run your eval once" not in out, out
 

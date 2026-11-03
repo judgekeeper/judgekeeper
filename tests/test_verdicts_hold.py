@@ -17,6 +17,7 @@ import pytest
 from judgekeeper import __version__, batches, fix
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_data
 
 
@@ -295,7 +296,9 @@ def test_nothing_to_fix_on_inspect_says_to_score_the_log_again(here, capsys, mon
     assert code == 0 and "there is nothing to fix" in out, out
     assert out.endswith("Next: nothing to fix. To test another rule anyway, score your log "
                         "again with it: run `inspect score logs/2026-10-02_support.json "
-                        "--scorer model_graded_qa --action overwrite --output-file "
+                        f"--scorer model_graded_qa -S instructions={quote_arg('<new rule>')} "
+                        "--action overwrite "
+                        "--output-file "
                         "logs/new.eval` and then run `judgekeeper "
                         "fix logs/new.eval`."), out
 

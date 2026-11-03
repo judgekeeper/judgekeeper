@@ -1770,8 +1770,11 @@ def _first_file(ws: Workspace) -> str | None:
 
 NEW_LOG = "new.eval"
 # What is not known stays a placeholder (inspect_score)
-INSPECT_SCORE = "inspect score {log} --scorer {scorer} --action overwrite"
+INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite"
 _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
+INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
+# The new rule, by the option the log set it in: model_graded_qa reads a template from a file
+NEW_RULE = {"instructions": "<new rule>", "template": "<file with the new rule>"}
 
 
 def _marked_log(ws: Workspace) -> tuple[str | None, str]:
@@ -1801,19 +1804,26 @@ def new_log(ws: Workspace) -> str:
     return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
 
 
-def inspect_score(ws: Workspace, out: str | None = None) -> str:
+def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True) -> str:
     """INSPECT_SCORE with the marked log and its scorer, so it runs as it is copied: the
     scorer is the LLM-as-a-judge's metric (`scorer.key` for a dict score). A placeholder
-    stays only for what is not known (a log gone, a name `--scorer` can't take). `out`: the
-    new log it writes (`--output-file`, quoted already), in the one command."""
+    stays only for what is not known (a log gone, a name `--scorer` can't take, the new
+    rule). `out`: the new log it writes (`--output-file`, quoted already), in the one
+    command. `rule`: the new rule goes in with `-S`, in the option the log set it in, or
+    `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule."""
     log = _marked_log(ws)[0]
     try:
-        metric = ws.data().get("metric")
+        data = ws.data()
+        metric, field = data.get("metric"), data.get("rule_field")
     except (OSError, ValueError, AttributeError):
-        metric = None
+        metric = field = None
     name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
-    command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>",
-                                   scorer=name if _SCORER.fullmatch(name) else "<name>")
+    scorer = name if _SCORER.fullmatch(name) else "<name>"
+    if field not in NEW_RULE:
+        field = "instructions" if scorer in INSPECT_OWN else None
+    option = f" -S {field}={quote_arg(NEW_RULE[field])}" if rule and field else ""
+    command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
+                                   rule=option)
     return f"{command} --output-file {out}" if out else command
 
 

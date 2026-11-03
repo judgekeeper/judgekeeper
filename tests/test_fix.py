@@ -990,13 +990,19 @@ def test_a_pass_mark_test_that_is_not_better_is_said_once(here, capsys, monkeypa
 
 # The test of a new rule ------------------------------------------------------------------------
 
-@pytest.mark.parametrize(("metric", "scorer"), [
-    ("model_graded_qa", "model_graded_qa"), ("grader.accuracy", "grader"),
-    ("my_pkg/qa", "my_pkg/qa"), ("model_graded_qa() (claude-sonnet-4-5)", "<name>"),
-    (None, "<name>")])
-def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, metric, scorer):
+SET_RULE = f" -S instructions={textio.quote_arg('<new rule>')}"  # as the shell here takes it
+
+
+@pytest.mark.parametrize(("metric", "scorer", "rule"), [
+    ("model_graded_qa", "model_graded_qa", SET_RULE),
+    ("inspect_ai/model_graded_qa", "inspect_ai/model_graded_qa", SET_RULE),
+    ("grader.accuracy", "grader", ""), ("my_pkg/qa", "my_pkg/qa", ""),
+    ("model_graded_qa() (claude-sonnet-4-5)", "<name>", ""), (None, "<name>", "")])
+def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, metric, scorer,
+                                                                      rule):
     """Copied and run as it is: a placeholder only for what is not known. The log is kept
-    from Inspect's log folder; a dict score's LLM-as-a-judge is named scorer.key."""
+    from Inspect's log folder; a dict score's LLM-as-a-judge is named scorer.key. Inspect's
+    own scorer gets the new rule with `-S`, or it grades with its stock rule."""
     (tmp_path / "logs").mkdir()
     (tmp_path / "logs" / "tech facts.eval").write_text("x", encoding="utf-8")
     ws = Workspace(tmp_path)
@@ -1004,9 +1010,29 @@ def test_the_inspect_score_command_names_the_log_and_scorer_it_knows(tmp_path, m
     data = {"tool": "inspect", "metric": metric, "results_files": ["tech facts.eval"]}
     ws.start.write_text(json.dumps(data), encoding="utf-8")
     log = textio.quote_arg("logs/tech facts.eval")  # as the shell here takes it
-    assert fix.inspect_score(ws) == f"inspect score {log} --scorer {scorer} --action overwrite"
+    assert fix.inspect_score(ws) == (f"inspect score {log} --scorer {scorer}{rule} "
+                                     "--action overwrite")
+    assert fix.inspect_score(ws, rule=False) == (f"inspect score {log} --scorer {scorer} "
+                                                 "--action overwrite")
     ws.start.write_text(json.dumps({**data, "results_files": ["gone.eval"]}), encoding="utf-8")
     assert fix.inspect_score(ws).startswith("inspect score <log> --scorer ")
+
+
+@pytest.mark.parametrize(("field", "option"), [
+    ("instructions", f"instructions={textio.quote_arg('<new rule>')}"),
+    ("template", f"template={textio.quote_arg('<file with the new rule>')}")])
+def test_the_inspect_score_command_sets_the_option_the_rule_is(tmp_path, field, option):
+    """The rule goes in the option the log set it in, for any scorer. A template is read
+    from a file, so a rule with commas or colons reaches it whole."""
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "a.eval").write_text("x", encoding="utf-8")
+    ws = Workspace(tmp_path)
+    ws.dir.mkdir()
+    ws.start.write_text(json.dumps({"tool": "inspect", "metric": "grader",
+                                    "results_files": ["a.eval"], "rule_field": field}),
+                        encoding="utf-8")
+    assert fix.inspect_score(ws) == ("inspect score logs/a.eval --scorer grader "
+                                     f"-S {option} --action overwrite")
 
 
 def _hidden_counts(ws) -> tuple[int, int, int]:
