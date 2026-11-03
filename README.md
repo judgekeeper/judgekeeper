@@ -44,7 +44,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you.
    - A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer).
    - If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark again, with the one you gave as the default. With no terminal, it prints the `--pass-if` to give.
-4. **Fix:** `judgekeeper fix` shows where your LLM-as-a-judge goes wrong, helps you write a better rule and tests it on marks kept aside.
+4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
    - It is a loop: change the rule, grade again, then run `judgekeeper fix <new results file>`.
    - With promptfoo, the rule to change is usually in `.judgekeeper/fix/regrade.yaml`. When `fix` can't write that file, it says how to grade again.
    - With few marks, "can't tell yet" is a normal answer.
@@ -59,7 +59,7 @@ judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `j
 
 - **TPR:** of the answers you passed, how many it passed too. The result page calls it "When you say Pass, your LLM-as-a-judge also says Pass".
 - **TNR:** of the answers you failed, how many it failed too. The result page calls it "When you say Fail, your LLM-as-a-judge also says Fail".
-- **Kappa:** how much you agree beyond what matching at random would give; it is under "More details" on the result page and in report.html, and never decides the result (TPR and TNR do).
+- **Kappa:** how much you agree beyond what matching at random would give.
 
 TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" (when you mark every answer, the numbers have no range). The result says "good enough to use" only when a wider range (99%) starts at 80% or more for both. That way you can look after every mark. The numbers are about the answers in your results, worked out from the ones you marked. They are not a promise about new answers.
 

@@ -113,8 +113,6 @@ Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 
 
 ## fix: see where your LLM-as-a-judge goes wrong, then test a better rule
 
-`judgekeeper fix` shows where your LLM-as-a-judge goes wrong, helps you write a better rule and tests it on marks kept aside.
-
 ```
 judgekeeper fix [PATH] [--new]
 ```

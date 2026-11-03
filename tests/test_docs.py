@@ -365,9 +365,9 @@ def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
     assert "That's expected if you opened it yourself." in note
 
 
-def test_the_readme_says_kappa_never_decides():
+def test_kappa_never_decides_and_the_readme_says_what_it_is():
     """The result comes from the TPR and TNR ranges only (targets.level); kappa is under
-    More details on the result page and in report.html."""
+    More details on the result page and in report.html. The README's line, word for word."""
     import inspect
 
     from judgekeeper import report_page, targets
@@ -376,8 +376,8 @@ def test_the_readme_says_kappa_never_decides():
     assert '<h2 id="details-h">More details</h2>' in inspect.getsource(report_page)
     kappa = next(x for x in _sections(_readme())["The numbers"].splitlines()
                  if x.startswith("- **Kappa:**"))
-    assert ('it is under "More details" on the result page and in report.html, and never '
-            "decides the result (TPR and TNR do).") in kappa
+    assert kappa == ("- **Kappa:** how much you agree beyond what matching at random would "
+                     "give.")
 
 
 def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():

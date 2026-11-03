@@ -1100,8 +1100,7 @@ def test_measure_and_report_say_once_to_run_mark_to_say_why(here, capsys, pages,
     n = len(passes) + len(fails)  # the disagreements the result page lists, each with a box
     assert n > 1 and f"disagreed on {n} of" not in out
     tell = f"To tell judgekeeper why you disagree on {n} of them, run `judgekeeper mark`."
-    uses = ("`judgekeeper fix` shows where your LLM-as-a-judge goes wrong, helps you write a "
-            "better rule and tests it on marks kept aside. It uses your reasons.")
+    uses = "`judgekeeper fix` uses your reasons to find where your LLM-as-a-judge goes wrong."
     end = lines.index("", at)  # the count may wrap: a blank line ends it
     assert all(line.startswith("  ") for line in lines[at:end]), lines[at:end]
     assert lines[end + 1].startswith("To tell judgekeeper why"), lines[end:end + 2]

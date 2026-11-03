@@ -115,8 +115,7 @@ def wider(r: dict) -> str:
 SAY_WHY_RUN = "To tell judgekeeper why you disagree on {n} of them{have}, run `{command}`."
 SAY_WHY_RUN_ONE = "To tell judgekeeper why you disagree on this one{have}, run `{command}`."
 SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
-SAY_WHY_FIX = ("`{fix}` shows where your LLM-as-a-judge goes wrong, helps you write a better "
-               "rule and tests it on marks kept aside. It uses your reasons.")
+SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
 NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`. New answers are "
                    "added to the ones you marked.")
 # Too early to tell, and only skipped answers left to mark (only_skipped): the result line in

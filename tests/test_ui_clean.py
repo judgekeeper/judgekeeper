@@ -252,8 +252,8 @@ def test_report_html_keeps_one_closing_line():
 def test_the_live_page_says_above_the_first_list_that_reasons_are_optional():
     html = unwrapped(_page(mistakes=(2, 1), live=True))
     line = ('<div class="band"><p class="add-why">Optional: tell judgekeeper why you disagree. '
-            '<code>judgekeeper fix</code> shows where your LLM-as-a-judge goes wrong, helps you write a '
-            'better rule and tests it on marks kept aside. It uses your reasons.</p></div>')
+            '<code>judgekeeper fix</code> uses your reasons to find where your LLM-as-a-judge goes '
+            'wrong.</p></div>')
     assert html.count(line) == 1
     assert html.index(line) < html.index('id="g-easy"') < html.index('id="g-strict"')
     none = _page(mistakes=(0, 0), live=True)
