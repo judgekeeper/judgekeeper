@@ -100,3 +100,18 @@ def test_own_marks_in_a_folder_it_cant_name_are_said_as_that_folder(home, monkey
     assert "they get their own marks in that folder" in text, text
     assert "Next: run `" in text and "` in that folder to mark answers for them." in text, text
     assert "` in /…/" not in text and "own marks in /…/" not in text, text
+
+
+@pytest.mark.parametrize(("name", "words"), [
+    ("%USERPROFILE%", "go to your home folder, then run `judgekeeper` there."),
+    ("%USERPROFILE%\\Desktop\\proj", ("go to that folder (Desktop\\proj in your home folder), "
+                                      "then run `judgekeeper` there."))])
+def test_on_windows_a_folder_in_the_home_folder_gets_no_cd(monkeypatch, name, words):
+    """cmd reads %USERPROFILE% and PowerShell doesn't, while PowerShell reads ~ and cmd
+    doesn't: no `cd` runs in both, so the folder is said in words."""
+    from judgekeeper import front
+
+    monkeypatch.setattr(textio, "is_windows", lambda: True)
+    monkeypatch.setattr(front, "program", lambda *a: "judgekeeper")
+    monkeypatch.setattr(textio, "program", lambda *a: "judgekeeper")
+    assert front._go_step([name], "judgekeeper") == words

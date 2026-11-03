@@ -1038,7 +1038,22 @@ def _go_step(names: list[str], command: str) -> str:
             command = program() + command[len(here):]
     if textio.cut_short(names[0]):  # no `cd` can go there by its name
         return f"go to {folder} ({OTHERS_HOME}), then run `{command}` there."
+    if textio.is_windows() and (inside := _in_home_windows(names[0])) is not None:
+        # cmd reads %USERPROFILE%, PowerShell only ~: no `cd` runs in both, so in words
+        where = ("your home folder" if not inside and len(names) == 1 else
+                 f"{folder} ({inside} in your home folder)" if len(names) == 1 else
+                 f"{folder} (in your home folder)")
+        return f"go to {where}, then run `{command}` there."
     return f"go to {folder} (`cd {textio.cd_word(names[0])}`), then run `{command}` there."
+
+
+def _in_home_windows(shown: str) -> str | None:
+    """The rest of a folder_from_here name in the home folder on Windows (`%USERPROFILE%`
+    and what follows it): "" for the home folder itself; None for any other name."""
+    form = textio.HOME_FORMS[1]
+    if shown == form.rstrip("\\"):
+        return ""
+    return shown[len(form):] if shown.startswith(form) else None
 
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
