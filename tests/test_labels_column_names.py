@@ -1,6 +1,6 @@
 """A labels file's answer column may have any name the results reader takes (`response`,
 `completion`, ...), its question column `input`, `question` or `query`; a file without them is
-told which columns it has. A question that finds no answer falls back to the answer text."""
+told which columns it needs. A question that finds no answer falls back to the answer text."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from judgekeeper.start_label import Workspace
 from tests.start_projects import answer, question, table_project
 from tests.test_labels_import import _nothing_written, flat, imported, run, write_labels
 
-NEEDS = ("needs an answer column (output, outputs, answer, answers, response, responses, "
-         "completion, reply or generation) and a label column (label or human_label).")
+NEEDS = ("needs an answer column (output or answer) and a label column (label or "
+         "human_label).")
 
 
 @pytest.fixture
@@ -37,23 +37,22 @@ def test_the_results_readers_names_are_read(here, capsys, asked, said):
     assert sorted(rows[i]["input"] for i in imported(ws)) == [question(i) for i in range(3)]
 
 
-def test_a_file_without_them_is_told_its_columns(here, capsys):
+def test_a_file_without_them_is_told_the_columns_it_needs(here, capsys):
     table_project(here, [True] * 20 + [False] * 20)
     write_labels(here / "mine.csv", [{"Ticket": question(0), "Bot reply": answer(0),
                                       "Reviewer verdict": "pass", "Reviewer notes": "ok"}])
     code, out = run(capsys, "--labels", "mine.csv")
     assert code == 3
-    assert (f"mine.csv {NEEDS} It has: Ticket, Bot reply, Reviewer verdict, Reviewer notes."
-            in flat(out)), out
+    assert f"mine.csv {NEEDS}" in flat(out) and "It has" not in out, out
     _nothing_written(Workspace(here))
 
 
-def test_a_jsonl_file_without_them_is_told_its_columns(here, capsys):
+def test_a_jsonl_file_without_them_is_told_the_columns_it_needs(here, capsys):
     table_project(here, [True] * 20 + [False] * 20)
     (here / "mine.jsonl").write_text(json.dumps({"q": "x", "gold": "pass"}) + "\n",
                                      encoding="utf-8")
     code, out = run(capsys, "--labels", "mine.jsonl")
-    assert code == 3 and f"mine.jsonl {NEEDS} It has: q, gold." in flat(out), out
+    assert code == 3 and f"mine.jsonl {NEEDS}" in flat(out) and "It has" not in out, out
 
 
 def _same_text_twice(root) -> None:

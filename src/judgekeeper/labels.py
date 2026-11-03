@@ -44,7 +44,6 @@ ANSWER_COLUMNS = ("output", "answer")  # two of these in a file: which is meant 
 QUESTION_COLUMNS = ("input", "question")
 ANSWER_NAMES = OUTPUT_WORDS  # the results reader's names, the first found taken
 QUESTION_NAMES = QUESTION_WORDS  # never a prompt: it may hold a whole template
-COLUMNS_SHOWN = 20
 LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS
 EXCEL = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".numbers")
 WORDS_SHOWN = 5
@@ -224,27 +223,8 @@ def _twice(path: Path, columns: list, command: Callable[..., str]) -> None:
                                            command=command("--labels", given))])
 
 
-NEEDS = ("{file} needs an answer column ({answers}) and a label column (label or "
+NEEDS = ("{file} needs an answer column (output or answer) and a label column (label or "
          "human_label).")
-NEEDS_ANSWER = "{file} needs an answer column ({answers})."  # it has a label column
-NEEDS_LABEL = "{file} needs a label column (label or human_label)."  # it has an answer column
-
-
-def _or(words) -> str:
-    return ", ".join(words[:-1]) + f" or {words[-1]}"
-
-
-def _has(path: Path) -> str:
-    """" It has: <its columns>.", the first COLUMNS_SHOWN of them, or "" when none is read."""
-    from judgekeeper.redact import one_line
-    from judgekeeper.table import columns
-
-    names = [one_line(str(c).strip()) for c in columns(path) if str(c).strip()]
-    if not names:
-        return ""
-    more = len(names) - COLUMNS_SHOWN
-    shown = ", ".join(names[:COLUMNS_SHOWN]) + (f" and {more} more" if more > 0 else "")
-    return f" It has: {scrub(shown)}."
 
 
 def read_file(path: Path, label_map: dict | None = None,
@@ -283,10 +263,8 @@ def read_file(path: Path, label_map: dict | None = None,
     written = header_of(path) if path.suffix.lower() in (".csv", ".tsv") else []
     _twice(path, written or columns, _plain(command))  # as written: the same name twice too
     out_col, label_col = _column(columns, ANSWER_NAMES), _column(columns, LABEL_COLUMNS)
-    if out_col is None or label_col is None:  # only what is missing is asked for
-        needs = (NEEDS if out_col is None and label_col is None
-                 else NEEDS_ANSWER if out_col is None else NEEDS_LABEL)
-        raise LabelsStop([needs.format(file=name, answers=_or(ANSWER_NAMES)) + _has(path)])
+    if out_col is None or label_col is None:
+        raise LabelsStop([NEEDS.format(file=name)])
     in_col, id_col = _column(columns, QUESTION_NAMES), _column(columns, ("id",))
     values = [row.get(label_col) for row in rows]
     read = read_marks(values, label_map, name, mine, given or path.name, command)

@@ -20,7 +20,7 @@
 - Labels match answers whose accents are written the other way. A label written `1.0` or `0.0` reads as 1 or 0.
 - Scores edited in Inspect AI are not used. Inspect keeps a label only when a person changes a score, so they would be mostly disagreements.
 - A labels file takes the same column names as a results file (`response`, `question`, ...). One with two columns for the same thing stops and asks you to keep one.
-- A labels file with no answer column names the columns it found. A CSV whose notes have line breaks is read, not refused.
+- A CSV whose notes have line breaks is read, not refused.
 - A row with more cells than the header stops and names the line. A model column is read the same way in CSV and JSONL files.
 - After `check`, labels for answers your LLM-as-a-judge didn't grade Pass or Fail are sorted as before. `--new --labels FILE` keeps `--labels FILE` in the commands it prints.
 - What judgekeeper prints names a path from where you run it, or as `~/...`. On Windows, a command that can't run any other way gives the whole path.
