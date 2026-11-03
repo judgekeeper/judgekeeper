@@ -157,10 +157,10 @@ NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regr
 NEXT_MARK_STAYS = ("nothing to do; your pass mark stays {rule}. To try another, run "
                    "`{check} --pass-if \"{other}\"`.")
 # An adopting check closes the marking page, which showed the judge before (_close_page)
-PAGE_CLOSED = ("Your marking page closed, as it showed the LLM-as-a-judge before this one. To "
-               "open it again, run `{mark}`.")
-PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show the LLM-as-a-judge "
-                  "before this one. To open it again, run `{stop}`, then `{mark}`.")
+PAGE_CLOSED = ("Your marking page closed because it showed your old LLM-as-a-judge. To open it "
+               "with this one, run `{mark}`.")
+PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show your old "
+                  "LLM-as-a-judge. To open it with this one, run `{stop}`, then `{mark}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
 NEXT_FRESH = "Next: run `{command}` to start fresh with {new}."
@@ -1630,7 +1630,10 @@ def repeats_line(found) -> str | None:
 GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
 BACK = ("Your LLM-as-a-judge is back to the one you marked with ({model}). Your marks' result "
         "still holds.")
-LAST_READ = "Your last check read {old}; this result is about {new} now."  # a back to another file
+# A "back" to another file than the last check read: said on that check, then on the later
+# ones of the same file (EARLIER_READ), the same each time
+LAST_READ = "Your last check read {old}; this result is about {new} now."
+EARLIER_READ = "An earlier check read {old}; this result is about {new} now."
 ADDED = "You added {n} since your last check."
 
 
@@ -2431,7 +2434,8 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
         def shown(rel: str) -> str:
             return Path(textio.shown_from_here(Path(textio.kept_at(rel, ws.root)))).as_posix()
 
-        back += " " + LAST_READ.format(old=shown(left), new=shown(new))
+        then = LAST_READ if restored else EARLIER_READ
+        back += " " + then.format(old=shown(left), new=shown(new))
     return back
 
 

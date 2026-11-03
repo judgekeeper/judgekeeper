@@ -701,15 +701,15 @@ def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, caps
                                                                       monkeypatch):
     """The page is asked last: a page that does not answer leaves start.json, result.json,
     report.html and mistakes.md all on the new pass mark, and says how to open it again."""
-    from judgekeeper import check
 
     def busy(folder):
         raise label.PageBusy(label.BUSY)
 
     ws, code, said = _adopted(here, capsys, monkeypatch, page=busy)
     assert code == 0, said
-    assert check.PAGE_NO_ANSWER.format(
-        stop="judgekeeper --stop", mark='judgekeeper mark --pass-if "score>=0.7"') in said, said
+    assert ("Your marking page didn't answer, so it may still show your old LLM-as-a-judge. "
+            "To open it with this one, run `judgekeeper --stop`, then "
+            '`judgekeeper mark --pass-if "score>=0.7"`.') in said, said
     assert ws.data()["pass_mark"]["rule"] == "score>=0.7"
     assert json.loads(ws.result_json.read_text(encoding="utf-8"))["flags"]["pass_if"] == \
         "score>=0.7"
@@ -727,7 +727,8 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
     monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder))
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
-    assert check.PAGE_CLOSED.format(mark='judgekeeper mark --pass-if "score>=0.7"') in said, said
+    assert ("Your marking page closed because it showed your old LLM-as-a-judge. To open it "
+            'with this one, run `judgekeeper mark --pass-if "score>=0.7"`.') in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
 

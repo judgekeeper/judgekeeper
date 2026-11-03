@@ -942,7 +942,9 @@ def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(her
     assert _check(capsys, "new.json")[0] == 0  # the new rule taken on
     said = [_check(capsys, "results.json") for _ in range(3)]
     assert said[0][0] == 0 and "back to the one you marked with" in flat(said[0][1]), said[0]
-    assert said[1] == said[2] == said[0]
+    assert said[1] == said[2], said  # the first names the last check's file, the rest the same
+    assert flat(said[0][1]).replace("Your last check read", "An earlier check read") == \
+        flat(said[1][1]), said
     trigger = [json.loads(line).get("trigger") for line in
                ws.history_jsonl.read_text(encoding="utf-8").splitlines()]
     assert trigger.count("back") == 1

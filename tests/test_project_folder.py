@@ -647,8 +647,10 @@ def test_a_check_back_on_the_marked_file_names_the_file_the_last_check_read(
     assert code == 0 and "back to the one you marked with (bike-grader-v1)" in out, out
     assert ("Your last check read evals/results-v2.csv; this result is about "
             "evals/results.csv now.") in out, out
-    again = run(capsys, "check", "evals/results.csv")  # the same results: the same words
-    assert flat(again[1]) == out, again
+    later = [flat(run(capsys, "check", "evals/results.csv")[1]) for _ in range(2)]
+    assert ("An earlier check read evals/results-v2.csv; this result is about "
+            "evals/results.csv now.") in later[0], later[0]
+    assert "Your last check read" not in later[0] and later[1] == later[0], later
 
 
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
