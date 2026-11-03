@@ -1,5 +1,5 @@
 """A results file in the same folder as one the session above reads belongs to that session
-when it is the same eval (read the same way, with answers the session holds): from that
+when it is the same eval (read the same way, with questions the session holds): from that
 folder every command uses the marks above, as it does from the project folder, and never
 starts a second .judgekeeper/ there. Another eval beside them never joins, never gets its own
 marks and is never taken as a changed LLM-as-a-judge: a run says so, and keeps reading the
@@ -15,8 +15,10 @@ from judgekeeper.start_label import Workspace
 from tests import test_project_folder
 from tests.start_projects import (
     _write_json,
+    answer,
     deepeval_project,
     inspect_data,
+    promptfoo_data,
     promptfoo_project,
     split,
     table_project,
@@ -266,6 +268,52 @@ def test_results_of_one_tool_beside_join_when_they_share_questions(here, capsys,
             assert line in said, (argv, said)
         assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
         assert not (here / "evals" / ".judgekeeper").exists(), (argv, said)
+
+
+SHARED = ["I am not able to help with that. Please ask someone else.",
+          "Your order ships the same day, with no wait at all."]
+
+
+def _with_shared(tag: str, verdicts=None, outputs_tag: str | None = None) -> dict:
+    """promptfoo results of 36 questions tagged `tag`, the first two answered with the SHARED
+    answers (a refusal, a stock line) and the rest with answers tagged `outputs_tag`."""
+    outputs = [*SHARED, *(answer(i, tag if outputs_tag is None else outputs_tag)
+                          for i in range(2, 36))]
+    return promptfoo_data(split(20, 16) if verdicts is None else verdicts, tag=tag,
+                          outputs=outputs)
+
+
+@pytest.mark.parametrize("second", ["other questions", "graded again", "new answers"])
+def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, capsys,
+                                                                          monkeypatch, second):
+    """A promptfoo file beside the marked one with other questions is another eval, though a
+    few answers (a refusal) are word for word the same: never read, marked or added. The same
+    questions graded again, or answered again, join the session."""
+    _marker(here, ".git")
+    _write_json(here / "evals" / "a.json", _with_shared("one"))
+    assert run(capsys, "evals/a.json", *PAGE)[0] == 0
+    _mark(Workspace(here), only=range(5))
+    run(capsys, "--stop")
+    before = (here / ".judgekeeper" / "marks.jsonl").read_bytes()
+    pool = (here / ".judgekeeper" / "pool.jsonl").read_bytes()
+    _write_json(here / "evals" / "b.json", {
+        "other questions": lambda: _with_shared("other"),
+        "graded again": lambda: _with_shared("one", verdicts=split(26, 10)),
+        "new answers": lambda: _with_shared("one", outputs_tag="again")}[second]())
+    for argv in (["evals/b.json"], ["mark", "evals/b.json"], ["check", "evals/b.json"],
+                 ["fix", "evals/b.json"], []):
+        code, said = _said(capsys, *argv)
+        assert "didn't expect" not in said, (argv, said)
+        if second == "other questions":
+            assert code == (3 if argv else 0), (argv, said)
+            assert _other_eval("evals/b.json", "evals/a.json") in said, (argv, said)
+            assert (here / ".judgekeeper" / "pool.jsonl").read_bytes() == pool, (argv, said)
+        else:
+            assert "another eval" not in said, (argv, said)
+        assert (here / ".judgekeeper" / "marks.jsonl").read_bytes() == before
+        assert not (here / "evals" / ".judgekeeper").exists(), (argv, said)
+    if second == "new answers":  # its 34 new answers join the pool
+        assert (here / ".judgekeeper" / "pool.jsonl").read_bytes() != pool
 
 
 @pytest.mark.parametrize(("typed", "shown"), [

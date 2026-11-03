@@ -342,7 +342,8 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
         assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
                 "with no decision from your LLM-as-a-judge.") in out
         assert "such as an error" not in out
-    elif shape == "unrelated":  # other questions and answers beside the marked file
+    elif shape in ("unrelated", "other-question"):  # other questions beside the marked file,
+        # with other answers or the same ones word for word
         assert ("new.csv shares no answers with the results you marked (results.csv), so it "
                 "looks like another eval.") in " ".join(out.split()), out
     else:
@@ -351,12 +352,13 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
 
 @pytest.mark.parametrize("grade, why", [("", ""), ("error", " (such as an error)")])
 def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
-    """A few marked answers graded, a few there with no decision, the rest not in the file."""
+    """A few marked answers there with no decision, more graded, the rest not in the file (the
+    same eval: half its questions are marked ones)."""
     ws = project(here)
     capsys.readouterr()
     same = [_row(i) for i in range(N)]
-    mixed = ([r | {"verdict": grade} for r in same[:4]] + same[4:10]
-             + _shapes(ws)["unrelated"][10:])
+    mixed = ([r | {"verdict": grade} for r in same[:4]] + same[4:N // 2]
+             + _shapes(ws)["unrelated"][N // 2:])
     code, out = run(capsys, "check", write(here, "new.csv", mixed))
     assert code == 3, out
     assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out

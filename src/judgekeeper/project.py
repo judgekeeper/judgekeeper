@@ -243,10 +243,11 @@ def _same_eval_cached(path: Path, store: Path, stamps: tuple[int, int]) -> bool:
 
 def _same_eval(path: Path, store: Path) -> bool:
     """Whether the results file `path` is of the eval the session in `store` marks: read by
-    its own eval tool or format, with at least one of its answers word for word (the
-    same answers graded again: promptfoo's `echo` gives them other questions) or of its
-    questions (compared as text, and as marked-answers.csv holds them: promptfoo's are a dict
-    of vars, Inspect AI's can be chat messages); with no questions on either side, an answer id made the same way. A tool
+    its own eval tool or format, with at least half of its questions ones the session holds
+    (compared as text, and as marked-answers.csv holds them, which promptfoo's `echo` regrade
+    gives back: promptfoo's are a dict of vars, Inspect AI's can be chat messages), never by
+    an answer word for word (another eval's refusal can be this one's); with no questions on
+    either side, an answer id made the same way. A tool
     read another way than one file at a time (judgekeeper.record()'s files, an MLflow store)
     is the same eval by its tool. A file it can't read (or read only in part: a table past
     table.MAX_ROWS) is never called another eval: the command that reads it says why. Never
@@ -276,13 +277,10 @@ def _same_eval(path: Path, store: Path) -> bool:
     if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    answers = {_as_text(a.get("output")) for a in held} - {""}
-    if answers & ({_as_text(r.output) for r in records} - {""}):  # graded again
-        return True
     questions = {q for a in held for q in _forms(a.get("input"), a.get("output"))} - {""}
-    theirs = {q for r in records for q in _forms(r.input, r.output)} - {""}
-    if questions and theirs:
-        return bool(questions & theirs)
+    theirs = [f for f in (_forms(r.input, r.output) - {""} for r in records) if f]
+    if questions and theirs:  # an answer a refusal or a stock line gives is no sign
+        return 2 * sum(bool(f & questions) for f in theirs) >= len(theirs)
     ids = {str(a.get("id")) for a in held}
     try:
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
