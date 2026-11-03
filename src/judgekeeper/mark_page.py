@@ -1066,7 +1066,8 @@ def _words(command: str) -> str:
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
              "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(scrub(command) or "")),
              "change": CHANGE_MARK}
-    return json.dumps(words).replace("<", "\\u003c")
+    # no `_` either: a command can never hold a name the server fills in (_text)
+    return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 
 
 def _shown(value: str) -> str:
