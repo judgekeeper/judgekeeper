@@ -605,3 +605,26 @@ def test_ctrl_c_while_samples_are_read_says_only_stopped(tmp_path):
     assert p.returncode == 130, out + err
     assert "Stopped." in out
     assert "Task exception" not in err and "RuntimeError" not in err, err
+
+
+def test_a_read_error_after_ctrl_c_is_the_ctrl_c(tmp_path, monkeypatch):
+    """inspect_ai's async reading can turn a Ctrl-C into an error of its own: once a Ctrl-C was
+    noted, that error stops the run as Ctrl-C does, never as "can't be read"."""
+    import logging
+    import signal
+    import sys
+
+    from judgekeeper.readers import inspect_logs
+    from judgekeeper.records import RecordsError
+
+    monkeypatch.setattr(sys, "unraisablehook", sys.unraisablehook)
+    asyncio_log = logging.getLogger("asyncio")
+    monkeypatch.setattr(asyncio_log, "level", asyncio_log.level)
+    path = tmp_path / "qa.eval"
+    with inspect_logs.quiet():
+        assert signal.getsignal(signal.SIGINT) is inspect_logs._noted
+        assert isinstance(inspect_logs._unreadable(path), RecordsError)  # no Ctrl-C yet
+        with pytest.raises(KeyboardInterrupt):
+            inspect_logs._noted(signal.SIGINT, None)
+        assert isinstance(inspect_logs._unreadable(path), KeyboardInterrupt)
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler  # put back
