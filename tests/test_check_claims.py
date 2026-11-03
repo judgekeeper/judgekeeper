@@ -20,6 +20,8 @@ import json
 import os
 import sys
 
+import pytest
+
 from judgekeeper import judge_setup
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
@@ -405,6 +407,34 @@ def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
                          "change from run to run. Make your rule clearer, grade your marked "
                          "answers again, then run `judgekeeper check`.")
     assert "graded again" not in said and "nothing to do" not in said
+
+
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_regraded_copy_beside_says_whose_grades_the_numbers_use(here, capsys, command):
+    """A copy graded again beside the marked results (same model and rule, 7 marked answers
+    with another grade): a plain run and `mark` read it as the newest, but the numbers keep
+    the grades the marks were checked with, so the words name both files and how to
+    compare. result.json and report.html name the same file the numbers use."""
+    import os
+    import time
+
+    ws = _marked(here)
+    _regraded(here, [*range(4), *range(25, 28)], name="results-regraded.json")
+    later = time.time() + 60
+    os.utime(here / "results-regraded.json", (later, later))
+    main([*command, "--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert ("Your answers were graded again in results-regraded.json, and 7 of your marked "
+            "answers got a different grade. The numbers below still use the grades in "
+            "results.json. To compare, run `judgekeeper check results-regraded.json`.") in said
+    assert "the newest results here" not in said and "still test it" not in said, said
+    if not command:  # the result: about the same file as the numbers
+        result = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        assert result["judge"]["results_files"] == ["results.json"]
+        # report.html names no results file, so never the other one
+        assert "results-regraded.json" not in ws.report_html.read_text(encoding="utf-8")
 
 
 def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):

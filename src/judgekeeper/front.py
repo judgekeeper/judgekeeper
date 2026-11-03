@@ -58,6 +58,7 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
+    runnable,
     wrap,
 )
 
@@ -96,6 +97,11 @@ RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the on
                   "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
+# ...graded again with the same model and rule, other grades on marked answers: only `check`
+# takes new grades on, so the numbers keep the ones the marks were checked with
+REGRADED = ("Your answers were graded again in {file}, and {k} of your marked answers got a "
+            "different grade. The numbers below still use the grades in {old}. To compare, run "
+            "`{command}`.")
 READING = "Reading {file}."  # back to a file older than the last one read
 # A check took on the LLM-as-a-judge of a file elsewhere; the results here are older
 CHECKED_FILE = "This result is about your LLM-as-a-judge in {file}, the file your last check read."
@@ -1931,6 +1937,16 @@ def _checked_file(ws: Workspace, found: start.Found) -> str | None:
     return None if path is None else Path(textio.shown_from_here(path)).as_posix()
 
 
+def _graded_in(ws: Workspace, found: start.Found) -> str:
+    """The results file(s) whose grades the marks were checked with (start.json's, as
+    result.json and report.html name them), named from here."""
+    data = ws.data()
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    return " and ".join(textio.shown_in(base / f, found.root) for f in files)
+
+
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
     """Whether the newest results differ from the ones being marked, with marks made: other
     files (by where they are, not how they were named) or other grades. No marks yet: nothing
@@ -2001,6 +2017,14 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         check.open_worse(ws, found, held=True) is not None  # a same-rule "Worse" stays
     grades = (0 if first or changed or back or elsewhere
               else check.grades_changed(ws, found, ruled=held))  # a table judge, or held
+    regraded = (check.grades_changed(ws, found, ruled=True)
+                if not (first or changed or back or elsewhere or grades)
+                and found.rule is not None and found.results else 0)
+    if regraded:  # the file read is not the one whose grades the numbers use: both named
+        head[:] = [x for x in head if x != newest]
+        head.append(REGRADED.format(file=_newest(found), k=regraded, old=_graded_in(ws, found),
+                                    command=f"{program('check')} "
+                                            f"{runnable(found.results[0].path, labels=False)}"))
     added, took = 0, None
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
@@ -2025,7 +2049,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(labels_mod.found_line(n, talk.command("--labels")))
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
-    elif not first and _ran_again(ws, found):
+    elif not first and not regraded and _ran_again(ws, found):
         head.append(RAN_AGAIN if not ws.data().get("checked_at")
                     else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
