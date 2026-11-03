@@ -103,6 +103,8 @@ SAME_GRADES = "Same model, same grades on your marked answers, same eval tool." 
 NEXT_NEW_ANSWERS = ("Next: run `{program}` to mark the new answers in your results: they join "
                     "your marks as a new batch. Then run `{command}` again.")
 NOT_SET_UP = "You have not marked enough answers yet for a re-check."
+KEPT_NAME = ("{name} is in another person's home folder, so judgekeeper keeps only its name: "
+             "give its path again to check it next time.")
 PICKS_WARNING = ("You've used these marks to choose {n}, so they may now make your "
                  "LLM-as-a-judge look better than it is.")
 ONE_RUN = "One run, so a small change may be a coincidence."
@@ -2137,7 +2139,12 @@ def _read_line(state: State, path: str, now: Now | None) -> str | None:
     """The line that names the results the check reads: the file given, else the newest
     file read (for MLflow, the newest run in its store)."""
     if given_results(path):
-        return f"New results: {Path(shown_from_here(path)).as_posix()}"
+        from judgekeeper import textio
+
+        line = f"New results: {Path(shown_from_here(path)).as_posix()}"
+        if Path(path).is_file() and not textio.found_again(path, state.ws.root):
+            line += "\n" + KEPT_NAME.format(name=Path(path).name)
+        return line
     if now is None or now.newest is None:
         return None
     if state.data.get("tool") == "mlflow":

@@ -1,7 +1,8 @@
-"""No file judgekeeper writes in .judgekeeper/ holds an absolute path: the folder may be
-committed, and a path from the root names the user's own folders. Paths are kept relative to
-the project folder (`..` allowed); files an older judgekeeper wrote with absolute paths
-still read."""
+"""No file judgekeeper writes in .judgekeeper/ holds a path with the user's name in it: the
+folder may be committed. Paths are kept relative to the project folder (`..` allowed), or
+from the home folder (`~/`); a file outside the home folder by its whole path, which names
+no one; one in another person's home folder by its name only. Files an older judgekeeper
+wrote with absolute paths still read."""
 
 from __future__ import annotations
 
@@ -167,14 +168,15 @@ def test_an_older_split_with_a_whole_path_still_reads(here, capsys, tmp_path_fac
     assert "You tested this LLM-as-a-judge before" in out and "has the same" not in out, out
 
 
-def test_a_path_on_another_drive_is_kept_by_its_name(monkeypatch):
+def test_a_path_on_another_drive_is_kept_whole(monkeypatch):
     from judgekeeper import textio
 
     def other_drive(path, start=None):
         raise ValueError("path is on mount 'D:', start on mount 'C:'")
 
     monkeypatch.setattr(os.path, "relpath", other_drive)
-    assert textio.kept_path(os.path.join(os.sep, "data", "new.json"), os.sep) == "new.json"
+    path = os.path.join(os.sep, "data", "new.json")
+    assert textio.kept_path(path, os.sep) == Path(os.path.realpath(path)).as_posix()
 
 
 def test_an_mlflow_store_given_in_full_is_kept_from_the_project(tmp_path):
@@ -205,16 +207,27 @@ def home(tmp_path, monkeypatch):
     return real
 
 
-def test_a_kept_path_climbs_only_to_a_folder_below_the_home_folder(home, tmp_path):
+def test_a_kept_path_climbs_only_to_a_folder_below_the_home_folder(home, tmp_path,
+                                                                   monkeypatch):
     from judgekeeper import textio
+
+    monkeypatch.setattr("getpass.getuser", lambda: USER)  # the temporary folders name no one
 
     proj = home / "Desktop" / "proj"
     assert textio.kept_path(home / "Desktop" / "ext" / "r.csv", proj) == "../ext/r.csv"
     assert textio.kept_path(home / "r.csv", proj) == "../../r.csv"  # home is shared
     other = Path(os.path.realpath(tmp_path)) / "elsewhere" / "new.csv"  # shares above home
-    assert textio.kept_path(other, proj) == "new.csv"
+    assert textio.kept_path(other, proj) == other.as_posix()  # whole: no user name in it
     top = Path(os.path.realpath(tmp_path)).anchor
-    assert textio.kept_path(os.path.join(top, "jk-none", "new.csv"), proj) == "new.csv"
+    far = os.path.join(top, "jk-none", "new.csv")
+    assert textio.kept_path(far, proj) == Path(os.path.realpath(far)).as_posix()
+    theirs = home.parent / "bob" / "new.csv"  # another person's home folder: its name only
+    assert textio.kept_path(theirs, proj) == "new.csv"
+    named = Path(os.path.realpath(tmp_path)) / f"{USER}-data" / "new.csv"  # names the user
+    assert textio.kept_path(named, proj) == "new.csv"
+    for kept in (other, far):
+        assert Path(textio.kept_at(textio.kept_path(kept, proj), proj)) == Path(
+            os.path.realpath(kept))
     work = Path(os.path.realpath(tmp_path)) / "work" / "proj"  # outside the home folder
     kept = textio.kept_path(home / "Desktop" / "r.csv", work)
     assert kept == "~/Desktop/r.csv"
@@ -379,6 +392,49 @@ def test_on_macos_paths_sharing_only_private_are_named_in_full(monkeypatch):
     monkeypatch.setattr(textio.os, "getcwd", lambda: proj)
     python = "/private/tmp/jk-kit/venv/bin/python"
     assert textio.command_path(python) == python
-    assert textio.kept_path("/private/tmp/jk-kit/new.csv", proj) == "new.csv"
+    assert textio.kept_path("/private/tmp/jk-kit/new.csv", proj) == "/private/tmp/jk-kit/new.csv"
     assert textio.kept_path(proj + "/data/new.csv", proj) == "data/new.csv"
     assert textio.kept_path("/private/var/folders/xy/T/new.csv", proj) == "../../new.csv"
+
+
+
+@pytest.mark.parametrize("where", ["outside", "theirs"])
+def test_a_plain_check_goes_back_to_a_file_outside_the_home_folder(home, tmp_path, monkeypatch,
+                                                                    capsys, where):
+    """A check took on another model from a file outside the home folder: the next plain
+    check reads that file again, kept by its whole path. In another person's home folder
+    only its name is kept, and the check says to give its path again."""
+    from judgekeeper.start_label import Workspace
+    from tests.start_projects import split, table_project
+    from tests.test_front import flat, run
+    from tests.test_project_folder import _mark
+
+    monkeypatch.setattr("getpass.getuser", lambda: USER)  # the temporary folders name no one
+    proj = home / "Desktop" / "proj"
+    (proj / ".git").mkdir(parents=True)
+    monkeypatch.chdir(proj)
+    verdicts = split(20, 20)
+    table_project(proj, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys, "--no-browser", "--port", "0")[0] == 0
+    _mark(Workspace(proj))
+    run(capsys, "--stop")
+    other = list(verdicts)
+    other[0] = not other[0]  # another model, not worse
+    folder = (Path(os.path.realpath(tmp_path)) / "scratch" if where == "outside"
+              else home.parent / "bob")
+    new = table_project(folder, other, model="bike-grader-v2")
+    code, out, err = run(capsys, "check", str(new))
+    said = flat(out + err)
+    assert code == 0, said
+    kept = json.loads((proj / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
+    assert USER not in json.dumps(kept), kept
+    again = ("results.csv is in another person's home folder, so judgekeeper keeps only its "
+             "name: give its path again to check it next time.")
+    code, out, err = run(capsys, "check")
+    plain = flat(out + err)
+    if where == "outside":
+        assert kept["results_read"] == new.as_posix(), kept
+        assert again not in said and "has not changed since your last check" in plain, plain
+    else:
+        assert kept["results_read"] == "results.csv", kept
+        assert again in said, said

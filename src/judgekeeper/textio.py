@@ -1026,10 +1026,11 @@ def cd_word(shown: str) -> str:
 
 
 def kept_path(path, root) -> str:
-    """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` when the two
-    share a folder below the home folder's parents (`..` allowed, `/` between folders); else
-    in the home folder, `~/...`; else its base name. Never the whole path nor the user
-    name."""
+    """`path` as a file in .judgekeeper/ keeps it, to find it again (kept_at): from the
+    project folder `root` when the two share a folder below the home folder's parents (`..`
+    allowed, `/` between folders); else in the home folder, `~/...`; else, outside the home
+    folders, its whole path when it holds no user name (_names_someone); else (in another
+    person's home folder, say) its base name. Never the user name."""
     real = os.path.realpath(path)
     rel = _from_below_home(real, root)
     if rel is not None:
@@ -1037,7 +1038,38 @@ def kept_path(path, root) -> str:
     inside = _in_home(real)
     if inside is not None:
         return HOME_FORMS[0] + inside.replace(os.sep, "/")
+    if not _names_someone(real):
+        return Path(real).as_posix()
     return Path(os.fsdecode(path)).name
+
+
+def _names_someone(real: str) -> bool:
+    """Whether the whole path `real` names a person: it is in the folder of home folders
+    (another person's, say), or a folder in it holds the user's name (the home folder's, or
+    the login's: a temporary folder can hold it)."""
+    import getpass
+
+    try:
+        home = os.path.realpath(Path.home())
+        homes = os.path.dirname(home)
+        if os.path.normcase(os.path.commonpath([homes, real])) == os.path.normcase(homes):
+            return True
+    except (OSError, RuntimeError, ValueError):  # another drive (Windows): not under them
+        home = ""
+    try:
+        login = getpass.getuser()
+    except (OSError, KeyError, ImportError):  # no login name to be had
+        login = ""
+    names = {n.lower() for n in (os.path.basename(home), login) if n}
+    return any(n in part.lower() for n in names for part in Path(real).parts)
+
+
+def found_again(path, root) -> bool:
+    """Whether the path .judgekeeper/ keeps for `path` (kept_path) leads back to it."""
+    try:
+        return os.path.samefile(kept_at(kept_path(path, root), root), path)
+    except OSError:
+        return False
 
 
 def kept_at(kept: str, root) -> str:
