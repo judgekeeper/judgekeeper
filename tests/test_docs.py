@@ -82,7 +82,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
     n, each = summary["draws"], summary["inside_each"]
     jbb = next(x for x in _sections((ROOT / "docs" / "reference.md").read_text(
         encoding="utf-8"))["Checked on public data"].splitlines() if x.startswith("- **JailbreakBench"))
-    assert f"In {n} tests with {summary['marks_per_draw']} marks each" in jbb
+    assert f"In {n} random tests with {summary['marks_per_draw']} marks each" in jbb
+    assert "another 100 tests give a slightly different count" in jbb
     assert (f"TPR in {each['tpr']}, the true TNR in {each['tnr']} and the true kappa in "
             f"{each['kappa']}; all three at once in {summary['all_three_inside']}") in jbb
     rows = [x.split(",") for x in draws.read_text(encoding="utf-8").splitlines()
