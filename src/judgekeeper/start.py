@@ -1582,7 +1582,7 @@ def empty_file(rel: str, promptfoo: bool = False) -> Damaged:
                        f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
                        "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
-                   f"save your results to {rel} again, then run `{{command}}` again.")
+                   f"save your results to {rel}, then run `{{command}}` again.")
 
 
 def is_empty_file(path: Path) -> bool:

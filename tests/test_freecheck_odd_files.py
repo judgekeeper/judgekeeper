@@ -363,4 +363,4 @@ def test_an_empty_file_is_called_empty_by_the_page_and_the_tool(tmp_path, monkey
     assert main([name, "--no-browser", "--port", "0"]) == 2
     out = " ".join(capsys.readouterr().err.split())
     assert f"{name} is empty, so judgekeeper can't read it." in out, out
-    assert f"Next: save your results to {name} again, then run" in out, out
+    assert f"Next: save your results to {name}, then run" in out, out
