@@ -999,22 +999,22 @@ def expect_lines(g: dict, unit_said: bool = False) -> list[str]:
     out = []
     unit = ["points" if unit_said else "percentage points"]
 
-    def pts() -> str:
+    def pts(n: int) -> str:
         said, unit[0] = unit[0], "points"
-        return said
+        return _amount(n, said)
     for key, _, said in SIDES:
         x = g[key]
         if not x["n"]:
             continue
         lead = f"On answers you {said},"
         if x["verdict"] == "not_sure" and x["change"] < 0:
-            out.append(f"{lead} agreement drops by about {max(1, _points(x['change']))} {pts()}, though "
-                       f"these marks can't rule out a drop of up to {_worst(x['low'])} {pts()}.")
+            out.append(f"{lead} agreement drops by about {pts(max(1, _points(x['change'])))}, though "
+                       f"these marks can't rule out a drop of up to {pts(_worst(x['low']))}.")
         elif x["verdict"] == "not_sure":
             out.append(f"{lead} no drop, though these marks can't rule out a drop of up to "
-                       f"{_worst(x['low'])} {pts()}.")
+                       f"{pts(_worst(x['low']))}.")
         elif x["verdict"] == "worse":
-            out.append(f"{lead} agreement drops by about {_points(x['change'])} {pts()} "
+            out.append(f"{lead} agreement drops by about {pts(_points(x['change']))} "
                        f"(somewhere between {_points(x['high'])} and {_worst(x['low'])}).")
         elif x["low"] >= 0:
             out.append(f"{lead} no drop, even at the low end of the range.")
@@ -1022,9 +1022,9 @@ def expect_lines(g: dict, unit_said: bool = False) -> list[str]:
             out.append(f"{lead} no drop.")
         elif x["change"] >= 0:  # no drop seen; the range can't rule one out
             out.append(f"{lead} no drop, though these marks can't rule out a drop of up to "
-                       f"{_worst(x['low'])} {pts()}.")
+                       f"{pts(_worst(x['low']))}.")
         else:
-            out.append(f"{lead} agreement drops by no more than {_worst(x['low'])} {pts()}.")
+            out.append(f"{lead} agreement drops by no more than {pts(_worst(x['low']))}.")
     if all(g[key]["n"] and g[key].get("low", 0) > 0 for key, _, _ in SIDES):
         out.append("Agreement rose in both groups.")
     dropped = [said for key, _, said in SIDES if g[key]["n"] and g[key]["verdict"] == "worse"]
@@ -1087,6 +1087,11 @@ def _count(k: int) -> str:
     return str(k) if k else "none"
 
 
+def _amount(n: int, unit: str) -> str:
+    """`n` with its unit, "points" or "percentage points": "1 point", never "1 points"."""
+    return f"{n} {unit.removesuffix('s') if n == 1 else unit}"
+
+
 def paired_lines(g: dict, unit: str = "percentage points") -> list[str]:
     """The verdict on one group, in counts only (never which answers changed): how many went
     from right to wrong, and from wrong to right. `unit`: "points" once the screen said
@@ -1095,11 +1100,11 @@ def paired_lines(g: dict, unit: str = "percentage points") -> list[str]:
     if g["verdict"] == "worse":
         went = f"{wrong} {'answer' if wrong == 1 else 'answers'} went"
         return [f"Worse: {went} from right to wrong, and {_count(right)} from wrong to right.",
-                (f"That is about {_points(g['change'])} {unit} lower (between "
+                (f"That is about {_amount(_points(g['change']), unit)} lower (between "
                  f"{_points(g['high'])} and {_worst(g['low'])}).")]
     if g["verdict"] == "not_sure":
         return [(f"Not sure: {_count(wrong)} went from right to wrong, and {_count(right)} from "
-                 f"wrong to right. It could be up to {_worst(g['low'])} {unit} worse.")]
+                 f"wrong to right. It could be up to {_amount(_worst(g['low']), unit)} worse.")]
     if g["verdict"] == "better":
         went = f"{_count(wrong)} went from right to wrong, and {_count(right)} from wrong to right."
         return [BETTER_LINE, went]
@@ -1109,7 +1114,8 @@ def paired_lines(g: dict, unit: str = "percentage points") -> list[str]:
         return [first, "No drop, even at the low end of the range."]
     if not _worst(g["low"]):
         return [first]
-    return [first, f"These marks can't rule out a drop of up to {_worst(g['low'])} points."]
+    return [first, ("These marks can't rule out a drop of up to "
+                    f"{_amount(_worst(g['low']), 'points')}.")]
 
 
 def _group_lines(key: str, g: dict, unit: str = "percentage points") -> list[str]:

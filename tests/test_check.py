@@ -593,16 +593,28 @@ def _side(verdict: str, low: float, change: float = 0.0, high: float = 0.1) -> d
 def test_the_worst_end_of_a_range_is_rounded_up(low, up_to):
     """A drop bound shown to the person rounds toward the bigger drop (−20.1 → 21), and a
     bound that is already whole stays whole (float noise in −0.07 * 100 is not a point)."""
+    s = "" if up_to == 1 else "s"  # "1 percentage point"
     lines = check.paired_lines(_side("not_sure", low))
-    assert lines[0].endswith(f"It could be up to {up_to} percentage points worse."), lines
+    assert lines[0].endswith(f"It could be up to {up_to} percentage point{s} worse."), lines
     lines = check.paired_lines(_side("no_drop", low))
-    assert lines[1] == f"These marks can't rule out a drop of up to {up_to} points.", lines
+    assert lines[1] == f"These marks can't rule out a drop of up to {up_to} point{s}.", lines
     g = {"passed": _side("no_drop", 0.01), "failed": _side("no_drop", low)}
     assert (f"On answers you fail, no drop, though these marks can't rule out a drop of up "
-            f"to {up_to} percentage points.") in check.expect_lines(g)
+            f"to {up_to} percentage point{s}.") in check.expect_lines(g)
     g["failed"] = _side("no_drop", low, change=-0.0001)
-    assert f"On answers you fail, agreement drops by no more than {up_to} percentage points." in (
+    assert f"On answers you fail, agreement drops by no more than {up_to} percentage point{s}." in (
         check.expect_lines(g))
+
+
+@pytest.mark.parametrize("change", [-0.004, -0.012])
+def test_a_drop_of_about_1_says_1_percentage_point(change):
+    g = {"passed": _side("not_sure", -0.255, change=change), "failed": _side("no_drop", 0.01)}
+    assert check.expect_lines(g)[0] == (
+        "On answers you pass, agreement drops by about 1 percentage point, though these marks "
+        "can't rule out a drop of up to 26 points.")
+    g["passed"] = _side("worse", -0.255, change=-0.012, high=-0.01)
+    assert check.paired_lines(g["passed"])[1] == (
+        "That is about 1 percentage point lower (between 1 and 26).")
 
 
 def test_a_not_sure_group_says_how_big_a_drop_its_marks_cant_rule_out():
