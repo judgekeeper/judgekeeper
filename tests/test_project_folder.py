@@ -676,6 +676,95 @@ def test_a_check_back_after_a_worse_one_never_says_the_last_check_read_the_kept_
     assert "Your last check read" not in out, out
 
 
+def _taken_on_v2(here, capsys) -> Workspace:
+    """Marks made on evals/results.csv (bike-grader-v1), then a check that took on
+    evals/results-v2.csv (bike-grader-v2)."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    assert run(capsys, "check", "evals/results-v2.csv")[0] == 0
+    return Workspace(here)
+
+
+CLOSED_BACK = ("Your marking page closed because it showed a different LLM-as-a-judge. To open "
+               "it with this one, run `judgekeeper mark evals/results.csv`.")
+
+
+def _page_open(monkeypatch, stops=True) -> list:
+    """A marking page open on the old LLM-as-a-judge: `background.stop` closes it, or with
+    `stops` False finds it still there."""
+    from judgekeeper import background, label
+
+    stopped = []
+    monkeypatch.setattr(label, "is_open", lambda folder: True)
+    monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder) or stops)
+    return stopped
+
+
+def test_a_plain_run_back_on_the_marked_file_names_the_page_after_its_step(
+        here, capsys, no_calls, monkeypatch):
+    _taken_on_v2(here, capsys)
+    stopped = _page_open(monkeypatch)
+    code, out, err = run(capsys, "evals/results.csv", "--no-browser", "--port", "0")
+    out = flat(out)
+    assert code == 0 and stopped, out + err
+    assert CLOSED_BACK in out, out
+    assert out.index("Step 3 of 5: Measure") < out.index(CLOSED_BACK), out
+    assert out.index("back to the one you marked with") < out.index(CLOSED_BACK), out
+
+
+def test_mark_back_on_the_marked_file_says_nothing_of_the_page(here, capsys, no_calls,
+                                                                 monkeypatch):
+    _taken_on_v2(here, capsys)
+    stopped = _page_open(monkeypatch)
+    _, out, _ = run(capsys, "mark", "evals/results.csv", "--no-browser", "--port", "0")
+    run(capsys, "--stop")
+    assert stopped and "Your marking page" not in flat(out), flat(out)
+
+
+def test_a_check_back_on_the_marked_file_names_that_file_for_the_page(here, capsys, no_calls,
+                                                                        monkeypatch):
+    _taken_on_v2(here, capsys)
+    _page_open(monkeypatch)
+    code, out, _ = run(capsys, "check", "evals/results.csv")
+    assert code == 0 and CLOSED_BACK in flat(out), flat(out)
+
+
+def test_a_check_that_takes_on_a_given_file_names_it_for_the_page(here, capsys, no_calls,
+                                                                    monkeypatch):
+    """`mark` alone reads the newest results, which may not be the file the check took on."""
+    verdicts = split(20, 20)
+    table_project(here, verdicts, name="evals/results.csv", model="bike-grader-v1")
+    assert run(capsys)[0] == 0
+    _mark(Workspace(here))
+    run(capsys)
+    other = list(verdicts)
+    other[0] = not other[0]
+    table_project(here, other, name="evals/results-v2.csv", model="bike-grader-v2")
+    _page_open(monkeypatch)
+    code, out, _ = run(capsys, "check", "evals/results-v2.csv")
+    assert code == 0 and ("Your marking page closed because it showed a different "
+                          "LLM-as-a-judge. To open it with this one, run `judgekeeper mark "
+                          "evals/results-v2.csv`.") in flat(out), flat(out)
+
+
+def test_a_page_that_is_still_there_after_it_was_closed_is_said_so(here, capsys, no_calls,
+                                                                     monkeypatch):
+    _taken_on_v2(here, capsys)
+    _page_open(monkeypatch, stops=False)
+    _, out, _ = run(capsys, "check", "evals/results.csv")
+    out = flat(out)
+    assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
+            "To open it with this one, run `judgekeeper --stop`, then `judgekeeper mark "
+            "evals/results.csv`.") in out, out
+    assert "page closed" not in out, out
+
+
 def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
         here, capsys, no_calls):
     """The check read a newer file outside the project: a plain run on the project's file

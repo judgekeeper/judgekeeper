@@ -1870,7 +1870,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
-    back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
+    closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
+    back = None if first else check.back_to_marked(ws, found, talk.say, closed=closed)
     elsewhere = None if first or back else _checked_file(ws, found)  # older results here
     changed = [] if first or back or elsewhere else _changed(ws, found)
     grades = (0 if first or changed or back or elsewhere
@@ -1881,7 +1882,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             added = batches.add(ws, found)
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
-        head.append(back)
+        head.append(back)  # the judge marked on
+        if not marking:
+            head.extend(closed)
     elif elsewhere:
         head.append(CHECKED_FILE.format(file=elsewhere))
     elif changed or grades:

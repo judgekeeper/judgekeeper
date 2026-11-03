@@ -155,10 +155,11 @@ NEXT_WORSE_TABLE = "go back to your old LLM-as-a-judge or change its rule, {regr
 # A pass mark tried with --pass-if alone came out worse: the old one stays, nothing to grade
 NEXT_MARK_STAYS = ("nothing to do; your pass mark stays {rule}. To try another, run "
                    "`{check} --pass-if \"{other}\"`.")
-# An adopting check closes the marking page, which showed the judge before (_close_page)
-PAGE_CLOSED = ("Your marking page closed because it showed your old LLM-as-a-judge. To open it "
-               "with this one, run `{mark}`.")
-PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show your old "
+# The marks test another judge now (taken on, or back to the marked one): the marking page,
+# which showed the one before, closes (_close_page)
+PAGE_CLOSED = ("Your marking page closed because it showed a different LLM-as-a-judge. To open "
+               "it with this one, run `{mark}`.")
+PAGE_NO_ANSWER = ("Your marking page didn't answer, so it may still show a different "
                   "LLM-as-a-judge. To open it with this one, run `{stop}`, then `{mark}`.")
 SWITCHED = ("Your results now come from {new}, not {old}.",
             "judgekeeper can't compare LLM-as-a-judge results across two eval tools.")
@@ -1830,10 +1831,13 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         said.say()
         said.say("Next: " + NEXT_UNKNOWN.format(command=_command(state)))
         return EXIT_NEEDS_YOU
-    back = (back_to_marked(state.ws, found, said.say, again=len(state.marks))
+    closed: list[str] = []  # the marking page's line, said after the "back" one
+    back = (back_to_marked(state.ws, found, said.say, again=len(state.marks), closed=closed)
             if found is not None else None)
     if back:
         said.say(back)
+        for line in closed:
+            said.say(line)
         if not (checks and checks[-1].get("trigger") == "back" and judge_setup.hash_of(
                 checks[-1].get("after") or {}) == judge_setup.hash_of(new)):  # once in history
             marks.append(state.ws.history_jsonl, _history_line({
@@ -1980,7 +1984,8 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
             if worse else None)
     if not given_results(path):
         _covered(state.ws)
-    if not held and _close_page(state.ws, said.say):  # last: every file is written
+    taken = found.results[0].rel if _new_file(state) and found.results else None  # a file given
+    if not held and _close_page(state.ws, said.say, file=taken):  # last: every file is written
         said.say()
     # the Next line, from the pass mark in use now: one taken on above, or the one kept
     again = _command(state) + (f' --pass-if "{state.pass_if}"' if held and state.pass_if
@@ -2387,7 +2392,8 @@ def _marked_setup(ws: Workspace) -> dict | None:
                 None)
 
 
-def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str | None:
+def back_to_marked(ws: Workspace, found, say, again: int | None = None,
+                   closed: list[str] | None = None) -> str | None:
     """The judge in the newest results (`found`) is the one the marks were made on, and the
     last check was of another judge: the line that says so, else None. When that check moved
     the marks to the other judge, they test the judge they were made on again, with the grades
@@ -2395,7 +2401,8 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
     "Worse" no longer applies (open_worse). Only for a judge that gives the marked answers the
     grades they were made on, for every tool: a table's judge too. With `again` (how many
     marks count now), the line also when the last check was that "back", with as many marks:
-    the same results get the same answer."""
+    the same results get the same answer. The line on the marking page it closes
+    (_close_page) goes in `closed`, to say after this one; with no `closed`, nothing is said."""
     marked, saved, checks = _marked_setup(ws), judge_setup.read(ws), _history(ws)
     if marked is None or saved is None or not checks:
         return None
@@ -2427,7 +2434,7 @@ def back_to_marked(ws: Workspace, found, say, again: int | None = None) -> str |
         # the marks' grades from this judge: the next change is compared with them
         _save_verdicts(ws, now, found, {i: a.verdict for i, a in graded.items()})
     if restored:
-        _close_page(ws, say)
+        _close_page(ws, closed.append if closed is not None else (lambda line: None), file=new)
     names = [re.split(r"[:/]", str(m))[-1] for m in now.get("models") or []]
     back = BACK.format(model=", ".join(names) or "model not named")
     if left:
@@ -2472,32 +2479,40 @@ def _pass_if_refused(state: State) -> str | None:
             else NO_SCORES.format(check=check))
 
 
-def _close_page(ws: Workspace, say) -> bool:
+def _close_page(ws: Workspace, say, file: str | None = None) -> bool:
     """The marks test another judge now: an open marking page would still show the one
-    before, so it closes (as for a new batch), and the next `mark` opens it fresh. Says so
-    (PAGE_CLOSED), or that the page did not answer (PAGE_NO_ANSWER): never an error, as the
-    check is written. Whether it said a line."""
+    before, so it closes (as for a new batch), and the next `mark` (of the results `file`
+    read, kept_path, when given) opens it fresh. Says so (PAGE_CLOSED), or that the page did
+    not answer or is still there (PAGE_NO_ANSWER): never an error, as the check is written.
+    Whether it said a line."""
     from judgekeeper import background
     from judgekeeper.label import LabelError, is_open
 
-    mark = mark_here(ws)
+    mark = mark_here(ws, file)
     try:
         if not is_open(ws.dir):
             return False
-        background.stop(ws.dir)
+        closed = background.stop(ws.dir)
     except (LabelError, OSError):
+        closed = False
+    if closed:
+        say(PAGE_CLOSED.format(mark=mark))
+    else:
         say(PAGE_NO_ANSWER.format(stop=_here(ws, "--stop"), mark=mark))
-        return True
-    say(PAGE_CLOSED.format(mark=mark))
     return True
 
 
-def mark_here(ws: Workspace) -> str:
-    """`mark` for this project from here: with its pass mark when it was given with
-    --pass-if, which `mark` needs to read the scores. Every `mark` a line names is this."""
+def mark_here(ws: Workspace, file: str | None = None) -> str:
+    """`mark` for this project from here (of the results `file`, a path .judgekeeper/ keeps,
+    when given): with its pass mark when it was given with --pass-if, which `mark` needs to
+    read the scores. Every `mark` a line names is this."""
+    from judgekeeper import textio
+
     pm = ws.data().get("pass_mark") or {}
     rule = pm.get("rule") if pm.get("source") == "pass_if" else None
-    return _here(ws, "mark") + (f' --pass-if "{rule}"' if rule else "")
+    base = (f"{program('mark')} {runnable(textio.kept_at(file, ws.root), labels=False)}" if file
+            else _here(ws, "mark"))
+    return base + (f' --pass-if "{rule}"' if rule else "")
 
 
 def _restore(ws: Workspace, found, setup: dict) -> None:

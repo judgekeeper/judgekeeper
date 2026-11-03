@@ -756,7 +756,7 @@ def test_a_busy_page_never_stops_a_check_that_took_on_a_new_pass_mark(here, caps
 
     ws, code, said = _adopted(here, capsys, monkeypatch, page=busy)
     assert code == 0, said
-    assert ("Your marking page didn't answer, so it may still show your old LLM-as-a-judge. "
+    assert ("Your marking page didn't answer, so it may still show a different LLM-as-a-judge. "
             "To open it with this one, run `judgekeeper --stop`, then "
             '`judgekeeper mark --pass-if "score>=0.7"`.') in said, said
     assert ws.data()["pass_mark"]["rule"] == "score>=0.7"
@@ -773,10 +773,10 @@ def test_a_check_that_closes_the_page_says_so(here, capsys, monkeypatch):
     from judgekeeper import background, check
 
     stopped = []
-    monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder))
+    monkeypatch.setattr(background, "stop", lambda folder: stopped.append(folder) or True)
     _, code, said = _adopted(here, capsys, monkeypatch, page=lambda folder: True)
     assert code == 0 and stopped, said
-    assert ("Your marking page closed because it showed your old LLM-as-a-judge. To open it "
+    assert ("Your marking page closed because it showed a different LLM-as-a-judge. To open it "
             'with this one, run `judgekeeper mark --pass-if "score>=0.7"`.') in said, said
     assert said.index(check.PAGE_CLOSED[:20]) < said.index("Next:"), said
 
