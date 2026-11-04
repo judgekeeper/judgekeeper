@@ -53,7 +53,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the run.
 - **`ids-and-grades.csv`:** each answer's id, both setups' grades (`none` where there was no real decision) and the people's label. No text, so the numbers above can be counted again.
-- **`measure/`:** the Measure screen of each of the 2 runs. The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
+- **`measure/`:** the Measure screen of each of the 2 runs. The screens in `measure/` are as commit `7059dbd` (after 1.0.2) printed them; later versions word some lines differently.
 - **`notes.txt`:** dates, effort, token counts and cost.
 
 Each Measure screen in `measure/` starts with a header: the dataset, its commit, the subset and split, and where the grades come from.
