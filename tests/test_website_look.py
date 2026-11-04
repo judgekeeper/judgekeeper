@@ -773,7 +773,6 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
         "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "MLflow or Inspect AI results need one extra install: see the reference.",
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail

@@ -97,12 +97,10 @@ def test_guide_install_uses_the_needed_python():
     assert needs == ">=3.11"
     install = _flat(_by_id("start.html", "install"))
     assert ("your project folder With pip, in your project’s virtual environment pip install "
-            "judgekeeper judgekeeper With uv uvx judgekeeper MLflow or Inspect AI results need one "
-            "extra install: see the reference. "
+            "judgekeeper judgekeeper With uv uvx judgekeeper "
             "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
-    assert hrefs == ["https://docs.astral.sh/uv/",  # the license is in the footer
-                     "https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install"]
+    assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
 
 # The terminal screens
