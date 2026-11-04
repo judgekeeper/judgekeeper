@@ -38,6 +38,9 @@ img, svg { max-width: 100%; }
 .b-main:hover { filter: brightness(1.08); }
 .b-side { border: 1px solid var(--line); color: var(--fg); }
 .b-side:hover { background: var(--hover); }
+/* the second way in: a plain link beside the button, as tall as it so the words line up */
+.b-text { display: inline-flex; align-items: center; min-height: 46px; font-size: 15px; color: var(--muted); text-underline-offset: 3px; text-decoration-color: var(--line); }
+.b-text:hover { color: var(--fg); }
 
 /* ---- menu and footer ---- */
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.01em; text-decoration: none; color: inherit; white-space: nowrap; }
@@ -380,7 +383,7 @@ td:first-child { min-width: 14ch; }
 .gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
 /* a window like Home's: the install card */
 .gwin { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
-.gwin-body { padding: 22px 28px 24px; display: grid; gap: 10px; }
+.gwin-body { padding: 22px 28px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 /* the install card: pip and uv, both in view, one command per box, all the same width */
 .gx-install { display: flex; flex-direction: column; gap: 16px; }
 .gx-way-h { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
@@ -405,6 +408,15 @@ td:first-child { min-width: 14ch; }
 /* each picture opens full size when clicked; phones say so under it */
 .gx-shot a { display: block; }
 .gx-shot a:focus-visible { outline-offset: -2px; border-radius: 8px; }
+/* a picture of the Guide, opened over the page: wide enough to read, moved around, at every width */
+.shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
+.shot-view[open] { display: flex; flex-direction: column; }
+.shot-view::backdrop { background: var(--bg); }
+.shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
+.shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
+.shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.shot-pane img { display: block; width: max(1100px, 100%); max-width: none; height: auto; }
+html.has-view, html.has-view body { overflow: hidden; }
 .gx-text .gx-tap { display: none; margin: -6px 0 16px; font-size: 13px; color: var(--muted); text-align: center; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
 /* the steps and the windows below: as wide as the top section, so their edges line up */
@@ -480,6 +492,8 @@ td:first-child { min-width: 14ch; }
   .gm-pre .t-dim { display: block; padding-left: 2ch; }
   .term-out { white-space: pre-wrap; overflow-wrap: anywhere; height: auto; }
   .gx-text .gx-tap { display: block; }
+  /* a command in a sentence wraps at its spaces, so no box is cut off on the right */
+  .gx-text p code, .gx-small code, .gx-way-h code { white-space: normal; overflow-wrap: anywhere; }
 }
 /* the smallest phones: a narrower margin, so a command fits its box */
 @media (max-width: 359px) {
@@ -560,8 +574,11 @@ td:first-child { min-width: 14ch; }
   .ck2 .wrap { padding-block: 36px 48px; }
   .fc-drop { padding: 24px 16px; }
   .ck-out { padding: 16px 14px; font-size: 12px; }
-  .fc-term .ln { flex-direction: column; }
-  .fc-term .ln > .pad { display: none; }
+  /* each line stays whole, a value beside its label, and the box scrolls sideways for it;
+     the Next line still wraps */
+  .fc-term { overflow-x: auto; }
+  .fc-term .ln:not(.ln-next) { width: max-content; min-width: 100%; }
+  .fc-term .ln:not(.ln-next) > span { white-space: pre; }
   .ex-t span { font-size: 12px; }
   .fc-pick-list .btn { min-height: 44px; }
   .fc-clear { min-height: 44px; }
@@ -627,15 +644,6 @@ td:first-child { min-width: 14ch; }
   .ck-out { font-size: 14px; }
   .ex-or, .fc-kinds, .ck2-term .term-bar { font-size: 15px; }
   .ex-t span { font-size: 14px; }
-  /* a picture of the Guide, opened over the page: wide enough to read, swiped around */
-  .shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
-  .shot-view[open] { display: flex; flex-direction: column; }
-  .shot-view::backdrop { background: var(--bg); }
-  .shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
-  .shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
-  .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-  .shot-pane img { display: block; width: 1100px; max-width: none; height: auto; }
-  html.has-view, html.has-view body { overflow: hidden; }
 }
 @media (max-width: 480px) {
   /* the demo: the pill above the question; on the end card each question on its own line,

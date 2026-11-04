@@ -46,6 +46,7 @@ from judgekeeper.textio import (
     jsonl_lines,
     kept_at,
     kept_path,
+    line_path,
     loads,
     make_private,
     old_hook,
@@ -57,7 +58,6 @@ from judgekeeper.textio import (
     read_cached,
     runnable,
     said_next,
-    shown_from_here,
     wrap,
     write_replacing,
 )
@@ -72,8 +72,8 @@ MIN_EACH = 5  # hidden marks marked Pass, and Fail, at least
 MAX_RULES = 3  # rules tested on one set of hidden marks
 FRESH = 10  # new marks that make a new set of hidden marks
 CLEAR = 40  # new marks that most often give a new set a clear answer
-CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}; with fewer "
-              f"than about {CLEAR}, the result will often be \"can't tell yet\").")
+CLEAR_LINE = (f"Mark about {CLEAR} more answers for a clear answer (at least {FRESH}). With fewer "
+              f"than about {CLEAR}, the result will often be \"can't tell yet\".")
 ONLY_LEFT = "Only {n} left to mark. Mark them, or add more answers to your results."
 NONE_LEFT = "No answers are left to mark. Add more answers to your results."
 RULE_SHOWN = 58  # characters of the rule shown, "…" included
@@ -83,14 +83,26 @@ RESULT = {
     "better": ("Result: your new rule is better. A difference this large is unlikely to be a "
                "coincidence."),
     "safe": ("Result: safe to try. Not clearly better yet, but unlikely to be more than 10 "
-             "points worse."),
+             "percentage points worse."),
     "leans better": ("Result: can't tell yet. That leans toward better, but a split this small "
                      "could easily be a coincidence."),
     "same": "Result: can't tell yet. The two rules look about the same here.",
     "leans worse": "Result: can't tell yet. That leans toward worse.",
-    "worse": "Result: it looks worse.",  # only past the sign test
+    "worse": "Result: your new rule looks worse.",  # only past the sign test
 }
-CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside; 'better' needs about "
+LEANS = ("leans better", "same", "leans worse")
+
+
+def shown_kind(kind: str, fixed: int, broke: int) -> str:
+    """The result as the counts on screen show it: a lean, or none, from the plain counts
+    `fixed` and `broke` the person sees. The weighted counts may lean the other way; they
+    decide only better, safe to try and worse."""
+    if kind not in LEANS:
+        return kind
+    return "leans better" if fixed > broke else "same" if fixed == broke else "leans worse"
+
+
+CANT_TELL = ("Only {n} of your LLM-as-a-judge's mistakes {are} kept aside. 'Better' needs about "
              "{better} fixed and none broken. Mark more answers to get a clearer test.")
 NEW_RESULTS = "<new results file>"
 CANT_SETTLE = ("these marks can't settle it. Keep your old rule, or try another change and run "
@@ -100,48 +112,62 @@ MISSING = ("Result: can't tell. {k} of the {n} answers kept aside {have} no grad
            "ungraded would look better than it is.")
 MOSTLY_BLANK = ("Result: can't tell. {k} of the {n} answers kept aside {have} no decision from "
                 "your new rule{why}: more than half, too many to test it on.")
-COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+# Every answer kept aside is there, none with a Pass or Fail: the grader did not grade
+NO_GRADES = ("Your new results have no grades. None of the {n} answers kept aside got a Pass "
+             "or Fail from your new rule.")
+NO_GRADES_INSPECT = "Inspect may have graded with your task's own model, not your grader model."
+NO_GRADES_OTHER = "Check that your LLM-as-a-judge ran with its model and your new rule."
+COUNTED = ("{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
            "counted {them}.")
 REGRADE_SAME = "grade every answer in {answers} again with your new rule, then {run}."
-REWROTE = ("judgekeeper wrote {answers} again: it now holds every answer you marked, with the "
-           "answers kept aside your new results lack.")
+REWROTE = ("judgekeeper wrote {answers} again. It now also holds the kept-aside answers "
+           "missing from your new results.")
 NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
-SAME_GRADES = ("These are the same grades as when you marked: give the results from after your "
+# The same rule and model as a file tested before, with other grades: the way to test them
+TEST_AS_NEW = "To test these grades as a new LLM-as-a-judge, change its rule and grade again."
+SAME_GRADES = ("These grades are the same as when you marked. Use the results from after your "
                "change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
            "is now, only from one before it, so judgekeeper leaves {them} out.")
-TOOK = ("These are your LLM-as-a-judge's grades as it is now on {k} answers kept aside it had "
-        "not graded yet: judgekeeper keeps them as its grades.")
+TOOK = ("Your LLM-as-a-judge had not graded {k} kept-aside {answers} before. judgekeeper now "
+        "uses {these} new {grades} for {them}.")
+
+
+def took_line(k: int) -> str:
+    """TOOK for `k` answers."""
+    one = k == 1
+    return TOOK.format(k=k, answers="answer" if one else "answers", them="it" if one else "them",
+                       grades="grade" if one else "grades", these="this" if one else "these")
+
+
 NEXT_EARLIER = ("grade the answers in {answers} again with your LLM-as-a-judge as it is now, "
                 "{run} so judgekeeper has its grades, then test your "
                 "new rule.")
 UNCHANGED = ("Your new rule gives each of the {n} answers kept aside the grade the old one "
              "gave, so it changes nothing there to test.")
+# The page on each eval tool: a pip install has no docs/ folder
+EVAL_TOOLS = "https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md"
 # How to grade the same answers again, per eval tool (an own file or record(): OWN)
 REGRADE = {
-    "promptfoo": (f"promptfoo: use {ANSWERS} as your tests (`tests: file://...`) with "
-                  "`prompts: ['{{answer}}']`, the `echo` provider, your grader as "
-                  "`defaultTest.options.provider` and the same `metric:` with your new rule; "
-                  "the rule's variables are the file's columns, `{{question}}` and "
-                  "`{{answer}}`. Save with `-o`. judgekeeper's docs/eval-tools.md shows the "
-                  "whole config."),
+    "promptfoo": (f"promptfoo: grade {ANSWERS} again with your new rule, with the `echo` "
+                  "provider and no new answers. " + EVAL_TOOLS + " shows the whole config."),
     "inspect": ("Inspect AI: grade your log again with the new rule, no new answers needed. "
-                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own); "
-                "give the options you set before again with `-S`. `-S instructions=` takes a "
-                "rule with no comma and no colon followed by a space (Inspect reads `-S` "
-                "values as YAML and cuts them at commas); else grade it with "
-                "Inspect's score() in Python, as judgekeeper's docs/eval-tools.md shows. "
+                "`--scorer` takes the scorer's name (`model_graded_qa` for Inspect's own). "
+                "Give the options you set before again with `-S`, the grader's model too. "
+                "`-S instructions=` takes a "
+                "rule with no comma, colon or #. Otherwise, grade it "
+                "with Inspect's score() in Python, as " + EVAL_TOOLS + " shows. "
                 "`--action overwrite` replaces the old grades in the new log, so your "
                 "scorer's name holds the new ones, and `--output-file` writes a new log next "
                 "to yours, so yours stays as it was and `judgekeeper check` finds the new "
                 "one."),
     "mlflow": ("MLflow: `mlflow.genai.evaluate()` on the existing traces with the new scorer, "
                "under the same name."),
-    "deepeval": (f"DeepEval: one test case per row of {ANSWERS} (`question` as input, "
-                 "`answer` as actual_output, and any field your metric also reads, such as "
-                 "expected_output, added back by its question); run your metric with its new "
-                 "rule and the same name through `deepeval test run`, which saves a new "
-                 "test_run_<date>.json in your results folder."),
+    "deepeval": (f"DeepEval: make one test case for each row of {ANSWERS} (`question` is the "
+                 "input, and `answer` is the actual_output). Add any other field your metric reads, "
+                 "such as expected_output. Run your metric with its new rule and the same name "
+                 "through `deepeval test run`. It saves a new test_run_<date>.json in your "
+                 "results folder."),
 }
 OWN = f"Grade {ANSWERS} with your own code."
 # promptfoo: a ready config that grades the marked answers again (written as text: no YAML
@@ -149,10 +175,10 @@ OWN = f"Grade {ANSWERS} with your own code."
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
 TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers exactly, no guard
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
-                 "2. Run: `npx promptfoo eval -c {config} -o {new}`\n"
+                 "2. Run: `npx promptfoo eval -c {config} -o {new}`{calls}\n"
                  "3. Then{where}: `{command} {after}`")
 FOLLOW_STEPS = "follow the three steps above."
-NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}; {answers} has only question and answer."
+NOT_A_COLUMN = "Your rule uses {{{{{name}}}}}, but {answers} has only question and answer."
 NEW_RECORDS = f"{find.RECORDS_DIR.as_posix()}/<new file>"
 RECORD_AGAIN = (f"Grade {ANSWERS} with your own code, call `judgekeeper.record()` again on the "
                 "new grades, then {run}.")
@@ -182,7 +208,9 @@ STOPWORDS = frozenset((
     "that", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this",
     "those", "though", "through", "under", "until", "upon", "very", "want", "well", "were",
     "what", "when", "where", "whether", "which", "while", "will", "with", "within", "without",
-    "would", "your", "yours", "yourself", "yourselves"))
+    "would", "your", "yours", "yourself", "yourselves",
+    # words about an eval's format, not its content ("The answer is 72.")
+    "answer", "answers", "question", "questions", "response", "responses"))
 
 
 # The marks ----------------------------------------------------------------------------------
@@ -371,8 +399,8 @@ class SplitError(ValueError):
 
 DAMAGED = ("judgekeeper can't use {file}: {why}. It says which of your marks are kept aside, "
            "so judgekeeper doesn't replace it or guess.")
-NEXT_DAMAGED = ("put back the {name} judgekeeper wrote, or delete it and run `{command} --new`: "
-                "every mark you have counts as seen, and the next {n} you make are kept aside.")
+NEXT_DAMAGED = ("put back the {name} judgekeeper wrote, or run `{command} --new`. Then every "
+                "mark you have counts as seen, and the next {n} you make are kept aside.")
 
 
 def _ints(t: dict, *keys: str) -> bool:
@@ -425,12 +453,21 @@ def _set_history(ws: Workspace, seed, number) -> tuple[int, dict | None]:
 def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
     """How many of the `seen` marks were first made before any `hidden` one, by marks.jsonl:
     the most a later set's earlier sets can hold, since every mark made once a set begins is
-    its own. None kept aside, or one never marked: 0."""
-    order = {i: n for n, i in enumerate(read_cached(ws.marks, marks.read).last)}
-    if not hidden or any(i not in order for i in hidden):
+    its own. A seen mark is its first Pass or Fail. A kept-aside one is its first Pass or Fail
+    since it was last skipped or taken back: an answer skipped, or marked and taken back,
+    before a set began and marked after is the set's. One taken back since is left out; with
+    every one taken back, their first Pass or Fail ever. One never marked: 0. None kept aside
+    (a later set's, once every one is taken back and left out): every seen one, so
+    history.jsonl says."""
+    m = read_cached(ws.marks, marks.read)
+    if not hidden:
+        return len(seen)
+    if any(i not in m.first_mark for i in hidden):
         return 0
-    first = min(order[i] for i in hidden)
-    return sum(order.get(i, first) < first for i in seen)
+    first = min((m.fresh_mark[i] for i in hidden if i in m.fresh_mark), default=None)
+    if first is None:  # every one taken back
+        first = min(m.first_mark[i] for i in hidden)
+    return sum(m.first_mark.get(i, first) < first for i in seen)
 
 
 def _sum(d: dict) -> str:
@@ -539,7 +576,12 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
     """The saved split with marks made since it split the same way; a new one when there is
     none. `new` retires the saved one: a mark once seen is never kept aside again, so only
     marks made after it make the next set."""
-    split = read_split(ws)
+    try:
+        split = read_split(ws)
+    except SplitError:
+        if not new:
+            raise
+        split = None  # `--new` asked: every mark counts as seen, so none can be guessed
     if split is None and new:  # none to retire: the marks may have been seen all the same
         split = Split(seed=secrets.randbelow(2 ** 31), seen=sorted(m.person), hidden=[],
                       made_at=utc_now(), fresh={"want": FRESH, "asked": True})
@@ -566,8 +608,9 @@ def current_split(ws: Workspace, m: Marks, new: bool = False) -> Split:
             _note_set(ws, split, earlier=split.earlier)
         else:
             split.pending = new_ids
-    elif new_ids and split.hidden:  # new marks are kept aside at the same share, within each
-        # stratum, however many sittings they came in
+    elif new_ids and (split.hidden or split.set > 1):  # new marks are kept aside at the same
+        # share, within each stratum, however many sittings they came in; a later set's too
+        # once every one kept aside in it is taken back
         seen, hidden = _top_up(m, new_ids, set(known) & set(m.person), split.hidden,
                                random.Random(f"{split.seed}/{len(known)}"))
         split.seen += seen
@@ -658,14 +701,17 @@ def patterns(rows: list[dict], mark: float | None = None,
     made = f"Your LLM-as-a-judge made {n} mistakes."
     if aside:
         made = (f"Your LLM-as-a-judge made {n} mistakes on the {len(rows)} marks used here. "
-                f"The other {aside} {'is' if aside == 1 else 'are'} kept aside to test a new "
+                f"The other {plural(aside, 'mark')} {'is' if aside == 1 else 'are'} kept aside to "
+                "test a new "
                 "rule.")
     easy = "it said Pass where you said Fail"
     strict = "it said Fail where you said Pass"
+    other = {True: f", and in {fails}, {strict}" if fails else "",  # a kind with none: out
+             False: f", and in {passes}, {easy}" if passes else ""}
     if passes > fails:
-        out.append([f"{made} In {passes}, {easy}.", "Its rule may be too easy."])
+        out.append([f"{made} In {passes}, {easy}{other[True]}.", "Its rule may be too easy."])
     elif fails > passes:
-        out.append([f"{made} In {fails}, {strict}.", "Its rule may be too strict."])
+        out.append([f"{made} In {fails}, {strict}{other[False]}.", "Its rule may be too strict."])
     else:
         out.append([f"{made} In {passes}, {easy}. In the other {fails}, {strict}."])
     if mark is not None:
@@ -684,15 +730,18 @@ def patterns(rows: list[dict], mark: float | None = None,
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
             out.append([(f"When {name}, the answers are long (about {_about(long)} words, "
-                         f"against {_about(usual)}).")])
+                         f"while the others average {_about(usual)}).")])
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))
         in_agreed = Counter(w for m in agreed for w in _words(m["output"]))
+        in_all = Counter(w for m in rows for w in _words(m["output"]))
         k = len(agreed)
         strong = []
         for word, a in in_wrong.items():
             b = in_agreed[word]
+            if in_all[word] * 2 > len(rows):  # in most answers: it says nothing about mistakes
+                continue
             odds = (math.log((a + 0.5) / (n - a + 0.5))
                     - math.log((b + 0.5) / (k - b + 0.5)))
             if a >= WORD_IN and a * WORD_SHARE >= n and odds >= STRONG:
@@ -903,8 +952,22 @@ def write_suggestions(ws: Workspace, rows: list[dict]) -> bool:
         return False
     marks._refuse_links(path)
     make_private(path.parent)
-    write_replacing(path, reasons.suggestions_md(wrong))
+    with plainly():  # a file in .judgekeeper/: the command as anyone types it
+        command = mark_again(ws)
+    write_replacing(path, reasons.suggestions_md(wrong, command))
     return reasons.has_any(wrong)
+
+
+def mark_again(ws: Workspace) -> str:
+    """The `mark` command that opens the page where reasons are given, from the flags of the
+    run that made the result (report_page.commands), as the result page names it."""
+    from judgekeeper import report_page
+
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        r = None
+    return report_page.commands(r if isinstance(r, dict) else {})["mark"]
 
 
 def refresh_mistakes(ws: Workspace, always: bool = False) -> int:
@@ -964,18 +1027,51 @@ def by_stratum(m: Marks, ids: list[str], old: dict, new: dict) -> list[list[int]
     return [out[s] for s in sorted(out)]
 
 
-def test_pass_mark(m: Marks, split: Split) -> dict | None:
-    """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
-    scores (no AI call), once per set of hidden marks: the test, also kept in split.json, or
-    None for a judge with no pass mark or when the pass mark already fits best."""
+def _check_drop(m: Marks, op: str, mark: float) -> dict | None:
+    """check's own rule (check.groups) on every mark it reads, for the pass mark `mark`
+    against the one in use: the groups, when check would call it worse; else None. fix's
+    test is overall, on the marks kept aside; check's is per side, on all of them."""
+    from judgekeeper.check import groups
     from judgekeeper.start import passes
-    from judgekeeper.start_fix import cell, cell_weights, choose_mark
 
-    pm = m.data.get("pass_mark")
-    if not _follows(m, pm):
-        return None
-    if split.pass_mark is not None:
-        return split.pass_mark or None
+    ids = [i for i in m.person if i in m.judge and i not in m.earlier
+           and isinstance(m.scores.get(i), int | float)]
+    g = groups({i: m.person[i] for i in ids}, {i: m.judge[i] for i in ids},
+               {i: passes(m.scores[i], op, mark) for i in ids})
+    return g if any(g[k]["verdict"] == "worse" for k in ("passed", "failed")) else None
+
+
+def _tried_worse(ws: Workspace, op: str) -> set[float]:
+    """The pass marks a check (history.jsonl) found worse than the one before: never offered
+    again."""
+    from judgekeeper import check, judge_setup
+
+    out = set()
+    for x in check._history(ws):
+        before, after = x.get("before"), x.get("after")
+        if (x.get("kind") != "check" or not isinstance(before, dict)
+                or not isinstance(after, dict) or not judge_setup.mark_only(before, after)):
+            continue
+        if not any(isinstance(g, dict) and g.get("verdict") == "worse"
+                   for g in (x.get("groups") or {}).values()):
+            continue
+        pm = after.get("pass_mark") or {}
+        mark = pm.get("mark")
+        if pm.get("op") == op and isinstance(mark, int | float) and not isinstance(mark, bool):
+            out.add(round(float(mark), 9))
+    return out
+
+
+def _held_back(m: Marks, op: str):
+    """skip for choose_mark: a pass mark a check found worse, or one check would call worse."""
+    tried = _tried_worse(m.ws, op)
+    return lambda mark: round(mark, 9) in tried or _check_drop(m, op, mark) is not None
+
+
+def _mark_items(m: Marks, split: Split) -> tuple[list, dict]:
+    """(the seen marks as choose_mark takes them, their weights)."""
+    from judgekeeper.start_fix import cell, cell_weights
+
     rows = {i: {"judge": m.judge[i], "final": m.person[i]} for i in m.person}
     pool = m.data.get("pool") or {}
     if len(set(m.batch.values())) > 1:  # each answer weighs by its stratum
@@ -985,11 +1081,66 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
                        ((q["id"], q["group"]) for q in m.data.get("queue") or []))
     seen = [rows[i] for i in split.seen]
     weights = cell_weights(list(rows.values()), seen, pool)
+    return [(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen], weights
+
+
+def held_line(m: Marks, split: Split) -> str | None:
+    """The pass mark that fits the seen marks best, when it is held back (_held_back): why,
+    in one line. None when it is not held back, or there is none better."""
+    from judgekeeper.start_fix import choose_mark
+
+    pm = m.data.get("pass_mark")
+    if not _follows(m, pm):
+        return None
     current, op = pm["mark"], pm["op"]
-    new = choose_mark([(cell(rows[i]), m.person[i], m.scores[i]) for i in split.seen],
-                      current, op, weights)
+    items, weights = _mark_items(m, split)
+    best = choose_mark(items, current, op, weights)
+    if best == current:
+        return None
+    if round(best, 9) in _tried_worse(m.ws, op):
+        return TRIED_WORSE.format(new=f"{best:g}")
+    g = _check_drop(m, op, best)
+    if g is None:
+        return None
+    less = " and ".join(f"on the answers you {key} ({g[key]['new_right']} of {g[key]['n']}, "
+                        f"down from {g[key]['old_right']})"
+                        for key in ("passed", "failed") if g[key]["verdict"] == "worse")
+    fixed = sum(g[k]["now_right"] for k in ("passed", "failed"))
+    broke = sum(g[k]["now_wrong"] for k in ("passed", "failed"))
+    lead = "It fixes more answers overall, but agrees" if fixed > broke else "It agrees"
+    return HELD.format(new=f"{best:g}", old=f"{current:g}", lead=lead, less=less)
+
+
+# A pass mark held back (held_line): check would call it worse, or a check did
+HELD = ("judgekeeper also tried a pass mark of {new} instead of {old}. {lead} with you less "
+        "{less}, so `check` would call it worse.")
+TRIED_WORSE = "You tried a pass mark of {new} with `check`, and it was worse."
+KEEP = " Keep {old}."  # after it, when no other pass mark is offered
+
+
+def test_pass_mark(m: Marks, split: Split) -> dict | None:
+    """The pass mark that fits the seen marks best, tested on the hidden marks with the saved
+    scores (no AI call), once per set of hidden marks and pass mark in use: the test, also
+    kept in split.json, or None for a judge with no pass mark or when the pass mark already
+    fits best (kept as {"old", "op"}: the mark it was run for)."""
+    from judgekeeper.start import passes
+    from judgekeeper.start_fix import choose_mark
+
+    pm = m.data.get("pass_mark")
+    if not _follows(m, pm):
+        return None
+    held = _held_back(m, pm["op"])
+    saved = split.pass_mark
+    ran_for = saved is not None and (saved.get("old"), saved.get("op")) == (pm["mark"], pm["op"])
+    if ran_for and not ("new" in saved and held(saved["new"])):  # run for the mark in use:
+        return saved if "new" in saved else None  # the test, or nothing better than it
+    if saved and saved.get("new") == pm["mark"] and saved.get("op") == pm["op"]:
+        return None  # the mark it found is the one in use now: nothing better was tested
+    current, op = pm["mark"], pm["op"]
+    items, weights = _mark_items(m, split)
+    new = choose_mark(items, current, op, weights, skip=held)  # never one held back
     if new == current:
-        split.pass_mark = {}
+        split.pass_mark = {"old": current, "op": op}
         return None
     now = {i: passes(m.scores[i], op, new) for i in split.hidden}
     strata = by_stratum(m, split.hidden, m.judge, now)
@@ -1004,6 +1155,21 @@ def test_pass_mark(m: Marks, split: Split) -> dict | None:
     return test
 
 
+def pass_mark_command(ws: Workspace, pm: dict, test: dict) -> str | None:
+    """The `check --pass-if` that switches to the better pass mark `test` found, when the
+    pass mark is given with --pass-if (not kept in a file judgekeeper found); else None."""
+    from judgekeeper.check import _here
+    from judgekeeper.start_fix import locate, searched, where_lines
+
+    if VERDICT_WORDS.get(test["verdict"]) is None:
+        return None
+    name = searched(pm)
+    if name and locate(ws.root, name, test["old"]):
+        return None
+    given = re.search(r'--pass-if "([^"]*)"', where_lines(pm, test["new"])[0])
+    return f"{_here(ws, 'check')} --pass-if {quote_arg(given[1])}" if given else None
+
+
 def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     """The pass-mark line of the fix output, when the verdict says the new mark is worth trying."""
     from judgekeeper.start_fix import locate, searched, where_lines
@@ -1014,12 +1180,16 @@ def pass_mark_line(ws: Workspace, pm: dict, test: dict) -> str | None:
     new, old = f"{test['new']:g}", f"{test['old']:g}"
     name = searched(pm)
     found = name and locate(ws.root, name, test["old"])
+    command = pass_mark_command(ws, pm, test)
     if found:
-        where = f"Change it in {found[0]}, line {found[1]}."
+        where = (f"Change it where your eval sets it. That may be in {found[0]}, "
+                 f"line {found[1]}.")
+    elif command:  # one form: the check that re-checks it with that pass mark
+        where = f"To use a pass mark of {new}, run `{command}`."
     else:
         where = re.sub(r'(--pass-if "[^"]*")', r"`\1`", where_lines(pm, test["new"])[0])
     return (f"A better pass mark: {new} instead of {old} (tested on the marks kept aside: fixed "
-            f"{test['fixed']}, broke {test['broke']}, {words}). {where}")
+            f"{test['fixed']}, broke {test['broke']}, so {words}). {where}")
 
 
 def tried_line(test: dict) -> str:
@@ -1094,6 +1264,9 @@ def _sessions_below(path: str) -> tuple[str, str] | None:
     return front.go_to_words(sessions, program("fix")) if sessions else None
 
 
+MAY_BE_IN = "Your LLM-as-a-judge's rule may be in"
+
+
 def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
     the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
@@ -1104,7 +1277,10 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     where = start_fix_rule.found_rule(ws.root, rule, tool, first=first)
     said = "Your LLM-as-a-judge's rule is in"
     if where and (not read or where[0] == read):
-        return f"{said} {link(ws.root / where[0], where[0])}, line {where[1]}"
+        # in the file the eval tool reads it from, else a search's guess in the person's code
+        known = where[0] in (first, read)
+        return (f"{said if known else MAY_BE_IN} {link(ws.root / where[0], where[0])}, "
+                f"line {where[1]}")
     if read and read != task:
         file_link = start_fix_rule.file_link
         return (f"{said} {file_link(ws.root, read)}, which {file_link(ws.root, task)} reads "
@@ -1149,6 +1325,14 @@ def run(path: str = ".", new: bool = False) -> int:
                   "again with your new rule, or run it in your project folder.")
         return EXIT_USAGE
     state = _state(talk.path)
+    from judgekeeper import project
+
+    if state is not None and results is not None and results.is_file() and (
+            marked := project.other_eval(state.ws.root, results)) is not None:
+        talk.say(STEP)  # as check and mark: never read as new results
+        talk.say()
+        talk.para(project.other_eval_line(results, marked))
+        return EXIT_NEEDS_YOU
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
     if m is not None and m.data.get("rule") is None:
@@ -1173,9 +1357,15 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.next(f"run your eval once from this folder, then run `{program()}`.")
         return EXIT_NEEDS_YOU
     if split is None:
-        talk.para(NOT_ENOUGH)
-        step = f"run `{program('mark')}` to mark more answers."
-        talk.next(next_marks(ws, step) if ws is not None else step)
+        from judgekeeper.check import mark_more_step
+        from judgekeeper.start_label import out_of_reach
+
+        reach = out_of_reach(ws) if ws is not None else None  # as the plain run says
+        talk.para(NOT_ENOUGH + (f" {reach}" if reach else ""))
+        step = (mark_more_step(ws) if ws is not None  # from here
+                else f"run `{program('mark')}` to mark more answers.")
+        talk.next(next_marks(ws, step, need=math.inf if reach else 1) if ws is not None
+                  else step)
         return EXIT_NEEDS_YOU
     if split.fresh:  # new results from another tool are refused first (exit 2)
         if results is not None and _given(talk, state, m, results) is None:
@@ -1213,10 +1403,9 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     were given, and wait for that set."""
     want = split.fresh["want"]
     if split.fresh.get("asked"):
-        talk.para(f"You asked for a new set of marks kept aside (`{program('fix')} --new`). The "
-                  "marks you have made are all seen now, so the new set is made of new marks.")
+        talk.para("Your next marks will form a new set kept aside.")
     elif split.fresh.get("adopted"):
-        talk.para("You took on a rule tested on these marks kept aside. Testing the next rule "
+        talk.para("You switched to a rule tested on these marks kept aside. Testing the next rule "
                   "on the same marks would make a coincidence look like a better rule.")
     else:
         talk.para(f"You have tested {plural(len(split.rules()), 'rule')} on these marks kept "
@@ -1233,7 +1422,9 @@ def _waiting(talk: Talk, ws: Workspace, m: Marks, split: Split, tested: bool = F
     talk.para(more_marks_line(ws))
     then = (": they become a new set of marks kept aside, and your new results are tested on "
             "them" if tested else ": they become a new set of marks kept aside")
-    talk.next(next_marks(ws, f"mark more answers with `{program('mark')}` (at least {left} "
+    from judgekeeper.check import mark_here
+
+    talk.next(next_marks(ws, f"mark more answers with `{mark_here(ws)}` (at least {left} "
                              f"more), then run `{talk.command()}` again{then}.", need=left))
     return EXIT_NEEDS_YOU
 
@@ -1369,7 +1560,7 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
     marked-answers.csv."""
     store = mlflow_store(ws, here=not talk.away())
     if store:
-        return (f"run your new scorer on all the traces again, then {talk.run(store)}: it "
+        return (f"run your new scorer on all the traces again, then {talk.run(store)}. It "
                 f"reads the newest run.")
     try:
         tool = ws.cached_data().get("tool")
@@ -1377,9 +1568,27 @@ def _regrade_same(talk: Talk, ws: Workspace) -> str:
         tool = None
     if tool == "inspect":  # the log itself is scored again
         log = quote_arg(new_log(ws))
-        return (f"score your log again with your new rule: run `{INSPECT_SCORE}` with "
-                f"`--output-file {log}`, then {talk.run(log)}.")
+        return (f"score your log again with your new rule: run `{inspect_score(ws, log)}` "
+                f"and then {talk.run(log)}.")
     return REGRADE_SAME.format(answers=_file(ws, ANSWERS), run=talk.run(NEW_RESULTS))
+
+
+def _no_grades_next(talk: Talk, ws: Workspace, given: Path) -> str:
+    """The next step when the new results hold no grade at all: for Inspect AI, the command
+    with the grader model when the log names it (it writes new_log), else the options to give
+    again, and `fix` on the log `given` once scored again."""
+    try:
+        tool = ws.cached_data().get("tool")
+    except (OSError, ValueError, AttributeError):
+        tool = None
+    if tool != "inspect":
+        return _regrade_same(talk, ws)
+    log = quote_arg(new_log(ws))
+    if scorer_model(ws):
+        return (f"score your log again with your new rule and your grader model: run "
+                f"`{inspect_score(ws, log)}` and then {talk.run(log)}.")
+    return (f"give `inspect score` the `-S` options your scorer was set up with, its model "
+            f"too, then {talk.run(quote_arg(line_path(given)))}.")
 
 
 def _yaml_string(text) -> str:
@@ -1489,6 +1698,14 @@ def _promptfoo_grader(ws: Workspace, data: dict) -> tuple[str, str | None, dict]
     return (metric, None, {}) if reader.judge_type(metric) == metric else None
 
 
+# regrade.yaml's comments, on the lines they are about (so the line numbers said stay)
+ECHO_NOTE = ("  # echo gives back each answer you marked as it is, so no new answers are made. "
+             "The grader below still calls its model.")
+TESTS_NOTE = "  # the answers you marked"
+RULE_NOTE = ("  # your rule: change it here. {{question}} is the question, {{answer}} the "
+             "answer")
+
+
 def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     """The text of fix/regrade.yaml: the marked answers as tests, the `echo` provider, the
     grader the results name, the same assertion type (and metric name) with the rule as its
@@ -1507,8 +1724,8 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     kind, config = found[:2], found[2]
     kept, left = _without_keys(config)
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
-             "providers: [" + _yaml_string("echo") + "]",
-             "tests: " + _yaml_string(f"file://{TESTS_FILE}"),
+             "providers: [" + _yaml_string("echo") + "]" + ECHO_NOTE,
+             "tests: " + _yaml_string(f"file://{TESTS_FILE}") + TESTS_NOTE,
              "defaultTest:",
              "  options:",
              *("    " + LEFT_OUT.format(name=one_line(scrub(name))) for name in left),
@@ -1516,7 +1733,7 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
              "  assert:",
              "    - type: " + _yaml_string(kind[0]),
              *(["      metric: " + _yaml_string(kind[1])] if kind[1] else []),
-             "      value: " + _yaml_string(rule)]
+             "      value: " + _yaml_string(rule) + RULE_NOTE]
     return "\n".join(lines) + "\n"
 
 
@@ -1567,11 +1784,25 @@ def regrade_steps(ws: Workspace, command: str, what: str = "rule",
         return None
     shown = f"{shown_folder(ws)}/{FOLDER}"
     new = quote_arg(f"{shown}/{NEW_JSON}")
-    return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line,
+    n = _answer_rows(ws)
+    calls = (f" It calls your LLM-as-a-judge's model {n} times, once for each marked answer, "
+             "with your own API key." if n > 1 else " It calls your LLM-as-a-judge's model "
+             "once, with your own API key." if n else "")
+    return REGRADE_STEPS.format(what=what, file=_file(ws, REGRADE_FILE), line=line, calls=calls,
                                 config=quote_arg(f"{shown}/{REGRADE_FILE}"), new=new,
                                 where=", in your project folder" if away else "",
                                 after=quote_arg(f"{ws.dir.name}/{FOLDER}/{NEW_JSON}") if away
                                 else new, command=command)
+
+
+def _answer_rows(ws: Workspace) -> int:
+    """How many answers marked-answers.csv holds (0 when it can't be read): the model calls a
+    regrade of it makes."""
+    try:
+        with (_folder(ws) / ANSWERS).open(encoding="utf-8", newline="") as f:
+            return max(sum(1 for _ in csv.reader(f)) - 1, 0)
+    except (OSError, UnicodeDecodeError, csv.Error):
+        return 0
 
 
 def not_a_column(ws: Workspace) -> list[str]:
@@ -1627,12 +1858,26 @@ def _first_file(ws: Workspace) -> str | None:
 
 
 NEW_LOG = "new.eval"
-INSPECT_SCORE = "inspect score <log> --scorer <name> --action overwrite"
+NEW_LOG_TOO = "new-2.eval"  # when the marks test new.eval itself: never the log it reads
+# What is not known stays a placeholder (inspect_score)
+# --overwrite: the new log may be there from an earlier regrade, and inspect score would stop
+# to ask before writing over it
+INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite --overwrite"
+_SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
+INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
+# The new rule, by the option the log set it in: model_graded_qa reads a template from a file
+NEW_RULE = {"instructions": "<new rule>", "template": "<file with the new rule>"}
+NOW_RULE = {"instructions": "<current rule>", "template": "<file with the current rule>"}  # check
+NOT_IN_S = ("Put your rule in place of `<current rule>`. For a rule with a comma, colon or #, use "
+            "Inspect's score() in Python, as " + EVAL_TOOLS + " shows.")
+# A scorer of the person's own may take its template as text, not a file
+OWN_TEMPLATE = ("<new rule as your scorer takes it>", "<current rule as your scorer takes it>")
 
 
-def new_log(ws: Workspace) -> str:
-    """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
-    with the others rather than in a second folder of logs."""
+def _marked_log(ws: Workspace) -> tuple[str | None, str]:
+    """(the log the marks test now, from the project folder, or None when it is not there;
+    the folder new_log puts the regraded one in). start.json keeps it from the project, or
+    from Inspect's log folder."""
     import os
 
     try:
@@ -1642,16 +1887,126 @@ def new_log(ws: Workspace) -> str:
     root = Path(ws.root)
     logs = Path(os.environ.get("INSPECT_LOG_DIR") or "logs")  # Inspect AI's log folder
     bases = [Path("."), *([logs] if not logs.is_absolute() and ".." not in logs.parts else [])]
-    folder = "."
-    if files and isinstance(files[0], str):  # named from the project, or from the log folder
-        folder = next(((base / files[0]).parent.as_posix() for base in bases
-                       if (root / base / files[0]).is_file()),
-                      Path(files[0]).parent.as_posix())
-    return NEW_LOG if folder == "." else f"{folder}/{NEW_LOG}"
+    if not files or not isinstance(files[0], str):
+        return None, "."
+    there = next(((base / files[0]).as_posix() for base in bases
+                  if (root / base / files[0]).is_file()), None)
+    return there, Path(there).parent.as_posix() if there else Path(files[0]).parent.as_posix()
 
 
-def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
-    """The per-tool line and the Next: line after marked-answers.csv is written."""
+def new_log(ws: Workspace) -> str:
+    """Where the regraded Inspect log goes: next to the marked log, so that `check` finds it
+    with the others rather than in a second folder of logs. Never the marked log itself (a
+    check took on new.eval): `inspect score` would stop to ask before it writes over it."""
+    marked, folder = _marked_log(ws)
+    name = NEW_LOG_TOO if marked and Path(marked).name == NEW_LOG else NEW_LOG
+    return name if folder == "." else f"{folder}/{name}"
+
+
+def inspect_score(ws: Workspace, out: str | None = None, rule: bool = True,
+                  now: dict | None = None) -> str:
+    """INSPECT_SCORE with the marked log and its scorer, so it runs as it is copied: the
+    scorer is the LLM-as-a-judge's metric (`scorer.key` for a dict score). A placeholder
+    stays only for what is not known (a log gone, a name `--scorer` can't take, the new
+    rule). `out`: the new log it writes (`--output-file`, quoted already), in the one
+    command. `rule`: the new rule goes in with `-S`, in the option the log set it in, or
+    `instructions` for Inspect's own scorer; without it, the scorer grades by its stock rule.
+    `now` (check): the LLM-as-a-judge as it is now (now_options): its rule when `-S` can take
+    it, its grader model, its grader role. The marked log's grader model only when the newest
+    results could not be read, and never with a grader role: `model` wins over the role, so
+    only a model the newest log's scorer names goes with one."""
+    log = _marked_log(ws)[0]
+    try:
+        data = ws.data()
+        metric, field = data.get("metric"), data.get("rule_field")
+    except (OSError, ValueError, AttributeError):
+        metric = field = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    scorer = name if _SCORER.fullmatch(name) else "<name>"
+    if field not in NEW_RULE:
+        field = "instructions" if scorer in INSPECT_OWN else None
+    rules = NEW_RULE if now is None else NOW_RULE
+    value = rules.get(field) if field != "template" or scorer in INSPECT_OWN else (
+        OWN_TEMPLATE[now is not None])  # only Inspect's own scorers read a template file
+    if now is not None and field == "instructions" and fits_s(now.get("rule")):
+        value = now["rule"]
+    option = f" -S {field}={quote_arg(value)}" if rule and field else ""
+    role = (now or {}).get("role")
+    model = (now or {}).get("model") if (now or {}).get("read") else (
+        _scorer_model(ws, log, scorer) if log and scorer != "<name>" and not role else None)
+    option += f" -S model={quote_arg(model)}" if model else ""
+    option += f" --model-role grader={quote_arg(role)}" if role else ""
+    command = INSPECT_SCORE.format(log=quote_arg(log) if log else "<log>", scorer=scorer,
+                                   rule=option)
+    return f"{command} --output-file {out}" if out else command
+
+
+def fits_s(rule) -> bool:
+    """Whether `-S` takes `rule` whole: Inspect reads -S values as YAML and splits text at
+    commas, so no comma, no colon, no "#", on one line, not starting with a YAML sign."""
+    return (isinstance(rule, str) and 0 < len(rule) <= 500 and rule.isprintable()
+            and not re.search(r"[,:#]", rule) and not re.match(r"[\s\[\]{}&*!|>'\"%@`-]", rule))
+
+
+def now_options(ws: Workspace, found) -> dict:
+    """For `check`: the LLM-as-a-judge as the newest results hold it, for inspect_score: its
+    rule, the model its scorer was given, and its grader role when the marked log's differs
+    (`inspect score` keeps the marked log's roles)."""
+    from judgekeeper.readers.inspect_logs import _model, eval_header
+
+    out: dict = {"rule": getattr(found, "rule", None)}
+    results = getattr(found, "results", None) or []
+    if not results:
+        return out
+    out["read"] = True  # what it holds is the LLM-as-a-judge now, a model or none
+    try:
+        metric = ws.data().get("metric")
+    except (OSError, ValueError, AttributeError):
+        metric = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    if _SCORER.fullmatch(name):
+        out["model"] = _scorer_model(ws, str(results[0].path), name)
+    role = _model((eval_header(results[0].path).get("model_roles") or {}).get("grader"))[0]
+    marked = _marked_log(ws)[0]
+    was = _model((eval_header(Path(ws.root) / marked).get("model_roles") or {}).get(
+        "grader"))[0] if marked else None
+    if isinstance(role, str) and role.isprintable() and "+" not in role and role != was:
+        out["role"] = role
+    return out
+
+
+def scorer_model(ws: Workspace) -> str | None:
+    """The grader model the marked log's scorer was given as its `model` option, or None."""
+    log = _marked_log(ws)[0]
+    try:
+        metric = ws.data().get("metric")
+    except (OSError, ValueError, AttributeError):
+        metric = None
+    name = str(metric).split(".", 1)[0] if isinstance(metric, str) else ""
+    return _scorer_model(ws, log, name) if log and _SCORER.fullmatch(name) else None
+
+
+def _scorer_model(ws: Workspace, log: str, scorer: str) -> str | None:
+    """The model `scorer` was given as its `model` option in the log (model_graded_qa(model=
+    ...)). `inspect score` does not keep it: without `-S model=`, the task's own model grades.
+    A grader given as a model role needs nothing: `inspect score` keeps the log's roles."""
+    from judgekeeper.readers.inspect_logs import _model, eval_header
+
+    spec = eval_header(Path(ws.root) / log)
+    for s in spec.get("scorers") or []:
+        if isinstance(s, dict) and s.get("name") in (scorer, scorer.rsplit("/", 1)[-1]):
+            model = _model((s.get("options") or {}).get("model"))[0]
+            if isinstance(model, str) and model.strip() and model.isprintable() \
+                    and "+" not in model:
+                return model.strip()
+    return None
+
+
+def _next_regrade(talk: Talk, ws: Workspace, tool: str | None, first: str | None = None) -> None:
+    """The per-tool line and the Next: line after marked-answers.csv is written. `first`: a
+    step said before the new rule's (a better pass mark), which then comes after "Or"."""
+    def nxt(text: str) -> None:
+        talk.next(f"{first} Or {text}" if first else text)
     talk.say()
     steps = (regrade_steps(ws, talk.program("fix"), away=talk.away()) if tool == "promptfoo"
              else None)
@@ -1660,25 +2015,28 @@ def _next_regrade(talk: Talk, ws: Workspace, tool: str | None) -> None:
     if steps:  # a ready config: the steps above are the whole way
         for line in not_a_column(ws):
             talk.para(line)
-        talk.next(FOLLOW_STEPS)
+        nxt(FOLLOW_STEPS)
         return
     if tool == "inspect":  # the log itself is graded again
         log = quote_arg(new_log(ws))
-        talk.next(f"change your scorer's rule, run `{INSPECT_SCORE}` with `--output-file {log}`, "
-                  f"then {talk.run(log)}.")
+        command = inspect_score(ws, log)
+        spot = next((v for v in (*NEW_RULE.values(), OWN_TEMPLATE[0]) if v in command), None)
+        what = "a file with your new rule" if spot == NEW_RULE["template"] else "your new rule"
+        nxt(f"run `{command}` with {what} in place of `{spot}`, then {talk.run(log)}."
+            if spot else f"change your scorer's rule, run `{command}` and then {talk.run(log)}.")
         return
     store = mlflow_store(ws, here=not talk.away()) if tool == "mlflow" else None
     if store:  # a new run in the same store
-        talk.next(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
-                  f"same traces, then {talk.run(store)}: it reads the newest run.")
+        nxt(f"change your scorer's rule, run it with `mlflow.genai.evaluate()` on the "
+            f"same traces, then {talk.run(store)}. It reads the newest run.")
         return
     if tool in ("records", "mapped"):  # graded with their own code, as said above
         new = NEW_RECORDS if tool == "records" else NEW_RESULTS
-        talk.next(f"change your LLM-as-a-judge's rule, grade the answers in "
-                  f"{_file(ws, ANSWERS)} again as said above, then {talk.run(new)}.")
+        nxt(f"change your LLM-as-a-judge's rule, grade the answers in "
+            f"{_file(ws, ANSWERS)} again as said above, then {talk.run(new)}.")
         return
-    talk.next(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
-              f"{_file(ws, ANSWERS)} again, save the results, then {talk.run(NEW_RESULTS)}.")
+    nxt(f"change your LLM-as-a-judge's rule in your eval tool, grade the answers in "
+        f"{_file(ws, ANSWERS)} again, save the results, then {talk.run(NEW_RESULTS)}.")
 
 
 def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
@@ -1704,7 +2062,7 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         if data.get("tool") == "inspect":  # the log itself is scored again
             log = quote_arg(new_log(ws))
             talk.next(f"nothing to fix. To test another rule anyway, score your log again "
-                      f"with it: run `{INSPECT_SCORE}` with `--output-file {log}`, then "
+                      f"with it: run `{inspect_score(ws, log)}` and then "
                       f"{talk.run(log)}.")
             return EXIT_OK
         talk.next(f"nothing to fix. To test another rule anyway, grade the answers in "
@@ -1718,17 +2076,25 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
             for sentence in p:
                 talk.para(sentence, indent="  ")
         talk.say()
-    fresh = split.pass_mark is None  # no pass mark tested on these marks yet
+    made = len(split.tests)
     tested = test_pass_mark(m, split)
+    fresh = len(split.tests) > made  # the test made now: its line is said once
     save_split(ws, split)
     _write_mistakes(ws, rule, seen_rows, mark, m.worse_from, marked_rule(data))
     talk.para(_saved_line(ws, len(wrong)))
     talk.say()
     if write_suggestions(ws, seen_rows):
+        suggested, _ = reasons.suggestions(mistakes(seen_rows))
         talk.para(f"Suggestions from your reasons are in {_file(ws, SUGGESTIONS)}. Copy the ones "
-                  "you agree with into your rule where your eval keeps it.")
+                  "you agree with into your rule where your eval keeps it." if suggested else
+                  f"No rule line is suggested in {_file(ws, SUGGESTIONS)} yet. "
+                  + reasons.SUGGESTED_ONCE.format(twice=reasons.TWICE))
         talk.say()
     line = tested and (pass_mark_line(ws, pm, tested) or (fresh and tried_line(tested)))
+    held = held_line(m, split)
+    if held:  # the best fit, held back: why, and to keep the pass mark unless one follows
+        talk.para(held + ("" if line else KEEP.format(old=f"{pm['mark']:g}")))
+        talk.say()
     if line:
         talk.para(line)
         talk.say()
@@ -1739,7 +2105,9 @@ def first_run(talk: Talk, ws: Workspace, m: Marks, split: Split) -> int:
         talk.say()
     n = write_answers(ws, m)
     talk.para(_answers_line(ws, split, n, said=bool(counted and split.hidden)))
-    _next_regrade(talk, ws, tool)
+    better = tested and pass_mark_command(ws, pm, tested)
+    _next_regrade(talk, ws, tool, f"run `{better}` to switch to the better pass mark."
+                  if better else None)
     return EXIT_OK
 
 
@@ -1771,9 +2139,8 @@ def next_test(split: Split) -> int:
 
 
 def _shown_path(path: Path) -> str:
-    """A results file from here (textio.shown_from_here), a link they can click in a
-    terminal."""
-    return link(path, Path(shown_from_here(path)).as_posix())
+    """A results file from here (textio.line_path), a link they can click in a terminal."""
+    return link(path, line_path(path))
 
 
 def _better_needs(n: int, k: int) -> int:
@@ -1849,7 +2216,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     talk.say()
     if not ids and not blank:
         talk.para(f"None of the {len(split.hidden)} answers kept aside is in this file. "
-                  f"judgekeeper finds them by the same text, word for word, and the same question.")
+                  "judgekeeper matches an answer only when the question and the answer text are "
+                  "the same, word for word.")
         _rewrite_lacking(talk, ws, m, list(split.hidden))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
@@ -1859,9 +2227,9 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     if took:
         from judgekeeper.check import take_grades  # the judge as it is now graded them
 
-        take_grades(ws, {i: new[i] for i in earlier})
+        take_grades(ws, found, {i: matched[i] for i in earlier})
         old = {**old, **{i: new[i] for i in earlier}}
-        talk.para(TOOK.format(k=len(earlier)))
+        talk.para(took_line(len(earlier)))
         talk.say()
     left = [i for i in blank if i in m.earlier] + ([] if took else earlier)
     if left:  # never compared with another judge's grade
@@ -1882,6 +2250,11 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
                       UNCHANGED.format(n=len(ids)))
         _next_regrade(talk, ws, m.data.get("tool"))
         return EXIT_NEEDS_YOU
+    if blank and not ids and not gone:  # not one grade: say so, never the same Next as before
+        talk.para(NO_GRADES.format(n=len(blank)))
+        talk.para(NO_GRADES_INSPECT if m.data.get("tool") == "inspect" else NO_GRADES_OTHER)
+        talk.next(_no_grades_next(talk, ws, path))
+        return EXIT_NEEDS_YOU
     if gone or 2 * len(blank) > len(ids) + len(blank):  # the rule may fail exactly on those;
         k = len(lack) if gone else len(blank)  # before a replay: this file can't test it
         error = no_decision_why(found, lack, ws)  # " (such as an error)" only for an error
@@ -1896,7 +2269,8 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
                    and t.get("hidden") == len(split.hidden)
                    and t.get("n") == len(ids) + len(blank)), None)
     if before is not None:
-        return tested_before(talk, ws, m, before, path, len(blank))
+        return tested_before(talk, ws, m, before, path, len(blank),
+                             {**{i: new.get(i) for i in ids}, **dict.fromkeys(blank)})
     for line in filter(None, (mixed and mixed_line(len(mixed)), repeats_line(found))):
         talk.para(line)
         talk.say()
@@ -1919,9 +2293,10 @@ def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
             talk.say(f"    When you say {side}: agrees on {agreed} of {len(of)}")
     talk.para(went_line(fixed, broke), indent="  ")
     talk.say()
-    talk.para(RESULT[v.kind])
+    talk.para(RESULT[shown_kind(v.kind, fixed, broke)])
     k = next_test(split)
-    _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root))
+    _keep(ws, split, found, setup, setup_hash, key, v, kept_path(path, ws.root),
+          {i: new.get(i) for i in ids})
     wrong = sum(old[i] != m.person[i] for i in ids)
     if v.kind in ("leans better", "same") and wrong:  # never for a rule that leans worse
         talk.para(CANT_TELL.format(n=wrong, are="is" if wrong == 1 else "are",
@@ -1972,6 +2347,10 @@ def _copy_rule(ws: Workspace, data: dict) -> str | None:
     regrade = _folder(ws) / REGRADE_FILE
     line = _line_of(regrade, "value") if regrade.is_file() else None
     source = f" from {_file(ws, REGRADE_FILE)} (line {line})" if line else ""
+    if where[0] != first:  # found by a search of the person's code: a guess, not named
+        home = start_fix_rule.rule_home(ws.root, "promptfoo", data)
+        return (f"copy your new rule{source} into {home}" +
+                ("" if first else " in your promptfoo config"))
     return (f"copy your new rule{source} into {link(ws.root / where[0], where[0])} "
             f"(line {where[1]})")
 
@@ -1991,15 +2370,18 @@ def _after_step(talk: Talk, ws: Workspace, m: Marks, kind: str, path: Path) -> s
                 f"run `{talk.command()} {_new_results(ws)}` again.")
     if every_marked(ws):  # none left to mark: more marks would need more questions
         return CANT_SETTLE.format(command=f"{talk.command()} {_new_results(ws)}")
-    return next_marks(ws, f"mark more answers with `{program('mark')}`, then run "
+    from judgekeeper.check import mark_here
+
+    return next_marks(ws, f"mark more answers with `{mark_here(ws)}`, then run "
                           f"`{talk.command()}` to write the marked answers to grade again.")
 
 
 def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
-                  blank: int = 0) -> int:
+                  blank: int = 0, grades: dict | None = None) -> int:
     """This LLM-as-a-judge was tested on these marks kept aside: its saved result, never a
     new test, the file and day it came from, how many this file leaves ungraded (`blank`),
-    and the next step that result gave."""
+    and the next step that result gave. `grades`, this file's on the answers kept aside, are
+    compared with the test's own (kept since 1.1.0) to say whether they differ."""
     from judgekeeper.check import _day
 
     day = _day(test.get("time"))
@@ -2007,22 +2389,43 @@ def tested_before(talk: Talk, ws: Workspace, m: Marks, test: dict, path: Path,
               f"{test.get('n')} marks kept aside. "
               f"{went_line(int(test.get('fixed') or 0), int(test.get('broke') or 0))}")
     talk.say()
-    talk.para(RESULT.get(test.get("verdict"), ""))
+    talk.para(RESULT.get(shown_kind(str(test.get("verdict")), int(test.get("fixed") or 0),
+                                    int(test.get("broke") or 0)), ""))
     kept = test.get("file") if isinstance(test.get("file"), str) else None
-    file = Path(shown_from_here(kept_at(kept, ws.root))).as_posix() if kept else None
+    file = line_path(kept_at(kept, ws.root)) if kept else None
     source = (f"the result above is from {file or 'an earlier file'}"
               f"{f' on {day}' if day else ''}.")
     if blank:
-        talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded; {source}")
+        talk.para(f"This file leaves {blank} of the {test.get('n')} ungraded. "
+                  f"{source[0].upper() + source[1:]}")
     elif kept and Path(kept_at(kept, ws.root)).resolve() != Path(path).resolve():
         # another file: say which one is given now
-        same = "rule" if test.get("rule_hash") else "grades"
-        talk.para(f"{path.name} has the same {same} as {file}{f' ({day})' if day else ''}, so "
-                  f"the result above is the same.")
+        when = f" ({day})" if day else ""
+        if not test.get("rule_hash"):  # told apart by its grades: the same ones
+            talk.para(f"{path.name} has the same grades as {file}{when}, so the result above is "
+                      "the same.")
+        else:
+            talk.para(_same_rule_line(path.name, file, when, test, grades))
     else:
         talk.para(source[0].upper() + source[1:])
     talk.next(_after_step(talk, ws, m, str(test.get("verdict")), path))
     return EXIT_OK
+
+
+def _same_rule_line(name: str, file: str, when: str, test: dict, grades: dict | None) -> str:
+    """A file with the same rule and model as the one `test` came from: one LLM-as-a-judge to
+    judgekeeper, so its saved result; "the same" only when the grades on the answers kept
+    aside are too, else how many differ (unknown for a test before 1.1.0)."""
+    head = (f"{name} has the same rule and model as {file}{when}, so judgekeeper treats them "
+            "as one LLM-as-a-judge")
+    kept = test.get("grades")
+    if not isinstance(kept, dict) or grades is None:
+        return f"{head}. The result above is from {file}."
+    differ = sum(kept.get(i) != g for i, g in grades.items())
+    if not differ:
+        return f"{head}. The result above is the same."
+    return (f"{head} and shows the result above, from {file}. Its grades differ on "
+            f"{differ} of the {len(grades)} answers kept aside. {TEST_AS_NEW}")
 
 
 def test_key(setup: dict, setup_hash: str, new: dict, ids: list[str]) -> str:
@@ -2039,7 +2442,7 @@ def _tool_name(tool: str | None) -> str:
 
 
 def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key: str,
-          v, file: str | None = None) -> None:
+          v, file: str | None = None, grades: dict | None = None) -> None:
     """The tested rule in rules/<hash>.txt (scrubbed) when the results hold one, the test in
     split.json (with the setup the marks tested then, for _adopted) and a history line: the
     setup's and rule's hashes, the counts and the verdict, never answer text or ids."""
@@ -2057,7 +2460,8 @@ def _keep(ws: Workspace, split: Split, found, setup: dict, setup_hash: str, key:
     test = {"kind": "rule", "time": utc_now(), "rule_hash": h, "setup_hash": setup_hash,
             "key": key, "from": was, "n": v.n, "hidden": len(split.hidden), "fixed": v.fixed, "broke": v.broke,
             "verdict": v.kind, "test": len(split.tests) + 1, "strata": [list(s) for s in v.strata],
-            **({"file": scrub(file)} if file else {})}  # split.json only: history has no paths
+            **({"file": scrub(file)} if file else {}),  # split.json only: history has no paths
+            **({"grades": grades} if grades is not None else {})}  # nor grades
     split.tests.append(test)
     save_split(ws, split)
     marks.append(ws.history_jsonl, {"time": test["time"], "kind": "fix", "rule_hash": h,

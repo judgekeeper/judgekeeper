@@ -6,7 +6,7 @@ An LLM-as-a-judge is a model that grades your eval's answers by a rule you wrote
 
 ## Install
 
-In your project folder, in its virtual environment, `pip install judgekeeper`, then `judgekeeper`. Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14 is supported. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever these pages say `judgekeeper`.
+In your project folder, in its virtual environment, `pip install judgekeeper`, then `judgekeeper`. Or with [uv](https://docs.astral.sh/uv/), which needs no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14 is supported. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`). With uv, type `uvx judgekeeper` wherever these pages say `judgekeeper`.
 
 ## judgekeeper: find, mark, measure
 
@@ -17,7 +17,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--new | --wait | --stop] [--version] [--debug]
 ```
 
-Each run does the next step. A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
+Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
 
 | What is there | What `judgekeeper` does |
 |---|---|
@@ -28,16 +28,28 @@ Each run does the next step. A result needs at least 15 answers you mark Pass an
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
-New answers from the same LLM-as-a-judge join as a new batch. Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). With none, it starts one in the folder you run it in. Results that the `.judgekeeper/` above doesn't read get their own `.judgekeeper/` in their folder. Run in a folder with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there. It stops the same way when results are in two or more folders right below it and none are in it: it names them, and you check one at a time from its own folder (DeepEval and Inspect AI results in several folders are asked about instead). judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file ([What it reads](#what-it-reads)).
+New answers from the same LLM-as-a-judge join as a new batch.
+
+Which `.judgekeeper/` a command uses:
+
+- Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `pyproject.toml`, `package.json`, `.git`, `setup.py` or `judgekeeper.toml`). With none, it starts one in the folder you run it in.
+- Run from `/` or a folder above your home folder, it starts nothing: it asks you to go to your project folder (exit 3).
+- A results file in the same folder as the results that `.judgekeeper/` reads uses it too when it is the same eval (read the same way, with questions it holds).
+- Another eval in that folder is never read, marked or taken as a changed LLM-as-a-judge: a plain run keeps reading the marked file and says so, and naming it (`judgekeeper FILE`, `mark FILE`, `check FILE`, `fix FILE`) says so and exits 3. To mark it, put it in a folder of its own and run `judgekeeper` there.
+- Results in a folder of their own get their own `.judgekeeper/` in their folder.
+- If you run it in a folder with a project right below it where you already ran judgekeeper, it names that project and stops (exit 3) instead of starting a second set of marks there.
+- It stops the same way when results are in two or more folders right below it and none are in it: it names them, and you check one at a time from its own folder (DeepEval and Inspect AI results in several folders are asked about instead).
+
+judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file ([What it reads](#what-it-reads)).
 
 | Flag | What it does |
 |---|---|
 | `PATH` | Your project folder (default: this folder), one results file, or an MLflow store (`mlflow.db` or an `mlruns/` folder). Later runs remember a file you name |
-| `--tool NAME` | Which eval tool's results to read when several are found: `records`, `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` |
+| `--tool NAME` | Which eval tool's results to read when several are found: `records`, `promptfoo`, `deepeval`, `inspect`, `mlflow` or `table` (a CSV, TSV or JSONL file) |
 | `--metric NAME` | The LLM-as-a-judge to look at when the results hold several |
 | `--experiment NAME_OR_ID` | MLflow: the experiment to read, when several have LLM-as-a-judge results. Kept with your marks: later runs read it without the flag |
 | `--tracking-uri URI` | MLflow: the local store to read (`mlflow.db`, `sqlite:///...`, an `mlruns/` folder or `file:...`) |
-| `--pass-if RULE` | When your LLM-as-a-judge's grades are scores: which pass, e.g. `'score>=0.5'` |
+| `--pass-if RULE` | When your LLM-as-a-judge gives scores: which scores pass, e.g. `'score>=0.5'` |
 | `--label-map MAP` | More spellings of your LLM-as-a-judge's grades, e.g. `'good=pass,bad=fail'` (added to pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0); `=error` for a value that is no decision. Kept with your marks: later runs read the same way without it. A map given with `--labels` is this same map: it is saved for the project and also reads your LLM-as-a-judge's grades |
 | `--labels [FILE]` | Use Pass/Fail labels you already have as your marks: from FILE (CSV, TSV or JSONL with an answer and a label column), or with no FILE the human labels already in your results. See [Bring labels you already have](#bring-labels-you-already-have). Not kept: give it each time you want labels brought in |
 | `--judge-model NAME` | The LLM-as-a-judge's model, when the results do not record it. Given after marking started, it is written down with your marks, not a change |
@@ -47,12 +59,18 @@ New answers from the same LLM-as-a-judge join as a new batch. Every command uses
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
-| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.0.2 is ready" and a `Next:` line; piped, only "judgekeeper 1.0.2" |
+| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.1.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.1.0" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
 
-The page runs on 127.0.0.1 with a random token in its link. The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files. The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent). It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon. While the page is open, its token is in `.judgekeeper/server.json`, so a second run uses the same page after checking it is judgekeeper's, for this project. It opens no new tab: at your terminal it prints the link; with no terminal it prints no link and says to run with `--no-browser` to print it. It keeps the open page whatever its `--port` and `--no-browser`; with other flags it starts the page again, and says so (it prints a new link). Marks made through the program in `BROWSER`, or from a link printed with no terminal (another program, such as a coding agent, read the output), are stamped so, and the result counts them. A link printed at your terminal is not stamped.
+The page runs on 127.0.0.1 with a random token in its link.
+
+- The page accepts marks only from itself, so other websites can't send marks. A program already running on your computer could, just as it can edit your files.
+- The page does not listen on the network. It checks the Host header and the token before reading a request's body, and every change needs the page's own `Origin` (and `Sec-Fetch-Site`, when sent).
+- It takes 32 connections at most, each sending within 5 seconds. Without the token, a request gets only the icon.
+- While the page is open, its token is in `.judgekeeper/server.json`, so a second run uses the same page after checking it is judgekeeper's, for this project. It opens no new tab: at your terminal it prints the link; with no terminal it prints no link and says to run with `--no-browser` to print it. It keeps the open page whatever its `--port` and `--no-browser`; with other flags it starts the page again, and says so.
+- Marks made through the program in `BROWSER`, or from a link printed with no terminal (another program, such as a coding agent, read the output), are stamped so, and the result counts them. A link printed at your terminal is not stamped.
 
 On your result page, say why you disagree on an answer. `fix` counts your reasons and suggests rule lines in `.judgekeeper/fix/suggestions.md`. The parts of your rule are buttons too: at most 6, the first five and the last; for a part with no button, use “Other…”.
 
@@ -73,15 +91,15 @@ After your first 10 marks, about 1 in 20 answers comes back a second time, so ju
 If you already have Pass/Fail labels, judgekeeper can use them as your marks, so you don't mark those answers again. Then mark more on the page if you need to.
 
 - `judgekeeper --labels your-labels.csv` reads them from a CSV, TSV or JSONL file.
-- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your results table, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used.
+- `judgekeeper --labels` uses the labels people gave that are already in your results: promptfoo `human` ratings, MLflow assessments from a HUMAN source, a `human_label` or `label` column in your CSV, TSV or JSONL results file, and `record()` lines with `annotator_kind` `HUMAN`. Without the flag, judgekeeper says how many it found and never uses them. Scores edited in Inspect AI are not used: Inspect keeps a person's label only when they change a score, so those labels would be mostly disagreements and make your LLM-as-a-judge look worse than it is. Labels for another question (for example a Tone rating when your LLM-as-a-judge checks something else) are not used.
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
 
-**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Your results table and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
+**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Two columns for the same thing (such as `label` and `human_label`, or `output` and `answer`) stop it: it names both and asks you to keep one. So does a row with more filled cells than the header (a quote closed in the wrong place): it names the line. Your results file and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
-**How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the same answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
+**How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 
-**The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number (other than 1 or 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
+**The words** are read like grades ([How grades are read](#how-grades-are-read)), with your `--label-map`. A blank label is skipped. A number other than 1 or 0 (`1.0` and `0.0` count as 1 and 0), or a word judgekeeper can't read, stops it before anything is written (exit 3).
 
 **What is left out, and said:** a label for an answer not in your results, for one your LLM-as-a-judge didn't grade Pass or Fail, for an answer that matches more than one answer, or for an answer labelled both Pass and Fail. When none match, it stops (exit 3).
 
@@ -89,7 +107,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
-Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (unless every answer in that group already has a mark), so judgekeeper can check the imported marks against yours.
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (or all of them, if there are fewer), so judgekeeper can check the imported marks against yours.
 
 Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
@@ -101,7 +119,7 @@ judgekeeper fix [PATH] [--new]
 
 | What is there | What `judgekeeper fix` does |
 |---|---|
-| No results file given | Keeps half your marks aside, and writes where your LLM-as-a-judge goes wrong on the others in `fix/mistakes.md`. Writes every marked answer in `fix/marked-answers.csv`, says where your rule lives, and prints how to grade the answers again with your eval tool. With scores, it also tests the best pass mark on the saved scores, once, and says so: that counts as one test on the marks kept aside. |
+| No results file given | Keeps half your marks aside, and writes where your LLM-as-a-judge goes wrong on the others in `fix/mistakes.md`. Writes every marked answer in `fix/marked-answers.csv`, says where your rule lives, and prints how to grade the answers again with your eval tool. With scores, it also tests the best pass mark on the saved scores, once: that counts as one test on the marks kept aside. |
 | A results file | Reads it as step 1 reads results, finds the answers kept aside in it, and tests the new grades against the old ones. Results already tested show their saved result. |
 
 | Flag | What it does |
@@ -116,31 +134,44 @@ judgekeeper fix [PATH] [--new]
 | Eval tool | How to grade the same answers again |
 |---|---|
 | promptfoo | Use `marked-answers.csv` as your tests with the `echo` provider and your new rule; save with `-o`. |
-| Inspect AI | `inspect score <log> --scorer <name> --action overwrite --output-file logs/new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, your log stays as it was, and the new one is in your log folder, where `check` finds it. Then run `judgekeeper fix logs/new.eval`. |
+| Inspect AI | `inspect score <log> --scorer <name> -S instructions="<new rule>" --action overwrite --overwrite --output-file logs/new.eval` with your scorer's new rule grades the log again without new answers. The new grades keep your scorer's name, your log stays as it was, and the new one is in your log folder, where `check` finds it. Then run `judgekeeper fix logs/new.eval`. |
 | MLflow | `mlflow.genai.evaluate()` on the existing traces with the new scorer. |
 | DeepEval | Build test cases from `marked-answers.csv`, add back by question any field your metric also reads (such as `expected_output`), and run the metric. |
 | A CSV, TSV or JSONL file | Grade `marked-answers.csv` with your own code. |
 | Your own code, with `record()` | Grade `marked-answers.csv` with your own code, call `judgekeeper.record()` again on the new grades, then run `judgekeeper fix .judgekeeper/records/<new file>`. |
 | A format of its own | Grade `marked-answers.csv` with your own code, and save the new grades in the same shape as your results file. |
 
-**The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options. An answer kept aside is found by the same text, word for word, and its question; a row in the results with no question is never an answer you marked with one. If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3). One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded. With more than half of the answers kept aside ungraded, it gives no result and asks you to grade them again (exit 3). This holds for a rule tested before too. Otherwise a rule tested before gets its saved result, with the file and day it came from and how many answers this file leaves ungraded. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3). On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
+**The new results** must come from the same eval tool as your marks and hold an LLM-as-a-judge of the same name (its metric or scorer); results from another eval tool, or with no LLM-as-a-judge of that name, stop it (exit 2). Its model and rule may differ, as may the model that gave the answers (promptfoo's `echo` provider, for one): that is the change you test. judgekeeper reads them as step 1 read your results, with the same options.
+
+It looks for the answers kept aside. It matches a marked answer only when the question and the answer text are the same, word for word. A row in the results with no question is never an answer you marked with one.
+
+- If some aren't there, it gives no result: it says how many and asks you to grade the same answers again (exit 3).
+- One there with no decision from the new rule (`error`, empty or `NaN`) counts as its mistake, and it says how many: a rule can't look better by leaving the hard ones ungraded.
+- With more than half of the answers kept aside ungraded, it gives no result and asks you to grade them again (exit 3). This holds for a rule tested before too.
+- Otherwise a rule tested before gets its saved result, with the file and day it came from and how many answers this file leaves ungraded.
+- A file graded with the same rule and model is the same LLM-as-a-judge to judgekeeper, so it gets that saved result too; when its grades on the answers kept aside differ, it says on how many. To test them as a new LLM-as-a-judge, change its rule and grade again.
+- A grade word it doesn't know stops it, as in step 1 (exit 3).
+- An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each.
+- The grades you marked, given again, are not a test: give the results from after your change (exit 3). Nor is a new rule that changes no grade kept aside (exit 3).
+
+On the answers kept aside it found, it counts the answers the new rule fixed and those it broke:
 
 | Result | When |
 |---|---|
 | Better / Worse | The two-sided sign test on fixed against broke, at 5% |
-| Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 points worse |
+| Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 percentage points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse. Unless it leans toward worse, it also says how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
 The fixed and broke counts are weighted to your whole set of answers: the marks kept aside hold more of your LLM-as-a-judge's fails than your results do, so each kept-aside mark counts for its share of its group.
 
-After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule and run `judgekeeper check <new results file>` on the same new results: they grade every answer you marked. Running your eval again would make new answers, which judgekeeper can't compare. Each extra test on the same marks is stricter (the levels divided by the number of tests): "Better" or "Worse" needs the 5% level for the first rule, 2.5% for the second and about 1.7% for the third. So over 3 rules, a coincidence says "Better" or "Worse" at least once in at most about 9 cases in 100 (5 + 2.5 + 1.7), not 5. After 3 rules, or once `check` takes on a rule tested on them (for results without a rule, only after 3 rules), your next marks become a new set kept aside. Mark [about 40 more answers for a clear answer](examples/kept-aside/report.md) (at least 10; with fewer than about 40, the result will often be "can't tell yet"). All of them are kept aside: as many as `fix` keeps aside from about 80 marks. Each rule tested is saved in `rules/`.
+After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule and run `judgekeeper check <new results file>` on the same new results: they grade every answer you marked. Running your eval again would make new answers, which judgekeeper can't compare. Each extra test on the same marks is stricter (the levels divided by the number of tests): "Better" or "Worse" needs the 5% level for the first rule, 2.5% for the second and about 1.7% for the third. So over 3 rules, a coincidence says "Better" or "Worse" at least once in at most about 9 cases in 100 (5 + 2.5 + 1.7), not 5. After 3 rules, or once `check` switches to a rule tested on them (for results without a rule, only after 3 rules), your next marks become a new set kept aside. Mark [about 40 more answers for a clear answer](examples/kept-aside/report.md) (at least 10; with fewer than about 40, the result will often be "can't tell yet"). All of them are kept aside: as many as `fix` keeps aside from about 80 marks. Each rule tested is saved in `rules/`.
 
-**How many marks:** it depends on how big the change is. In a simulation through `fix`'s own split and test ([report](examples/kept-aside/report.md)), a new rule that fixes about a quarter of the mistakes and breaks few right answers gets a clear answer most of the time from about 80 marks, mostly "Safe to try"; one that fixes almost all of them, also from about 80; one that fixes 1 in 10 and breaks 5 in 100 right answers, from about 160. These figures are for an LLM-as-a-judge that passes half or 80% of the answers; one that passes more of them needs more marks for the same answer. They are also for the first rule tested on a set; the second and third are tested more strictly, so they need more marks. Calling a rule "Better" or "Worse" by mistake is rare but not zero, and happens only for rules close to no change. A worse rule often reads "Can't tell yet", and now and then "Safe to try" (not more than 10 points worse), so with few marks "Can't tell yet" does not mean the new rule is as good.
+**How many marks:** it depends on how big the change is. These figures come from a simulation through `fix`'s own split and test ([report](examples/kept-aside/report.md)). A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, and breaks at most 2 in 100 right answers, usually gets a clear answer from about 80 marks. For the rule that fixes a quarter, that answer is mostly "Safe to try". A rule that breaks 5 in 100 right answers gets a clear answer from about 160 marks, whether it fixes 1 in 10 of the mistakes or a quarter of them. These figures are for an LLM-as-a-judge that passes half or 80% of the answers. One that passes more of them needs more marks for the same answer. They are also for the first rule tested on a set. The second and third are tested more strictly, so they need more marks. Calling a rule "Better" or "Worse" by mistake is rare but not zero, and happens only for rules close to no change. A worse rule often reads "Can't tell yet", and now and then "Safe to try" (not more than 10 points worse), so with few marks "Can't tell yet" does not mean the new rule is as good.
 
 ## check: re-check your LLM-as-a-judge after a change
 
 ```
-judgekeeper check [PATH]
+judgekeeper check [PATH] [--pass-if RULE]
 ```
 
 Run it after you change your LLM-as-a-judge or eval tool and grade the answers you marked again the same way as for `fix` (see [Grading answers again](eval-tools.md#grading-answers-again)). It notices a new model, rule, grading prompt, pass mark or temperature, a panel's voting rule, an agent's settings, the eval tool's version, and the endpoint when the results record one. It can't compare two different eval tools.
@@ -148,12 +179,15 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 | Flag | What it does |
 |---|---|
 | `PATH` | A new results file or MLflow store (`mlflow.db` or an `mlruns/` folder), or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
+| `--pass-if RULE` | Re-check with this pass mark for your LLM-as-a-judge's scores (the one `fix` suggests), e.g. `'score>=0.7'`, instead of the one you marked with. It works only when your LLM-as-a-judge gives scores and you gave the pass mark with `--pass-if`. Once `check` switches to it, later `check` and `fix` runs read your results with it. `mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the default; with nothing to ask (no terminal), they print the `--pass-if` to give and exit 3. If the pass mark is set in your eval itself, change it there and run your eval; if it is set in judgekeeper.toml `[start]`, change `pass_mark` there. Then run `judgekeeper check` |
 
 **Which results it reads.** It names the file first ("New results: ..."). With a saved choice in `judgekeeper.toml`, check reads only there; name a file to check another. When newer results of the same eval are somewhere else, it says where and the command that checks them.
 
-**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results by the same text, word for word, and the same question (a row with no question is never one you marked with a question), and takes the new grades from there. A marked answer that isn't there, such as one your eval answered differently, or that is there with no decision (`error`), is counted, said once and left out. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3), also when nothing changed: "has not changed" needs them too. Its Next line says to grade every answer you marked again (Inspect AI: score the whole log again; MLflow: evaluate all the same traces again).
+**Which answers count.** Your marks are tests for the LLM-as-a-judge, so it finds the answers you marked in the new results and takes the new grades from there. It matches a marked answer only when the question and the answer text are the same, word for word. A row with no question is never one you marked with a question. A marked answer that isn't there, such as one your eval answered differently, or that is there with no decision (`error`), is counted, said once and left out. A grade word it doesn't know stops it, as in step 1 (exit 3). An answer graded twice with different grades counts against your LLM-as-a-judge, and repeats with the same grade count once; it says how many of each. With fewer than 15 of the answers you marked Pass, or 15 you marked Fail, it says "can't tell yet" and why (exit 3), also when nothing changed: "has not changed" needs them too. Its Next line says to grade every answer you marked again (Inspect AI: score the whole log again; MLflow: evaluate all the same traces again).
 
-**How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "Better": the whole range of the change is a rise of more than 20 points. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Each group's range is a 90% range, so even when nothing changed, one of the two groups can say "Worse" by coincidence, in up to 5 checks in 100 for each group ([coverage check](examples/coverage/coverage.md)). Mark more answers before acting on one. It exits 1 only when the drop's middle estimate is over 20 points, whichever word it says. Unless it is "Worse" (or "Not sure" when the drop's middle estimate is over 20 points), your marks now test the new LLM-as-a-judge. Results from the LLM-as-a-judge you marked with, after a check of another one, say "back to the one you marked with" on every check (exit 0), and your marks test it again.
+**How it decides.** It checks the answers you passed and failed as two groups. "Worse": the whole range of the change is a drop. "Better": the whole range of the change is a rise of more than 20 points. "No big drop": the low end is above a 20-point drop. "Not sure": anything else. The new grades come from one run of your eval, so a small change, or a small drop in one group, may be a coincidence. Each group's range is a 90% range, so even when nothing changed, one of the two groups can say "Worse" by coincidence, in up to 5 checks in 100 for each group ([coverage check](examples/coverage/coverage.md)). Mark more answers before acting on one. It exits 1 only when the drop's middle estimate is over 20 points, whichever word it says. Unless it is "Worse" (or "Not sure" when the drop's middle estimate is over 20 points), your marks now test the new LLM-as-a-judge. Results from the LLM-as-a-judge you marked with, after a check of another one, say "back to the one you marked with" on every check (exit 0), and your marks test it again. With the same model and rule as before, it still compares when grades on your marked answers changed, and says first that your LLM-as-a-judge doesn't always grade the same answer the same way; with no grade changed, it says nothing has changed.
+
+**Marks that wait.** If the new results graded only some of your answers, a mark you make later on an answer they didn't grade waits: it is kept but not counted, and the result says how many wait ("your new LLM-as-a-judge has no Pass or Fail grade on those answers yet"). To count them, grade all your answers with your new LLM-as-a-judge, then run `judgekeeper check <new results file>`.
 
 ## How the numbers are worked out
 
@@ -185,7 +219,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 - **`fix`:** each kept-aside mark weighs N_s / h_s (its group's answers over its kept-aside marks), and the fixed and broke counts are scaled to the effective number of marks, (sum of weights)² / (sum of squared weights) (Kish's), before the sign test and Tango's test.
 - **Batches:** the groups become (batch, grade) strata, each marked answer weighs N_s / n_s, and the draws are per stratum.
-- **After `check`:** TPR and TNR use the new grades. The shares passed or failed again are drawn one time in three from Beta(k, m - k), which is 0 or 1 when every answer agrees, and two times in three from Beta(k + 0.5, m - k + 0.5), which keeps a range open then. The first suits an LLM-as-a-judge that gives the same grade when asked again; the second, one that turns some grades round. With none of a kind marked, the old grade stands; with every answer of a group marked, the shares have no range.
+- **After `check`:** TPR and TNR use the new grades. The shares passed or failed again are drawn one time in three from Beta(k, m - k), which is 0 or 1 when every answer agrees, and two times in three from Beta(k + 0.5, m - k + 0.5), which keeps a range open then. The first suits an LLM-as-a-judge that gives the same grade when asked again; the second, one that changes some grades when asked again. With none of a kind marked, the old grade stands; with every answer of a group marked, the shares have no range.
 
 **What it says.** One result line, from the ranges:
 
@@ -193,7 +227,9 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 - "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
 - "Too early to tell. Mark more answers to get a result." otherwise.
 
-The ranges on screen are the middle 96%. The result line uses 99%, because you can look at the result after every mark, and a few marks that agree by coincidence should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
+The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
+
+When your LLM-as-a-judge changed since you marked, the result says which one it is about, such as "This result is about your LLM-as-a-judge as it was on 3 Nov: openai:your-model, rule ID 9946." The rule ID is a short code made from your rule's text, word for word. It changes when the wording changes, so two results with the same rule ID used the same rule.
 
 ## What it reads
 
@@ -203,7 +239,7 @@ It looks only inside your project folder, four folders deep; a results file outs
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
-- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns, and at most 200 columns. A table it can't read is left out, with one line saying how many;
+- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns, and at most 200 columns. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name. A row with more filled cells than the header stops it and names the line. One it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
 
 It reads the first 100,000 answers of a results file, and the newest 100,000 records in `.judgekeeper/records/` in all, and says so when there are more.
@@ -272,7 +308,7 @@ judgekeeper.record(input=question, output=answer, score=0.82, pass_mark=0.5,
 | `name` | Which LLM-as-a-judge or criterion (default `LLM-as-a-judge`) |
 | `temperature`, `id`, `metadata` | The temperature, the answer's id (else one is made), and a dict of anything else |
 
-Each call adds a line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` in your project root (the nearest folder up with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or `requirements*.txt`). It never writes in your home folder: there it saves nothing and logs that once. An answer saved twice counts once, with the newest grade. Errors inside it are logged to the `judgekeeper` logger, never raised. The file holds your inputs and outputs, so use it in eval code, not in code that serves users. `JUDGEKEEPER_RECORD=0` turns it off.
+Each call adds a line to `.judgekeeper/records/<name>-<date>-<process id>.jsonl` in your project root (the folder your program runs in, or the nearest one above it, with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `.git` or `requirements*.txt`). It never writes in your home folder: there it saves nothing and logs that once. An answer saved twice counts once, with the newest grade. Errors inside it are logged to the `judgekeeper` logger, never raised. The file holds your inputs and outputs, so use it in eval code, not in code that serves users. `JUDGEKEEPER_RECORD=0` turns it off.
 
 Without the import, or in another language, copy [jk_record.py](examples/records/jk_record.py) (Python) or [jk_record.ts](examples/records/jk_record.ts) (Node.js) into your eval code, then call `jk_record(...)` after `from jk_record import jk_record`, or `jkRecord(...)` after `import { jkRecord } from "./jk_record"`. They take the same arguments; run them from your project folder.
 
@@ -300,6 +336,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `page.log` | What the page wrote in the background |
 | `opening` | Empty: a run is opening the page |
 | `ready-seen.json` | When the marking page first showed a result, so the "Your result is ready." box opens only once |
+| `link-said.json` | How many marks came through a printed link when the terminal last said so, so it says it again only when that changes |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
 | `history/` | Earlier results, with the same fields as `result.json` |
 | `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
@@ -308,7 +345,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
 | `fix/marked-answers.csv` | Every marked answer, question and answer only, shuffled, to grade again |
 | `fix/regrade.yaml` | With promptfoo: a config that grades the marked answers again; change the rule in it |
-| `fix/marked-answers.yaml` | With promptfoo: the same answers, exactly as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
+| `fix/marked-answers.yaml` | With promptfoo: the same answers, word for word as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
 | `rules/` | Each rule tested, as `<hash>.txt` |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |
@@ -322,7 +359,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 - judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project. A `.env` file or config that is a link, or over 1 MB, is not read, nor are the `.env` files past the first 50 in a folder, and judgekeeper says their keys are not hidden.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.
-- There is no flag that takes a key, and there never will be.
+- There is no flag that takes a key.
 
 ## When something goes wrong
 
@@ -333,8 +370,8 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 
 ## Checked on public data
 
-- **JailbreakBench.** The dataset's own LLM-as-a-judge graded 300 answers that three experts also marked. In 100 tests with 100 marks each, judgekeeper's ranges held the true TPR in 99, the true TNR in 98 and the true kappa in 99; all three at once in 97. [Report](examples/jailbreakbench/report.md)
-- **RAGTruth.** Three LLM-as-a-judge setups (A, B and C; the report names the models) graded 200 news summaries with one rule, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. These numbers are about the answers in each sample, all of which were marked. In run 1 of each, of the summaries people passed the setup also passed 66% for A, 68% for B and 58% for C; of the summaries people failed it also failed 89%, 90% and 94%. Changing the model did not close the gap. RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](examples/ragtruth/report.md)
+- **JailbreakBench.** The dataset's own LLM-as-a-judge graded 300 answers that three experts also marked. In 100 random tests with 100 marks each, judgekeeper's ranges held the true TPR in 98, the true TNR in 99 and the true kappa in 98; all three at once in 96. Each test draws new marks, so another 100 tests give a slightly different count. [Report](examples/jailbreakbench/report.md)
+- **RAGTruth.** Three LLM-as-a-judge setups (A, B and C; the report names the models) graded 200 news summaries with one rule, 3 runs each, and 3 more runs at a lower effort setting: needs work in all 12. These numbers are about the answers in each sample, all of which were marked. In run 1 of each, of the summaries people passed the setup also passed 66% for A, 68% for B and 58% for C; of the summaries people failed it also failed 89%, 90% and 94%. Changing the model did not close the gap. RAGTruth's people labelled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge. [Report](examples/ragtruth/report.md)
 - **RAGTruth, two more tasks.** Two of those setups (A and B) graded 200 question answers and 200 data-to-text overviews, 1 run each. judgekeeper said "needs work" in all 4 runs. Of the answers people passed, the setup also passed 61% for A and 58% for B on question answers, and 39% and 65% on data-to-text; of the answers people failed, it also failed 95% and 97%, and 98% and 97%. [Question answers](examples/ragtruth-qa/report.md), [data-to-text](examples/ragtruth-data2txt/report.md)
 - **JailbreakBench, graded by two other setups.** The same 300 answers were graded by two LLM-as-a-judge setups (A and B), with the three experts' majority as the marks. judgekeeper said "needs work" for both. Of the answers the experts passed, the setup also passed 98% for A and 99% for B; of the answers the experts failed, it also failed 43% and 32%. The model provider declined to grade 6 answers for A and 61 for B, and judgekeeper leaves those out. For the dataset's own LLM-as-a-judge the same two figures are 90.0% and 90.9%. [Report](examples/jailbreakbench-setups/report.md)
 - **Empty answers.** In a test we ran with promptfoo, two models graded empty summaries, which should fail. With one rule, one model failed 0 of 20 and the other failed 14 of 20. Marks on real answers don't show this. [Report](examples/probes/report.md)
@@ -350,4 +387,4 @@ The tests run on Linux, Windows and macOS.
 | 1 | the drop's middle estimate is over 20 points, whichever word it says (Worse or Not sure): the new LLM-as-a-judge agrees with you over 20 points less on the answers you passed or failed | `check` |
 | 2 | usage error: bad arguments, a file it can't read, a place it can't write, a removed command, an error it didn't expect, or a results file given to `fix` or `check` from another eval tool or LLM-as-a-judge | all |
 | 3 | you are needed: the `Next:` line says what to do. For example: no eval results found, too few of one kind, a rule to change, a grade it doesn't know, or stopped at a question it cannot ask (no terminal) | all |
-| 130 | stopped with Ctrl-C: it prints "Stopped." and what was saved stays saved | all |
+| 130 | stopped with Ctrl-C. What was saved stays saved. It prints "Stopped." and a Next: line, unless the run had already printed its Next: line | all |

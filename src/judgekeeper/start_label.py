@@ -103,15 +103,33 @@ READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
-WIDER = ("The result line uses wider ranges than these, so a few marks that agree by "
-         "coincidence can't decide it. You can look at the result after every mark.")
+WIDER_ONLY = "The result line uses wider ranges than these, so a lucky streak can't decide it."
+WIDER_PAGE = "The result uses wider ranges than these, so a lucky streak can't decide it."  # no line
+AFTER_EVERY_MARK = " You can look after every mark."
+
+
+def wider(r: dict, page: bool = False) -> str:
+    """WIDER_ONLY (WIDER_PAGE on the result page and report.html, which have no result line)
+    and AFTER_EVERY_MARK, without it while a new mark could only wait (only_wait)."""
+    first = WIDER_PAGE if page else WIDER_ONLY
+    return first if r.get("only_wait") else first + AFTER_EVERY_MARK
 # Under the disagreements ({n}: how many), the terminal and report.html say these two lines
-SAY_WHY_RUN = "Tell judgekeeper why you disagree on these {n}{have}: run `{command}`."
-SAY_WHY_RUN_ONE = "Tell judgekeeper why you disagree on this one{have}: run `{command}`."
+SAY_WHY_RUN = "To tell judgekeeper why you disagree on {n} of them{have}, run `{command}`."
+SAY_WHY_RUN_ONE = "To tell judgekeeper why you disagree on this one{have}, run `{command}`."
 SAY_WHY_HAVE = " ({k} more already {verb} a reason)"
 SAY_WHY_FIX = "`{fix}` uses your reasons to find where your LLM-as-a-judge goes wrong."
-NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`: the new answers join "
-                   "the ones you marked.")
+NEXT_ALL_MARKED = ("run your eval on more questions, then run `{command}`. New answers are "
+                   "added to the ones you marked.")
+# Too early to tell, and only skipped answers left to mark (only_skipped): the result line in
+# the terminal and report.html, the marking page's bar and end card, in the same words
+ONLY_SKIPPED = ("The only {answers} left {are_is} {the_one} you skipped. Mark {them} now, or run "
+                "your eval on more questions.")
+ONLY_SKIPPED_CARD = ONLY_SKIPPED
+NEXT_ONLY_SKIPPED = ("mark {the_one} you skipped with `{command}`. Or run your eval on more "
+                     "questions, then run that command again. New answers are added to the ones "
+                     "you marked.")
+# ...said by `mark`, whose page is open: on the page, never the run just made again
+NEXT_ONLY_SKIPPED_PAGE = "mark {the_one} you skipped on the page, or " + NEXT_ALL_MARKED
 SAID = {"tpr": "Pass", "tnr": "Fail"}  # what the person said, per rate
 DID = {"tpr": "passed", "tnr": "failed"}
 TOO_EARLY = "too early to tell"
@@ -140,6 +158,7 @@ class Workspace:
         self.history = self.dir / "history"
         self.history_jsonl = self.dir / "history.jsonl"
         self.ready_seen = self.dir / "ready-seen.json"  # the marking page showed a verdict
+        self.link_said = self.dir / "link-said.json"  # the link notes the terminal said
         self.judge_check_json = self.dir / judge_check.JSON_FILE
         self.judge_check_csv = self.dir / judge_check.CSV_FILE
 
@@ -635,31 +654,69 @@ def strata_status(strata: list[tuple[int, str, int, int, int]]) -> dict:
     coloured verdict, whose words are `headline`."""
     if not has_result(strata):
         return {"text": VERDICTS[None], "first": False, "ready": False, "headline": None}
-    r = describe(weighted.stratified(strata))
+    return status_of(describe(weighted.stratified(strata)))
+
+
+def status_of(r: dict) -> dict:
+    """strata_status from a result's numbers (result_numbers)."""
     ready = coloured(r)
     return {"text": status_line(r), "first": r["check"] != "too_few", "ready": ready,
             "headline": r["verdict"] if ready else None}
 
 
-def import_check(m: marks.Marks, data: dict, ids: set) -> tuple[dict | None, int, dict | None]:
+def import_check(m: marks.Marks, data: dict, ids: set,
+                 markable: bool = False) -> tuple[dict | None, int, dict | None]:
     """The marks brought with --labels among `ids` (marks.imported), the page marks a coloured
     verdict still needs to check them (labels.still_needed: from the answers left in the
     batches the result is on), and the group where they don't
-    look like the page marks (labels.looks_off): (None, 0, None) without any."""
+    look like the page marks (labels.looks_off): (None, 0, None) without any. An answer whose
+    mark waits (batches.graded) is still left, so the check holds while marks wait;
+    `markable`: only the answers a page mark can count on now (the gate line's number)."""
     from judgekeeper import labels as labels_mod
 
     imported = marks.imported(m, ids=ids)
     if not imported:
         return None, 0, None
+    counts, left = _import_left(m, data, ids, markable)
+    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
+    return imported, needed, labels_mod.looks_off(counts)
+
+
+def stuck_groups(m: marks.Marks, data: dict, ids: set) -> list[str]:
+    """The groups where the check of the imported marks (import_check) still needs page
+    marks, but every answer left waits (earlier_grades): no page mark can finish the check
+    until the new LLM-as-a-judge grades them. [] without imported marks."""
+    from judgekeeper import labels as labels_mod
+
+    if not data.get("earlier_grades") or not marks.imported(m, ids=ids):
+        return []
+    counts, every = _import_left(m, data, ids, markable=False)
+    _, markable = _import_left(m, data, ids, markable=True)
+    return [g for g in ("pass", "fail")
+            if labels_mod.still_needed({g: sum(counts[g]["page"])}, {g: every[g]})
+            and not markable[g]]
+
+
+def _import_left(m: marks.Marks, data: dict, ids: set,
+                 markable: bool) -> tuple[dict, dict[str, int]]:
+    """import_check's counts per group (labels.by_group) and the answers left in each."""
+    from judgekeeper import labels as labels_mod
+
     groups = {q["id"]: q["group"] for q in data["queue"]}
     counts = labels_mod.by_group(m, ids, groups)
     counted = m.counted()
-    batch = batches.of(data)  # left to mark: only in the batches the result is on
+    batch = batches.of(data)  # left: only in the batches the result is on
     on = set(batches.counting(data, {i: counted[i] for i in ids if i in counted}))
-    left = {g: sum(q["group"] == g and q["id"] not in counted and batch.get(q["id"], 1) in on
+    never = set(data.get("earlier_grades") or ())  # not graded by the LLM-as-a-judge now
+
+    def left_in(q: dict) -> bool:
+        if markable:
+            return q["id"] not in counted and q["id"] not in never
+        return q["id"] not in counted or q["id"] in never
+
+    left = {g: sum(q["group"] == g and batch.get(q["id"], 1) in on and left_in(q)
                    for q in data["queue"]) for g in ("pass", "fail")}
-    needed = labels_mod.still_needed({g: sum(c["page"]) for g, c in counts.items()}, left)
-    return imported, needed, labels_mod.looks_off(counts)
+    return counts, left
 
 
 def start_status(session: StartSession, run: str | None = None) -> dict:
@@ -669,7 +726,13 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     ws = session.workspace
     data = ws.cached_data()
     graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
-    status = strata_status(batches.counted_strata(data, graded, ws.cached_strata()))
+    known = ws.cached_strata()
+    few = True  # too few marks for a result: a stuck group (stuck_groups) holds nothing yet
+    if has_result(batches.counted_strata(data, graded, known)):  # as the result counts them
+        numbers = result_numbers(data, batches.counted_labels(data, graded), known)
+        status, few = status_of(numbers), numbers["check"] == "too_few"
+    else:
+        status = strata_status([])
     if status["ready"] and ws.marks.is_file():  # imported marks not yet checked: not ready
         ids = set(batches.counted_labels(data, graded))
         if import_check(marks.read(ws.marks), data, ids)[1]:
@@ -682,12 +745,41 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=done[0], done=done)
     elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
+    labels = [i["label"] for i in session.items]
+    if not status["first"] and min(labels.count("pass"), labels.count("fail")) >= targets.ROUGH:
+        from judgekeeper import front  # enough of each kind: the groups' marks are missing
+
+        status["group"] = front._group_marks(session)  # the page's keep-going line, as Mark
     from judgekeeper import check
 
-    wait = check.wait_lines(ws, len(session.marked()) - len(graded))
+    only = only_wait(data, session)
+    group = None
+    if not few and ws.marks.is_file() and data.get("earlier_grades"):
+        m = marks.read(ws.marks)
+        ids = set(batches.counted_labels(data, graded))
+        if import_check(m, data, ids)[1] and (stuck := stuck_groups(m, data, ids)):
+            only = True  # no page mark can finish the check of the imported marks
+            group = {"wait_group": stuck[0] if len(stuck) == 1 else None,
+                     "imported": marks.imported(m, ids=ids)}
+    wait = check.wait_lines(ws, len(session.marked()) - len(graded), only,
+                            check.no_grade_left(group or {}))
     if wait:  # said once, in the status area: else the result never moves, with no word why
         status["waiting"] = " ".join(wait)
+    if only:  # no mark can move the result: the wait line is the step
+        status["only_wait"] = True
+        if not status["ready"]:
+            status.pop("done", None)
+            status["text"] = EARLY
     return status
+
+
+def only_wait(data: dict, session: StartSession) -> bool:
+    """Whether every answer left to mark is one the judge the marks test now never graded
+    (earlier_grades), so a new mark could only wait (batches.graded): then no line asks for
+    marks, and the step is to grade every answer, then `check` (check.WAIT_NEXT)."""
+    never = set(data.get("earlier_grades") or ())
+    return bool(never) and not any(not i["label"] and i["id"] not in never
+                                   for i in session.items)
 
 
 def _runs(runs) -> dict:
@@ -977,7 +1069,8 @@ class StartSession(LabelSession):
             kinds = list(graded.values())
             counts["toward"] = {"correct": kinds.count("pass"), "wrong": kinds.count("fail")}
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
-                "counts": counts, "status": status, "version": self.version()}
+                "counts": counts, "status": status, "version": self.version(),
+                "intro": touched < 0}  # the welcome box: no answer marked or skipped yet
 
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
@@ -1084,6 +1177,24 @@ def all_labeled(r: dict) -> bool:
     return r.get("left") == 0
 
 
+def _skipped_words(n: int) -> dict:
+    one = n == 1
+    return {"n": n, "answers": "answer" if one else "answers", "are_is": "is" if one else "are",
+            "the_one": "the one" if one else f"the {n}", "them": "it" if one else "them"}
+
+
+def only_skipped(n: int, words: str = ONLY_SKIPPED) -> str:
+    """ONLY_SKIPPED (or ONLY_SKIPPED_CARD) for `n` skipped answers."""
+    return words.format(**_skipped_words(n))
+
+
+def next_only_skipped(n: int, command: str, on_page: bool = False) -> str:
+    """The Next step, without "Next: ", with only `n` skipped answers left to mark (`command`:
+    `mark`). `on_page`: said by that `mark`, its page open."""
+    return (NEXT_ONLY_SKIPPED_PAGE if on_page else NEXT_ONLY_SKIPPED).format(
+        command=command, **_skipped_words(n))
+
+
 # The page's own flags: how it opens, never how the results are read
 _PAGE_FLAGS = re.compile(r" --(?:port \d+|no-browser|wait|yes)(?= |$)")
 
@@ -1121,6 +1232,16 @@ def _left_to_mark(ws: Workspace) -> int:
     return sum(q["id"] not in counted for q in queue) if queue else math.inf
 
 
+def _skipped_left(ws: Workspace) -> int:
+    """How many answers in the pool were skipped last (and so have no Pass or Fail mark)."""
+    try:
+        queue = ws.data().get("queue") or []
+        last = marks.read(ws.marks).last
+    except (OSError, ValueError, AttributeError):
+        return 0
+    return sum((last.get(q["id"]) or {}).get("mark") == "skip" for q in queue)
+
+
 def every_marked(ws: Workspace) -> bool:
     """Whether every answer in the pool has a Pass or Fail mark: none is left to mark."""
     try:
@@ -1131,33 +1252,73 @@ def every_marked(ws: Workspace) -> bool:
     return bool(queue) and all(q["id"] in counted for q in queue)
 
 
+def out_of_reach(ws: Workspace) -> str | None:
+    """front.FAILS_OUT_OF_REACH, as the plain run says it, when the answers left to mark can't
+    bring 15 marks of one kind, with ONLY_SKIPPED when each of them was skipped; else None."""
+    from judgekeeper import front
+
+    try:
+        queue = ws.data().get("queue") or []
+        counted = marks.read(ws.marks).counted()
+    except (OSError, ValueError, AttributeError):
+        return None
+    groups = [q.get("group") for q in queue]
+    left = sum(q["id"] not in counted for q in queue)
+    marked = [counted[q["id"]] for q in queue if q["id"] in counted]
+    side = front.side_out_of_reach(groups.count("fail"), len(groups), left,
+                                   marked.count("fail"), marked.count("pass"))
+    if not queue or not side or not left:  # none left: every answer is marked, said so
+        return None
+    line = front.FAILS_OUT_OF_REACH.format(
+        left=f"{plural(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH, side=side)
+    skipped = _skipped_left(ws)
+    return f"{line} {only_skipped(skipped)}" if skipped == left else line
+
+
 def next_marks(ws: Workspace, step: str, need: int = 1) -> str:
     """The next step after Measure, Fix or Check that asks for more marks (`step`, without
     "Next: "), unless fewer than `need` answers in the pool are left to mark (a skipped one is
     left): then all_marked_lines' next step, as there are not enough left to mark until the
-    eval runs on more questions. The one place this is decided. Its command is made again from
-    the flags result.json keeps, never its text."""
+    eval runs on more questions; when every answer left is a skipped one, next_only_skipped's.
+    The one place this is decided. Its command is made again from the flags result.json keeps,
+    never its text, with the pass mark in use (start.json's, as check.mark_here), also with no
+    result.json yet."""
     from judgekeeper.start import command_from
 
-    if _left_to_mark(ws) >= need:
+    left = _left_to_mark(ws)
+    skipped = _skipped_left(ws) if left != math.inf else 0
+    if left >= need and not 0 < left == skipped:
         return step
     try:
         flags = loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
-    return NEXT_ALL_MARKED.format(command=mark_command(command_from(flags)))
+    try:
+        pm = ws.data().get("pass_mark") or {}
+    except (OSError, ValueError, AttributeError):
+        pm = {}
+    if pm.get("source") == "pass_if" and isinstance(pm.get("rule"), str):
+        flags = {**(flags if isinstance(flags, dict) else {}), "pass_if": pm["rule"]}
+    from judgekeeper.check import _page_flags
+
+    command = mark_command(command_from(flags)) + _page_flags(ws)  # opens as the page did
+    if 0 < left == skipped:
+        return next_only_skipped(skipped, command)
+    return NEXT_ALL_MARKED.format(command=command)
 
 
 _plural = plural  # textio.plural
 
 
 def made_lines(made: dict | None, imported: dict | None = None,
-               real_pass: float | None = None, estimates: tuple | None = None) -> list[str]:
+               real_pass: float | None = None, estimates: tuple | None = None,
+               links: bool = True) -> list[str]:
     """How the marks were made (marks.made; `imported`: marks.imported, the marks brought with
     --labels), and a note when more than a quarter of the page's marks took under a second each
     (more than half: it looks like a program), when lines of marks.jsonl are not counted, or
-    when marks came through a page another program could have used (link_lines); then
-    second_thoughts (`real_pass`: the result's real pass rate; `estimates`: its TPR and TNR)."""
+    when marks came through a page another program could have used (link_lines, unless
+    `links` is False); then second_thoughts (`real_pass`: the result's real pass rate;
+    `estimates`: its TPR and TNR)."""
     from judgekeeper.labels import names
 
     if not made or not made["marks"]:
@@ -1178,7 +1339,7 @@ def made_lines(made: dict | None, imported: dict | None = None,
                      else f", about {_plural(seconds, 'second', 'seconds')} each")
     out = [line + ".", *quick_lines(made, imported)]
     not_counted = marks.not_counted_line(made.get("not_counted") or 0)
-    return (out + ([not_counted] if not_counted else []) + link_lines(made)
+    return (out + ([not_counted] if not_counted else []) + (link_lines(made) if links else [])
             + second_thoughts(made, real_pass, estimates))
 
 
@@ -1192,8 +1353,9 @@ def quick_lines(made: dict | None, imported: dict | None = None) -> list[str]:
     n = made["marks"] - ((imported or {}).get("marks") or 0)  # the page's: an import has no time
     if not (quick and quick * 4 > n):
         return []
-    return [f"{quick} of your marks took under a second each. A result is only as good as the "
-            "marks." + (" This looks like a program, not a person." if quick * 2 > n else "")]
+    return [f"{quick} of your marks took under a second each."
+            + (" That is faster than a person reads, so a program may have made them."
+               if quick * 2 > n else "")]
 
 
 def second_thoughts(made: dict | None, real_pass: float | None = None,
@@ -1240,26 +1402,49 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
     return out
 
 
-PRINTED_NOTE = ("a link printed with no terminal, so another program on this computer could "
-                "have made {them}")
-BROWSER_ENV_NOTE = ("a page opened by the program named in BROWSER, so a program could have "
-                    "made {them}")
+PRINTED_NOTE = ("{n} of your marks came through a link judgekeeper printed. That's expected "
+                "if you opened it yourself.")
+BROWSER_ENV_NOTE = ("{n} of your marks came through a page opened by the program named in "
+                    "BROWSER, so a program could have made {them}. If you marked {them} "
+                    "yourself, you can ignore this.")
 LINK_NOTES = (("printed", PRINTED_NOTE), ("browser_env", BROWSER_ENV_NOTE))  # marks.made's key
 
 
 def link_lines(made: dict | None) -> list[str]:
     """A note for the marks that came through a link printed with no terminal (page.show: a
     person at a terminal reads it there, else another program could), and one for those made
-    on a page the program named in BROWSER opened: what each means. In the terminal and on the
-    result page, once each."""
+    on a page the program named in BROWSER opened: what each means. On the result page and in
+    report.html, one line each; the terminal says them once a count changes (link_counts)."""
     out = []
-    for key, how in LINK_NOTES:
+    for key, note in LINK_NOTES:
         n = (made or {}).get(key) or 0
         if n:
-            them = "it" if n == 1 else "them"
-            out.append(f"{n} of your marks came through {how.format(them=them)}. If you marked "
-                       f"{them} yourself, nothing to do.")
+            out.append(note.format(n=n, them="it" if n == 1 else "them"))
     return out  # a link printed at a terminal needs no note
+
+
+def link_counts(made: dict | None) -> dict:
+    """The counts link_lines speaks of, as the terminal keeps them (Workspace.link_said)."""
+    return {key: (made or {}).get(key) or 0 for key, _ in LINK_NOTES}
+
+
+def link_news(ws: Workspace, made: dict | None) -> bool:
+    """Whether the terminal says link_lines this time: only when a count differs from the one
+    it last said (kept in link-said.json), so the same note is not said on every run."""
+    now = link_counts(made)
+    try:
+        said = loads(ws.link_said.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        said = None
+    if not isinstance(said, dict):
+        said = {key: 0 for key in now}
+    if all(said.get(key) == n for key, n in now.items()):
+        return False
+    try:
+        _write_json(ws.link_said, now)
+    except OSError:  # said again next time
+        pass
+    return any(now.values())
 
 
 def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1280,7 +1465,7 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
         plain = textio.program()
         if worse and typed != plain:  # made for the terminal too (check.worse_step)
             worse = worse.replace(f"{typed} ", f"{plain} ")
-        return visible(page(r, back, fixing, worse, last))
+        return visible(page(r, back, fixing, worse, last, started_else=typed != plain))
 
 
 def _fixing(ws: Workspace, r: dict) -> dict | None:
@@ -1393,7 +1578,7 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     return result_html(_scrubbed(_now(ws, r)), back, fixing=fixing)
 
 
-OWN_FILES = ("table", "mapped", "records")  # results in the person's own format
+OWN_FILES = ("table", "mapped")  # results in the person's own format: no metric name
 
 
 def page_template(about: dict | None = None, command: str | None = None,
@@ -1450,25 +1635,35 @@ def picked_numbers(picked: dict, labels: dict, verdicts: dict, pool: dict,
     return out
 
 
+def result_numbers(data: dict, labels: dict[str, str], known: tuple | None = None) -> dict:
+    """The result's numbers (describe) from `labels`, the marks it counts
+    (batches.counted_labels); the marking page's status comes from them too. `known`:
+    batches.strata(data), when the caller has it."""
+    if not data.get("picked"):
+        return describe(weighted.stratified(batches.counted_strata(data, labels, known)))
+    # a re-check: the marks keep the groups they were picked by
+    groups = {q["id"]: q["group"] for q in data["queue"]}
+    r = describe(picked_numbers(data["picked"], labels, groups, data["pool"], batches.of(data)))
+    r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the LLM-as-a-judge's grades
+                       "labeled": sum(groups[i] == g for i in labels),
+                       "correct": sum(groups[i] == g and m == "pass" for i, m in labels.items())}
+                   for g in ("pass", "fail")}
+    return r
+
+
 def compute(ws: Workspace, session: StartSession) -> dict:
     """The result from the marks of the batches that count (batches.counting)."""
     data = ws.data()
     groups = {q["id"]: q["group"] for q in data["queue"]}
     labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
-    if data.get("picked"):  # a re-check: the marks keep the groups they were picked by
-        r = describe(picked_numbers(data["picked"], labels, groups, data["pool"],
-                                     batches.of(data)))
-        r["groups"] = {g: {"pool": data["pool"][g],  # the counts: by the judge's grades now
-                           "labeled": sum(groups[i] == g for i in labels),
-                           "correct": sum(groups[i] == g and m == "pass"
-                                          for i, m in labels.items())}
-                       for g in ("pass", "fail")}
-    else:
-        r = describe(weighted.stratified(batches.counted_strata(data, labels)))
+    r = result_numbers(data, labels)
     about = batches.about(data, session.marked())
     if about is not None:
         r["batches"] = about
+        batch = batches.of(data)
+        r["counted_left"] = sum(1 for item in session.items if not item["label"]
+                                and batch.get(item["id"], 1) in about["counted"])
     r.update(skipped=session.counts()["skipped"], disagreements=disagreements,
              left=sum(1 for item in session.items if not item["label"]),
              made_at=utc_now(), numbers_version=NUMBERS_VERSION,
@@ -1481,10 +1676,7 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if data.get("judge_check"):
         r["judge_check"] = data["judge_check"]
     k = batches.waiting(data, session.marked())
-    if k:  # on answers the judge now never graded: kept, not counted (batches.graded)
-        from judgekeeper import check
-
-        r.update(waiting=k, waiting_check=check.wait_command(ws))
+    only = only_wait(data, session)
     m = marks.read(ws.marks)
     r["made"] = marks.made(m, ids=set(session.by_id))
     from judgekeeper import fix
@@ -1494,16 +1686,37 @@ def compute(ws: Workspace, session: StartSession) -> dict:
     if imported:
         r["imported"] = imported
     if needed and r["check"] != "too_few":  # imported marks not yet checked: no colour
-        r.update(import_gate=needed, verdict_level="too_early")
+        stuck = stuck_groups(m, data, set(labels))  # a group no page mark can move
+        shown = (0 if stuck else import_check(m, data, set(labels), markable=True)[1]
+                 if data.get("earlier_grades") else needed)
+        r.update(import_gate=shown, verdict_level="too_early")  # 0: no page mark counts now
         r["verdict"] = _verdict(r)
+        if stuck:
+            only = True
+            if len(stuck) == 1:  # both: none left to mark counts (NO_GRADE_LEFT)
+                r["wait_group"] = stuck[0]
+    if k or only:  # on answers the judge now never graded: kept, not counted (batches.graded)
+        from judgekeeper import check, textio
+
+        with textio.plainly():  # result.json and report.html name the program plainly
+            r.update(waiting_check=check.wait_command(ws))
+        if k:
+            r["waiting"] = k
+    if only:
+        r["only_wait"] = True  # no mark can move the result: the wait line is the step
     if off:
         r["imports_off"] = off
+    if (r["verdict_level"] in ("check", "too_early") and not only and not k
+            and 0 < r["left"] == r["skipped"]):  # a mark more can only be on a skipped one
+        r["only_skipped"] = r["left"]
+        r["verdict"] = f"{EARLY} {only_skipped(r['left'])}"
     r["smallest_drop"] = targets.smallest_drop(r["labels"]["correct"], r["labels"]["wrong"],
                                                r["tpr"], r["tnr"])
     from judgekeeper import check
 
     r["picks"] = check.picks_lines(check.picks(ws), r["left"] == 0)  # changes the marks picked
-    written = check.written_from_lines(ws)  # a rule check took on was written from these marks
+    written = check.written_from_lines(ws, more=False if only else None)  # a rule check took
+    # on was written from these marks
     if written:
         r["written_from"] = written
     return r
@@ -1511,7 +1724,8 @@ def compute(ws: Workspace, session: StartSession) -> dict:
 
 def marks_digest(ws: Workspace, session: StartSession) -> str:
     """What a result is made from: the marks (answer and label, never a skip, and whether it
-    was brought with --labels: a page mark can check it) and the judge's verdicts."""
+    was brought with --labels: a page mark can check it), the judge's verdicts, and the
+    answers it has no grade on yet (earlier_grades: a mark there waits), when there are any."""
     import hashlib
 
     from judgekeeper import marks as marks_mod
@@ -1520,7 +1734,13 @@ def marks_digest(ws: Workspace, session: StartSession) -> str:
     marks = sorted([i["id"], i["label"], (last.get(i["id"]) or {}).get("by") == marks_mod.BY_FILE]
                    for i in session.items if i["label"])
     verdicts = ws.pool_judge.read_bytes() if ws.pool_judge.is_file() else b""
-    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts).hexdigest()
+    try:
+        never = sorted(ws.cached_data().get("earlier_grades") or [])
+    except (OSError, ValueError, AttributeError):
+        never = []
+    waits = b"\0" + json.dumps(never).encode("utf-8") if never else b""  # else as before
+    return hashlib.sha256(json.dumps(marks).encode("utf-8") + b"\0" + verdicts
+                          + waits).hexdigest()
 
 
 def _same_result(ws: Workspace, digest: str) -> dict | None:

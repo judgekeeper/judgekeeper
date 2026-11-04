@@ -111,8 +111,8 @@ def test_each_example_shows_what_it_is_there_for(files):
     assert "  model      the judge_model column" in judge["lines"]
     (judge,) = repeats["judges"]
     assert (f"{front.INDENT}(your file has 18 results: 6 answers, each run 3 times. Repeats "
-            "with the same grade count once. 1 answer got different grades, so its 3 repeats "
-            "each count.)") in judge["lines"]
+            "with the same grade count once. 1 answer got different grades, so each of its 3 "
+            "repeats counts.)") in judge["lines"]
     assert [j["key"] for j in two["judges"]] == ["helpful", "polite"]  # the page asks which
     for name in NAMES:  # made up for a shop, never a test's placeholders
         text = files[name].read_text(encoding="utf-8")

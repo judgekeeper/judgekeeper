@@ -208,8 +208,8 @@ def test_check_after_three_picks_with_every_answer_marked(here, capsys):
     assert ("You've used these marks to choose 3 changes, so they may now make your "
             "LLM-as-a-judge look better than it is.") in out
     assert "Mark some new answers" not in out and "honest" not in out
-    assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`: "
-                        "the new answers join the ones you marked.")
+    assert out.endswith("Next: run your eval on more questions, then run `judgekeeper mark`. "
+                        "New answers are added to the ones you marked.")
     assert code == 0
 
 
@@ -245,7 +245,7 @@ def test_fix_new_does_not_count_the_picks_again(tmp_path, monkeypatch):
 
 WARN = ("This includes marks you looked at to write this rule, so it may read a few points "
         "high.")
-NONE_YET = "On marks made after this change: none."  # every answer is marked: none is left
+NONE_YET = "No marks made since this change."  # every answer is marked: none is left
 
 
 def _rule_change(here, lenient: bool = True):

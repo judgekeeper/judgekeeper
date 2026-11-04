@@ -14,6 +14,7 @@ No test calls an AI API.
 
 from __future__ import annotations
 
+import html as html_text
 import json
 import os
 import re
@@ -28,7 +29,7 @@ from judgekeeper.start_label import Workspace
 from judgekeeper.textio import quote_arg
 from tests.start_projects import split, table_project
 from tests.test_front import run
-from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _result, _text
+from tests.test_product_pages import CHECK, NOT_GATE_TNR, TOO_FEW, _mistakes, _result, _text
 from tests.test_project_folder import _mark
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -69,7 +70,10 @@ def test_the_old_words_are_gone():
 def test_the_new_words():
     assert start_label.GITIGNORE.startswith("# judgekeeper's files hold your answers. ")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "judgekeeper only reads files. It makes no AI call and needs no API key." in readme
+    assert ("In your project, judgekeeper reads your results files and writes only in "
+            "`.judgekeeper/`, plus "
+            "`judgekeeper.toml` after you say yes. It makes no AI call and needs no API "
+            "key.") in readme
     assert "Fix and Re-check run your eval tool" not in readme
     assert "![judgekeeper finds the results, opens the marking page" in readme
     ref = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
@@ -139,7 +143,8 @@ f.addEventListener("load", function () {
     setTimeout(function () {
       var s = d.getElementById("status"), q = s.getBoundingClientRect();
       out.status = s.textContent.slice(0, 9);
-      out.seen = q.height > 0 && q.top >= 0 && q.bottom <= w.innerHeight;
+      // a line brought into view ends on the frame's edge, up to a part of a pixel past it
+      out.seen = q.height > 0 && q.top >= 0 && q.bottom < w.innerHeight + 1;
       document.getElementById("out").textContent = JSON.stringify(out);
     }, 500);
   }, 300);
@@ -168,6 +173,9 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
         done = subprocess.run(
             [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
              f"--user-data-dir={tmp_path / 'profile'}", "--window-size=800,900",
+             # timers here run on fast virtual time, a smooth scroll on real time: so every
+             # scroll is at once, and the page stands still when the lines are measured
+             "--force-prefers-reduced-motion",
              "--virtual-time-budget=5000", "--dump-dom", (tmp_path / "phone.html").as_uri()],
             check=False, capture_output=True, text=True, encoding="utf-8", timeout=60)
     except (OSError, subprocess.TimeoutExpired):
@@ -177,6 +185,119 @@ def test_at_390px_the_pass_button_and_the_status_line_can_be_reached(tmp_path):
         pytest.skip("Chrome did not run the page")
     got = json.loads(found[1].replace("&quot;", '"'))
     assert got == {"width": 390, "boxes": [], "pass": True, "status": "Not saved", "seen": True}
+
+
+# The website's pages in a 390px frame: no box cuts off its text or a copy button on the right.
+# A screen-reader-only line (.sr, 1px wide) and a line that ends in "..." are cut on purpose.
+SITE_PHONE_CHECK = """
+var frames = Array.prototype.slice.call(document.querySelectorAll("iframe")), out = {}, left =
+  frames.length;
+frames.forEach(function (f) {
+  f.addEventListener("load", function () { setTimeout(function () {
+    var w = f.contentWindow, d = f.contentDocument, cut = [];
+    d.querySelectorAll("body *").forEach(function (e) {
+      var s = w.getComputedStyle(e);
+      if ((s.overflowX === "hidden" || s.overflowX === "clip") && s.textOverflow !== "ellipsis"
+          && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1) {
+        cut.push((e.className || e.tagName) + " " + e.scrollWidth + "/" + e.clientWidth); }
+    });
+    // how far the page runs past its own width (a scrollbar, drawn on Linux, not counted)
+    var root = d.documentElement;
+    out[f.id] = {width: w.innerWidth, wider: root.scrollWidth - root.clientWidth, cut: cut};
+    if (--left === 0) { document.getElementById("out").textContent = JSON.stringify(out); }
+  }, 300); });
+});
+"""
+SITE_PAGES = ("index.html", "start.html", "check.html", "privacy.html", "errors/404.html")
+
+
+def test_at_390px_no_website_box_is_cut_off(tmp_path):
+    chrome = _chrome()
+    if chrome is None:
+        pytest.skip("needs Chrome")
+    site = Path(__file__).parents[1] / "website"
+    frames = "".join(f'<iframe id="{name}" style="width:390px;height:844px;border:0" '
+                     f'src="{(site / name).as_uri()}"></iframe>' for name in SITE_PAGES)
+    (tmp_path / "phone.html").write_text(
+        f'<!doctype html><html><body style="margin:0"><p id="out"></p>{frames}'
+        f"<script>{SITE_PHONE_CHECK}</script></body></html>", encoding="utf-8")
+    try:
+        done = subprocess.run(
+            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
+             "--allow-file-access-from-files", f"--user-data-dir={tmp_path / 'profile'}",
+             "--window-size=800,900", "--virtual-time-budget=8000", "--dump-dom",
+             (tmp_path / "phone.html").as_uri()],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=90)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("Chrome did not start")
+    found = re.search(r'<p id="out">(\{.*?\})</p>', done.stdout)
+    if not found:
+        pytest.skip("Chrome did not run the pages")
+    got = json.loads(html_text.unescape(found[1]))
+    assert got == {name: {"width": 390, "wider": 0, "cut": []} for name in SITE_PAGES}, got
+
+
+# Commands on the pages, as Chrome draws them: a space between each word ----------------------
+
+SPACES_CHECK = """
+var frames = Array.prototype.slice.call(document.querySelectorAll("iframe")), out = {}, left =
+  frames.length;
+frames.forEach(function (f) {
+  f.addEventListener("load", function () {
+    var d = f.contentDocument, gaps = [];
+    d.querySelectorAll("code").forEach(function (code) {
+      var words = code.querySelectorAll(".cw");
+      for (var i = 1; i < words.length; i++) {
+        var a = words[i - 1].getBoundingClientRect(), b = words[i].getBoundingClientRect();
+        if (Math.abs(a.top - b.top) < 2) { gaps.push(Math.round(b.left - a.right)); }
+      }
+    });
+    out[f.id] = gaps;
+    if (--left === 0) { document.getElementById("out").textContent = JSON.stringify(out); }
+  });
+});
+"""
+
+
+def test_each_command_on_a_page_shows_a_space_between_its_words(tmp_path):
+    """A command's words are spans: drawn in a flex box, the space between them is dropped and
+    `judgekeeper fix` reads `judgekeeperfix`. Copy takes the text, so only the drawing shows it."""
+    chrome = _chrome()
+    if chrome is None:
+        pytest.skip("needs Chrome")
+    r = _result(*NOT_GATE_TNR)
+    c = report_page.counts(r)
+    fixing = {"mistakes": _mistakes(c["easy"], c["strict"])}
+    pages = {"result": start_label.result_html(r, fixing=fixing),
+             "report": report_page.page(r),
+             "mark": (mark_page.label_page(None, "judgekeeper mark --port 8766")
+                      .replace("__NONCE__", "n").replace("__TOKEN__", "t")
+                      .replace("__DATA__", label._json_for_html(
+                          {"items": [], "total": 0, "start": 1,
+                           "counts": {"correct": 0, "wrong": 0, "skipped": 0},
+                           "status": {"text": "x", "ready": False}})))}
+    frames = "".join(
+        f'<iframe id="{name}" style="width:1000px;height:900px;border:0" srcdoc="'
+        f'{page.replace("&", "&amp;").replace(chr(34), "&quot;")}"></iframe>'
+        for name, page in pages.items())
+    (tmp_path / "spaces.html").write_text(
+        f'<!doctype html><html><body style="margin:0"><p id="out"></p>{frames}'
+        f"<script>{SPACES_CHECK}</script></body></html>", encoding="utf-8")
+    try:
+        done = subprocess.run(
+            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
+             f"--user-data-dir={tmp_path / 'profile'}", "--window-size=1100,900",
+             "--virtual-time-budget=5000", "--dump-dom", (tmp_path / "spaces.html").as_uri()],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("Chrome did not start")
+    found = re.search(r'<p id="out">(\{.*?\})</p>', done.stdout)
+    if not found:
+        pytest.skip("Chrome did not run the page")
+    got = json.loads(found[1].replace("&quot;", '"'))
+    assert set(got) == set(pages) and all(got.values()), got  # each page has a command
+    for name, gaps in got.items():
+        assert min(gaps) >= 4, (name, gaps)  # a space in a 14-15px monospace font is ~8px
 
 
 # More key shapes hidden ---------------------------------------------------------------------
@@ -440,8 +561,8 @@ def test_every_answer_marked_names_judgekeeper_mark_without_the_page_flags(run, 
     for name, html in (("result page", start_label.result_html(r, back="/?token=t")),
                        ("report.html", start_label.result_html(r))):
         text = _text(html)
-        assert (f"Run your eval on more questions, then run {new}: the new answers join the "
-                "ones you marked.") in text, name
+        assert (f"Run your eval on more questions, then run {new}. New answers are added to "
+                "the ones you marked.") in text, name
         assert "--port" not in text and "--no-browser" not in text, name
     assert f"`{new}`" in start_label.sentences(r)[1]
 
@@ -452,3 +573,70 @@ def test_the_not_saved_line_names_how_to_open_the_page_again():
 
     assert NO_ANSWER in mark_page.label_page(None)
     assert "terminal" not in mark_page.label_page(None).split("Not saved")[1][:200]
+    # a command typed in another folder, or a path held back as NAME, is the footer's alone
+    page = mark_page.label_page(None, "../.venv/bin/judgekeeper mark p2 --port 9611",
+                                held=["p2"])
+    line = page.split("Not saved")[1][:200]
+    assert NO_ANSWER in page and "p2" not in line and ".venv" not in line
+    shown = html_text.unescape(re.sub(r"<[^>]+>", "", page))
+    assert "../.venv/bin/judgekeeper mark p2 --port 9611" in shown and "NAME: p2" in shown
+
+
+# The end card with only a skipped answer left, alone in the middle of the space below the bar,
+# beside the list and on a phone (its list below it). The mark is answered as the server does.
+END_CHECK = """
+var f = document.getElementById("f");
+f.addEventListener("load", function () {
+  var w = f.contentWindow, d = f.contentDocument;
+  d.dispatchEvent(new w.KeyboardEvent("keydown", {key: "ArrowLeft", bubbles: true}));
+  setTimeout(function () {
+    var box = function (id) { var r = d.getElementById(id).getBoundingClientRect();
+      return [r.top, r.bottom, r.left, r.right]; };
+    var e = box("end"), t = box("end-title"), b = box("again");
+    document.getElementById("out").textContent = JSON.stringify({
+      width: w.innerWidth, button: d.getElementById("again").textContent,
+      fills: Math.round(e[1]) >= Math.min(w.innerHeight,  // to the foot, or the screen's end
+        d.querySelector(".foot").getBoundingClientRect().top) - 1,
+      up: Math.round(((t[0] + b[1]) - (e[0] + e[1])) / 2),
+      across: Math.round(((b[2] + b[3]) - (e[2] + e[3])) / 2)});
+  }, 1500);
+});
+"""
+REPLY = ('<script nonce="n">window.fetch = function () { return Promise.resolve({ok: true, '
+         'json: function () { return Promise.resolve({summary: {counts: {correct: 6, wrong: 1, '
+         'skipped: 1}, status: {text: "Keep going.", ready: false}, popup: false}}); }}); };'
+         '</script>')
+
+
+@pytest.mark.parametrize("width, height", [(390, 844), (1280, 800)])
+def test_the_card_with_only_a_skipped_answer_left_is_in_the_middle(tmp_path, width, height):
+    chrome = _chrome()
+    if chrome is None:
+        pytest.skip("needs Chrome")
+    items = [{"id": f"a{i}", "input": f"Question {i}?", "output": f"Answer {i}.",
+              "label": "pass" if 0 < i < 7 else None, "skipped": i == 0} for i in range(8)]
+    data = {"items": items, "total": 8, "start": 7,
+            "counts": {"correct": 6, "wrong": 0, "skipped": 1},
+            "status": {"text": "Keep going.", "ready": False}}
+    page = (mark_page.label_page(None, "judgekeeper mark").replace("__NONCE__", "n")
+            .replace("__TOKEN__", "t").replace("__DATA__", label._json_for_html(data))
+            .replace("<head>", "<head>" + REPLY, 1))
+    srcdoc = page.replace("&", "&amp;").replace('"', "&quot;")
+    (tmp_path / "end.html").write_text(
+        '<!doctype html><html><body style="margin:0"><p id="out"></p>'
+        f'<iframe id="f" style="width:{width}px;height:{height}px;border:0" '
+        f'srcdoc="{srcdoc}"></iframe><script>{END_CHECK}</script></body></html>',
+        encoding="utf-8")
+    try:
+        done = subprocess.run(
+            [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox",
+             f"--user-data-dir={tmp_path / 'profile'}", f"--window-size={width + 100},{height + 100}",
+             "--virtual-time-budget=9000", "--dump-dom", (tmp_path / "end.html").as_uri()],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("Chrome did not start")
+    found = re.search(r'<p id="out">(\{.*?\})</p>', done.stdout)
+    if not found:
+        pytest.skip("Chrome did not run the page")
+    got = json.loads(found[1].replace("&quot;", '"'))
+    assert got == {"width": width, "button": "Mark it", "fills": True, "up": 0, "across": 0}

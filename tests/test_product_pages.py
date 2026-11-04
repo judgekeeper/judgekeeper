@@ -344,8 +344,10 @@ def test_the_bar_is_segments_and_a_count_with_no_status_sentence():
     assert right.index('id="count"') < right.index('id="see"')
     assert right.index('id="see"') < right.index('id="keep"')
     assert right.endswith('<p class="keep" id="keep" hidden>Keep going: your result appears once '
-                          'there are enough Pass and Fail marks.</p>'
-                          '<p class="keep" id="waiting" hidden></p></div></div>')  # marks that wait
+                          'there are enough Pass and Fail marks.</p></div></div>')
+    # marks that wait: a note on its own row under the bar, never in it (it is long)
+    assert '</header>\n<p class="wait-note" id="waiting" hidden></p>\n<div class="wrap">' in page
+    assert 'id="waiting"' not in right
     style = mark_page.STYLE
     assert ".seg { display: flex; gap: 3px; }" in style
     assert ".seg i { display: block; width: 6px; height: 10px; background: var(--line); }" in style
@@ -363,12 +365,10 @@ def test_the_welcome_box_is_a_modal_over_the_whole_window():
     assert ".scrim { position: fixed; inset: 0;" in page
     assert '<button type="button" class="go" id="intro-ok">Start marking</button>' in page
     box = page.split('id="intro-box"')[1].split('tabindex="-1">', 1)[1].split("</div>\n</div>")[0]
-    # the logo, the headline, the line about repeats, the button
-    assert " ".join(re.sub(r"<[^>]+>", " ", box).split()) == (
-        "judgekeeper ™ Mark each answer Pass or Fail. Now and then an answer you marked comes "
-        "back once, to see how steady your marks are. Mark it as you see it. Start marking")
-    assert ('<p class="note" id="intro-note">Now and then an answer you marked comes back '
-            "once, to see how steady your marks are. Mark it as you see it.</p>") in box
+    assert re.sub(r"<[^>]+>", " ", box).split() == [  # the logo, the headline, the button
+        "judgekeeper", "™", "Mark", "each", "answer", "Pass", "or", "Fail.", "Start", "marking"]
+    # no other line: the logo's own tags, the headline and the button
+    assert set(re.findall(r"<(\w+)", box)) == {"span", "svg", "path", "sup", "h2", "button"}
 
 
 def test_the_welcome_box_is_centred_green_and_plain():
@@ -582,7 +582,7 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
     first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2>' in first
-    assert f'{c["easy"] - 5} more are kept aside on purpose' in first
+    assert f'{c["easy"] - 5} more of these are kept aside on purpose' in first
     assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
             'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
@@ -615,14 +615,14 @@ def test_each_group_says_under_its_heading_how_many_are_kept_aside():
                                                                     c["strict"] - 1)})
     easy = _part(html, '<section class="group band" aria-labelledby="g-easy">')
     assert (f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2></div>'
-            f'<p class="kept">4 more are {HIDDEN}</p>') in easy
+            f'<p class="kept">4 more of these are {HIDDEN}</p>') in easy
     strict = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert f'<p class="kept">1 more is {HIDDEN}</p>' in strict
+    assert f'<p class="kept">1 more of these is {HIDDEN}</p>' in strict
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "more are hidden" not in none and "more is hidden" not in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
     assert 'id="g-strict"' not in hidden_only
-    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more are {HIDDEN}</p>'
+    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more disagreements are {HIDDEN}</p>'
             '</div>') in hidden_only
     early = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": []})
     assert "kept aside on purpose" not in early and 'class="group' not in early
@@ -642,10 +642,11 @@ def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
                                           r["kappa_interval"])
     text = _text(main)
-    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} {plo:.0%} and "
-            f"{phi:.0%}") in text
-    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} {flo:.0%} and "
-            f"{fhi:.0%}") in text
+    share = report_page.share  # an end is never 100% or 0% unless it is exactly that
+    assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
+            f"{share(plo)} and {share(phi)}") in text
+    assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
+            f"{share(flo)} and {share(fhi)}") in text
     assert "Kappa" not in text and "When you say" not in _text(part)
     text = _text(part)
     kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
@@ -686,9 +687,9 @@ def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements(
     text = _text(part)
     share = report_page.share  # never 100% for a value under 1
     assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {share(r['tpr'])} "
-            f"{plo:.0%} and {phi:.0%}") in text
+            f"{share(plo)} and {share(phi)}") in text
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {share(r['tnr'])} "
-            f"{flo:.0%} and {fhi:.0%}") in text
+            f"{share(flo)} and {share(fhi)}") in text
     assert "too early to tell" not in text
     assert 'class="group' in html and 'class="next' not in html
     assert '<p class="note wider">' in html
@@ -706,7 +707,7 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
     r = _result(*CHECK)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
-    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more is kept aside on purpose",
+    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more of these is kept aside on purpose",
                    'id="details-h"'):
         assert needed in html, needed
     assert 'class="next' not in html and "Keep checking it" not in html
@@ -715,11 +716,9 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
 NEXT_OPEN = '<section class="next band" aria-labelledby="next-h">'
 SAVED = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
          "folder. You can close this page.</p>")
-KEEP_MARKING = '<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>.</p>'
-CLOSED = ("<p>It closes by itself after 30 minutes without use. Closed? Run "
-          "<code>{mark}</code> in your project folder: your marks are still there.</p>")
-TO_MARK_MORE = ("<p>To mark more, run <code>{mark}</code> in your project folder: your marks "
-                "are still there.</p>")
+KEEP_MARKING = ('<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>. It closes '
+                "by itself after 30 minutes without use. Then run <code>{mark}</code> to open it "
+                "again.</p>")  # word for word, and nothing more about marking
 
 
 def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
@@ -731,7 +730,7 @@ def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
     assert SAVED in part
     assert "<p>Next, in your terminal, in your project folder:</p>" in part
     assert (f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
-            'aria-label="Copy the command">') in part
+            f'aria-label="Copy command: {fix}">') in part
     assert "Nothing more to do" not in part
     assert part.index("saved in this project") < part.index("Next, in your terminal") \
         < part.index('class="cmd"')
@@ -752,12 +751,10 @@ def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_se
         live = _part(_html(_result(*counts), "/?token=t"), NEXT_OPEN)
         saved_html = _html(_result(*counts))
         saved = _part(saved_html, NEXT_OPEN)
-        assert KEEP_MARKING in live and CLOSED.format(mark=mark) in live, counts
-        assert live.index(KEEP_MARKING) < live.index("Closed?")
-        assert TO_MARK_MORE.format(mark=mark) not in live
+        assert KEEP_MARKING.format(mark=mark) in live, counts
+        assert live.count(mark) == 1 and "To mark more" not in live
         assert SAVED in live and SAVED in saved
-        assert TO_MARK_MORE.format(mark=mark) in saved, counts
-        assert "Keep marking" not in saved and "Closed?" not in saved
+        assert "Keep marking" not in saved and "To mark more" not in saved, counts
         assert "<a " not in saved and "token" not in saved_html
 
 
@@ -769,29 +766,27 @@ def test_what_next_sends_to_marking_only_to_change_a_mark_when_every_answer_is_m
                                NEXT_OPEN))
         saved = unwrapped(_part(start_label.result_html(_result(*counts, left=0)), NEXT_OPEN))
         assert SAVED in live and SAVED in saved, counts
-        assert "Keep marking" not in live and "Closed?" not in live, counts
-        assert TO_MARK_MORE.format(mark=mark) not in saved, counts
+        assert "Keep marking" not in live and "To mark more" not in saved, counts
         assert ('<a href="/?token=t">Change a mark</a>: click it in the list and mark it '
                 "again.") in live, counts
         assert f"To change a mark, run <code>{mark}</code> in your project folder." in saved
         assert mark not in live, counts
     left = unwrapped(_part(start_label.result_html(_result(*GATE, left=3)), NEXT_OPEN))
-    assert TO_MARK_MORE.format(mark=mark) in left
+    assert "To mark more" not in left and "Keep marking" not in left
+
 
 def test_the_mark_line_comes_after_the_next_step():
-    mark = program("mark")
-    fix = _part(_html(_result(*NOT_GATE_TNR)), NEXT_OPEN)
-    assert fix.index('class="cmd"') < fix.index(TO_MARK_MORE.format(mark=mark))
-    good = _part(_html(_result(*GATE)), NEXT_OPEN)
-    assert good.index("Nothing more to do") < good.index(TO_MARK_MORE.format(mark=mark))
+    fix = _part(_html(_result(*NOT_GATE_TNR), "/?token=t"), NEXT_OPEN)
+    assert fix.index('class="cmd"') < fix.index("Want more certain numbers?")
+    good = _part(_html(_result(*GATE), "/?token=t"), NEXT_OPEN)
+    assert good.index("Nothing more to do") < good.index("Want more certain numbers?")
 
 
 def test_the_mark_command_keeps_the_flags_of_the_run():
     r = _result(*GATE, flags={"path": "evals/app", "port": 9000})
     mark = report_page.commands(r)["mark"]
-    assert mark == f"{program('mark')} evals/app"
-    assert TO_MARK_MORE.format(mark=mark) in _html(r)
-    assert CLOSED.format(mark=mark) in _html(r, "/?token=t")
+    assert mark == f"{program('mark')} evals/app --port 9000"  # as the terminal names it
+    assert KEEP_MARKING.format(mark=mark) in _html(r, "/?token=t")
 
 
 def test_what_next_is_the_same_one_command_for_a_table_of_grades():
@@ -1034,7 +1029,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"(\d+) more (?:is|are) kept aside on purpose", _text(html))
+    kept = re.findall(r"(\d+) more (?:of these |disagreements? )?(?:is|are) kept aside on purpose", _text(html))
     assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------
@@ -1060,6 +1055,7 @@ def test_every_page_fits_a_phone_width_viewport():
     ("table", ["graded.jsonl"], "your own JSONL file"),
     ("records", None, "judgekeeper.record() in your code"),
     ("mapped", ["out.json"], "your own format"),
+    ("mapped", ["evals/graded.csv"], "your own CSV file"),
     ("promptfoo", ["results.json"], "promptfoo")])
 def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
     from judgekeeper.front import tool_name
@@ -1164,6 +1160,21 @@ def test_the_wider_ranges_note_shows_only_with_a_range_on_screen():
         assert '<p class="note wider">' in start_label.result_html(one, back=back)
 
 
+def test_the_wider_ranges_note_on_the_pages_names_the_result_and_the_terminal_its_line():
+    """The pages have no result line: there the note says "The result"."""
+    r = _result(30, 900, 30, 30, 25, 5, left=875)
+    line = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
+            "You can look after every mark.")  # word for word
+    on_page = ("The result uses wider ranges than these, so a lucky streak can't decide it. "
+               "You can look after every mark.")
+    for back in ("/?token=t", None):  # the result page, report.html
+        assert unescape(_part(start_label.result_html(r, back=back), '<p class="note wider">',
+                              "</p>")) == on_page
+    assert start_label.wider(r) == line
+    waits = {**r, "only_wait": True}  # nothing to say about the next mark while marks wait
+    assert start_label.wider(waits) == line.split(" You can")[0]
+
+
 @pytest.mark.parametrize("page", ["result page", "report.html"])
 def test_with_no_range_anywhere_there_is_no_between_column(page):
     r = _result(*GATE)
@@ -1175,7 +1186,7 @@ def test_with_no_range_anywhere_there_is_no_between_column(page):
     tables = re.findall(r'<table class="panel no-range">.*?</table>', html, re.DOTALL)
     assert len(tables) == 2
     for table in tables:
-        assert '<th scope="col">Estimate</th></tr></thead>' in table
+        assert '<th scope="col">Value</th></tr></thead>' in table
         rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
         assert rows and all(row.count("<td") == 1 for row in rows)
     assert "you marked every answer" in _text(html)

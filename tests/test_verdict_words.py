@@ -44,7 +44,7 @@ def _pool(ws: Workspace) -> list[dict]:
 def test_new_results_with_no_question_never_stand_in_for_marked_answers(here, capsys, prompt):
     """The marked answers each have a question; the new results hold the same answer texts,
     graded right, with no vars (and no prompt, or one prompt for every row): none of them is
-    a marked answer, so nothing reads Worse."""
+    a marked answer, so nothing reads Worse. They share no question: another eval."""
     _marked_yes_no(here)
     capsys.readouterr()
     new = _yes_no(here / "new.json", set())
@@ -56,7 +56,8 @@ def test_new_results_with_no_question_never_stand_in_for_marked_answers(here, ca
     code, out = run(capsys, "check", new.name)
     assert code == 3, out
     assert "Worse" not in out and "different grades" not in out, out
-    assert f"None of your {YES_NO} marked answers is in your new results." in out
+    assert ("new.json shares few questions with the results you marked (results.json), so it "
+            "looks like another eval.") in " ".join(out.split()), out
 
 
 def test_promptfoo_questions_in_the_prompts_are_the_questions(here, capsys):

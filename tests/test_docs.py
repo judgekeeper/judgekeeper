@@ -36,7 +36,7 @@ def test_the_readme_is_short_and_in_order():
     text = _readme()
     assert text.startswith('<div align="center">\n  <img ')  # one centered header block
     body = text.split("\n</div>\n", 1)[1]
-    assert len(body.splitlines()) < 61  # the text under the header stays short
+    assert len(body.splitlines()) < 71  # the text under the header stays short
     top = text[:text.index("\n## ")]
     for needed in ("<strong>Check your LLM-as-a-judge in 5 steps.</strong>",
                    "Find. Mark. Measure. Fix. Re-check.", "docs/assets/demo.webp"):
@@ -82,7 +82,8 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
     n, each = summary["draws"], summary["inside_each"]
     jbb = next(x for x in _sections((ROOT / "docs" / "reference.md").read_text(
         encoding="utf-8"))["Checked on public data"].splitlines() if x.startswith("- **JailbreakBench"))
-    assert f"In {n} tests with {summary['marks_per_draw']} marks each" in jbb
+    assert f"In {n} random tests with {summary['marks_per_draw']} marks each" in jbb
+    assert "another 100 tests give a slightly different count" in jbb
     assert (f"TPR in {each['tpr']}, the true TNR in {each['tnr']} and the true kappa in "
             f"{each['kappa']}; all three at once in {summary['all_three_inside']}") in jbb
     rows = [x.split(",") for x in draws.read_text(encoding="utf-8").splitlines()
@@ -92,6 +93,39 @@ def test_the_readme_numbers_are_in_the_reports_they_link():
     assert "needs work" in linked["ragtruth/report.md"]
     for gone in ("LLMBar", "MT-Bench", "real-data-check"):
         assert gone not in _readme(), gone
+
+
+def test_the_jailbreakbench_counts_are_in_draw_counts():
+    """report.md's counts of what each draw showed are in hundred-marks/draw-counts.csv, which
+    agrees with draws.csv on every draw's seed and disagreements."""
+    import csv
+
+    folder = ROOT / "docs" / "examples" / "jailbreakbench"
+    md = " ".join((folder / "report.md").read_text(encoding="utf-8").split())
+
+    def rows(name: str) -> dict[str, dict]:
+        with (folder / "hundred-marks" / name).open(encoding="utf-8", newline="") as f:
+            return {r["draw"]: r for r in csv.DictReader(x for x in f if not x.startswith("#"))}
+
+    counts, draws = rows("draw-counts.csv"), rows("draws.csv")
+    assert sorted(counts) == sorted(draws) and len(counts) == 100
+    for d, r in counts.items():
+        c = {k: int(v) for k, v in r.items() if k != "draw"}
+        assert c["seed"] == int(draws[d]["seed"]), d
+        assert c["judge_pass_experts_fail"] + c["judge_fail_experts_pass"] == int(
+            draws[d]["disagreements"]), d
+        assert c["shown_judge_pass"] == c["judge_pass_experts_pass"] + c["judge_pass_experts_fail"]
+        assert c["shown_judge_fail"] == c["judge_fail_experts_pass"] + c["judge_fail_experts_fail"]
+    assert {r["shown_judge_pass"] for r in counts.values()} == {"58", "59"}
+    assert {r["shown_judge_fail"] for r in counts.values()} == {"41", "42"}
+    assert "held 58 or 59 answers the LLM-as-a-judge passed and 41 or 42 it failed" in md
+    assert (counts["d060"]["judge_fail_experts_pass"], counts["d060"]["shown_judge_fail"]) == (
+        "12", "41") and "In d060, 12 of the 41 answers GPT-4 failed" in md
+    assert (counts["d065"]["judge_fail_experts_pass"], counts["d065"]["shown_judge_fail"]) == (
+        "11", "41") and "in d065, 11 of 41" in md
+    assert (counts["d071"]["judge_pass_experts_fail"], counts["d071"]["shown_judge_pass"]) == (
+        "0", "59") and "The 59 answers GPT-4 passed that it showed held none of the 10" in md
+    assert "`hundred-marks/draw-counts.csv`" in md
 
 
 def _table(md: str, heading: str) -> list[dict[str, str]]:
@@ -274,8 +308,15 @@ def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
 # Lines the README and the Guide keep -----------------------------------------------------------
 
 def _step(n: int) -> str:
-    return next(x for x in _sections(_readme())["The 5 steps"].splitlines()
-                if x.startswith(f"{n}. "))
+    """Step n's line, with the short lines indented under it."""
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith(f"{n}. "))
+    under = []
+    for x in lines[at + 1:]:
+        if not x.startswith("   - "):
+            break
+        under.append(x.strip())
+    return " ".join([lines[at], *under])
 
 
 def _guide(wanted: str) -> str:
@@ -286,8 +327,18 @@ def _guide(wanted: str) -> str:
     return " ".join(el.text().replace("’", "'").split())
 
 
-STEADY = ("Once in a while an answer you marked comes back a second time, to see how steady "
-          "your marks are. Mark it as you see it.")
+STEADY = ("Now and then an answer you marked comes back once, to see how steady your marks "
+          "are. Mark it as you see it.")
+
+
+def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():
+    lines = _sections(_readme())["The 5 steps"].splitlines()
+    at = next(i for i, x in enumerate(lines) if x.startswith("2. "))
+    assert lines[at].startswith("2. **Mark:** a page opens in your browser. Mark answers Pass or "
+                                "Fail; the LLM-as-a-judge's grade stays hidden.")
+    under = lines[at + 1:at + 4]
+    assert [x[:5] for x in under] == ["   - "] * 3
+    assert STEADY in under[0] and NO_BROWSER in under[1] and "--labels" in under[2]
 
 
 def test_the_mark_step_says_a_marked_answer_comes_back():
@@ -300,24 +351,24 @@ NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-bro
               "link to open instead.")
 
 
-def test_the_readme_says_how_to_get_the_link_and_what_the_result_notes():
+def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link():
     """--no-browser prints the link; marks made through a link printed with no terminal (a
-    coding agent read it) get a note on the result, in the words the result uses."""
+    coding agent read it) get a note on the result. The README's agent line says no more."""
     from judgekeeper.start_label import link_lines
 
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    said = ("The result then notes that your marks came through a link printed with no "
-            "terminal; if you marked them yourself, nothing to do.")
-    assert said in install
-    assert "came through a link printed with no terminal" in note
-    assert "If you marked them yourself, nothing to do." in note
+    assert ("Using a coding agent? Give it this page. It runs the steps and gives you the "
+            "marking page link; you mark, then it explains the result.") in install
+    assert "came through a link" not in install
+    assert "came through a link judgekeeper printed" in note
+    assert "That's expected if you opened it yourself." in note
 
 
-def test_the_readme_says_kappa_never_decides():
+def test_kappa_never_decides_and_the_readme_says_what_it_is():
     """The result comes from the TPR and TNR ranges only (targets.level); kappa is under
-    More details on the result page and in report.html."""
+    More details on the result page and in report.html. The README's line, word for word."""
     import inspect
 
     from judgekeeper import report_page, targets
@@ -326,25 +377,85 @@ def test_the_readme_says_kappa_never_decides():
     assert '<h2 id="details-h">More details</h2>' in inspect.getsource(report_page)
     kappa = next(x for x in _sections(_readme())["The numbers"].splitlines()
                  if x.startswith("- **Kappa:**"))
-    assert ('it is under "More details" on the result page and in report.html, and never '
-            "decides the result (TPR and TNR do).") in kappa
+    assert kappa == ("- **Kappa:** how much you agree beyond what matching at random would "
+                     "give.")
 
 
 def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
     from judgekeeper import fix
 
     step = _step(4)
-    assert ("It is a loop: change the rule (with promptfoo, in "
-            "`.judgekeeper/fix/regrade.yaml`), grade again, then run "
+    assert ("- It is a loop: change the rule, grade again, then run "
             "`judgekeeper fix <new results file>`.") in step
+    assert ("- With promptfoo, the rule to change is usually in `.judgekeeper/fix/regrade.yaml`. "
+            "When `fix` can't write that file, it says how to grade again.") in step
+    assert ("grade your marked answers again, then run `judgekeeper check <new results file>`. "
+            "- Your marked answers are in `.judgekeeper/fix/marked-answers.csv`. With promptfoo, "
+            "`fix` usually writes `.judgekeeper/fix/regrade.yaml` to grade them.") in _step(5)
     assert "With few marks, \"can't tell yet\" is a normal answer." in step
     assert "Result: can't tell yet." in fix.RESULT["same"]
+
+
+def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
+    """Grading only the marked answers again compares on them; a mark made later waits until
+    every answer is graded, in the words `check` uses (check.WAIT_NEXT): said the same way in
+    the README and eval-tools.md."""
+    from judgekeeper import check
+
+    grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
+    said = (f"Grading only your marked answers is enough to compare the two. To count new marks, "
+            f"{grade_all}.")
+    assert said in _step(5)
+    assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
 
 
 def test_the_readme_says_marking_every_answer_leaves_no_range():
     """With every answer of a group marked its share is known (the reference's maths)."""
     numbers = _flat(_sections(_readme())["The numbers"])
     assert ('TPR and TNR each come with a range, such as "about 90% (between 85% and 93%)" '
-            "(when you mark every answer, the numbers are exact and have no range).") in numbers
+            "(when you mark every answer, the numbers have no range). The result says \"good "
+            'enough to use" only when a wider range (99%) starts at 80% or more for both. That '
+            "way you can look after every mark. The numbers are about the answers in your "
+            "results, worked out from the ones you marked. They are not a promise about new "
+            "answers.") in numbers  # word for word
     reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
     assert "With every answer of a group marked, its share is known, so it has no range." in reference
+
+
+def test_the_docs_say_mark_asks_for_a_switched_to_pass_mark_again():
+    """After `check --pass-if` switches to a pass mark, `check` and `fix` read with it, while
+    `mark` and a plain run ask for it again (the code: front's pass mark question)."""
+    reference = _flat((ROOT / "docs" / "reference.md").read_text(encoding="utf-8"))
+    changelog = _flat((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
+    assert ("Once `check` switches to it, later `check` and `fix` runs read your results with it. "
+            "`mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the "
+            "default;") in reference
+    assert ("Once `check` switches to it, later `check` and `fix` runs read with it, and `mark` "
+            "and a plain `judgekeeper` ask for the pass mark again with it as the default.") in changelog
+    for text in (reference, changelog):
+        assert "`check`, `fix` and `mark` runs read" not in text
+    assert ("If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark "
+            "again, with the one you gave as the default. With no terminal, it prints the "
+            "`--pass-if` to give.") in _step(3)
+    assert ("If you switched to a new pass mark with `judgekeeper check --pass-if`, a plain "
+            "`judgekeeper` and `judgekeeper mark` ask for the pass mark again") in _step(5)
+
+
+def test_the_jailbreakbench_screens_are_what_this_version_prints():
+    """The two Measure screens in the JailbreakBench report are this version's (made again
+    from the committed marks), and the old first run's "good enough to use" at 200 marks is
+    named as judgekeeper 1.0.0b2's, not given as today's result."""
+    import re
+
+    text = (ROOT / "docs" / "examples" / "jailbreakbench" / "report.md").read_text(encoding="utf-8")
+    flat = _flat(text)
+    assert not re.search(r"\byour judge\b", text, re.IGNORECASE)
+    assert "in the wording of an older version" not in text
+    after_200 = flat.split("### After 200 marks", 1)[1].split("###", 1)[0]
+    assert "Result: too early to tell. Mark more answers to get a result." in after_200
+    assert "Result: your LLM-as-a-judge is good enough to use." not in after_200
+    assert ('On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use"' in after_200)
+    draw = flat.split("## One draw on commit `6437d85`", 1)[1].split("## ", 1)[0]
+    assert "Result: your LLM-as-a-judge is good enough to use." in draw
+    assert ('In 7 of the 20 draws, judgekeeper 1.0.0b2 gave the result "good enough to use".'
+            in flat)

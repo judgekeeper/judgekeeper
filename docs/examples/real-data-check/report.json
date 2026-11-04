@@ -8,8 +8,8 @@
    30
   ],
   "start_rule": {
-   "block": 5,
-   "target": 25
+   "each": 15,
+   "each_group": 20
   },
   "weighted": {
    "level": 0.96,
@@ -236,71 +236,71 @@
     },
     "start_rule": {
      "labels": {
-      "mean": 59.18,
-      "min": 50,
-      "max": 70
+      "mean": 40.866,
+      "min": 40,
+      "max": 45
      },
      "first_check": {
       "labeled": {
        "pass": {
-        "labeled": 30,
-        "correct": 29
+        "labeled": 20,
+        "correct": 18
        },
        "fail": {
-        "labeled": 30,
-        "correct": 2
+        "labeled": 20,
+        "correct": 0
        }
       },
       "tpr": {
-       "value": 0.943363,
+       "value": 1.0,
        "range": [
-        0.842037,
-        0.988484
+        0.890147,
+        1.0
        ]
       },
       "tnr": {
-       "value": 0.960591,
+       "value": 0.896964,
        "range": [
-        0.837923,
-        0.996318
+        0.743006,
+        0.978246
        ]
       },
       "real_pass_rate": {
-       "value": 0.547812,
+       "value": 0.481146,
        "range": [
-        0.481113,
-        0.612457
+        0.384164,
+        0.552494
        ]
       },
-      "kappa": 0.901656
+      "kappa": 0.893357
      },
      "plain": {
-      "tpr": 0.944532,
-      "tnr": 0.887925
+      "tpr": 0.950295,
+      "tnr": 0.882988
      },
      "tpr": {
-      "held": 990,
+      "held": 994,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.99,
-      "width_mean": 0.142423,
-      "abs_error_median": 0.018391
+      "coverage": 0.994,
+      "width_mean": 0.168179,
+      "abs_error_median": 0.039652
      },
      "tnr": {
-      "held": 975,
+      "held": 954,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.975,
-      "width_mean": 0.207457,
-      "abs_error_median": 0.038757
+      "coverage": 0.954,
+      "width_mean": 0.238452,
+      "abs_error_median": 0.035056
      },
      "real_pass_rate": {
-      "held": 973,
+      "held": 959,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.973,
-      "width_mean": 0.158469,
-      "abs_error_median": 0.028321
+      "coverage": 0.959,
+      "width_mean": 0.19131,
+      "abs_error_median": 0.029941
      }
     }
    }
@@ -465,71 +465,71 @@
     },
     "start_rule": {
      "labels": {
-      "mean": 59.73,
-      "min": 50,
-      "max": 90
+      "mean": 44.636,
+      "min": 41,
+      "max": 63
      },
      "first_check": {
       "labeled": {
        "pass": {
-        "labeled": 30,
-        "correct": 23
+        "labeled": 25,
+        "correct": 22
        },
        "fail": {
-        "labeled": 30,
-        "correct": 8
+        "labeled": 20,
+        "correct": 6
        }
       },
       "tpr": {
-       "value": 0.855175,
+       "value": 0.857645,
        "range": [
-        0.766338,
-        0.924754
+        0.764743,
+        0.93271
        ]
       },
       "tnr": {
-       "value": 0.604776,
+       "value": 0.739594,
        "range": [
-        0.445162,
-        0.771041
+        0.510515,
+        0.913694
        ]
       },
       "real_pass_rate": {
-       "value": 0.60294,
+       "value": 0.690077,
        "range": [
-        0.473123,
-        0.708049
+        0.557572,
+        0.785318
        ]
       },
-      "kappa": 0.474142
+      "kappa": 0.588077
      },
      "plain": {
-      "tpr": 0.729248,
-      "tnr": 0.723308
+      "tpr": 0.770843,
+      "tnr": 0.687949
      },
      "tpr": {
-      "held": 957,
+      "held": 959,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.957,
-      "width_mean": 0.169004,
-      "abs_error_median": 0.027065
+      "coverage": 0.959,
+      "width_mean": 0.196738,
+      "abs_error_median": 0.03437
      },
      "tnr": {
-      "held": 950,
+      "held": 944,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.95,
-      "width_mean": 0.304378,
-      "abs_error_median": 0.05414
+      "coverage": 0.944,
+      "width_mean": 0.340026,
+      "abs_error_median": 0.064779
      },
      "real_pass_rate": {
-      "held": 955,
+      "held": 949,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.955,
-      "width_mean": 0.24137,
-      "abs_error_median": 0.034877
+      "coverage": 0.949,
+      "width_mean": 0.266548,
+      "abs_error_median": 0.045057
      }
     }
    }
@@ -694,71 +694,71 @@
     },
     "start_rule": {
      "labels": {
-      "mean": 70.44,
+      "mean": 54.212,
       "min": 50,
-      "max": 110
+      "max": 82
      },
      "first_check": {
       "labeled": {
        "pass": {
-        "labeled": 45,
-        "correct": 20
+        "labeled": 20,
+        "correct": 9
        },
        "fail": {
-        "labeled": 45,
-        "correct": 7
+        "labeled": 35,
+        "correct": 6
        }
       },
       "tpr": {
-       "value": 0.460686,
+       "value": 0.439714,
        "range": [
-        0.290971,
-        0.665862
+        0.243053,
+        0.670237
        ]
       },
       "tnr": {
-       "value": 0.835637,
+       "value": 0.834407,
        "range": [
-        0.791876,
-        0.876274
+        0.774621,
+        0.895572
        ]
       },
       "real_pass_rate": {
-       "value": 0.222046,
+       "value": 0.235545,
        "range": [
-        0.146095,
-        0.328375
+        0.141694,
+        0.363438
        ]
       },
-      "kappa": 0.292503
+      "kappa": 0.276306
      },
      "plain": {
-      "tpr": 0.777138,
-      "tnr": 0.673871
+      "tpr": 0.672224,
+      "tnr": 0.77032
      },
      "tpr": {
-      "held": 956,
+      "held": 969,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.956,
-      "width_mean": 0.381833,
-      "abs_error_median": 0.060951
+      "coverage": 0.969,
+      "width_mean": 0.406138,
+      "abs_error_median": 0.072533
      },
      "tnr": {
-      "held": 964,
+      "held": 965,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.964,
-      "width_mean": 0.099501,
-      "abs_error_median": 0.01713
+      "coverage": 0.965,
+      "width_mean": 0.122582,
+      "abs_error_median": 0.021495
      },
      "real_pass_rate": {
-      "held": 955,
+      "held": 957,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.955,
-      "width_mean": 0.209921,
-      "abs_error_median": 0.03526
+      "coverage": 0.957,
+      "width_mean": 0.222707,
+      "abs_error_median": 0.038465
      }
     }
    }
@@ -923,71 +923,71 @@
     },
     "start_rule": {
      "labels": {
-      "mean": 66.07,
-      "min": 50,
-      "max": 100
+      "mean": 57.022,
+      "min": 51,
+      "max": 85
      },
      "first_check": {
       "labeled": {
        "pass": {
-        "labeled": 40,
-        "correct": 21
+        "labeled": 20,
+        "correct": 13
        },
        "fail": {
-        "labeled": 40,
+        "labeled": 33,
         "correct": 7
        }
       },
       "tpr": {
-       "value": 0.418934,
+       "value": 0.424104,
        "range": [
-        0.263881,
-        0.628334
+        0.265773,
+        0.627666
        ]
       },
       "tnr": {
-       "value": 0.87845,
+       "value": 0.903538,
        "range": [
-        0.836307,
-        0.915631
+        0.84375,
+        0.951976
        ]
       },
       "real_pass_rate": {
-       "value": 0.242816,
+       "value": 0.296965,
        "range": [
-        0.157863,
-        0.36145
+        0.19227,
+        0.435289
        ]
       },
-      "kappa": 0.319294
+      "kappa": 0.364196
      },
      "plain": {
-      "tpr": 0.781078,
-      "tnr": 0.69936
+      "tpr": 0.664428,
+      "tnr": 0.806612
      },
      "tpr": {
-      "held": 959,
+      "held": 952,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.959,
-      "width_mean": 0.381816,
-      "abs_error_median": 0.065128
+      "coverage": 0.952,
+      "width_mean": 0.385083,
+      "abs_error_median": 0.06805
      },
      "tnr": {
-      "held": 973,
+      "held": 956,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.973,
-      "width_mean": 0.086813,
-      "abs_error_median": 0.013684
+      "coverage": 0.956,
+      "width_mean": 0.10292,
+      "abs_error_median": 0.017492
      },
      "real_pass_rate": {
-      "held": 961,
+      "held": 958,
       "known": 1000,
       "unknown": 0,
-      "coverage": 0.961,
-      "width_mean": 0.2246,
-      "abs_error_median": 0.040414
+      "coverage": 0.958,
+      "width_mean": 0.217258,
+      "abs_error_median": 0.037441
      }
     }
    }
@@ -1152,71 +1152,71 @@
     },
     "start_rule": {
      "labels": {
-      "mean": 79.39,
-      "min": 50,
-      "max": 130
+      "mean": 52.27,
+      "min": 42,
+      "max": 96
      },
      "first_check": {
       "labeled": {
        "pass": {
-        "labeled": 40,
-        "correct": 16
+        "labeled": 20,
+        "correct": 10
        },
        "fail": {
-        "labeled": 40,
-        "correct": 9
+        "labeled": 29,
+        "correct": 5
        }
       },
       "tpr": {
-       "value": 0.402657,
+       "value": 0.523718,
        "range": [
-        0.25192,
-        0.593617
+        0.308518,
+        0.755321
        ]
       },
       "tnr": {
-       "value": 0.773066,
+       "value": 0.813615,
        "range": [
-        0.713968,
-        0.827237
+        0.738981,
+        0.885954
        ]
       },
       "real_pass_rate": {
-       "value": 0.273112,
+       "value": 0.262476,
        "range": [
-        0.18163,
-        0.389142
+        0.163309,
+        0.400268
        ]
       },
-      "kappa": 0.175359
+      "kappa": 0.332257
      },
      "plain": {
-      "tpr": 0.724341,
-      "tnr": 0.616128
+      "tpr": 0.640058,
+      "tnr": 0.697127
      },
      "tpr": {
+      "held": 953,
+      "known": 1000,
+      "unknown": 0,
+      "coverage": 0.953,
+      "width_mean": 0.418294,
+      "abs_error_median": 0.081128
+     },
+     "tnr": {
       "held": 959,
       "known": 1000,
       "unknown": 0,
       "coverage": 0.959,
-      "width_mean": 0.360985,
-      "abs_error_median": 0.060394
-     },
-     "tnr": {
-      "held": 964,
-      "known": 1000,
-      "unknown": 0,
-      "coverage": 0.964,
-      "width_mean": 0.112209,
-      "abs_error_median": 0.017932
+      "width_mean": 0.145621,
+      "abs_error_median": 0.022295
      },
      "real_pass_rate": {
       "held": 964,
       "known": 1000,
       "unknown": 0,
       "coverage": 0.964,
-      "width_mean": 0.200325,
-      "abs_error_median": 0.032947
+      "width_mean": 0.235493,
+      "abs_error_median": 0.035909
      }
     }
    }
@@ -1269,17 +1269,17 @@
    "judges": 5,
    "datasets": 3,
    "labels_mean": {
-    "lowest": 59.18,
-    "highest": 79.39
+    "lowest": 40.866,
+    "highest": 57.022
    },
    "tpr_tnr": {
-    "mean": 0.9647,
-    "lowest": 0.95,
+    "mean": 0.9605,
+    "lowest": 0.944,
     "lowest_case": [
      "mtbench-gpt4",
      "tnr"
     ],
-    "highest": 0.99,
+    "highest": 0.994,
     "highest_case": [
      "llmbar-haiku",
      "tpr"

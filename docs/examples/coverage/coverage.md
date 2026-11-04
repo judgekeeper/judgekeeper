@@ -15,9 +15,9 @@ Rule: the first of 95%, 96%, 97% whose ranges hold the true TPR, TNR and real pa
 | 97% | 94.4 | 97.7 | yes |
 | 98% | 95.3 | 98.5 | yes |
 
-Chosen level: **96%**. Before this change (Wilson corners): lowest cell 96.1, average 99.3. The ranges now are 27.1% narrower on average (7.3% to 52.3% by cell and number).
+Chosen level: **96%**. The earlier method (Wilson corners) had lowest cell 96.1, average 99.3. The ranges now are 27.1% narrower on average (7.3% to 52.3% by cell and number).
 
-## `judgekeeper`: per cell, before (Wilson corners) and now (Jeffreys 96%)
+## `judgekeeper`: per cell, earlier method (Wilson corners) and now (Jeffreys 96%)
 
 Coverage % / average width, before → now.
 
@@ -136,7 +136,7 @@ Coverage % / average width, before → now.
 
 A steady LLM-as-a-judge: grading again, it gives the same verdicts. TPR and TNR.
 
-Before (stratified bootstrap): lowest cell 53.8, average 95.3. Now (jeffreys): lowest cell 95.9, average 97.9.
+The earlier method (stratified bootstrap) had lowest cell 53.8, average 95.3. Now (jeffreys): lowest cell 95.9, average 97.9.
 
 Lowest cell per number, before → now: TPR 92.4 → 96.4; TNR 53.8 → 95.9. Kappa is given without a range, as in judgekeeper's result.
 
@@ -338,11 +338,11 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 | 50% | 80% | 95% | 15 + 15 | 0.2 |
 | 50% | 80% | 95% | 25 + 25 | 0.2 |
 
-### After grading again, an LLM-as-a-judge that turns grades round
+### An LLM-as-a-judge that changes some grades when asked again
 
-1,000 simulated re-checks per row, pool of 10,000. weighted.general when the LLM-as-a-judge, grading again, turns round a share of its grades at random (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. It is asked once, as `check` asks, so the ranges are the ones `check` shows. How often they hold the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: 93.6.
+1,000 simulated re-checks per row, pool of 10,000. weighted.general when the LLM-as-a-judge, grading again, changes a share of its grades at random (a = 0.9, w = 0.85); in the lower half it also changed, and now passes 30% of the answers it failed that should fail. It is asked once, as `check` asks, so the ranges are the ones `check` shows. How often they hold the regrading LLM-as-a-judge's true TPR and TNR, in percent; lowest: 93.6.
 
-| pi | n | turned | also changed | TPR | TNR |
+| pi | n | changed | also changed | TPR | TNR |
 |---|---|---|---|---|---|
 | 50% | 15 | 5% | 0% | 97.9 | 98.0 |
 | 50% | 15 | 10% | 0% | 96.7 | 98.3 |

@@ -1,10 +1,32 @@
 """Fixtures shared by the tests: no real browser, and the MLflow stores."""
 
+import os
+import shutil
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
+NO_BROWSER = "a test tried to open a real browser"
+
+
+def _stop_browser(event, args):
+    if event == "webbrowser.open":
+        raise RuntimeError(f"{NO_BROWSER}: {args[0]}")
+
+
+STOP_BROWSER = f"""import sys
+
+
+def _stop_browser(event, args):
+    if event == "webbrowser.open":
+        raise RuntimeError("{NO_BROWSER}: " + str(args[0]))
+
+
+sys.addaudithook(_stop_browser)
+"""  # the same, as the sitecustomize of a Python a test starts
 
 
 @pytest.fixture(autouse=True)
@@ -18,6 +40,32 @@ def no_browser(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_ctrl_c_left():
+    """A Ctrl-C a test noted never reaches a later test: the Ctrl-C handler, the notes
+    (textio.ctrl_c, inspect_logs._stopping) and what a noted Ctrl-C quiets for the rest of a
+    stopped run (sys.unraisablehook, the asyncio logger) are as they were before it."""
+    import logging
+    import signal
+    import sys
+    import threading
+
+    main = threading.current_thread() is threading.main_thread()
+    handler = signal.getsignal(signal.SIGINT) if main else None
+    hook, asyncio_level = sys.unraisablehook, logging.getLogger("asyncio").level
+    yield
+    from judgekeeper import textio
+
+    textio.ctrl_c.clear()
+    reader = sys.modules.get("judgekeeper.readers.inspect_logs")
+    if reader is not None:
+        reader._stopping.clear()
+    if main and signal.getsignal(signal.SIGINT) is not handler:
+        signal.signal(signal.SIGINT, handler)
+    sys.unraisablehook = hook
+    logging.getLogger("asyncio").setLevel(asyncio_level)
+
+
+@pytest.fixture(autouse=True)
 def repo_stays_clean():
     """No test leaves judgekeeper's own files in the repo it runs from."""
     root = Path(__file__).parent.parent
@@ -28,8 +76,22 @@ def repo_stays_clean():
 
 
 def pytest_configure(config):
+    """No browser of the machine opens, even where the no_browser fixture does not reach (a
+    test that takes its name): webbrowser.open raises here, and in every Python a test starts
+    that reads PYTHONPATH, through a sitecustomize put first on it."""
     config.addinivalue_line("markers", "real_page: the marking page runs as its own process, "
                                        "as it does for a person")
+    sys.addaudithook(_stop_browser)
+    config._stop_browser = tempfile.mkdtemp(prefix="jk-no-browser-")
+    Path(config._stop_browser, "sitecustomize.py").write_text(STOP_BROWSER, encoding="utf-8")
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        [config._stop_browser, *filter(None, [os.environ.get("PYTHONPATH")])])
+
+
+def pytest_unconfigure(config):
+    folder = getattr(config, "_stop_browser", None)
+    if folder:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

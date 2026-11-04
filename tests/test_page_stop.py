@@ -96,7 +96,24 @@ def test_ctrl_c_on_wait_says_stopped_and_exits_130(here, capsys, monkeypatch):
     code, out = _run(capsys, "--wait")
     assert code == 130, out
     assert out.rstrip().splitlines()[-2:] == [
-        "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
+        "Stopped.", "Next: run `judgekeeper --wait` when you want to continue."]
+    assert not label.is_open(here / ".judgekeeper")
+
+
+def test_stop_from_another_terminal_ends_wait_with_the_stopped_next(here, capsys, monkeypatch):
+    """`--stop` closes a --wait page: the run never ends by saying to mark on a page that is
+    gone, but how to carry on."""
+    real = label.LabelServer.serve
+
+    def stopped(self, *args, **kwargs):  # the page's /stop, as `--stop` sends it
+        self.stop()
+        real(self, *args, **kwargs)
+
+    monkeypatch.setattr(label.LabelServer, "serve", stopped)
+    code, out = _run(capsys, "--wait", "--no-browser", "--port", "0")
+    assert code == 0, out
+    last = " ".join(out.rstrip().split("\n\n")[-1].split())
+    assert last == "Next: run `judgekeeper --port 0 --no-browser` when you want to continue.", out
     assert not label.is_open(here / ".judgekeeper")
 
 

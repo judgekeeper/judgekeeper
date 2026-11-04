@@ -63,7 +63,7 @@ def test_fix_names_the_mlflow_store_to_read_next(here, capsys, store):  # noqa: 
     code, out = run(capsys)
     said = " ".join(out.split())
     assert code == 0, out
-    assert f"then run `judgekeeper fix {store}`: it reads the newest run." in said, said
+    assert f"then run `judgekeeper fix {store}`. It reads the newest run." in said, said
     assert fix.NEW_RESULTS not in said and "again, save the results" not in said, said
 
 
@@ -92,7 +92,7 @@ def test_check_given_a_file_it_cant_read_names_the_mlflow_store(here, capsys):  
     code = main(["check", "other.csv"])
     said = " ".join(capsys.readouterr().out.split())
     assert code == 2, said
-    assert "Next: run `judgekeeper check mlflow.db`: it reads the newest run" in said, said
+    assert "Next: run `judgekeeper check mlflow.db`. It reads the newest run" in said, said
 
 
 def test_a_wrong_scorer_name_gets_the_same_step_from_fix_and_check(here, capsys,  # noqa: F811
@@ -109,7 +109,7 @@ def test_a_wrong_scorer_name_gets_the_same_step_from_fix_and_check(here, capsys,
         f"mlflow.db has no LLM-as-a-judge named {metric!r}; the names are: 'correctness2'.")))
     step = (f"evaluate the same traces again with your LLM-as-a-judge under the name "
             f"{metric!r}, the one your marks test (`mlflow.genai.evaluate()`), then run "
-            "`judgekeeper {command} mlflow.db`: it reads the newest run.")
+            "`judgekeeper {command} mlflow.db`. It reads the newest run.")
     for command in ("fix", "check"):
         code = main([command, "mlflow.db"])
         said = " ".join(capsys.readouterr().out.split())
@@ -203,7 +203,7 @@ def test_the_printed_fix_and_check_commands_read_the_mlruns_store(mlruns, tmp_pa
     assert printed == ["fix", "mlruns"]
     out, again = _printed(capsys, printed, "fix")
     said = " ".join(out.split())
-    assert "New results: mlruns" in said and "same grades as when you marked" in said, said
+    assert "New results: mlruns" in said and fix.SAME_GRADES in said, said
     assert again == printed
     out, printed = _printed(capsys, ["check", "mlruns"], "check")
     said = " ".join(out.split())

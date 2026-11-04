@@ -24,5 +24,11 @@ def test_a_result_can_go_back_to_too_early():
 
 def test_the_marks_figures_say_which_pool_they_are_for():
     fixing = _flat(REFERENCE[REFERENCE.index("**How many marks:**"):])
-    assert ("These figures are for an LLM-as-a-judge that passes half or 80% of the answers; "
-            "one that passes more of them needs more marks for the same answer.") in fixing
+    assert ("These figures are for an LLM-as-a-judge that passes half or 80% of the answers. "
+            "One that passes more of them needs more marks for the same answer.") in fixing
+    # the Guide's line on how many marks moved here, split in two sentences
+    assert ("A rule that fixes 9 in 10 of your LLM-as-a-judge's mistakes or a quarter of them, "
+            "and breaks at most 2 in 100 right answers, usually gets a clear answer from about "
+            "80 marks.") in fixing
+    assert ("A rule that breaks 5 in 100 right answers gets a clear answer from about 160 "
+            "marks, whether it fixes 1 in 10 of the mistakes or a quarter of them.") in fixing

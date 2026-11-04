@@ -100,8 +100,9 @@ def test_guide_install_uses_the_needed_python():
             "virtual environment, uv pip install judgekeeper) pip install "
             "judgekeeper judgekeeper With uv uvx judgekeeper With uv, put uvx before each command "
             "below, for example uvx judgekeeper fix. For MLflow or Inspect AI results: pip "
-            'install "judgekeeper[mlflow]" or "judgekeeper[inspect]". Works on macOS, Linux and '
-            "Windows, with Python 3.11 to 3.14.") in install
+            'install "judgekeeper[mlflow]" or "judgekeeper[inspect]"; with uv, uvx --from '
+            '"judgekeeper[mlflow]" judgekeeper or uvx --from "judgekeeper[inspect]" judgekeeper. '
+            "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.") in install
     hrefs = [a.attrs.get("href") for a in _by_id("start.html", "install").iter() if a.tag == "a"]
     assert hrefs == ["https://docs.astral.sh/uv/"]  # the license is in the footer
 
@@ -176,7 +177,7 @@ def test_the_sitemap_and_llms_txt_list_the_pages_in_the_menus_order():
     order = [site + ("" if p == "index.html" else p) for p in
              ["index.html", "start.html", "check.html", "privacy.html"]]
     locs = re.findall(r"<loc>(.*?)</loc>", (WEBSITE / "sitemap.xml").read_text(encoding="utf-8"))
-    assert [u for u in locs if u in order] == order
+    assert locs == order  # /examples/ has no page of its own: a listing, or a 404
     for gone in ("docs.html", "setup.html"):
         assert not [u for u in locs if gone in u], gone
     assert [url for _, url, _ in _llms_links() if url.startswith(site)] == order

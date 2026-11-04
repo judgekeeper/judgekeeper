@@ -160,7 +160,7 @@ def test_ctrl_c_says_how_to_carry_on(project, capsys, monkeypatch):
     code, text = run(capsys, "--no-browser")
     assert_rules(code, text)
     assert code == 130
-    assert "Next: run `judgekeeper --no-browser` to carry on." in flat(text)
+    assert "Next: run `judgekeeper --no-browser` when you want to continue." in flat(text)
 
 
 def test_ctrl_c_after_the_last_next_line_says_nothing_more(project, capsys, monkeypatch):
@@ -175,7 +175,7 @@ def test_ctrl_c_after_the_last_next_line_says_nothing_more(project, capsys, monk
     monkeypatch.setattr(front, "_run", finished)
     code, text = run(capsys, "--no-browser")
     assert code == 130
-    assert "Stopped." not in text and "carry on" not in text
+    assert "Stopped." not in text and "when you want to continue" not in text
     assert flat(text).endswith("run `judgekeeper check`.")
 
 
@@ -446,6 +446,35 @@ def test_a_cut_off_table_keeps_the_rules(project, capsys):
     path.write_text(text[:len(text) // 2], encoding="utf-8")
     code, out = run(capsys, "--no-browser")
     assert_rules(code, out)
+
+
+def _cut_in_a_quoted_cell(root: Path, last: str) -> Path:
+    rows = [f'Question {i}?,"Answer {i}, in full.",{"pass" if i % 2 else "fail"}'
+            for i in range(20)]
+    path = root / "results.csv"
+    path.write_text("\n".join(["input,output,verdict", *rows, last]), encoding="utf-8")
+    return path
+
+
+def test_a_table_cut_in_a_quoted_cell_just_after_a_quote_is_cut_off(project, capsys):
+    """The csv module drops the quote and reads on: text after a closing quote, at the end."""
+    from judgekeeper import table
+
+    path = _cut_in_a_quoted_cell(project, 'Question 20?,"Answer 20, as our policy "unterminated')
+    assert table.cut_off(path)
+    code, out = run(capsys, "--no-browser")
+    assert_rules(code, out)
+    assert code == 2, out
+    assert "error: results.csv is cut off or damaged (it ends in the middle)." in flat(out), out
+
+
+@pytest.mark.parametrize("last", ['Question 20?,"Answer 20, a ""quoted"" word.",pass',
+                                  'Question 20?,"Answer 20, a ""quoted"" word."',
+                                  'Question 20?,"Answer 20, 5"" wide",fail'])
+def test_a_table_ending_on_doubled_quotes_in_a_quoted_cell_is_whole(project, last):
+    from judgekeeper import table
+
+    assert not table.cut_off(_cut_in_a_quoted_cell(project, last))
 
 
 def _own(root: Path, capsys) -> Path:

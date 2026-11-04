@@ -17,6 +17,7 @@ import pytest
 from judgekeeper import __version__, batches, fix
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
+from judgekeeper.textio import quote_arg
 from tests.start_projects import promptfoo_data
 
 
@@ -157,7 +158,7 @@ def test_marks_added_after_two_changes_are_never_graded_by_the_first(here, capsy
     code, out = run(capsys, "check", "m3.csv")
     assert code == 0, out
     assert "You added 30 marks since your last check." in out, out
-    assert "Worse" not in out and "Result: worse" not in out, out
+    assert "Worse" not in out and "Compared with before: worse" not in out, out
     assert ("30 of your marked answers have no grade from your old LLM-as-a-judge, so "
             "judgekeeper left them out of the table.") in out, out
 
@@ -177,7 +178,7 @@ def test_a_table_under_the_first_models_name_is_still_compared(here, capsys):
     every_fail = _table(here / "af.csv", "gpt-4.1-mini", lambda i: i % 3 != 0)
     code, out = run(capsys, "check", every_fail.name)
     assert code == 1, out
-    assert "back to the one you marked with" not in out and "Result: worse" in out, out
+    assert "back to the one you marked with" not in out and "Compared with before: worse" in out, out
 
 
 # Answers kept aside that marked-answers.csv lacks ----------------------------------------------
@@ -211,8 +212,8 @@ def test_fix_with_a_file_rewrites_the_csv_that_lacks_answers_kept_aside(here, ca
     _mark(ws, lambda i: i >= 60)
     code, out = run(capsys, "fix", first.name)
     assert code == 3, out
-    assert ("judgekeeper wrote .judgekeeper/fix/marked-answers.csv again: it now holds every "
-            "answer you marked, with the answers kept aside your new results lack.") in out, out
+    assert ("judgekeeper wrote .judgekeeper/fix/marked-answers.csv again. It now also "
+            "holds the kept-aside answers missing from your new results.") in out, out
     assert ("Next: grade every answer in .judgekeeper/fix/marked-answers.csv again with your "
             "new rule, then run `judgekeeper fix <new results file>`.") in out, out
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
@@ -294,8 +295,11 @@ def test_nothing_to_fix_on_inspect_says_to_score_the_log_again(here, capsys, mon
     code, out = run(capsys, "fix")
     assert code == 0 and "there is nothing to fix" in out, out
     assert out.endswith("Next: nothing to fix. To test another rule anyway, score your log "
-                        "again with it: run `inspect score <log> --scorer <name> --action "
-                        "overwrite` with `--output-file logs/new.eval`, then run `judgekeeper "
+                        "again with it: run `inspect score logs/2026-10-02_support.json "
+                        f"--scorer model_graded_qa -S instructions={quote_arg('<new rule>')} "
+                        "--action overwrite --overwrite "
+                        "--output-file "
+                        "logs/new.eval` and then run `judgekeeper "
                         "fix logs/new.eval`."), out
 
 
@@ -354,7 +358,7 @@ def test_check_names_what_it_read_and_notes_newer_results_elsewhere(here, capsys
                  "Grade it C or I, any way.", created="2026-10-28T10:00:00+00:00")
     code, again = run(capsys, "check")
     assert code == 0, again
-    assert ("New results: new.json Newer Inspect AI results are in logs/new2.json, outside your "
+    assert ("Results: new.json Newer Inspect AI results are in logs/new2.json, outside your "
             "saved choice. To check them: `judgekeeper check logs/new2.json`.") in again, again
     assert "has not changed since your last check" in again, again  # read as always
 
@@ -394,7 +398,7 @@ def test_no_note_for_an_older_promptfoo_run_copied_in(here, capsys, monkeypatch)
     old.write_text(json.dumps(data), encoding="utf-8")
     capsys.readouterr()
     code, out = run(capsys, "check")
-    assert code == 0 and "New results: results.json" in out and "Newer" not in out, out
+    assert code == 0 and "Results: results.json" in out and "Newer" not in out, out
 
 
 def test_the_inspect_regrade_lines_keep_the_log_folder_after_a_check(here, capsys, monkeypatch):
@@ -413,7 +417,7 @@ def test_the_inspect_regrade_lines_keep_the_log_folder_after_a_check(here, capsy
     assert fix.new_log(ws) == "logs/new.eval"
 
     line = fix._regrade_same(fix.Talk("."), ws)
-    assert "`--output-file logs/new.eval`" in line and "fix logs/new.eval" in line, line
+    assert "--output-file logs/new.eval` and then run" in line and "fix logs/new.eval" in line, line
 
 
 # Measure says why it suggests going back ------------------------------------------------------
@@ -433,8 +437,10 @@ def test_measure_after_a_worse_check_says_why_it_says_go_back(here, capsys):
     capsys.readouterr()
     _, out = run(capsys, "--no-browser")
     closed(ws)
-    assert ("Your last check found your LLM-as-a-judge in your newest results worse than this "
-            "one. Next: go back to your old LLM-as-a-judge") in out, out
+    said = " ".join(out.split())
+    assert ("Your last check found your LLM-as-a-judge in new.json worse, so the numbers below "
+            "still use the grades in results.json.") in said, out
+    assert "Next: go back to your old LLM-as-a-judge" in said, out
 
 
 # A shared value with repeats: one question asked twice is not a shared value -----------------

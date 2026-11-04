@@ -90,7 +90,7 @@ def assert_one_next_at_the_end(out: str) -> str:
     return next_lines(out)[0]
 
 
-START = 'Next: mark answers until the link at the top shows your numbers, then click it.'
+START = 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 
 
 def flat(out: str) -> str:
@@ -170,7 +170,7 @@ def test_own_format_with_yes_saves_the_map_and_reads_it(here, capsys):
     flat_jsonl(here / "evals" / "graded.jsonl")
     code, out, _ = run(capsys, "--yes")
     assert code == 0, out
-    assert "Eval tool:       your own format" in out and "36 answers" in out
+    assert "Eval tool:       your own JSONL file" in out and "36 answers" in out
     assert "File:            evals/graded.jsonl" in out
     assert "  question:        question" in out  # which parts were read: paths only
     assert "Saved judgekeeper.toml" in out
@@ -273,9 +273,13 @@ def test_too_few_answers_needs_the_person(here, capsys):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys)
     assert code == 3
-    assert "You have 10 answers" in out
+    flat = " ".join(out.split())
+    assert ("You have 10 answers with a clear grade. That is not enough answers for a first "
+            "result. Next:") in flat
     line = assert_one_next_at_the_end(out)
-    assert line.endswith("or mark these 10 now with `judgekeeper mark`.")
+    assert line == ("Next: mark these 10 now with `judgekeeper mark`. Your marks are kept. Then "
+                    "run your eval to make more answers (that makes model calls), and run "
+                    "`judgekeeper` again.")
     assert "--yes" not in line and "judgekeeper start" not in line
 
 
@@ -364,6 +368,25 @@ def test_scores_need_a_pass_mark(here, capsys):
     assert code == 0, out
     assert "Your LLM-as-a-judge passed 16 answers and failed 16." in out
     assert "the verdict column: Pass at 0.5 or more" in out and "Pass mark:" not in out
+
+
+def test_without_a_terminal_the_pass_mark_question_names_the_mark_in_use(here, capsys):
+    """Started with --pass-if, a plain run with no terminal to ask in names that pass mark in
+    its command, not the placeholder."""
+    table_project(here, ["0.9"] * 16 + ["0.2"] * 16)
+    code, out, _ = run(capsys, "--pass-if", "score>=0.585", "--no-browser", "--port", "0")
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0, out
+    code, out, _ = run(capsys, "--no-browser", "--port", "0")
+    main(["--stop"])
+    assert code == 3, out
+    line = assert_one_next_at_the_end(out)
+    assert line.startswith("Next: run `"), line
+    assert f"--pass-if {quote_arg('score>=0.585')}`" in line and "score>=N" not in line, line
+    assert front.PASS_MARK_AGAIN.format(rule="score>=0.585") in " ".join(out.split()), out
+    assert out.count("--pass-if " + quote_arg("score>=0.585")) == 1, out  # in the Next line only
+    assert "Step 1 of 5" not in out, out  # the pass mark was saved: Find is done
 
 
 def test_words_need_a_label_map(here, capsys):
@@ -723,7 +746,7 @@ def test_a_tracking_server_points_at_a_local_store_when_there_is_one(here, capsy
 
 def test_a_missing_path_is_a_usage_error(here, capsys):
     code, _, err = run(capsys, here / "nope")
-    assert code == 2 and "not found" in err
+    assert code == 2 and "There is no file or folder named nope in this folder." in err, err
 
 
 def test_a_wrong_tool_name_is_a_usage_error(here, capsys):
@@ -765,9 +788,9 @@ def test_a_flag_for_another_tool_says_it_was_ignored(here, capsys, flag, value, 
 
 def test_few_fails_says_finding_fail_marks_can_take_many_marks():
     assert front.needs_each_kind(fails=9, answers=100) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks "
         "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
-        "when there are fewer). "
+        "if there are fewer). "
         "Your LLM-as-a-judge failed only 9 of 100 answers, so finding 15 answers you mark Fail can "
         "take many marks.")
 
@@ -775,9 +798,9 @@ def test_few_fails_says_finding_fail_marks_can_take_many_marks():
 @pytest.mark.parametrize(("fails", "answers"), [(10, 100), (50, 100), (0, 0)])
 def test_otherwise_only_what_a_result_needs(fails, answers):
     assert front.needs_each_kind(fails=fails, answers=answers) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks "
         "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
-        "when there are fewer).")
+        "if there are fewer).")
 
 
 @pytest.mark.parametrize(("fails", "answers", "said", "other"), [
@@ -795,7 +818,7 @@ def test_a_judge_that_gave_every_answer_one_grade_needs_one_mark_the_other_way(
 
 def test_after_finds_few_fails_line_only_the_second_half():
     assert front.needs_each_kind(fails=9, answers=100, said=True) == (
-        "A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks "
+        "A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks "
         "on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, "
-        "when there are fewer). "
+        "if there are fewer). "
         "Finding 15 answers you mark Fail can take many marks.")

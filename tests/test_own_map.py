@@ -92,7 +92,7 @@ def test_nested_runs_asks_four_questions_and_one_yes(tmp_path, capsys, terminal)
     assert all(len(line) <= 64 for line in out.splitlines() if "looks like" in line), out
     assert "cases[].A.output" in out and 'cases[].A.scores."Safe wording".score' in out
     assert "Question " not in out and "Answer " not in out  # paths, never values
-    assert "Eval tool:       your own format" in out
+    assert "Eval tool:       your own JSONL file" in out
     assert "Answers:         42 answers" in out
     assert "File:            history/evals.jsonl, 3 lines" in out
     assert "The marking page is open in your browser." in out

@@ -12,9 +12,9 @@ With 50 labels per check (25 from each group), on 5 LLM-as-a-judge setups from 3
 |---|---|---|---|---|
 | 25+25 labels | 50 | 96.0 | 94.6 (LLMBar × Claude Haiku 4.5, TNR) | 98.4 (LLMBar × Claude Haiku 4.5, TPR) |
 | 30+30 labels | 60 | 96.6 | 95.0 (LLMJudge × RMITIR-GPT4o, TPR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
-| judgekeeper's rule (25 Pass + 25 Fail) | 59 to 79 on average | 96.5 | 95.0 (MT-Bench × GPT-4, TNR) | 99.0 (LLMBar × Claude Haiku 4.5, TPR) |
+| judgekeeper's rule (15 Pass + 15 Fail, 20 in each group) | 41 to 57 on average | 96.0 | 94.4 (MT-Bench × GPT-4, TNR) | 99.4 (LLMBar × Claude Haiku 4.5, TPR) |
 
-A 96% range is expected to miss about 4 times in 100. With 1,000 checks, chance alone moves the share it holds by up to about 1.2 either way (95 times in 100).
+A 96% range is expected to miss about 4 times in 100. With 1,000 checks, coincidence alone moves the share it holds by up to about 1.2 either way (95 times in 100).
 
 ## The LLM-as-a-judge setups
 
@@ -32,13 +32,13 @@ The values from all of each dataset's human labels.
 
 Held in 100 checks, TPR / TNR / real pass rate, 1,000 checks each.
 
-| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
+| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (15 Pass + 15 Fail, 20 in each group) |
 |---|---|---|---|
-| LLMBar × Claude Haiku 4.5 | 98.4 / 94.6 / 96.4 | 99.0 / 97.4 / 96.8 | 99.0 / 97.5 / 97.3 |
-| MT-Bench × GPT-4 | 96.0 / 95.7 / 96.5 | 95.9 / 97.0 / 97.4 | 95.7 / 95.0 / 95.5 |
-| LLMJudge × RMITIR-GPT4o | 95.6 / 96.1 / 95.3 | 95.0 / 96.5 / 96.5 | 95.6 / 96.4 / 95.5 |
-| LLMJudge × willia-umbrela1 | 94.8 / 96.6 / 95.8 | 95.9 / 96.4 / 94.7 | 95.9 / 97.3 / 96.1 |
-| LLMJudge × NISTRetrieval-instruct0 | 95.0 / 96.7 / 95.2 | 96.3 / 97.0 / 95.3 | 95.9 / 96.4 / 96.4 |
+| LLMBar × Claude Haiku 4.5 | 98.4 / 94.6 / 96.4 | 99.0 / 97.4 / 96.8 | 99.4 / 95.4 / 95.9 |
+| MT-Bench × GPT-4 | 96.0 / 95.7 / 96.5 | 95.9 / 97.0 / 97.4 | 95.9 / 94.4 / 94.9 |
+| LLMJudge × RMITIR-GPT4o | 95.6 / 96.1 / 95.3 | 95.0 / 96.5 / 96.5 | 96.9 / 96.5 / 95.7 |
+| LLMJudge × willia-umbrela1 | 94.8 / 96.6 / 95.8 | 95.9 / 96.4 / 94.7 | 95.2 / 95.6 / 95.8 |
+| LLMJudge × NISTRetrieval-instruct0 | 95.0 / 96.7 / 95.2 | 96.3 / 97.0 / 95.3 | 95.3 / 95.9 / 96.4 |
 
 Checks where a number could not be worked out: 0.
 
@@ -46,13 +46,13 @@ Checks where a number could not be worked out: 0.
 
 Average width of the range (high end minus low end) and the median distance from the number to the value from all labels, TPR / TNR.
 
-| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (25 Pass + 25 Fail) |
+| LLM-as-a-judge | 25+25 labels | 30+30 labels | judgekeeper's rule (15 Pass + 15 Fail, 20 in each group) |
 |---|---|---|---|
-| LLMBar × Claude Haiku 4.5 | width 0.15 / 0.22, error 0.02 / 0.04 | width 0.14 / 0.21, error 0.02 / 0.03 | width 0.14 / 0.21, error 0.02 / 0.04 |
-| MT-Bench × GPT-4 | width 0.18 / 0.33, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 |
-| LLMJudge × RMITIR-GPT4o | width 0.44 / 0.12, error 0.09 / 0.02 | width 0.41 / 0.11, error 0.07 / 0.02 | width 0.38 / 0.10, error 0.06 / 0.02 |
-| LLMJudge × willia-umbrela1 | width 0.44 / 0.10, error 0.08 / 0.02 | width 0.40 / 0.09, error 0.07 / 0.02 | width 0.38 / 0.09, error 0.07 / 0.01 |
-| LLMJudge × NISTRetrieval-instruct0 | width 0.45 / 0.14, error 0.08 / 0.02 | width 0.41 / 0.13, error 0.07 / 0.02 | width 0.36 / 0.11, error 0.06 / 0.02 |
+| LLMBar × Claude Haiku 4.5 | width 0.15 / 0.22, error 0.02 / 0.04 | width 0.14 / 0.21, error 0.02 / 0.03 | width 0.17 / 0.24, error 0.04 / 0.04 |
+| MT-Bench × GPT-4 | width 0.18 / 0.33, error 0.03 / 0.05 | width 0.17 / 0.30, error 0.03 / 0.05 | width 0.20 / 0.34, error 0.03 / 0.06 |
+| LLMJudge × RMITIR-GPT4o | width 0.44 / 0.12, error 0.09 / 0.02 | width 0.41 / 0.11, error 0.07 / 0.02 | width 0.41 / 0.12, error 0.07 / 0.02 |
+| LLMJudge × willia-umbrela1 | width 0.44 / 0.10, error 0.08 / 0.02 | width 0.40 / 0.09, error 0.07 / 0.02 | width 0.39 / 0.10, error 0.07 / 0.02 |
+| LLMJudge × NISTRetrieval-instruct0 | width 0.45 / 0.14, error 0.08 / 0.02 | width 0.41 / 0.13, error 0.07 / 0.02 | width 0.42 / 0.15, error 0.08 / 0.02 |
 
 ## Without the correction
 
@@ -106,4 +106,4 @@ The human labels are what each dataset has: LLMBar's gold labels written by its 
 
 ## Settings
 
-Seed 20261009; 1,000 checks per LLM-as-a-judge and design; judgekeeper's rule labels 5 from each group at a time. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.
+Seed 20261009; 1,000 checks per LLM-as-a-judge and design; judgekeeper's rule marks in the marking page's order until a first result: 15 Pass and 15 Fail, and 20 among the answers the LLM-as-a-judge passed and among those it failed. Ranges: `weighted.corrected` at level 0.96, 20,000 draws, seed 20261008. To run it again: `pip install pyarrow`, then `python scripts/real_data_check.py`. It downloads the files above into a cache folder outside the repository, checks each sha256, and writes this report and `report.json`.

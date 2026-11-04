@@ -302,6 +302,8 @@ def problem(path: str | Path) -> str | None:
     try:
         if open_quote(path) is not None:
             return "has a quote that never closes"
+        if wide_row(path) is not None:
+            return MORE_CELLS
         if suffix in (".csv", ".tsv"):
             text = read_utf8(path, TableError)
             too_wide(header(text, suffix), path, TableError)
@@ -366,6 +368,113 @@ def _open_quote(path: Path, lines, suffix: str, loose: bool, verdict_columns) ->
         if loose or "unexpected end of data" in str(e) or (
                 reader.line_num > start and delimiter in _line(path, reader.line_num).split('"')[0]):
             return start
+    return None
+
+
+def cut_off(path: str | Path) -> bool:
+    """Whether a CSV or TSV file ends inside a quote, as records.load_json says of JSON that
+    stops inside a string: its last row's last cell, as written, is text holding a quote (one
+    not at the cell's start, which the reader keeps as text) or text after a closing quote,
+    and the file stops there or that row has fewer cells than the header. Rows where every
+    cell is empty are not rows."""
+    from contextlib import closing
+
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".tsv"):
+        return False
+    held: list[str] = []  # the lines of the row being read, as the file has them
+
+    def kept(lines):
+        for line in lines:
+            held.append(line)
+            yield line
+
+    with closing(utf8_lines(path, TableError)) as lines:  # never the whole text at once
+        first = next(lines, "")
+        delimiter = _delimiter(first, suffix)
+        reader = csv.reader(kept(itertools.chain([first], lines)) if first else iter(()),
+                            delimiter=delimiter)
+        names, last = next(reader, None), ""
+        held.clear()
+        for row in reader:
+            if any(c.strip() for c in row):
+                last = "".join(held)
+            held.clear()
+    if not names or not last:
+        return False
+    cells, stray, stops = _last_cell(last, delimiter)
+    return stray and (stops or cells < len(names))
+
+
+def _last_cell(row: str, delimiter: str) -> tuple[int, bool, bool]:
+    """Of one row as written: (its cells, whether its last cell is text holding a quote or
+    text after a closing quote, whether it stops with no line break), read as the csv module
+    reads it."""
+    cells, state, stray = 1, "start", False
+    for c in row:
+        if c in "\r\n" and state != "quoted":
+            return cells, stray, False
+        if c == delimiter and state != "quoted":
+            cells, state, stray = cells + 1, "start", False
+        elif state == "start":
+            state = "quoted" if c == '"' else "in"
+        elif state == "in":
+            stray = stray or c == '"'
+        elif state == "quoted":
+            state = "after" if c == '"' else "quoted"
+        elif c == '"':  # after a quote in a quoted cell: a doubled quote
+            state = "quoted"
+        elif c not in " \t":  # or text after it, which the csv module reads on from with the
+            # quote dropped; a space or tab alone after it is no text
+            state, stray = "in", True
+    return cells, stray, True
+
+
+MORE_CELLS = "has more cells than its header"  # a quote closed in the wrong place made one row of two
+
+
+def wide_row(path: str | Path) -> int | None:
+    """The line a row of a CSV or TSV file starts on that has more cells with text than its
+    header has columns, or None: a stray quote that a later quote closes reads two rows as
+    one, and the second one's cells would be lost. Empty cells past the header (a
+    spreadsheet's trailing commas) are fine. The rows read_table reads, read as it reads
+    them."""
+    found = wide_row_hint(path)
+    return found and found[0]
+
+
+QUOTE_HINT = ": a quote may be closed in the wrong place"
+
+
+def wide_row_hint(path: str | Path) -> tuple[int, str] | None:
+    """wide_row's line, and QUOTE_HINT when that row holds a quote ("" for a row with no
+    quote: a cell too many, plainly)."""
+    from contextlib import closing
+
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix not in (".csv", ".tsv"):
+        return None
+    held: list[str] = []  # the lines of the row being read, as the file has them
+
+    def kept(lines):
+        for line in lines:
+            held.append(line)
+            yield line
+
+    with closing(utf8_lines(path, TableError)) as lines:
+        first = next(lines, "")
+        reader = csv.reader(kept(itertools.chain([first], lines)) if first else iter(()),
+                            delimiter=_delimiter(first, suffix))
+        names = next(reader, None)
+        start = reader.line_num + 1
+        held.clear()
+        for cells in itertools.islice(reader, MAX_ROWS + 1):
+            if names is not None and any(c.strip() for c in cells[len(names):]):
+                return start, QUOTE_HINT if any('"' in line for line in held) else ""
+            start = reader.line_num + 1
+            held.clear()
     return None
 
 

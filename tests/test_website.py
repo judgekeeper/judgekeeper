@@ -62,7 +62,7 @@ def test_the_sitemap_lists_every_page():
         name = page.relative_to(WEBSITE).as_posix()
         url = "https://www.judgekeeper.com/" + ("" if name == "index.html" else name)
         assert url in locs, url
-    assert sitemap.count("<lastmod>2026-10-31</lastmod>") == sitemap.count("<loc>") == 5
+    assert sitemap.count("<lastmod>2026-11-03</lastmod>") == sitemap.count("<loc>") == 4
 
 
 # Commands
@@ -115,7 +115,8 @@ def _options() -> set[str]:
 
 
 # Flags of the eval tools whose commands the Reference shows (promptfoo, Inspect AI)
-OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples"}
+OTHER_FLAGS = {"--output-file", "--grader", "--repeat", "--log-format", "--no-log-samples",
+               "--from"}  # uvx --from "judgekeeper[inspect]"
 
 
 def _every_text(page: Path) -> str:
@@ -214,29 +215,33 @@ def test_coverage_numbers_match_the_committed_grid():
 
 
 def test_the_public_dataset_tiles_match_the_reports_they_link_to():
-    """Home's "On public datasets.": each number, and the number it counts up to, comes from
-    the committed report its tile links to."""
+    """Home's "On public datasets.": one number, and the number it counts up to, comes from the
+    committed report its tile links to. The other tile names how many datasets the real-data
+    check used, with no share, so the page makes one "96" claim, not two."""
     draws = json.loads((ROOT / "docs/examples/jailbreakbench/hundred-marks/summary.json")
                        .read_text(encoding="utf-8"))
     held = draws["all_three_inside"]
     assert draws["every_draw_counted_its_marks_and_showed_no_text"]
     mean = REALCHECK["summary"]["25+25"]["tpr_tnr"]["mean"]
-    in_100 = round(mean * 100)
     expected = {
         "docs/examples/jailbreakbench/report.md": (held, f"{held} of {draws['draws']}"),
-        "docs/examples/real-data-check/report.md": (in_100, f"{in_100} in 100"),
+        "docs/examples/real-data-check/report.md": (round(mean * 100), f"{round(mean * 100)} in 100"),
     }
     tiles = [el for el in parse(WEBSITE / "index.html").iter() if "rt" in el.classes()]
     found = {}
     for tile in tiles:
         report = tile.attrs["href"].split("/blob/main/", 1)[1]
-        (n,) = [el for el in tile.iter() if "rt-n" in el.classes()]
+        counts = [el for el in tile.iter() if "rt-n" in el.classes()]
         (big,) = [el for el in tile.iter() if "rt-big" in el.classes()]
         (line,) = [el for el in tile.iter() if "rt-line" in el.classes()]
-        assert int(n.attrs["data-to"]) == int(n.text()), report
-        found[report] = (int(n.attrs["data-to"]), big.text().strip())
+        for n in counts:
+            assert int(n.attrs["data-to"]) == int(n.text()), report
+        found[report] = (int(counts[0].attrs["data-to"]) if counts else None,
+                         " ".join(big.text().split()))
         if "jailbreakbench" in report:  # the count is of draws with all three inside
-            assert line.text().strip().startswith("times TPR, TNR and kappa were all"), report
+            assert " ".join(line.text().split()) == (
+                "random tests (100 marks each) where the ranges held the true TPR, TNR and kappa "
+                "at once (another run gives a slightly different count)"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
@@ -611,7 +616,8 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
 def test_home_links_to_the_check_page_twice():
     links = [el for el in parse(WEBSITE / "index.html").iter()
              if el.tag == "a" and el.attrs.get("href") == "check.html"]
-    assert [" ".join(a.text().split()) for a in links] == ["Try step 1 in your browser"] * 2
+    assert [" ".join(a.text().split()) for a in links] == ["Or try step 1 in your browser",
+                                                          "Try step 1 in your browser"]
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
     assert "- [Try step 1 in your browser](https://www.judgekeeper.com/check.html): " in (

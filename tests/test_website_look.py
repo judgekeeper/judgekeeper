@@ -40,9 +40,10 @@ PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
 AGENT_LINE = ("Using a coding agent? Give it this page. It runs the steps and gives you the "
-              "marking page link; you mark, then it explains the result.")
-TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
-                  "The Apache-2.0 license covers the code, not the name or logo.")
+              "marking page link; you mark, then it explains the result.")  # word for word
+TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/"
+                  "judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The "
+                  "Apache-2.0 license covers the code, not the name or logo.")  # word for word
 CSS = (WEBSITE / "assets" / "style.css").read_text(encoding="utf-8")
 JS = (WEBSITE / "assets" / "site.js").read_text(encoding="utf-8")
 FONTS = WEBSITE / "assets" / "fonts"
@@ -495,10 +496,12 @@ def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
+    # one button; the browser check is a plain link beside it
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
-               if {"b-main", "b-side"} & a.classes()]
+               if {"b-main", "b-side", "b-text"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-side"}, "Try step 1 in your browser")]
+                       ("check.html", {"b-text"}, "Or try step 1 in your browser")]
+    assert "min-height: 46px" in _rule(".b-text") and "align-items: center" in _rule(".b-text")
     assert not _all(hero, "p", None) or all(
         any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
     # the chosen step's green line, which gives way while another word is hovered or focused
@@ -675,8 +678,10 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        "times TPR, TNR and kappa were all in judgekeeper's ranges at once",
+        ("random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at "
+         "once (another run gives a slightly different count)"),
         "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
+    assert [len(_all(t, "span", "rt-n")) for t in tiles] == [1, 1]  # each a green number
     for tile in tiles:
         assert not _flat(tile).startswith(">")
     assert "border-radius: 12px" in _rule(".rt-win")
@@ -751,7 +756,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
         "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
         ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
-         '"judgekeeper[inspect]".'),
+         '"judgekeeper[inspect]"; with uv, uvx --from "judgekeeper[mlflow]" judgekeeper or '
+         'uvx --from "judgekeeper[inspect]" judgekeeper.'),
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
@@ -771,7 +777,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
-        "judgekeeper only reads files. It makes no AI call and needs no API key. "
+        "In your project, judgekeeper reads your results files and writes only in "
+        ".judgekeeper/, plus "
+        "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
     # the steps and the windows below are as wide as the top section: "The 5 steps." starts
@@ -804,6 +812,7 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
         ("p", "Your LLM-as-a-judge runs in your own code? Add this after each grade:"),
         ("pre", ("import judgekeeper judgekeeper.record(input=question, output=answer, "
                 "verdict=grade)")),
+        ("p", "It saves in .judgekeeper/records/ in your project folder. Run judgekeeper there."),
         ("p", ("Your LLM-as-a-judge gives a score instead of Pass or Fail? The full reference "
               "shows how to set where Pass starts, and every other option."))]
     assert [_flat(b) for p in _all(own, "p") for b in _all(p, "b")] == [
@@ -873,22 +882,23 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert done == {
         "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
                        "judgekeeper to your results file:")],
-        "step-mark": ["When the link at the top shows your numbers, click it."],
+        "step-mark": [("When See the numbers so far or See your result appears at the top, "
+                       "click it.")],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. You need at least 15 Pass and 15 Fail "
-                          "marks and 20 marks on answers your LLM-as-a-judge passed and 20 on "
-                          "answers it failed (or all of them, when there are fewer). Mark more "
-                          "answers, then look again:")]}
+                          "of your marks to be measured. A result needs at least 15 Pass and 15 "
+                          "Fail marks from you. It also needs 20 marks on answers your "
+                          "LLM-as-a-judge passed and 20 on answers it failed (or all of them, if "
+                          "there are fewer). Mark more answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
-        "step-mark": [("Mark each answer Pass or Fail, the way you would grade it. You won’t see "
-                       "your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, "
-                       "so you can stop at any time and come back later. Once in a while an "
-                       "answer you marked comes back a second time, to see how steady your marks "
-                       "are. Mark it as you see it."),
+        "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
+                       "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
+                       "Every mark is saved, so you can stop at any time and come back later. Now "
+                       "and then an answer you marked comes back once, to see how steady your "
+                       "marks are. Mark it as you see it."),
                       ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
                        "for a file with an output (or answer) column and a label (or "
                        "human_label) column, or judgekeeper --labels for a human_label or label "
@@ -907,18 +917,17 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
-             "depends on how big the change is. A rule that fixes 9 in 10 of its mistakes or a "
-             "quarter of them usually gets a clear answer from about 80 marks, and one that "
-             "fixes 1 in 10 and "
-             "breaks 5 in 100 right answers needs about 160 (simulation).")],
+             "depends on how big the change is: see the reference.")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, .judgekeeper/fix/regrade.yaml), "
+             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
+             ".judgekeeper/fix/regrade.yaml), "
              "then run:"),
-            ("judgekeeper finds the answers you marked in your new results by the same text, "
-             "word for word, and the same question, compares the new grades with your marks, and tells you if your "
-             "LLM-as-a-judge "
-             "still agrees with you. You don’t need to mark anything again.")]}
+            ("judgekeeper finds the answers you marked in your new results by their question "
+             "and answer, word for word, compares the new grades with your marks, and tells you "
+             "if your LLM-as-a-judge still agrees with you. You don’t need to mark anything "
+             "again. Grading only your marked answers is enough to compare the two. To count "
+             "new marks, grade all your answers with your new LLM-as-a-judge.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
@@ -974,9 +983,10 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
         "judgekeeper mark", "judgekeeper fix", "judgekeeper fix new-results.json",
         "judgekeeper check new-results.json",
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
-    for box in boxes:
+    for box in boxes:  # each button is named by the command it copies
         (button,) = _all(box, "button", "copy")
-        assert "data-copy" in button.attrs and button.attrs["aria-label"].startswith("Copy")
+        command = _flat(_all(box, "code")[0])
+        assert "data-copy" in button.attrs and button.attrs["aria-label"] == f"Copy command: {command}"
         assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
@@ -1164,9 +1174,9 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert link.attrs["href"] == "start.html" and "tf-link" in link.classes()
     assert _flat(link) == "next step: install judgekeeper →"
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
-    assert ('NOT_RECOGNISED = "This doesn\'t look like results judgekeeper can read in the '
-            'browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your '
-            'project.";') in script
+    assert ('NOT_RECOGNISED = "This isn\'t a results file this page can read. It reads '
+            'promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run '
+            '`uvx judgekeeper` in your project.";') in script
 
 
 def test_waiting_terminal_uses_the_codes_labels(tmp_path):
@@ -1220,16 +1230,19 @@ def test_the_browser_check_is_two_even_columns_that_end_together():
     assert "inset 0 0 0 1px var(--green)" in focus and "outline: none" in focus
 
 
-def test_the_browser_check_lines_wrap_and_never_scroll_sideways():
-    """At every width a line wraps inside the terminal. On a phone a value goes under its label,
-    and a line that only goes on from the one above has no indent."""
+def test_the_browser_check_lines_keep_each_label_line_whole_on_a_phone():
+    """Wider than a phone a line wraps inside the terminal. On a phone each line stays whole,
+    a value beside its label ("File:", "Answers:"), and the terminal scrolls sideways for it;
+    only the Next line wraps."""
     term = _rule(".fc-term")
     assert "white-space: pre-wrap" in term and "overflow-wrap: anywhere" in term
-    assert not [s for s, d in _rules() if "fc-term" in s and "overflow-x" in d]
     phone = CSS[CSS.index("@media (max-width: 760px) {\n  .ck2 .wrap"):]
     phone = phone[:phone.index("\n}\n")]
-    assert "flex-direction: column" in _rule(".fc-term .ln", phone)
-    assert "display: none" in _rule(".fc-term .ln > .pad", phone)
+    assert "overflow-x" not in term
+    assert "overflow-x: auto" in _rule(".fc-term", phone)
+    assert "width: max-content" in _rule(".fc-term .ln:not(.ln-next)", phone)
+    assert "white-space: pre;" in _rule(".fc-term .ln:not(.ln-next) > span", phone)
+    assert "flex-wrap" not in phone and ".pad" not in phone
     script = (WEBSITE / "assets" / "freecheck.js").read_text(encoding="utf-8")
     assert "line.k.trim() ? 'k t-label' : 'k t-label pad'" in script
     # Home's terminal colours
@@ -1330,11 +1343,13 @@ def test_guide_page_pictures_after_first_paragraph():
 def test_on_a_phone_the_guides_pictures_open_full_size():
     """Each picture is a plain link to its file, and a small "Tap to enlarge" under it shows
     on phones only."""
-    for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
+    for step, picture, page in (("step-mark", "label.webp", "marking"),
+                                ("step-measure", "result.webp", "result")):
         body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
         (figure,) = _all(body, "figure", "gx-shot")
         (link,) = _all(figure, "a")
-        assert link.attrs == {"href": f"assets/shots/{picture}"}, step
+        assert link.attrs == {"href": f"assets/shots/{picture}",
+                              "aria-label": f"Enlarge the picture of the {page} page"}, step
         assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
         after = [el for el in body.children if isinstance(el, Element)]
         tap = after[after.index(figure) + 1]
@@ -1518,21 +1533,23 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 
-def test_on_a_phone_a_picture_opens_over_the_page():
-    """At 600px and below a tap on a Guide picture opens it in a dialog 1100px wide that can
-    be swiped around, with a Close button 44px tall; the page behind does not scroll. A laptop
-    opens the file, as the link says."""
+def test_a_picture_opens_over_the_page_at_every_width():
+    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: a
+    dialog at least 1100px wide (the window's width when wider) that can be moved around, with
+    a Close button 44px tall; the page behind does not scroll. Without the script the link
+    opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
-    for part in ("if (!narrow()) return;", "e.preventDefault()", "view.showModal()",
+    for part in ("e.preventDefault()", "view.showModal()",
                  'make("button", "shot-close", "Close")', "e.target === view",
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
-    phone = _narrow(600)
-    assert "width: 1100px" in _last(".shot-pane img", phone)
-    assert "overflow: auto" in _last(".shot-pane", phone)
-    assert "min-height: 44px" in _last(".shot-close", phone)
-    assert "overflow: hidden" in _last("html.has-view, html.has-view body", phone)
+    assert "narrow()" not in shots
+    assert "width: max(1100px, 100%)" in _rule(".shot-pane img")
+    assert "overflow: auto" in _rule(".shot-pane")
+    assert "min-height: 44px" in _rule(".shot-close")
+    assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
+    assert not [s for s, d in _rules() if "shot-" in s and s in _narrow(600)]
 
 
 def test_on_a_touch_screen_links_are_44px_tall():

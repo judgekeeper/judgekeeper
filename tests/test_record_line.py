@@ -211,7 +211,7 @@ def test_an_unwritable_folder_never_raises_and_warns_once(project, caplog):
     warnings = [r for r in caplog.records if r.name == "judgekeeper"]
     assert len(warnings) == 1
     assert "judgekeeper.record()" in warnings[0].getMessage()
-    assert "goes on" in warnings[0].getMessage()
+    assert "keeps running" in warnings[0].getMessage()
     with caplog.at_level(logging.WARNING, logger="judgekeeper"):
         recorder._say_lost()  # at exit: the later losses are not silent
     assert caplog.records[-1].getMessage() == ("judgekeeper.record() could not save 2 more "
@@ -363,3 +363,11 @@ def test_record_is_in_the_package_api():
     from judgekeeper import record
 
     assert record is recorder.record
+
+
+def test_the_docstring_names_the_default_name():
+    """help(judgekeeper.record) gives the name a record gets with none given."""
+    from judgekeeper import recorder
+
+    doc = " ".join(recorder.record.__doc__.split())
+    assert f'default "{recorder.DEFAULT_NAME}"' in doc

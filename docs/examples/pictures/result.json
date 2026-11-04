@@ -1,0 +1,131 @@
+{
+  "pi": 0.725,
+  "judge_pass_rate": 0.725,
+  "a": 0.6551724137931034,
+  "b": 0.2727272727272727,
+  "tpr": 0.8636363636363636,
+  "tnr": 0.4444444444444445,
+  "kappa": 0.31937172774869127,
+  "real_pass_rate": 0.5499999999999999,
+  "a_interval": [
+    0.6551724137931034,
+    0.6551724137931034
+  ],
+  "b_interval": [
+    0.2727272727272727,
+    0.2727272727272727
+  ],
+  "tpr_interval": [
+    0.8636363636363636,
+    0.8636363636363636
+  ],
+  "tnr_interval": [
+    0.4444444444444445,
+    0.4444444444444445
+  ],
+  "real_pass_rate_interval": [
+    0.5499999999999999,
+    0.5499999999999999
+  ],
+  "kappa_interval": [
+    0.31937172774869127,
+    0.31937172774869127
+  ],
+  "tpr_verdict_interval": [
+    0.8636363636363636,
+    0.8636363636363636
+  ],
+  "tnr_verdict_interval": [
+    0.4444444444444445,
+    0.4444444444444445
+  ],
+  "groups": {
+    "pass": {
+      "pool": 29,
+      "labeled": 29,
+      "correct": 19
+    },
+    "fail": {
+      "pool": 11,
+      "labeled": 11,
+      "correct": 3
+    }
+  },
+  "method": "jeffreys",
+  "level": 0.96,
+  "draws": 20000,
+  "seed": 20261008,
+  "labels": {
+    "correct": 22,
+    "wrong": 18
+  },
+  "check": "result",
+  "verdict_level": "not_gate",
+  "verdict": "Your LLM-as-a-judge needs work.",
+  "skipped": 0,
+  "disagreements": 13,
+  "left": 0,
+  "made_at": "2026-11-03T22:32:31Z",
+  "numbers_version": 4,
+  "judgekeeper_version": "1.1.0",
+  "fingerprint": {
+    "provider": null,
+    "model": "my-judge-v1",
+    "snapshot": null,
+    "prompt_hash": "fcb5a7cb87cee633d85dfe37e03bb590d5da2eb90fec928f9c74fa9b9f211308",
+    "rubric_version": null,
+    "temperature": 0.0,
+    "created_at": "2026-11-03T22:32:30Z",
+    "endpoint": "unknown"
+  },
+  "judge": {
+    "name": "Polite and correct \"Is polite and correct.\" with my-judge-v1",
+    "tool": "records",
+    "metric": "Polite and correct",
+    "rule": "Is polite and correct.",
+    "one_rule": true,
+    "description": null,
+    "results_files": [
+      ".judgekeeper/records/Polite-and-correct-2026-11-03-38832.jsonl"
+    ],
+    "results_date": "2026-11-03 22:32"
+  },
+  "judge_check": {
+    "answers": 40,
+    "error": 0,
+    "unreadable": 0,
+    "empty_answer_refused": 0,
+    "error_grade": 0,
+    "empty": 0,
+    "nothing_checked": 0,
+    "not_scored": 0,
+    "model_failed": 0,
+    "empty_answer_passed": 0,
+    "reason_says_opposite": 0,
+    "same_decision": null,
+    "tool": "records",
+    "tool_counted_as": null
+  },
+  "made": {
+    "marks": 40,
+    "pass": 22,
+    "fail": 18,
+    "sittings": 1,
+    "seconds": 6,
+    "under_second": 0,
+    "not_counted": 0,
+    "printed": 0,
+    "browser_env": 0,
+    "unsure": 0,
+    "after_result": 0
+  },
+  "fix_ready": true,
+  "smallest_drop": 30,
+  "picks": [],
+  "command": "judgekeeper",
+  "flags": {
+    "path": ".",
+    "port": 8765
+  },
+  "marks_sha256": "6a084baab1d85e6307220d120c2712601cb7216d16719f025d443d50be9498df"
+}

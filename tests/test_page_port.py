@@ -16,7 +16,7 @@ from judgekeeper.label import LabelServer, LabelSession
 from tests.start_projects import promptfoo_project, split
 from tests.test_front import next_lines
 
-ANOTHER = "A marking page for another project is open; close it there with `judgekeeper --stop`."
+ANOTHER = "A marking page for another project is open. Close it there with `judgekeeper --stop`."
 
 
 @pytest.fixture

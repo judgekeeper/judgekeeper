@@ -34,9 +34,6 @@ FIRST = 2 * ROUGH
 SEGMENTS = 16  # the bar's cells
 
 TITLE = "Mark each answer Pass or Fail."  # the welcome box: its logo, this headline and one button
-# under the headline: repeats are told, never shown (a repeat's card is not marked as one)
-REPEATS = ("Now and then an answer you marked comes back once, to see how steady your marks "
-           "are. Mark it as you see it.")
 RULE_CHARS = 2000  # of the rule shown; a longer one is cut, with "…"
 METRIC_CHARS = 200  # of the metric's name shown, the same way
 SHORT_QUESTION = 140  # characters of a one-line question shown as the big heading
@@ -76,6 +73,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .progress-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .keep { margin: 0; max-width: 40ch; font-size: 12.5px; line-height: 1.35; color: var(--muted);
   white-space: normal; text-align: right; }
+/* marks that wait: a row of its own under the top bar, so a long note never covers the list */
+.wait-note { flex: none; margin: 0; padding: 10px 28px; border-bottom: 1px solid var(--line);
+  font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.wait-note code { color: var(--text); }
 .see { font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none;
   white-space: nowrap; }
 .see:hover { text-decoration: underline; }
@@ -152,6 +153,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .status.calm { color: var(--muted); font-weight: 400; }
 .end { padding: 56px 28px; display: flex; flex-direction: column; align-items: center; gap: 24px;
   text-align: center; }
+.end.only { justify-content: center; }
 .end h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   max-width: 32ch; }
 .end .note { margin: 0; color: var(--muted); font-size: 15px; }
@@ -264,6 +266,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .foot { padding-top: 8px; padding-bottom: 8px; }
 }
 @media (max-width: 760px) {
+  .wait-note { padding: 10px 16px; }
   html, body { height: auto; }
   #app, .wrap { flex: none; min-height: 0; }
   .wrap { grid-template-columns: 1fr; height: auto; }
@@ -289,6 +292,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 BODY = """<div id="app">
 __TOP__
+<p class="wait-note" id="waiting" hidden></p>
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
@@ -316,7 +320,6 @@ __TOP__
   <div class="intro" id="intro-box" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
     __BRAND__
     <h2 id="intro-title">__TITLE__</h2>
-    <p class="note" id="intro-note">__REPEATS__</p>
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
@@ -335,6 +338,7 @@ __TOP__
 (function () {
   var TOKEN = "__TOKEN__", FIRST = __FIRST__, ROUGH = __ROUGH__, SEGMENTS = __SEGMENTS__, LOCK_MS = 400, SAVE_MS = 10000;
   var WORDS = __WORDS__;  // the link and the line under the bar (_words)
+  var OUTPUT_WORDS = __OUTPUT_WORDS__;  // the words of a part named as an answer
   // A question up to SHORT_Q characters on one line is a heading; an answer is read at its
   // size by length (up to SHORT_A, up to LONG_A, longer).
   var SHORT_Q = __SHORT_Q__, SHORT_A = __SHORT_A__, LONG_A = __LONG_A__;
@@ -347,7 +351,7 @@ __TOP__
   var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
-  var walkingSkipped = false;  // "Look at them": going through the skipped answers
+  var walkingSkipped = false;  // "Mark them" or "Look at them": going through the skipped ones
   var lockUntil = 0;         // clicks are ignored until then, after each mark
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
@@ -456,14 +460,21 @@ __TOP__
   }
   $("see").setAttribute("href", url("/result"));
 
-  // A question is text, or [[name, value], ...]. A part that is the answer itself is left
-  // out (it shows below); one part left shows as plain text, two or more under "Input", each
-  // name a small label above its value.
+  // A question is text, or [[name, value], ...]. A part named as an answer (mapper's
+  // OUTPUT_WORDS) that is the answer itself is left out (it shows below); any other part is
+  // kept, also one whose value happens to be the answer's text. One part left shows as plain
+  // text, two or more under "Input", each name a small label above its value.
+  function answerPart(name) {
+    return String(name).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase()
+      .split(/[^a-z0-9]+/).some(function (w) { return OUTPUT_WORDS.indexOf(w) > -1; });
+  }
   function question(it) {
     var value = it.input;
     if (!Array.isArray(value)) { return value == null ? "" : String(value); }
     var answer = String(it.output == null ? "" : it.output).trim();
-    value = value.filter(function (pair) { return String(pair[1]).trim() !== answer; });
+    value = value.filter(function (pair) {
+      return !(answerPart(pair[0]) && String(pair[1]).trim() === answer);
+    });
     return value.length > 1 ? value : value.length ? String(value[0][1]) : "";
   }
   function chars(text) { return Array.from(String(text)).length; }
@@ -632,7 +643,7 @@ __TOP__
   }
   if (answerArea()) { answerArea().addEventListener("scroll", fade); }
   window.addEventListener && window.addEventListener("resize", function () {
-    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); });
+    fitAnswer(); fade(); fitQuestion(); fitRule(); edges(); fitEnd(); });
   // Space, Page Down and the arrows up and down scroll the answer (Shift+Space and Page Up
   // back), also held, Home and End to its top and bottom; the open question or rule instead
   // while it has focus. Not on a phone, where the page itself scrolls.
@@ -666,30 +677,44 @@ __TOP__
   }
 
   // The answers list: the person's own marks only, each answer once (never one shown again).
+  // Drawn in place: each row's link is kept and only its text, icon and state change, rows
+  // added or taken away only as the list grows or shrinks, so a click pressed on a row while
+  // a mark is saved still lands on it when it is let go.
   var DOT = {none: '__DOT_NONE__', pass: '__DOT_PASS__', fail: '__DOT_FAIL__'};
   var SAID = {pass: "marked Pass", fail: "marked Fail"};
+  function newRow() {
+    var li = el("li"), a = el("a", "item"), title = el("span", "q"), dot = el("span", "dot-wrap");
+    a.href = "#";
+    title.setAttribute("dir", "auto");
+    dot.setAttribute("aria-hidden", "true");
+    a.appendChild(el("span", "num")); a.appendChild(title); a.appendChild(dot);
+    a.appendChild(el("span", "sr"));
+    li.appendChild(a);
+    return li;
+  }
+  function setRow(a, it, k, shown) {
+    var parts = a.children, dot = it.label || "none";
+    a.setAttribute("data-k", String(k));
+    if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
+    else { a.removeAttribute("aria-current"); }
+    parts[0].textContent = shown < 100 ? ("0" + shown).slice(-2) : String(shown);
+    parts[1].textContent = firstLine(it);
+    if (parts[2].getAttribute("data-dot") !== dot) {  // the icon only when it changes
+      parts[2].setAttribute("data-dot", dot);
+      parts[2].innerHTML = DOT[dot];  // fixed icon markup only, no data
+    }
+    parts[3].textContent = ", " + (SAID[it.label] || (it.skipped ? "skipped" : "not marked"));
+  }
   function renderQueue() {
-    var list = $("queue");
-    list.textContent = "";
-    var shown = 0;
+    var list = $("queue"), shown = 0;
     items.forEach(function (it, k) {
       if (it.again != null) { return; }
-      var li = el("li"), a = el("a", "item");
+      if (!list.children[shown]) { list.appendChild(newRow()); }
+      setRow(list.children[shown].children[0], it, k, shown + 1);
       shown += 1;
-      a.href = "#"; a.setAttribute("data-k", String(k));
-      if (k === pos && !ended) { a.setAttribute("aria-current", "true"); }
-      a.appendChild(el("span", "num", shown < 100 ? ("0" + shown).slice(-2) : String(shown)));
-      var title = el("span", "q", firstLine(it));
-      title.setAttribute("dir", "auto");
-      a.appendChild(title);
-      var dot = el("span", "dot-wrap");
-      dot.setAttribute("aria-hidden", "true");
-      dot.innerHTML = DOT[it.label || "none"];  // fixed icon markup only, no data
-      a.appendChild(dot);
-      a.appendChild(el("span", "sr", ", " + (SAID[it.label] || (it.skipped ? "skipped" :
-        "not marked"))));
-      li.appendChild(a); list.appendChild(li);
     });
+    while (list.children.length > shown) {
+      list.removeChild(list.children[list.children.length - 1]); }
     var now = list.querySelector("[aria-current]");
     if (now && (now.offsetTop < list.scrollTop ||
                 now.offsetTop + now.offsetHeight > list.scrollTop + list.clientHeight)) {
@@ -724,8 +749,15 @@ __TOP__
     var see = $("see"), keep = $("keep");
     see.hidden = !status.first;
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
-    keep.hidden = status.ready || (!status.first && looked < FIRST);
-    keep.textContent = status.first ? WORDS.first : WORDS.wait;
+    // the answers, without the cards shown again (each adds one to `total`, never a mark)
+    var answers = total - items.filter(function (it) { return it.again != null; }).length;
+    var few = answers < WORDS.minPool;  // fewer answers than a first result needs: said at once
+    keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST && !few);
+    // only skipped answers left (nothing else to mark): what the card in the middle says
+    var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= answers;
+    keep.textContent = onlySkipped ? (skippedLeft === 1 ? WORDS.skippedOne : WORDS.skippedMany
+      ).replace("{n}", String(skippedLeft)) : status.first ? WORDS.first
+      : few ? WORDS.few : status.group || WORDS.wait;
     $("waiting").hidden = !status.waiting;  // marks the LLM-as-a-judge never graded: once, here
     if (status.waiting) { setLine("waiting", status.waiting); }
   }
@@ -754,7 +786,8 @@ __TOP__
     shownAt = Date.now();
   }
 
-  function open(index) { ended = false; pos = index; render(); }
+  // A new answer opens with no word from the one before ("Marked Fail." was about that one)
+  function open(index) { ended = false; pos = index; clearTimeout(hearing); setText("done", ""); render(); }
 
   // The next answer still to mark (or, walking the skipped ones, still skipped), from `from`.
   // An answer shown again and skipped is not shown a third time.
@@ -775,16 +808,19 @@ __TOP__
     if (i === null && walkingSkipped) { walkingSkipped = false; i = nextIndex(pos + 1); }
     if (i !== null) { open(i); freshUntil = Date.now() + FRESH_MS; return; }
     if (total > items.length) { window.location.reload(); return; }
-    finish();
+    finish(changing);
   }
 
   // Nothing left to mark: the end card in the answer card's place. Every answer marked: the
   // result opens, or, when there is none yet (status.done), the end card says what comes
   // next. Some skipped: one button to look at them again (the bar keeps the link to the
-  // result, to leave them out).
-  function finish(opening) {
+  // result, to leave them out). `stay`: every answer was marked already (the page opened so,
+  // or a mark was changed): the card says how to change a mark, and Z undoes as usual.
+  var changing = false;
+  function finish(stay) {
     ended = true; busy = false;
-    $("answer-card").hidden = true; $("end").hidden = false;
+    $("answer-card").hidden = true; $("end").hidden = false; $("end").classList.remove("only");
+    fitEnd();
     renderQueue(); renderProgress();
     var skipped = items.filter(function (it) { return it.skipped && it.again == null; }).length;
     if (!skipped) {
@@ -795,7 +831,8 @@ __TOP__
         setText("end-title", status.done[0]); setLine("end-note", status.done[1]);
         focusCard(); return;
       }
-      if (opening) {  // opened with every answer marked: a mark can still be changed
+      if (stay) {  // a mark can still be changed; the bar links to the result
+        changing = true;
         var n = counts.correct + counts.wrong;
         setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
         setText("end-note", WORDS.change);
@@ -805,11 +842,28 @@ __TOP__
       return;
     }
     $("end-note").hidden = true;
-    setText("end-title", (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
-      ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out.");
-    setText("again", skipped === 1 ? "Look at it" : "Look at them");
+    // no coloured result yet: a mark more, or more answers, can bring it; with one, the
+    // skipped answers can be left out
+    setText("end-title", status && status.ready
+      ? (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
+        ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out."
+      : (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany).replace("{n}", String(skipped)));
+    var ready = !!(status && status.ready);  // else only the skipped answers are left: centred
+    setText("again", ready ? (skipped === 1 ? "Look at it" : "Look at them")
+      : (skipped === 1 ? "Mark it" : "Mark them"));
+    $("end").classList.toggle("only", !ready);
+    fitEnd();
     $("again").hidden = false;
     focusCard();  // the end card, not its button: no ring on open; Enter looks again
+  }
+  // On a phone the list follows the card: the card alone fills the rest of the screen, so
+  // its words sit in the middle as they do beside the list
+  function fitEnd() {
+    var e = $("end");
+    e.style.minHeight = "";
+    if (e.hidden || !e.classList.contains("only") || !media("(max-width: 760px)")) { return; }
+    var top = e.getBoundingClientRect().top + (window.scrollY || 0);
+    e.style.minHeight = Math.max(0, window.innerHeight - top) + "px";
   }
   function lookAgain() { walkingSkipped = true; open(nextIndex(0)); focusCard(); }
   $("again").addEventListener("click", lookAgain);
@@ -836,8 +890,8 @@ __TOP__
       if (items[k].again !== slot) { continue; }
       items.splice(k, 1); total -= 1;
       if (k < pos) { pos -= 1; }
-      history = history.filter(function (h) { return h !== k; })
-        .map(function (h) { return h > k ? h - 1 : h; });
+      history = history.filter(function (h) { return h.pos !== k; })
+        .map(function (h) { return h.pos > k ? {pos: h.pos - 1, was: h.was} : h; });
     }
   }
 
@@ -850,8 +904,8 @@ __TOP__
     }).then(function (s) {
       items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
       version = s.version; history = []; walkingSkipped = false;
-      hear(heard);
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
+      hear(heard);
       if (popup && !readyShown && !ended) { showReady(); }
     }).catch(function () { window.location.reload(); });
   }
@@ -918,27 +972,32 @@ __TOP__
     if (ended || fresh() || locked(key)) { return; }
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
+    var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
+    if (was) { changing = true; }
     send({label: value}, function () {
-      it.label = value; it.skipped = false; history.push(pos);
-      hear(heard); next(); focusCard(); }, heard);
+      it.label = value; it.skipped = false; history.push({pos: pos, was: was});
+      next(); hear(heard); focusCard(); }, heard);
   }
 
   function skip(key) {
     if (ended || fresh() || locked(key)) { return; }
-    var it = items[pos];
+    var it = items[pos], was = it.label;
     send({deferred: true}, function () {
-      it.label = null; it.skipped = true; history.push(pos);
-      hear("Skipped."); next(); focusCard(); }, "Skipped.");
+      it.label = null; it.skipped = true; history.push({pos: pos, was: was});
+      next(); hear("Skipped."); focusCard(); }, "Skipped.");
   }
 
+  // Z: a first mark (or skip) is taken back; a changed mark goes back to the mark it had (an
+  // ordinary mark line in marks.jsonl, so every step stays there).
   function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
     var back = history.pop();
-    walkingSkipped = false; open(back);
+    walkingSkipped = false; open(back.pos);
     var it = items[pos];
-    send({label: null, deferred: false}, function () {
-      it.label = null; it.skipped = false; hear("Undone."); render(); focusCard(); }, "Undone.");
+    send({label: back.was, deferred: false}, function () {
+      it.label = back.was; it.skipped = false; hear("Undone."); render(); focusCard(); },
+      "Undone.");
   }
 
   // Mouse presses never leave focus on a button; focus stays on the answer.
@@ -969,18 +1028,14 @@ __TOP__
     e.preventDefault();
   });
 
-  // The welcome box: once per browser (the browser's storage, when it allows it). The page
-  // behind it is inert. Enter or Esc starts; focus stays in the box; the button is not
-  // focused, so no ring shows.
-  var INTRO_KEY = "judgekeeper-intro-seen", box = $("intro-box");
-  function seenIntro() {
-    try { return window.localStorage.getItem(INTRO_KEY) === "1"; } catch (e) { return false; }
-  }
+  // The welcome box: while the project has no marks yet (the server says so with `intro`),
+  // on any port and in any browser. The page behind it is inert. Enter or Esc starts; focus
+  // stays in the box; the button is not focused, so no ring shows.
+  var box = $("intro-box");
   function startMarking() {
     $("intro").hidden = true; $("app").removeAttribute("inert");
     shownAt = Date.now();  // the answer is on screen from now
     freshUntil = shownAt + FRESH_MS;  // and a key within FRESH_MS of it is not meant for it
-    try { window.localStorage.setItem(INTRO_KEY, "1"); } catch (e) { /* shown again next time */ }
     focusCard();
   }
   $("intro-ok").addEventListener("click", startMarking);
@@ -1017,7 +1072,7 @@ __TOP__
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }
-  if (!seenIntro()) {
+  if (left && data.intro === true) {  // nothing left to mark: no box over "You have marked all"
     $("intro").hidden = false; $("app").setAttribute("inert", "");
     box.focus();
   } else if (left) { focusCard(); }
@@ -1029,6 +1084,7 @@ __TOP__
 
 
 KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fail marks."
+FEW_ANSWERS = "A first result needs at least {n} answers. Your marks are kept for when more answers come."
 SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
 SEE_READY = "See your result"
 
@@ -1043,12 +1099,12 @@ def _progress() -> str:
             f'aria-valuenow="0">{"<i></i>" * SEGMENTS}</div>'
             '<span class="count" id="count">0 marked</span>'
             f'<a class="see" id="see" href="#" hidden>{escape(SEE_READY)}</a></div>'
-            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p>'
-            '<p class="keep" id="waiting" hidden></p></div>')
+            f'<p class="keep" id="keep" hidden>{escape(KEEP_GOING)}</p></div>')
 
 
+# Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
-          "{command} in your project folder. Your marks are kept.")  # gone, or no answer
+             "the command at the bottom of this page. Your marks are kept.")
 
 
 def _words() -> str:
@@ -1056,13 +1112,19 @@ def _words() -> str:
     numbers, from them until a coloured verdict, and with one; and the line said when a mark
     can't be saved."""
     from judgekeeper.front import CHANGE_MARK
-    from judgekeeper.start_label import FIRST_NUMBERS
-    from judgekeeper.textio import program
+    from judgekeeper.start import MIN_POOL
+    from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER.format(command=visible(program("mark"))),
-             "change": CHANGE_MARK}
-    return json.dumps(words).replace("<", "\\u003c")
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER,
+             "change": CHANGE_MARK,
+             # the end card with only skipped answers left; the page puts in their number
+             "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
+             "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}"),
+             # fewer answers than a first result needs (start.MIN_POOL): as `mark` says it
+             "few": FEW_ANSWERS.format(n=MIN_POOL), "minPool": MIN_POOL}
+    # no `_` either: a command can never hold a name the server fills in (_text)
+    return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 
 
 def _shown(value: str) -> str:
@@ -1102,6 +1164,7 @@ def label_page(description: str | None, command: str | None = None,
     answer (_graded). `description` (the app the answers came from, as the results name it)
     is not shown: the results name one source, the same on every answer.
     The server fills in __DATA__, __TOKEN__ and __NONCE__."""
+    from judgekeeper.mapper import OUTPUT_WORDS
     from judgekeeper.textio import PLACEHOLDER, program
 
     command = command or program("mark")
@@ -1113,9 +1176,9 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
-            .replace("__REPEATS__", _text(REPEATS))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
+            .replace("__OUTPUT_WORDS__", json.dumps(OUTPUT_WORDS))
             .replace("__SHORT_Q__", str(SHORT_QUESTION))
             .replace("__SHORT_A__", str(SHORT_ANSWER)).replace("__LONG_A__", str(LONG_ANSWER))
             .replace("__BRAND__", look.BRAND)
@@ -1139,7 +1202,7 @@ OLD_LINK_CSP = ("default-src 'none'; style-src 'unsafe-inline'; font-src data:; 
                 "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
 
-WRONG_HOST = ("Open the link just as judgekeeper printed it. It starts with "
+WRONG_HOST = ("Open the link as judgekeeper printed it. It starts with "
               "http://127.0.0.1:{port}/.")
 
 

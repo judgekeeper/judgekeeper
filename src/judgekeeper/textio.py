@@ -56,15 +56,21 @@ def tick(stream=None) -> str:
 def lenient_streams() -> None:
     """Make stdout and stderr replace a character they cannot encode instead of raising.
 
-    A Windows terminal on a legacy code page (cp1252) has no arrow; printing one must not
-    stop a command. A UTF-8 terminal encodes everything, so nothing changes there.
+    A Windows terminal on a legacy code page (cp1252) has no arrow, and printing one must not
+    stop a command. A UTF-8 terminal encodes everything, so nothing changes there. Piped on
+    Windows (a script or a coding agent reads it), the output is UTF-8, as judgekeeper's files
+    are, unless PYTHONIOENCODING chose an encoding.
     """
+    utf8 = is_windows() and not os.environ.get("PYTHONIOENCODING")
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is None:
             continue
         try:
-            reconfigure(errors="replace")
+            if utf8 and not stream.isatty():
+                reconfigure(encoding="utf-8", errors="replace")
+            else:
+                reconfigure(errors="replace")
         except (ValueError, OSError):  # closed or detached: leave it as it is
             pass
 
@@ -145,20 +151,27 @@ def _started_as_judgekeeper() -> bool:
     return started_with_python_m() or os.path.basename(typed).lower() in SCRIPT_NAMES
 
 
-def command_path(path: str) -> str:
+def command_path(path: str, climb: bool = True) -> str:
     """`path` as a program to run from this folder (or run_from's), quoted: relative when the
     two share a folder below the top and the home folder's parents (shares_below_home), with
     a folder in it so the shell never looks it up on the PATH; else under the home folder as
     `~/...`: never the user name; else, or on another drive, the path as it is. From
     ANYWHERE: never relative. On Windows, never `%USERPROFILE%` (PowerShell doesn't read it):
     the shorter form cmd.exe and PowerShell both run (in_both_shells), from here or the path
-    as it is; else from here, quoted (else the path as it is)."""
+    as it is; else from here, quoted (else the path as it is). Without `climb`, never a
+    path from here that climbs with `..` (a python run so warns, Python 3.14 with the home
+    path in it). A whole path is named without `..` in it (sys.executable may hold one), as
+    relpath names it from here."""
+    if os.path.isabs(path):
+        path = os.path.normpath(path)
     try:
         here = os.getcwd() if _from is None else _from
         shown = os.path.relpath(path, here) if here != ANYWHERE else None
         shared = os.path.commonpath([here, path]) if here != ANYWHERE else os.sep
     except (OSError, ValueError):
         shown = shared = None
+    if not climb and shown is not None and shown.replace("\\", "/").split("/")[0] == os.pardir:
+        shown = None
     if shown is not None and os.sep not in shown and "/" not in shown:
         shown = os.path.join(os.curdir, shown)
     if is_windows():  # never %USERPROFILE%: PowerShell doesn't read it
@@ -169,7 +182,7 @@ def command_path(path: str) -> str:
         return quote_arg(shown if shown is not None else path)  # quoted: cmd.exe runs it
     if shared is None:
         return quote_arg(path)
-    if shares_below_home(shared):  # more than the top in common: from here
+    if shown is not None and shares_below_home(shared):  # more than the top in common
         return quote_arg(shown)
     inside = _in_home(path)
     return quote_arg(path) if inside is None else (_home_command(inside) or quote_arg(path))
@@ -205,6 +218,23 @@ def _home_shown(inside: str) -> str:
     return HOME_FORMS[0] + inside.replace(os.sep, "/")
 
 
+def home_folder_shown(path) -> str | None:
+    """A folder that is the home folder or inside it, as a line names it (_home_shown, with
+    its separator at the end: `~/`, `~/Desktop/`); else None."""
+    try:
+        real = os.path.realpath(path)
+        home = os.path.realpath(Path.home())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if os.path.normcase(real) == os.path.normcase(home):
+        return _home_shown("")
+    inside = _in_home(real)
+    if inside is None:
+        return None
+    shown = _home_shown(inside)
+    return shown + ("\\" if is_windows() else "/")
+
+
 def _home_command(inside: str) -> str | None:
     """`_home_shown`, quoted for a shell with the home part left outside the quotes (the
     shell reads it there; cmd reads %USERPROFILE% inside double quotes too). None when the
@@ -238,7 +268,7 @@ def off_path(any_start: bool = False) -> str | None:
     python = "py" if is_windows() else "python3"
     if imports_judgekeeper(python):
         return f"{python} -P -m judgekeeper"
-    python = f"{command_path(sys.executable)} -P -m judgekeeper"
+    python = f"{command_path(sys.executable, climb=False)} -P -m judgekeeper"
     if script:
         shown = command_path(os.path.abspath(typed))
         if is_windows() and not in_both_shells(shown) and in_both_shells(python):
@@ -493,9 +523,37 @@ last_read: str | None = None  # the name of the last file read_utf8 read, for an
 next_said = False  # a Next: line was said, the run's last word: a Ctrl-C after it adds none
 
 
+ctrl_c: list[bool] = []  # holds True once this run noted a Ctrl-C (note_ctrl_c)
+
+
+def note_ctrl_c(signum, frame) -> None:
+    """Python's own Ctrl-C (KeyboardInterrupt), noted first (cli.main puts it in for the run):
+    a library that swallows the KeyboardInterrupt (raised inside its import, where Python
+    would say "Exception ignored" with a traceback and go on) can't make the run carry on, and
+    nothing is printed for it: the run says "Stopped."."""
+    ctrl_c.append(True)
+    sys.unraisablehook = _unsaid
+    raise KeyboardInterrupt
+
+
+def _unsaid(unraisable) -> None:
+    """An error Python could only print (a Ctrl-C swallowed, what it left half done): the run
+    is stopping, so it is not printed."""
+
+
+def stop_if_noted() -> None:
+    """A Ctrl-C a library swallowed stops the run here (cli._stopped), before its next line
+    or the next check of a long read, unless the run has said its Next: line."""
+    if ctrl_c and not next_said:
+        ctrl_c.clear()
+        raise KeyboardInterrupt
+
+
 def said_next(text: str) -> None:
-    """Note a line about to be printed: a Next: line ends what the command says."""
+    """Note a line about to be printed: a Next: line ends what the command says. After a
+    Ctrl-C a library swallowed, the run stops instead, before this line."""
     global next_said
+    stop_if_noted()
     if text.startswith("Next:"):
         next_said = True
 PROGRESS_AFTER = 2  # seconds of reading before the first "Reading ..." line
@@ -517,6 +575,7 @@ def reading(n: int, name: str | None = None) -> None:
         _reading.update(since=_clock(), said=None)
     if n % 500:
         return
+    stop_if_noted()  # a swallowed Ctrl-C: the read stops, not after the whole file
     now, said = _clock(), _reading["said"]
     if now - _reading["since"] < PROGRESS_AFTER or (said is not None
                                                     and now - said < PROGRESS_EVERY):
@@ -890,7 +949,7 @@ def shown_in(path, root) -> str:
             return real.relative_to(top).as_posix()
     except (OSError, RuntimeError, ValueError):
         pass
-    return shown_from_here(path)
+    return line_path(path)  # a typed path with `/` too, beside the found ones
 
 
 def _from_below_home(real: str, start) -> str | None:
@@ -905,11 +964,79 @@ def _from_below_home(real: str, start) -> str | None:
     return rel.replace(os.sep, "/") if shares_below_home(shared) else None
 
 
+CUT = "\u2026"  # a folder in another person's home folder, cut short (folder_from_here)
+
+
+def home_word() -> str:
+    """The home folder itself as folder_from_here names it: `~`, `%USERPROFILE%` on Windows."""
+    return HOME_FORMS[1].rstrip("\\") if is_windows() else HOME_FORMS[0].rstrip("/")
+
+
+def _is_home(real: str) -> bool:
+    try:
+        return os.path.normcase(real) == os.path.normcase(os.path.realpath(Path.home()))
+    except (OSError, RuntimeError):
+        return False
+
+
+def cut_short(shown: str) -> bool:
+    """Whether a folder_from_here name is one in another person's home folder, cut short:
+    no line can send the person there by it."""
+    return CUT in shown
+
+
+def folder_from_here(path) -> str:
+    """A folder as a line names it, to go to: from here when the two share a folder below the
+    home folder's parents (_from_below_home); else in the home folder, `~/...`; else in
+    another person's home folder (beside this one), `/.../its name`; else from here (another
+    drive: the path as it is). The home folder itself is `~` (`%USERPROFILE%` on Windows).
+    Never a user name. folder_of turns it back into the folder."""
+    real = os.path.realpath(path)
+    rel = _from_below_home(real, os.getcwd())
+    if rel is not None:
+        return rel
+    if (inside := _in_home(real)) is not None:
+        return _home_shown(inside)
+    if _is_home(real):
+        return home_word()
+    try:
+        homes = os.path.dirname(os.path.realpath(Path.home()))
+        if os.path.commonpath([homes, real]) == homes and real != homes:
+            return f"{Path(real).anchor}{CUT}/{Path(real).name}".replace("\\", "/")
+        return os.path.relpath(real, os.getcwd()).replace(os.sep, "/")
+    except (OSError, RuntimeError, ValueError):  # another drive (Windows)
+        return Path(real).as_posix()
+
+
+def folder_of(shown: str, base) -> Path | str:
+    """The folder a folder_from_here name (from `base`) stands for; ANYWHERE when it was cut
+    short, so a command for it is one that runs in any folder."""
+    if shown == home_word():
+        return Path.home()
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return Path.home() / shown[len(form):]
+    if CUT in shown:
+        return ANYWHERE
+    return Path(base) / shown
+
+
+def cd_word(shown: str) -> str:
+    """A folder_from_here name as `cd` is given it: quoted, with `~/` outside the quotes."""
+    if shown == home_word():
+        return shown
+    for form in HOME_FORMS:
+        if shown.startswith(form):
+            return _home_command(shown[len(form):]) or quote_arg(shown)
+    return quote_arg(shown)
+
+
 def kept_path(path, root) -> str:
-    """`path` as a file in .judgekeeper/ keeps it: from the project folder `root` when the two
-    share a folder below the home folder's parents (`..` allowed, `/` between folders); else
-    in the home folder, `~/...`; else its base name. Never the whole path nor the user
-    name."""
+    """`path` as a file in .judgekeeper/ keeps it, to find it again (kept_at): from the
+    project folder `root` when the two share a folder below the home folder's parents (`..`
+    allowed, `/` between folders); else in the home folder, `~/...`; else, outside the home
+    folders, its whole path when it names no person (name_only_why); else (in another
+    person's home folder, say) its base name. Never the user name."""
     real = os.path.realpath(path)
     rel = _from_below_home(real, root)
     if rel is not None:
@@ -917,7 +1044,42 @@ def kept_path(path, root) -> str:
     inside = _in_home(real)
     if inside is not None:
         return HOME_FORMS[0] + inside.replace(os.sep, "/")
+    if name_only_why(real) is None:
+        return Path(real).as_posix()
     return Path(os.fsdecode(path)).name
+
+
+def name_only_why(real: str) -> str | None:
+    """Why the whole path `real` can't be kept, as it names a person: "theirs" when it is in
+    the folder of home folders (another person's home folder, say), "yours" when a folder in
+    it holds the user's name (the home folder's, or the login's: a temporary folder can hold
+    it), on any drive; else None."""
+    import getpass
+
+    try:
+        home = os.path.realpath(Path.home())
+    except (OSError, RuntimeError):
+        home = ""
+    try:
+        homes = os.path.dirname(home)
+        if home and os.path.normcase(os.path.commonpath([homes, real])) == os.path.normcase(homes):
+            return "theirs"
+    except ValueError:  # another drive (Windows): not under them
+        pass
+    try:
+        login = getpass.getuser()
+    except (OSError, KeyError, ImportError):  # no login name to be had
+        login = ""
+    names = {n.lower() for n in (os.path.basename(home), login) if n}
+    return "yours" if any(n in part.lower() for n in names for part in Path(real).parts) else None
+
+
+def found_again(path, root) -> bool:
+    """Whether the path .judgekeeper/ keeps for `path` (kept_path) leads back to it."""
+    try:
+        return os.path.samefile(kept_at(kept_path(path, root), root), path)
+    except OSError:
+        return False
 
 
 def kept_at(kept: str, root) -> str:
@@ -935,6 +1097,16 @@ def shown_from_here(value) -> str:
     text = os.fsdecode(value)
     shown = from_here(text, labels=False)
     return Path(text).name if shown in ANOTHER_DRIVE else shown
+
+
+def line_path(value) -> str:
+    """shown_from_here, for a line that names paths side by side: from here with `/` between
+    folders, a typed path too (as from_here names the ones it works out), and in the home
+    folder in its own form (`%USERPROFILE%\\...` on Windows), as every line names it."""
+    shown = shown_from_here(value)
+    if not is_windows() or shown.startswith(HOME_FORMS[1]):
+        return shown
+    return shown.replace("\\", "/")
 
 
 def folder_words(shown: str) -> str:
@@ -1207,12 +1379,9 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     import re
     import textwrap
 
-    from judgekeeper.links import keep as keep_links
-    from judgekeeper.links import stand_ins
     from judgekeeper.redact import one_line, scrub
 
-    text, links_back = stand_ins(keep_links(
-        text, lambda part: "\n".join(one_line(x) for x in (scrub(part) or "").split("\n"))))
+    text = "\n".join(one_line(x) for x in (scrub(text) or "").split("\n"))
     text = text[:1] + re.sub(r"(?<!\s)\s+(?=Next:)", "\0", text[1:])
     keep = (re.findall(r"`[^`]*`", text) + [w for w in WHOLE if w in text]
             + sorted((p for p in _spaced if p in text), key=len, reverse=True))
@@ -1222,4 +1391,4 @@ def wrap(text: str, width: int = WIDTH, indent: str = "") -> list[str]:
     for piece in text.split("\n"):
         lines += textwrap.wrap(piece, width, initial_indent=indent, subsequent_indent=indent,
                                break_long_words=False, break_on_hyphens=False) or [indent.rstrip()]
-    return [links_back(line.replace("\0", " ")) for line in lines]
+    return [line.replace("\0", " ") for line in lines]

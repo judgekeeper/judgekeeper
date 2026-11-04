@@ -10,7 +10,7 @@ judgekeeper's result, in both runs: **needs work**. For setups A and B, the shar
 - **The LLM-as-a-judge setups:** A is Claude Haiku 5.5 (`claude-haiku-5-5`) and B is Claude Sonnet 5.5 (`claude-sonnet-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`). Effort was not set, so each ran at its API default, as in the news-summary check: medium for A, high for B.
 - **The rule:** frozen on 2026-10-30, before any result (`rule.txt`): "Every claim in the answer is supported by the passages. Pass if every claim is supported by the passages. Fail if any claim is not supported by the passages or contradicts them." It is the news-summary rule with "answer" and "passages" in place of "summary" and "article". The question is shown to the LLM-as-a-judge above the passages, because a short answer cannot be read without it; nothing else was added.
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
-- **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
+- **How the marks were entered:** a script entered them through the marking page's own calls, so the Measure screens note that the marks came through a link printed with no terminal.
 - **Runs:** 1 per LLM-as-a-judge, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
 
 ## How often each LLM-as-a-judge agrees with people
@@ -45,7 +45,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Llama-2 and Mistral-7B answers, while 39 of the 100 Passes come from the two GPT models and only 5 of the 100 Fails do (`sample-ids.json`).
 - **The answers aren't fully independent:** the 200 come from 104 questions.
 - **Temperature 1,** because these models refuse 0.
-- **Never publish the passages, the questions, the answers or the LLM-as-a-judge reasons (the reasons quote them):** publish only ids, grades, counts and ranges.
+- **No text is published:** no passages, questions, answers or LLM-as-a-judge reasons, because the reasons quote them. The repository holds only ids, grades, counts and ranges.
 
 ## Files
 
@@ -53,7 +53,7 @@ The news-summary check found two things: the setups failed most of what people f
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the run.
 - **`ids-and-grades.csv`:** each answer's id, both setups' grades (`none` where there was no real decision) and the people's label. No text, so the numbers above can be counted again.
-- **`measure/`:** the Measure screen of each of the 2 runs.
+- **`measure/`:** the Measure screen of each of the 2 runs. The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
 - **`notes.txt`:** dates, effort, token counts and cost.
 
 Each Measure screen in `measure/` starts with a header: the dataset, its commit, the subset and split, and where the grades come from.

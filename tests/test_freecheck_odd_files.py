@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from judgekeeper import front, start
+from judgekeeper import front, mapper, start
 from tests.test_freecheck_parity import NODE, _page, browser, tool
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="needs node to run the page's free check")
@@ -87,6 +87,68 @@ def test_a_quote_that_closes_only_on_a_later_row_names_its_line(tmp_path, grade)
                                  "rows after it can't be read.")
 
 
+@pytest.mark.parametrize("header", ["input,output,verdict", "question,answer,grade"])
+@pytest.mark.parametrize("more, end, suffix", [(0, "", ".csv"), (10, "", ".csv"),
+                                               (10, "\n", ".csv"), (10, "", ".tsv")])
+def test_a_table_cut_off_inside_a_quote_says_it_ends_in_the_middle(tmp_path, header, more,
+                                                                   end, suffix):
+    """Cut in a row's last cell, or part way through a row (with or without a line break)."""
+    sep = "\t" if suffix == ".tsv" else ","
+    rows = [f"question {i},answer {i},{'pass' if i % 2 else 'fail'}" for i in range(60)]
+    text = "\n".join([header, *rows]).replace(",", sep) + "\n"
+    path = tmp_path / f"judged{suffix}"
+    path.write_text(text[:len(text) // 3 + more] + '"unterminated' + end, encoding="utf-8")
+    if header.startswith("input"):
+        with pytest.raises(start.StartError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)\. Save it again from your eval tool\."):
+            start.find_judge(path)
+    else:  # read by its columns' names
+        with pytest.raises(mapper.MapError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)$"):
+            mapper.load_numbered(path)
+    result = browser(path)
+    assert result["ok"] is False
+    assert result["message"] == ("This file is cut off or damaged (it ends in the middle). Save "
+                                 "it again from your eval tool.")
+
+
+@pytest.mark.parametrize("last, cut", [('q 12,"a 12, as our policy "unterminated', True),
+                                       ('q 12,"a 12, as our "p', True),
+                                       ('q 12,"a 12, a ""quoted"" word."', False),
+                                       ('q 12,"a 12, 5"" wide",pass', False),
+                                       ('q 12,"a 12, as our " p', True),
+                                       ('q 12,"a 12.","pass" ', False),
+                                       ('q 12,"a 12.","pass"\t', False)])
+def test_a_table_cut_in_a_quoted_cell_just_after_a_quote(tmp_path, last, cut):
+    """Text after a closing quote, where the file stops: cut off; doubled quotes, or only a
+    space or tab after it: whole."""
+    rows = [f'question {i},"answer {i}, in full.",{"pass" if i % 2 else "fail"}'
+            for i in range(12)]
+    path = tmp_path / "judged.csv"
+    path.write_text("\n".join(["input,output,verdict", *rows, last]), encoding="utf-8")
+    result = browser(path)
+    if cut:
+        with pytest.raises(start.StartError, match=rf"{path.name} is cut off or damaged \(it "
+                           r"ends in the middle\)\. Save it again from your eval tool\."):
+            start.find_judge(path)
+        assert result["ok"] is False
+        assert result["message"] == ("This file is cut off or damaged (it ends in the middle). "
+                                     "Save it again from your eval tool.")
+    else:
+        start.find_judge(path)
+        assert result["ok"] is True
+        assert _page(result) == tool(path)
+
+
+@pytest.mark.parametrize("last", ['q 12,a 12', 'q 12,"a 12, 5"" wide",pass', 'q 12,5" wide,fail'])
+def test_a_last_row_whole_or_with_no_quote_left_open_is_read(tmp_path, last):
+    rows = [f"question {i},answer {i},{'pass' if i % 2 else 'fail'}" for i in range(12)]
+    path = _csv(tmp_path / "judged.csv", "input,output,verdict", [*rows, last])
+    start.find_judge(path)
+    assert browser(path)["ok"] is True
+    assert _page(browser(path)) == tool(path)
+
+
 def test_a_long_answer_in_a_score_table_is_not_a_broken_quote(tmp_path):
     """Lines of the answer split into as many values as a row, with no score on them."""
     long = "\n".join(f"Point {k}, the fee, the term, the rules, and what members ask about "
@@ -116,8 +178,22 @@ def test_the_judge_line_names_the_models_the_tool_names(tmp_path):
     path = _csv(tmp_path / "judged.csv", "input,output,verdict,judge_model",
                 [*rows, "q 6,a 6,,old-model-made-up"])
     (judge,) = browser(path)["judges"]
-    assert judge["models"] == ["gpt-4.1"]
-    assert "LLM-as-a-judge:  gpt-4.1" in judge["lines"]
+    assert judge["models"] == ["gpt-4.1", "old-model-made-up"]  # a model column takes any name
+    assert "LLM-as-a-judge:  gpt-4.1, old-model-made-up" in judge["lines"]
+    assert _page(browser(path)) == tool(path)
+
+
+@pytest.mark.parametrize("value", ["judge-model-x", "string_match"])
+def test_a_model_column_is_read_or_said_as_the_tool_does(tmp_path, value):
+    rows = [f"q {i},a {i},{'pass' if i % 2 else 'fail'},{value}" for i in range(6)]
+    path = _csv(tmp_path / "judged.csv", "input,output,verdict,model", rows)
+    (judge,) = browser(path)["judges"]
+    named = value == "judge-model-x"
+    assert judge["models"] == ([value] if named else [])
+    assert (["model", "the model column"] in judge["readRows"]) is named
+    note = " " * 17 + "The model column holds no model's name."
+    assert (note in judge["lines"]) is not named
+    assert (note in front.found_block(start.find_judge(path))) is not named
     assert _page(browser(path)) == tool(path)
 
 
@@ -131,7 +207,8 @@ def test_an_ods_file_is_named_as_a_spreadsheet(tmp_path):
     result = browser(path)
     assert result["ok"] is False
     assert "Inspect AI" not in result["message"]
-    assert result["message"] == "Spreadsheet files aren't read. Save it as CSV UTF-8."
+    assert result["message"] == ("This page does not read spreadsheet files. Save the sheet as "
+                                 "CSV UTF-8.")
 
 
 # one answer run three times is "1 answer" ----------------------------------------------
@@ -309,13 +386,13 @@ UNEVEN = "(your file has 7 results: some answers are in it more than once"
 @pytest.mark.parametrize("shape, answers, note", [
     # A real file: 6 prompts run 3 times, one of them graded 1 Pass and 2 Fail
     ({"flips": [(0, 1), (0, 2)]}, 8,
-     f"{ALL}. {SAME} 1 answer got different grades, so its 3 repeats each count.)"),
+     f"{ALL}. {SAME} 1 answer got different grades, so each of its 3 repeats counts.)"),
     ({"flips": [(0, 1), (0, 2), (1, 1), (1, 2)]}, 10,
-     f"{ALL}. {SAME} 2 answers got different grades, so their 6 repeats each count.)"),
+     f"{ALL}. {SAME} 2 answers got different grades, so each of their 6 repeats counts.)"),
     ({}, 6, f"{ALL}, so each counts once.)"),
     ({"times": 1, "extra": [(0, True)]}, 6, f"{UNEVEN}, so each counts once.)"),
     ({"times": 1, "extra": [(0, False)]}, 7,
-     f"{UNEVEN}. {SAME} 1 answer got different grades, so its 2 repeats each count.)"),
+     f"{UNEVEN}. {SAME} 1 answer got different grades, so each of its 2 repeats counts.)"),
 ])
 def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, shape, answers,
                                                                        note):
@@ -330,3 +407,22 @@ def test_the_page_and_the_tool_say_repeated_answers_in_the_same_lines(tmp_path, 
     # said once, under Answers: no second line about the repeats among the notes
     for lines in (judge["lines"], front._notes(found)):
         assert not any("its own answer" in line or "repeats in all" in line for line in lines)
+
+
+# an empty file is called empty, by the page and by the tool -----------------------------
+
+@pytest.mark.parametrize("name, data", [("results.json", b""), ("results.csv", b""),
+                                        ("results.jsonl", b""), ("results.json", b"\xef\xbb\xbf")])
+def test_an_empty_file_is_called_empty_by_the_page_and_the_tool(tmp_path, monkeypatch, capsys,
+                                                                name, data):
+    from judgekeeper.cli import main
+
+    path = tmp_path / name
+    path.write_bytes(data)
+    result = browser(path)
+    assert result["ok"] is False and result["message"] == "This file is empty."
+    monkeypatch.chdir(tmp_path)
+    assert main([name, "--no-browser", "--port", "0"]) == 2
+    out = " ".join(capsys.readouterr().err.split())
+    assert f"{name} is empty, so judgekeeper can't read it." in out, out
+    assert f"Next: save your results to {name}, then run" in out, out

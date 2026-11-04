@@ -389,9 +389,9 @@ def test_each_heading_has_its_own_kept_aside_line_under_it():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"] - 4, c["strict"] - 1))
     assert ('<h2 id="g-easy">You said Fail, your <span class="term">LLM-as-a-judge</span> said '
-            f'Pass</h2></div><p class="kept">4 more are {HIDDEN}</p>') in html
+            f'Pass</h2></div><p class="kept">4 more of these are {HIDDEN}</p>') in html
     assert "shown;" not in html and "* " not in _text(html)
-    assert f'<p class="kept">1 more is {HIDDEN}</p>' in html
+    assert f'<p class="kept">1 more of these is {HIDDEN}</p>' in html
     none = _html(_mistakes(c["easy"], c["strict"]))
     assert 'class="kept"' not in none and "more are hidden" not in none
 
@@ -402,8 +402,9 @@ def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
         html = unwrapped(report_page.page(r, back="/?token=t" if live else None,
                                           fixing={"mistakes": [], "split_unknown": True}))
         assert "kept aside to test" not in html and 'class="group' not in html
-        assert ('<p class="add-why">judgekeeper can\'t tell which answers are kept aside: run '
-                '<code>judgekeeper fix</code> to see why.</p>') in html.replace("&#x27;", "'")
+        assert ('<p class="add-why">judgekeeper can\'t use the file that says which answers are '
+                'kept aside. Run <code>judgekeeper fix</code> to see why and what to do.</p>'
+                ) in html.replace("&#x27;", "'")
     plain = report_page.page(r, fixing={"mistakes": []})  # a split that was read: none kept
     assert "can't tell which" not in plain.replace("&#x27;", "'")
 
@@ -413,7 +414,7 @@ def test_a_group_with_none_shown_is_left_out_but_still_counted():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"], 0))
     assert 'id="g-strict"' not in html and "said Fail (0" not in html
-    assert f"{c['strict']} more are {HIDDEN}" in html
+    assert f"{c['strict']} more disagreements are {HIDDEN}" in html
 
 
 OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
@@ -498,9 +499,9 @@ def test_a_many_field_question_shows_its_field_names_as_labels():
 
 def test_one_disagreement_reads_in_the_singular():
     assert (start_label.say_why_run(1, "judgekeeper mark") ==
-            "Tell judgekeeper why you disagree on this one: run `judgekeeper mark`.")
+            "To tell judgekeeper why you disagree on this one, run `judgekeeper mark`.")
     assert (start_label.say_why_run(3, "judgekeeper mark") ==
-            "Tell judgekeeper why you disagree on these 3: run `judgekeeper mark`.")
+            "To tell judgekeeper why you disagree on 3 of them, run `judgekeeper mark`.")
     assert reasons.parts_left_out_line(1) == "“Other…” covers the other part of your rule."
     assert reasons.parts_left_out_line(2) == "“Other…” covers the 2 other parts of your rule."
 

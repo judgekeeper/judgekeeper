@@ -103,7 +103,7 @@ def test_measure_with_the_page_closed_asks_why_with_the_mark_command(here, capsy
         code, out = _run(capsys)
         assert code == 0, out
         assert "You and your LLM-as-a-judge disagreed on" in out, out
-        assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+        assert re.search(r"To tell judgekeeper why you disagree on (\d+ of them|this one), run "
                          r"`judgekeeper mark`\.", " ".join(out.split())), out
         assert "The Next step below" not in out, out
         assert_one_next_at_the_end(out)
@@ -138,7 +138,7 @@ def _posted(path, gap: int, n: int = 60) -> None:
 def test_marks_posted_fast_without_seconds_look_like_a_program(tmp_path):
     _posted(tmp_path / "marks.jsonl", gap=0)
     lines = start_label.made_lines(marks.made(marks.read(tmp_path / "marks.jsonl")))
-    assert any("This looks like a program, not a person." in line for line in lines), lines
+    assert any("That is faster than a person reads, so a program may have made them." in line for line in lines), lines
 
 
 def test_marks_posted_slowly_without_seconds_are_not_called_a_program(tmp_path):
@@ -180,7 +180,7 @@ def test_ctrl_c_while_the_commands_load_exits_130_under_python_m(tmp_path):
     done = subprocess.run([sys.executable, "-m", "jk_interrupted"], capture_output=True,
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL, cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` when you want to continue."]
     assert "Traceback" not in done.stdout + done.stderr
 
 
@@ -210,9 +210,26 @@ def test_a_ctrl_c_during_a_slow_import_stops_the_run_after_it(tmp_path):
                           check=False, text=True, timeout=60, stdin=subprocess.DEVNULL,
                           cwd=tmp_path)
     assert done.returncode == 130, (done.returncode, done.stdout, done.stderr)
-    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper` to carry on."]
+    assert done.stdout.splitlines()[-2:] == ["Stopped.", "Next: run `judgekeeper --no-browser` when you want to continue."]
     assert "RAN" not in done.stdout
     assert "Traceback" not in done.stdout + done.stderr
+
+
+def test_a_ctrl_c_while_the_commands_load_names_the_program_and_flags(capsys, monkeypatch):
+    """A press in the first tenth of a second (the commands still loading): the Next: line
+    names the program as typed, with the flags, as a later Ctrl-C does."""
+    from judgekeeper import __main__ as entry
+    from judgekeeper import textio
+
+    def pressed_while_loading():  # holds nothing to put back, as off the main thread
+        entry._pressed = True
+
+    monkeypatch.setattr(entry, "_hold", pressed_while_loading)
+    monkeypatch.setattr(textio, "_typed", "venv/bin/judgekeeper")
+    assert entry.main(["--no-browser", "--port", "9642"]) == 130
+    out = capsys.readouterr().out
+    assert out.splitlines()[-2:] == [
+        "Stopped.", "Next: run `venv/bin/judgekeeper --no-browser --port 9642` when you want to continue."]
 
 
 def test_the_entry_leaves_ctrl_c_as_it_found_it():

@@ -361,16 +361,14 @@ def test_a_split_secret_in_a_note_is_not_on_the_result_pages(here, monkeypatch):
     assert KEY not in _live(ws) and KEY not in _report(ws)
 
 
-# A file named by an eval log, as a link ----------------------------------------------------------
+# A file named by an eval log ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("task_file", ["../../outside.py", "/etc/hosts", "a/../../x.py"])
-def test_an_inspect_task_file_outside_the_project_is_not_a_link(tmp_path, monkeypatch,
-                                                                 task_file):
+def test_an_inspect_task_file_outside_the_project_is_its_plain_name(tmp_path, task_file):
     from types import SimpleNamespace
 
-    from judgekeeper import front, links, start_fix_rule
+    from judgekeeper import front, start_fix_rule
 
-    monkeypatch.setattr(links, "_links_show", lambda stream: True)
     home = start_fix_rule.rule_home(tmp_path, "inspect", {"task_file": task_file})
     assert "\x1b" not in home and task_file in home
     found = SimpleNamespace(tool="inspect", root=tmp_path, task_file=task_file, reference=False,
@@ -378,12 +376,11 @@ def test_an_inspect_task_file_outside_the_project_is_not_a_link(tmp_path, monkey
     assert "\x1b" not in "".join(front._rule_lines(found))
 
 
-def test_an_inspect_task_file_inside_the_project_is_a_link(tmp_path, monkeypatch):
-    from judgekeeper import links, start_fix_rule
+def test_an_inspect_task_file_inside_the_project_is_its_plain_name(tmp_path):
+    from judgekeeper import start_fix_rule
 
-    monkeypatch.setattr(links, "_links_show", lambda stream: True)
     home = start_fix_rule.rule_home(tmp_path, "inspect", {"task_file": "tasks/support.py"})
-    assert "\x1b]8;;" in home and "tasks/support.py" in home
+    assert "\x1b" not in home and "tasks/support.py" in home and str(tmp_path) not in home
 
 
 # A bad reasons.json ----------------------------------------------------------------------------

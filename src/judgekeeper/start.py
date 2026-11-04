@@ -40,6 +40,8 @@ from judgekeeper.readers.promptfoo import is_stripped_warning
 from judgekeeper.records import (
     CODE,
     CUT_END,
+    CUT_OFF,
+    CUT_OFF_FROM,
     DEFAULT_NAME,
     HUMAN,
     LLM,
@@ -63,11 +65,14 @@ from judgekeeper.records import (
 from judgekeeper.redact import one_line, scrub
 from judgekeeper.table import (
     KNOWN_COLUMNS,
+    MORE_CELLS,
     _blank,
+    cut_off,
     make_fingerprint,
     open_quote,
     read_table,
     sheet_id,
+    wide_row_hint,
 )
 from judgekeeper.textio import (
     flush_stdout,
@@ -88,7 +93,7 @@ ROUGH = targets.ROUGH  # the label targets every command shares
 MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
 GIVEN_BY_YOU = "given by you"
-POINT_ME = "Point me at the results: {program} path/to/results.json"
+POINT_ME = "Point judgekeeper at the results: {program} path/to/results.json"
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
@@ -262,6 +267,28 @@ def command_from(flags, subcommand: str = "", kept: bool = False) -> str:
     saved_flags), written again by repeated_flags: never a command's text read from a file."""
     return " ".join((textio.program(subcommand),
                      *repeated_flags(kept=kept, **saved_flags(flags))))
+
+
+def saved_back(back) -> dict | None:
+    """How to come back to a page as typed where it was started (front._back): the path as
+    given there and the program as typed there, each one line of text; else None."""
+    def ok(value) -> bool:
+        return isinstance(value, str) and value.isprintable() and 0 < len(value) < 4096
+
+    if isinstance(back, dict) and ok(back.get("path")) and ok(back.get("program")):
+        return {"path": back["path"], "program": back["program"]}
+    return None
+
+
+def come_back(flags, back=None) -> str:
+    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: typed
+    where the page was started (`back`, saved_back) when known, else in the project folder
+    (command_from)."""
+    back = saved_back(back)
+    if back is None:
+        return command_from(flags, "mark", kept=True)
+    words = repeated_flags(kept=True, **{**saved_flags(flags), "path": back["path"]})
+    return " ".join((f"{back['program']} mark", *words))
 
 
 def kept_check(path, root) -> str:
@@ -599,19 +626,36 @@ def _models_named(rows: list[dict], column: str) -> bool:
                                 for v in values)
 
 
+def model_column(rows: list[dict], columns) -> tuple[str | None, bool]:
+    """The column that names the LLM-as-a-judge's model (judge_model, else model) and whether
+    it names one (mapper.names_models, the rule a JSONL's judge_model field has too)."""
+    column = next((c for c in ("judge_model", "model") if c in columns
+                   and any(not _blank(row.get(c)) for row in rows)), None)
+    return column, column is not None and mapper.names_models([row.get(column) for row in rows])
+
+
 def read_results_table(path: Path) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
     `score` column the score --pass-if reads in place of the verdict (with no verdict
     column, the score column is the grade). A quote that never
-    closes stops it: the rows after it would be read as one cell."""
+    closes stops it: the rows after it would be read as one cell; so does a file cut off
+    inside a quote (table.cut_off)."""
     line = open_quote(path)
     if line is not None:
         raise StartError(f"line {line} of {path.name} has a quote that never closes, so the "
                          "rows after it can't be read.",
                          f"close the quote on line {line} of {path.name}, then run "
                          "`{command}`.")
+    wide = wide_row_hint(path)
+    if wide is not None:  # one row of two: the second one's answer would be lost
+        line, hint = wide
+        raise StartError(f"{path.name} {MORE_CELLS} (line {line}){hint}.",
+                         f"fix line {line} of {path.name}, then run `{{command}}`.")
+    if cut_off(path):  # its last row would be read as whole, with an empty grade
+        cut = damaged(path, CUT_OFF_FROM, CUT_OFF)
+        raise StartError(str(cut), cut.next_step)
     rows = read_table(path)
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
@@ -639,6 +683,9 @@ def read_results_table(path: Path) -> RecordList:
                              f"of {path.name}, then run `{{command}}`.")
     human = next((c for c in HUMAN_COLUMNS if c in columns), None)
     records = RecordList(ids_derived=not own)
+    model_at, named = model_column(rows, columns)
+    if model_at and not named:  # "string_match": a rule's name, not a model's
+        records.model_refused, model_at = model_at, None
     if "id" in columns and not own:
         records.per_metric = {v: {"warnings": [MADE_IDS]} for v in verdicts}
     for n, row in enumerate(rows, 1):
@@ -646,9 +693,7 @@ def read_results_table(path: Path) -> RecordList:
         content = {"target_id": ids[n - 1] if own else derive_record_id(row.get("input"),
                                                                         row.get("output")),
                    "input": row.get("input"), "output": row.get("output")}
-        model = row.get("model") if not _blank(row.get("model")) else row.get("judge_model")
-        if not mapper._model_like(model):  # "string_match": a rule's name, not a model's
-            model = None
+        model = row.get(model_at) if model_at else None
         score = _number(mapper.number(row.get("score"))) if "score" in columns else None
         for verdict in verdicts:
             records.append(ScoreRecord(
@@ -1092,6 +1137,7 @@ class Found:
     rule_field: str | None = None  # Inspect: "instructions" or "template", the rule's field
     models: list[str] = field(default_factory=list)  # the judge's model(s), as the results say
     model_source: str | None = None  # None (the results), GIVEN_BY_YOU or judgekeeper.toml
+    model_refused: str | None = None  # a model column that names no model (not read)
     experiment: str | None = None  # MLflow: the experiment read
     stopped: list[str] = field(default_factory=list)  # Inspect runs that stopped early; rows left out
     label_map: str | dict | None = None  # --label-map as given, kept in start.json
@@ -1114,7 +1160,7 @@ def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
         path = path.resolve()
         if path.is_relative_to(root):
             return path.relative_to(root).as_posix()
-        return textio.kept_path(path, root)  # never the whole path: start.json keeps it
+        return textio.kept_path(path, root)  # as start.json keeps it: never a user name
 
     results = [replace(r, rel=rel(r.path)) for r in found.results]
     given = rel(folder or found.results[0].path) if found.tool != "mapped" else None
@@ -1502,7 +1548,7 @@ def _choose_folder(talk: Talk, results: list[find.Result], prefer: str | None,
 
 
 TITLE_ROW = "{file}: Row 2 looks like the header. Delete row 1 and run again."
-EXCEL = "{file}: Excel files aren't read. Save it as CSV UTF-8 and run again."
+EXCEL = "{file}: judgekeeper doesn't read Excel files. Save the sheet as CSV UTF-8 and run again."
 
 
 def title_row(rel: str) -> Damaged:
@@ -1532,12 +1578,27 @@ def _unreadable(found: find.Search) -> Damaged:
     if how != "is empty":
         return Damaged(f"{rel} {how}.", f"give your user permission to read {rel}, then run "
                                         "`{command}` again.")
-    if "promptfoo" in found.signs and rel.endswith(".json"):
+    return empty_file(rel, "promptfoo" in found.signs)
+
+
+def empty_file(rel: str, promptfoo: bool = False) -> Damaged:
+    """`rel`, a results file with nothing in it, in the words of the website's free check
+    ("This file is empty."), the file named."""
+    if promptfoo and rel.endswith(".json"):
         return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
                        f"save your promptfoo results to it with `promptfoo eval -o {rel}`, "
                        "then run `{command}` again.")
     return Damaged(f"{rel} is empty, so judgekeeper can't read it.",
-                   f"save your results to {rel} again, then run `{{command}}` again.")
+                   f"save your results to {rel}, then run `{{command}}` again.")
+
+
+def is_empty_file(path: Path) -> bool:
+    """Whether the file at `path` holds nothing, or only a UTF-8 byte order mark."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) in (b"", b"\xef\xbb\xbf")
+    except OSError:
+        return False
 
 
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
@@ -1549,7 +1610,7 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
         talk.say(f"  {rel} ({why})")
     if len(found.skipped) > 5:
         talk.say(f"  and {len(found.skipped) - 5} more")
-    which = "that is" if len(found.skipped) == 1 else "one of these is"
+    which = "that file holds" if len(found.skipped) == 1 else "one of these holds"
     readable = [(rel, why) for rel, why in found.skipped if why != find.LINK]
     if not readable:  # never a command that reads a link: it leads anywhere
         it = "it links" if len(found.skipped) == 1 else "they link"
@@ -1560,7 +1621,7 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
         return talk.stop(EXIT_USAGE, next_step)
     first, why = readable[0]
     if why == find.NOT_UTF8:  # running it as it is would only say to save it as UTF-8
-        which = "that is" if len(found.skipped) == 1 else f"{first} is"
+        which = "that file holds" if len(found.skipped) == 1 else f"{first} holds"
         next_step = (f"if {which} your results, save it as UTF-8, then run "
                      f"`{talk.command_at(first)}` again.")
     else:
@@ -1621,7 +1682,7 @@ def _check_description(talk: Talk, root: Path, theirs: str | None,
                                          f"{own}.")
     if talk.confirm(question, default=False, with_yes=False,
                     hint=f"{question} Run {textio.program()} in a terminal to answer, "
-                         "or point me at the right results file."):
+                         "or give judgekeeper the right results file."):
         return
     other = next((r for r in others if r.path != result.path
                   and results_description(r) in mine), None)
@@ -1976,7 +2037,7 @@ def _judge_name(tool: str, metric: str, rubric: str | None, models: list[str],
     model = ", ".join(models)
     if len(models) > 1:
         model = f"more than one model ({model})"
-    with_model = f" with {model}{' (as you told me)' if given else ''}" if models else ""
+    with_model = f" with {model}{' (as you said)' if given else ''}" if models else ""
     if tool == "table":
         return f"{metric} in {file_name}{with_model}" if models else f"not named in {file_name}"
     quoted = f' "{rubric}"' if rubric else ""
@@ -2003,6 +2064,19 @@ def _hide_keys(root: Path, talk: Talk | None = None, results=()) -> None:
     if talk is not None:
         for note in keys.unsaid():  # a .env not read (a link, or too big) the finder didn't say
             _note(talk, note)
+
+
+def _same_eval_only(path: Path, results: list) -> list:
+    """`results` without another eval beside a file the marks were made on
+    (project.other_eval): never read in their place. None left: why, in one line."""
+    from judgekeeper import project
+
+    store = project.project_of(path)
+    kept = [r for r in results if project.other_eval(store, r.path) is None]
+    if kept:
+        return kept
+    marked = project.other_eval(store, results[0].path)
+    raise StartError(project.other_eval_line(results[0].path, marked))
 
 
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,
@@ -2041,6 +2115,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     _hide_keys(root, talk, results)
     if only:
         results = [r for r in results if r.rel in only] or results
+    if Path(path).is_dir() and kind not in ("mlflow", "records") and results:
+        results = _same_eval_only(Path(path), results)
     name = None
     if kind == "mlflow":
         with trash_removed_at_end():
@@ -2185,6 +2261,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  rule_field=(_inspect_field(records) if kind == "inspect" and rule else
                              _geval_field(records) if kind == "deepeval" and rule else None),
                  models=models, model_source=model_source, experiment=name,
+                 model_refused=first.records.model_refused,
                  stopped=list(dict.fromkeys(n for x in used for n in x.records.notes))
                  + [n for x in used if (n := left_out_note(x.records, x.label))],
                  label_map=label_map or None,

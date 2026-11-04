@@ -13,7 +13,7 @@ from tests.start_projects import promptfoo_project, split
 from tests.test_batches import _index
 from tests.test_front import flat, run
 
-UNREADABLE = "1 line in .judgekeeper/marks.jsonl could not be read; the others are used."
+UNREADABLE = "1 line in .judgekeeper/marks.jsonl could not be read. The others are used."
 
 
 @pytest.fixture

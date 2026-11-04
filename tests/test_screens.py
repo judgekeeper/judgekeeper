@@ -36,7 +36,8 @@ def screen(capsys, *argv) -> tuple[int, list[str]]:
     lines = (out + err).splitlines()
     for line in lines:
         assert len(line) <= 80, line
-        column = line.strip().startswith("input,") or line.endswith(" column")  # its real name
+        column = line.strip().startswith("input,") or line.rstrip(".").endswith(
+            (" column", " columns"))  # its real name
         assert "verdict" not in line.lower() or column, line
         assert "tell the person" not in line and "ask the person" not in line, line
     return code, lines
@@ -75,9 +76,9 @@ FIRST = [
     "",
 ]
 NEEDS = [
-    "A result needs at least 15 answers you mark Pass and 15 you mark",
-    "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-    "on answers it failed (or all of them, when there are fewer).",
+    "A result needs at least 15 Pass and 15 Fail marks from you. It",
+    "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+    "on answers it failed (or all of them, if there are fewer).",
     "",
 ]
 MARK_TEXT = [
@@ -99,8 +100,8 @@ def test_screen_1_the_first_run(here, capsys):
         "The marking page is open in your browser. " + MARK_TEXT[0],
         *MARK_TEXT[1:],
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it.",
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it.",
     ]
 
 
@@ -116,8 +117,8 @@ def test_screen_1_without_a_browser_prints_the_link(here, capsys, no_browser):
         "It shows the answers one at a time. Mark each one Pass or Fail,",
         "the way you want your LLM-as-a-judge to decide. Your",
         "LLM-as-a-judge's grade stays hidden."]
-    assert lines[-2:] == ["Next: mark answers until the link at the top shows your numbers,",
-                          "then click it."]
+    assert lines[-2:] == ['Next: mark answers on the page until a "See the numbers so far"',
+                          "link appears, then click it."]
 
 
 
@@ -148,15 +149,15 @@ def test_screen_2_again_before_a_first_result(here, capsys):
         "",
         "You marked 12 answers so far: 8 Pass, 4 Fail.",
         "That's not enough for a result yet.",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "The marking page is still open in your browser. The bar at the",
         "top fills as you mark.",
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it.",
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it.",
     ]
 
 
@@ -211,7 +212,8 @@ def test_screen_4_every_answer_marked(here, capsys, pages):
         "Need its link? Run `judgekeeper mark --no-browser` to print it.",
         "",
         "Next: run your eval on more questions, then run",
-        "`judgekeeper mark`: the new answers join the ones you marked.",
+        "`judgekeeper mark`. New answers are added to the ones you",
+        "marked.",
     ]
     assert len(pages[0]) == started  # the page still open from marking: no new one
 
@@ -265,9 +267,10 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "Step 1 of 5: Find",
         "",
         "No eval results found in this folder (my-app). judgekeeper",
-        "looked 4 folders down (tables: 2 folders deep).",
+        "looked 4 folders down (2 for CSV, TSV and JSONL files).",
         "judgekeeper can read results from promptfoo, DeepEval,",
-        "Inspect AI, MLflow, or a CSV, TSV or JSONL file.",
+        "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input,",
+        "output and verdict columns.",
         "",
         "Next: run your eval once from this folder, then run",
         "`judgekeeper` again. If your results are somewhere else, run",
@@ -299,8 +302,8 @@ def test_screen_8_help(capsys):
         "                                    with you, and where it goes wrong",
         "  4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change",
         "                                    its rule, grade your marked answers again,",
-        "                                    and test the new rule on the half of your",
-        "                                    marks kept aside",
+        "                                    and test the new rule on the marks kept",
+        "                                    aside",
         "  5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade",
         "                                    your marked answers again",
         "                                    (.judgekeeper/fix/marked-answers.csv) and",
@@ -316,8 +319,8 @@ def test_screen_8_help(capsys):
         "  mark    mark more answers",
     ]
     assert lines[24:28] == [
-        "  fix     see where your LLM-as-a-judge goes wrong; with the results of grading",
-        "          your marked answers again, test a better rule on the marks kept aside",
+        "  fix     show where your LLM-as-a-judge goes wrong, help you write a better",
+        "          rule and test it on marks kept aside",
         "  check   re-check your LLM-as-a-judge on your marks after a change",
         "",
     ]
@@ -399,7 +402,7 @@ def test_old_marks_from_another_tool_give_no_mixed_result(here, capsys):
     code, lines = screen(capsys)
     text = "\n".join(lines)
     assert code == 3
-    assert "Your marks are for other results" in " ".join(text.split())
+    assert "Your marks are for another LLM-as-a-judge" in " ".join(text.split())
     assert "Start over with these results?" in text
     for word in ("Step 3 of 5", "your LLM-as-a-judge also passed", "Of the answers you passed"):
         assert word not in text, word
@@ -420,15 +423,15 @@ def test_wrapping_keeps_commands_whole_and_never_starts_a_line_with_next():
         assert not [line for line in lines if line.endswith("Inspect")], lines
 
 
-def test_too_few_answers_says_so_without_a_target_number(here, capsys):
-    """No target numbers on screen: the page shows how far the marks are."""
+def test_too_few_answers_says_what_a_first_result_needs(here, capsys):
+    """How many answers a first result needs, in Measure's words: too few answers can never
+    give one, however many are marked."""
     promptfoo_project(here, split(4, 3), rubric=RULE)
     code, lines = screen(capsys)
     assert code == 3
     text = " ".join(" ".join(lines).split())
     assert ("You have 7 answers with a clear grade. That is not enough answers for a first "
-            "result.") in text
-    assert "15" not in text
+            "result.") in text and "A result needs" not in text
 
 
 @pytest.mark.parametrize("name, kind", [("results.csv", "CSV"), ("graded.jsonl", "JSONL")])

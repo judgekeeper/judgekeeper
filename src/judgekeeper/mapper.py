@@ -158,7 +158,17 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
     (its elements, when it is a list); table.MAX_ROWS at most (table.capped: said once).
     Lines that are not JSON are skipped (their numbers added to `skipped`). A unit holding a
     lone surrogate (\\ud800) is a MapError: it can't be written again as text."""
-    from judgekeeper.table import MAX_ROWS, capped, csv_numbered, header, open_quote, too_wide
+    from judgekeeper.table import (
+        MAX_ROWS,
+        MORE_CELLS,
+        capped,
+        csv_numbered,
+        cut_off,
+        header,
+        open_quote,
+        too_wide,
+        wide_row_hint,
+    )
 
     path = Path(path)
     suffix = path.suffix.lower()
@@ -169,6 +179,13 @@ def load_numbered(path: str | Path, skipped: list | None = None) -> list[tuple[i
         if line is not None:  # the rows after it would be read as one cell: never shown
             raise MapError(f"line {line} of {path.name} has a quote that never closes, so the "
                            "rows after it can't be read")
+        wide = wide_row_hint(path)
+        if wide is not None:  # one row of two: the second one would be lost
+            raise MapError(f"line {wide[0]} of {path.name} {MORE_CELLS}{wide[1]}")
+        if cut_off(path):  # its last row would be read as whole
+            from judgekeeper.records import CUT_OFF
+
+            raise MapError(f"{path.name} {CUT_OFF}")
         return capped([(n, {k: v for k, v in row.items() if k is not None})
                        for n, row in csv_numbered(text, suffix, MAX_ROWS)], path)
     if suffix == ".json":
@@ -308,6 +325,7 @@ class Guess:
     pass_op: str = ">="  # how a score is held against the pass mark (--pass-if's)
     model_key: str | None = None  # a path, in the item or around it (nearest first)
     model: str | None = None  # the model's name in the first item, for showing
+    model_refused: str | None = None  # a field named for the model that names none
     unsure: list[str] = field(default_factory=list)  # roles guessed from value types only
     doubt: str | None = None  # why the whole reading may be wrong (one answer of many)
 
@@ -443,6 +461,36 @@ def _model_like(value) -> bool:
     text = value.strip().lower()
     return (any(c.isdigit() or c in "/:" for c in text)
             or bool(_words(text) & set(MODEL_WORDS)))
+
+
+# One word of a model's name: letters, digits and . _ : / @ - (acme, judge-model-x, gpt-4o)
+_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@-]*")
+NOT_MODEL_WORDS = (*RULE_WORDS, "match", "string")  # in a rule's name (string_match)
+
+
+def model_name(value) -> bool:
+    """A value that names a model, in a field named for the model (model, judge_model):
+    one word (acme, judge-model-x), or a value that reads as a model's name. Never a grade,
+    a number or a rule's name (string_match, exact_match, checks+judge)."""
+    if not isinstance(value, str) or not value.strip() or _verdict_value(value):
+        return False
+    text = value.strip()
+    if number(text) is not None or _words(text) & set(NOT_MODEL_WORDS):
+        return False
+    return bool(_NAME.fullmatch(text)) or _model_like(text)
+
+
+def names_models(values) -> bool:
+    """Every value (empty ones aside) of a field named for the model names one: the one rule
+    for a CSV's model column and a JSONL's judge_model field."""
+    values = [v for v in values if not blank(v)]
+    return bool(values) and all(model_name(v) for v in values)
+
+
+def _named_for_model(seg: tuple) -> bool:
+    """A key that says model in its own name (model, judge_model): it takes any name, where
+    judge or grader alone may hold a setting ("strict")."""
+    return "model" in _words(seg[-1])
 
 
 def _differ_at(paths: list[tuple]) -> int | None:
@@ -771,16 +819,27 @@ def _model(guess: Guess, units: list) -> None:
     a key of its own (model, judge). Never a model elsewhere, such as the app's."""
     used = {parse(p)[0][0] for p in (guess.input, guess.output, guess.score) if p}
     sample = [item for unit in units for item, _ in _safe_items(unit, guess.each)]
+    refused = []
     for n, obj in enumerate(_objects(guess, units)):
         found = [(_model_rank(seg), seg, v) for seg, v in _leaves(obj)
                  if seg[0] not in used and isinstance(v, str) and v.strip()]
-        # every value must read as a model's name ("string_match" or "strict" is a rule)
-        found = [x for x in found if x[0] is not None and (_model_like(x[2]) if n > 0 else all(
-            _model_like(v) for v in _at(sample, x[1]) if not blank(v)))]
-        if found:
-            _, seg, value = min(found, key=lambda x: x[0])
+        found = [x for x in found if x[0] is not None]
+        # every value must name a model ("string_match" is a rule; a grader's "strict" a
+        # setting): a key named for the model takes any name, as a CSV's model column does
+        named = [x for x in found if (names_models if _named_for_model(x[1]) else _all_like)(
+            [x[2]] if n > 0 else _at(sample, x[1]))]
+        refused += [x for x in found if x not in named and _named_for_model(x[1])]
+        if named:
+            _, seg, value = min(named, key=lambda x: x[0])
             guess.model_key, guess.model = _as_path(seg), value
             return
+    if refused:  # said in how_lines, so the field is never shown as read
+        guess.model_refused = _as_path(min(refused, key=lambda x: x[0])[1])
+
+
+def _all_like(values) -> bool:
+    values = [v for v in values if not blank(v)]
+    return bool(values) and all(_model_like(v) for v in values)
 
 
 def value_around(item: dict, up: list, key: str):

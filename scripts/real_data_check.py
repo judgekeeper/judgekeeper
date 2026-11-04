@@ -24,8 +24,9 @@ of what the judge said):
 
 One check: shuffle each group of the pool (the judge's passes, its fails), label n from each,
 count how many the person marked Pass, and call weighted.corrected. Three designs, CHECKS
-checks each with a fixed seed: 25 + 25, 30 + 30, and judgekeeper's stopping rule (BLOCK from each
-group at a time until TARGET Pass and TARGET Fail). For each, how often the TPR, TNR and
+checks each with a fixed seed: 25 + 25, 30 + 30, and judgekeeper's stopping rule (the marks in
+the marking page's order, start_label.build_queue, until targets.check gives a first result:
+ROUGH Pass and ROUGH Fail, and FIRST_GROUP in each of the judge's groups). For each, how often the TPR, TNR and
 real pass rate ranges held the value from all labels, their average width, the median error,
 and the plain rates over the same labels without the correction, for contrast.
 
@@ -50,15 +51,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from judgekeeper import weighted
+from types import SimpleNamespace
+
+from judgekeeper import targets, weighted
+from judgekeeper.start_label import build_queue
 
 OUT = ROOT / "docs" / "examples" / "real-data-check"
 LLMBAR = ROOT / "docs" / "examples" / "real-data-check" / "sources" / "llmbar-haiku.json"
 SEED = 20261009
 CHECKS = 1000
 SIZES = (25, 30)
-BLOCK = 5  # from each group: judgekeeper's blocks of 10, half from each
-TARGET = 25  # answers marked Pass, and Fail, before judgekeeper calls a check reliable
 METRICS = ("tpr", "tnr", "real_pass_rate")
 DESIGNS = ("25+25", "30+30", "start_rule")
 DIGITS = 6  # the report's floats, so the same run gives the same file on every machine
@@ -273,17 +275,19 @@ def fixed_draw(rng: random.Random, passes: list[bool], fails: list[bool], n: int
 
 
 def start_rule_draw(rng: random.Random, passes: list[bool], fails: list[bool]):
-    """BLOCK from each shuffled group at a time until TARGET Pass and TARGET Fail, or
-    until both groups run out."""
-    p, f = passes[:], fails[:]
-    rng.shuffle(p)
-    rng.shuffle(f)
-    n_p = n_f = 0
-    while True:
-        correct = sum(p[:n_p]) + sum(f[:n_f])
-        if min(correct, n_p + n_f - correct) >= TARGET or (n_p >= len(p) and n_f >= len(f)):
-            return n_p, sum(p[:n_p]), n_f, sum(f[:n_f])
-        n_p, n_f = min(n_p + BLOCK, len(p)), min(n_f + BLOCK, len(f))
+    """The answers in the marking page's order (start_label.build_queue), marked one at a
+    time until judgekeeper has a first result (targets.check), or until every one is marked."""
+    human = {f"p{i}": h for i, h in enumerate(passes)} | {f"f{i}": h for i, h in enumerate(fails)}
+    answers = [SimpleNamespace(id=i, verdict="pass" if i[0] == "p" else "fail") for i in human]
+    n, said = {"pass": 0, "fail": 0}, {"pass": 0, "fail": 0}
+    for q in build_queue(answers, rng.getrandbits(32)):
+        n[q["group"]] += 1
+        said[q["group"]] += human[q["id"]]
+        correct = said["pass"] + said["fail"]
+        groups = {"pass": (n["pass"], len(passes)), "fail": (n["fail"], len(fails))}
+        if targets.check(correct, n["pass"] + n["fail"] - correct, groups)["check"] == "result":
+            break
+    return n["pass"], said["pass"], n["fail"], said["fail"]
 
 
 def run(pool, design: str, n: int | None, checks: int, seed: int,
@@ -366,7 +370,8 @@ def summarise(pools: dict) -> dict:
 def check_all(pools: dict[str, list[tuple[bool, bool]]]) -> dict:
     result = {"made_by": "scripts/real_data_check.py",
               "settings": {"seed": SEED, "checks": CHECKS, "sizes": list(SIZES),
-                           "start_rule": {"block": BLOCK, "target": TARGET},
+                           "start_rule": {"each": targets.ROUGH,
+                                          "each_group": targets.FIRST_GROUP},
                            "weighted": {"level": weighted.LEVEL, "draws": weighted.DRAWS,
                                         "seed": weighted.SEED}},
               "data": DATASETS, "pools": {}}
@@ -397,7 +402,8 @@ def _two(x) -> str:
 def _design_name(design: str, result: dict) -> str:
     if design == "start_rule":
         rule = result["settings"]["start_rule"]
-        return f"judgekeeper's rule ({rule['target']} Pass + {rule['target']} Fail)"
+        return (f"judgekeeper's rule ({rule['each']} Pass + {rule['each']} Fail, "
+                f"{rule['each_group']} in each group)")
     return f"{design} labels"
 
 
@@ -440,7 +446,7 @@ def markdown(result: dict) -> str:
     noise = 196 * math.sqrt(w["level"] * (1 - w["level"]) / s["checks"])
     lines += ["", (f"A {w['level']:.0%} range is expected to miss about "
                    f"{100 - round(w['level'] * 100)} times in 100. With {s['checks']:,} checks, "
-                   f"chance alone moves the share it holds by up to about {noise:.1f} either way "
+                   f"coincidence alone moves the share it holds by up to about {noise:.1f} either way "
                    "(95 times in 100)."), "",
               "## The LLM-as-a-judge setups", "",
               "The values from all of each dataset's human labels.", "",
@@ -522,7 +528,10 @@ def markdown(result: dict) -> str:
             lines.append(f"  - `{f['file']}`: sha256 `{f['sha256']}`")
     lines += ["", "## Settings", "",
               (f"Seed {s['seed']}; {s['checks']:,} checks per LLM-as-a-judge and design; "
-               f"judgekeeper's rule labels {s['start_rule']['block']} from each group at a time. "
+               f"judgekeeper's rule marks in the marking page's order until a first result: "
+               f"{s['start_rule']['each']} Pass and {s['start_rule']['each']} Fail, and "
+               f"{s['start_rule']['each_group']} among the answers the LLM-as-a-judge passed and "
+               "among those it failed. "
                f"Ranges: `weighted.corrected` at level {w['level']}, {w['draws']:,} draws, seed "
                f"{w['seed']}. To run it again: `pip install pyarrow`, then "
                "`python scripts/real_data_check.py`. It downloads the files above into a cache "

@@ -80,7 +80,7 @@ def test_promptfoo_check_on_a_few_answers_cant_tell_yet(here, capsys):
     assert code == 3, out  # 2 of the 5 were marked Fail: too few to call it a drop
     assert ("45 of your 50 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out)
-    assert "Result: can't tell yet." in out and "Re-checked on" not in out
+    assert "Compared with before: can't tell yet." in out and "Re-checked on" not in out
     assert judge_models(ws) == [MODEL]  # the old judge stays
 
 
@@ -160,7 +160,7 @@ def test_fix_check_fix_on_a_40_answer_project_never_says_mark(here, capsys):
         assert "Step" in out
         assert not says_mark(_next(out)), out
     assert "run your eval on more questions" in _next(said[4])  # fix after the rule was adopted
-    assert "You took on a rule tested on these marks kept aside." in flat(said[4])
+    assert "You switched to a rule tested on these marks kept aside." in flat(said[4])
     assert "You have tested" not in flat(said[4]) + flat(said[5])  # taking one on is no test
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert RULE_B in mistakes and RULE_A not in now_part(mistakes)  # the judge they test now
@@ -333,7 +333,7 @@ def test_fix_for_a_table_judge_keeps_marks_aside(here, capsys):
     code, out = _jk(capsys, "fix")
     assert code == 0, out
     kept = len(fix.read_split(Workspace(here)).hidden)
-    assert f"The other {kept} are kept aside to test a new rule." in flat(out)
+    assert f"The other {kept} marks are kept aside to test a new rule." in flat(out)
     assert _next(out).endswith("then run `judgekeeper fix <new results file>`.")
     mistakes = (here / ".judgekeeper" / "fix" / "mistakes.md").read_text(encoding="utf-8")
     assert "found it worse" not in mistakes  # no check: the mistakes of the LLM-as-a-judge marked
@@ -448,7 +448,7 @@ def test_a_partial_eval_says_how_many_marked_answers_it_holds(here, capsys):
     _, out = _check(capsys)
     assert ("30 of your 40 marked answers had no grade in your new results, so judgekeeper "
             "left them out.") in flat(out), out
-    assert "Result: can't tell yet." in out
+    assert "Compared with before: can't tell yet." in out
     _rubric(here, split(20, 20), RULE_B)  # then the whole eval
     _, out = _check(capsys)
     assert "You added" not in out, out  # no mark was made since
@@ -684,8 +684,8 @@ def test_check_names_a_plain_table_in_words_that_read_right(tmp_path, capsys, mo
     assert code == 2
     assert ("other.json holds promptfoo results, but your marks are on your own results "
             "file.") in said, said
-    assert ("Next: give `judgekeeper check` your new results file for the LLM-as-a-judge your "
-            "marks test,") in said, said
+    assert ("Next: run `judgekeeper check <new results file>`, or run `judgekeeper check` in your "
+            "project folder") in said, said
     assert "a plain table results" not in said and "new a plain table" not in said
 
 
@@ -701,9 +701,9 @@ def test_check_names_another_tools_plain_table_in_words_that_read_right(tmp_path
     code, out = _jk(capsys, "check", "other/mine.csv")
     said = flat(out)
     assert code == 2
-    assert "mine.csv is a plain table of results, but your marks are on promptfoo results." \
+    assert "mine.csv is a results file, but your marks are on promptfoo results." \
         in said, said
-    assert "Next: give `judgekeeper check` your new promptfoo results for" in said, said
+    assert "Next: run `judgekeeper check <new results file>`, or run" in said, said
 
 
 def test_inspect_fix_given_another_tools_results_says_to_score_the_log_again(tmp_path, capsys,
@@ -865,10 +865,28 @@ def test_back_to_the_marked_judge_after_a_worse_check(here, capsys):
     assert "go back to" not in out and "go back to" not in _report(here).lower()
     code, out = _check(capsys)
     assert code == 0, out
-    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
-            "still holds.") in flat(out)
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). The result from your "
+            "marks still stands.") in flat(out)
     assert "has not changed since your last check" not in out
     assert judge_models(ws) == [MODEL]
+
+
+def test_no_result_stands_after_new_moved_the_marks(here, capsys):
+    """A check took on another model; `--new --yes` moves every mark away: a plain run never
+    says a result from your marks still stands."""
+    from tests.test_check import MARKED, _results
+
+    _marked(here)
+    other = list(MARKED)
+    other[0] = not other[0]
+    _results(here, other, model=NEW)
+    assert _check(capsys)[0] == 0
+    _results(here, MARKED)  # the marked LLM-as-a-judge's results again
+    _jk(capsys, "--new", "--yes", "--no-browser", "--port", "0")
+    _jk(capsys, "--stop")
+    out = _jk(capsys, "--no-browser", "--port", "0")[1]
+    _jk(capsys, "--stop")
+    assert "still stands" not in out and "back to the one you marked with" not in out, out
 
 
 def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
@@ -885,8 +903,8 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     assert judge_models(ws) == [NEW]
     _results(here, MARKED)
     out = _jk(capsys)[1]
-    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). Your marks' result "
-            "still holds.") in flat(out), out
+    assert ("Your LLM-as-a-judge is back to the one you marked with (gpt-4.1-mini). The result from your "
+            "marks still stands.") in flat(out), out
     assert judge_models(ws) == [MODEL]
     assert "picked" not in ws.data()
     agreed = [line for line in before.splitlines() if "You and your LLM-as-a-judge" in line]
@@ -894,6 +912,43 @@ def test_back_to_the_marked_judge_after_an_adopted_check(here, capsys):
     code, out = _check(capsys)  # the check that sees it says it too, and keeps it in history
     assert code == 0 and "back to the one you marked with" in flat(out), out
     assert _check(capsys) == (code, out)  # the same results: the same answer
+
+
+@pytest.mark.parametrize("name", [".judgekeeper/fix/new.json", "../nf-elsewhere-new.json"])
+def test_after_a_check_of_a_file_elsewhere_the_project_file_is_not_called_the_newest(
+        here, capsys, name):
+    """The check read a newer file in another folder: a plain run back on the project's own
+    file says the result is about that file, never "Reading results.json." or "the newest
+    results here"."""
+    _all_marked_promptfoo(here, capsys)
+    old = time.time() - 120
+    os.utime(here / "results.json", (old, old))
+    path = here / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _rubric(path.parent, AS_MARKED, RULE_B, name=path.name)
+    assert _check(capsys, name)[0] == 0
+    said = [flat(_jk(capsys)[1]) for _ in range(2)]
+    assert f"This result is about your LLM-as-a-judge in {name}," in said[0], said[0]
+    assert all("the newest" not in out and "Reading" not in out for out in said), said
+
+
+@pytest.mark.parametrize(("graded", "taken"), [(AS_MARKED, True),
+                                               ([not v for v in AS_MARKED], False)])
+def test_a_check_that_takes_on_a_new_judge_closes_the_open_page(here, capsys, graded, taken):
+    """The open page would still show the old LLM-as-a-judge: a check that takes on a new one
+    closes it, so the next `mark` opens it fresh; after "Worse" nothing changed, so it stays."""
+    from judgekeeper.label import is_open
+    from tests.test_fix import closed
+
+    ws = _all_marked_promptfoo(here, capsys)
+    assert _jk(capsys, "--no-browser", "--port", "0")[0] == 0
+    assert is_open(ws.dir)
+    try:
+        _rubric(here, graded, RULE_B, name="new.json")
+        assert _check(capsys, "new.json")[0] == (0 if taken else 1)
+        assert is_open(ws.dir) is not taken
+    finally:
+        closed(ws)
 
 
 def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(here, capsys):
@@ -906,13 +961,15 @@ def test_the_marked_results_after_an_adopted_fix_say_the_same_on_every_check(her
     assert _check(capsys, "new.json")[0] == 0  # the new rule taken on
     said = [_check(capsys, "results.json") for _ in range(3)]
     assert said[0][0] == 0 and "back to the one you marked with" in flat(said[0][1]), said[0]
-    assert said[1] == said[2] == said[0]
+    assert said[1] == said[2], said  # the first names the last check's file, the rest the same
+    assert flat(said[0][1]).replace("Your last check read", "An earlier check read").replace(
+        "New results:", "Results:") == flat(said[1][1]), said  # then the file marked from
     trigger = [json.loads(line).get("trigger") for line in
                ws.history_jsonl.read_text(encoding="utf-8").splitlines()]
     assert trigger.count("back") == 1
     code, out = _check(capsys, "new.json")  # a change again: compared with the rule marked on
     assert code == 0 and "Your LLM-as-a-judge changed: rule changed." in flat(out), out
-    assert "Result: worse" not in out
+    assert "Compared with before: worse" not in out
 
 
 def test_measure_says_right_under_the_result_how_many_got_no_grade(here, capsys):
@@ -952,7 +1009,7 @@ def test_a_group_of_15_needs_all_15_not_20(here, capsys):
     promptfoo_project(here, split(15, 40))
     _, out = _jk(capsys)
     assert ("20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or "
-            "all of them, when there are fewer).") in flat(out)
+            "all of them, if there are fewer).") in flat(out)
     ws = Workspace(here)
     session = StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}

@@ -162,19 +162,24 @@ def test_coverage_counts_the_checks_whose_range_holds_the_truth(rdc):
                                      "width_mean": None, "abs_error_median": None}
 
 
-def test_starts_rule_labels_blocks_of_five_until_enough_correct_and_wrong(rdc):
+def test_starts_rule_marks_until_judgekeepers_first_result(rdc):
+    """judgekeeper's own rule (targets.check), in the marking page's order: ROUGH Pass and
+    ROUGH Fail, and FIRST_GROUP in each of the judge's groups."""
     import random
 
+    from judgekeeper import targets
+
+    assert (targets.ROUGH, targets.FIRST_GROUP) == (15, 20)
     perfect = [True] * 40, [False] * 40  # the human label of each judge pass, each judge fail
-    assert rdc.start_rule_draw(random.Random(1), *perfect) == (25, 25, 25, 0)
-    # A group that runs out: the other goes on alone, and an empty pool stops it.
+    assert rdc.start_rule_draw(random.Random(1), *perfect) == (20, 20, 20, 0)
+    # Too few of one kind: every answer is marked, and that stops it.
     assert rdc.start_rule_draw(random.Random(1), [True] * 7, [False] * 40) == (7, 7, 40, 0)
     passes, fails = [True] * 30 + [False] * 30, [True] * 10 + [False] * 50
     n_p, c_p, n_f, c_f = rdc.start_rule_draw(random.Random(2), passes, fails)
-    assert n_p == n_f and n_p % 5 == 0
     correct, wrong = c_p + c_f, n_p + n_f - c_p - c_f
-    assert min(correct, wrong) >= 25
-    assert rdc.BLOCK == 5 and rdc.TARGET == 25
+    assert min(correct, wrong) >= 15 and min(n_p, n_f) >= 20
+    groups = {"pass": (n_p, 60), "fail": (n_f, 60)}
+    assert targets.check(correct, wrong, groups)["check"] == "result"
 
 
 # The download

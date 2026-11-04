@@ -10,7 +10,7 @@ judgekeeper's result, in all 12 runs: **needs work**. Across the three LLM-as-a-
 - **The LLM-as-a-judge setups:** **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`), **setup B** is Claude Sonnet 5.5 (`claude-sonnet-5-5`) and **setup C** is Claude Opus 5.5 (`claude-opus-5-5`), through promptfoo 0.124.0 `llm-rubric`, at the models' default temperature 1 (`promptfooconfig.yaml`).
 - **The rule:** frozen before any result (`rule.txt`): "Every claim in the summary is supported by the article. Pass if every claim is supported by the article. Fail if any claim is not supported by the article or contradicts it."
 - **The marks:** RAGTruth's own response-level labels (Fail when the annotators marked at least one hallucinated part), entered through the marking page's calls.
-- **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Opus runs' Measure screens note that the marks came through a link printed with no terminal.
+- **How the marks were entered:** a script entered them through the marking page's own calls, so the Opus runs' Measure screens note that the marks came through a link printed with no terminal.
 - **Effort:** how hard the model thinks is a setting of its own. promptfoo sends it only when the config sets it, and the Haiku and Sonnet runs did not, so each ran at its API default: medium for Haiku 5.5, high for Sonnet 5.5. Opus 5.5's default is medium, so it first ran at medium (extra table below), which is not a like-for-like comparison with Sonnet. The Opus rows in the main table were run again with `effort: high` set in the config, to match Sonnet. The effort is the only difference in the config.
 - **Runs:** 3 per LLM-as-a-judge. Haiku and Sonnet on 2026-10-25, with judgekeeper 1.0.0 (commit `bc0d099`); Opus on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`), the same sample, rule and config. Opus's token counts and cost are in `opus-notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd`, with no AI call, so the Measure screens in `measure/` are from that commit: Opus from its saved results, and Haiku and Sonnet from each run's saved grades put into the results file of the same 200 tests.
 
@@ -42,31 +42,31 @@ The first two columns are TPR and TNR, copied from judgekeeper's Measure screens
 
 At medium effort Opus changed its grade on 11 of the 200 answers (`opus-medium-runs.json`).
 
-## What it shows, in plain words
+## What it shows
 
 - **All three setups failed most of the summaries people failed.** When people said a summary had something unsupported, each setup also failed it 87% to 94% of the time across the 12 runs.
 - **All three also failed a good share of the summaries people passed:** 29% to 42% across the 12 runs. With this rule, that is too strict. A single "accuracy" number would hide this, because the two directions are far apart.
-- **Changing the model did not close the gap.** Setup C (effort high) disagreed with people on 44 to 48 of 200 answers; setup A on 45 to 46 and setup B on 38 to 42. Of the summaries people passed, C also passed 58% to 62%, A 66% to 67% and B 68% to 71%; of the ones people failed, C also failed 94%, A 87% to 89% and B 90% to 91%. The setups differ by a few points on these 200 summaries, and each failed 29% to 42% of the ones people passed. "Needs work" in all 3 runs of C, for the same reason (good summaries failed).
+- **Changing the model did not close the gap.** Setup A disagreed with people on 45 to 46 of 200 answers, setup B on 38 to 42 and setup C (effort high) on 44 to 48. Of the summaries people passed, A also passed 66% to 67%, B 68% to 71% and C 58% to 62%. Of the ones people failed, A also failed 87% to 89%, B 90% to 91% and C 94%. Across the three setups, 29% to 42% of the summaries people passed were failed. "Needs work" in all 3 runs of C, for the same reason (good summaries failed).
 - **Setting the effort higher or lower changed little for setup C.** At its default effort (medium) it gave nearly the same numbers (second table). At high effort it used about 12% more output tokens than at medium (299,389 against 266,973 over 3 runs).
 - **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are good summaries failed, so the clue would be that the rule may be too strict.
 
 ## Limits
 
-- **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
+- **The answers are old:** from 2023 models, in a public dataset since 2024, so the LLM-as-a-judge models may have seen them.
 - **News summaries only,** and one rule.
 - **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
 - **The labels have a ceiling:** two annotators agreed on 91.8% of answers (the RAGTruth paper, arXiv:2401.00396, section 3.3, page 4).
 - **Pass and Fail answers come mostly from different models:** the Fails are mostly Mistral-7B and Llama-2.
 - **The answers aren't fully independent:** the 200 come from 113 articles.
 - **Temperature 1,** because these models refuse 0.
-- **Never publish article text, the summaries or the LLM-as-a-judge reasons:** the reasons quote the articles. Publish only ids, grades, counts and ranges.
+- **No text is published:** no article text, summaries or LLM-as-a-judge reasons, because the reasons quote the articles. The repository holds only ids, grades, counts and ranges.
 
 ## Files
 
 - **`load.py`:** downloads RAGTruth from the authors' GitHub repository at a pinned commit, checks the files' SHA-256, and keeps the test split's news summaries (`python3 -I load.py`). Its `cache/` folder holds the articles and summaries and is never committed.
 - **`sample-ids.json`:** the 200 sampled ids, the seed and the counts. No text.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the LLM-as-a-judge's promptfoo setup, as frozen before the first run and used unchanged for Opus.
-- **`measure/`:** the Measure screen of each run, all from commit `7059dbd` (Haiku and Sonnet graded on `bc0d099`, Opus, effort high and the extra medium runs, on `bfc3606`).
+- **`measure/`:** the Measure screen of each run, all from commit `7059dbd` (Haiku and Sonnet graded on `bc0d099`, Opus, effort high and the extra medium runs, on `bfc3606`). The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
 - **`opus-high-runs.json`, `opus-medium-runs.json`, `opus-notes.txt`:** for Opus, each answer's grade in the 3 runs (ids and grades only), and the dates, effort, token counts and cost.
 
 Each Measure screen in `measure/` starts with a header: the dataset, its commit, the subset and split, and where the grades come from. `sample-ids.json` holds the same in its own fields, unchanged, because the probes record its hash.

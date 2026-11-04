@@ -73,8 +73,8 @@ def test_the_kept_aside_count_is_under_its_own_group():
     # 18 you failed that it passed: 3 shown, 15 kept aside; 2 the other way: 1 shown, 1 kept
     html = _page(mistakes=(3, 1))
     easy, strict = _part(html, 'id="g-easy"'), _part(html, 'id="g-strict"')
-    assert '<p class="kept">15 more are' + KEPT + "</p>" in easy
-    assert '<p class="kept">1 more is' + KEPT + "</p>" in strict
+    assert '<p class="kept">15 more of these are' + KEPT + "</p>" in easy
+    assert '<p class="kept">1 more of these is' + KEPT + "</p>" in strict
     assert easy.index("kept aside on purpose") < easy.index("<table")
     assert "*" not in _text(html) and "a new rule fairly" not in html
 
@@ -83,7 +83,7 @@ def test_kept_aside_with_no_list_comes_after_the_lists():
     html = _page(mistakes=(2, 0))  # the 2 failed by it, passed by you: all kept aside
     assert 'id="g-strict"' not in html
     after = html.split('id="g-easy"', 1)[1].split("</section>", 1)[1]
-    assert '<p class="kept">2 more are' + KEPT + "</p>" in after.split('class="details', 1)[0]
+    assert '<p class="kept">2 more disagreements are' + KEPT + "</p>" in after.split('class="details', 1)[0]
     assert html.count(KEPT) == 2
 
 
@@ -221,7 +221,7 @@ def test_what_next_has_the_websites_command_box():
     assert "<p>Next, in your terminal, in your project folder:</p>" in fix
     assert "marked-answers.csv" not in fix and "In your project folder" not in fix
     assert '<div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" ' \
-           'data-copy aria-label="Copy the command">' in fix
+           'data-copy aria-label="Copy command: judgekeeper fix">' in fix
     assert '<svg class="i-copy"' in fix and '<svg class="i-tick"' in fix
     assert '<span class="copied" aria-live="polite"></span>' in fix
     style = report_page.STYLE
@@ -245,14 +245,15 @@ def test_the_copy_script_is_the_websites_and_clears_its_selection():
 
 def test_report_html_keeps_one_closing_line():
     text = _text(_page(mistakes=(2, 0)))
-    assert "Tell judgekeeper why you disagree on these" in text
+    assert "To tell judgekeeper why you disagree on" in text
     assert "uses your reasons" not in text and "Optional: tell judgekeeper" not in text
 
 
 def test_the_live_page_says_above_the_first_list_that_reasons_are_optional():
     html = unwrapped(_page(mistakes=(2, 1), live=True))
     line = ('<div class="band"><p class="add-why">Optional: tell judgekeeper why you disagree. '
-            '<code>judgekeeper fix</code> uses your reasons to suggest a better rule.</p></div>')
+            '<code>judgekeeper fix</code> uses your reasons to find where your LLM-as-a-judge goes '
+            'wrong.</p></div>')
     assert html.count(line) == 1
     assert html.index(line) < html.index('id="g-easy"') < html.index('id="g-strict"')
     none = _page(mistakes=(0, 0), live=True)
@@ -341,6 +342,21 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
     site = Path(__file__).resolve().parents[1] / "website"
     for page in [*site.glob("*.html"), site / "errors" / "404.html"]:
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
-        assert refs and set(refs) == {"14"}, (page.name, refs)
+        assert refs and set(refs) == {"16"}, (page.name, refs)
     # the browser check's script has its own version number
-    assert "assets/freecheck.js?v=15" in (site / "check.html").read_text(encoding="utf-8")
+    assert "assets/freecheck.js?v=16" in (site / "check.html").read_text(encoding="utf-8")
+
+
+def test_a_reason_ending_in_inspects_grade_line_is_shown_without_it():
+    """Inspect's model-graded scorers end the reason with "GRADE: C": the page keeps the
+    LLM-as-a-judge's grade hidden, so the reason shown leaves that line out."""
+    from tests.test_product_pages import MISTAKE
+
+    mistakes = [{**MISTAKE, "question": "easy 0", "reason": "It answers the question.\n\nGRADE: C"},
+                {**MISTAKE, "question": "easy 1", "reason": "GRADE: C"}]
+    for live in (False, True):
+        fixing = {"mistakes": mistakes}
+        html = (report_page.page(_result(*NOT_GATE_TNR), back="/?token=t", fixing=fixing)
+                if live else start_label.result_html(_result(*NOT_GATE_TNR), fixing=fixing))
+        assert "GRADE: C" not in html
+        assert "It answers the question.</td>" in html and "No reason given</td>" in html

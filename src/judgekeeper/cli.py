@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import signal
 import sys
 import textwrap
+import threading
 import traceback
 from pathlib import Path
 
@@ -65,7 +67,7 @@ NEXT_PATH = "check the path, then run `{command}`."
 NEXT_LINK = "remove that link, then run `{command}`."
 NEXT_HELP = "run `{command}` to see the options."
 NEXT_REMOVED = "run `{command}` in your project."
-NEXT_STOPPED = "run `{command}` to carry on."
+NEXT_STOPPED = "run `{command}` when you want to continue."  # as the --stop lines
 NEXT_BUSY = "run `{command}` again."
 NO_PAGE = "`{command}` opens no page, so it takes no --port or --no-browser."
 PAGE_FLAGS = ("--port", "--no-browser")
@@ -79,8 +81,8 @@ STEPS = """\
                                     with you, and where it goes wrong
   4. Fix       judgekeeper fix      if your LLM-as-a-judge needs work, change
                                     its rule, grade your marked answers again,
-                                    and test the new rule on the half of your
-                                    marks kept aside
+                                    and test the new rule on the marks kept
+                                    aside
   5. Re-check  judgekeeper check    after you change your LLM-as-a-judge, grade
                                     your marked answers again
                                     (.judgekeeper/fix/marked-answers.csv) and
@@ -89,8 +91,8 @@ READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV, TSV or JSONL file with these columns:
   input, output, verdict"""
-FIX_HELP = ("see where your LLM-as-a-judge goes wrong; with the results of grading your marked "
-            "answers again, test a better rule on the marks kept aside")
+FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
+            "it on marks kept aside")
 COMMANDS_HELP = (
     ("mark", "mark more answers"),
     ("fix", FIX_HELP),
@@ -160,7 +162,7 @@ def version_lines(stream=None) -> list[str]:
         command = program()
     else:
         command = textio.off_path(any_start=True)
-    return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run {command}"]
+    return [f"{tick(stream)} judgekeeper {__version__} is ready", f"Next: run `{command}`."]
 
 
 class _Version(argparse.Action):
@@ -316,6 +318,10 @@ def _parser() -> argparse.ArgumentParser:
                     help="a new results file or MLflow store (mlflow.db or an mlruns/ "
                          "folder), or your project folder (default: this folder, with its "
                          "newest results)")
+    ck.add_argument("--pass-if", metavar="RULE",
+                    help="re-check with this pass mark for your LLM-as-a-judge's scores (the "
+                         "one fix suggests), e.g. 'score>=0.7', instead of the one you marked "
+                         "with")
     p.commands["check"] = ck
 
     fx = sub.add_parser("fix", parents=[common],
@@ -358,7 +364,7 @@ def _labels_arg(p: argparse.ArgumentParser) -> None:
 
 def _normaliser_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--pass-if", metavar="RULE",
-                   help="when your LLM-as-a-judge's grades are scores: which pass, e.g. "
+                   help="when your LLM-as-a-judge gives scores: which scores pass, e.g. "
                         "'score>=0.5'")
     p.add_argument("--label-map", metavar="MAP",
                    help="more spellings of your LLM-as-a-judge's grades, e.g. 'good=pass,bad=fail' "
@@ -380,7 +386,7 @@ def cmd_mark(args) -> int:
 def cmd_check(args) -> int:
     from judgekeeper import check
 
-    return check.run(args.path)
+    return check.run(args.path, pass_if=args.pass_if)
 
 
 def cmd_fix(args) -> int:
@@ -499,25 +505,87 @@ def parse_args(args_list: list[str]) -> argparse.Namespace:
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
+def _forget_ctrl_c() -> None:
+    """No Ctrl-C noted by an earlier run in this process reaches this one, or the next."""
+    textio.ctrl_c.clear()
+    reader = sys.modules.get("judgekeeper.readers.inspect_logs")
+    if reader is not None:
+        reader._stopping.clear()
+
+
+def _ours(handler) -> bool:
+    """A Ctrl-C handler judgekeeper puts in (textio.note_ctrl_c, the Inspect AI reader's)."""
+    return handler is textio.note_ctrl_c or \
+        getattr(handler, "__module__", None) == "judgekeeper.readers.inspect_logs"
+
+
+def _note_ctrl_c():
+    """Put textio.note_ctrl_c in for the run in place of Python's own Ctrl-C handler; the
+    handler to put back afterwards, or None (not the main thread, or a handler of someone
+    else's). One of judgekeeper's own left from before (a reader closed late) is Python's
+    own again afterwards."""
+    _forget_ctrl_c()
+    if threading.current_thread() is not threading.main_thread():
+        return None
+    found = signal.getsignal(signal.SIGINT)
+    if found is not signal.default_int_handler and not _ours(found):
+        return None
+    signal.signal(signal.SIGINT, textio.note_ctrl_c)
+    return signal.default_int_handler
+
+
+def _late(signum, frame) -> None:
+    """A Ctrl-C once the command is done (its result being said and flushed, the entry
+    point's last lines): only noted, so the result is printed whole and no traceback."""
+
+
+def _late_in(held) -> None:
+    """_late in place of judgekeeper's Ctrl-C handler, when main put one in (`held`)."""
+    if held is not None:
+        signal.signal(signal.SIGINT, _late)
+
+
+def put_back() -> None:
+    """Python's own Ctrl-C handler back in place of _late (the one _note_ctrl_c replaced):
+    the very last step."""
+    if signal.getsignal(signal.SIGINT) is _late:
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+def main(argv: list[str] | None = None, last: bool = True) -> int:
+    """The commands. `last`: put Python's Ctrl-C handler back before returning; else the
+    caller (the entry point) does, as its very last step (put_back)."""
     project.forget()  # a test or a long session may run many commands in one process
+    held = _note_ctrl_c()
     try:
-        code = _main(argv)
-    except BrokenPipeError:  # piped into a program that stopped reading (`| head`): no error
-        code = EXIT_OK
-    except KeyboardInterrupt:  # before a command started (reading the flags): as _main says it
         try:
-            code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
-        except OSError:  # stdout can't take "Stopped.": still stopped
-            code = EXIT_STOPPED
+            try:
+                code = _main(argv)
+            finally:
+                _late_in(held)  # done: a Ctrl-C from here is only noted
+            if textio.ctrl_c and code != EXIT_STOPPED:  # swallowed after the last Next: line
+                raise KeyboardInterrupt
+        except BrokenPipeError:  # piped into a program that stopped reading (`| head`)
+            code = EXIT_OK
+        except KeyboardInterrupt:  # before a command started (the flags): as _main says it
+            _late_in(held)  # pressed before the line above: "Stopped." is said whole
+            try:
+                code = _stopped(command_first(sys.argv[1:] if argv is None else argv))
+            except OSError:  # stdout can't take "Stopped.": still stopped
+                code = EXIT_STOPPED
+    finally:
+        _forget_ctrl_c()  # a note never outlives its run
     # A closed or broken stream shows here, not in Python's own flush at exit (exit 120): the
     # code stays
     flush_stdout()
     flush_stdout(err=True)
+    if last:
+        put_back()
     return code
 
 
 def _stopped(args_list: list[str]) -> int:
+    textio.ctrl_c.clear()  # said here: the Next: line below is the run's own
     if textio.next_said:  # the run was done: no second Next: line
         return EXIT_STOPPED
     _say("")

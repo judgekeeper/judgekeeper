@@ -337,7 +337,7 @@ def test_the_drop_line_gives_both_ends_of_the_range():
     g = targets.paired_verdict(0, 12, 30)
     assert paired_lines(g) == [
         "Worse: 12 answers went from right to wrong, and none from wrong to right.",
-        "That is about 40 points lower (between 27 and 55).",
+        "That is about 40 percentage points lower (between 27 and 55).",
     ]
 
 
@@ -358,8 +358,8 @@ def test_repeats_with_different_grades_are_each_their_own_answer(here, capsys):
     assert code == 0, out
     assert "Answers:         38 to mark" in out  # never "38 answers" next to the file's 36
     assert ("(your file has 38 results: some answers are in it more than once. Repeats with "
-            "the same grade count once. 1 answer got different grades, so its 3 repeats each "
-            "count.)") in flat(out)
+            "the same grade count once. 1 answer got different grades, so each of its 3 repeats "
+            "counts.)") in flat(out)
     assert "tied grade" not in out and "merged" not in out
     _note_fits(out)
 
@@ -488,7 +488,7 @@ def test_a_judge_table_with_no_answer_column_is_named(here, capsys, name, column
     assert (f"{name} has your LLM-as-a-judge's verdicts but no answer text, so there's nothing to show "
             "you for marking.") in flat(out)
     line = assert_one_next_at_the_end(out)
-    assert "add the answer column (the text that was judged)" in flat(out)
+    assert "add the answer column (the text that was graded)" in flat(out)
     assert "`judgekeeper`" in line
 
 
@@ -595,7 +595,7 @@ def test_ctrl_c_under_wait_prints_one_next_line(here, capsys, monkeypatch):
     assert code == 130, out
     assert out.count("Next:") == 1, out
     assert out.rstrip().splitlines()[-2:] == [
-        "Stopped.", "Next: run `judgekeeper --wait` to carry on."]
+        "Stopped.", "Next: run `judgekeeper --wait` when you want to continue."]
 
 
 # Small words ---------------------------------------------------------------------
@@ -640,7 +640,7 @@ def test_a_file_that_cannot_be_read_keeps_the_flags_in_its_next_line(here, capsy
     line = assert_one_next_at_the_end(out)
     assert "<the CSV>" not in line and "--port 9100" in line
     said = flat(out)  # "Or save..." comes after its first choice
-    assert said.index("Turn it into a CSV, as the Next: line says.") < said.index("Or save")
+    assert said.index("Turn it into a CSV (see Next below).") < said.index("Or save")
 
 
 # Judge-check files only when they list something ------------------------------------
@@ -842,8 +842,8 @@ def test_inspect_epochs_with_different_grades_are_said_and_counted(here, capsys)
     assert code == 3, out  # 20 to mark: not enough for a first result
     assert "Answers:         20 to mark" in out
     assert ("(your file has 30 results: 15 answers, each run 2 times. Repeats with the same "
-            "grade count once. 5 answers got different grades, so their 10 repeats each "
-            "count.)") in flat(out)
+            "grade count once. 5 answers got different grades, so each of their 10 repeats "
+            "counts.)") in flat(out)
     assert "its own answer" not in flat(out)  # said once, under Answers
     _note_fits(out)
 

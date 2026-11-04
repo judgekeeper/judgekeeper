@@ -123,8 +123,7 @@ pre {{ margin: 0; font: inherit; font-size: 14.5px; line-height: 1.5; white-spac
 def say(folder: Path, opened: Path, *flags: str) -> str:
     """Run `judgekeeper` in the project at a pseudo-terminal until it stops: what it printed,
     as plain text (only the escape codes and carriage returns taken out)."""
-    env = {**os.environ, "PYTHONUNBUFFERED": "1", "COLUMNS": "80", "JK_DEMO_OPENED": str(opened),
-           "JUDGEKEEPER_NO_LINKS": "1"}  # no terminal links: the text stays plain
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "COLUMNS": "80", "JK_DEMO_OPENED": str(opened)}
     env.pop("BROWSER", None)  # the browser is the demo's Chrome
     main, side = pty.openpty()
     try:

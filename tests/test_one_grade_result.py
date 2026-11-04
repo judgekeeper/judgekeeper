@@ -113,13 +113,14 @@ def test_the_result_page_does_not_ask_for_more_marks_under_exact_numbers(one_gra
     page = _mark(one_grade, ["pass"] * 4 + ["fail"])
     html = start_label.live_result(ws, page, back="/?token=t")
     assert "Want more certain numbers" not in html and "Keep marking" not in html
-    assert "To mark more, run" in html  # the way back to marking stays, as a command
+    assert "To mark more, run <code>" in html  # fix needs more marks: the way to them
 
 
 def test_a_result_with_ranges_still_asks_for_more_marks():
+    from judgekeeper.textio import program
     from tests.test_product_pages import GATE, KEEP_MARKING, _html, _result
 
-    assert KEEP_MARKING in _html(_result(*GATE), "/?token=t")
+    assert KEEP_MARKING.format(mark=program("mark")) in _html(_result(*GATE), "/?token=t")
 
 
 def test_exact_numbers_do_not_say_to_mark_more_at_any_time(one_grade, capsys, pages):

@@ -60,7 +60,7 @@ def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None,
     else is written as text). The verdict: `verdict` (pass or fail, True or False), or
     `score` with `pass_mark` (pass when score >= pass_mark). Optional: `reason`, `judge` (the
     judge's model), `rule` (its rule or criteria), `name` (which judge or criterion; default
-    "judge"), `temperature`, `id` (the answer's id), `metadata` (a dict of anything else)."""
+    "LLM-as-a-judge"), `temperature`, `id` (the answer's id), `metadata` (a dict of anything else)."""
     try:
         if os.environ.get("JUDGEKEEPER_RECORD", "").strip().lower() in OFF:
             return
@@ -201,8 +201,8 @@ def _warn(error: Exception) -> None:
             why = f"{type(error).__name__}: {error.strerror or ''} {error.filename or ''}".strip()
         else:
             why = type(error).__name__  # its text may hold the user's data
-        logger.warning("judgekeeper.record() could not save a verdict (%s). Your program goes "
-                       "on; any more it can't save are counted and said when it ends.", why)
+        logger.warning("judgekeeper.record() could not save a verdict (%s). Your program keeps "
+                       "running. Any more it can't save are counted and said when it ends.", why)
     except Exception:  # noqa: BLE001, S110 - even a failed warning must not reach the program
         pass
 

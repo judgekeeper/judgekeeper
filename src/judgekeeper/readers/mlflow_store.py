@@ -75,8 +75,7 @@ PAGE_SIZE = 100
 # Traces read from one experiment, newest first (MLflow's order): reading takes about 1 ms
 # each, so 100,000 would take minutes. Past it, CAPPED says so.
 MAX_TRACES = 30_000
-CAPPED = ("{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,} (reading "
-          "every trace of a very big experiment takes minutes).")
+CAPPED = "{experiment} has more than {n:,} traces: judgekeeper read the newest {n:,}."
 NO_RUN = "(no run)"
 BIG_STORE = 1_000_000_000  # bytes: a store this big gets a line before it is copied
 SQLITE_SIDE_FILES = ("-wal", "-shm")  # SQLite keeps recent writes there until a checkpoint
@@ -1331,6 +1330,7 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     missing: list[str] = []
     previews: list[str] = []  # the ids of traces whose data is kept elsewhere
     damaged: list[str] = []  # the ids of traces left out for a damaged field
+    by_hand: list[int] = []  # when each assessment with no run id was logged (ms)
     capped = False
     for trace in _traces(client, exp.experiment_id, folder, missing, previews, budget):
         if n_traces >= MAX_TRACES:
@@ -1389,6 +1389,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
                 run = meta.get(SOURCE_RUN_ID) or trace_run or NO_RUN
                 if wanted and run not in wanted:
                     continue
+                if run == NO_RUN and isinstance(getattr(a, "create_time_ms", None), int):
+                    by_hand.append(a.create_time_ms)
                 evaluator = _model(source.get("source_id"))
                 instructions = judge_instructions(meta)
                 if instructions:
@@ -1452,6 +1454,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
 
     def start(run_id):
         r = runs.get(run_id)
+        if run_id == NO_RUN and by_hand:  # placed by when the first of them was logged
+            return (False, min(by_hand), run_id)
         return (r is None, r.info.start_time if r else 0, run_id)
 
     files = []
@@ -1474,7 +1478,8 @@ def _read_mlflow(experiment, run_ids, tracking_uri, id_from, temperature, metric
     humans.notes.append(f"Runs are MLflow runs in start order: {', '.join(shown)}.")
     if NO_RUN in judged:
         humans.notes.append("Some LLM-as-a-judge assessments carry no MLflow run id (logged by "
-                            "hand, outside an evaluate run): they form one run, listed last.")
+                            "hand, outside an evaluate run): they form one run, which starts "
+                            "when the first of them was logged.")
     if not any(r.evaluator.get("rule") for recs in judged.values() for r in recs):
         humans.notes.append("MLflow does not save the LLM-as-a-judge's prompt with its "
                             "assessments: prompt hash unknown.")

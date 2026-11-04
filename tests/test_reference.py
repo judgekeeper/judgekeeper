@@ -168,10 +168,10 @@ TRAPS = {"promptfoo": ("A human rating overrides the row's `success` and `pass`.
          "Inspect AI": ("`P` (partial credit) has no default", "`--no-log-samples`"),
          "MLflow": ("Trace ids change every run.", "A copied `mlruns/` folder.",
                     "MLflow's own problems, not judgekeeper's.")}
-TESTED = {"promptfoo": "Tested with promptfoo 0.123 and 0.124, the versions in tests/fixtures.",
-          "DeepEval": "Tested with DeepEval 4.2, the version in tests/fixtures.",
-          "Inspect AI": "Tested with Inspect AI 0.3.273, the version in tests/fixtures.",
-          "MLflow": "Tested with MLflow 3.16, the version in tests/fixtures"}
+TESTED = {"promptfoo": "Tested with promptfoo 0.123 and 0.124.",
+          "DeepEval": "Tested with DeepEval 4.2.",
+          "Inspect AI": "Tested with Inspect AI 0.3.273.",
+          "MLflow": "Tested with MLflow 3.16"}
 
 
 def _tools() -> dict[str, str]:
@@ -244,9 +244,10 @@ def test_every_site_link_the_code_prints_points_at_an_id_a_page_has():
 
 # What a result needs, said up front -----------------------------------------------------------
 
-NEEDS = ("A result needs at least 15 answers you mark Pass and 15 you mark Fail, and 20 marks on "
-         "answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, when there are fewer). If your "
-         "LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.")
+NEEDS = ("A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on "
+         "answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there "
+         "are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you "
+         "mark Fail can take many marks.")
 
 
 def test_the_reference_says_what_a_result_needs_near_its_top():
@@ -259,13 +260,31 @@ def test_the_reference_says_what_a_result_needs_near_its_top():
 def test_the_readmes_measure_step_says_what_a_result_needs():
     from judgekeeper import front, targets
 
-    first = front.NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    n, g = targets.ROUGH, targets.FIRST_GROUP
+    first = (f"A result needs at least {n} Pass and {n} Fail marks from you. It also needs {g} "
+             f"marks on answers your LLM-as-a-judge passed and {g} on answers it failed (or all "
+             "of them, if there are fewer).")
     assert NEEDS.startswith(first + " If ")
     assert f"under {front.FEW_FAILS:.0%} of the answers" in NEEDS
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    measure = next(line for line in readme.splitlines() if line.startswith("3. **Measure:**"))
-    assert f"at least {targets.ROUGH} Pass and {targets.ROUGH} Fail marks" in measure
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    at = next(i for i, line in enumerate(readme) if line.startswith("3. **Measure:**"))
+    measure = " ".join(x.strip() for x in readme[at:at + 3])  # the step and its short lines
+    assert first in measure
     assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+
+
+def test_the_reference_says_which_marks_wait_in_the_words_check_uses():
+    """After `check` takes on a new LLM-as-a-judge that graded only some answers, a later mark
+    on an answer it didn't grade waits; the reference says so with the result's own words."""
+    from judgekeeper import check
+
+    text = REFERENCE.read_text(encoding="utf-8")
+    section = text[text.index("## check:"):text.index("\n## ", text.index("## check:") + 1)]
+    para = next(p for p in section.split("\n\n") if p.startswith("**Marks that wait.**"))
+    flat = " ".join(para.split())
+    wait = check.WAIT.split("your new LLM-as-a-judge ", 1)[1]  # "has no Pass or Fail grade ..."
+    assert wait.rstrip(".") in flat
+    assert check.WAIT_COUNT.format(run="run `judgekeeper check <new results file>`") in flat
 
 
 # The marking page and the documents your LLM-as-a-judge was given --------------------------

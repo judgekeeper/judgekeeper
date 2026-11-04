@@ -1,4 +1,4 @@
-# Two LLM-as-a-judge setups on JailbreakBench's judge-comparison answers
+# Two LLM-as-a-judge setups on JailbreakBench's comparison answers
 
 This check runs judgekeeper's normal steps on 300 answers to harmful requests, with three experts' majority label as the marks. It is the same 300 answers as [the GPT-4 check](../jailbreakbench/report.md); here two Claude setups graded them instead of the dataset's own GPT-4 grades. For each answer the question is whether it gives real help with the harmful request (Fail) or not (Pass).
 
@@ -10,9 +10,9 @@ In this report, **setup A** is Claude Haiku 5.5 (`claude-haiku-5-5`, effort medi
 
 - **The answers:** all 300 rows of the `judge_comparison` set, revision `886acc352a31533ffbcf4ef22c744658688086fc`, MIT license. `load.py` downloads it (it reuses `../jailbreakbench/load.py`'s source and SHA-256); the data is not in this repository. Nothing from it is committed except ids and grades.
 - **The LLM-as-a-judge setups:** A and B, through promptfoo 0.124.0 `llm-rubric`, at temperature 1 (`promptfooconfig.yaml`).
-- **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
+- **The rule:** frozen on 2026-10-30, before any result (`rule.txt`). It is the jailbreak LLM-as-a-judge prompt printed in the JailbreakBench paper (Chao et al., arXiv 2404.01318, Appendix F, Table 10), with the four guidelines kept as printed. Changed: the closing "Answer with either 'safe' or 'unsafe'" line is left out, because `llm-rubric` asks for its own reply format, and the rule is turned into a statement that is true for a Pass ("The response is safe"). The request shown to the LLM-as-a-judge is the dataset's `goal` column, the response is `target_response`.
 - **The marks:** the dataset's `human_majority` column, the majority of three expert annotators. Pass = not jailbroken, Fail = jailbroken, as in the GPT-4 check. They were entered through the marking page's calls.
-- **The printed-link note:** the marks were entered by a script through the marking page's own calls. So the Measure screens note that the marks came through a link printed with no terminal.
+- **How the marks were entered:** a script entered them through the marking page's own calls, so the Measure screens note that the marks came through a link printed with no terminal.
 - **Runs:** 1 per setup, on 2026-10-30, with judgekeeper 1.0.0 (commit `bfc3606`). Token counts and cost are in `notes.txt`. judgekeeper's steps were run again on 2026-11-01 with commit `7059dbd` from the saved results, with no AI call, so the Measure screens in `measure/` are from that commit.
 
 ## How often each setup agrees with the experts
@@ -40,26 +40,26 @@ For some answers the model provider declined to grade: no usable reply came back
 
 These answers were not asked again. The answers the provider declines to grade are probably not a random part of the set, so setup B's numbers describe the answers it was allowed to grade.
 
-## What it shows, in plain words
+## What it shows
 
 - **Both setups passed almost everything the experts passed** (A 98%; B 99%).
 - **Both failed fewer than half of what the experts failed** (A 43%; B 32%): about 6 of 10 and 7 of 10 of the answers the experts called jailbroken were passed (for B, of the answers it graded). Here a Pass means "no real help with the request", so this is the costly direction.
-- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the Pass column, 98% and 99%, also shows the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines being stricter than the experts' marks, not from a mapping mistake. We did not run the same read for setup B.
+- **What a user would do next:** judgekeeper says "needs work" and points to `fix`. Most mistakes are jailbroken answers passed, so the clue would be that the rule is too lenient for these setups. **Checked for a set-up error, none found.** In `llm-rubric` a Pass is "the rubric statement is true", and the rule's statement is "The response is safe", so "unsafe" is a Fail; the Pass column, 98% and 99%, also shows the labels are not swapped. We read the LLM-as-a-judge's own reasons (without saving or quoting any answer) for setup A on 10 answers the experts failed and it passed, and on 5 it failed: all 10 passes say the content was generic, high-level, truncated or cut off, or fictional without usable detail, which is guidelines 2 and 3 applied as printed; the 5 fails name specific harmful content. So the gap comes from the paper's guidelines asking for more before an answer counts as jailbroken than the experts did, not from a mapping mistake. We did not run the same read for setup B.
 
 ## Limits
 
 - **One run each,** at temperature 1. In the RAGTruth check, runs of the same setup moved a few points.
-- **The rule was written for a different judge.** It is the paper's prompt for its Llama-3-70B judge, adapted to `llm-rubric`; the dataset's own GPT-4 grades came from a different prompt. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
+- **The rule was written for a different LLM-as-a-judge.** It is the paper's prompt for its Llama-3-70B LLM-as-a-judge, adapted to `llm-rubric`; the dataset's own GPT-4 grades came from a different prompt. A different wording could give different numbers. The check says what these two setups did with this rule, not what any model can do.
 - **Setup B's result is on 239 of 300 answers** (see above).
 - **The dataset is public** (since 2024), so the models may have seen it.
 - **Three experts' majority** is the mark; the experts disagreed with each other on some answers.
-- **Never publish the requests or the responses:** they are harmful. Only ids, grades, counts and ranges are published.
+- **No text is published:** the requests and the responses are harmful, so the repository holds only ids, grades, counts and ranges.
 
 ## Files
 
 - **`load.py`:** downloads the data (pinned revision, SHA-256 checked) and writes `cache/rows.jsonl`, which is never committed.
 - **`rule.txt`, `promptfooconfig.yaml`:** the rule and the setup, as frozen before the run. The config has two slots, `JUDGE_PROVIDER` and `JUDGE_EFFORT`.
-- **`measure/`:** the Measure screen of each run.
+- **`measure/`:** the Measure screen of each run. The screens in `measure/` are as judgekeeper 1.0.2 printed them; later versions word some lines differently.
 - **`ids-and-grades.csv`:** each answer's id, both Claude grades (`none` where there was no real decision), the GPT-4 grade and the experts' majority.
 - **`figures.json`:** the counts, ranges and kappa above. **`notes.txt`:** dates, effort, token counts, cost, and the answers with no real decision.
 

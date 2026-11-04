@@ -16,12 +16,18 @@ import pytest
 
 from judgekeeper import __version__, background, label, marks, page, start, start_label
 from judgekeeper.cli import main
-from tests.start_projects import promptfoo_project, records_project, save_result, split
+from tests.start_projects import (
+    promptfoo_project,
+    records_project,
+    save_result,
+    split,
+    table_project,
+)
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
-NEXT_OPEN = 'Next: mark answers until the link at the top shows your numbers, then click it.'
+NEXT_OPEN = 'Next: mark answers on the page until a "See the numbers so far" link appears, then click it.'
 NEXT_LINK = NEXT_OPEN
 NEXT_KEEP = NEXT_OPEN
 NEXT_MORE = "Next: mark more answers, then run `judgekeeper` to see your updated result."
@@ -72,6 +78,21 @@ def test_a_question_is_the_same_as_judgekeepers(here, capsys, pages):
     assert pages[0] == []
 
 
+@pytest.mark.parametrize("argv", [[], ["mark"]])
+def test_marking_started_reads_its_eval_tool_without_asking(here, capsys, pages, argv):
+    """Two eval tools' results in the folder: the one marking started on is read again by a
+    plain run, as `check` reads it."""
+    promptfoo_project(here, split(20, 16))
+    table_project(here, split(18, 18))
+    code, out, _ = run(capsys, "--tool", "promptfoo", "--port", "0", "--no-browser")
+    assert code == 0, out
+    code, out, err = run(capsys, *argv, "--port", "0", "--no-browser")
+    assert code == 0, out
+    assert "Saved results from more than one eval tool" not in out and "--tool" not in out
+    assert _check(out, err) == NEXT_OPEN
+    assert start_label.Workspace(here).data()["tool"] == "promptfoo"
+
+
 # No marking started -----------------------------------------------------------------------
 
 def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
@@ -82,9 +103,9 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         "",
         "Opening the marking page in your browser…",
         "The marking page is open in your browser. It shows the answers",
@@ -92,8 +113,8 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
         "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays",
         "hidden.",
         "",
-        "Next: mark answers until the link at the top shows your numbers,",
-        "then click it."]
+        'Next: mark answers on the page until a "See the numbers so far"',
+        "link appears, then click it."]
     assert len(no_browser) == 1 and label.is_open(here / ".judgekeeper")
     ws = start_label.Workspace(here)
     assert marks.read(ws.marks).header["pool"] == {"pass": 20, "fail": 16}
@@ -119,7 +140,7 @@ def test_the_page_starts_with_the_commands_of_the_flags_given(here, capsys, page
 def test_too_few_answers_are_marked_anyway(here, capsys, pages):
     promptfoo_project(here, split(6, 4))
     code, out, _ = run(capsys, "mark")
-    assert code == 0, out
+    assert code == 3, out  # the page opens, and too few answers for a result exit 3
     assert "Step 2 of 5: Mark" in out and "You marked" not in out
 
 
@@ -191,8 +212,8 @@ def test_every_answer_marked_after_a_result_points_to_mark(here, capsys, pages):
     assert code == 0, out
     assert "You have marked all 36 answers." in out
     assert _check(out, err) == (
-        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
-        "join the ones you marked.")
+        "Next: run your eval on more questions, then run `judgekeeper mark`. New answers are "
+        "added to the ones you marked.")
     assert "again to get new answers" not in out
     assert len(pages[0]) == 1  # the page still open from marking: no new one
 
@@ -206,8 +227,8 @@ def test_every_answer_marked_keeps_the_page_to_change_a_mark(here, capsys, pages
     assert "You have marked all 36 answers." in out
     assert "To change a mark, click it in the list." in " ".join(out.split()), out
     assert _check(out, err) == (  # new answers join as a batch once the eval ran again
-        "Next: run your eval on more questions, then run `judgekeeper mark`: the new answers "
-        "join the ones you marked.")
+        "Next: run your eval on more questions, then run `judgekeeper mark`. New answers are "
+        "added to the ones you marked.")
     assert "run your eval again to get new answers" not in out
     assert len(pages[0]) == 1  # the page still open from marking
 
@@ -237,7 +258,7 @@ def test_another_judge_asks_to_start_over(here, capsys, pages):
     _click(start_label.Workspace(here), 1)  # a mark to move
     code, out, err = run(capsys, "mark", "--metric", "safety")
     assert code == 3
-    assert "Your marks are for other results" in _flat(out) and "helpfulness" in out
+    assert "Your marks are for another LLM-as-a-judge" in _flat(out) and "helpfulness" in out
     assert f"1. {START_OVER}" in _flat(out)
     assert _check(out, err) == (
         "Next: run `judgekeeper mark --metric safety` in a terminal to answer, or "
@@ -257,7 +278,7 @@ def test_another_judge_with_no_marks_starts_over_without_asking(here, capsys, pa
     assert run(capsys, "mark", "--metric", "helpfulness")[0] == 0
     code, out, _ = run(capsys, "mark", "--metric", "safety")
     assert code == 0, out
-    assert START_OVER not in _flat(out) and "Your marks are for other results" not in out
+    assert START_OVER not in _flat(out) and "Your marks are for another LLM-as-a-judge" not in out
     ws = start_label.Workspace(here)
     assert ws.data()["metric"] == "safety"
     assert len([p for p in ws.dir.iterdir() if p.name.startswith("previous-")]) == 1
@@ -296,6 +317,27 @@ def test_start_over_now_is_asked_first(here, capsys, pages):
     assert label.is_open(ws.dir)  # the old page was closed, a new one opened
 
 
+@pytest.mark.parametrize("argv", [["--new"], ["mark", "--new"], ["--new", "--yes"]])
+def test_start_over_with_nothing_marked_moves_nothing(here, capsys, pages, argv):
+    promptfoo_project(here, split(20, 16))
+    run(capsys, "mark", "--port", "0", "--no-browser")
+    ws = start_label.Workspace(here)
+
+    def files():
+        return {p.relative_to(ws.dir): p.read_bytes() for p in ws.dir.rglob("*")
+                if p.is_file()}
+
+    before = files()
+    code, out, err = run(capsys, *argv, "--port", "0", "--no-browser")
+    assert code == 0, out
+    assert "You haven't marked any answers yet, so `--new` has nothing to move." in _flat(out)
+    mark = " mark" if "mark" in argv else ""
+    assert _check(out, err) == (f"Next: run `judgekeeper{mark} --port 0 --no-browser` to start "
+                                "marking.")  # the page's flags kept, as every Next line does
+    assert not list(ws.dir.glob("previous-*"))
+    assert files() == before
+
+
 # The page could not start -----------------------------------------------------------------
 
 def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
@@ -307,9 +349,9 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     said = out[:out.index("Next:")].splitlines()[2:]
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
-        "A result needs at least 15 answers you mark Pass and 15 you mark",
-        "Fail, and 20 marks on answers your LLM-as-a-judge passed and 20",
-        "on answers it failed (or all of them, when there are fewer).",
+        "A result needs at least 15 Pass and 15 Fail marks from you. It",
+        "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
+        "on answers it failed (or all of them, if there are fewer).",
         ("The marking page could not start in the background (what went wrong is in "
          ".judgekeeper/page.log).")]
 

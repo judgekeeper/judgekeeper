@@ -32,7 +32,7 @@ from judgekeeper import keys, textio
 
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 NAMES = {"records": "judgekeeper.record()", "promptfoo": "promptfoo", "deepeval": "DeepEval",
-         "inspect": "Inspect AI", "mlflow": "MLflow", "table": "a plain table"}
+         "inspect": "Inspect AI", "mlflow": "MLflow", "table": "a CSV, TSV or JSONL file"}
 EXTRAS = {"inspect": "inspect", "mlflow": "mlflow"}
 
 MAX_FILES = 5000
@@ -709,7 +709,7 @@ def search(root: str | Path) -> Search:
         rel, why = bad[0][:2]
         walk.search.notes.append(
             f"{rel} {why}, so it was left out." if len(bad) == 1 else
-            f"{len(bad)} tables can't be read, so they were left out; the first, {rel}, {why}.")
+            f"{len(bad)} tables can't be read, so they were left out. The first, {rel}, {why}.")
     keys.hide_keys(root, [root / rel for rel in walk.search.signs.get("promptfoo", [])])
     walk.search.notes.extend(n for n in keys.notes() if n not in walk.search.notes)
     _prefer_saved_runs(walk.search)
@@ -722,7 +722,7 @@ def search(root: str | Path) -> Search:
 LINK = "a link: judgekeeper doesn't follow links"
 NOT_REGULAR = "is not a regular file (a named pipe or a device)"
 ABOVE = "in the folder above"
-NOT_UTF8 = "not saved as UTF-8: save it as UTF-8"
+NOT_UTF8 = "not saved as UTF-8"
 TITLE_ROW = "has a title row above its header"
 EXCEL = (".xlsx", ".xlsm", ".xls")
 EXCEL_FOUND = "is an Excel file: save it as CSV UTF-8 to use it"  # a whole sentence
@@ -755,7 +755,7 @@ def _down(n: int) -> str:
 
 def looked(root: Path) -> str:
     """How far the walk looks, said when nothing is found."""
-    return f"{_down(MAX_DEPTH)} from {root.name} (tables: {TABLE_DEPTH} folders deep)"
+    return f"{_down(MAX_DEPTH)} from {root.name} ({TABLE_DEPTH} for CSV, TSV and JSONL files)"
 
 
 def _look_deeper(walk: _Walk) -> None:
@@ -850,7 +850,7 @@ def _run_of(path: Path):
 
 
 NEWEST_RUN = ("Read DeepEval's newest run, {read} ({read_day}). {other} holds an older run "
-              "({other_day}); to check it, run `{command}`.")
+              "({other_day}). To check it, run `{command}`.")
 
 
 def _day(result: Result) -> str:

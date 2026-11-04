@@ -23,8 +23,9 @@ import random
 # pass rate at least 93 times in 100 in every cell of the grid and 95 in 100 on average.
 LEVEL = 0.96  # 0.95 held the true value only 91.6 times in 100 in its lowest cell
 # The wider ranges the coloured verdict uses (good enough / needs work), from the same draws:
-# the person can look after every mark, and at 0.96 a lucky streak seen on one of many looks
-# said "good enough" up to 10.6 times in 100 for an LLM-as-a-judge just under the bar.
+# the person can look at the result after every mark, and at 0.96 a few marks that agreed by
+# coincidence, on one of many looks, said "good enough" up to 10.6 times in 100 for an
+# LLM-as-a-judge just under the bar.
 VERDICT_LEVEL = 0.99
 DRAWS = 20_000  # enough that another seed moves no range by more than about 0.01
 SEED = 20261008

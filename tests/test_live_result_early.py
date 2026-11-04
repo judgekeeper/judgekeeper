@@ -81,7 +81,7 @@ def test_what_next_asks_for_more_marks_until_fix_can_run(tmp_path, monkeypatch):
         nxt = words[words.rindex("What next"):words.rindex("(function")]
         assert fix.NOT_ENOUGH in nxt, nxt
         assert "judgekeeper fix" not in nxt, nxt
-        assert "judgekeeper mark" in nxt, nxt
+        assert "To mark more, run judgekeeper mark in your project folder." in nxt, nxt
 
 
 @pytest.mark.parametrize("stale", [False, True])

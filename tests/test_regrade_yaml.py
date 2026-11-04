@@ -7,6 +7,7 @@ No test calls an API: the file is only text.
 from __future__ import annotations
 
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +23,15 @@ from tests.test_only_reads import run as run_any
 
 TRICKY = 'Say "yes" only if: the answer is polite.\nSecond line, with a \\ and \'quotes\' — é 😀 {{question}}'
 GRADER = {"provider": "openai", "model": "openai:gpt-4.1-mini"}
+
+
+CALLS = (r" It calls your LLM-as-a-judge's model (\d+ times, once for each marked answer|once), "
+         r"with your own API key\.")
+
+
+def _no_calls(flat: str) -> str:
+    """`flat` without step 2's line on the model calls it makes."""
+    return re.sub(CALLS, "", flat)
 
 
 @pytest.fixture
@@ -59,9 +69,14 @@ def test_fix_writes_a_ready_regrade_file_and_says_the_three_steps(here, capsys):
     assert (f"1. Change the rule in .judgekeeper/fix/regrade.yaml (line {line}). "
             "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
             ".judgekeeper/fix/new.json` "
-            "3. Then: `judgekeeper fix .judgekeeper/fix/new.json`") in flat
+            "3. Then: `judgekeeper fix .judgekeeper/fix/new.json`") in _no_calls(flat)
+    assert re.search(CALLS, flat), flat  # what step 2 costs: one model call per marked answer
+    # the echo line's note agrees with that: no new answers, yet the grader calls its model
+    (echo,) = [x for x in lines if x.startswith("providers:")]
+    assert echo.endswith(fix.ECHO_NOTE) and "still calls its model" in fix.ECHO_NOTE, echo
+    assert "no model call" not in text
     assert "Next: follow the three steps above." in flat
-    assert "judgekeeper's docs/eval-tools.md shows the whole config" not in flat
+    assert "docs/eval-tools.md shows the whole config" not in flat
     assert (ws.dir / "fix" / "marked-answers.csv").is_file()
     # the same answers as the CSV, as promptfoo tests
     import csv as csv_mod
@@ -148,8 +163,8 @@ def test_a_rule_variable_the_csv_lacks_is_said(here, capsys):
     code, out = run(capsys)
     flat = _flat(out)
     assert code == 0, out
-    assert "Your rule uses {{product}}; marked-answers.csv has only question and answer." in flat
-    assert "Your rule uses {{context}}; marked-answers.csv has only question and answer." in flat
+    assert "Your rule uses {{product}}, but marked-answers.csv has only question and answer." in flat
+    assert "Your rule uses {{context}}, but marked-answers.csv has only question and answer." in flat
     assert "{{question}}; marked-answers.csv" not in flat
     assert (ws.dir / "fix" / "regrade.yaml").is_file()
 
@@ -202,14 +217,14 @@ def test_check_with_too_few_of_the_same_answers_leads_with_the_steps(
     path = ws.dir / "fix" / "regrade.yaml"
     line = next(n for n, x in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
                 if x.lstrip().startswith("provider:"))
-    assert "Result: can't tell yet." in flat
+    assert "Compared with before: can't tell yet." in flat
     assert "wrote new answers" not in flat  # the 10 are answers it marked, not new ones
     assert ("can't tell yet. Your new results hold 4 of the answers you marked Pass and 6 you "
-            "marked Fail; a re-check needs 15 of each. Grade the answers you marked: "
+            "marked Fail. A re-check needs 15 of each. Grade the answers you marked: "
             f"1. Change the grader in .judgekeeper/fix/regrade.yaml (line {line}). "
             "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
             ".judgekeeper/fix/new.json` "
-            "3. Then: `judgekeeper check .judgekeeper/fix/new.json`") in flat
+            "3. Then: `judgekeeper check .judgekeeper/fix/new.json`") in _no_calls(flat)
     assert yaml.safe_load(path.read_text(encoding="utf-8"))["providers"] == ["echo"]
 
 
@@ -225,7 +240,7 @@ def test_check_with_too_few_of_the_same_answers_keeps_the_old_next_for_other_too
     assert code == 3, out
     assert "wrote new answers" not in flat
     assert "Grade the answers you marked" not in flat  # the Next line says it, once
-    assert ("a re-check needs 15 of each. Next: run `judgekeeper fix` to write the answers you "
+    assert ("A re-check needs 15 of each. Next: run `judgekeeper fix` to write the answers you "
             "marked to "
             ".judgekeeper/fix/marked-answers.csv, grade every one again") in flat
     assert not (here / ".judgekeeper" / "fix" / "regrade.yaml").exists()
@@ -300,8 +315,8 @@ def test_check_with_none_of_the_answers_found_leads_with_the_steps(here, capsys,
             "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o "
             ".judgekeeper/fix/new.json` "
             "3. Then: `judgekeeper check .judgekeeper/fix/new.json` "
-            "Next: follow the three steps above; or start over on your new answers with "
-            "`judgekeeper --new`.") in flat
+            "Next: follow the three steps above. Or start over on your new answers with "
+            "`judgekeeper --new`.") in _no_calls(flat)
 
 
 def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools(
@@ -318,7 +333,7 @@ def test_check_with_none_of_the_answers_found_keeps_the_old_next_for_other_tools
     assert code == 3, out
     assert ("Your eval wrote new answers, so there's nothing to compare. Next: run "
             "`judgekeeper fix` to write the answers you marked") in flat  # said once, there
-    assert "or start over on your new answers with `judgekeeper --new`." in flat
+    assert "Or start over on your new answers with `judgekeeper --new`." in flat
 
 
 # the grader's config ---------------------------------------------------------------------------
@@ -376,7 +391,7 @@ def test_a_grader_with_no_config_is_its_name_alone(tmp_path):
     data = {"fingerprint": GRADER, "rule": RULE, "metric": "llm-rubric", "results_files": []}
     text = fix._regrade_yaml(ws, data)
     assert yaml.safe_load(text)["defaultTest"]["options"] == {"provider": "openai:gpt-4.1-mini"}
-    assert "#" not in text
+    assert "left out" not in text  # no config: no field left out, so no such comment
 
 
 def test_the_docs_say_when_no_regrade_file_is_written():
@@ -388,6 +403,23 @@ def test_the_docs_say_when_no_regrade_file_is_written():
             "is a named provider") in docs
     assert ("For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no "
             "file and prints the steps instead.") in docs
+
+
+def test_the_docs_example_has_the_tests_line_fix_writes():
+    """eval-tools.md shows the file `fix` writes (its tests are marked-answers.yaml, next to
+    it), and the line for a file you write yourself in your project folder."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).parent.parent / "docs" / "eval-tools.md").read_text(encoding="utf-8")
+    (block,) = re.findall(r"```yaml\n(.*?)```", text, flags=re.DOTALL)
+    assert yaml.safe_load(block)["tests"] == f"file://{fix.TESTS_FILE}"
+    docs = " ".join(text.split())
+    assert f"`{fix.TESTS_FILE}` (the same answers, word for word as marked) as its tests" in docs
+    assert ("Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and "
+            "run promptfoo from your project folder.") in docs
+    assert ("(from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`"
+            in docs)
 
 
 def test_any_field_that_may_hold_a_key_is_left_out():

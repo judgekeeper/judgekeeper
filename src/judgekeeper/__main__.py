@@ -35,6 +35,20 @@ def _release(held) -> None:
         signal.signal(signal.SIGINT, held)
 
 
+def _put_back(held) -> None:
+    """Once the run is done, the very last step, in place of a handler of judgekeeper's that
+    only notes a press (_record, cli._late): Python's Ctrl-C handler (`held`) back; as the
+    program itself, a Ctrl-C ignored instead, as it ends: nothing is left to stop, and while
+    Python ends it puts back the system's own, which would end it by the signal."""
+    cli = sys.modules.get("judgekeeper.cli")
+    if held is None or signal.getsignal(signal.SIGINT) not in (_record,
+                                                               getattr(cli, "_late", _record)):
+        return
+    textio = sys.modules.get("judgekeeper.textio")
+    ending = textio is not None and textio._started_as_judgekeeper()
+    signal.signal(signal.SIGINT, signal.SIG_IGN if ending else held)
+
+
 def main(argv: list[str] | None = None) -> int:
     held = _hold()  # the first statement: a press while the imports run is only recorded
     try:
@@ -44,25 +58,66 @@ def main(argv: list[str] | None = None) -> int:
             if _pressed:  # loaded: now it stops the usual way
                 raise KeyboardInterrupt
         except KeyboardInterrupt:
-            _release(held)
-            code = _stopped()
+            if held is not None:  # "Stopped." is said whole: a press now is only recorded
+                signal.signal(signal.SIGINT, _record)
+            code = _stopped(sys.argv[1:] if argv is None else argv)
         else:
-            code = run(argv)
+            code = run(argv, last=False)  # done, with a handler that only notes a press
+        if code == EXIT_STOPPED:
+            # A Ctrl-C raised inside code run from a string (namedtuple and dataclass build
+            # their classes so while modules load) leaves Python's "end by the signal" flag
+            # set, even caught, and `python -m` obeys it. Running a string again clears it.
+            exec("")  # noqa: S102 - an empty string, only to clear the flag
+            _end_now(code)
+        return code
     finally:
-        _release(held)
-    if code == EXIT_STOPPED:
-        # A Ctrl-C raised inside code run from a string (namedtuple and dataclass build their
-        # classes so while modules load) leaves Python's "end by the signal" flag set, even
-        # caught, and `python -m` obeys it. Running a string again clears the flag.
-        exec("")  # noqa: S102 - an empty string, only to clear the flag
-    return code
+        _put_back(held)
 
 
-def _stopped() -> int:
-    """Ctrl-C before the commands were loaded: said as cli.py says it, in its plainest form
-    (the command as run would need them loaded)."""
+def _end_now(code: int) -> None:
+    """After "Stopped.", end at once: a thread a library left running (a reader that a Ctrl-C
+    stopped half way) would hold Python open while it waits for it. What judgekeeper tidies at
+    exit (atexit) is done first. Only as the program itself, never inside another one."""
+    import threading
+
+    from judgekeeper import textio
+
+    if not textio._started_as_judgekeeper() or not any(
+            t.is_alive() and not t.daemon for t in threading.enumerate()
+            if t is not threading.main_thread()):
+        return
+    import atexit
+    import os
+
+    atexit._run_exitfuncs()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except (OSError, ValueError):
+            pass
+    os._exit(code)
+
+
+def _stopped(argv: list[str]) -> int:
+    """Ctrl-C while the commands loaded: said as cli.py says it, the program as typed and the
+    flags given. When the commands could not be loaded, the plain name and the flags."""
+    try:
+        from judgekeeper import cli, textio
+
+        stop, first = cli._stopped, cli.command_first
+        textio.next_said = False  # this run has said nothing yet (as cli._main starts)
+    except (Exception, KeyboardInterrupt):  # noqa: BLE001 - not loaded: said plainly below
+        stop = None
+    if stop is not None:
+        try:
+            return stop(first(list(argv)))
+        except OSError:  # stdout can't take it: still stopped
+            return EXIT_STOPPED
+    import shlex
+
+    command = " ".join(["judgekeeper", *(shlex.quote(a) for a in argv if a != "--debug")])
     print("\nStopped.")
-    print("Next: run `judgekeeper` to carry on.")
+    print(f"Next: run `{command}` when you want to continue.")  # cli.NEXT_STOPPED
     return EXIT_STOPPED
 
 

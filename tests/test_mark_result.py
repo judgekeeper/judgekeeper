@@ -51,8 +51,7 @@ def test_quick_marks_are_said_when_more_than_a_quarter():
             "under_second": 8, "not_counted": 0}
     assert len(start_label.made_lines(made)) == 1  # a quarter: not said
     made["under_second"] = 9
-    assert start_label.made_lines(made)[1] == ("9 of your marks took under a second each. A result is "
-                                        "only as good as the marks.")
+    assert start_label.made_lines(made)[1] == "9 of your marks took under a second each."
 
 
 def test_lines_not_made_on_the_page_are_said():
@@ -71,12 +70,12 @@ def test_marks_made_through_a_printed_link_are_said(ws):
     made = marks.made(marks.read(ws.marks))
     assert made["printed"] == 3
     assert start_label.made_lines(made)[-1] == (
-        "3 of your marks came through a link printed with no terminal, so another program on "
-        "this computer could have made them. If you marked them yourself, nothing to do.")
+        "3 of your marks came through a link judgekeeper printed. That's expected if you "
+        "opened it yourself.")
     made["printed"] = 1
     assert start_label.made_lines(made)[-1] == (
-        "1 of your marks came through a link printed with no terminal, so another program on "
-        "this computer could have made it. If you marked it yourself, nothing to do.")
+        "1 of your marks came through a link judgekeeper printed. That's expected if you "
+        "opened it yourself.")
 
 
 def test_the_result_keeps_how_the_marks_were_made_and_the_smallest_drop(ws):

@@ -21,7 +21,7 @@ import pytest
 from judgekeeper import mark_page
 
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
-          "judgekeeper mark in your project folder. Your marks are kept.")  # gone, or no answer
+             "the command at the bottom of this page. Your marks are kept.")  # gone, or no answer
 
 DOM = r"""
 var NOW = 1000000; Date.now = function () { return NOW; };
@@ -149,12 +149,13 @@ def _data(n: int = 6, **extra) -> dict:
 def _run(scenario: str, data: dict | None = None, seen_intro: bool = True,
          before: str = "") -> dict:
     """Run the page's script (after `before`), then `scenario` (async JS that ends by printing
-    one JSON line)."""
+    one JSON line). `seen_intro` False: the project has no marks yet, so the server asks for
+    the welcome box (state()'s `intro`)."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("needs node to run the page's script")
-    code = (f"var DATA = {json.dumps(data or _data())};\n{DOM}\n"
-            + ('stored["judgekeeper-intro-seen"] = "1";\n' if seen_intro else "") + before
+    data = {**(data or _data()), **({} if seen_intro else {"intro": True})}
+    code = (f"var DATA = {json.dumps(data)};\n{DOM}\n" + before
             + _script() + "\n(async function () {\n" + scenario + "\n})();")
     with tempfile.TemporaryDirectory() as folder:  # a file: too long for a command line
         script = Path(folder) / "page.js"
@@ -268,9 +269,37 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
     assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0}
     assert got["back"] == "Question 0?"
     # The end card in the answer card's place: the title, one button, no note, no result yet
-    assert got["end"] == [False, True, False, True, "Look at it", "2 marked", ""]
-    assert got["title"] == "1 skipped answer. Look again, or leave it out."
+    assert got["end"] == [False, True, False, True, "Mark it", "2 marked", ""]
+    assert got["title"] == ("The only answer left is the one you skipped. Mark it now, or run "
+                            "your eval on more questions.")
     assert got["again"] == "Question 0?"
+
+
+def test_the_end_card_with_more_than_one_skipped_answer_left():
+    got = _run("""
+      key("s"); await settle(); later(500);
+      key("s"); await settle(); later(500);
+      key("ArrowRight"); await settle(); later(500);
+      console.log(JSON.stringify({title: ids["end-title"].textContent,
+        again: ids["again"].textContent}));""", data=_data(3))
+    assert got == {"title": ("The only answers left are the 2 you skipped. Mark them now, or run "
+                             "your eval on more questions."), "again": "Mark them"}
+
+
+@pytest.mark.parametrize(("n", "title"), [
+    (1, "1 skipped answer. Look again, or leave it out."),
+    (2, "2 skipped answers. Look again, or leave them out."),
+])
+def test_with_a_result_the_end_card_never_says_to_run_the_eval_for_skipped_answers(n, title):
+    """With a coloured result already, only skipped answers left: look again or leave them
+    out. "Run your eval on more questions" is for a result that is too early to tell."""
+    got = _run(f"""
+      popped = true; status = {{text: "Ready.", ready: true, headline: "Good enough"}};
+      for (var i = 0; i < {n}; i++) {{ key("s"); await settle(); later(500); }}
+      for (var i = {n}; i < 3; i++) {{ key("ArrowRight"); await settle(); later(500); }}
+      console.log(JSON.stringify({{title: ids["end-title"].textContent,
+        again: ids["again"].hidden}}));""", data=_data(3))
+    assert got == {"title": title, "again": False}
 
 
 def test_end_card_focus_and_enter():
@@ -297,7 +326,8 @@ def test_with_every_answer_marked_the_end_card_says_so_and_the_result_opens():
 
 def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
     """`mark` with every answer marked: the page opens on a card that says how to change a
-    mark, not on the result; a mark changed from the list then opens the result."""
+    mark, not on the result; a mark changed from the list keeps that card (the bar links to
+    the result), and Z puts back the mark it had."""
     data = _data(3)
     for item in data["items"]:
         item["label"] = "pass"
@@ -309,14 +339,22 @@ def test_opened_with_every_answer_marked_a_mark_can_be_changed_from_the_list():
       var link = new El("a"); link.setAttribute("data-k", "2");
       ids["queue"].fire("click", {target: link}); await settle();
       var picked = ids["ans-status"].textContent;
+      counts.correct = 2;  // the server's counts: the 3 marks, one of them now changed
       key("ArrowLeft"); await settle(); later(500);
-      console.log(JSON.stringify({opened: opened, picked: picked, sent: sent.map(function (s) {
-        return [s.body.id, s.body.label]; }), href: window.location.href}));""", data=data)
-    assert got == {"opened": {"end": False, "title": "You have marked all 3 answers.",
-                              "note": "To change a mark, click it in the list.", "shown": True,
-                              "href": ""},
-                   "picked": "Marked Pass", "sent": [["a2", "fail"]],
-                   "href": "/result?token=t0k"}
+      var changed = {end: ids["end"].hidden, title: ids["end-title"].textContent,
+        note: ids["end-note"].textContent, href: window.location.href};
+      key("z"); await settle(); later(500);
+      var undone = {card: ids["answer-card"].hidden, status: ids["ans-status"].textContent};
+      console.log(JSON.stringify({opened: opened, picked: picked, changed: changed,
+        undone: undone, sent: sent.map(function (s) { return [s.body.id, s.body.label]; }),
+        end: ids["end"].hidden, href: window.location.href}));""", data=data)
+    marked_all = {"end": False, "title": "You have marked all 3 answers.",
+                  "note": "To change a mark, click it in the list."}
+    assert got == {"opened": {**marked_all, "shown": True, "href": ""},
+                   "picked": "Marked Pass", "changed": {**marked_all, "href": ""},
+                   "undone": {"card": False, "status": "Marked Pass"},
+                   "sent": [["a2", "fail"], ["a2", "pass"]],
+                   "end": True, "href": ""}
 
 
 def test_end_card_with_no_result_says_what_comes_next():
@@ -433,11 +471,11 @@ def test_the_welcome_box_opens_once_and_keys_wait_until_it_is_closed():
       ids["intro-box"].fire("keydown", {key: "Enter"});
       later(500); key("ArrowRight"); await settle();
       console.log(JSON.stringify({open: open, focused: focused, whileOpen: whileOpen,
-        closed: ids["intro"].hidden, seen: stored["judgekeeper-intro-seen"],
+        closed: ids["intro"].hidden, stored: Object.keys(stored).length,
         after: sent.length, button: document.activeElement === ids["intro-ok"],
         inert: [inert, ids["app"].getAttribute("inert")]}));""",
                seen_intro=False, before="var inert = null;\n")
-    assert got == {"open": True, "focused": True, "whileOpen": 0, "closed": True, "seen": "1",
+    assert got == {"open": True, "focused": True, "whileOpen": 0, "closed": True, "stored": 0,
                    "after": 1, "button": False,  # the box, not its button: no ring on open
                    "inert": ["", None]}  # the page behind: inert while the box is open
 
@@ -464,6 +502,23 @@ def test_the_welcome_box_keeps_tab_on_its_button_and_esc_starts_too():
       console.log(JSON.stringify({kept: tab.defaultPrevented, onButton: onButton,
         closed: ids["intro"].hidden}));""", seen_intro=False)
     assert got == {"kept": True, "onButton": True, "closed": True}
+
+
+def test_no_welcome_box_when_every_answer_is_marked():
+    """A page the server asks the box on, with every answer marked: no "Start marking" box
+    over "You have marked all N answers"; it still shows once answers are left."""
+    data = _data(3)
+    for item in data["items"]:
+        item["label"] = "pass"
+    data["counts"] = {"correct": 3, "wrong": 0, "skipped": 0}
+    got = _run("""
+      console.log(JSON.stringify({box: !ids["intro"].hidden, end: !ids["end"].hidden,
+        title: ids["end-title"].textContent, inert: document.getElementById("app").getAttribute("inert") !== null,
+        stored: Object.keys(stored).length}));""", data=data, seen_intro=False)
+    assert got == {"box": False, "end": True, "title": "You have marked all 3 answers.",
+                   "inert": False, "stored": 0}
+    got = _run('console.log(JSON.stringify({box: !ids["intro"].hidden}));', seen_intro=False)
+    assert got == {"box": True}
 
 
 def test_a_blocked_storage_still_shows_the_page_and_the_box():
@@ -631,7 +686,8 @@ def _bar(counts: dict, ready: bool = False, first: bool | None = None) -> list:
     return _run("""
       console.log(JSON.stringify([ids["progress"].getAttribute("aria-valuenow"),
                                   ids["keep"].hidden, ids["keep"].textContent]));""",
-                data=_data(counts=counts, status={"text": "x", "first": first, "ready": ready}))
+                data=_data(60, counts=counts,  # enough answers for a first result
+                           status={"text": "x", "first": first, "ready": ready}))
 
 
 def test_the_bar_counts_pass_and_fail_each_up_to_the_rough_number_and_never_fills_before_ready():
@@ -662,6 +718,23 @@ def test_the_calm_line_shows_once_enough_are_looked_at_and_no_result_yet():
     page = mark_page.label_page(None)
     assert ('<p class="keep" id="keep" hidden>Keep going: your result appears once there are '
             "enough Pass and Fail marks.</p>") in page
+
+
+def test_a_card_shown_again_still_lets_the_bar_say_only_a_skipped_answer_is_left():
+    """An answer shown again adds a card, never an answer: with every other answer marked and
+    one skipped, the line under the bar says what the end card says."""
+    data = _data(60, counts={"correct": 30, "wrong": 29, "skipped": 1},
+                 status={"text": "x", "first": False, "ready": False})
+    for i, it in enumerate(data["items"]):
+        it.update({"label": "pass" if i % 2 else "fail"} if i else {"skipped": True})
+    data["items"].insert(1, {"id": "a5", "input": "Question 5?", "output": "Answer 5.",
+                             "label": None, "skipped": False, "again": 0})
+    data["total"], data["start"] = 61, 1
+    got = _run("""
+      console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));""",
+               data=data)
+    assert got == [False, ("The only answer left is the one you skipped. Mark it now, or run "
+                           "your eval on more questions.")]
 
 
 def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_marking():
@@ -797,6 +870,20 @@ STALE = """
 """
 
 
+def test_an_answer_opened_from_the_list_has_no_word_from_the_mark_before():
+    """"Marked Fail." is said after a mark, for a screen reader. Open another answer from the
+    list and it is gone: it was about the answer before, not this one."""
+    got = _run("""
+      function wait(ms) { return new Promise(function (r) { realTimeout(r, ms); }); }
+      key("ArrowLeft"); await settle(); await wait(250);
+      var after = ids["done"].textContent;
+      var link = new El("a"); link.setAttribute("data-k", "3");
+      ids["queue"].fire("click", {target: link}); await settle(); await wait(250);
+      console.log(JSON.stringify({after: after, opened: ids["done"].textContent,
+        at: ids["q-text"].textContent}));""", before="var realTimeout = setTimeout;\n")
+    assert got == {"after": "Marked Fail.", "opened": "", "at": "Question 3?"}
+
+
 def test_a_page_whose_marks_changed_takes_the_new_list_before_the_next_answer():
     got = _run("var BEFORE = 'v2';" + STALE + """
       key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
@@ -827,12 +914,30 @@ def test_a_server_that_says_no_version_never_makes_the_page_ask_again():
     assert got == {"at": "Question 1?", "reloads": 0}
 
 
+def test_z_on_a_first_mark_still_takes_it_back_and_on_a_changed_one_puts_the_old_back():
+    got = _run("""
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass, a first mark
+      key("z"); await settle(); later(500);           // taken back: a0 unmarked
+      var first = ids["ans-status"].textContent;
+      key("ArrowRight"); await settle(); later(500);  // a0: Pass again, a1 shows
+      var link = new El("a"); link.setAttribute("data-k", "0");
+      ids["queue"].fire("click", {target: link}); await settle();
+      key("ArrowLeft"); await settle(); later(500);   // a0 changed to Fail
+      key("z"); await settle(); later(500);           // back to Pass
+      console.log(JSON.stringify({first: first, now: ids["ans-status"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+        data=_data(3))
+    assert got == {"first": "", "now": "Marked Pass",
+                   "sent": [["a0", "pass"], ["a0", None], ["a0", "pass"], ["a0", "fail"],
+                            ["a0", "pass"]]}
+
+
 def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
     """Marks on answers the new LLM-as-a-judge never graded count for nothing in the bar; the
     line under it says how many wait and how to count them, with the command as code."""
-    line = ("20 of your marks wait: your new LLM-as-a-judge hasn't graded those answers yet. "
-            "To count them, grade all your answers with your new LLM-as-a-judge, then run "
-            "`judgekeeper check <new results file>`.")
+    line = ("20 of your marks wait: your new LLM-as-a-judge has no Pass or Fail grade on those "
+            "answers yet. To count them, grade all your answers with your new LLM-as-a-judge, "
+            "then run `judgekeeper check <new results file>`.")
     counts = {"correct": 15, "wrong": 15, "skipped": 0, "toward": {"correct": 15, "wrong": 0}}
     got = _run("""
       var w = ids["waiting"];
@@ -845,3 +950,129 @@ def test_marks_that_wait_fill_no_bar_and_the_page_says_so_once():
                data=_data(counts={"correct": 1, "wrong": 1, "skipped": 0},
                           status={"text": "x", "first": False, "ready": False}))
     assert got == [True]
+
+
+def test_with_only_marks_that_wait_left_the_page_never_says_keep_marking():
+    """No answer the new LLM-as-a-judge graded is left to mark (status.only_wait): no mark can
+    move the result, so the line under the bar is gone; the wait line is the step."""
+    counts = {"correct": 20, "wrong": 20, "skipped": 0, "toward": {"correct": 15, "wrong": 15}}
+    keep = 'console.log(JSON.stringify([ids["keep"].hidden, ids["waiting"].hidden]));'
+    status = {"text": "x", "first": True, "ready": False, "waiting": "20 of your marks wait."}
+    assert _run(keep, data=_data(counts=counts, status=status)) == [False, False]
+    assert _run(keep, data=_data(counts=counts, status={**status, "only_wait": True})) == [
+        True, False]
+
+
+def test_a_saved_mark_keeps_the_list_rows_so_a_click_is_never_lost():
+    """The answers list is updated in place after each save (each row's link kept, only its
+    text, icon and state changed): a click pressed on a row while a mark is saved lands on the
+    same row when it is let go, and opens it."""
+    got = _run("""
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      function state(a) { return [a.getAttribute("aria-current"),
+        a.children[a.children.length - 1].textContent, a.children[2].innerHTML]; }
+      var before = rows(), icon = state(before[0])[2];
+      key("ArrowRight"); await settle();  // saved: the list is drawn again
+      var after = rows();
+      var same = before.length === after.length && before.every(function (a, i) {
+        return a === after[i]; });
+      var states = [state(after[0]), state(after[1])];
+      ids["queue"].fire("click", {target: before[3].children[1]}); await settle();
+      console.log(JSON.stringify({same: same, n: after.length, states: states,
+        iconChanged: states[0][2] !== icon, opened: ids["q-text"].textContent}));""")
+    assert got["same"] and got["n"] == 6
+    assert got["states"][0][:2] == [None, ", marked Pass"] and got["iconChanged"]
+    assert got["states"][1][:2] == ["true", ", not marked"]
+    assert got["opened"] == "Question 3?"
+
+
+@pytest.mark.parametrize("n", [8, 4])
+def test_the_list_grows_or_shrinks_with_the_answers_and_keeps_the_rows_it_has(n):
+    """A new list from the server (marks written elsewhere, /state) with more or fewer
+    answers: rows are added or taken away at the end; the rows kept are the same links."""
+    got = _run(f"var NEWN = {n};" + """
+      function rows() { return ids["queue"].children.map(function (li) {
+        return li.children[0]; }); }
+      fetch = function (url, opts) {
+        if (url.indexOf("/state") === 0) {
+          var items = [];
+          for (var k = 0; k < NEWN; k++) { items.push({id: "a" + k, input: "Question " + k + "?",
+            output: "Answer " + k + ".", label: k === 0 ? "pass" : null, skipped: false}); }
+          return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+            {items: items, total: NEWN, start: 1, version: "v3",
+             counts: {correct: 1, wrong: 0, skipped: 0},
+             status: {text: "Keep going.", ready: false}}); }});
+        }
+        sent.push({url: url, body: JSON.parse(opts.body)});
+        return Promise.resolve({ok: true, json: function () { return Promise.resolve(
+          {summary: {counts: {correct: 1, wrong: 0, skipped: 0}, version: "v3", before: "v2",
+                     status: {text: "Keep going.", ready: false}}}); }});
+      };
+      var before = rows();
+      key("ArrowRight"); for (var n = 0; n < 6; n++) { await settle(); }
+      var after = rows(), kept = Math.min(before.length, after.length);
+      console.log(JSON.stringify({n: after.length, same: before.slice(0, kept).every(
+        function (a, i) { return a === after[i]; }),
+        last: after[after.length - 1].children[1].textContent}));""", _data(version="v1"))
+    assert got == {"n": n, "same": True, "last": f"Question {n - 1}?"}
+
+
+@pytest.mark.parametrize("first", [False, True])
+def test_the_line_under_the_bar_says_only_skipped_answers_are_left_as_the_card_does(first):
+    """59 of 60 marked and 1 skipped, no coloured result: the line under the bar says what
+    the card in the middle says, never to keep going. With an answer left: keep going."""
+    data = _data(60, counts={"correct": 45, "wrong": 14, "skipped": 1},
+                 status={"text": "x", "first": first, "ready": False})
+    for item in data["items"][:59]:
+        item["label"] = "pass"
+    data["items"][59]["skipped"] = True
+    show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
+    card = ("The only answer left is the one you skipped. Mark it now, or run your eval on more "
+            "questions.")
+    assert _run(show, data=data) == [False, card]
+    data["counts"] = {"correct": 45, "wrong": 13, "skipped": 1}
+    data["items"][58]["label"] = None
+    said = _run(show, data=data)[1]
+    assert said == (mark_page.KEEP_GOING if not first else
+                    "Your first numbers are in. Too early to tell: keep marking.")
+
+
+def test_the_line_under_the_bar_names_the_marks_a_group_still_needs():
+    """Enough Pass and Fail marks, too few on the answers the LLM-as-a-judge failed: the line
+    under the bar says so, as the terminal does, not only to keep going."""
+    group = ("You marked 13 answers your LLM-as-a-judge failed. Your LLM-as-a-judge failed only "
+             "14 answers, so a result needs your marks on all 14.")
+    data = _data(60, counts={"correct": 20, "wrong": 16, "skipped": 0},
+                 status={"text": "x", "first": False, "ready": False, "group": group})
+    for item in data["items"][:36]:
+        item["label"] = "pass"
+    show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
+    assert _run(show, data=data) == [False, group]
+
+
+def test_the_line_under_the_bar_says_a_first_result_needs_more_answers():
+    """24 answers, a few marked: no result can appear on the page, so the line under the bar
+    says what the terminal says, never to keep going for one."""
+    from judgekeeper import start
+
+    data = _data(24, counts={"correct": 4, "wrong": 2, "skipped": 0},
+                 status={"text": "x", "first": False, "ready": False})
+    for item in data["items"][:6]:
+        item["label"] = "pass"
+    show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'
+    assert _run(show, data=data) == [False, (
+        f"A first result needs at least {start.MIN_POOL} answers. Your marks are kept for when "
+        "more answers come.")]
+
+
+def test_a_named_part_equal_to_the_answer_shows_unless_it_is_the_answer():
+    def shown(parts):
+        got = _run("""console.log(JSON.stringify({text: ids["q-text"].textContent}));""",
+                   data=_data(1, items=[{"id": "a0", "output": "23", "label": None,
+                                         "skipped": False, "input": parts}]))
+        return got["text"]
+
+    text = shown([["question", "What is 38 - 15?"], ["i", "23"]])
+    assert text == "questionWhat is 38 - 15?i23", text  # each name above its value
+    assert shown([["question", "What is 38 - 15?"], ["answer", "23"]]) == "What is 38 - 15?"

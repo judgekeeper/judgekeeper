@@ -58,7 +58,7 @@ PICKS = 10  # ports tried when one judgekeeper picked is taken before the page b
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
 STARTS_AGAIN = "The marking page starts again for this command's flags. Your marks stay."
-ANOTHER_PROJECT = "A marking page for another project is open; close it there with `{command}`."
+ANOTHER_PROJECT = "A marking page for another project is open. Close it there with `{command}`."
 OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 
@@ -124,13 +124,14 @@ def _same_flags(old: dict | None, key: dict) -> bool:
 
 
 def page_server(ws: Workspace, port: int, flags: dict | None = None,
-                token: str | None = None, stamp: str | None = None):
+                token: str | None = None, stamp: str | None = None, back: dict | None = None):
     """The marking page: marking, and the result. Every click is a stamped
     line in marks.jsonl. It holds the project's lock and stays open after the result, until
     /stop, Ctrl-C or 30 minutes idle. `flags` (start.run_flags, of the run that opened it):
     the result keeps them, and `judgekeeper mark` with them is how to come back to it.
     `token`: the one the command made (default: a new one). `stamp`: how the page with the
-    same token was stamped before (marks.LINKS), so its marks are stamped so."""
+    same token was stamped before (marks.LINKS), so its marks are stamped so. `back`: how
+    to come back as typed where it was started (start.saved_back), for its footer."""
     session = marking_session(ws, start.command_from(flags, kept=True))
     if stamp in marks.LINKS:
         session.link = stamp
@@ -138,16 +139,18 @@ def page_server(ws: Workspace, port: int, flags: dict | None = None,
     def result(session: StartSession, back: str) -> str:
         return start_label.live_result(ws, session, flags, back)
 
-    template = start_label.page_template(ws.data(), start.command_from(flags, "mark", kept=True),
+    template = start_label.page_template(ws.data(), start.come_back(flags, back),
                                          start.held_values(flags))
     return make_server(session, port, result=result, page=template, lock=ws.dir, stays=True,
-                       token=token, settings=page_key(ws, flags))
+                       token=token, settings=page_key(ws, flags),
+                       asked=start.saved_flags(flags).get("port", DEFAULT_PORT),
+                       no_browser=bool(start.saved_flags(flags).get("no_browser")))
 
 
 def server_for(ws: Workspace, settings: dict, token: str):
     """The marking page `settings` ask for."""
     return page_server(ws, int(settings["port"]), settings.get("flags"), token=token,
-                       stamp=settings.get("link"))
+                       stamp=settings.get("link"), back=settings.get("back"))
 
 
 @dataclass
@@ -165,13 +168,14 @@ class Page:
 
 
 def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
-             say=lambda line: None) -> Page | None:
+             say=lambda line: None, back: dict | None = None) -> Page | None:
     """The page for this project, with the token of the one open (a new token when none is):
     the open page itself, on its port, when it shows the same (page_key); else it is
     closed (`say` says so) and a page started (on its port when free, else on a free port when the default
     is taken, choose_port; `say` says why): in the background, or served by this process
     (`here`, for --wait). When a port judgekeeper picked is taken before the page binds it
-    (another run), the next free one, up to PICKS tries. None when it could not start."""
+    (another run), the next free one, up to PICKS tries. None when it could not start.
+    `back`: page_server's."""
     with one_at_a_time(ws.dir, say):
         old = live_lock(ws.dir)
         token = old["token"] if old else secrets.token_urlsafe(32)
@@ -191,11 +195,13 @@ def open_new(ws: Workspace, port: int, flags: dict, here: bool = False,
         for _ in range(PICKS):
             try:
                 if here:
-                    server = page_server(ws, port, flags, token=token, stamp=stamp)
+                    server = page_server(ws, port, flags, token=token, stamp=stamp,
+                                         back=back)
                     return Page(server.url, server.port, server.token, server)
                 settings = {"root": str(ws.root.resolve()), "port": port, "flags": flags,
                             "link": stamp, "python_m": textio.started_with_python_m(),
-                            "program": textio.program_in(ws.root)}  # its lines: from there
+                            "program": textio.program_in(ws.root),  # its lines: from there
+                            "back": back}
                 url = background.start(ws.dir, settings, token)
             except LabelError:
                 url = None
@@ -368,7 +374,7 @@ def main() -> int:
         given = json.loads(sys.stdin.readline())
         token, root = str(given["token"]), Path(given["root"])
         settings = {"port": int(given["port"]), "flags": dict(given["flags"]),
-                    "link": given.get("link")}
+                    "link": given.get("link"), "back": start.saved_back(given.get("back"))}
         textio._python_m = given.get("python_m") is True  # its commands say `python3 -P -m`
         program = given.get("program")  # the run's own name for judgekeeper: the page says it
         if isinstance(program, str) and program.isprintable() and 0 < len(program) < 4096:

@@ -576,7 +576,7 @@ TEMPLATES = {
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
     "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
 }
-PART_LINE = "Make rule part {n} more exact: your LLM-as-a-judge missed it {times}."
+PART_LINE = "Make rule part {n} more precise: your LLM-as-a-judge missed it {times}."
 RULE_PART = "RULE PART"  # the fence its words go in: data, as an answer's
 MARKED_PART = "MARKED PART"  # the words of an answer the person marked
 SUGGESTIONS = "suggestions.md"
@@ -630,15 +630,39 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
     for r in rows:
         text = canonical(r.get("output") or "")
         for words in marked(text, merged(r.get("spans"), len(text))):  # as mistakes.md joins
-            once.append(("The part you marked:", [r],  # answer text: fenced, as the answer
+            once.append((MARKED_LINE, [r],  # answer text: fenced, as the answer
                          [(MARKED_PART, one_line(" ".join(words.split())))]))
     return suggested, once
 
 
-def suggestions_md(rows: list[dict]) -> str:
+MARKED_LINE = "The part you marked:"  # never suggested: it is the answer's own words
+SUGGESTED_ONCE = "A line is suggested once you give the same reason on at least {twice} answers."
+NONE_YET = "None yet. " + SUGGESTED_ONCE
+ONE_MORE = ("Give the same reason on one more answer.", "Give the same reason on {n} more answers.")
+ADD_REASONS = ("To add reasons, run `{command}` and open your result from the marking page. "
+               "Say why you disagree on an answer there.")
+
+
+def more_needed(once: list) -> int:
+    """How many more answers a reason given once (suggestions' `once`) needs to suggest a
+    line: TWICE less the most answers one already has (a marked part never counts)."""
+    return TWICE - max((len(hits) for line, hits, _ in once if line != MARKED_LINE), default=0)
+
+
+def none_yet(more: int, command: str) -> str:
+    """What suggestions.md and fix say while no line is suggested: how many answers a reason
+    needs, how many more (`more`, more_needed) when a reason was given, and how to give one
+    (`command`: the `mark` command that opens the page)."""
+    return " ".join([NONE_YET.format(twice=TWICE),
+                     *([ONE_MORE[more != 1].format(n=more)] if more < TWICE else []),
+                     ADD_REASONS.format(command=command)])
+
+
+def suggestions_md(rows: list[dict], command: str = "judgekeeper mark") -> str:
     """.judgekeeper/fix/suggestions.md: the suggested rule lines from the person's reasons on
     the marks they can see, then everything given once, each with its answer fenced as data.
-    The warning comes before any of the person's words, and each note is fenced."""
+    The warning comes before any of the person's words, and each note is fenced. `command`:
+    the `mark` command that opens the page, named while no line is suggested (none_yet)."""
     from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced
 
     suggested, once = suggestions(rows)
@@ -657,7 +681,7 @@ def suggestions_md(rows: list[dict]) -> str:
         for note, times in Counter(notes).items():  # the same note once, as the terminal says it
             parts.append(fence(note) + (f"\n(on {times} answers)" if times > 1 else ""))
     if not suggested:
-        parts.append("None yet: a line is suggested once a reason is given on 2 answers.")
+        parts.append(none_yet(more_needed(once), command))
     parts += ["", "## Seen once (not suggested yet)", ""]
     for line, hits, notes in once:
         parts.append(f"- {line}")

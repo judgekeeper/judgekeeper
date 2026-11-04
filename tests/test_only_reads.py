@@ -283,7 +283,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     then = said[said.rindex("Next:"):]
     if tool == "inspect":  # the log is scored again, not marked-answers.csv
         assert then == (f"Next: score your log again with your new rule: run "
-                        f"`{fix.INSPECT_SCORE}` with `--output-file {fix.new_log(ws)}`, then "
+                        f"`{fix.inspect_score(ws, fix.new_log(ws))}` and then "
                         f"run `judgekeeper fix {fix.new_log(ws)}`.")
     else:  # MLflow: a new run in its store
         assert (fix.mlflow_store(ws) if tool == "mlflow" else "marked-answers.csv") in then
@@ -325,7 +325,7 @@ def test_cant_tell_yet_says_how_many_mistakes_are_kept_aside(here, capsys, monke
     code, out = run(capsys, "fix", _regraded(ws, here, verdicts).name)
     said = " ".join(out.split())
     assert code == 0 and "Result: can't tell yet." in said
-    assert (f"Only {len(wrong)} of your LLM-as-a-judge's mistakes are kept aside; 'better' needs "
+    assert (f"Only {len(wrong)} of your LLM-as-a-judge's mistakes are kept aside. 'Better' needs "
             "about 6 fixed and none broken. Mark more answers to get a clearer test.") in said
 
 
@@ -336,7 +336,7 @@ def test_worse_says_to_copy_the_old_rule_back(here, capsys, monkeypatch):
     verdicts = {i: not person(i) for i in range(N)}  # every answer graded the other way
     code, out = run(capsys, "fix", _regraded(ws, here, verdicts).name)
     said = " ".join(out.split())
-    assert code == 0 and "Result: it looks worse." in said
+    assert code == 0 and "Result: your new rule looks worse." in said
     assert "Next: copy your old rule back into your eval tool" in said
 
 

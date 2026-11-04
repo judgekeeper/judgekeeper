@@ -37,15 +37,16 @@
     grading: ["LLM-as-a-judge's decisions", 'PROMPTFOO_STRIP_GRADING_RESULT']
   };
 
-  var NOT_RECOGNISED = "This doesn't look like results judgekeeper can read in the browser. The tool also reads Inspect AI and MLflow: run uvx judgekeeper in your project.";
+  // a file of no kind it reads (also an unknown text file): what the page reads, and the tool
+  var NOT_RECOGNISED = "This isn't a results file this page can read. It reads promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run `uvx judgekeeper` in your project.";
   // a table whose columns it can't place: the columns it found, and those it reads
   function NOT_COLUMNS(columns) {
     var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
     return "judgekeeper can't tell which columns hold the question, the answer and the grade" +
       (shown.length ? ' (this file has ' + andList(shown) + (columns.length > 6 ? ' and more' : '') + ')' : '') + '. ' + READ_NAMES +
-      ' The tool reads other names too: run uvx judgekeeper in your project.';
+      ' The tool reads other names too. Run `uvx judgekeeper` in your project.';
   }
-  var IN_PROJECT = ' This page does not read it: run uvx judgekeeper in your project for this file.';
+  var IN_PROJECT = ' This page does not read it. Run `uvx judgekeeper` in your project for this file.';
   var RECORDS = 'This is a judgekeeper.record() file.' + IN_PROJECT;
   var SETTINGS = "This is judgekeeper's settings file (judgekeeper.toml)." + IN_PROJECT;
   var TABLE_OUTPUT = "This is promptfoo's table output, which doesn't keep the LLM-as-a-judge's own decisions. Save the full results with promptfoo eval -o results.json.";
@@ -53,12 +54,13 @@
   var NO_JUDGE = ' holds no decisions from an LLM-as-a-judge.';
   var RULES = { promptfoo: 'checks', deepeval: 'metrics' };
   var RULES_IN_CODE = ' are rules in code, not an LLM-as-a-judge. judgekeeper checks an LLM-as-a-judge.';
-  var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run uvx judgekeeper in your project instead: it reads big files too.';
+  var TOO_BIG = 'This file is bigger than 50 MB, so this page does not read it. Run `uvx judgekeeper` in your project instead. It reads big files too.';
   var NOT_UTF8 = 'This file is not saved as UTF-8 text, so it cannot be read.';
   var EMPTY = 'This file is empty.';
-  var FULL_TOOL = 'Inspect AI and MLflow results are read by the full tool: run uvx judgekeeper in your project.';
-  var EXCEL_FILE = "Excel files aren't read. Save it as CSV UTF-8.";
-  var SPREADSHEET_FILE = "Spreadsheet files aren't read. Save it as CSV UTF-8.";
+  var INSPECT_TOOL = 'Inspect AI logs are read by the full tool, with its inspect extra. Run `uvx --from "judgekeeper[inspect]" judgekeeper` in your project.';
+  var MLFLOW_TOOL = 'MLflow results are read by the full tool, with its mlflow extra. Run `uvx --from "judgekeeper[mlflow]" judgekeeper` in your project.';
+  var EXCEL_FILE = 'This page does not read Excel files. Save the sheet as CSV UTF-8.';
+  var SPREADSHEET_FILE = 'This page does not read spreadsheet files. Save the sheet as CSV UTF-8.';
   // first bytes: a zip (Inspect's .eval log, or an Excel or OpenDocument spreadsheet) and an
   // SQLite file (an MLflow store)
   var ZIP_START = [0x50, 0x4B, 0x03, 0x04];
@@ -66,6 +68,7 @@
   var EXCEL_ENTRIES = ['[Content_Types].xml', 'xl/', '_rels/', 'docProps/'];
   var OPENDOCUMENT = 'application/vnd.oasis.opendocument.';  // the text of an OpenDocument's first entry, mimetype
   var NOT_JSON = "This file isn't valid JSON that judgekeeper can read.";
+  var CUT_OFF = 'This file is cut off or damaged (it ends in the middle). Save it again from your eval tool.';
   var EVERY_ANSWER = 'your LLM-as-a-judge gave every answer a clear Pass or Fail.';
   var FREE_CHECK = 'Checked: ';
   var MODEL_NOT_WRITTEN = "Your LLM-as-a-judge's model isn't written in your config. promptfoo picks it from whichever API key is set, so it can change without any file changing. Write it in your config (defaultTest.options.provider).";
@@ -131,6 +134,22 @@
     if (!FLOATS_SEEN) return null;
     var f = isObj(obj) ? FLOATS.get(obj) : null;
     return f && f[key] ? 'float' : 'int';
+  }
+
+  // records.load_json: JSON that stops inside a string or before its brackets close ends in the middle
+  function endsInTheMiddle(t) {
+    var depth = 0, inString = false, escaped = false;
+    for (var i = 0; i < t.length; i++) {
+      var c = t[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === '{' || c === '[') depth += 1;
+      else if (c === '}' || c === ']') depth -= 1;
+    }
+    return inString || depth > 0;
   }
 
   function tooDeep(data) {
@@ -560,6 +579,24 @@
     var t = v.trim().toLowerCase();
     return /[0-9\/:]/.test(t) || namedFor(t, MODEL_WORDS);
   }
+  // mapper.model_name: in a column named for the model, one word (acme, judge-model-x) or a value
+  // that reads as a model's name; never a grade, a number or a rule's name (string_match)
+  var RULE_NAME_WORDS = ['keyword', 'keywords', 'regex', 'exact', 'contains', 'match', 'string'];
+  function modelName(v) {
+    if (!isStr(v) || !v.trim() || verdictValue(v)) return false;
+    var t = v.trim();
+    if (/^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/.test(t) || namedFor(t, RULE_NAME_WORDS)) return false;
+    return /^[A-Za-z0-9][A-Za-z0-9._:\/@-]*$/.test(t) || modelLike(t);
+  }
+  // start.model_column: judge_model, else model (with a value), and whether it names a model
+  function modelColumn(rows, columns) {
+    var col = ['judge_model', 'model'].find(function (c) {
+      return columns.indexOf(c) >= 0 && rows.some(function (row) { return !blank(row[c]); });
+    });
+    if (!col) return { col: null, named: false };
+    var seen = rows.filter(function (row) { return !blank(row[col]); });
+    return { col: col, named: seen.every(function (row) { return modelName(row[col]); }) };
+  }
   // start._models_named: every value in the column (empty ones aside) names a model, none a grade
   function modelsNamed(rows, col) {
     var seen = rows.filter(function (row) { return !blank(row[col]); });
@@ -580,12 +617,15 @@
   }
 
   // Python's csv reader (excel dialect, not strict): quotes only at the start of a field
-  function parseCsv(text, d) {
-    var rows = [], row = [], field = '', state = 'record', i = 0, c;
+  // `starts`, when given, gets the line each row starts on (as Python's csv reader counts lines)
+  function parseCsv(text, d, starts) {
+    var rows = [], row = [], field = '', state = 'record', i = 0, c, line = 1;
     function save() { row.push(field); field = ''; }
     function end() { rows.push(row); row = []; state = 'record'; if (c === '\r' && text[i] === '\n') i++; }
     while (i < text.length) {
       c = text[i++];
+      if (state === 'record' && starts) starts.push(line);
+      if (c === '\r' || (c === '\n' && text[i - 2] !== '\r')) line++;
       if (state === 'record') {
         if (c === '\n' || c === '\r') { end(); continue; }  // an empty line: []
         state = 'field';
@@ -659,6 +699,55 @@
       start = k + 1;
     }
   }
+  // table.wide_row_hint: the line a row starts on that has more cells with text than its
+  // header has columns (a stray quote that a later quote closes reads two rows as one), and
+  // the quote hint when that row holds a quote; or null
+  var WIDE = 'has more cells than its header', QUOTE_HINT = ': a quote may be closed in the wrong place';
+  function wideRow(text, d) {
+    var starts = [], rows = parseCsv(text, d, starts);
+    if (!rows.length) return null;
+    var n = rows[0].length, lines = text.split('\n');
+    for (var r = 1; r < rows.length; r++) {
+      if (rows[r].slice(n).some(function (cell) { return cell.trim(); })) {
+        var end = r + 1 < starts.length ? starts[r + 1] - 1 : lines.length;
+        var own = lines.slice(starts[r] - 1, end).join('\n');
+        return { line: starts[r], hint: own.indexOf('"') >= 0 ? QUOTE_HINT : '' };
+      }
+    }
+    return null;
+  }
+  // table.cut_off: the file ends inside a quote, as JSON that stops inside a string: its last
+  // row's last cell, as written, is text holding a quote (one not at the cell's start, kept as
+  // text) or text after a closing quote, and the file stops there or that row has fewer cells
+  // than the header. Rows where every cell is empty are not rows.
+  function cutOff(text, d) {
+    var header = null, last = null, cells = 1, state = 'start', stray = false, any = false, from = 0;
+    function end(at, stops) {
+      if (header === null) header = at > from ? cells : 0;  // an empty line: no header
+      else if (any) last = { cells: cells, stray: stray, stops: stops };
+      cells = 1; state = 'start'; stray = false; any = false;
+    }
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if ((c === '\n' || c === '\r') && state !== 'quoted') {
+        end(i, false);
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        from = i + 1;
+        continue;
+      }
+      if (c === d && state !== 'quoted') { cells += 1; state = 'start'; stray = false; continue; }
+      if (state === 'start') state = c === '"' ? 'quoted' : 'in';
+      else if (state === 'in') stray = stray || c === '"';
+      else if (state === 'quoted') state = c === '"' ? 'after' : 'quoted';
+      else if (c === '"') state = 'quoted';  // after a quote in a quoted cell: a doubled quote
+      else if (c !== ' ' && c !== '\t') { state = 'in'; stray = true; }  // or text after it,
+      // read on with the quote dropped; a space or tab alone after it is no text
+      if (/\S/.test(c) && (c !== '"' || state === 'in')) any = true;
+    }
+    if (from < text.length) end(text.length, true);
+    return !!(header && last && last.stray && (last.stops || last.cells < header));
+  }
+  function wideMessage(wide) { return 'Line ' + wide.line + ' of this file ' + WIDE + wide.hint + '.'; }
   // table._rows_inside: how many lines of a cell read as a whole row, with a grade at `verdict`
   function rowsInside(cell, d, columns, verdict) {
     return cell.split('\n').filter(function (line) {
@@ -715,9 +804,9 @@
     }
     var human = HUMAN_COLUMNS.find(function (c) { return columns.indexOf(c) >= 0; });
     var judged = [], nHuman = 0;
+    var mc = modelColumn(rows, columns);  // "string_match": a rule's name, not a model's
     rows.forEach(function (row) {
-      var model = !blank(row.model) ? row.model : row.judge_model;
-      if (!modelLike(model)) model = null;  // "string_match": a rule's name, not a model's
+      var model = mc.named && !blank(row[mc.col]) ? row[mc.col] : null;
       verdicts.forEach(function (verdict) {
         judged.push({
           name: verdict, input: row.input === undefined ? null : row.input, output: row.output === undefined ? null : row.output,
@@ -730,7 +819,7 @@
     });
     // front.read_rows: which columns were read (never the rows); the grade from the judge's own
     var headVerdict = VERDICT_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
-    var modelCol = ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; });
+    var modelCol = mc.named ? ['judge_model', 'model'].find(function (c) { return firstColumns.indexOf(c) >= 0; }) : null;
     var labelCol = HUMAN_COLUMNS.find(function (c) { return firstColumns.indexOf(c) >= 0; });
     var readRows = {};
     verdicts.forEach(function (verdict) {
@@ -742,7 +831,7 @@
       readRows[verdict] = said;
     });
     return { tool: 'table', kindWord: kindWord, judged: judged, nHuman: nHuman, perMetric: {},
-      scoreJudge: false, order: verdicts, readRows: readRows };
+      scoreJudge: false, order: verdicts, readRows: readRows, modelRefused: mc.col && !mc.named ? mc.col : null };
   }
   // mapper.guess by the columns' names: a file with one question, one answer and one grade
   // column under another common name (question, answer, grade) is read as the tool reads it,
@@ -1116,11 +1205,17 @@
       if (isTable(header)) {
         var open = openQuote(fileText, d);
         if (open !== null) return fail('open-quote', 'Line ' + open + " of this file has a quote that never closes, so the rows after it can't be read.");
+        var wide = wideRow(fileText, d);
+        if (wide !== null) return fail('wide-row', wideMessage(wide));
+        if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
         var t = csvRows(fileText, d);
         return readTable(t.rows, header, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
       }
-      if (/^\s*[\[{]/.test(fileText)) return fail('not-json', NOT_JSON);
+      if (/^\s*[\[{]/.test(fileText)) return fail('not-json', endsInTheMiddle(fileText) ? CUT_OFF : NOT_JSON);
       if (header.length >= 2 && openQuote(fileText, d) === null) {
+        var wide2 = wideRow(fileText, d);
+        if (wide2 !== null) return fail('wide-row', wideMessage(wide2));
+        if (cutOff(fileText, d)) return fail('cut-off', CUT_OFF);
         var t2 = csvRows(fileText, d), named = commonNames(t2.rows, t2.header);
         if (named) return readCommon(named, d === '\t' && !/\.csv$/.test(lower) ? 'TSV' : 'CSV');
         return fail('not-recognised', NOT_COLUMNS(t2.header));
@@ -1159,7 +1254,7 @@
       if (zip === 'excel') return fail('excel', EXCEL_FILE);
       if (zip === 'spreadsheet') return fail('excel', SPREADSHEET_FILE);
       if (zip === 'opendocument') return fail('not-recognised', NOT_RECOGNISED);
-      return fail('full-tool', FULL_TOOL);
+      return fail('full-tool', bytes[0] === ZIP_START[0] ? INSPECT_TOOL : MLFLOW_TOOL);
     }
     var fileText;
     try { fileText = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (e) { return fail('not-utf8', NOT_UTF8); }
@@ -1216,6 +1311,7 @@
       merged: pool.merged, repeatSizes: pool.repeatSizes, split: pool.split,
       human: r.nHuman, unmapped: pool.unmapped,
       readRows: r.readRows ? r.readRows[metric] : null,
+      modelRefused: r.modelRefused || null,
       unread: pool.unread.slice(0, 3).map(function (v) { return oneLine(clean(v, 30)); }),
       moreUnread: pool.unread.length > 3,
       scores: scores,
@@ -1241,8 +1337,8 @@
     var head = '(your file has ' + (j.answers + j.merged) + ' results: ' +
       (times ? n(j.answers - split + j.split.length, 'answer') + ', each run ' + times + ' times' : 'some answers are in it more than once');
     if (!j.split.length) return head + ', so each counts once.)';
-    var which = j.split.length === 1 ? '1 answer got different grades, so its' : j.split.length + ' answers got different grades, so their';
-    return head + '. Repeats with the same grade count once. ' + which + ' ' + split + ' repeats each count.)';
+    var which = j.split.length === 1 ? '1 answer got different grades, so each of its' : j.split.length + ' answers got different grades, so each of their';
+    return head + '. Repeats with the same grade count once. ' + which + ' ' + split + ' repeats counts.)';
   }
 
   // [{k, text, tone}] lines: tone is '', 'dim', 'g' (all clear) or 'y' (a finding)
@@ -1253,8 +1349,9 @@
     L.push({ k: 'File:            ', text: result.file });
     L.push({ k: 'Answers:         ', text: j.split.length ? j.answers + ' to mark' : n(j.answers, 'answer') });
     if (j.pass + j.fail && (j.merged || j.split.length)) L.push({ k: pad, text: repeatsNote(j), tone: 'dim' });
-    var model = j.models.length ? j.models.join(', ') : 'model not found in your file';
+    var model = j.models.length ? j.models.join(', ') : 'model not found in your results';
     L.push({ k: 'LLM-as-a-judge:  ', text: (j.showName ? j.name + ', ' : '') + model });
+    if (j.modelRefused && !j.models.length) L.push({ k: pad, text: 'The ' + j.modelRefused + " column holds no model's name.", tone: 'dim' });
     if (!j.rule) {
       L.push({ k: 'Rule:            ', text: 'not in your results' });
     } else if (j.rule.length <= RULE_SHOWN) {
@@ -1275,7 +1372,7 @@
     L.push({ text: '' });
     if (j.pass + j.fail) L.push({ text: 'Your LLM-as-a-judge passed ' + n(j.pass, 'answer') + ' and failed ' + j.fail + '.' });
     var notes = [];
-    if (j.human) notes.push('Found ' + n(j.human, 'Pass/Fail label') + ' in your results. To use them as your marks, run: judgekeeper --labels');
+    if (j.human) notes.push('Found ' + n(j.human, 'Pass/Fail label') + ' in your results. To use them as your marks, run `judgekeeper --labels`.');
     var total = j.pass + j.fail;
     [[j.fail, 'failed', 'passes too much'], [j.pass, 'passed', 'fails too much']].forEach(function (x) {
       if (x[0] > 0 && x[0] < ROUGH && total >= MIN_POOL) notes.push('Your LLM-as-a-judge ' + x[1] + ' only ' + x[0] + ' of ' + total + ' answers. That may mean it ' + x[2] + ': your marks will show it.');
@@ -1285,18 +1382,19 @@
     } else if (j.unmapped) {
       notes.push(n(j.unmapped, 'grade') + ' could not be read as Pass or Fail (' + j.unread.map(function (v) { return '"' + v + '"'; }).join(', ') +
         (j.moreUnread ? ' and more' : '') + '). ' + (j.unmapped === 1 ? 'It is' : 'They are') +
-        ' left out here; judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
+        ' left out here. judgekeeper in your project asks what ' + (j.unmapped === 1 ? 'it means' : 'they mean') + '.');
     }
     notes.forEach(function (t) { L.push({ text: t }); });
     if (!j.findings.length) {
-      if (!j.scores) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
+      // grades it could not read are no clear Pass or Fail: never 'every answer' then
+      if (!j.scores && !j.unmapped) L.push({ text: FREE_CHECK + EVERY_ANSWER, tone: 'g' });
     } else {
       j.findings.forEach(function (f, i) {
         L.push({ text: i === 0 ? FREE_CHECK + f.charAt(0).toLowerCase() + f.slice(1) : f, tone: 'y' });
       });
     }
     if (j.modelNotWritten) L.push({ text: MODEL_NOT_WRITTEN, tone: 'y' });
-    if (!total && !j.scores) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
+    if (!total && !j.scores && !j.unmapped) L.push({ text: j.allModelFailed ? ALL_MODEL_FAILED : j.allFailed ? ALL_FAILED : NO_CLEAR, tone: 'y' });
     return L;
   }
 
@@ -1341,7 +1439,12 @@
   }
 
   var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
-  var NEXT_AFTER_ERROR = 'pick another file, or run uvx judgekeeper in your project: it finds your results by itself.';
+  // front.py, under MIN_POOL answers with a clear grade: no first result from this file yet
+  var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers. Run your eval again to make more (that makes model calls), then run `judgekeeper` in your project folder. You can mark these answers now. Your marks are kept for when more answers come.';
+  var NEXT_AFTER_ERROR = 'pick another file, or run `uvx judgekeeper` in your project. It finds your results by itself.';
+  // errors that name the command already: the Next line doesn't say it again
+  var SAYS_COMMAND = ['full-tool', 'settings', 'records', 'not-recognised', 'too-big'];
+  var NEXT_FULL_TOOL = 'pick another file, or run that command in your project.';
 
   // A line of the terminal: [class, text] parts; the class is one of Home's terminal colours
   function termLine(parts) {
@@ -1417,7 +1520,7 @@
 
     function take(file, count) {
       zone.classList.add('busy');
-      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG, file.name); }
+      if (file.size > MAX_BYTES) { done(); return showError(TOO_BIG, file.name, 'too-big'); }
       var reader = new FileReader();
       reader.onerror = function () { done(); showError('This file could not be read. Try picking it again.', file.name); };
       reader.onload = function () {
@@ -1470,17 +1573,17 @@
       boxShows(fileName || 'your file');
     }
 
-    function showError(message, fileName) {
+    function showError(message, fileName, kind) {
       begin(fileName);
       var pre = el('pre', 'fc-term');
       termTop(pre);
       pre.appendChild(termLine([['t-warn', message]]));
-      termNext(pre, NEXT_AFTER_ERROR);
+      termNext(pre, SAYS_COMMAND.indexOf(kind) >= 0 ? NEXT_FULL_TOOL : NEXT_AFTER_ERROR);
       out.appendChild(pre);
     }
 
     function show(result, count, fileName) {
-      if (!result.ok) return showError(result.message, fileName);
+      if (!result.ok) return showError(result.message, fileName, result.kind);
       begin(result.file);
       if (count > 1) out.appendChild(el('p', 'fc-many', 'You gave ' + count + ' files. This page reads one at a time: it read ' + result.file + '.'));
       var current = 0;
@@ -1540,7 +1643,8 @@
           row.appendChild(el('span', tone, line.text));
           pre.appendChild(row);
         });
-        termNext(pre, j.allModelFailed ? MODEL_FAILED_NEXT : NEXT);
+        var few = j.pass + j.fail > 0 && j.pass + j.fail < MIN_POOL;
+        termNext(pre, j.allModelFailed ? MODEL_FAILED_NEXT : few ? NEXT_FEW : NEXT);
       }
     }
   }

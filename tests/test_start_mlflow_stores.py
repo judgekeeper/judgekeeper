@@ -293,8 +293,7 @@ def test_a_big_experiment_is_read_up_to_the_newest_traces_and_said(made, tmp_pat
     runs = mlflow_store.read_mlflow("qa-db", tracking_uri=f"sqlite:///{project / 'mlflow.db'}")
     assert sum(len(recs) for label, recs in runs if label != "human assessments") == 3
     _, out = run(capsys, project, "--yes", "--no-browser")
-    assert ("qa-db has more than 3 traces: judgekeeper read the newest 3 (reading every "
-            "trace of a very big experiment takes minutes).") in " ".join(out.split())
+    assert "qa-db has more than 3 traces: judgekeeper read the newest 3." in " ".join(out.split())
 
 
 def test_the_limit_is_thirty_thousand():

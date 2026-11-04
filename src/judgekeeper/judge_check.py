@@ -62,6 +62,15 @@ _MARKER = re.compile(r"\b(?:final verdict|final answer|grade|verdict|result|deci
                      re.IGNORECASE)
 # Inspect's model-graded scorers: "GRADE: C" or "GRADE: I", alone at the end of a line.
 _GRADE = re.compile(r"GRADE\s*:\s*([CI])[ \t.*]*$", re.MULTILINE)
+# ...that line at the very end of a reason, on a line of its own (C, I or P for partial)
+_LAST_GRADE = re.compile(r"(?:\A|\n)[ \t*]*GRADE\s*:\s*[CIP][ \t.*]*\s*\Z")
+
+
+def shown_reason(reason: str) -> str:
+    """The reason as the result page and report.html show it: without a trailing "GRADE: C"
+    line (Inspect's model-graded scorers), the grade the page keeps hidden. The kept text is
+    as it was."""
+    return _LAST_GRADE.sub("", reason).rstrip() if reason else reason
 
 
 def stated_decisions(reason) -> list[str]:

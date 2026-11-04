@@ -107,11 +107,11 @@ def test_a_removed_check_flag_is_a_usage_error_with_one_next_line(here, capsys, 
         "Next: run `judgekeeper check --help` to see the options.")
 
 
-def test_check_help_shows_only_the_path(capsys):
+def test_check_help_shows_only_the_path_and_the_pass_mark(capsys):
     assert main(["check", "--help"]) == 0
     out = capsys.readouterr().out
     options = set(re.findall(r"--[a-z-]+", out))
-    assert options == {"--help"}
+    assert options == {"--help", "--pass-if"}
 
 
 def test_the_hook_and_dev_requirement_code_is_gone():

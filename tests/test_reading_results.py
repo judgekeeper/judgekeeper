@@ -282,7 +282,39 @@ def test_another_results_file_is_named_with_its_command(here, capsys):
     os.utime(here / "judge_b.csv", (now - 3600, now - 3600))
     code, out = find(capsys)
     assert code == 0, out
-    assert "Also found judge_b.csv. To check it, run `judgekeeper judge_b.csv`." in flat(out)
+    assert ("Also found judge_b.csv. To check it, run "
+            "`judgekeeper judge_b.csv --port 0 --no-browser`.") in flat(out)
+
+
+def test_other_promptfoo_files_are_named_with_their_commands_before_any_mark(here, capsys):
+    """The newest is read. The others (a same-config copy, another eval) are named."""
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    now = time.time()
+    for age, (name, tag) in enumerate([("other.json", " OTHER"), ("results-regraded.json", ""),
+                                       ("results.json", "")]):
+        data = promptfoo_data(split(20, 16), tag=tag)
+        data["evalId"] = f"eval-{age}"
+        _write(here / name, data)
+        os.utime(here / name, (now - 3600 * age,) * 2)
+    code, out = find(capsys)
+    assert code == 0, out
+    assert "File:            other.json" in out
+    assert ("Also found results-regraded.json and results.json. To check one, run "
+            "`judgekeeper results-regraded.json --port 0 --no-browser` or "
+            "`judgekeeper results.json --port 0 --no-browser`.") in flat(out)
+
+
+def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
+    now = time.time()
+    for age, name in enumerate(["logs/b.json", "logs/a.json"]):
+        _write(here / name, inspect_data(split(20, 16), tag=" B" if age == 0 else ""))
+        os.utime(here / name, (now - 3600 * age,) * 2)
+    code, out = find(capsys)
+    assert code == 0, out
+    read = re.search(r"File: +(\S+)", out)[1]
+    other = ({"logs/a.json", "logs/b.json"} - {read}).pop()
+    assert (f"Also found {other}. To check it, run "
+            f"`judgekeeper {other} --port 0 --no-browser`.") in flat(out)
 
 
 def test_at_most_three_other_files_are_named(here, capsys):
@@ -369,7 +401,7 @@ def test_an_excel_file_says_how_to_save_it(here, capsys):
     with zipfile.ZipFile(here / "results.xlsx", "w") as z:
         z.writestr("[Content_Types].xml", "<Types/>")
     _, out = find(capsys, "results.xlsx")
-    assert "Excel files aren't read. Save it as CSV UTF-8 and run again." in flat(out)
+    assert "judgekeeper doesn't read Excel files. Save the sheet as CSV UTF-8 and run again." in flat(out)
 
 
 def test_rows_where_every_cell_is_empty_are_skipped(here, capsys):
@@ -392,7 +424,7 @@ def test_a_utf16_file_is_named_as_left_out(here, capsys):
     _, out = find(capsys)
     text = flat(out)
     assert "left out" in text and "results.tsv" in text and "UTF-8" in text, out
-    assert next_lines(out) == [("Next: if that is your results, save it as UTF-8, then run "
+    assert next_lines(out) == [("Next: if that file holds your results, save it as UTF-8, then run "
                                "`judgekeeper results.tsv --port 0 --no-browser` again.")]
 
 

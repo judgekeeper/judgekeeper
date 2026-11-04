@@ -154,7 +154,7 @@ def test_fix_with_none_kept_aside_says_how_it_finds_them(here, capsys):
         row["output"] = row["output"].replace("Answer", "Reply")
     code, out = run(capsys, "fix", write(here, "new.csv", rows))
     assert code == 3, out
-    assert "judgekeeper finds them by the same text, word for word, and the same question." in " ".join(out.split())
+    assert "judgekeeper matches an answer only when the question and the answer text are the same, word for word." in " ".join(out.split())
 
 
 # Answers kept aside with no grade: never "better" ------------------------------------------------
@@ -225,7 +225,7 @@ def with_errors(ws: Workspace, answers) -> list[dict]:
 
 def counted(k: int, n: int) -> str:
     one = k == 1
-    return (f"{k} of the {n} answers kept aside got no grade from your new rule; judgekeeper "
+    return (f"{k} of the {n} answers kept aside got no grade from your new rule. judgekeeper "
             f"counted {'it as its mistake' if one else 'them as its mistakes'}.")
 
 
@@ -342,21 +342,41 @@ def test_check_on_results_without_the_marked_answers_cant_tell(here, capsys, sha
         assert ("None of your 60 marked answers has a grade in your new results: 60 are there "
                 "with no decision from your LLM-as-a-judge.") in out
         assert "such as an error" not in out
+    elif shape in ("unrelated", "other-question"):  # other questions beside the marked file,
+        # with other answers or the same ones word for word
+        assert ("new.csv shares few questions with the results you marked (results.csv), so it "
+                "looks like another eval.") in " ".join(out.split()), out
     else:
         assert "None of your 60 marked answers is in your new results." in out
 
 
 @pytest.mark.parametrize("grade, why", [("", ""), ("error", " (such as an error)")])
 def test_check_says_an_error_only_for_an_error(here, capsys, grade, why):
-    """A few marked answers graded, a few there with no decision, the rest not in the file."""
+    """A few marked answers there with no decision, more graded, the rest not in the file (the
+    same eval: half its questions are marked ones)."""
     ws = project(here)
     capsys.readouterr()
     same = [_row(i) for i in range(N)]
-    mixed = ([r | {"verdict": grade} for r in same[:4]] + same[4:10]
-             + _shapes(ws)["unrelated"][10:])
+    mixed = ([r | {"verdict": grade} for r in same[:4]] + same[4:N // 2]
+             + _shapes(ws)["unrelated"][N // 2:])
     code, out = run(capsys, "check", write(here, "new.csv", mixed))
     assert code == 3, out
     assert f"4 of them are there with no decision from your LLM-as-a-judge{why}." in out, out
+    assert "It matches a marked answer only when the question" in out  # 50 were not found
+
+
+def test_check_says_how_it_finds_answers_only_when_some_were_not_found(here, capsys):
+    """Every marked answer is in the new results, 5 with an error: none was missed, so the
+    line on how it finds them is not said."""
+    project(here)
+    capsys.readouterr()
+    rows = [_row(i) | ({"verdict": "error"} if i < 5 else {}) for i in range(N)]
+    _, out = run(capsys, "check", write(here, "new.csv", rows))
+    out = " ".join(out.split())
+    assert ("5 of your 60 marked answers had no grade in your new results, so judgekeeper left "
+            "them out.") in out, out
+    assert "5 of them are there with no decision" in out, out
+    assert "It finds a marked answer" not in out, out
 
 
 def test_check_on_unknown_grade_words_refuses_them(here, capsys):
@@ -378,7 +398,7 @@ def test_check_on_a_few_marked_answers_cant_tell(here, capsys):
     assert code == 3, out
     assert "40 of your 60 marked answers had no grade in your new results" in out
     assert "40 of them are there with no decision" in out
-    assert "Result: can't tell yet." in out and "has not changed" not in out
+    assert "Compared with before: can't tell yet." in out and "has not changed" not in out
 
 
 def test_check_past_the_row_cap_cant_tell(here, capsys):
@@ -431,7 +451,7 @@ def test_the_original_file_with_a_pinned_version_is_the_same_grades(here, capsys
     given = results.relative_to(here)
     code, out = run(capsys, "fix", given)
     assert code == 3, out
-    assert "These are the same grades as when you marked" in out
+    assert "These grades are the same as when you marked" in out
     assert json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))["tests"] == []
     code, out = run(capsys, "check", given)
     assert code == 0, out
@@ -473,8 +493,8 @@ def _odd_path(root, kind: str) -> str:
 @pytest.mark.skipif(not hasattr(__import__("os"), "mkfifo"), reason="no named pipes")
 @pytest.mark.parametrize("command", ["fix", "check"])
 @pytest.mark.parametrize("kind, said", [
-    ("missing", "There is no file or folder named new.csv here."),
-    ("dangling link", "There is no file or folder named new.csv here."),
+    ("missing", "There is no file named new.csv here."),
+    ("dangling link", "There is no file named new.csv here."),
     ("named pipe", "new.csv isn't a regular file: it is a named pipe."),
     ("device", "null isn't a regular file: it is a special file."),
     ("folder", ("new is a folder inside your project, not a results file or your project "

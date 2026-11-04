@@ -20,6 +20,8 @@ import json
 import os
 import sys
 
+import pytest
+
 from judgekeeper import judge_setup
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
@@ -58,7 +60,7 @@ def test_nothing_changed_says_so_in_the_agreed_words(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "New results: results.json", "",
+        "Results: results.json", "",
         "Your LLM-as-a-judge has not changed since you marked your answers.",
         "Same model, same rule, same eval tool.", "",
         "Next: nothing to do. Run `judgekeeper check` again after you",
@@ -75,11 +77,11 @@ def test_a_rerun_with_new_text_says_how_many_marked_answers_it_holds(here, capsy
         said = _flat(out)
         assert code == 0 and "nothing to do" not in said, out
         assert ("20 of your 50 marked answers had no grade in your new results, so judgekeeper "
-                "left them out. It finds a marked answer by the same text, word for word, and the "
-                "same question.") in said
+                "left them out. It matches a marked answer only when the question and the answer "
+                "text are the same, word for word.") in said
         command = " ".join(("judgekeeper check", *given))
-        assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results: "
-                              f"they join your marks as a new batch. Then run `{command}` again.")
+        assert _next(out) == ("Next: run `judgekeeper` to mark the new answers in your results, "
+                              f"then run `{command}` again.")
 
 
 def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here, capsys):
@@ -92,7 +94,7 @@ def test_a_new_rule_run_on_only_some_marked_answers_never_says_they_are_new(here
     said = _flat(out)
     assert code == 3, out
     assert "rule changed" in said and "40 of your 50 marked answers had no grade" in said, out
-    assert "Result: can't tell yet." in said
+    assert "Compared with before: can't tell yet." in said
     assert "wrote new answers" not in said and "nothing to compare" not in said, out
     assert "Grade the answers you marked: 1. Change the grader in" in said, out
 
@@ -122,7 +124,7 @@ def test_settings_changed_after_the_last_eval_run(here, capsys):
     assert code == 0
     assert out.splitlines()[2:] == [
         "Step 5 of 5: Re-check", "",
-        "New results: results.json", "",
+        "Results: results.json", "",
         "Your LLM-as-a-judge's settings changed after your last eval run,",
         "so the grades judgekeeper has are out of date.", "",
         "Next: run your eval again, then run `judgekeeper check`."]
@@ -145,7 +147,7 @@ def test_a_path_that_does_not_exist(here, capsys):
     _marked(here)
     code, out = run(capsys, "nope.json")
     assert code == 2
-    assert "There is no file or folder named nope.json here." in out
+    assert "There is no file named nope.json here." in out
     assert _next(out) == ("Next: give `judgekeeper check` your new results file, or run it in "
                           "your project folder.")
 
@@ -180,14 +182,16 @@ def test_no_marks_anywhere(tmp_path, capsys, monkeypatch):
     assert _next(out) == "Next: run `judgekeeper` to find your eval results and mark answers."
 
 
-def test_too_few_marks_says_so_without_a_number(here, capsys):
+def test_too_few_marks_says_how_many_in_measures_words(here, capsys):
+    """How many marks there are and how many a re-check needs, as Measure says them."""
     _marked(here, n_pass=10, n_fail=25)
     code, out = run(capsys)
     assert code == 3
-    assert "You have not marked enough answers yet for a re-check." in out
-    assert "15" not in out
-    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`: "
-                          "the new answers join the ones you marked.")  # every answer is marked
+    assert ("You have not marked enough answers yet for a re-check. You marked 35 answers so "
+            "far: 10 Pass, 25 Fail. A re-check needs at least 15 Pass and 15 Fail "
+            "marks from you.") in _flat(out)
+    assert _next(out) == ("Next: run your eval on more questions, then run `judgekeeper mark`. "
+                          "New answers are added to the ones you marked.")  # every answer is marked
 
 
 # A missing results file -----------------------------------------------------------------------
@@ -278,13 +282,13 @@ def test_no_marked_answer_in_the_new_results_says_why_and_what_to_do(here, capsy
     code, out = run(capsys)
     assert code == 3
     flat = _flat(out)
-    assert ("None of your 50 marked answers is in your new results. judgekeeper finds a marked "
-            "answer by the same text, word for word, and the same question.") in flat
+    assert ("None of your 50 marked answers is in your new results. judgekeeper matches a marked "
+            "answer only when the question and the answer text are the same, word for word.") in flat
     assert "labeled" not in flat
     assert ("Your eval wrote new answers, so there's nothing to compare. Grade the answers you "
             "marked instead:") in flat
     assert "2. Run: `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml" in flat
-    assert _next(out) == ("Next: follow the three steps above; or start over on your new "
+    assert _next(out) == ("Next: follow the three steps above. Or start over on your new "
                           "answers with `judgekeeper --new`.")
     assert _history(ws) == []
 
@@ -328,3 +332,269 @@ def test_a_closed_pipe_ends_quietly(here, capsys, monkeypatch):
     monkeypatch.setattr(sys, "stdout", _Closed())
     assert main(["check"]) == 0
     assert capsys.readouterr().err == ""
+
+
+# The same rule and model, graded again with other grades --------------------------------------
+
+def _regraded(root, flips, name="regraded.json"):
+    """A copy of the marked promptfoo results, same model and rule, with the grades of the
+    answers `flips` turned over (the LLM-as-a-judge graded them again)."""
+    from tests.start_projects import split
+    from tests.test_check import MODEL
+
+    verdicts = split(25, 25)
+    for i in flips:
+        verdicts[i] = not verdicts[i]
+    data = promptfoo_data(verdicts, model=MODEL, tag=TAG, created="2026-10-13T09:00:00Z")
+    data["metadata"]["promptfooVersion"] = "0.124.1"
+    _write(root / name, data)
+
+
+def test_the_same_rule_and_model_with_other_grades_is_compared(here, capsys):
+    """Same model and rule, yet 11 of the marked answers got another grade: check compares
+    them as usual and says why first. After "Worse" the grades it was marked on stay the
+    reference, so checking again says the same, as for a table's new grades."""
+    ws = _marked(here)
+    _regraded(here, [*range(6), *range(25, 30)])
+    for _ in range(2):
+        code, out = run(capsys, "regraded.json")
+        said = _flat(out)
+        assert code == 1, out
+        assert ("Same model and rule as before, yet 11 of your marked answers got a different "
+                "grade: your LLM-as-a-judge doesn't always grade the same answer the same way."
+                ) in said
+        assert "has not changed" not in said and "nothing to do" not in said
+        assert said.index("doesn't always grade") < said.index("Compared with before: worse.")
+        assert "When you said Pass 25 of 25 19 of 25 Worse" in said
+        assert "When you said Fail 25 of 25 20 of 25 Worse" in said
+        assert _next(out) == (  # no old one to go back to: the same model and rule
+            "Next: the same model and rule gave different grades, so "
+            "make your rule clearer. Grade your marked answers again, "
+            "then run `judgekeeper check <new results file>`.")
+    assert [x["changed"] for x in _history(ws)] == [["grades changed on 11 marked answers"]]
+
+
+def test_a_plain_check_after_a_same_rule_worse_says_worse_again(here, capsys):
+    """The results graded again in place: a plain check says "Worse" (exit 1), and so does
+    every plain check after it while nothing changes, never "nothing to do"."""
+    ws = _marked(here)
+    _regraded(here, [*range(8), *range(25, 33)], name="results.json")
+    for _ in range(3):
+        code, out = run(capsys)
+        said = _flat(out)
+        assert code == 1, out
+        assert "Same model and rule as before, yet 16 of your marked answers" in said, out
+        assert "Compared with before: worse." in said and "nothing to do" not in said, out
+    assert [x["changed"] for x in _history(ws)] == [["grades changed on 16 marked answers"]]
+
+
+def test_a_plain_run_after_a_same_rule_worse_names_it(here, capsys):
+    """After that "Worse", a plain `judgekeeper` says why and that the last check found it
+    worse, with the same next step: never "graded again ... the same ... nothing to do"."""
+    _marked(here)
+    _regraded(here, [*range(8), *range(25, 33)], name="results.json")
+    assert run(capsys)[0] == 1
+    main(["--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert said.startswith("judgekeeper ") and "Step 3 of 5: Measure" in said
+    assert ("Same model and rule as before, yet 16 of your marked answers got a different "
+            "grade: your LLM-as-a-judge doesn't always grade the same answer the same way.") in said
+    assert ("Your last check found your LLM-as-a-judge in results.json worse, so the numbers "
+            "below still use the grades from before.") in said  # graded again in place
+    assert said.endswith("Next: the same model and rule gave different "
+                         "grades, so make your rule clearer. Grade "
+                         "your marked answers again, then run "
+                         "`judgekeeper check`.")
+    assert "graded again" not in said and "nothing to do" not in said
+
+
+@pytest.mark.parametrize("command", [[], ["mark"]])
+def test_a_regraded_copy_beside_says_whose_grades_the_numbers_use(here, capsys, command):
+    """A copy graded again beside the marked results (same model and rule, 7 marked answers
+    with another grade): a plain run and `mark` read it as the newest, but the numbers keep
+    the grades the marks were checked with, so the words name both files and how to
+    compare. result.json and report.html name the same file the numbers use."""
+    import os
+    import time
+
+    ws = _marked(here)
+    _regraded(here, [*range(4), *range(25, 28)], name="results-regraded.json")
+    later = time.time() + 60
+    os.utime(here / "results-regraded.json", (later, later))
+    main([*command, "--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert ("Your answers were graded again in results-regraded.json, and 7 of your marked "
+            "answers got a different grade. The numbers below still use the grades in "
+            "results.json. To compare, run `judgekeeper check`.") in said
+    assert "the newest results here" not in said and "still test it" not in said, said
+    if not command:  # the step after it is that check, never "nothing to do"
+        assert ("Next: run `judgekeeper check` to compare the new grades with your marks."
+                in said and "nothing to do" not in said), said
+    if not command:  # the result: about the same file as the numbers
+        result = json.loads(ws.result_json.read_text(encoding="utf-8"))
+        assert result["judge"]["results_files"] == ["results.json"]
+        # report.html names no results file, so never the other one
+        assert "results-regraded.json" not in ws.report_html.read_text(encoding="utf-8")
+
+
+def test_results_graded_again_in_place_say_the_numbers_use_the_grades_from_before(here, capsys):
+    """The marked results file itself graded again: it no longer holds the grades the
+    numbers use, so they are the grades from before, never that file again."""
+    _marked(here)
+    _regraded(here, [*range(4), *range(25, 28)], name="results.json")
+    main(["--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    assert ("Your answers were graded again in results.json, and 7 of your marked answers got "
+            "a different grade. The numbers below still use the grades from before. To "
+            "compare, run `judgekeeper check`.") in said, said
+    assert "still use the grades in" not in said, said
+    assert "Next: run `judgekeeper check` to compare the new grades with your marks." in said
+
+
+def _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, project, here):
+    """A copy graded again beside the marks of the project folder `project`, a plain run
+    given that folder from `here` (home folder `home`): what it says."""
+    import os
+    import time
+
+    monkeypatch.setenv("HOME", str(home))
+    for folder in (home, project, here):
+        folder.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(project)
+    _marked(project)
+    _regraded(project, [*range(4), *range(25, 28)], name="results-regraded.json")
+    later = time.time() + 60
+    os.utime(project / "results-regraded.json", (later, later))
+    monkeypatch.chdir(here)
+    given = os.path.relpath(project, here)
+    main([given, "--no-browser", "--port", "0"])
+    said = _flat(capsys.readouterr().out)
+    main(["--stop", given])
+    capsys.readouterr()
+    return said
+
+
+def _compare_commands(said: str) -> list[str]:
+    import re
+
+    return [*re.findall(r"To compare, run `([^`]+)`\.", said),
+            *re.findall(r"Next: run `([^`]+)` to compare", said)]
+
+
+def test_the_compare_command_runs_from_the_folder_the_project_was_given_from(
+        tmp_path, monkeypatch, capsys):
+    """`judgekeeper ../proj` from a folder beside it: the command names the project folder,
+    as the other Next lines do, so it runs as printed from there and compares."""
+    home = tmp_path / "home"
+    said = _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, home / "proj",
+                               home / "other")
+    assert _compare_commands(said) == ["judgekeeper check ../proj"] * 2, said
+    code, out = run(capsys, "../proj")  # drops under 20 points: worse, exit 0
+    assert code == 0 and "Compared with before: worse." in _flat(out), out
+    assert ("Same model and rule as before, yet 7 of your marked answers got a different grade"
+            in _flat(out)), out
+
+
+def test_the_compare_command_for_a_project_no_line_can_name_is_the_other_lines_form(
+        tmp_path, monkeypatch, capsys):
+    """A project outside the home folder, given from inside it: no line names its path
+    (never the whole path), so the command has the form every other line has there."""
+    from judgekeeper import start
+
+    home = tmp_path / "home"
+    said = _regraded_elsewhere(tmp_path, monkeypatch, capsys, home, tmp_path / "proj",
+                               home / "other")
+    other_lines = f"judgekeeper check {start.path_word('../../proj')}"
+    assert _compare_commands(said) == [other_lines] * 2, said
+    assert "results-regraded.json`" not in said, said
+
+
+def test_going_back_to_the_marked_grades_after_a_worse_says_so(here, capsys):
+    """A same-rule "Worse", then results with the grades the marks were checked with: back
+    to those grades, never "not changed since your last check" (that check said Worse)."""
+    _marked(here)
+    _regraded(here, [*range(6), *range(25, 30)])
+    code, out = run(capsys, "regraded.json")
+    assert code == 1, out
+    _regraded(here, [])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    assert code == 0, out
+    assert "Your results are back to the grades your marks were checked with." in said, said
+    assert "has not changed since your last check" not in said, said
+
+
+def test_the_same_rule_and_model_graded_again_closer_is_taken_on(here, capsys):
+    """One grade turned over on a marked answer: compared, no big drop, and taken on, so the
+    next check has nothing new."""
+    _marked(here)
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    assert code == 0, out
+    assert ("Same model and rule as before, yet 1 of your marked answers got a different grade"
+            in said)
+    code, out = run(capsys, "regraded.json")
+    assert code == 0 and "doesn't always grade" not in _flat(out), out
+    assert "has not changed since your last check" in _flat(out), out
+
+
+def test_the_same_rule_model_and_grades_has_not_changed(here, capsys):
+    _marked(here)
+    _regraded(here, [])
+    code, out = run(capsys, "regraded.json")
+    assert code == 0
+    assert "Your LLM-as-a-judge has not changed since you marked your answers." in out
+    assert "Same model, same rule, same eval tool." in out
+    assert "doesn't always grade" not in _flat(out)
+
+
+def test_a_check_on_a_given_file_names_one_mark_command(here, capsys):
+    """44 of 50 marked, a copy graded again given to `check`: the page's line and the Next
+    line name the same `mark`, of the file the check took on."""
+    from judgekeeper import start, start_label
+    from tests.start_projects import split
+    from tests.test_check import _results
+
+    (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
+    _results(here, split(25, 25))
+    found = start.find_judge(here)
+    judge_setup.save(Workspace(here), judge_setup.of(found), found.metric)
+    ws = start_label.prepare(found, say=lambda line: None)
+    session = StartSession(ws)
+    outputs = {json.loads(x)["id"]: json.loads(x)["output"]
+               for x in ws.pool.read_text(encoding="utf-8").splitlines()}
+    # the queue's order is random: answer 3, the one graded again below, is among the marked
+    queue = sorted(ws.data()["queue"], key=lambda q: outputs[q["id"]] != answer(3, TAG))
+    for q in queue[:44]:
+        session.update({"id": q["id"], "label": q["group"], "seconds": 5})
+    main(["mark", "--no-browser", "--port", "0"])
+    capsys.readouterr()
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0 and "run `judgekeeper mark regraded.json`." in said, out
+    assert said.count("`judgekeeper mark") == said.count("`judgekeeper mark regraded.json`") == 2
+
+
+def test_a_page_closed_for_new_grades_of_the_same_judge_says_older_grades(here, capsys):
+    """Same model and rule, new grades taken on: the page showed the older grades, never a
+    different LLM-as-a-judge."""
+    _marked(here)
+    main(["mark", "--no-browser", "--port", "0"])
+    capsys.readouterr()
+    _regraded(here, [3])
+    code, out = run(capsys, "regraded.json")
+    said = _flat(out)
+    main(["--stop"])
+    capsys.readouterr()
+    assert code == 0 and "Same model and rule as before" in said, out
+    assert ("Your marking page closed because it showed your older grades. To open it with the "
+            "new grades, run `judgekeeper mark regraded.json`.") in said, said
+    assert "different LLM-as-a-judge" not in said, said

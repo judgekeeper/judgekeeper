@@ -345,6 +345,22 @@ def test_a_batch_below_the_minimum_is_left_out_and_named(here):
     assert "This result is on 1 of 2 batches (36 answers)." in html
     line = json.loads(ws.history_jsonl.read_text(encoding="utf-8").splitlines()[-1])
     assert line["batches"] == {"counted": [1], "of": 2, "answers": 36, "waiting": 10}
+    assert r["counted_left"] == 0
+
+
+def test_unmarked_answers_of_the_counted_batch_are_counted_apart(here):
+    """3 of batch 1 unmarked, 7 of batch 2 unmarked: the result counts the 3 alone, so its
+    bracket never says every answer it is on is marked."""
+    promptfoo_project(here, split(20, 16))
+    ws = start_label.prepare(start.find_judge(here), say=lambda line: None)
+    _mark(ws, only=set(range(3, 36)))
+    _more_questions(here)
+    batches.add(ws, start.find_judge(here))
+    _mark(ws, only={36, 37, 41})
+    r = start_label.store_result(ws, StartSession(ws))
+    assert r["batches"]["counted"] == [1]
+    assert (r["left"], r["counted_left"]) == (10, 3)
+    assert "answers it is on" not in ws.report_html.read_text(encoding="utf-8")
 
 
 def test_a_batch_counts_with_five_marks_in_each_stratum(here):
@@ -427,8 +443,8 @@ def test_marks_of_a_batch_that_does_not_count_are_not_shown(here):
 
 # Every answer marked: the Next: line points to `judgekeeper mark` ------------------------------
 
-NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-                   "answers join the ones you marked.")
+NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+                   "are added to the ones you marked.")
 
 
 def test_every_answer_marked_points_to_mark(here, capsys, pages):
@@ -670,11 +686,23 @@ def test_a_waiting_batchs_marks_are_named_apart(here, capsys, pages):
     _, out, _ = run(capsys, "--no-browser")
     text = flat(out)
     # the counts before "not enough" are the ones that count; the waiting batch's said apart
-    assert ("You marked 37 answers so far: 20 Pass, 14 Fail count for a result, and 3 more "
-            "are in a newer batch that doesn't count yet.") in text, out
+    assert ("You marked 37 answers so far. 34 count for a result (20 Pass, 14 Fail). "
+            "3 more wait and don't count yet.") in text, out
     assert "21 Pass" not in text and "16 Fail" not in text
     assert "That's not enough for a result yet." in text
     assert text.index("count for a result") < text.index("not enough for a result yet")
+
+
+def test_the_count_line_agrees_with_its_numbers():
+    """One mark that counts, or one that waits, is said in the singular."""
+    from judgekeeper.front import counted_line
+
+    assert counted_line("You marked 4 answers", ["pass"], 3) == (
+        "You marked 4 answers so far. 1 counts for a result (1 Pass, 0 Fail). 3 more wait and "
+        "don't count yet.")
+    assert counted_line("You marked 3 answers", ["pass", "fail"], 1) == (
+        "You marked 3 answers so far. 2 count for a result (1 Pass, 1 Fail). 1 more waits and "
+        "doesn't count yet.")
 
 
 def test_with_no_waiting_batch_the_count_line_is_as_before(here, capsys, pages):
@@ -713,7 +741,7 @@ def test_the_result_screen_asks_why_with_the_mark_command(here, capsys, pages):
     run(capsys, "--stop")
     _, out, _ = run(capsys, "--no-browser")
     assert "The Next step below" not in flat(out), out
-    assert re.search(r"Tell judgekeeper why you disagree on (these \d+|this one): run "
+    assert re.search(r"To tell judgekeeper why you disagree on (\d+ of them|this one), run "
                      r"`judgekeeper mark --no-browser`\.", flat(out)), out
     assert _next(out) == "Next: run `judgekeeper mark --no-browser` to mark more answers."
 

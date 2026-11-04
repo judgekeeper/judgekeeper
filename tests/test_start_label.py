@@ -156,7 +156,7 @@ def test_the_page_never_holds_the_judges_verdict(workspace):
     server, thread, client = _server(ws)
     try:
         data = _page_data(server)
-        assert set(data) == {"items", "total", "start", "counts", "status", "version"}
+        assert set(data) == {"items", "total", "start", "counts", "status", "version", "intro"}
         assert set(data["status"]) == {"text", "first", "ready", "headline"}
         for item in data["items"]:
             assert set(item) == {"id", "input", "output", "label", "skipped"}
@@ -500,8 +500,8 @@ def test_every_answer_marked_but_a_kind_short_says_why_there_is_no_result(correc
     r = {"check": "too_few", "left": 0, "labels": {"correct": correct, "wrong": wrong}}
     first = (f"You've marked every answer: {correct} Pass, {wrong} Fail. A result needs at "
              "least 15 of each.")
-    then = ("Next: run your eval on more questions, then run `judgekeeper mark`: the new "
-            "answers join the ones you marked.")
+    then = ("Next: run your eval on more questions, then run `judgekeeper mark`. New answers "
+            "are added to the ones you marked.")
     assert start_label.sentences(r) == [first, then]
     r["left"] = 3  # answers still to mark: mark more, as before
     assert start_label.sentences(r)[0].startswith("Mark a few more answers")
@@ -548,3 +548,14 @@ def test_a_small_pool_is_sent_whole(workspace):
     _, ws = workspace
     state = start_label.StartSession(ws).state()
     assert len(state["items"]) == state["total"] == 32
+
+
+@pytest.mark.parametrize("change", [{"label": "pass"}, {"deferred": True}])
+def test_the_welcome_box_is_asked_for_until_an_answer_is_marked_or_skipped(workspace, change):
+    """state()'s `intro`: the page shows its welcome box while the project has no marks yet,
+    on any port and in any browser (not the browser's storage, which is kept per port)."""
+    _, ws = workspace
+    session = start_label.StartSession(ws)
+    assert session.state()["intro"] is True
+    session.update({"id": session.items[0]["id"], "seconds": 3, **change})
+    assert start_label.StartSession(ws).state()["intro"] is False

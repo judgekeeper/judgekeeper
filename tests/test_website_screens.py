@@ -392,9 +392,9 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
                       r"the other (\d+)", " ".join(mistakes.split()))
     hidden, used = len(split_["hidden"]), len(split_["visible"])
     assert shown and (f"made {shown[1]} mistakes on the {used} marks used here. The other "
-                      f"{hidden} are kept aside to test a new rule. In {shown[2]},") in screen
+                      f"{hidden} marks are kept aside to test a new rule. In {shown[2]},") in screen
     assert f"In the other {shown[3]}, it said Fail" in screen
-    words = re.search(r"\(about \d+ words, against \d+\)", mistakes)
+    words = re.search(r"\(about \d+ words, while the others average \d+\)", mistakes)
     assert words and words[0] in screen
     marks = measured["marks"]
     assert len(split_["hidden"]) + len(split_["visible"]) == marks == len(marked.splitlines()) - 1
@@ -421,8 +421,8 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
     g = checked["groups"]["passed"]
     drop = (round(-g["change"] * 100), round(-g["high"] * 100),
             math.ceil(round(-g["low"] * 100, 6)))  # the far end is rounded up
-    assert "agreement drops by about {} in every 100 (somewhere between {} and {})".format(
+    assert "agreement drops by about {} percentage points (somewhere between {} and {})".format(
         *drop) in screen
     report = _report_text((SITE_EXAMPLE / CHECK_STEP / "report.html").read_text(encoding="utf-8"))
-    assert "Last check" in report and "about {} points lower (between {} and {})".format(
+    assert "Last check" in report and "about {} percentage points lower (between {} and {})".format(
         *drop) in report

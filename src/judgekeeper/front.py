@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -43,9 +44,10 @@ from judgekeeper import (
 )
 from judgekeeper import labels as labels_mod
 from judgekeeper.fingerprint import rule_hash
-from judgekeeper.label import DEFAULT_PORT, is_open, is_page
+from judgekeeper.label import DEFAULT_PORT, is_open, is_page, read_lock
 from judgekeeper.links import link
-from judgekeeper.normalise import _numeric
+from judgekeeper.mark_page import SEE_FIRST
+from judgekeeper.normalise import NormaliseError, _numeric, parse_pass_if
 from judgekeeper.records import RecordsError
 from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.start import EXIT_QUESTION, StartError, Stop
@@ -57,7 +59,6 @@ from judgekeeper.textio import (
     plural,
     program,
     quote_arg,
-    shown_path,
     wrap,
 )
 
@@ -68,6 +69,9 @@ FIRST_SHOWN = 26  # characters of the first rule shown when they differ per test
 RULE_SHOWN = 58  # characters of the judge's rule shown, "…" included, on one line
 VALUE_WIDTH = 40  # characters of a judge's decision value shown
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
+# With no terminal to ask in, a pass mark measured before (the Next line gives the command)
+PASS_MARK_AGAIN = ("Your pass mark is {rule}. Without a terminal, judgekeeper can't ask for it, "
+                   "so give it with --pass-if.")
 LABEL_MAP = '"VALUE=pass,VALUE=fail,VALUE=error"'
 SAVE = "Save your answers in judgekeeper.toml, so judgekeeper does not ask again?"
 GO_TO_PROJECT = ("judgekeeper reads eval results in your project folder. Go to it (`cd <your "
@@ -78,7 +82,7 @@ QUESTIONS = "judgekeeper needs your answer to {which}:"
 # Questions whose answer changes what is counted: the counts are printed after them
 COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
 READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
-         "TSV or JSONL file.")
+         "TSV or JSONL file with input, output and verdict columns.")
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -92,8 +96,22 @@ RAN_AGAIN = ("Your answers were graded again. Your LLM-as-a-judge is the same, s
              "still test it.")
 RAN_AGAIN_CHECKED = ("Your answers were graded again. Your LLM-as-a-judge is the one your last "
                      "check re-tested, so your marks still test it.")
+RAN_AGAIN_KEPT = ("Your answers were graded again. Your LLM-as-a-judge is the one you had before "
+                  "your last check, so your marks still test it.")  # that check found it worse
 JUDGE_CHANGED = "Your LLM-as-a-judge changed since your marks: {what}."
 NEWEST = "Reading {file}, the newest results here."
+# Newer results whose grades only `check` takes on: the numbers keep the ones the marks were
+# checked with. Graded again (the same model and rule, or a table): which, and the check
+REGRADED = ("Your answers were graded again in {file}, and {k} of your marked answers got a "
+            "different grade. {numbers}. To compare, run `{command}`.")
+# ...after a check found them worse (a "Worse" kept the marks on the grades before), any judge
+HELD_WORSE = "Your last check found your LLM-as-a-judge in {file} worse, so {numbers}."
+NUMBERS_IN = "the numbers below still use the grades in {old}"
+NUMBERS_BEFORE = "the numbers below still use the grades from before"  # that file graded again
+NO_GRADES_HERE = "It has no Pass or Fail grades, so {numbers}."  # the newest results file
+READING = "Reading {file}."  # back to a file older than the last one read
+# A check took on the LLM-as-a-judge of a file elsewhere; the results here are older
+CHECKED_FILE = "This result is about your LLM-as-a-judge in {file}, the file your last check read."
 MODEL_WRITTEN = "Your LLM-as-a-judge's model is written down now: {model}."
 WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results worse than this one."
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
@@ -103,9 +121,9 @@ INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
 # Said where marking starts, before the page opens (and in the README and the reference)
-NEEDS_EACH_KIND = ("A result needs at least {n} answers you mark Pass and {n} you mark Fail, and "
+NEEDS_EACH_KIND = ("A result needs at least {n} Pass and {n} Fail marks from you. It also needs "
                    "{g} marks on answers your LLM-as-a-judge passed and {g} on answers it "
-                   "failed (or all of them, when there are fewer).")
+                   "failed (or all of them, if there are fewer).")
 # ...and when the LLM-as-a-judge failed under FEW_FAILS of the answers: how many marks that takes
 # depends on how many of its fails the person fails too, so no number is said
 FEW_FAILS = 0.10
@@ -114,27 +132,42 @@ ONE_GRADE = ("Your LLM-as-a-judge said {said} on every answer. Your result comes
              "mark one answer {other}.")
 FINDING = "finding {n} answers you mark Fail can take many marks."
 FINDING_FAILS = "Your LLM-as-a-judge failed only {f} of {answers} answers, so " + FINDING
+# ...unless too few answers are left to mark to reach them
+FAILS_OUT_OF_REACH = ("Only {left} left to mark, not enough to reach {n} {side} marks, so run "
+                      "your eval on more questions.")
 FAILED_ONLY = "Your LLM-as-a-judge failed only "  # how Find's note on few fails starts (_notes)
 SHOWS = ("It shows the answers one at a time. Mark each one Pass or Fail, the way you want your "
          "LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays hidden.")
 BAR = "The bar at the top fills as you mark."
 PRECISE = "Each new mark makes your numbers more precise."
 NOT_ENOUGH = "That's not enough for a result yet."
-NEXT_MARK = "mark answers until the link at the top shows your numbers, then click it."
+GROUP_MARKS = "You marked {marked}. A result needs {need}."
+GROUP_ALL = "Your LLM-as-a-judge {word} only {n} answers, so a result needs your marks on all {n}."
+GROUP_ONE = "Your LLM-as-a-judge {word} only 1 answer, so a result needs your mark on it."
+NEXT_MARK = (f'mark answers on the page until a "{SEE_FIRST}" link appears, then click '
+             "it.")  # a terminal has no link at the top: the page's link by its own words
 NEXT_MORE = "mark more answers, then run `{command}` to see your updated result."
+# ...fewer answers than a first result needs (start.MIN_POOL): as Find says it
+NEXT_FEW_ANSWERS = ("mark your {n} answers on the page. Your marks are kept for when more "
+                    "answers come. A first result needs at least {min} answers, so then run your "
+                    "eval to make more answers (that makes model calls), and run `{command}` "
+                    "again.")
 NEXT_CHECK = "run `{command}` to re-check your changed LLM-as-a-judge on your marks."
+NEXT_COMPARE = "run `{command}` to compare the new grades with your marks."  # after REGRADED
 NEXT_RESULT = ("nothing to do. When you change your LLM-as-a-judge or update your eval tool, run "
                "`{command}`.")
 NEXT_FIX = "to improve your LLM-as-a-judge's rule, run `{command}`."
 NEXT_CONTINUE = "run `{command}` when you want to continue."
+PORT_KEPT = "The marking page is already open on port {port}, so --port {asked} was not used."
 STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
               "narrower, so the numbers are more certain.")
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
-SAY_WHY = "Say why on the answers you and your LLM-as-a-judge disagree on; `fix` uses your reasons."
+SAY_WHY = "Where you and your LLM-as-a-judge disagree, say why. `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
 CHANGE_MARK = "To change a mark, click it in the list."  # every answer marked (mark_page too)
+CHANGE_ON_RESULT = 'To change a mark, open the page and click "Change a mark".'  # its link
 IN_BROWSER = "The marking page is already running."  # no new tab for it; a first run with
 # --no-browser opened none, so "in your browser" could be false
 CLOSED_IT = "Need its link? Run `{command}` to print it."  # no terminal: no link
@@ -149,6 +182,7 @@ SAVES = {"deepeval": "DeepEval saves results only when you run deepeval test run
          "mlflow": "MLflow keeps the LLM-as-a-judge's assessments once mlflow.genai.evaluate() "
                    "runs."}
 OTHERS = 3  # other projects named when run from a folder that holds several
+FILE_TOOLS = ("table", "promptfoo", "deepeval", "inspect")  # each results file is one run
 FEW_SHARE = 0.2  # a side under this share of the answers: the judge may pass (fail) too much
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -225,6 +259,8 @@ class FrontTalk(start.Talk):
             raise self.stop(EXIT_QUESTION, f"run `{self.command()}` in a terminal, to answer "
                                            "there.")
         names = ", ".join(start.shown_name(str(v), quoted=True) if flag == "--metric"
+                          else f"table for {find.NAMES['table']}"
+                          if flag == "--tool" and v == "table"  # a CSV file: never a "table"
                           else quote_arg(str(v)) for v in values)
         if len(values) - keep > start.LIST_LIMIT:  # the list above holds the first ones; the
             # kept last options ("All, one at a time") are choices, not names
@@ -332,6 +368,9 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
     try:
         if stop:
             return _stop(talk, path)
+        uri = str(talk.options.get("tracking_uri") or "")
+        if not path.exists() and not uri.startswith(start.SERVERS):
+            raise not_found(path)  # no step ran: the error alone
         if talk.labels is not None or not marking and not _started(path):  # an import
             talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
@@ -446,7 +485,7 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
-                                                    talk.command)
+                                                    talk.command, talk.labels)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -480,15 +519,29 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
             sessions := _sessions_below(path)):  # never a second session above one, nor
         # one above's for them: results in a folder with its own session belong to it
-        raise _go_to(talk, sessions)
+        raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
     if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
             folders := _projects_below(path)):  # nor one session for several projects
+        folders = _from_here(path, folders)
+        if len(folders) == 1:  # a project of its own: its results are checked there
+            talk.para(_nested_line(folders, Path.cwd()))
+            raise talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
         raise _go_to_one(talk, folders)
     if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
-        raise _go_to_one(talk, folders)  # a session below never joins other results here
+        raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
+        # other results here
     if path.is_file() and (owner := _session_owning(path)) is not None:
-        talk.para(_nested_line([owner]))  # its own project's answers, never a batch here
-        raise talk.stop(EXIT_QUESTION, f"run `{program()}` in {owner}/.")
+        # its own project's answers, never a batch here
+        talk.para(_nested_line([owner], Path.cwd()))
+        raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
+    store = project.project_of(asked)
+    if path.is_file() and (marked := project.other_eval(store, path)) is not None:
+        talk.para(project.other_eval_line(path, marked))  # never read, marked or set apart
+        raise talk.stop(EXIT_QUESTION)
+    if not asked.is_file():  # the marked file is read still: why not the other
+        for other, marked in project.others_beside(store):
+            talk.para(project.other_eval_line(other, marked))
+            talk.say()
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -595,14 +648,16 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
 
 
 def not_found(path: Path) -> StartError:
-    """PATH is not there; a single word is taken for a command that does not exist."""
+    """PATH is not there, in the words `check` says it with (check.no_such); a single word is
+    taken for a command that does not exist."""
+    from judgekeeper.check import no_such
+
     word = str(path)
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", word):
         return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
                           f"named {word} here.", f"run `{program()}`, or "
                                                  f"`{program()} --help` to see the commands.")
-    return StartError(f"file or folder not found: {shown_path(path)}",
-                      "check the path, then run `{command}`.")
+    return StartError(no_such(word), "check the path, then run `{command}`.")
 
 
 def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettings | None]:
@@ -611,6 +666,10 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     from judgekeeper import own_map
 
     o = talk.options
+    if path.is_file() and start.is_empty_file(path):  # as a file Find found empty
+        root = project.project_of(path)
+        raise start.empty_file(textio.shown_in(path, Path.cwd()), any(
+            (root / name).is_file() for name in find.PROMPTFOO_CONFIGS))
     if path.is_file():
         if o["tool"] is not None or find.classify_file(path) is not None or \
                 path.suffix.lower() not in own_format.SUFFIXES or find.is_promptfoo_table(path) \
@@ -640,7 +699,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         rel = search.judge_only[0]
         talk.para(f"{rel} has your LLM-as-a-judge's verdicts but no answer text, so there's "
                   "nothing to show you for marking.")
-        raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was judged) to "
+        raise talk.stop(EXIT_QUESTION, "add the answer column (the text that was graded) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None and search.no_question:
         rel = search.no_question[0]
@@ -662,6 +721,7 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
     kept = _kept_experiment(path) if talk.options["experiment"] is None else None
     kept_map = _kept_label_map(path) if talk.options["label_map"] is None and saved is None \
         else None
+    kept_tool = _kept_tool(path) if saved is None else None
     while True:
         options = {k: talk.options[k] for k in FIND}
         options.update({ASKED[f]: v for f, v in talk.answers.items() if f in ASKED})
@@ -675,18 +735,22 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             options["experiment"] = kept
         if options["label_map"] is None:
             options["label_map"] = kept_map
+        if options["tool"] is None and options["tracking_uri"] is None:
+            options["tool"] = kept_tool
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
                                          only=only, **{**options, "judge_model": given or
                                                        options["judge_model"]})
             except StartError:
-                if given is None and kept is None:
+                if given is None and kept is None and kept_tool is None:
                     raise
                 if given is not None:
                     given = None  # the results name the model now
-                else:
+                elif kept is not None:
                     kept = None  # the experiment is gone: asked again
+                else:
+                    kept_tool = None  # its results are gone: found again
                 continue
         except RecordsError as e:
             raise start.usage_error(e) from None
@@ -694,6 +758,21 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
             _ignored(talk, found)
             return found
         _unread_values(talk, found)
+
+
+def _kept_tool(path: Path) -> str | None:
+    """The eval tool the marks were made on, kept in start.json, for a run on the project
+    folder with no judgekeeper.toml: read again with no --tool, as `check` reads it."""
+    if not path.is_dir():
+        return None
+    ws = Workspace(project.project_of(path))
+    try:
+        if not ws.start.is_file() or start._saved(ws.root) is not None:
+            return None
+        tool = ws.data().get("tool")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return tool if tool in find.TOOLS else None
 
 
 def _kept_experiment(path: Path) -> str | None:
@@ -775,6 +854,39 @@ def _add_label_map(talk: FrontTalk, extra: str) -> None:
     talk.set("label_map", f"{given},{extra}" if given else extra)
 
 
+def _saved_pass_mark(found: start.Found) -> dict:
+    """The pass mark the marks read the scores with now, as start.json keeps it; else {}."""
+    try:
+        return Workspace(found.root).data().get("pass_mark") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def _rule_in_use(found: start.Found) -> str:
+    """--pass-if's value in the command said without a terminal: the rule the marks read the
+    scores with now (given with --pass-if, or taken on by a check), quoted; else PASS_IF."""
+    pm = _saved_pass_mark(found)
+    rule = pm.get("rule")
+    if pm.get("source") != "pass_if" or not isinstance(rule, str) or not rule.isprintable():
+        return PASS_IF
+    try:
+        parse_pass_if(rule)
+    except NormaliseError:
+        return PASS_IF
+    return quote_arg(rule)
+
+
+def _mark_in_use(found: start.Found) -> str:
+    """The default for the pass mark asked: the one the marks read the scores with now (given
+    with --pass-if, or taken on by a check), when it is "at least"; else 0.5."""
+    pm = _saved_pass_mark(found)
+    mark = pm.get("mark")
+    if pm.get("source") == "pass_if" and pm.get("op") == ">=" and isinstance(mark, (int, float)) \
+            and not isinstance(mark, bool):
+        return f"{mark:g}"
+    return "0.5"
+
+
 def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     """The judge's decisions hold values that are not Pass or Fail: ask what they mean (never
     a guess: a wrong one turns fails into passes)."""
@@ -796,13 +908,18 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         _add_label_map(talk, f"P={('pass', 'fail')[i]}")
         return
     if all(_numeric(v) for v in values):
+        if not terminal and (rule := _rule_in_use(found)) != PASS_IF:  # measured: it is saved
+            again = talk.command("--pass-if", rule)
+            talk.step = None  # a saved pass mark: past Find, so no "Step 1 of 5: Find" above it
+            talk.para(PASS_MARK_AGAIN.format(rule=_saved_pass_mark(found)["rule"]))
+            raise talk.stop(EXIT_QUESTION, f"run `{again}`.")
         talk.say(f"Your LLM-as-a-judge's decisions are scores ({_shown(values)}), and the results "
                  "do not say which score passes.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
-                                           f"`{talk.command('--pass-if', PASS_IF)}`.")
+                                           f"`{talk.command('--pass-if', _rule_in_use(found))}`.")
         while True:
-            answer = talk.ask("Pass when the score is at least", "0.5")
+            answer = talk.ask("Pass when the score is at least", _mark_in_use(found))
             if _numeric(answer):
                 talk.set("pass_if", f"score>={answer}")
                 return
@@ -846,13 +963,41 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
     return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
 
 
-def _nested_line(nested: list[str]) -> str:
-    """Results in projects of their own below this one (find.nested_results): whose they
-    are, and where to check them."""
+OTHERS_HOME = "in another person's home folder, which judgekeeper doesn't name in full"
+
+
+def _nested_line(nested: list[str], base: Path) -> str:
+    """Results in projects of their own below this one (find.nested_results, named from the
+    folder `base`): whose they are, and where to check them. A folder in another person's
+    home folder (cut short) is said to be there."""
     named = start._and([f"{p}/" for p in nested])
-    where = start._or([f"{p}/" for p in nested])
+    cut = any(textio.cut_short(p) for p in nested)
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
-            f"{named}. To check them, run `{program()}` in {where}.")
+            f"{named}{f', {OTHERS_HOME}' if cut else ''}. To check them, "
+            f"{run_there(nested, base)}")
+
+
+def run_there(folders: list[str], base: Path) -> str:
+    """"run `<program>` in <folder>." for `folders` (named from `base`): "in that folder" when
+    one is cut short, which no one can go to by its name."""
+    if any(textio.cut_short(p) for p in folders):
+        where = "that folder" if len(folders) == 1 else "one of those folders"
+    else:
+        where = start._or([f"{p}/" for p in folders])
+    return f"run `{_program_there(folders, base)}` in {where}."
+
+
+def _from_here(base: Path, names: list[str]) -> list[str]:
+    """Folders `names` right below `base`, as lines name them (textio.folder_from_here), so
+    `cd` and "in ..." work from here, never with a user name."""
+    return [textio.folder_from_here(Path(base) / name) for name in names]
+
+
+def _program_there(folders: list[str], base: Path) -> str:
+    """program() as it is typed in each of `folders` (from `base`), for a line that says to
+    run it there: the same in all of them, else the form that runs in any folder."""
+    shown = {textio.program_in(textio.folder_of(f, base)) for f in folders}
+    return shown.pop() if len(shown) == 1 else textio.program_in(textio.ANYWHERE)
 
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
@@ -869,11 +1014,11 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                                          f"`{talk.command_at('PATH')}` with their file or "
                                          "folder."))
     if nested and len(sessions := _sessions_below(root, nested)) == len(nested):
-        return _go_to(talk, sessions)
+        return _go_to(talk, [(_from_here(root, [n])[0], k) for n, k in sessions])
     if nested:
-        talk.para(_nested_line(nested))
-        where = start._or([f"{p}/" for p in nested])
-        return talk.stop(EXIT_QUESTION, f"run `{program()}` in {where}.")
+        nested = _from_here(root, nested)
+        talk.para(_nested_line(nested, Path.cwd()))
+        return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd()))
     saved = _saved_marks(root)
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
@@ -955,9 +1100,26 @@ def _go_step(names: list[str], command: str) -> str:
     folder = "that folder" if len(names) == 1 else "one of those folders"
     here = program()
     if command.startswith(here):
-        with textio.run_from(names[0]):
+        with textio.run_from(textio.folder_of(names[0], Path.cwd())):
             command = program() + command[len(here):]
-    return f"go to {folder} (`cd {quote_arg(names[0])}`), then run `{command}` there."
+    if textio.cut_short(names[0]):  # no `cd` can go there by its name
+        return f"go to {folder} ({OTHERS_HOME}), then run `{command}` there."
+    if textio.is_windows() and (inside := _in_home_windows(names[0])) is not None:
+        # cmd reads %USERPROFILE%, PowerShell only ~: no `cd` runs in both, so in words
+        where = ("your home folder" if not inside and len(names) == 1 else
+                 f"{folder} ({inside} in your home folder)" if len(names) == 1 else
+                 f"{folder} (in your home folder)")
+        return f"go to {where}, then run `{command}` there."
+    return f"go to {folder} (`cd {textio.cd_word(names[0])}`), then run `{command}` there."
+
+
+def _in_home_windows(shown: str) -> str | None:
+    """The rest of a folder_from_here name in the home folder on Windows (`%USERPROFILE%`
+    and what follows it): "" for the home folder itself; None for any other name."""
+    form = textio.HOME_FORMS[1]
+    if shown == form.rstrip("\\"):
+        return ""
+    return shown[len(form):] if shown.startswith(form) else None
 
 
 def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
@@ -974,10 +1136,11 @@ ASKED = ("deepeval", "inspect")  # results in several folders: asked which (star
 
 
 def _projects_below(folder: Path) -> list[str]:
-    """The folders right below `folder` that hold results, when there are 2 or more and
-    nothing says `folder` is one project: no results or tool's config in it, and none in a
-    tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as
-    before (ASKED). Each is a project of its own, never run."""
+    """The folders right below `folder` that hold results, when there are 2 or more (or one
+    that is a project of its own, project.is_project) and nothing says `folder` is one
+    project: no results or tool's config in it, and none in a tool's own folder
+    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before (ASKED). Each
+    is a project of its own, never run."""
     found = find.search(folder)
     if any("/" not in sign for signs in found.signs.values() for sign in signs):
         return []
@@ -988,7 +1151,9 @@ def _projects_below(folder: Path) -> list[str]:
                 or any(part in TOOL_FOLDERS for part in parts[:-1])):
             return []
         tops.add(parts[0])
-    return sorted(tops) if len(tops) > 1 else []
+    if len(tops) == 1 and not project.is_project(folder / next(iter(tops))):
+        return []  # one plain folder (evals/) holds this folder's results
+    return sorted(tops)
 
 
 def _beside_a_session(folder: Path) -> list[str]:
@@ -1013,16 +1178,17 @@ def _beside_a_session(folder: Path) -> list[str]:
 
 def _session_owning(path: Path) -> str | None:
     """A results file in a folder below this project whose own .judgekeeper/ holds a
-    session: that folder, from the folder the command runs in."""
+    session: that folder, from the folder the command runs in. From a folder that is no
+    project, a project below (project.is_project) owns its files too, used or not."""
     root = project.project_of(path)
-    here = Path.cwd().resolve()
     folder = path.resolve().parent
     if not folder.is_relative_to(root):
         return None
+    no_project = not project.is_project(root)
     while folder != root:
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file():
-            return Path(os.path.relpath(folder, here)).as_posix()
+        if ws.start.is_file() or ws.labels.is_file() or no_project and project.is_project(folder):
+            return textio.folder_from_here(folder)
         folder = folder.parent
     return None
 
@@ -1089,15 +1255,15 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
     return out
 
 
-def _other_files(found: start.Found) -> str | None:
-    """Tables of results found next to the one read, never read with it: named (at most
-    OTHERS), with the command that checks one."""
-    if found.tool != "table" or found.given:
+def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
+    """Results files found next to the one read, never read with it: named (at most
+    OTHERS), with the command that checks one, the person's flags kept."""
+    if found.tool not in FILE_TOOLS or found.given:
         return None
     others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
     if not others:
         return None
-    commands = start._or([f"`{program()} {quote_arg(r)}`" for r in others])
+    commands = start._or([f"`{talk.command_at(r)}`" for r in others])
     return (f"Also found {start._and(others)}. To check "
             f"{'it' if len(others) == 1 else 'one'}, run {commands}.")
 
@@ -1136,7 +1302,7 @@ def _nested_here(found: start.Found) -> str | None:
     if found.given:
         return None
     nested = find.nested_results(find.search(found.root))
-    return _nested_line(nested) if nested else None
+    return _nested_line(_from_here(found.root, nested), Path.cwd()) if nested else None
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -1177,10 +1343,7 @@ def _kept_apart(found: start.Found) -> str | None:
     if apart is None:
         return None
     above, files = apart
-    try:
-        rel = Path(os.path.relpath(above, Path.cwd().resolve())).as_posix()
-    except ValueError:  # another drive on Windows
-        rel = above.name
+    rel = textio.folder_from_here(above)  # never a user name
     return ("These results get their own marks here. "
             + (f"The marks in {rel}/ are for {', '.join(files)}." if files else "")).strip()
 
@@ -1242,8 +1405,9 @@ TOOL_NAMES = {**find.NAMES, "records": "judgekeeper.record() in your code",
 def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
     """The eval tool as every screen and page names it; a table by its kind ("your own CSV
     file", from the first of `files`)."""
-    if tool == "table" and files:
-        return f"your own {Path(files[0]).suffix.lstrip('.').upper()} file"
+    kind = Path(files[0]).suffix.lstrip(".").upper() if files else ""
+    if tool == "table" and files or tool == "mapped" and kind in ("CSV", "TSV", "JSONL"):
+        return f"your own {kind} file"  # a table by its kind, read by its columns or mapped
     return TOOL_NAMES.get(tool, tool)
 
 
@@ -1256,7 +1420,8 @@ def _newest(found: start.Found) -> str:
 
 def _newest_line(ws: Workspace, found: start.Found) -> str | None:
     """NEWEST when this run found other results files than the last one read (a newer one
-    saved in the folder), not given by path."""
+    saved in the folder), not given by path; READING when the one read is older than the
+    last one read (a run back on an earlier file)."""
     if found.given or found.tool in ("mlflow", "records") or not found.results:
         return None
     try:
@@ -1266,7 +1431,33 @@ def _newest_line(ws: Workspace, found: start.Found) -> str | None:
         return None
     if not files or data.get("given") or _same_files(ws, data, files, found):
         return None
-    return NEWEST.format(file=_newest(found))
+    return (READING if _older(ws, data, files, found) else NEWEST).format(file=_newest(found))
+
+
+def _older(ws: Workspace, data: dict, files: list[str], found: start.Found) -> bool:
+    """Whether the newest file `found` read is older than one of `files`, the files read last
+    (start.json's, from the folder its results were read in), or than `results_read`, the
+    newest one a check read, wherever it was (in .judgekeeper/fix/, or outside the project)."""
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    try:
+        now = found.results[0].path.stat().st_mtime
+    except OSError:
+        return False
+    read = data.get("results_read")
+    if isinstance(read, str) and read:
+        try:
+            if Path(textio.kept_at(read, ws.root)).stat().st_mtime > now:
+                return True
+        except OSError:
+            pass
+    for f in files:
+        try:
+            if (base / f).stat().st_mtime > now:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _read_from(found: start.Found) -> str:
@@ -1343,19 +1534,26 @@ def repeats_note(answers: int, pool: start.Pool) -> str:
     head = f"(your file has {answers + pool.n_merged} results: {head}"
     if not pool.split:
         return f"{head}, so each counts once.)"
-    which = ("1 answer got different grades, so its" if len(pool.split) == 1
-             else f"{len(pool.split)} answers got different grades, so their")
-    return f"{head}. Repeats with the same grade count once. {which} {split} repeats each count.)"
+    which = ("1 answer got different grades, so each of its" if len(pool.split) == 1
+             else f"{len(pool.split)} answers got different grades, so each of their")
+    return f"{head}. Repeats with the same grade count once. {which} {split} repeats counts.)"
 
 
-def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
+def needs_each_kind(fails: int, answers: int, said: bool = False, left: int | None = None,
+                    fail_marks: int = 0, pass_marks: int | None = None) -> str:
     """What a result needs, said where marking starts; when the LLM-as-a-judge failed under
     FEW_FAILS of the `answers` (`fails` of them), that finding the Fail marks can take many
-    (`said`: Find said how few it failed in this run, so only that)."""
+    (`said`: Find said how few it failed in this run, so only that). With `left` answers to
+    mark (None: all of them) and `fail_marks` and `pass_marks` made (None: not counted), fewer
+    left than the marks of one kind still needed says so instead."""
     if answers and fails in (0, answers):  # one grade for every answer: exact numbers
         said, other = ("Pass", "Fail") if not fails else ("Fail", "Pass")
         return ONE_GRADE.format(said=said, other=other)
     out = NEEDS_EACH_KIND.format(n=targets.ROUGH, g=targets.FIRST_GROUP)
+    if side := side_out_of_reach(fails, answers, left, fail_marks, pass_marks):
+        return out + " " + FAILS_OUT_OF_REACH.format(
+            left=f"{_n(left, 'answer')} {'is' if left == 1 else 'are'}", n=targets.ROUGH,
+            side=side)
     if 0 < fails < FEW_FAILS * answers:  # none failed: another stop says so
         rest = FINDING.format(n=targets.ROUGH)
         out += " " + (rest[:1].upper() + rest[1:] if said else
@@ -1363,9 +1561,67 @@ def needs_each_kind(fails: int, answers: int, said: bool = False) -> str:
     return out
 
 
-def _needs_each_kind(talk, session: StartSession) -> None:
+def side_out_of_reach(fails: int, answers: int, left: int | None = None,
+                      fail_marks: int = 0, pass_marks: int | None = None) -> str | None:
+    """"Fail" or "Pass" when marking the `left` answers can't reach targets.ROUGH marks of
+    that kind (`fail_marks` and `pass_marks` made; None: Pass marks not counted), when the
+    LLM-as-a-judge failed `fails` of the `answers` and passed the others (`left` None: every
+    answer is left); else None."""
+    if answers and fails in (0, answers) or left is None:  # one grade: exact numbers
+        return None
+    return ("Fail" if left < targets.ROUGH - fail_marks else
+            "Pass" if pass_marks is not None and left < targets.ROUGH - pass_marks else None)
+
+
+def _each_kind(session: StartSession) -> dict:
+    """needs_each_kind's numbers for `session`, but `said`."""
     groups = list(session.groups.values())  # every answer to mark, each batch's too
-    talk.para(needs_each_kind(groups.count("fail"), len(groups), talk.few_fails))
+    return {"fails": groups.count("fail"), "answers": len(groups),
+            "left": sum(not i["label"] for i in session.items),
+            "fail_marks": sum(i["label"] == "fail" for i in session.items),
+            "pass_marks": sum(i["label"] == "pass" for i in session.items)}
+
+
+def _only_skipped(session: StartSession) -> int:
+    """How many answers are left to mark when each of them was skipped, else 0. Said also
+    when marking them all can't bring a result (side_out_of_reach), as the page says it."""
+    left = [i for i in session.items if not i["label"]]
+    if not left or not all(i["deferred"] for i in left):
+        return 0
+    return len(left)
+
+
+def _needs_each_kind(talk, session: StartSession) -> None:
+    talk.para(needs_each_kind(said=talk.few_fails, **_each_kind(session)))
+
+
+def _group_marks(session: StartSession) -> str:
+    """GROUP_MARKS: the marks on answers the LLM-as-a-judge passed and on those it failed."""
+    marked = [i for i in session.items if i["label"] in ("pass", "fail")]
+    passed = sum(session.groups.get(i["id"]) == "pass" for i in marked)
+    sizes = Counter(session.groups.get(i["id"]) for i in session.items)
+    short = [(word, have, min(targets.FIRST_GROUP, sizes.get(side, 0)))
+             for side, word, have in (("pass", "passed", passed),
+                                      ("fail", "failed", len(marked) - passed))
+             if have < min(targets.FIRST_GROUP, sizes.get(side, 0))]
+    if not short:  # every group has its marks: what holds the result back is said elsewhere
+        short = [("passed", passed, targets.FIRST_GROUP),
+                 ("failed", len(marked) - passed, targets.FIRST_GROUP)]
+
+    def need(n: int) -> str:
+        return str(n) if n == targets.FIRST_GROUP else f"all {n}"
+    if len(short) == 1:
+        word, have, n = short[0]
+        said = GROUP_MARKS.format(marked=f"{_n(have, 'answer')} your LLM-as-a-judge {word}",
+                                  need=need(n))
+        if n < targets.FIRST_GROUP:  # why "all": fewer such answers than a result's usual marks
+            said = said.split(". A result needs")[0] + ". " + (
+                GROUP_ONE if n == 1 else GROUP_ALL).format(word=word, n=n)
+        return said
+    (_, p, np), (_, f, nf) = short
+    return GROUP_MARKS.format(
+        marked=f"{_n(p, 'answer')} your LLM-as-a-judge passed and {f} it failed",
+        need=f"{need(np)} of each" if np == nf else f"{need(np)} and {need(nf)}")
 
 
 def _import_gate(ws: Workspace, session: StartSession) -> str | None:
@@ -1375,7 +1631,8 @@ def _import_gate(ws: Workspace, session: StartSession) -> str | None:
         return None
     data = ws.data()
     ids = set(batches.counted_labels(data, batches.graded(data, session.marked())))
-    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids)
+    imported, needed, _ = start_label.import_check(marks.read(ws.marks), data, ids,
+                                                   markable=True)
     return labels_mod.gate_line(needed, imported)
 
 
@@ -1414,7 +1671,10 @@ def found_block(found: start.Found, pass_if: str | None = None,
         lines.append(f"Answers:         {_n(answers, 'answer')}")
     if pool.answers and (pool.n_merged or pool.split):
         lines.append(INDENT + repeats_note(answers, pool))
-    lines += [f"LLM-as-a-judge:  {_judge_value(found)}", *_rule_lines(found)]
+    lines.append(f"LLM-as-a-judge:  {_judge_value(found)}")
+    if found.model_refused and not found.models:  # so the column is not shown as read
+        lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
+    lines += _rule_lines(found)
     rows = read_rows(found, pass_if, mapped)
     if rows:
         width = max(len(k) for k, _ in rows) + 3
@@ -1447,7 +1707,7 @@ def read_rows(found: start.Found, pass_if: str | None = None,
         return [("question", "each sample's input"), ("answer", "each sample's output"),
                 ("grade", grade)]
     if found.tool == "mlflow":
-        return [("question", "each trace's request"), ("answer", "its response"),
+        return [("question", "each trace's request"), ("answer", "each trace's response"),
                 ("grade", "your LLM-as-a-judge's assessment" + mark)]
     if found.tool == "records":
         return [("question", "each line's input"), ("answer", "each line's output"),
@@ -1461,6 +1721,8 @@ def read_rows(found: start.Found, pass_if: str | None = None,
         rows = [("question", "the input column"), ("answer", "the output column"),
                 ("grade", grade)]
         model = next((c for c in ("judge_model", "model") if c in columns), None)
+        if not found.models or found.model_source:  # the column was not what was read
+            model = None
         labels = next((c for c in start.HUMAN_COLUMNS if c in columns), None)
         for what, column in (("reason", "reason" if "reason" in columns else None),
                              ("model", model),
@@ -1525,7 +1787,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    for others in (_other_files(found), _other_projects(found), _nested_here(found),
+    for others in (_other_files(found, talk), _other_projects(found), _nested_here(found),
                    _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
@@ -1545,9 +1807,9 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
                   "for a first result.")
         raise talk.stop(EXIT_QUESTION, (
-            "run your eval to make more answers first (that makes model calls), then run "
-            f"`{talk.command()}` again; or mark {'this one' if n == 1 else f'these {n}'} now "
-            f"with `{_command_of(talk, saved, 'mark')}`."))
+            f"mark {'this one' if n == 1 else f'these {n}'} now with "
+            f"`{_command_of(talk, saved, 'mark')}`. Your marks are kept. Then run your eval to "
+            f"make more answers (that makes model calls), and run `{talk.command()}` again."))
     talk.say()
     return _marking(talk, Workspace(found.root), found, wait, saved, marking=False, first=True)
 
@@ -1603,6 +1865,19 @@ def _flags_of(talk: FrontTalk, saved: bool, ws: Workspace) -> dict:
     if options.get("tracking_uri"):
         options["tracking_uri"] = _kept_uri(str(options["tracking_uri"]), ws.root)
     return start.run_flags(path, **options)
+
+
+def _back(talk: FrontTalk, saved: bool) -> dict | None:
+    """How to come back to the page as typed here (start.saved_back), for its footer: the
+    path given, from here (never a whole path), and the program as typed here. None when the
+    path can't be said from here (another drive)."""
+    path = answered(talk, saved)[0]
+    if path != "." and (os.path.isabs(path) or textio.through_top(path)):
+        try:
+            path = os.path.relpath(os.path.abspath(path))
+        except ValueError:
+            return None
+    return {"path": path, "program": program()}
 
 
 def _kept_uri(uri: str, root: Path) -> str:
@@ -1693,6 +1968,11 @@ def _go_on(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings |
     if why is not None and not over:
         talk.say("Nothing was moved.")
         raise talk.stop(EXIT_OK, f"nothing. Your old marks stay in {FOLDER}/.")
+    if why == [] and talk.new and not _has_marks(ws) and not _changed(ws, found):
+        talk.para("You haven't marked any answers yet, so `--new` has nothing to move.")
+        talk.new = False  # done: the command to go on is without it
+        talk.refresh()
+        raise talk.stop(EXIT_OK, f"run `{talk.command()}` to start marking.", as_given=True)
     if over:
         if is_open(ws.dir):
             background.stop(ws.dir)
@@ -1726,11 +2006,50 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     except (OSError, ValueError, KeyError, TypeError):
         return [f"judgekeeper can't read {FOLDER}/start.json, so the marks there can't be used."]
     if (found.tool, scrub(found.metric)) != (tool, scrub(metric)):  # start.json's, keys hidden
-        return [(f"Your marks are for other results: they are of the LLM-as-a-judge {judge} "
-                 f"({tool}), and these results are of {found.judge}.")]
+        return [(f"Your marks are for another LLM-as-a-judge: {judge} ({tool}). These "
+                 f"results are from {found.judge}.")]
     if not _has_marks(ws) and _changed(ws, found):  # nothing marked yet: read them anew
         return []
     return [] if talk.new else None
+
+
+def _checked_file(ws: Workspace, found: start.Found) -> str | None:
+    """The file the last check read (check.last_read_file), named from here; else None."""
+    from judgekeeper import check as checking
+
+    path = checking.last_read_file(ws, [r.path for r in found.results])
+    return None if path is None else textio.line_path(path)
+
+
+def _regraded_line(talk: FrontTalk, ws: Workspace, found: start.Found, k: int) -> str:
+    """REGRADED: the newest file read, `k`, whose grades the numbers use, and the check that
+    compares them, as the Next line gives it."""
+    return REGRADED.format(file=_newest(found), k=k, numbers=_sentence(_graded_in(ws, found)),
+                           command=_compare_command(talk, ws))
+
+
+def _sentence(words: str) -> str:
+    return words[:1].upper() + words[1:]
+
+
+def _graded_in(ws: Workspace, found: start.Found) -> str:
+    """Whose grades the numbers use: the results file(s) the marks were checked with
+    (start.json's, as result.json names them), named from here; "from before" when the
+    newest file read is one of them, graded again in place: it holds them no more."""
+    data = ws.data()
+    base = start.results_path(ws.root, data)
+    base = base if base.is_dir() else base.parent
+    files = [base / f for f in data.get("results_files") or [] if isinstance(f, str)]
+
+    def same(file: Path) -> bool:
+        try:
+            return os.path.samefile(file, found.results[0].path)
+        except OSError:
+            return False
+
+    if not files or any(same(f) for f in files):
+        return NUMBERS_BEFORE
+    return NUMBERS_IN.format(old=" and ".join(textio.shown_in(f, found.root) for f in files))
 
 
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
@@ -1790,19 +2109,53 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
-    back = None if first else check.back_to_marked(ws, found, talk.say)  # the judge marked on
-    changed = [] if first or back else _changed(ws, found)
-    grades = 0 if first or changed or back else check.grades_changed(ws, found)  # a table judge
-    added = 0
-    if not (first or changed or back or grades):
+    # A newer file the last check read, which the search never finds: its result stays,
+    # unless the file is typed (then it is the one to read, and may go back to the marked judge)
+    typed = Path(talk.path).is_file() or find.is_mlflow_folder(Path(talk.path))
+    elsewhere = None if first or typed else _checked_file(ws, found)  # older results here
+    closed: list[str] = []  # the marking page it closes: said by a plain run, not by `mark`
+    back = None if first or elsewhere else check.back_to_marked(ws, found, talk.say,
+                                                                closed=closed)
+    elsewhere = elsewhere or (None if first or back else _checked_file(ws, found))
+    changed = [] if first or back or elsewhere else _changed(ws, found)
+    held = not (first or changed or back or elsewhere) and found.rule is not None and \
+        check.open_worse(ws, found, held=True) is not None  # a same-rule "Worse" stays
+    grades = (0 if first or changed or back or elsewhere
+              else check.grades_changed(ws, found, ruled=held))  # a table judge, or held
+    regraded = (check.grades_changed(ws, found, ruled=True)
+                if not (first or changed or back or elsewhere or grades)
+                and found.rule is not None and found.results else 0)
+    if regraded:  # the grades the numbers use are not the ones read: which, and the check
+        head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
+        head.append(_regraded_line(talk, ws, found, regraded))
+    added, took = 0, None
+    if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
+        took = check.take_new_grades(ws, found)  # grades on answers left that waited
     then = None  # new answers that came with changed grades: they wait, and the next step
     if back:
-        head.append(back)
-    elif changed or grades:
-        head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
-                    else check.GRADES.format(k=grades))
+        head.append(back)  # the judge marked on
+        if not marking and closed:
+            head.extend(["", *closed])  # a paragraph of its own
+    elif elsewhere:  # the result is about that file, not the one read here
+        head[:] = [x for x in head if x != newest]
+        head.append(CHECKED_FILE.format(file=elsewhere))
+        if typed:  # an older file typed: every command given names the file the result is about
+            talk.path = elsewhere
+    elif changed or grades:  # grades only `check` takes on: whose grades the numbers use
+        kept_worse = held or check.open_worse(ws, found, held=True) is not None  # any judge
+        if kept_worse or not changed:  # the file read is named in the line itself
+            head[:] = [x for x in head if x != newest]
+        if kept_worse:  # that check, not one to run
+            head.append(JUDGE_CHANGED.format(what=", ".join(changed)) if changed
+                        else (check.SAME_RULE_GRADES if held else check.GRADES).format(k=grades))
+            head.append(HELD_WORSE.format(file=_newest(found), numbers=_graded_in(ws, found)))
+        elif changed:
+            head.append(JUDGE_CHANGED.format(what=", ".join(changed)))
+            head.append(_sentence(_graded_in(ws, found)) + ".")
+        else:  # a table graded again
+            head.append(_regraded_line(talk, ws, found, grades))
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
         head.append(batches.added_line(added))
@@ -1810,9 +2163,15 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(labels_mod.found_line(n, talk.command("--labels")))
         if is_open(ws.dir):  # the page open shows the pool without the new batch
             background.stop(ws.dir)
-    elif not first and _ran_again(ws, found):
-        head.append(RAN_AGAIN_CHECKED if ws.data().get("checked_at") else RAN_AGAIN)
+    elif not first and not regraded and _ran_again(ws, found):
+        if not (found.pool.n_pass or found.pool.n_fail):  # nothing was graded again
+            head.append(NO_GRADES_HERE.format(numbers=_graded_in(ws, found)))
+        else:
+            head.append(RAN_AGAIN if not ws.data().get("checked_at")
+                        else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
+    if took:
+        head.append(took)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)
@@ -1823,7 +2182,9 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         ws.data(), batches.graded(ws.data(), session.marked())))
     every = bool(session.items) and all(i["label"] for i in session.items)
     if enough and not marking:
-        return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades))
+        return _result(talk, ws, found, wait, saved, head, check=bool(changed or grades),
+                       elsewhere=bool(elsewhere), compare=bool(regraded),
+                       worse_said=any(x.startswith(HELD_WORSE[:20]) for x in head))
     if not enough and ws.result_json.is_file():  # a mark taken back since: no result now
         start_label.store_result(ws, session, _flags_of(talk, saved, ws))
     if every and not enough:  # nothing left to mark, and no result yet
@@ -1852,7 +2213,7 @@ def _waiting(talk: FrontTalk, ws: Workspace, found: start.Found, head: list[str]
     was = check.open_worse(ws, found)
     head.append(batches.waiting_line(n, changed, worse=was is not None))
     return (check.worse_step(was["before"], was["after"], _check_command(talk), ws) if was
-            else NEXT_CHECK.format(command=_check_command(talk)))
+            else _recheck_step(talk, ws))
 
 
 def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
@@ -1860,13 +2221,64 @@ def _all_marked(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool,
     """Every answer is marked and a kind is still short: said, and no page (exit 3)."""
     talk.say(STEP.format(n=2, name="Mark"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
     first, step = _all_marked_lines(talk, ws, counts, saved)
     talk.para(first)
+    if (waits := _waits(ws, StartSession(ws))) is not None:  # no eval run on more helps
+        _say_waits(talk, waits)
+        step = _wait_step(ws)
     raise talk.stop(EXIT_QUESTION, then or step.removeprefix("Next: "))
+
+
+def _waits(ws: Workspace, session: StartSession) -> dict | None:
+    """The result (start_label.compute) when marks wait or a new mark could only wait
+    (only_wait): what Measure says then, `mark` says too. None otherwise."""
+    data = ws.data()
+    if not (data.get("earlier_grades") or batches.waiting(data, session.marked())):
+        return None  # a mark waits only on an answer the judge now never graded
+    try:
+        r = start_label.compute(ws, session)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return r if r.get("waiting") or r.get("only_wait") else None
+
+
+def counted_line(so_far: str, counted: list[str], waiting: int) -> str:
+    """The marks so far, when some wait: those that count (with their Pass and Fail) and those
+    that wait, each said in the singular for one."""
+    one = len(counted) == 1
+    return (f"{so_far} so far. {len(counted)} {'counts' if one else 'count'} for a result "
+            f"({counted.count('pass')} Pass, {counted.count('fail')} Fail). "
+            f"{waiting} more {'waits' if waiting == 1 else 'wait'} and "
+            f"{'doesn' if waiting == 1 else 'don'}'t count yet.")
+
+
+def _say_waits(talk: FrontTalk, r: dict) -> None:
+    """The wait lines, as Measure says them."""
+    from judgekeeper import check as checking
+
+    if r.get("waiting"):
+        talk.para(checking.WAIT.format(k=r["waiting"]))
+    if r.get("wait_group") or r.get("only_wait") and not r.get("waiting"):
+        talk.para(checking.no_grade_left(r))
+
+
+def _wait_step(ws: Workspace) -> str:
+    from judgekeeper import check as checking
+
+    return "Next: " + checking.WAIT_NEXT.format(run=checking.wait_run(ws))
+
+
+def _say_head(talk: FrontTalk, head: list[str]) -> None:
+    """The lines under a step's header, each a paragraph ("" a blank line), then a blank
+    line."""
+    for line in head:
+        if line:
+            talk.para(line)
+        else:
+            talk.say()
+    if head:
+        talk.say()
 
 
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
@@ -1880,7 +2292,7 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
     no terminal (no link printed) how to print its link. None for any other page."""
     if not opened.kept or talk.options["no_browser"]:
         return None
-    talk.para(f"{IN_BROWSER} {after}")
+    talk.para(f"{IN_BROWSER} {after}".rstrip())
     if shown == page.KEPT:
         talk.para(CLOSED_IT.format(command=talk.command("--no-browser")))
     return True
@@ -1894,12 +2306,16 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
     opened = None
     try:
         opened = page.open_new(ws, talk.options["port"], _flags_of(talk, saved, ws), here=wait,
-                               say=talk.para)
+                               say=talk.para, back=_back(talk, saved))
         shown = opened and page.show(talk.say, opened, talk.options["no_browser"], wait,
                                      result)
     except KeyboardInterrupt:  # before its link was printed: no page is left running
         page.close(ws, opened)
         raise
+    asked = talk.options.get("port")
+    if opened is not None and opened.kept and asked not in (None, 0, DEFAULT_PORT) and (
+            asked != opened.port):
+        talk.para(PORT_KEPT.format(port=opened.port, asked=asked))
     if not shown:
         if opened is not None and opened.server is None:
             background.stop(ws.dir)
@@ -1940,17 +2356,18 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
         talk.say(f"You have {'marks on' if some_imported else 'marked'} all "
                  f"{_n(n, 'answer')}.")  # the page didn't mark the imported ones
+        waits = _waits(ws, session)
+        if waits is not None:  # the step is grading them again, not more questions
+            _say_waits(talk, waits)
         talk.say()
-        for line in head:
-            talk.para(line)
-        if head:
-            talk.say()
+        _say_head(talk, head)
         # disagreements the person can see: the result page, with its reason boxes (and its
         # link to change a mark); else the marking page, where a mark can always be changed
         if start_label.why_count(ws, start_label.compute(ws, session)):
             opened, shown = _open(talk, ws, wait, saved, result=True)
-            if _kept(talk, opened, shown, SAY_WHY) is None:
-                talk.para(f"{RESULT_OPEN} {SAY_WHY}" if shown == page.BROWSER else SAY_WHY)
+            why = f"{SAY_WHY} {CHANGE_ON_RESULT}"
+            if _kept(talk, opened, shown, why) is None:
+                talk.para(f"{RESULT_OPEN} {why}" if shown == page.BROWSER else why)
         else:
             opened, shown = _open(talk, ws, wait, saved)
             if _kept(talk, opened, shown, CHANGE_MARK) is None:
@@ -1960,57 +2377,74 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
         talk.para("Next: " + then if then  # the new answers wait for a check
+                  else _wait_step(ws) if waits is not None
                   else _all_marked_lines(talk, ws, counts, saved)[1])  # they join later
         if opened is not None and opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
+    waits = _waits(ws, session) if n else None  # no line asks for a mark that can only wait
     if n:
         counted = list(batches.counted_labels(ws.data(), session.marked()).values())
         waiting = n - len(counted)
-        so_far = (f"You have {_n(n, 'mark')}"  # some came with --labels: not marked here
+        so_far = (_n(n, 'mark')  # some came with --labels: not marked here
                   if marks.imported(marks.read(ws.marks), ids=set(session.by_id))
                   else f"You marked {_n(n, 'answer')}")
-        if waiting:  # the counts before "not enough" are those that count, never the batch's
-            talk.para(f"{so_far} so far: {counted.count('pass')} Pass, "
-                      f"{counted.count('fail')} Fail count for a result, and {waiting} more "
-                      f"{'is' if waiting == 1 else 'are'} in a newer batch that doesn't count "
-                      "yet.")
+        if waiting:  # the counts before "not enough" are those that count, never the waiting
+            talk.para(counted_line(so_far, counted, waiting))
         else:
             talk.say(f"{so_far} so far: {n_pass} Pass, {n_fail} Fail.")
         if not enough:  # and why: what a result needs (also after an import came first)
             talk.say(NOT_ENOUGH)
             _needs_each_kind(talk, session)
-        elif gate := _import_gate(ws, session):  # as the result says it
+            if min(n_pass, n_fail) >= targets.ROUGH:  # what is missing: the groups' marks
+                talk.para(_group_marks(session))
+            if skipped := _only_skipped(session) if waits is None else 0:
+                talk.para(start_label.only_skipped(skipped))
+        elif waits is None and (gate := _import_gate(ws, session)):  # as the result says it
             talk.para(gate)
+        if waits is not None:
+            _say_waits(talk, waits)
         talk.say()
-    after = PRECISE if enough else BAR if n else SHOWS
+    after = "" if waits is not None else PRECISE if enough else BAR if n else SHOWS
     if not n:  # marking starts: what a result needs, before the page opens
         _needs_each_kind(talk, session)
         talk.say()
     opened = None
     no_browser = talk.options["no_browser"]  # its link is printed again: a new page
     if not first and not marking and not wait and not no_browser and n and is_open(ws.dir):
-        talk.para(f"The marking page is still open in your browser. {after}")
+        talk.para(f"The marking page is still open in your browser. {after}".rstrip())
     else:
         opened, shown = _open(talk, ws, wait, saved)
         again = " again" if n and not marking else ""
-        if _kept(talk, opened, shown, after) is None:
-            talk.para(f"The marking page is open in your browser{again}. {after}"
+        if _kept(talk, opened, shown, after) is None and (shown == page.BROWSER or after):
+            talk.para(f"The marking page is open in your browser{again}. {after}".rstrip()
                       if shown == page.BROWSER else after)
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
     talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
+    out_of_reach = not enough and side_out_of_reach(**_each_kind(session))
+    few = out_of_reach or (not enough and len(session.items) < start.MIN_POOL)  # exit 3
+    if not enough and n and waits is None and (skipped := _only_skipped(session)):
+        next_step = start_label.next_only_skipped(  # the page that marks it: `mark`
+            skipped, _command_of(talk, saved, "mark"), on_page=marking
+        ).replace("{", "{{").replace("}", "}}")
+    elif out_of_reach:  # as FAILS_OUT_OF_REACH says
+        next_step = start_label.NEXT_ALL_MARKED
+    elif not enough and len(session.items) < start.MIN_POOL:  # no link can appear
+        next_step = NEXT_FEW_ANSWERS.format(n=len(session.items), min=start.MIN_POOL,
+                                            command=_command_of(talk, saved, "mark")
+                                            ).replace("{", "{{").replace("}", "}}")
     if opened is not None and opened.server is not None:
         page.serve(opened.server)  # Ctrl-C here: "Stopped." and its own Next line (cli)
-    talk.para("Next: " + next_step.format(command=command))
-    return EXIT_OK
+        if getattr(opened.server, "stopped", False):  # --stop closed it: no link is open
+            next_step, waits = NEXT_CONTINUE, None
+    talk.para(_wait_step(ws) if waits is not None
+              else "Next: " + next_step.format(command=command))
+    return EXIT_QUESTION if few else EXIT_OK  # too few answers: as fix and check exit
 
 
 def _pct(x: float) -> str:
@@ -2061,18 +2495,22 @@ def verdict_line(r: dict) -> str | None:
     if r["verdict_level"] is None:
         return None
     verdict = r["verdict"]
-    if start_label.all_labeled(r):  # nothing left to mark
+    if start_label.all_labeled(r) or r.get("only_wait"):  # nothing left to mark that counts
         verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
     return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 
 
 def _which_judge(ws: Workspace, found: start.Found) -> str | None:
     """When the judge's rule or model changed since marking started (or since the check that
-    moved the marks to a new judge): which judge the result is about, as it was then."""
+    moved the marks to a new judge), or a check was held: which judge the result is about,
+    as it was then."""
+    from judgekeeper import check as checking
+
     data = ws.data()
     same_rule = rule_hash(data.get("rule")) == rule_hash(scrub(found.rule))  # as start.json
     now = scrub_fingerprint(found.fingerprint)  # as start.json keeps it
-    if same_rule and not judge_setup.judge_change(data["fingerprint"], now):
+    if (same_rule and not judge_setup.judge_change(data["fingerprint"], now)
+            and checking.open_worse(ws, found, held=True) is None):  # a held check: as it was
         return None
     head = marks.read(ws.marks).header or {}
     checked = data.get("checked_at")  # the judge a check moved the marks to (check._adopt)
@@ -2086,14 +2524,39 @@ def _which_judge(ws: Workspace, found: start.Found) -> str | None:
         day = ""
     model = judge.get("model") or "model not named"
     rule = judge.get("rule_hash")
-    rule = f"rule hash {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
+    rule = f"rule ID {rule.removeprefix('sha256:')[:4]}" if rule else "rule not known"
     return f"This result is about your LLM-as-a-judge as it was{day}: {model}, {rule}."
 
 
 def _check_command(talk: FrontTalk) -> str:
-    """`judgekeeper check`, with the path when it is not this folder."""
-    path = [] if talk.path == "." else [start.path_word(talk.path)]
+    """`judgekeeper check`, with the path when it is not this folder: a typed one with `/`
+    between folders, as the line beside it names the files in it (textio.line_path)."""
+    typed = talk.path if os.path.isabs(str(talk.path)) else Path(talk.path).as_posix()
+    path = [] if talk.path == "." else [start.path_word(typed)]
     return " ".join((program("check"), *path))
+
+
+def _recheck_step(talk: FrontTalk, ws: Workspace) -> str:
+    """The step that re-checks this run's LLM-as-a-judge (_compare_command). A pass mark the
+    eval or judgekeeper.toml sets is changed there: `check --pass-if` would refuse it."""
+    rule = talk.options.get("pass_if")
+    pm = ws.data().get("pass_mark") or {}
+    if rule and pm and pm.get("source") != "pass_if":
+        from judgekeeper import check
+
+        return check.NEXT_MARK_ELSEWHERE.format(
+            where=check.mark_set_in(pm, _check_command(talk)))
+    return NEXT_CHECK.format(command=_compare_command(talk, ws))
+
+
+def _compare_command(talk: FrontTalk, ws: Workspace) -> str:
+    """`check` on this run's results: with the pass mark this run was given (--pass-if),
+    which `check` reads the scores with too, unless the eval or judgekeeper.toml sets it."""
+    rule = talk.options.get("pass_if")
+    pm = ws.data().get("pass_mark") or {}
+    if not rule or pm and pm.get("source") != "pass_if":
+        return _check_command(talk)
+    return f"{_check_command(talk)} --pass-if {quote_arg(rule)}"
 
 
 def _fix_command(talk: FrontTalk) -> str:
@@ -2102,15 +2565,17 @@ def _fix_command(talk: FrontTalk) -> str:
 
 
 def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, saved: bool,
-            head: list[str], check: bool = False) -> int:
+            head: list[str], check: bool = False, elsewhere: bool = False,
+            compare: bool = False, worse_said: bool = False) -> int:
     """Step 3: the result from the marks, saved; whether the page is open. `check`: the
-    judge changed since the marks, so the Next: line is `judgekeeper check`."""
+    judge changed since the marks, so the Next: line is `judgekeeper check`. `elsewhere`: the
+    marks test a file a check read elsewhere (_checked_file): a plain `check` would read the
+    older results here, so the next one is given the new results file. `compare`: graded
+    again with the same model and rule (REGRADED): the check that compares is the Next.
+    `worse_said`: the head named the check that found the newer grades worse (HELD_WORSE)."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
-    for line in head:
-        talk.para(line)
-    if head:
-        talk.say()
+    _say_head(talk, head)
     from judgekeeper import check as checking
     from judgekeeper import fix
 
@@ -2127,8 +2592,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     m = marks.read(ws.marks)
     made = marks.made(m, ids=set(session.by_id))  # reasons added since
     for line in made_lines(made, marks.imported(m, ids=set(session.by_id)),
-                           r.get("real_pass_rate"), (r.get("tpr"), r.get("tnr")))[1:]:
-        # the notes on how they were made; the count is below
+                           r.get("real_pass_rate"), (r.get("tpr"), r.get("tnr")),
+                           links=start_label.link_news(ws, made))[1:]:
+        # the notes on how they were made; the count is below. A link note: once per count
         talk.para(line)
         talk.say()
     talk.para(verdict_line(r))
@@ -2139,6 +2605,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line)
     if r.get("waiting"):  # marks on answers the judge now never graded (batches.graded)
         talk.para(checking.WAIT.format(k=r["waiting"]))
+    if r.get("wait_group") or r.get("only_wait") and not r.get("waiting"):
+        talk.para(checking.no_grade_left(r))  # none yet, but a new mark could only wait
     no_grade = report_page.no_grade_line(r)  # as report.html says it, under the counts
     if no_grade:
         talk.para(no_grade)
@@ -2152,21 +2620,23 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(line)
     step = report_page.next_step(r)  # the report's next step
     # the Next: line runs `mark` (too early to tell, answers left): its command is named once
-    mark_next = not worse and not check and step == "mark" and not start_label.all_labeled(r)
+    only = bool(r.get("only_wait"))  # a new mark would only wait: no line asks for one
+    mark_next = (not worse and not check and step == "mark" and not start_label.all_labeled(r)
+                 and not only)
     why, have = start_label.why_counts(ws, r) if not worse else (0, 0)
     if why:  # the result page has a box on each; those it lists, never those kept aside
         talk.say()
         talk.para(start_label.say_why_run(why, _command_of(talk, saved, "mark"), have))
-        if kept := start_label.kept_count(ws, r):  # said on the result page too
-            talk.para(report_page.kept_line(kept))
         if step != "mark":  # fix is never a step while it is too early to tell
             talk.para(start_label.SAY_WHY_FIX.format(fix=_fix_command(talk)))
+        if kept := start_label.kept_count(ws, r):  # said on the result page too
+            talk.para(report_page.kept_line(kept))
     if r["verdict_level"] is not None:  # a result, too early to tell too: both estimates
         talk.say()
         for line in estimate_lines(r):
             talk.say(line)
         if report_page.shows_range(r):  # with no range shown, nothing is wider
-            talk.para(start_label.WIDER)
+            talk.para(start_label.wider(r))
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
     if assumes:
         talk.say()
@@ -2189,7 +2659,7 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     opened = None
     ranges = report_page.shows_range(r)
     if start_label.all_labeled(r):  # nothing left to mark: no page
-        if step == "mark" and not check:
+        if step == "mark" and not check and not only:
             labels = r["labels"]
             first, then = _all_marked_lines(talk, ws, {"correct": labels["correct"],
                                                        "wrong": labels["wrong"]}, saved)
@@ -2198,26 +2668,38 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.para(then)
             return EXIT_NEEDS_YOU
     elif is_open(ws.dir):
-        if ranges:  # with no range shown, there is none to narrow
+        if ranges and not only:  # with no range shown, there is none to narrow
             talk.para(STILL_OPEN)
     elif wait:
         opened, _ = _open(talk, ws, wait, saved)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
-    elif not mark_next and not why and ranges:  # else the Next: line or "To say why" names it
+    elif not mark_next and not why and ranges and not only:  # else Next or "To say why" names it
         # with exact numbers (one grade) more marks would not make them more certain: no line
         talk.para(MARK_ANY_TIME.format(command=_command_of(talk, saved, "mark")))
     # wait before is_open: --wait's own page answers only once it is served (page.serve)
-    if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges)
-            or (ranges and not (is_open(ws.dir) or mark_next or why))):
+    if (start_label.all_labeled(r) or wait or (is_open(ws.dir) and ranges and not only)
+            or (ranges and not (is_open(ws.dir) or mark_next or why or only))):
         talk.say()
-    if worse:  # why "go back" next to this result
-        talk.para(WORSE_LAST)
-        talk.say()
+    if worse:  # why "go back" next to this result, unless the head said it
+        if not worse_said:
+            talk.para(WORSE_LAST)
+            talk.say()
         next_step = worse_here
+    elif check and (few := checking.too_few_here(ws, found)):  # check would say can't tell
+        talk.para(few[0])
+        talk.say()
+        for line in few[1]:  # check's own steps (promptfoo's regrade.yaml)
+            talk.say(line)
+        next_step = few[2]
     elif check:
-        next_step = NEXT_CHECK.format(command=_check_command(talk))
-    elif r.get("waiting"):  # only the judge's grades on them can count them
-        next_step = checking.WAIT_NEXT.format(command=r["waiting_check"])
+        next_step = _recheck_step(talk, ws)
+    elif compare:
+        next_step = NEXT_COMPARE.format(command=_compare_command(talk, ws))
+    elif r.get("waiting") or only:  # only the judge's grades on them can count them
+        next_step = checking.WAIT_NEXT.format(run=checking.wait_run(ws))  # from here
+    elif step == "mark" and r.get("only_skipped"):  # only a skipped one is left to mark
+        next_step = start_label.next_only_skipped(r["only_skipped"],
+                                                  _command_of(talk, saved, "mark"))
     elif step == "mark":  # too early to tell
         next_step = NEXT_MARK_MORE.format(command=_command_of(talk, saved, "mark"))
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
@@ -2228,6 +2710,9 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             command=_command_of(talk, saved, "mark"))
     elif step == "fix":
         next_step = NEXT_FIX.format(command=_fix_command(talk))
+    elif elsewhere:
+        next_step = checking.NEXT_SAME_FILE.removeprefix("Next: ").format(
+            command=f"{program('check')} {checking.NEW_RESULTS}")
     else:
         next_step = NEXT_RESULT.format(command=_check_command(talk))
     talk.para("Next: " + next_step)
@@ -2249,8 +2734,13 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     if len(below) == 1:  # opened from the folder right below
         ws = Workspace(path / below[0])
     elif below:
+        below = _from_here(path, below)
         talk.para(f"Marking pages are open in {start._and([f'{n}/' for n in below])}.")
         raise talk.stop(EXIT_QUESTION, _go_step(below, f"{program()} --stop"))
+    lock = read_lock(ws.dir) if is_open(ws.dir) else None
+    closed = None if lock is None else {  # how the page was opened: carried on
+        "port": lock["port"] if lock["asked"] is None else lock["asked"],
+        "no_browser": bool(lock["no_browser"])}
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -2261,8 +2751,30 @@ def _stop(talk: FrontTalk, path: Path) -> int:
         saved = " Your marks are saved." if marks.read(ws.marks).counted() else ""
         talk.say(f"Closed the marking page.{saved}")
     talk.say()
-    talk.para("Next: " + NEXT_CONTINUE.format(command=talk.command()))
+    talk.para("Next: " + NEXT_CONTINUE.format(command=_continue_command(talk, ws, closed)))
     return EXIT_OK
+
+
+def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) -> str:
+    """The run that carries on the project after --stop: in its own folder, as the result
+    was made (result.json's flags: the pass mark in use, the flags that read the results,
+    how the page opens), so a scores project still reads its scores; else as typed. Either
+    way with how the `page` it closed was opened ({"port", "no_browser"}): its port, but the
+    default or any free one (0), and --no-browser when it was given it."""
+    port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
+    try:
+        flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
+    except (OSError, ValueError, AttributeError):
+        flags = None
+    if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
+        typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
+        extra = ("--port", str(port)) if port and not typed else ()
+        if page and page["no_browser"] and not talk.options.get("no_browser"):
+            extra = (*extra, "--no-browser")
+        return talk.command(*extra)  # the paths it keeps are from the project folder
+    if page:
+        flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
+    return start.command_from(flags)
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",

@@ -410,7 +410,7 @@ def test_report_html_names_the_program_plainly_when_typed_as_a_path(tmp_path, mo
     assert f"{TYPED} " in out  # the terminal: as typed, so it runs as printed here
     html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
     assert "venv/bin" not in html
-    assert "judgekeeper mark --no-browser" in html
+    assert "judgekeeper mark --port 0 --no-browser" in html  # the run's flags, as the terminal
 
 
 def test_report_html_names_uvx_when_uvx_started_it(tmp_path, monkeypatch, capsys):
@@ -507,7 +507,8 @@ def test_the_result_commands_run_in_the_project_folder_after_a_run_from_above(tm
     for name in ("run", "check", "fix", "more"):
         assert "proj" not in commands[name], commands
     html = re.sub("<[^>]+>", "", ws.report_html.read_text(encoding="utf-8"))
-    assert "judgekeeper mark proj" not in html and "judgekeeper mark --no-browser" in html
+    assert "judgekeeper mark proj" not in html
+    assert "judgekeeper mark --port 0 --no-browser" in html  # the run's flags, as the terminal
 
 
 def test_on_windows_a_line_for_another_project_never_names_the_home_folder(tmp_path,
@@ -609,3 +610,65 @@ def test_result_json_names_the_program_plainly_after_a_run_from_another_folder(s
         if kept.is_file():
             data = kept.read_text(encoding="utf-8", errors="replace")
             assert "venv" not in data and str(tmp_path) not in data, kept.name
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_python_path_never_climbs_with_dot_dot(monkeypatch, tmp_path):
+    """Python 3.14 warns, with the whole home path, when its own path climbs with `..`
+    (sys.prefix then differs): a printed `python -P -m judgekeeper` names its python from
+    the home folder (`~/...`) or as it is, never `../...`; a path below here stays."""
+    home = tmp_path / "home"
+    (home / "work" / "p" / "t0").mkdir(parents=True)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    monkeypatch.setattr(sys, "executable", str(home / "kit" / ".venv314" / "bin" / "python"))
+    monkeypatch.chdir(home / "work" / "p" / "t0")
+    assert textio.program("mark") == "~/kit/.venv314/bin/python -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", str(home / "work" / "p" / "t0" / ".venv" / "bin"
+                                               / "python"))
+    assert textio.program("mark") == ".venv/bin/python -P -m judgekeeper mark"  # below here
+    outside = tmp_path / "opt" / "py" / "bin" / "python"
+    monkeypatch.setattr(sys, "executable", str(outside))
+    monkeypatch.chdir(home / "work")  # outside home, and above here: as it is
+    assert textio.program("mark") == f"{outside} -P -m judgekeeper mark"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows shells don't read ~")
+def test_a_python_path_with_dot_dot_in_it_is_named_without_it(monkeypatch, tmp_path):
+    """sys.executable itself may hold `..` (a venv made as `nf09/../v314`): outside the home
+    folder it is named without it, as it is under the home folder (Python 3.14 warns twice,
+    with sys.prefix, when its own path climbs)."""
+    home = tmp_path / "home"
+    (home / "work").mkdir(parents=True)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    monkeypatch.chdir(home / "work")
+    climbs = os.path.join(str(tmp_path / "opt" / "nf09"), os.pardir, "v314", "bin", "python")
+    monkeypatch.setattr(sys, "executable", climbs)
+    outside = tmp_path / "opt" / "v314" / "bin" / "python"
+    assert textio.program("mark") == f"{outside} -P -m judgekeeper mark"
+    monkeypatch.setattr(sys, "executable", os.path.join(str(home / "kit" / "a"), os.pardir,
+                                                        ".venv", "bin", "python"))
+    assert textio.program("mark") == "~/kit/.venv/bin/python -P -m judgekeeper mark"
+
+
+def test_a_python_path_never_climbs_on_windows_either(monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.delenv("UV", raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(textio, "imports_judgekeeper", lambda python: False)
+    monkeypatch.setitem(sys.modules, "__main__",
+                        SimpleNamespace(__spec__=SimpleNamespace(name="judgekeeper.__main__")))
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "a" / "b")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "venv" / "Scripts" / "python.exe"))
+    shown = textio.program("mark")
+    assert ".." not in shown and shown.endswith(" -P -m judgekeeper mark"), shown

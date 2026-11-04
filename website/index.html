@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=14">
-<script src="assets/site.js?v=14" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=16">
+<script src="assets/site.js?v=16" defer></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often your LLM-as-a-judge agrees with you.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
 </head>
 <body>
@@ -38,7 +38,7 @@
   <div class="hero-l">
     <h1>Check your<br><span class="nb">LLM-as-a-judge</span><br><span class="nb">in 5 steps.</span></h1>
     <nav class="five" aria-label="The five steps"><a href="#steps" data-step="find" class="is-on">Find.</a><a href="#steps" data-step="mark">Mark.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
-    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try step 1 in your browser</a></div>
+    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-text" href="check.html">Or try step 1 in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
     <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
@@ -79,7 +79,7 @@
       <button type="button" class="term-replay" id="t-replay">Replay</button>
     </div>
     <pre class="term-out" id="t-out" aria-live="off" tabindex="0" role="region" aria-label="What judgekeeper prints">$ judgekeeper
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 1 of 5: Find
 
@@ -99,9 +99,9 @@ Fail.
 
 Step 2 of 5: Mark
 
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -109,11 +109,11 @@ one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
 hidden.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</pre>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</pre>
     <div class="term-foot"><span class="tf-dot" aria-hidden="true"></span><span class="tf-text">Example with made-up answers</span><a class="tf-link" href="examples/site-example/report.html">see its report</a></div>
 <template data-screen="find">$ judgekeeper
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 1 of 5: Find
 
@@ -133,9 +133,9 @@ Fail.
 
 Step 2 of 5: Mark
 
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -143,26 +143,26 @@ one at a time. Mark each one Pass or Fail, the way you want your
 LLM-as-a-judge to decide. Your LLM-as-a-judge's grade stays
 hidden.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</template>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</template>
 <template data-screen="mark">$ judgekeeper
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 2 of 5: Mark
 
 You marked 12 answers so far: 8 Pass, 4 Fail.
 That's not enough for a result yet.
-A result needs at least 15 answers you mark Pass and 15 you mark
-Fail, and 20 marks on answers your LLM-as-a-judge passed and 20
-on answers it failed (or all of them, when there are fewer).
+A result needs at least 15 Pass and 15 Fail marks from you. It
+also needs 20 marks on answers your LLM-as-a-judge passed and 20
+on answers it failed (or all of them, if there are fewer).
 
 The marking page is still open in your browser. The bar at the
 top fills as you mark.
 
-Next: mark answers until the link at the top shows your numbers,
-then click it.</template>
+Next: mark answers on the page until a "See the numbers so far"
+link appears, then click it.</template>
 <template data-screen="measure">$ judgekeeper
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 3 of 5: Measure
 
@@ -174,19 +174,18 @@ You and your LLM-as-a-judge disagreed on 16 of 37 answers.
   You failed 17 answers. Of those, your LLM-as-a-judge passed 8
   and failed 9.
 
-Tell judgekeeper why you disagree on these 8: run
+To tell judgekeeper why you disagree on 8 of them, run
 `judgekeeper mark`.
-8 more are kept aside on purpose, so a new rule can be tested on
-answers you haven't looked at again.
 `judgekeeper fix` uses your reasons to find where your
 LLM-as-a-judge goes wrong.
+8 more disagreements are kept aside on purpose, so a new rule
+can be tested on answers you haven't looked at again.
 
 How often your LLM-as-a-judge agrees with you (estimates):
   When you say Pass, it also says Pass: about 63% (between 52% and 70%)
   When you say Fail, it also says Fail: about 49% (between 38% and 66%)
-The result line uses wider ranges than these, so a few marks
-that agree by coincidence can't decide it. You can look at the
-result after every mark.
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
@@ -196,17 +195,17 @@ ranges narrower, so the numbers are more certain.
 Next: to improve your LLM-as-a-judge's rule, run
 `judgekeeper fix`.</template>
 <template data-screen="fix">$ judgekeeper fix
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 4 of 5: Fix
 
 Where your LLM-as-a-judge goes wrong:
   Your LLM-as-a-judge made 8 mistakes on the 18 marks used here.
-  The other 19 are kept aside to test a new rule. In 4, it said
-  Pass where you said Fail. In the other 4, it said Fail where
-  you said Pass.
+  The other 19 marks are kept aside to test a new rule. In 4, it
+  said Pass where you said Fail. In the other 4, it said Fail
+  where you said Pass.
   When it said Pass and you said Fail, the answers are long
-  (about 12 words, against 8).
+  (about 12 words, while the others average 8).
 
 All 8 mistakes your LLM-as-a-judge made are saved in
 .judgekeeper/fix/mistakes.md. Use it to write a better rule, or
@@ -219,18 +218,16 @@ Your LLM-as-a-judge's rule is in promptfooconfig.yaml, line 14:
 questions and answers only, so you can't tell which are kept
 aside.
 
-promptfoo: use marked-answers.csv as your tests
-(`tests: file://...`) with `prompts: ['{{answer}}']`, the `echo`
-provider, your grader as `defaultTest.options.provider` and the
-same `metric:` with your new rule; the rule's variables are the
-file's columns, `{{question}}` and `{{answer}}`. Save with `-o`.
-judgekeeper's docs/eval-tools.md shows the whole config.
+promptfoo: grade marked-answers.csv again with your new rule,
+with the `echo` provider and no new answers.
+https://github.com/judgekeeper/judgekeeper/blob/main/docs/eval-tools.md
+shows the whole config.
 
 Next: change your LLM-as-a-judge's rule in your eval tool, grade
 the answers in .judgekeeper/fix/marked-answers.csv again, save
 the results, then run `judgekeeper fix &lt;new results file&gt;`.</template>
 <template data-screen="fix_test">$ judgekeeper fix new-rule.json
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 4 of 5: Fix (testing your new rule)
 
@@ -253,25 +250,26 @@ Next: copy your new rule into promptfooconfig.yaml (line 14),
 then run `judgekeeper check new-rule.json` to re-check it on all
 your marks.</template>
 <template data-screen="check">$ judgekeeper check
-judgekeeper 1.0.2
+judgekeeper 1.1.0
 
 Step 5 of 5: Re-check
 
-New results: results.json
+Results: results.json
 
 Your LLM-as-a-judge's model changed:
   my-judge-v1 -&gt; my-judge-v2
 
-Result: worse. Your new LLM-as-a-judge agrees with you less.
+Compared with before: worse. Your new LLM-as-a-judge agrees with
+you less on the answers you passed: 6 of 20, down from 12.
 
 Agreed with you:        Old LLM-as-a-judge   New LLM-as-a-judge
   When you said Pass    12 of 20             6 of 20              Worse
   When you said Fail    9 of 17              9 of 17              No big drop
 
-On answers you pass, agreement drops by about 30 in every 100
-(somewhere between 15 and 49).
+On answers you pass, agreement drops by about 30 percentage
+points (somewhere between 15 and 49).
 On answers you fail, no drop, though these marks can't rule out
-one of up to 19 in every 100.
+a drop of up to 19 points.
 
 One run, so a small change may be a coincidence.
 
@@ -284,8 +282,8 @@ and run `judgekeeper check` again.</template>
   <div class="rt-win"><div class="rt-bar" aria-hidden="true"><span class="rt-title">public datasets</span></div>
   <div class="rt-grid">
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md">
-      <span class="rt-big"><span class="rt-n" data-to="97">97</span> of 100</span>
-      <span class="rt-line">times TPR, TNR and kappa were all in judgekeeper's ranges at once</span>
+      <span class="rt-big"><span class="rt-n" data-to="96">96</span> of 100</span>
+      <span class="rt-line">random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at once (another run gives a slightly different count)</span>
       <span class="rt-src">JailbreakBench</span>
     </a>
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md">

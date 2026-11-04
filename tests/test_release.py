@@ -23,7 +23,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
-VERSION = "1.0.2"
+VERSION = "1.1.0"
 STABLE = "Development Status :: 5 - Production/Stable"
 EXAMPLE = ROOT / "docs" / "examples" / "jailbreakbench"
 # The old LLMBar run, kept only as a source of the real-data check
@@ -94,7 +94,7 @@ def test_there_is_no_github_action():
 def test_changelog_leads_with_this_version():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     entries = re.findall(r"^## (\S+)", text, flags=re.MULTILINE)
-    assert entries == [VERSION, "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
+    assert entries == [VERSION, "1.0.2", "1.0.1", "1.0.0"]  # the earlier ones are on PyPI
     assert text.rstrip().endswith("\n\nEarlier versions (0.1.0 to 1.0.0b1): see the PyPI release history.")
 
 
@@ -105,6 +105,33 @@ def test_the_lead_changelog_entry_has_its_release_date():
     assert lead and lead[1] == VERSION
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", lead[2]), lead[2]
     date.fromisoformat(lead[2])  # a real day
+
+
+LEAD_BULLETS = [  # word for word, in this order, at the top of the 1.1.0 entry
+    ("- Bring labels you already have: `judgekeeper --labels <file>` or, for labels already in "
+     "your results, `judgekeeper --labels`. Mark more on the page if needed."),
+    ("- The result page links back to the marking page, and says how to mark more after closing "
+     "it (`judgekeeper mark`)."),
+    ("- \"Good enough\" and \"needs work\" now need stronger evidence, so a lucky streak can't "
+     "decide them. The first numbers wait for 20 marks on answers your LLM-as-a-judge passed "
+     "and 20 on answers it failed (or all of them, if there are fewer)."),
+    ("- After your first 10 marks, about 1 in 20 marked answers comes back once, so you can see "
+     "how often your own marks change."),
+    ("- `fix` and `check` count each mark for its share of your answers, so \"Safe to try\" is "
+     "said by mistake less often."),
+    "- When you mark every answer, the numbers show no range.",
+]
+
+
+def test_the_1_1_0_entry_starts_with_its_six_bullets_and_keeps_each_short():
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    entry = text.split("## 1.1.0 (", 1)[1].split("\n## ", 1)[0].split("\n", 1)[1].strip()
+    lines = entry.splitlines()
+    assert lines[:6] == LEAD_BULLETS
+    assert all(line.startswith("- ") for line in lines)  # no paragraph before the list
+    for line in lines[6:]:  # the rest: two sentences at most, no "exact"
+        assert len(re.findall(r"[.!?](?:\s|$)", line.replace("...", ""))) <= 2, line
+        assert "exact" not in line.lower(), line
 
 
 # Workflows
@@ -553,12 +580,14 @@ def test_every_local_link_in_the_built_pages_finds_its_file(tmp_path):
 
 
 def test_the_trademark_notice_is_at_the_end_of_the_readme_and_on_no_site_page(tmp_path):
-    notice = ("judgekeeper and the judgekeeper logo are trademarks of Sathvik Thota. "
-              "The Apache-2.0 license covers the code, not the name or logo.")
+    notice = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/judgekeeper/"
+              "judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The Apache-2.0 license "
+              "covers the code, not the name or logo.")  # word for word, in this order
     assert (ROOT / "README.md").read_text(encoding="utf-8").rstrip().endswith(notice)
     _build_pages(tmp_path)
     pages = [*sorted((ROOT / "website").rglob("*.html")), *sorted(tmp_path.rglob("*.html"))]
-    assert pages and [p for p in pages if "trademarks of Sathvik" in p.read_text(encoding="utf-8")] == []
+    assert pages and [p for p in pages
+                      if "of Sathvik Thota. The Apache" in p.read_text(encoding="utf-8")] == []
 
 
 def test_every_page_in_the_sitemap_names_itself_as_canonical(tmp_path):
@@ -576,8 +605,9 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     listed = re.findall(r'<li><a href="[^"]*">([\w-]+)</a>', index)
-    assert listed == ["jailbreakbench", "jailbreakbench-setups", "kept-aside", "probes", "ragtruth",
-                      "ragtruth-data2txt", "ragtruth-qa", "real-data-check", "site-example"]
+    assert listed == ["jailbreakbench", "jailbreakbench-setups", "kept-aside", "pictures", "probes",
+                      "ragtruth", "ragtruth-data2txt", "ragtruth-qa", "real-data-check",
+                      "site-example"]
     # a folder with no report.html links to its report.md on GitHub
     assert ('href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/'
             'probes/report.md"') in index

@@ -65,7 +65,7 @@ def test_fix_from_the_folder_above_names_the_program_from_the_project(home, monk
     from tests.test_regrade_files import project, regraded
     from tests.test_regrade_files import write as write_rows
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
+    proj = home / "Desktop" / "My Work" / "team" / "proj"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     ws = project(proj)
@@ -90,7 +90,7 @@ def test_fix_from_the_folder_above_names_the_steps_program_from_the_project(home
     """promptfoo's three steps: "3. Then, in your project folder: `<program> fix ...`"."""
     from tests.test_fix import project
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "support-bot"
+    proj = home / "Desktop" / "My Work" / "team" / "support-bot"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     project(proj)
@@ -107,7 +107,7 @@ def test_fix_from_the_folder_above_names_the_steps_program_from_the_project(home
 def test_fix_from_the_project_still_names_the_program_as_typed(home, monkeypatch, capsys):
     from tests.test_regrade_files import project
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
+    proj = home / "Desktop" / "My Work" / "team" / "proj"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     project(proj)
@@ -128,7 +128,7 @@ def test_a_line_that_cant_name_the_project_names_a_program_that_runs_anywhere(ho
     runs from any folder (here `~/...`)."""
     from tests.test_regrade_files import project
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
+    proj = home / "Desktop" / "My Work" / "team" / "proj"
     (proj / "inner").mkdir(parents=True)
     monkeypatch.chdir(proj)
     project(proj)
@@ -148,7 +148,7 @@ def test_the_marking_page_names_the_program_from_the_project(home, monkeypatch, 
     from judgekeeper.start_label import Workspace
     from tests.test_regrade_files import project
 
-    proj = home / "Desktop" / "Testing Judge" / "team" / "proj"
+    proj = home / "Desktop" / "My Work" / "team" / "proj"
     proj.mkdir(parents=True)
     monkeypatch.chdir(proj)
     project(proj)

@@ -29,6 +29,7 @@ from dataclasses import replace
 from itertools import accumulate, pairwise
 from pathlib import Path
 
+from judgekeeper import textio
 from judgekeeper.anchors import canonical_json
 from judgekeeper.records import (
     CODE,
@@ -88,21 +89,30 @@ QUIET_LOGGERS = ("inspect_ai", "asyncio")
 def quiet() -> Iterator[None]:
     """Around inspect_ai's reading: its loggers show only CRITICAL (a log it cannot read is
     said here, in plain words, never with its text), and a Ctrl-C is noted (_stopping), as
-    inspect_ai's async reading can turn it into an error of its own. Put back afterwards."""
+    inspect_ai's async reading can turn it into an error of its own: that error ends the read
+    as a Ctrl-C (one a library swallowed stops the run at its Next: line, textio.ctrl_c). Put
+    back afterwards, the note cleared, so a later read never sees it (the samples generator,
+    read after _load's quiet() ends, has a quiet() of its own)."""
     loggers = [logging.getLogger(name) for name in QUIET_LOGGERS]
     levels = [logger.level for logger in loggers]
     for logger in loggers:
         logger.setLevel(logging.CRITICAL)
     handler = None
     if threading.current_thread() is threading.main_thread() and \
-            signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+            signal.getsignal(signal.SIGINT) in (signal.default_int_handler, textio.note_ctrl_c):
         _stopping.clear()
         handler = signal.signal(signal.SIGINT, _noted)
     try:
         yield
+    except Exception:
+        if handler is not None and _stopping:  # inspect_ai's own error for the Ctrl-C
+            raise KeyboardInterrupt from None
+        raise
     finally:
         if handler is not None:
-            signal.signal(signal.SIGINT, handler)
+            if signal.getsignal(signal.SIGINT) is _noted:  # closed late (a samples generator):
+                signal.signal(signal.SIGINT, handler)  # the run's own put back, never an old one
+            _stopping.clear()
         for logger, level in zip(loggers, levels, strict=True):
             logger.setLevel(level)
 
@@ -114,6 +124,7 @@ def _noted(signum, frame) -> None:
     """Python's own Ctrl-C (KeyboardInterrupt), noted first. What inspect_ai then leaves half
     done (a coroutine closed, an async task's error) is not printed: the run says "Stopped."."""
     _stopping.append(True)
+    textio.ctrl_c.append(True)  # the run stops even if this one is swallowed (cli.main)
     sys.unraisablehook = _unsaid
     logging.getLogger("asyncio").setLevel(logging.CRITICAL + 1)
     raise KeyboardInterrupt
@@ -682,15 +693,22 @@ def _held(spec: dict, sizes: dict[str, int]) -> list[tuple[str | int, int]]:
     """(id, epoch) of each sample the log holds a part for, in the order inspect_ai reads
     them: by the ids the header lists, then by epoch up to the header's epochs. Only parts
     that are there, each once: inspect_ai would ask for every id in every epoch the header
-    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it."""
+    names, a billion epochs in a 7 KB log, and for an id as often as the header lists it.
+    A header that lists no ids (a log built with inspect_ai's write_eval_log, which inspect_ai
+    reads): the samples the log holds parts for, in the log's order, in every epoch it holds
+    unless the header names its epochs."""
     dataset, config = spec.get("dataset") or {}, spec.get("config") or {}
     ids, most = dataset.get("sample_ids"), config.get("epochs") or 1
-    if not isinstance(ids, list):
+    if ids is not None and not isinstance(ids, list):
         raise TypeError("no sample ids")
     epochs: dict[str, list[int]] = {}
     for name in sizes:
         if m := _SAMPLE_PART.fullmatch(name):
             epochs.setdefault(m[1], []).append(int(m[2]))
+    if not ids:
+        most = config.get("epochs") or math.inf  # none named: every epoch held, as inspect_ai
+        return [(i, epoch) for i, held in epochs.items() for epoch in sorted(held)
+                if epoch <= most]
     held, parts = [], sum(map(len, epochs.values()))
     for i in ids:
         if len(held) == parts:  # every part named once

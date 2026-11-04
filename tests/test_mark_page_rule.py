@@ -155,3 +155,20 @@ def test_an_eval_tools_metric_still_shows():
     html = page_template({"tool": "deepeval", "metric": "faithfulness",
                           "fingerprint": {"model": "gpt-4.1"}})
     assert "Metric faithfulness" in _text(html)
+
+
+def test_record_shows_its_name_and_rule(tmp_path, monkeypatch):
+    import judgekeeper
+    from judgekeeper.start_label import page_template
+
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'app'\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    for i in range(32):
+        judgekeeper.record(input=f"What is {i} + 1?", output=str(i + 1),
+                           verdict="pass" if i % 2 else "fail", reason="r",
+                           judge="my-judge-v1", rule="Pass only if the sum is right.",
+                           name="Sum check")
+    ws = start_label.prepare(start.find_judge(tmp_path), say=lambda line: None)
+    html = page_template(ws.data())
+    assert "Metric Sum check" in _text(html)
+    assert 'id="rule-btn"' in html and "Pass only if the sum is right." in html

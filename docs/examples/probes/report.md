@@ -6,8 +6,8 @@ A probe changes an answer in a way whose right verdict is known in advance ("an 
 
 The rule says "Pass if every claim is supported by the article". An empty summary makes no claim, so this rule can be read as passing it.
 
-- **Claude Sonnet 5.5 passed every empty summary:** it failed 0 of 20 (0%, range 0% to 16%).
-- **Claude Haiku 5.5 failed most of them:** 14 of 20 (70%, range 48% to 86%).
+- **Claude Haiku 5.5:** failed 14 of 20 empty summaries (70%, range 48% to 86%).
+- **Claude Sonnet 5.5:** failed 0 of 20 empty summaries (0%, range 0% to 16%).
 
 Marks on real answers don't show this: people mark the answers your eval produced, and those are rarely empty. A probe asks about the answer you never thought to mark.
 

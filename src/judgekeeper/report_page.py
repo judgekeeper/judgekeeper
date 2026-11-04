@@ -23,7 +23,8 @@ import re
 from html import escape
 
 from judgekeeper import batches, look, reasons, targets
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, WIDER
+from judgekeeper.judge_check import shown_reason
+from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, wider
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -452,7 +453,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
   min-width: min(380px, 100%); background: #07080a; }
-.cmd code { display: flex; align-items: center; padding: 12px 18px; font-size: 15px;
+.cmd code { display: block; align-self: center; padding: 12px 18px; font-size: 15px;
   white-space: nowrap; overflow-x: auto; color: var(--text); font-variant-ligatures: none; }
 .cmd code::before { content: "$"; margin-right: .6em; color: var(--green); }
 .cmd .copy { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -566,18 +567,18 @@ def counts(r: dict) -> dict:
 def commands(r: dict) -> dict[str, str]:
     """The commands the page names, made again from the flags of the run that made the result
     (r["flags"], start.run_flags; never the text of r["command"]), as the terminal prints
-    them: `mark` keeps every flag but --port, `check` and `fix` the path only, `more`
-    (start_label.mark_command) the flags that read results. --port is the page's of that run:
-    report.html outlives it, and the page finds a free port by itself. On Windows a value no
-    quotes keep as text shows as NAME (said by held_note)."""
+    them: `mark` keeps every flag, as the terminal's does, `run` every flag but --port,
+    `check` and `fix` the path only, `more` (start_label.mark_command) the flags that read
+    results. On Windows a value no quotes keep as text shows as NAME (said by held_note)."""
     from judgekeeper.start import command_from, saved_flags
     from judgekeeper.start_label import mark_command
 
     flags = saved_flags(r.get("flags"))
+    mark = command_from(flags, "mark", kept=True)  # with the port the terminal names
     flags.pop("port", None)
     path = {"path": flags.get("path", ".")}
     run = command_from(flags, kept=True)
-    return {"run": run, "mark": command_from(flags, "mark", kept=True),
+    return {"run": run, "mark": mark,
             "check": command_from(path, "check", kept=True),
             "fix": command_from(path, "fix", kept=True), "more": mark_command(run)}
 
@@ -646,7 +647,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     command in the saved copy; with every answer marked, what comes next
     (start_label.all_marked_lines). After a check found the new judge worse, the next step
     that check gave (`worse`), unless the Last check block `above` gives it."""
-    from judgekeeper.start_label import all_labeled
+    from judgekeeper.start_label import all_labeled, next_only_skipped, only_skipped
 
     level = r.get("verdict_level") if r["check"] != "too_few" else None
     cls, headline = STATES.get(level, STATES[None])
@@ -654,10 +655,14 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         headline = VERDICTS[None]
     if worse:
         then = "" if above else _code_line(worse)
-    elif cls != "plain":
+    elif cls != "plain" or r.get("only_wait"):  # no mark counts now: the wait line says it
         then = ""
     elif all_labeled(r):
         then = _all_marked(r)
+    elif r.get("only_skipped"):  # the headline is too early to tell: the rest of the line
+        n = r["only_skipped"]
+        then = (f"{_e(only_skipped(n))} "
+                f"{_code_line(next_only_skipped(n, commands(r)['more']))}")
     elif back:
         then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
     else:
@@ -676,15 +681,29 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
 
 
 def waiting_html(r: dict) -> str:
-    """The marks that wait (batches.graded) and how to count them, as Measure says it."""
-    from judgekeeper.check import WAIT, WAIT_COUNT
+    """The marks that wait (batches.graded) and how to count them, as Measure says it; with
+    none waiting but no answer left that a mark counts on (only_wait), that, and how to mark
+    more."""
+    from judgekeeper.check import WAIT, WAIT_COUNT, WAIT_GROUP, WAIT_MORE, no_grade_left
 
     k = r.get("waiting")
-    if not k:
+    if not k and not r.get("only_wait"):
         return ""
-    run = f"<code>{look.command(_e(r.get('waiting_check') or 'judgekeeper check'))}</code>"
-    count = _term(WAIT_COUNT.format(command="\0")).replace("`\0`", run)
-    return f'<p class="lead">{_term(WAIT.format(k=k))} {count}</p>'
+    from judgekeeper import textio
+
+    command = r.get("waiting_check") or "judgekeeper check"  # named plainly (result.json)
+    typed = textio.program("check")  # report.html: plainly too; the live page: its own
+    with textio.plainly():
+        plain = textio.program("check")
+    if typed != plain and command.startswith(f"{plain} "):
+        command = typed + command[len(plain):]
+    run = f"run <code>{look.command(_e(command))}</code>"
+    first, then = ((WAIT.format(k=k), WAIT_COUNT) if k
+                   else (no_grade_left(r), WAIT_GROUP if r.get("wait_group") else WAIT_MORE))
+    if k and r.get("wait_group"):  # and the group no mark can move
+        first = f"{first} {no_grade_left(r)}"
+    count = _term(then.format(run="\0")).replace("\0", run)
+    return f'<p class="lead">{_term(first)} {count}</p>'
 
 
 TERM = '<span class="term">LLM-as-a-judge</span>'
@@ -992,14 +1011,15 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
                     f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
-                    + (f'<td data-label="{REASON}">{_e(m.get("reason") or "No reason given")}</td>'
+                    + (f'<td data-label="{REASON}">'
+                       f'{_e(shown_reason(m.get("reason") or "") or "No reason given")}</td>'
                        if reasons_given else "")
                     + f'<td colspan="{3 if reasons_given else 2}" class="why-cell">{foot}</td></tr>')
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept)}'
+            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept, of_these=True)}'
             f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
             f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
             f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
@@ -1009,15 +1029,17 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
 REASON = "Its reason"  # the third column: the LLM-as-a-judge's reason
 
 
-def kept_line(n: int) -> str:
-    """How many more disagreements are kept aside, in words (the terminal says them too)."""
-    return (f'{n} more {"is" if n == 1 else "are"} kept aside on purpose, so a new rule can be '
-            "tested on answers you haven't looked at again.")
+def kept_line(n: int, of_these: bool = False) -> str:
+    """How many more disagreements are kept aside, in words (the terminal says them too);
+    `of_these`: under one group's list, so the count is that group's."""
+    what = "of these" if of_these else "disagreement" if n == 1 else "disagreements"
+    return (f'{n} more {what} {"is" if n == 1 else "are"} kept aside on purpose, so a new rule '
+            "can be tested on answers you haven't looked at again.")
 
 
-def _kept(n: int) -> str:
+def _kept(n: int, of_these: bool = False) -> str:
     """How many more of a group are kept aside, or nothing."""
-    return f'<p class="kept">{kept_line(n)}</p>' if n else ""
+    return f'<p class="kept">{kept_line(n, of_these)}</p>' if n else ""
 
 
 def kept_count(c: dict, mistakes: list[dict]) -> int:
@@ -1027,7 +1049,8 @@ def kept_count(c: dict, mistakes: list[dict]) -> int:
 
 
 # In place of the lists when split.json can't be used, around the fix command
-SPLIT_UNKNOWN = ("judgekeeper can't tell which answers are kept aside: run ", " to see why.")
+SPLIT_UNKNOWN = ("judgekeeper can't use the file that says which answers are kept aside. Run ",
+                 " to see why and what to do.")
 
 
 def _same(rows: list[dict]) -> list[tuple[str, str]]:
@@ -1045,7 +1068,7 @@ def _same(rows: list[dict]) -> list[tuple[str, str]]:
 
 SAME = "The same in every answer below"
 WHY_OPTIONAL = "Optional: tell judgekeeper why you disagree."  # above the first list
-WHY_USES = "uses your reasons to suggest a better rule."
+WHY_USES = "uses your reasons to find where your LLM-as-a-judge goes wrong."
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
@@ -1101,18 +1124,25 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
     to the same percent are shown with one decimal, then two, and so is the value, so it
     always sits inside its range ("about 99.3% (between 99.1% and 99.3%)"); ends the same
-    with two decimals too are no range to show: "about 99.3% (almost exact)". The value is
-    never shown as 100% or 0% unless it is exactly that (share)."""
+    with two decimals too are no range to show: "about 99.3%", alone. Neither the
+    value nor an end is shown as 100% or 0% unless it is exactly that (share): "99% and
+    99.96%"; an end past two decimals reads "99.99%" or "0.01%", never "over" or "under"."""
     if value is None or not interval or interval[0] is None or interval[1] is None:
         return "too early to tell", "–"
     lo, hi = interval
     if targets.width_word(interval) == "exact":
         return f"{share(value)} ({why or EVERY_MARKED})", "–"
     for places in range(3):
-        ends = f"{lo:.{places}%}", f"{hi:.{places}%}"
-        if ends[0] != ends[1]:
-            return _about(share(value, places)), " and ".join(ends)
-    return f"{_about(share(value, 1))} ({ALMOST_EXACT})", "–"
+        if f"{lo:.{places}%}" != f"{hi:.{places}%}":
+            ends = _end(lo, places), _end(hi, places)
+            if ends[0] != ends[1]:
+                return _about(share(value, places)), " and ".join(ends)
+            break
+    return _about(share(value, 1)), "–"
+
+
+def _end(x: float, places: int) -> str:
+    return share(x, places).removeprefix("over ").removeprefix("under ")
 
 
 def share(x: float, places: int = 0) -> str:
@@ -1133,7 +1163,6 @@ def _about(shown: str) -> str:
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
 CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
-ALMOST_EXACT = "almost exact"  # a range too narrow to write: its ends read the same
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
 
@@ -1152,18 +1181,22 @@ def why_no_range(key: str, every: bool, pool: dict | None = None) -> str:
     return EVERY_MARKED
 
 
-ON_ANSWERS = " in the {n} answers this result is on"  # a newer batch is not counted yet
+ALL_ON = "you marked all {n} answers it is on"  # a newer batch is not counted yet
+ON_ANSWERS = " in the {n} answers this result is on"
 
 
 def why_for(r: dict, key: str) -> str:
     """why_no_range for a result: its count left to mark and its groups' sizes. When the
-    result is on fewer batches than the results hold, the bracket names the answers it is on
-    (ON_ANSWERS): the newer ones are not all marked."""
+    result is on fewer batches than the results hold, the newer ones are not all marked: the
+    bracket says every answer it is on is marked (ALL_ON, only when `counted_left` is 0), or,
+    with some of those still left, names the answers it is on (ON_ANSWERS)."""
     g = r.get("groups") or {}
     pool = {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")} if g else None
     why = why_no_range(key, r.get("left") == 0 and not r.get("waiting"), pool)
     on = r.get("batches") or {}
     if why != SAME_GRADE and on.get("waiting") and len(on.get("counted") or []) < (on.get("of") or 0):
+        if r.get("counted_left") == 0:  # no answer of the counted batches is unmarked
+            return ALL_ON.format(n=on["answers"])
         why += ON_ANSWERS.format(n=on["answers"])
     return why
 
@@ -1195,14 +1228,21 @@ def _main_lines(r: dict) -> str:
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
     ranged = shows_range(r)
-    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="Estimate">{_e(est)}</td>'
+    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="{_head(ranged)}">'
+                   f"{_e(est)}</td>"
                    + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
                    + "</tr>" for name, est, between in rows)
     return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
             f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
             f"<tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(WIDER)}</p>' if ranged else "")
+            + (f'<p class="note wider">{_e(wider(r, page=True))}</p>' if ranged else "")
             + "</section>")
+
+
+def _head(ranged: bool) -> str:
+    """The numbers' column head: "Estimate" with a range, else (every answer marked, so the
+    numbers are exact) "Value"."""
+    return "Estimate" if ranged else "Value"
 
 
 def _panel_open(ranged: bool, caption: str = "") -> str:
@@ -1211,7 +1251,7 @@ def _panel_open(ranged: bool, caption: str = "") -> str:
     return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
             '<colgroup><col class="d1"><col class="d2">'
             + ('<col class="d3">' if ranged else "") + "</colgroup>"
-            '<thead><tr><td></td><th scope="col">Estimate</th>'
+            f'<thead><tr><td></td><th scope="col">{_head(ranged)}</th>'
             + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
@@ -1220,14 +1260,15 @@ def _details(r: dict) -> str:
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
     if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        why = why_for(r, "kappa") if targets.width_word([lo, hi]) == "exact" else ALMOST_EXACT
-        shown, lo = f"{shown} ({why})", None
+        if targets.width_word([lo, hi]) == "exact":  # else too narrow to write: alone
+            shown = f"{shown} ({why_for(r, 'kappa')})"
+        lo = None
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     ranged = lo is not None and hi is not None
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="Estimate">{shown}</td>'
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{shown}</td>'
             + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
             + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
@@ -1255,21 +1296,24 @@ def _next(r: dict, back: str | None) -> str:
         out.append("<p>Next, in your terminal, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '
-                   f'class="copy" data-copy aria-label="Copy the command">{COPY_ICONS}</button>'
+                   f'class="copy" data-copy aria-label="Copy command: {_e(commands(r)["fix"])}">'
+                   f"{COPY_ICONS}</button>"
                    "</div>")
     else:
         out.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
                    '</code> after '
                    f"you change your {TERM}.</p>")
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
-    more = r.get("left") != 0  # with every answer marked, nothing sends back to marking
-    if more and back is not None and shows_range(r):  # exact numbers: no more marks to ask for
-        out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>.</p>'
-                   "<p>It closes by itself after 30 minutes without use. Closed? Run "
-                   f"{mark} in your project folder: your marks are still there.</p>")
+    # with every answer marked, or only answers a mark would wait on, nothing sends to marking
+    more = r.get("left") != 0 and not r.get("only_wait")
+    if more and back is not None and shows_range(r):  # no range: no more marks to ask for
+        out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>. It '
+                   f"closes by itself after 30 minutes without use. Then run {mark} to open it "
+                   "again.</p>")
+    elif more and step == "fix" and r.get("fix_ready") is False:  # NOT_ENOUGH: how to mark more
+        out.append(f"<p>To mark more, run {mark} in your project folder.</p>")
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
-        out.append(f"<p>To mark more, run {mark} in your project folder: your marks are still "
-                   "there.</p>")
+        pass
     elif back is not None:  # every answer marked: a mark can still be changed
         out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
                    "it again.</p>")
@@ -1287,17 +1331,23 @@ def _last_check(last: dict | None, worse: str) -> str:
     judge = f"Your new {TERM}" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
     said = "".join(f"<p>{_term(x)}</p>" for x in last.get("lines") or [])
     return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
-            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still your old "
-            f"{TERM}'s.</p>{said}<p>{_code_line(worse)}</p></section>")
+            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still about your "
+            f"old {TERM}.</p>{said}<p>{_code_line(worse)}</p></section>")
+
+
+STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "
+                "start it that way.")
 
 
 def page(r: dict, back: str | None = None, fixing: dict | None = None,
-         worse: str | None = None, last: dict | None = None) -> str:
+         worse: str | None = None, last: dict | None = None, started_else: bool = False) -> str:
     """The result page. `r`: the result; `back`: the link to the marking page while it runs
     (None in report.html); `fixing`: fix.report_section (the mistakes the person can see);
     `worse`: the next step after a check found the new judge worse, in place of the lead's
-    and of What next; `last`: that check (check.last_check), said at the top. The page carries its Content-Security-Policy in a meta tag, so the saved
-    copy keeps it too."""
+    and of What next; `last`: that check (check.last_check), said at the top;
+    `started_else`: report.html of a run not started as its commands name the program
+    (STARTED_ELSE under them). The page carries its Content-Security-Policy in a meta tag, so
+    the saved copy keeps it too."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -1319,6 +1369,9 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     if not worse:
         parts.append(_next(r, back))
     parts.append(held_note(r, "".join(parts)))
+    if started_else:
+        note = _e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>")
+        parts.append(f'<div class="band"><p class="note">{note}</p></div>')
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
     if live and 'class="why"' in "".join(parts):
