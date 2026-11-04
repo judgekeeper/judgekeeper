@@ -1526,7 +1526,19 @@ def test_a_picture_opens_over_the_page_at_every_width():
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
     assert "narrow()" not in shots
-    assert "width: max(1100px, 100%)" in _rule(".shot-pane img")
+    # Close is red and white as the Fail button, a little brighter on hover, keeps the site's
+    # focus ring for a keyboard, and has 16px around it in its bar (24px from 1280px)
+    close = _rule(".shot-close")
+    assert "background: var(--red-fill)" in close and "color: #fff" in close
+    assert "background: var(--red-fill)" in _rule(".jk-fail")
+    assert _rule(".shot-close:hover") == _rule(".jk-fail:hover")
+    assert "padding: 16px" in _rule(".shot-bar")
+    assert "padding: 24px" in _rule(".shot-bar", _wide(1280))
+    assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
+    assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
+    picture = _rule(".shot-pane img")
+    assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
+    assert "max(1100px" not in CSS
     assert "overflow: auto" in _rule(".shot-pane")
     assert "min-height: 44px" in _rule(".shot-close")
     assert "overflow: hidden" in _rule("html.has-view, html.has-view body")

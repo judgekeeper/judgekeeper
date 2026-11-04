@@ -409,10 +409,13 @@ td:first-child { min-width: 14ch; }
 .shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
 .shot-view[open] { display: flex; flex-direction: column; }
 .shot-view::backdrop { background: var(--bg); }
-.shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
-.shot-close { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 4px; font-weight: 700; font-size: 16px; }
+/* Close: red as the Fail button, with room around it in its bar */
+.shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
+.shot-close { min-height: 44px; padding: 0 20px; border-radius: 4px; background: var(--red-fill); color: #fff; font-weight: 700; font-size: 15px; }
+.shot-close:hover { filter: brightness(1.08); }
+@media (min-width: 1280px) { .shot-bar { padding: 24px; } }
 .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.shot-pane img { display: block; width: max(1100px, 100%); max-width: none; height: auto; }
+.shot-pane img { display: block; width: 100%; max-width: 100%; height: auto; }
 html.has-view, html.has-view body { overflow: hidden; }
 .gx-text .gx-tap { display: none; margin: -6px 0 16px; font-size: 13px; color: var(--muted); text-align: center; }
 .gx-code { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }

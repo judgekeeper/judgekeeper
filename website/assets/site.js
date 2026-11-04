@@ -440,8 +440,8 @@
     nums.forEach(function (n) { seen.observe(n); });
   }
 
-  /* A picture of the Guide opens over the page, wide enough to read, to move around (swiped
-     on a phone); Close, a click or tap beside it or Escape closes it. */
+  /* A picture of the Guide opens over the page, as wide as the screen; Close, a click or tap
+     beside it or Escape closes it. */
   function setUpShots() {
     var links = $all(".gx-shot a");
     if (!links.length || typeof HTMLDialogElement !== "function") return;
