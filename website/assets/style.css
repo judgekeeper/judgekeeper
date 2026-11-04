@@ -485,6 +485,12 @@ html.has-view, html.has-view body { overflow: hidden; }
 @media (min-width: 1280px) {
   .sp-block .gm-pre { padding-inline: 20px; font-size: 13px; line-height: 3; }
   .sp-block .gm-pre .t-dim { display: inline; padding-left: 0; }
+  /* running text has straight edges on both sides once the columns are full width; narrower
+     lines stay left-aligned, as they would get big holes between words */
+  .gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .sp-block p, .rt-line { text-align: justify; }
+  .rt-line { text-wrap: wrap; }  /* "pretty" evens the lines out, which leaves the first one short */
+  /* a path wraps after a "/", so the line before it isn't left short */
+  .gx-text code.path { white-space: normal; }
 }
 @media (max-width: 1100px) {
   .gl-step { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }

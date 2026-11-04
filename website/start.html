@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=26">
-<script src="assets/site.js?v=26" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=28">
+<script src="assets/site.js?v=28" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -125,9 +125,9 @@
       <p class="sp-word" aria-hidden="true">Fix<span class="sp-dot">.</span></p>
       <h3>Write a better rule and test it</h3>
       <dl class="sp-ifs">
-        <div><dt>Result says your LLM-as-a-judge needs work?</dt><dd>It saves the answers your LLM-as-a-judge got wrong in <code class="path">.judgekeeper/fix/mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</dd></div>
+        <div><dt>Result says your LLM-as-a-judge needs work?</dt><dd>It saves the answers your LLM-as-a-judge got wrong in <code class="path">.judgekeeper/<wbr>fix/<wbr>mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</dd></div>
       </dl>
-      <p>Change the rule in your eval tool. Have it grade the answers in <code class="path">.judgekeeper/fix/marked-answers.csv</code> again, then save the results.</p>
+      <p>Change the rule in your eval tool. Have it grade the answers in <code class="path">.judgekeeper/<wbr>fix/<wbr>marked-answers.csv</code> again, then save the results.</p>
       <p>judgekeeper tests the new rule on the marks kept aside and tells you if it’s <b>better</b>, <b>safe to try</b>, <b>worse</b>, or if it <b>can’t tell yet</b>. How many marks you need depends on how big the change is: see <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#fix-see-where-your-llm-as-a-judge-goes-wrong-then-test-a-better-rule">the reference</a>.</p>
     </div>
     <div class="sp-side">
@@ -147,7 +147,7 @@
       <p class="sp-word" aria-hidden="true">Re-check<span class="sp-dot">.</span></p>
       <h3>Re-check after you change your LLM-as-a-judge</h3>
       <dl class="sp-ifs">
-        <div><dt>Changed your LLM-as-a-judge’s model or rule?</dt><dd>Grade your marked answers again (<code>judgekeeper fix</code> writes them to <code class="path">.judgekeeper/fix/marked-answers.csv</code>).</dd></div>
+        <div><dt>Changed your LLM-as-a-judge’s model or rule?</dt><dd>Grade your marked answers again (<code>judgekeeper fix</code> writes them to <code class="path">.judgekeeper/<wbr>fix/<wbr>marked-answers.csv</code>).</dd></div>
       </dl>
       <p>judgekeeper compares the new grades with your marks and tells you if your LLM-as-a-judge still agrees with you. You don’t need to mark anything again.</p>
     </div>
@@ -174,7 +174,7 @@
       <p><b>Your LLM-as-a-judge runs in your own code?</b> Add this after each grade:</p>
       <pre class="gx-code" tabindex="0" role="region" aria-label="Code: judgekeeper.record() in your code"><code>import judgekeeper
 judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pre>
-      <p>It saves in <code>.judgekeeper/records/</code> in your project folder. Run <code>judgekeeper</code> there.</p>
+      <p>It saves in <code class="path">.judgekeeper/<wbr>records/</code> in your project folder. Run <code>judgekeeper</code> there.</p>
       <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
     </div>
   </div>

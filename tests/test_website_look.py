@@ -1094,6 +1094,24 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         assert gone not in text, gone
 
 
+def test_running_text_is_justified_only_once_the_columns_are_full_width():
+    """Straight edges on both sides for paragraphs, never for headings, the big words, tip
+    questions, commands or the install box. Narrower lines stay left-aligned, as they would
+    get big holes between words."""
+    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
+    wide = wide[:wide.index("\n}\n")]
+    chosen = ".gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .sp-block p, .rt-line"
+    assert "text-align: justify" in _rule(chosen, wide)
+    assert CSS.count("text-align: justify") == 1
+    assert "text-wrap: wrap" in _last(".rt-line", wide)  # "pretty" leaves the first line short
+    # a path wraps after a "/" there, so the line before it isn't left short
+    assert "white-space: normal" in _rule(".gx-text code.path", wide)
+    paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
+    assert len(paths) == 4
+    text = GUIDE.read_text(encoding="utf-8")
+    assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
+
+
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
     alone. Handy commands are a box of terminal lines."""
@@ -1681,7 +1699,8 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     paths = [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
                                          ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/marked-answers.csv"]
+                                         ".judgekeeper/fix/marked-answers.csv",
+                                         ".judgekeeper/records/"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 
