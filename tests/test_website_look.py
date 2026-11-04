@@ -713,8 +713,8 @@ def test_the_demo_card_is_a_window_called_marking_page():
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
 GUIDE_STEPS = [("step-find", "Find your eval results"),
                ("step-mark", "Mark your answers Pass or Fail"),
-               ("step-measure", "Measure: see how often your LLM-as-a-judge agrees with you"),
-               ("step-fix", "Fix: write a better rule and test it"),
+               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
+               ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
@@ -895,23 +895,26 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
                     "step-mark": [], "step-measure": ["judgekeeper mark"],
                     "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
                     "step-check": ["judgekeeper check new-results.json"]}
-    # the "if" notes: the question, then its answer; a command for a note says its question
+    # the "if" notes: the question, then its answer
     ifs = {li.attrs["id"]: [(_flat(d.children[0]), _flat(d.children[1]))
                             for dl in _all(li, "dl", "sp-ifs") for d in _all(dl, "div")]
            for li in items}
     assert ifs == {
         "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
-                                          "judgekeeper to your results file:"))],
+                                          "judgekeeper to your results file."))],
         "step-mark": [("Already have Pass/Fail labels?",
                        ("Run judgekeeper --labels your-labels.csv, or judgekeeper --labels if they "
                         "are in your results. Then mark more if needed."))],
         "step-measure": [("Result says it’s too early to tell?",
                           ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
-                           "answers, then look again:"))],
+                           "answers, then look again."))],
         "step-fix": [], "step-check": []}
-    labels = {li.attrs["id"]: [_flat(p) for p in _all(li, "p", "gx-way-h")] for li in items}
-    assert {k: v for k, v in labels.items() if v} == {
-        "step-find": ["Nothing found?"], "step-measure": ["Result says it’s too early to tell?"]}
+    # the step's word says what the step is, so no title starts with it and a colon; the
+    # commands sit beside the words, so no line ends in a colon; a note's question shows once
+    assert not [t for _, t in GUIDE_STEPS if t.split(" ")[0].endswith(":")]
+    lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
+    assert not [x for x in lines if x.endswith(":")]
+    assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
     assert "grid-template-columns: 180px minmax(0, 1fr)" in _rule(".sp-ifs > div")
     assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-ifs > div", _narrow(600))
@@ -937,24 +940,24 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
                           "disagreed.")],
         "step-fix": [
-            "Result says your LLM-as-a-judge needs work? Run:",
+            "Result says your LLM-as-a-judge needs work?",
             ("It saves the answers your LLM-as-a-judge got wrong in "
              ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test your rule. "
              "Read it to write a better rule yourself, or hand it to a coding agent to help you "
              "write one."),
             ("Change the rule in your eval tool. Have it grade the answers in "
-             ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
+             ".judgekeeper/fix/marked-answers.csv again, then save the results."),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
              "depends on how big the change is: see the reference.")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv), then run:"),
+             "(.judgekeeper/fix/marked-answers.csv)."),
             ("judgekeeper compares the new grades with your marks and tells you if your "
              "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
-    assert bold == {"step-measure": ["Result says it’s too early to tell?"],
+    assert bold == {"step-measure": [],
                     "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
                                  "safe to try", "worse", "can’t tell yet"],
                     "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
