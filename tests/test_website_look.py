@@ -1249,9 +1249,12 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert not [el for el in parse(CHECK).iter() if el.attrs.get("id") == "ck-clear"]
     file_input = _by_id(CHECK, "fc-file")
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
-    # the box lists the files it reads, so the line under it names only the other tools
-    assert [_flat(p) for p in _all(left, "p", "gx-small")][1:] == [
-        "For Inspect AI and MLflow, run judgekeeper itself in your project (see the Guide)."]
+    # the heading, the drop box, then the examples: no lines between them; the box lists the
+    # files it reads and the terminal's status bar links to the install
+    assert [(el.tag, sorted(el.classes())) for el in left.children
+            if isinstance(el, Element) and "sr" not in el.classes()] == [
+        ("h1", []), ("div", ["fc-zone"]), ("div", ["fc-try"])]
+    assert not _all(left, "p", "gx-small")
     # the drop box and the terminal in the slate of Home's windows
     assert "background: var(--slate-panel)" in _rule(".ck2-drop")
     term_look = _rule(".ck2-term")
