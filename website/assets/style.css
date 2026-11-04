@@ -514,9 +514,13 @@ html.has-view, html.has-view body { overflow: hidden; }
 @media (max-width: 600px) {
   .sp-ifs > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
   .sp-block { padding: 20px; }
-  .sp-side { padding: 20px; }
+  /* a step's window uses the full width, as the pictures do: no panel around it */
+  .sp-side { padding: 0; border: 0; border-radius: 0; background: none; }
   .sp-win .gwin-body { padding: 16px; }
   .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
+  /* a step's command stays on one line; a long one scrolls inside its bar */
+  .sp-cmds .cmd code { white-space: pre; overflow-wrap: normal; font-size: 14px; }
+  .sp-cmds .cmd code wbr { display: none; }
   .cmd .copy { min-width: 44px; padding: 0 12px; }
   .gx-code { white-space: pre-wrap; overflow-wrap: anywhere; }
   .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -718,7 +722,6 @@ html.has-view, html.has-view body { overflow: hidden; }
   .gwin-body { padding: 16px 12px; }
   .sp-rail { margin-inline: -12px; padding-inline: 12px; }
   .sp-block { padding: 16px 12px; }
-  .sp-side { padding: 16px 12px; }
   .sp-win .gwin-body { padding: 12px; }
   .cmd code, .gx-pair .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
   .cmd .copy { padding: 0 8px; }

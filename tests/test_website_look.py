@@ -945,8 +945,18 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         assert part in panel, part
     assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")
     assert "white-space: pre-wrap" in _rule(".sp-cmds .cmd code")  # wraps, never cut
-    # the install window opens the page in the same slate
+    # phones: no panel around a step's window, so the window uses the full width and no
+    # frame is doubled; a command stays on one line and a long one scrolls inside its bar
+    phone_panel = _rule(".sp-side", _narrow(600))
+    for part in ("padding: 0", "border: 0", "background: none"):
+        assert part in phone_panel, part
+    phone_cmd = _rule(".sp-cmds .cmd code", _narrow(600))
+    assert "white-space: pre" in phone_cmd and "pre-wrap" not in phone_cmd
+    assert "display: none" in _rule(".sp-cmds .cmd code wbr", _narrow(600))  # not at a "/"
+    assert "overflow-x: auto" in _rule(".cmd code")
+    # the install window opens the page in the same slate, on phones too
     assert "background: var(--slate-panel)" in _rule(".gx-install.gwin")
+    assert ".gx-install" not in _narrow(600)
     assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
     cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
             for li in items}
