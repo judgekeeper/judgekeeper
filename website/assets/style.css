@@ -418,27 +418,68 @@ td:first-child { min-width: 14ch; }
 .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .shot-pane img { display: block; width: 100%; max-width: 100%; height: auto; }
 html.has-view, html.has-view body { overflow: hidden; }
-.gx-text .gx-tap { display: none; margin: -6px 0 16px; font-size: 13px; color: var(--muted); text-align: center; }
+.gx .gx-tap { display: none; margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
 .gx-code { margin: 8px 0 24px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; }
-/* the steps and the three blocks below them: each a heading, its words, then its commands,
-   with a line and clear space between blocks; every heading and its words start at one edge */
+/* the steps: the five words down a rail on the left, the Guide's own mark; each step's words
+   beside its commands and pictures. The word of the step in view is green (site.js). */
 .gx-steps .wrap { padding-block: 64px 0; }
 .gx-steps h2 { margin: 0 0 36px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
+.sp { display: grid; grid-template-columns: 160px minmax(0, 1fr); column-gap: 48px; }
+.sp-rail { position: sticky; top: 32px; align-self: start; }
+.sp-rail ol { list-style: none; margin: 0; padding: 0; position: relative; display: grid; gap: 4px; }
+/* the thin line that joins the five nodes */
+.sp-rail ol::before { content: ""; position: absolute; left: 4px; top: 22px; bottom: 22px; width: 1px; background: var(--rule); }
+.sp-rail a { position: relative; display: flex; align-items: center; gap: 16px; min-height: 44px; font-size: 19px; font-weight: 700; color: var(--muted); text-decoration: none; }
+.sp-rail a::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--rule); background: var(--bg); }
+.sp-rail a:hover { color: var(--fg); }
+.sp-rail a[aria-current] { color: var(--green); }
+.sp-rail a[aria-current]::before { border-color: var(--green); background: var(--green); }
 .gl { list-style: none; margin: 0; padding: 0; }
-.gl-step, .gm-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 24px; padding-block: 40px; border-top: 1px solid var(--line); }
+.gl-step { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); column-gap: 48px; align-items: start; padding-block: 48px; border-top: 1px solid var(--line); scroll-margin-top: 32px; }
 .gl-step:first-child { border-top: 0; padding-top: 0; }
-.gm-row > * { grid-column: 2; min-width: 0; }
-/* the step's number, in a green ring beside its heading */
-.gl-n { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--green); color: var(--green); display: grid; place-items: center; font-family: var(--mono); font-variant-ligatures: none; font-size: 15px; font-weight: 500; }
 .gl-body { min-width: 0; }
-.gl-body > h3, .gm-row > h3 { display: flex; align-items: center; min-height: 44px; margin: 0 0 16px; font-size: 22px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
+/* the step's word: big and bold like Home's hero, but smaller */
+.sp-word { margin: 0 0 8px; font-size: 44px; line-height: 1.05; letter-spacing: -.025em; font-weight: 800; }
+.gl-body > h3 { margin: 0 0 16px; font-size: 22px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
+.gl-body p { max-width: 60ch; }
+/* the "if" notes: the question on the left, its answer muted on the right */
+.sp-ifs { margin: 24px 0 0; max-width: 60ch; }
+.sp-ifs > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); column-gap: 24px; padding-block: 16px; border-top: 1px solid var(--line); }
+.sp-ifs dt { font-weight: 600; line-height: 1.6; }
+.sp-ifs dd { margin: 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+/* beside the words: the step's command bars, then its picture in a window like Home's */
+.sp-side { min-width: 0; display: grid; gap: 16px; }
+.sp-cmds { display: grid; gap: 12px; }
+.sp-cmds .cmd { display: grid; width: 100%; min-width: 0; }
+.sp-shot .gx-shot { margin: 0; border: 0; border-radius: 0; }
+/* below the steps: three plain boxes side by side */
 .gx-more .wrap { padding-block: 0 80px; }
+.sp-band { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; padding-top: 48px; border-top: 1px solid var(--line); }
+.sp-block { min-width: 0; padding: 28px; border: 1px solid var(--line); border-radius: 12px; }
+.sp-block > h3 { margin: 0 0 16px; font-size: 19px; font-weight: 700; line-height: 1.3; }
+.sp-block .cmd { display: grid; width: 100%; min-width: 0; }
 /* the reference line sits apart from the lines above it */
 #own-format .gx-small { margin-top: 24px; }
 .gm-pre { margin: 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
 .gm-pre .t-prompt { color: var(--green); }
 .gm-pre .t-dim { color: var(--muted); }
+/* in a box a third of the page wide, each comment goes under its command */
+.sp-block .gx-code, .sp-block .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sp-block .gm-pre .t-dim { display: block; padding-left: 2ch; }
+@media (max-width: 1100px) {
+  .gl-step { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
+  .sp-band { grid-template-columns: minmax(0, 1fr); }
+}
+/* tablets and phones: the five words in a row that stays at the top while the steps scroll */
 @media (max-width: 860px) {
+  .sp { display: block; }
+  .sp-rail { top: 0; z-index: 2; margin: 0 -32px 32px; padding: 0 32px; background: var(--bg); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .sp-rail ol { display: flex; gap: 20px; width: max-content; }
+  .sp-rail ol::before, .sp-rail a::before { display: none; }
+  .sp-rail a { font-size: 16px; }
+  .gl-step { padding-block: 40px; scroll-margin-top: 64px; }
+  .gl-step:first-child { padding-top: 0; }
+  .sp-word { font-size: 36px; }
   .gx-steps .wrap { padding-block: 56px 0; }
   .gx-more .wrap { padding-bottom: 56px; }
   .gx-steps h2 { font-size: 26px; margin-bottom: 32px; }
@@ -450,10 +491,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   .g-nav a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 @media (max-width: 640px) {
-  .gl-step, .gm-row { grid-template-columns: 32px minmax(0, 1fr); column-gap: 14px; padding-block: 32px; }
-  .gl-step:first-child { padding-top: 0; }
-  .gl-n { width: 32px; height: 32px; font-size: 13px; }
-  .gl-body > h3, .gm-row > h3 { min-height: 32px; margin-bottom: 12px; font-size: 19px; }
+  .gl-body > h3 { font-size: 19px; }
   .gx-text .cmd { margin: 6px 0 20px; }
   .gx-code { margin: 6px 0 20px; }
 }
@@ -461,14 +499,20 @@ html.has-view, html.has-view body { overflow: hidden; }
 /* phones: a long command wraps in its box (at a space, after a "/", or anywhere) and Copy
    still copies it on one line; each handy command's comment goes under it; the home page's
    terminal wraps its lines and is as tall as the screen it shows */
+@media (max-width: 600px) and (min-width: 301px) {
+  body:has(> main.gx) .wrap { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+  .sp-rail { margin-inline: -20px; padding-inline: 20px; }
+}
 @media (max-width: 600px) {
+  .sp-ifs > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+  .sp-block { padding: 20px; }
   .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
   .cmd .copy { min-width: 44px; padding: 0 12px; }
   .gx-code { white-space: pre-wrap; overflow-wrap: anywhere; }
   .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   .gm-pre .t-dim { display: block; padding-left: 2ch; }
   .term-out { white-space: pre-wrap; overflow-wrap: anywhere; height: auto; }
-  .gx-text .gx-tap { display: block; }
+  .gx .gx-tap { display: block; }
   /* a command in a sentence wraps at its spaces, so no box is cut off on the right */
   .gx-text p code, .gx-small code, .gx-way-h code { white-space: normal; overflow-wrap: anywhere; }
 }
@@ -613,7 +657,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   /* the Guide: code and the handy commands at 14px, a path breaks after its "/", "$" on the
      command's first line, and Copy shows only its tick (the word stays for screen readers) */
   .gx-code, .gm-pre { font-size: 14px; }
-  .gx-text .gx-tap { font-size: 15px; }
+  .gx .gx-tap { font-size: 15px; }
   .gx-text code.path { white-space: normal; overflow-wrap: anywhere; }
   .cmd code { align-items: flex-start; }
   .cmd .copy.done .copied { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -634,10 +678,6 @@ html.has-view, html.has-view body { overflow: hidden; }
   .jk-end-list li > b.g { grid-area: you; font-size: 14px; }
   .jk-end-list li > b.g + b.g { grid-area: judge; }
   .jk-end-list li > b.g::before { content: attr(data-label) " "; font-family: var(--sans); font-weight: 600; color: var(--muted); }
-  /* the Guide: the number beside its heading, and everything under them the whole width */
-  .gl-body { display: contents; }
-  .gl-body > *, .gm-row > * { grid-column: 1 / -1; }
-  .gl-body > h3 { grid-column: 2; }
 }
 /* the smallest phones (and a phone with its text made bigger): the five words wrap at 14px or
    more, and a button's words wrap instead of being cut */
@@ -663,6 +703,8 @@ html.has-view, html.has-view body { overflow: hidden; }
   .ck2-l h1 { font-size: 30px; }
   .ck2-l h1 .nb { white-space: normal; }
   .gwin-body { padding: 16px 12px; }
+  .sp-rail { margin-inline: -12px; padding-inline: 12px; }
+  .sp-block { padding: 16px 12px; }
   .cmd code, .gx-pair .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
   .cmd .copy { padding: 0 8px; }
   .gm-pre { padding: 14px 10px; }

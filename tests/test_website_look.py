@@ -753,9 +753,10 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         "MLflow or Inspect AI results need one extra install: see the reference.",
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
-    assert not _all(_main(GUIDE), "nav")  # no side list
-    # three blocks under the steps, one under the other, each a heading in view, then its
-    # words and its commands: no window and no bar
+    (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
+    assert "sp-rail" in rail.classes()
+    # three plain boxes under the steps, each a heading in view, then its words and its
+    # commands: no window and no bar
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
         ("own-format", "Your own file or code"), ("keys", "No API key needed"),
@@ -764,7 +765,7 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         (h3,) = _all(r, "h3")
         assert h3.parent is r and "sr" not in h3.classes(), r.attrs["id"]
         assert not _all(r, "div", "rt-bar"), r.attrs["id"]
-    assert all(r.parent.classes() == {"wrap"} for r in rows)
+    assert all(r.parent.classes() == {"sp-band"} and "sp-block" in r.classes() for r in rows)
     assert not _all(sections[2], "div", "gm-pair") and ".gm-pair" not in CSS
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
         "In your project, judgekeeper reads your results files and writes only in "
@@ -779,14 +780,17 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     # the top section is shorter, so the start of the steps shows on the first screen
     assert "padding-block: 64px 56px" in _rule(".gx-hero .wrap")
     assert "padding-block: 64px 0" in _rule(".gx-steps .wrap")
-    # the steps and the blocks below share one look: a line and clear space between blocks,
-    # and every heading and its words start at one edge, after the numbers' column
-    block = _rule(".gl-step, .gm-row")
-    for part in ("grid-template-columns: 44px minmax(0, 1fr)", "column-gap: 24px",
-                 "padding-block: 40px", "border-top: 1px solid var(--line)"):
-        assert part in block, part
-    assert "grid-column: 2" in _rule(".gm-row > *")
-    assert "border-radius" not in block and "background" not in block and "margin-left" not in block
+    # 96px and a line between steps; the three blocks below are plain bordered boxes, side
+    # by side on a laptop and one under the other from 1100px down
+    step = _rule(".gl-step")
+    for part in ("padding-block: 48px", "border-top: 1px solid var(--line)"):
+        assert part in step, part
+    assert "background" not in step and "border-radius" not in step
+    box = _rule(".sp-block")
+    assert "border: 1px solid var(--line)" in box and "border-radius: 12px" in box
+    assert "background" not in box and "shadow" not in box
+    assert "minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr)" in _rule(".sp-band")
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-band", _narrow(1100))
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
 
 
@@ -840,51 +844,94 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
     assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
-def test_the_guide_shows_each_step_as_a_block_with_its_number_beside_its_heading():
+STEP_WORDS = ["Find.", "Mark.", "Measure.", "Fix.", "Re-check."]
+
+
+def test_the_guides_rail_is_the_five_words_and_the_one_in_view_is_green():
+    """The five words of the tagline run down the left, joined by a thin line, each a link to
+    its step. The word of the step in view turns green: only a colour, no movement."""
+    (rail,) = _all(_main(GUIDE), "nav", "sp-rail")
+    assert rail.attrs["aria-label"] == "The 5 steps"
+    links = _all(rail, "a")
+    assert [_flat(a) for a in links] == STEP_WORDS
+    assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
+    assert all(set(a.attrs) == {"href"} for a in links)  # site.js marks the one in view
+    assert "position: sticky" in _rule(".sp-rail") and "width: 1px" in _rule(".sp-rail ol::before")
+    assert "border-radius: 50%" in _rule(".sp-rail a::before")
+    assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
+    assert "background: var(--green)" in _rule(".sp-rail a[aria-current]::before")
+    assert not [s for s, d in _rules() if s.startswith(".sp-") and ("transition" in d or "animation" in d)]
+    rail_js = JS[JS.index("function setUpRail("):]
+    rail_js = rail_js[:rail_js.index("\n  }\n")]
+    assert "new IntersectionObserver" in rail_js and '"aria-current", "step"' in rail_js
+    assert "smooth" not in rail_js
+    # tablets and phones: a row of the five words that stays at the top, scrolling sideways
+    tablet = _narrow(860)
+    assert "display: flex" in _rule(".sp-rail ol", tablet)
+    assert "overflow-x: auto" in _rule(".sp-rail", tablet) and "top: 0" in _rule(".sp-rail", tablet)
+    assert "display: none" in _rule(".sp-rail ol::before, .sp-rail a::before", tablet)
+
+
+def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside_them():
     (steps,) = _all(_main(GUIDE), "ol", "gl")
     items = _all(steps, "li", "gl-step")
     assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
-    for n, li in enumerate(items, 1):
-        (number, body) = [el for el in li.children if isinstance(el, Element)]
-        assert "gl-n" in number.classes() and "gl-body" in body.classes()
-        assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
-        # the heading is in view, first in the step's words; no window and no bar
-        (h3,) = _all(li, "h3")
-        assert h3.parent is body and "sr" not in h3.classes(), li.attrs["id"]
-        assert not _all(li, "div", "rt-bar") and not _all(li, "div", "sw")
-    assert ".sw" not in CSS and ".gl-step::" not in CSS  # no window, no rail
-    # the number in a green circle, as tall as its heading's line, which wraps on a phone
-    assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
-    heading = _rule(".gl-body > h3, .gm-row > h3")
-    assert "min-height: 44px" in heading and "align-items: center" in heading
-    assert "nowrap" not in heading
-    # the first step has no line above it; every other block has one
+    for word, li in zip(STEP_WORDS, items):
+        (body, side) = [el for el in li.children if isinstance(el, Element)]
+        assert "gl-body" in body.classes() and "sp-side" in side.classes()
+        # the step's word, big and bold, then its heading; the word is the rail's, so a screen
+        # reader hears the heading only
+        first, h3 = [el for el in body.children if isinstance(el, Element)][:2]
+        assert (first.tag, first.classes(), _flat(first)) == ("p", {"sp-word"}, word)
+        assert first.attrs.get("aria-hidden") == "true" and h3.tag == "h3"
+        # every command is beside the words, none inside them
+        assert not _all(body, "div", "cmd"), li.attrs["id"]
+    # the step's word: big, bold, smaller than Home's hero
+    assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
+    assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
+    cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
+            for li in items}
+    assert cmds == {"step-find": ["judgekeeper", "judgekeeper path/to/results.json"],
+                    "step-mark": [], "step-measure": ["judgekeeper mark"],
+                    "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
+                    "step-check": ["judgekeeper check new-results.json"]}
+    # the "if" notes: the question, then its answer; a command for a note says its question
+    ifs = {li.attrs["id"]: [(_flat(d.children[0]), _flat(d.children[1]))
+                            for dl in _all(li, "dl", "sp-ifs") for d in _all(dl, "div")]
+           for li in items}
+    assert ifs == {
+        "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
+                                          "judgekeeper to your results file:"))],
+        "step-mark": [("Already have Pass/Fail labels?",
+                       ("Run judgekeeper --labels your-labels.csv, or judgekeeper --labels if they "
+                        "are in your results. Then mark more if needed."))],
+        "step-measure": [("Result says it’s too early to tell?",
+                          ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
+                           "answers, then look again:"))],
+        "step-fix": [], "step-check": []}
+    labels = {li.attrs["id"]: [_flat(p) for p in _all(li, "p", "gx-way-h")] for li in items}
+    assert {k: v for k, v in labels.items() if v} == {
+        "step-find": ["Nothing found?"], "step-measure": ["Result says it’s too early to tell?"]}
+    assert "grid-template-columns: 180px minmax(0, 1fr)" in _rule(".sp-ifs > div")
+    assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-ifs > div", _narrow(600))
+    # words beside commands on a laptop; one under the other from 1100px down
+    assert "minmax(0, 11fr) minmax(0, 9fr)" in _rule(".gl-step")
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))
     assert "border-top: 0" in _rule(".gl-step:first-child")
-    # from 480px down the number stays beside its heading and the words take the whole width
-    small = _narrow(480)
-    assert "display: contents" in _rule(".gl-body", small)
-    assert "grid-column: 1 / -1" in _rule(".gl-body > *, .gm-row > *", small)
-    assert "grid-column: 2" in _rule(".gl-body > h3", small)
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
             for step in ("step-find", "step-mark", "step-measure")}
-    assert done == {
-        "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
-                       "judgekeeper to your results file:")],
-        "step-mark": [("When See the numbers so far or See your result appears at the top, "
-                       "click it.")],
-        "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. Mark more answers, then look again:")]}
+    assert done == {"step-find": [], "step-measure": [],
+                    "step-mark": [("When See the numbers so far or See your result appears at "
+                                   "the top, click it.")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "gl-body")[0], "p")
-                   if not {"done", "gx-small", "gx-tap"} & p.classes()]
+                   if not {"done", "gx-small", "gx-tap", "sp-word"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
                        "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
-                       "Every mark is saved, so you can stop at any time and come back later."),
-                      ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv, "
-                       "or judgekeeper --labels if they are in your results. Then mark more if "
-                       "needed.")],
+                       "Every mark is saved, so you can stop at any time and come back later.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
@@ -915,18 +962,23 @@ def test_the_guide_shows_each_step_as_a_block_with_its_number_beside_its_heading
     # the numbers: in the reference (the one link opens the picture)
     assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
-    # step 4 opens with when to run fix, then what it saves
+    # step 4 opens with when to run fix; its first command is fix
     body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
-    opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
-    assert opening == ["h3", "p", "div", "p"]
+    opening = [el.tag for el in body.children if isinstance(el, Element)][:3]
+    assert opening == ["p", "h3", "p"]
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
          "the new results.")]
-    # the two pictures sit in their step with a plain border, no bar
+    # the two pictures sit beside their step's words, each in a window like Home's
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == ["step-mark", "step-measure"]
-    assert not any(_all(f, "div", "rt-bar") for f in _all(steps, "figure", "gx-shot"))
-    assert "border: 1px solid var(--line)" in _rule(".gx-shot")
+    for li, title in ((_by_id(GUIDE, "step-mark"), "marking page"),
+                      (_by_id(GUIDE, "step-measure"), "result page")):
+        (win,) = _all(li, "div", "sp-shot")
+        assert "gwin" in win.classes() and _all(win, "figure", "gx-shot")
+        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == title
+    assert len(_all(steps, "div", "gwin")) == 2  # the step's commands: plain bars, no window
+    assert "border: 0" in _rule(".sp-shot .gx-shot")
     assert "max-width" not in _rule(".gx-shot")  # the pictures fill the step's width
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
@@ -943,6 +995,8 @@ def test_the_guides_commands_look_like_terminal_lines():
     misc = _by_id(GUIDE, "misc")
     assert _flat(_all(misc, "h3")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
+    # in a box a third of the page wide, each comment goes under its command
+    assert "display: block" in _rule(".sp-block .gm-pre .t-dim")
     assert pre.parent is misc  # straight under its heading
     for part in ("border: 1px solid var(--line)", "background: var(--term-bg)"):
         assert part in _rule(".gm-pre"), part
@@ -1305,10 +1359,8 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 
 def test_guide_page_pictures_after_first_paragraph():
     for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
-        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
-        tags = [el.tag for el in body.children if not isinstance(el, str)]
-        assert tags[:3] == ["h3", "p", "figure"], step
-        (img,) = _all(body, "img")
+        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
+        (img,) = _all(side, "img")
         assert img.attrs["src"] == f"assets/shots/{picture}"
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
         assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1704")
@@ -1324,17 +1376,17 @@ def test_on_a_phone_the_guides_pictures_open_full_size():
     on phones only."""
     for step, picture, page in (("step-mark", "label.webp", "marking"),
                                 ("step-measure", "result.webp", "result")):
-        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
-        (figure,) = _all(body, "figure", "gx-shot")
+        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
+        (figure,) = _all(side, "figure", "gx-shot")
         (link,) = _all(figure, "a")
         assert link.attrs == {"href": f"assets/shots/{picture}",
                               "aria-label": f"Enlarge the picture of the {page} page"}, step
         assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
-        after = [el for el in body.children if isinstance(el, Element)]
-        tap = after[after.index(figure) + 1]
+        after = [el for el in side.children if isinstance(el, Element)]
+        tap = after[after.index(figure.parent) + 1]
         assert (tap.tag, tap.classes(), _flat(tap)) == ("p", {"gx-tap"}, "Tap to enlarge")
-    assert "display: none" in _rule(".gx-text .gx-tap")
-    assert "display: block" in _rule(".gx-text .gx-tap", _narrow(600))
+    assert "display: none" in _rule(".gx .gx-tap")
+    assert "display: block" in _rule(".gx .gx-tap", _narrow(600))
 
 
 def test_testing_a_new_rule_is_said_for_every_eval_tool():
@@ -1477,7 +1529,7 @@ def test_on_a_phone_the_text_is_14px_or_more():
                      ".term-bar, .rt-bar, .term-foot, .steplist .n", ".gx-code, .gm-pre",
                      ".ck-out", ".rt-src"):
         assert "font-size: 14px" in _last(selector, phone), selector
-    for selector in (".foot .wrap", ".gx-text .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
+    for selector in (".foot .wrap", ".gx .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
         assert "font-size: 15px" in _last(selector, phone), selector
     assert "max(14px, min(17px, calc((100vw - 40px) / 19)))" in _last(".five", _narrow(359))
     assert "white-space: normal" in _last(".b-main, .b-side", _narrow(359))
@@ -1491,13 +1543,11 @@ def test_on_a_phone_the_text_is_14px_or_more():
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
-    """At 480px and below a step's words and commands take the whole width under its number
-    and heading; "$" stays on a command's first line; Copy shows only its tick (its word stays
+    """On a phone the Guide has a 20px gutter and a step's commands take the whole width; "$" stays on a command's first line; Copy shows only its tick (its word stays
     for a screen reader); a path breaks after its "/". At 300px and below the boxes are
     narrower and a command breaks only at a space or after a "/"."""
-    small = _narrow(480)
-    assert "display: contents" in _last(".gl-body", small)
-    assert "grid-column: 1 / -1" in _last(".gl-body > *, .gm-row > *", small)
+    assert "max(20px" in _rule("body:has(> main.gx) .wrap")
+    assert "width: 100%" in _rule(".sp-cmds .cmd") and "min-width: 0" in _rule(".sp-cmds .cmd")
     phone = _narrow(600)
     assert "align-items: flex-start" in _last(".cmd code", phone)
     copied = _last(".cmd .copy.done .copied", phone)
