@@ -616,8 +616,7 @@ def test_caddy_sends_the_check_page_the_stricter_policy():
 def test_home_links_to_the_check_page_twice():
     links = [el for el in parse(WEBSITE / "index.html").iter()
              if el.tag == "a" and el.attrs.get("href") == "check.html"]
-    assert [" ".join(a.text().split()) for a in links] == ["Or try step 1 in your browser",
-                                                          "Try step 1 in your browser"]
+    assert [" ".join(a.text().split()) for a in links] == ["Try step 1 in your browser"] * 2
     assert "https://www.judgekeeper.com/check.html" in (WEBSITE / "sitemap.xml").read_text(
         encoding="utf-8")
     assert "- [Try step 1 in your browser](https://www.judgekeeper.com/check.html): " in (

@@ -496,12 +496,10 @@ def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
-    # one button; the browser check is a plain link beside it
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
-               if {"b-main", "b-side", "b-text"} & a.classes()]
+               if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-text"}, "Or try step 1 in your browser")]
-    assert "min-height: 46px" in _rule(".b-text") and "align-items: center" in _rule(".b-text")
+                       ("check.html", {"b-side"}, "Try step 1 in your browser")]
     assert not _all(hero, "p", None) or all(
         any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
     # the chosen step's green line, which gives way while another word is hovered or focused

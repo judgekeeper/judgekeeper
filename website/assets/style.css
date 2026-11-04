@@ -38,9 +38,6 @@ img, svg { max-width: 100%; }
 .b-main:hover { filter: brightness(1.08); }
 .b-side { border: 1px solid var(--line); color: var(--fg); }
 .b-side:hover { background: var(--hover); }
-/* the second way in: a plain link beside the button, as tall as it so the words line up */
-.b-text { display: inline-flex; align-items: center; min-height: 46px; font-size: 15px; color: var(--muted); text-underline-offset: 3px; text-decoration-color: var(--line); }
-.b-text:hover { color: var(--fg); }
 
 /* ---- menu and footer ---- */
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -.01em; text-decoration: none; color: inherit; white-space: nowrap; }
