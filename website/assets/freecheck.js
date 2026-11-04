@@ -1439,7 +1439,9 @@
   }
 
   var NEXT = 'to see how often your LLM-as-a-judge agrees with you, run judgekeeper in your project folder and mark some answers.';
-  // front.py, under MIN_POOL answers with a clear grade: no first result from this file yet
+  // under MIN_POOL answers with a clear grade, both grades among them: no first result from this
+  // file yet (an LLM-as-a-judge that gave every answer one grade gets its result at the first
+  // mark the other way, as the reference says)
   var NEXT_FEW = 'a first result needs at least ' + MIN_POOL + ' answers. Run your eval again to make more (that makes model calls), then run `judgekeeper` in your project folder. You can mark these answers now. Your marks are kept for when more answers come.';
   var NEXT_AFTER_ERROR = 'pick another file, or run `uvx judgekeeper` in your project. It finds your results by itself.';
   // errors that name the command already: the Next line doesn't say it again
@@ -1643,7 +1645,7 @@
           row.appendChild(el('span', tone, line.text));
           pre.appendChild(row);
         });
-        var few = j.pass + j.fail > 0 && j.pass + j.fail < MIN_POOL;
+        var few = j.pass > 0 && j.fail > 0 && j.pass + j.fail < MIN_POOL;
         termNext(pre, j.allModelFailed ? MODEL_FAILED_NEXT : few ? NEXT_FEW : NEXT);
       }
     }

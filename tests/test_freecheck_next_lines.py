@@ -37,11 +37,22 @@ def test_an_example_with_enough_answers_says_to_mark_some():
     assert state["output"].endswith(MANY)
 
 
-def test_a_file_of_one_answer_says_a_first_result_needs_30(tmp_path):
+def test_a_file_of_two_answers_with_both_grades_says_a_first_result_needs_30(tmp_path):
     own = tmp_path / "results.csv"
-    own.write_text("input,output,verdict\nq1,a1,pass\n", encoding="utf-8")
+    own.write_text("input,output,verdict\nq1,a1,pass\nq2,a2,fail\n", encoding="utf-8")
     (state,) = _page_state(f"file:{own}")
     assert state["output"].endswith(FEW)
+
+
+@pytest.mark.parametrize("grade", ["pass", "fail"])
+def test_a_few_answers_with_one_grade_never_say_a_first_result_needs_30(tmp_path, grade):
+    """An LLM-as-a-judge that gave every answer one grade gets its result at the first mark
+    the other way, with any number of answers (targets.check)."""
+    own = tmp_path / "results.csv"
+    rows = "".join(f"q{i},a{i},{grade}\n" for i in range(20))
+    own.write_text("input,output,verdict\n" + rows, encoding="utf-8")
+    (state,) = _page_state(f"file:{own}")
+    assert state["output"].endswith(MANY) and "at least 30" not in state["output"]
 
 
 def test_a_file_cut_short_says_so_as_the_tool_does(tmp_path):
