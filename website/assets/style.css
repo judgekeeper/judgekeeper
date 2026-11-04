@@ -374,17 +374,16 @@ td:first-child { min-width: 14ch; }
   .g-nav { position: static; grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; gap: 18px; padding-bottom: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 }
 
-/* ---- the Guide: Home's hero with the install, then the steps and three blocks, one under the other ---- */
+/* ---- the Guide: Home's hero with the install, then the steps and three blocks in two columns ---- */
 .gx-hero .wrap { padding-block: 64px 56px; }
 .gx-hero .hero-l { gap: 24px; }
 .h-brand { color: var(--green); }
 .gx-lede { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 44ch; }
-/* a window like Home's: the install card */
-.gwin { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
+/* a window like Home's: the install card and each step's window */
+.gwin { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
 .gwin-body { padding: 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 /* the install card: pip and uv, both in view, one command per box, all the same width */
 .gx-install { display: flex; flex-direction: column; gap: 16px; }
-.gx-install.gwin { background: var(--slate-panel); border-color: var(--slate); }
 .gx-way-h { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
 .gx-way-h:first-child { margin-top: 0; }
 .gx-way-h b { color: var(--fg); }
@@ -454,19 +453,22 @@ html.has-view, html.has-view body { overflow: hidden; }
 .sp-ifs > div { padding: 16px 20px; border-radius: 12px; background: var(--slate-panel); }
 .sp-ifs dt { font-weight: 600; line-height: 1.6; color: var(--fg); }
 .sp-ifs dd { margin: 4px 0 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
-/* beside the words: the step's command bars, then its picture in a window like Home's; the
-   panel is as tall as what it holds, its top level with the step's word */
-.sp-side { min-width: 0; align-self: start; display: grid; gap: 16px; padding: 24px; border: 1px solid var(--slate); border-radius: 12px; background: var(--slate-panel); }
+/* beside the words: the step's command bars, then its window, with no second frame around
+   them; as tall as what it holds, its top level with the step's word */
+.sp-side { min-width: 0; align-self: start; display: grid; gap: 16px; }
 .sp-cmds { display: grid; gap: 12px; }
 .sp-cmds .cmd { display: grid; width: 100%; min-width: 0; }
-/* a long command wraps in its box, never cut at the panel's edge; Copy still copies one line */
+/* a long command wraps in its box, never cut at the edge; Copy still copies one line */
 .sp-cmds .cmd code { align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; }
 .sp-shot .gx-shot { margin: 0; border: 0; border-radius: 0; }
 /* a step with no picture: its commands in a window like the install box's */
 .sp-win .gwin-body { padding: 24px; }
-/* below the steps: three plain boxes side by side */
+/* below the steps: the long box on the left, two boxes stacked on the right; both columns end
+   on one line, the right one by stretching its last box */
 .gx-more .wrap { padding-block: 0 80px; }
-.sp-band { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; padding-top: 48px; border-top: 1px solid var(--line); }
+.sp-band { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding-top: 48px; border-top: 1px solid var(--line); }
+.sp-stack { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.sp-stack > .sp-block:last-child { flex: 1; display: flex; flex-direction: column; }
 .sp-block { min-width: 0; padding: 28px; border: 1px solid var(--line); border-radius: 12px; }
 .sp-block > h3 { margin: 0 0 16px; font-size: 19px; font-weight: 700; line-height: 1.3; }
 .sp-block .cmd { display: grid; width: 100%; min-width: 0; }
@@ -475,9 +477,14 @@ html.has-view, html.has-view body { overflow: hidden; }
 .gm-pre { margin: 0; padding: 20px 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--term-bg); font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; line-height: 1.8; color: var(--fg); overflow-x: auto; }
 .gm-pre .t-prompt { color: var(--green); }
 .gm-pre .t-dim { color: var(--muted); }
-/* in a box a third of the page wide, each comment goes under its command */
+.sp-stack .gm-pre { flex: 1; }
+/* in a narrow box each comment goes under its command; half of a wide page fits both on a line */
 .sp-block .gx-code, .sp-block .gm-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .sp-block .gm-pre .t-dim { display: block; padding-left: 2ch; }
+@media (min-width: 1280px) {
+  .sp-block .gm-pre { padding-inline: 20px; font-size: 13px; line-height: 3; }
+  .sp-block .gm-pre .t-dim { display: inline; padding-left: 0; }
+}
 @media (max-width: 1100px) {
   .gl-step { grid-template-columns: minmax(0, 1fr); row-gap: 24px; }
   .sp-band { grid-template-columns: minmax(0, 1fr); }
@@ -514,8 +521,6 @@ html.has-view, html.has-view body { overflow: hidden; }
 }
 @media (max-width: 600px) {
   .sp-block { padding: 20px; }
-  /* a step's window uses the full width, as the pictures do: no panel around it */
-  .sp-side { padding: 0; border: 0; border-radius: 0; background: none; }
   .sp-win .gwin-body { padding: 16px; }
   .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
   /* a step's command stays on one line; a long one scrolls inside its bar */

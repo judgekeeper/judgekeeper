@@ -778,7 +778,8 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
     assert "sp-rail" in rail.classes()
     # three plain boxes under the steps, each a heading in view, then its words and its
-    # commands: no window and no bar
+    # commands: no window and no bar. The long one is on the left, the other two stacked on
+    # the right, so a phone reads them in the same order
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
         ("own-format", "Your own file or code"), ("keys", "No API key needed"),
@@ -787,7 +788,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         (h3,) = _all(r, "h3")
         assert h3.parent is r and "sr" not in h3.classes(), r.attrs["id"]
         assert not _all(r, "div", "rt-bar"), r.attrs["id"]
-    assert all(r.parent.classes() == {"sp-band"} and "sp-block" in r.classes() for r in rows)
+    assert all("sp-block" in r.classes() for r in rows)
+    assert [r.parent.classes() for r in rows] == [{"sp-band"}, {"sp-stack"}, {"sp-stack"}]
+    assert rows[1].parent is rows[2].parent and rows[1].parent.parent is rows[0].parent
     assert not _all(sections[2], "div", "gm-pair") and ".gm-pair" not in CSS
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
         "In your project, judgekeeper reads your results files and writes only in "
@@ -811,7 +814,14 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     box = _rule(".sp-block")
     assert "border: 1px solid var(--line)" in box and "border-radius: 12px" in box
     assert "background" not in box and "shadow" not in box
-    assert "minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr)" in _rule(".sp-band")
+    # two columns that end on one line: the grid stretches the left box, and the right
+    # column's last box takes what is left, its commands growing with it
+    band = _rule(".sp-band")
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)" in band
+    assert "align-items" not in band
+    assert "flex-direction: column" in _rule(".sp-stack")
+    assert "flex: 1" in _rule(".sp-stack > .sp-block:last-child")
+    assert "flex: 1" in _rule(".sp-stack .gm-pre")
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-band", _narrow(1100))
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
 
@@ -934,27 +944,29 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     # the step's word: big, bold, smaller than Home's hero
     assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
     assert "color: var(--green)" in _rule(".sp-dot")
-    # beside the words: one slate panel as tall as what it holds, its top level with the
-    # step's word, commands then picture
-    panel = _rule(".sp-side")
-    assert "stretch" not in panel and "min-height" not in panel
+    # beside the words: as tall as what it holds, its top level with the step's word,
+    # commands then window. One frame only: the window has the slate, nothing goes around it
+    side = _rule(".sp-side")
+    assert "stretch" not in side and "min-height" not in side
     assert "align-items: start" in _rule(".gl-step")
-    for part in ("align-self: start", "background: var(--slate-panel)",
-                 "border: 1px solid var(--slate)", "border-radius: 12px", "padding: 24px"):
-        assert part in panel, part
+    assert "align-self: start" in side
+    for part in ("background", "border", "padding"):
+        assert part not in side, part
+    assert ".sp-side" not in _narrow(600)
+    window = _rule(".gwin")
+    for part in ("background: var(--slate-panel)", "border: 1px solid var(--slate)",
+                 "border-radius: 12px"):
+        assert part in window, part
     assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")
     assert "white-space: pre-wrap" in _rule(".sp-cmds .cmd code")  # wraps, never cut
-    # phones: no panel around a step's window, so the window uses the full width and no
-    # frame is doubled; a command stays on one line and a long one scrolls inside its bar
-    phone_panel = _rule(".sp-side", _narrow(600))
-    for part in ("padding: 0", "border: 0", "background: none"):
-        assert part in phone_panel, part
+    # phones: a command stays on one line and a long one scrolls inside its bar
     phone_cmd = _rule(".sp-cmds .cmd code", _narrow(600))
     assert "white-space: pre" in phone_cmd and "pre-wrap" not in phone_cmd
     assert "display: none" in _rule(".sp-cmds .cmd code wbr", _narrow(600))  # not at a "/"
     assert "overflow-x: auto" in _rule(".cmd code")
     # the install window opens the page in the same slate, on phones too
-    assert "background: var(--slate-panel)" in _rule(".gx-install.gwin")
+    (card,) = _all(_main(GUIDE), "div", "gx-install")
+    assert "gwin" in card.classes() and ".gx-install.gwin" not in CSS
     assert ".gx-install" not in _narrow(600)
     assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
     cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
@@ -1091,8 +1103,11 @@ def test_the_guides_commands_look_like_terminal_lines():
     misc = _by_id(GUIDE, "misc")
     assert _flat(_all(misc, "h3")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
-    # in a box a third of the page wide, each comment goes under its command
+    # in a narrow box each comment goes under its command; half a wide page fits both
     assert "display: block" in _rule(".sp-block .gm-pre .t-dim")
+    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
+    assert "display: inline" in _rule(".sp-block .gm-pre .t-dim", wide)
+    assert "font-size: 13px" in _rule(".sp-block .gm-pre", wide)  # the longest line fits
     assert pre.parent is misc  # straight under its heading
     for part in ("border: 1px solid var(--line)", "background: var(--term-bg)"):
         assert part in _rule(".gm-pre"), part

@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=24">
-<script src="assets/site.js?v=24" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=25">
+<script src="assets/site.js?v=25" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -175,6 +175,7 @@ judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pr
       <p class="gx-small">Your LLM-as-a-judge gives a score instead of Pass or Fail? The <a href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#how-grades-are-read">full reference</a> shows how to set where Pass starts, and every other option.</p>
     </div>
   </div>
+  <div class="sp-stack">
   <div class="gm-row sp-block" id="keys">
     <h3>No API key needed</h3>
     <div class="gx-text"><p>In your project, judgekeeper reads your results files and writes only in <code>.judgekeeper/</code>, plus <code>judgekeeper.toml</code> after you say yes. It makes no AI call and needs no API key. When you grade answers again, your own eval tool makes the calls, with your own key.</p></div>
@@ -185,6 +186,7 @@ judgekeeper.record(<wbr>input=question, output=answer, verdict=grade)</code></pr
 <span class="t-prompt">$</span> judgekeeper --new          <span class="t-dim"># start over (old marks are kept)</span>
 <span class="t-prompt">$</span> judgekeeper --no-browser   <span class="t-dim"># get the link, no browser</span>
 <span class="t-prompt">$</span> judgekeeper --help         <span class="t-dim"># see every option</span></pre>
+  </div>
   </div>
   </div>
 </div></section>
