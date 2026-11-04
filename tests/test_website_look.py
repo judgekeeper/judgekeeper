@@ -754,40 +754,39 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
-    # three windows, the title in each bar (the h3 stays for screen readers): your own file
-    # or code across the column, then the keys and the handy commands side by side
+    # three blocks under the steps, one under the other, each a heading in view, then its
+    # words and its commands: no window and no bar
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
         ("own-format", "Your own file or code"), ("keys", "No API key needed"),
         ("misc", "Handy commands")]
     for r in rows:
         (h3,) = _all(r, "h3")
-        (bar,) = _all(r, "div", "rt-bar")
-        assert "sr" in h3.classes() and _flat(bar) == _flat(h3), r.attrs["id"]
-        assert bar.attrs.get("aria-hidden") == "true"
-    (pair,) = _all(sections[2], "div", "gm-pair")
-    assert [r.attrs["id"] for r in _all(pair, "div", "gm-row")] == ["keys", "misc"]
-    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
+        assert h3.parent is r and "sr" not in h3.classes(), r.attrs["id"]
+        assert not _all(r, "div", "rt-bar"), r.attrs["id"]
+    assert all(r.parent.classes() == {"wrap"} for r in rows)
+    assert not _all(sections[2], "div", "gm-pair") and ".gm-pair" not in CSS
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
         "In your project, judgekeeper reads your results files and writes only in "
         ".judgekeeper/, plus "
         "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
-    # the steps and the windows below are as wide as the top section: "The 5 steps." starts
-    # under "Install", and the windows end where the install window ends
+    # the steps and the blocks below are as wide as the top section: "The 5 steps." starts
+    # under "Install", and the blocks end where the install window ends
     assert not [s for s, d in _rules() if ("gx-steps .wrap" in s or "gx-more .wrap" in s)
                 and "max-width" in d]
     # the top section is shorter, so the start of the steps shows on the first screen
     assert "padding-block: 64px 56px" in _rule(".gx-hero .wrap")
-    assert "padding-block: 48px 32px" in _rule(".gx-steps .wrap")
-    # the step windows and the windows below share one look and the column's full width
-    (window,) = [d for s, d in _rules() if s.endswith("\n.sw, .gm-row")]
-    for part in ("border: 1px solid var(--line)", "border-radius: 12px",
-                 "background: var(--term-bg)"):
-        assert part in window, part
-    assert "margin-left" not in window
+    assert "padding-block: 64px 0" in _rule(".gx-steps .wrap")
+    # the steps and the blocks below share one look: a line and clear space between blocks,
+    # and every heading and its words start at one edge, after the numbers' column
+    block = _rule(".gl-step, .gm-row")
+    for part in ("grid-template-columns: 44px minmax(0, 1fr)", "column-gap: 24px",
+                 "padding-block: 40px", "border-top: 1px solid var(--line)"):
+        assert part in block, part
+    assert "grid-column: 2" in _rule(".gm-row > *")
+    assert "border-radius" not in block and "background" not in block and "margin-left" not in block
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
 
 
@@ -814,11 +813,8 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
     assert link.attrs["href"] == f"{REFERENCE_MD}#how-grades-are-read"
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "\n## How grades are read\n" in reference
-    # the reference line sits apart from the code: a gap, a thin line, room under it
-    small = _rule("#own-format .gx-small")
-    for part in ("margin-top: 24px", "padding-top: 18px", "border-top: 1px solid var(--line)",
-                 "line-height: 1.7"):
-        assert part in small, part
+    # the reference line sits apart from the lines above it
+    assert "margin-top: 24px" in _rule("#own-format .gx-small")
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("--pass-if", "pass_mark=", "can't test a new rule"):
         assert gone not in text, gone
@@ -844,32 +840,31 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
     assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
-def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
+def test_the_guide_shows_each_step_as_a_block_with_its_number_beside_its_heading():
     (steps,) = _all(_main(GUIDE), "ol", "gl")
     items = _all(steps, "li", "gl-step")
     assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
     for n, li in enumerate(items, 1):
-        (number,) = _all(li, "span", "gl-n")
+        (number, body) = [el for el in li.children if isinstance(el, Element)]
+        assert "gl-n" in number.classes() and "gl-body" in body.classes()
         assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
-        # the title sits in the window's bar; the h3 stays, hidden, for screen readers
-        (window,) = _all(li, "div", "sw")
-        (bar,) = _all(window, "div", "sw-bar")
+        # the heading is in view, first in the step's words; no window and no bar
         (h3,) = _all(li, "h3")
-        assert _flat(bar) == _flat(h3) and "sr" in h3.classes(), li.attrs["id"]
-        assert bar.attrs.get("aria-hidden") == "true" and _all(window, "div", "sw-body")
-    assert "font-weight: 700" in _rule(".sw-t") and "var(--sans)" in _rule(".sw-t")
-    # a long title wraps on a phone, never cut: the bar grows with it
-    assert "nowrap" not in _rule(".sw-t") and "min-height: 44px" in _rule(".sw-bar")
-    # numbers in green circles joined by a line; on wide screens they hang in the margin
+        assert h3.parent is body and "sr" not in h3.classes(), li.attrs["id"]
+        assert not _all(li, "div", "rt-bar") and not _all(li, "div", "sw")
+    assert ".sw" not in CSS and ".gl-step::" not in CSS  # no window, no rail
+    # the number in a green circle, as tall as its heading's line, which wraps on a phone
     assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
-    assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
-    # a short line from each number to its window's bar
-    joins = [_rule(".gl-step::after", css) for css in (CSS, _wide(1440))]
-    assert "height: 1px" in joins[0] and "background: var(--line)" in joins[0]
-    assert "left: -24px" in joins[1]
-    assert "left: -68px" in _rule(".gl-n", _wide(1440)) and "display: block" in _rule(
-        ".gl-step", _wide(1440))
-    assert ".gl-n" not in _wide()  # from 1100 to 1440 wide the numbers keep their column
+    heading = _rule(".gl-body > h3, .gm-row > h3")
+    assert "min-height: 44px" in heading and "align-items: center" in heading
+    assert "nowrap" not in heading
+    # the first step has no line above it; every other block has one
+    assert "border-top: 0" in _rule(".gl-step:first-child")
+    # from 480px down the number stays beside its heading and the words take the whole width
+    small = _narrow(480)
+    assert "display: contents" in _rule(".gl-body", small)
+    assert "grid-column: 1 / -1" in _rule(".gl-body > *, .gm-row > *", small)
+    assert "grid-column: 2" in _rule(".gl-body > h3", small)
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
             for step in ("step-find", "step-mark", "step-measure")}
     assert done == {
@@ -880,7 +875,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
                           "of your marks to be measured. Mark more answers, then look again:")]}
     # each step's words, as the person reads them
-    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
+    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "gl-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
@@ -927,12 +922,12 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
          "the new results.")]
-    # the two pictures sit in their step's window with a plain border, no second bar
+    # the two pictures sit in their step with a plain border, no bar
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == ["step-mark", "step-measure"]
     assert not any(_all(f, "div", "rt-bar") for f in _all(steps, "figure", "gx-shot"))
     assert "border: 1px solid var(--line)" in _rule(".gx-shot")
-    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the window
+    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the step's width
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
         assert gone not in text, gone
@@ -940,15 +935,17 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
 
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone. Handy commands are a window of terminal lines."""
+    alone. Handy commands are a box of terminal lines."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
     misc = _by_id(GUIDE, "misc")
-    assert _flat(_all(misc, "div", "rt-bar")[0]) == "Handy commands"
+    assert _flat(_all(misc, "h3")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
-    assert pre.parent is misc  # straight in the window, no second bar
+    assert pre.parent is misc  # straight under its heading
+    for part in ("border: 1px solid var(--line)", "background: var(--term-bg)"):
+        assert part in _rule(".gm-pre"), part
     lines = [" ".join(line.split()) for line in pre.text().splitlines()]
     assert lines == ["$ judgekeeper --stop # close the marking page",
                      "$ judgekeeper --new # start over (old marks are kept)",
@@ -1494,14 +1491,13 @@ def test_on_a_phone_the_text_is_14px_or_more():
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
-    """At 480px and below a step's number sits in its window's bar; "$" stays on a command's
-    first line; Copy shows only its tick (its word stays for a screen reader); a path breaks
-    after its "/". At 300px and below the boxes are narrower and a command breaks only at a
-    space or after a "/"."""
+    """At 480px and below a step's words and commands take the whole width under its number
+    and heading; "$" stays on a command's first line; Copy shows only its tick (its word stays
+    for a screen reader); a path breaks after its "/". At 300px and below the boxes are
+    narrower and a command breaks only at a space or after a "/"."""
     small = _narrow(480)
-    assert "display: block" in _last(".gl-step", small)
-    assert "position: absolute" in _last(".gl-n", small)
-    assert "padding-left: 52px" in _last(".sw-bar", small)
+    assert "display: contents" in _last(".gl-body", small)
+    assert "grid-column: 1 / -1" in _last(".gl-body > *, .gm-row > *", small)
     phone = _narrow(600)
     assert "align-items: flex-start" in _last(".cmd code", phone)
     copied = _last(".cmd .copy.done .copied", phone)
@@ -1515,10 +1511,9 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
 
 
 def test_a_picture_opens_over_the_page_at_every_width():
-    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: a
-    dialog at least 1100px wide (the window's width when wider) that can be moved around, with
-    a Close button 44px tall; the page behind does not scroll. Without the script the link
-    opens the file."""
+    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: as
+    wide as the screen, so nothing is off its edge, with a red Close button 44px tall and room
+    around it; the page behind does not scroll. Without the script the link opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
     for part in ("e.preventDefault()", "view.showModal()",
@@ -1526,6 +1521,11 @@ def test_a_picture_opens_over_the_page_at_every_width():
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
     assert "narrow()" not in shots
+    picture = _rule(".shot-pane img")
+    assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
+    assert "max(1100px" not in CSS
+    assert "overflow: auto" in _rule(".shot-pane")
+    assert "min-height: 44px" in _rule(".shot-close")
     # Close is red and white as the Fail button, a little brighter on hover, keeps the site's
     # focus ring for a keyboard, and has 16px around it in its bar (24px from 1280px)
     close = _rule(".shot-close")
@@ -1536,11 +1536,6 @@ def test_a_picture_opens_over_the_page_at_every_width():
     assert "padding: 24px" in _rule(".shot-bar", _wide(1280))
     assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
     assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
-    picture = _rule(".shot-pane img")
-    assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
-    assert "max(1100px" not in CSS
-    assert "overflow: auto" in _rule(".shot-pane")
-    assert "min-height: 44px" in _rule(".shot-close")
     assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
     assert not [s for s, d in _rules() if "shot-" in s and s in _narrow(600)]
 
