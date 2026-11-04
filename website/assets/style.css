@@ -450,12 +450,13 @@ html.has-view, html.has-view body { overflow: hidden; }
 .gl-body p { max-width: 60ch; }
 /* the "if" notes: a soft slate box, the question in white with its answer muted under it */
 .sp-ifs { margin: 24px 0 0; max-width: 60ch; display: grid; gap: 12px; }
+.sp-ifs + p { margin-top: 24px; }  /* a note that opens a step, with the words after it */
 .sp-ifs > div { padding: 16px 20px; border-radius: 12px; background: var(--slate-panel); }
 .sp-ifs dt { font-weight: 600; line-height: 1.6; color: var(--fg); }
 .sp-ifs dd { margin: 4px 0 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
 /* beside the words: the step's command bars, then its window, with no second frame around
-   them; as tall as what it holds, its top level with the step's word */
-.sp-side { min-width: 0; align-self: start; display: grid; gap: 16px; }
+   them; as tall as what it holds, in the middle of the step's height */
+.sp-side { min-width: 0; align-self: center; display: grid; gap: 16px; }
 .sp-cmds { display: grid; gap: 12px; }
 .sp-cmds .cmd { display: grid; width: 100%; min-width: 0; }
 /* a long command wraps in its box, never cut at the edge; Copy still copies one line */

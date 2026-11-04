@@ -944,12 +944,12 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     # the step's word: big, bold, smaller than Home's hero
     assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
     assert "color: var(--green)" in _rule(".sp-dot")
-    # beside the words: as tall as what it holds, its top level with the step's word,
+    # beside the words: as tall as what it holds, in the middle of the step's height,
     # commands then window. One frame only: the window has the slate, nothing goes around it
     side = _rule(".sp-side")
     assert "stretch" not in side and "min-height" not in side
     assert "align-items: start" in _rule(".gl-step")
-    assert "align-self: start" in side
+    assert "align-self: center" in side
     for part in ("background", "border", "padding"):
         assert part not in side, part
     assert ".sp-side" not in _narrow(600)
@@ -988,7 +988,14 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         "step-measure": [("Result says it’s too early to tell?",
                           ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
                            "answers, then look again."))],
-        "step-fix": [], "step-check": []}
+        "step-fix": [("Result says your LLM-as-a-judge needs work?",
+                      ("It saves the answers your LLM-as-a-judge got wrong in "
+                       ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test "
+                       "your rule. Read it to write a better rule yourself, or hand it to a "
+                       "coding agent to help you write one."))],
+        "step-check": [("Changed your LLM-as-a-judge’s model or rule?",
+                        ("Grade your marked answers again (judgekeeper fix writes them to "
+                         ".judgekeeper/fix/marked-answers.csv)."))]}
     # the step's word says what the step is, so no title starts with it and a colon; the
     # commands sit beside the words, so no line ends in a colon; a note's question shows once
     assert not [t for _, t in GUIDE_STEPS if t.split(" ")[0].endswith(":")]
@@ -1031,35 +1038,29 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
                           "disagreed.")],
         "step-fix": [
-            "Result says your LLM-as-a-judge needs work?",
-            ("It saves the answers your LLM-as-a-judge got wrong in "
-             ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test your rule. "
-             "Read it to write a better rule yourself, or hand it to a coding agent to help you "
-             "write one."),
             ("Change the rule in your eval tool. Have it grade the answers in "
              ".judgekeeper/fix/marked-answers.csv again, then save the results."),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
              "depends on how big the change is: see the reference.")],
         "step-check": [
-            ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(judgekeeper fix writes them to .judgekeeper/fix/marked-answers.csv)."),
             ("judgekeeper compares the new grades with your marks and tells you if your "
              "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": [],
-                    "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
-                                 "safe to try", "worse", "can’t tell yet"],
-                    "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
+                    "step-fix": ["better", "safe to try", "worse", "can’t tell yet"],
+                    "step-check": []}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
     assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
-    # step 4 opens with when to run fix; its first command is fix
-    body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
-    opening = [el.tag for el in body.children if isinstance(el, Element)][:3]
-    assert opening == ["p", "h3", "p"]
+    # steps 4 and 5 open with when to run them, in a note, with their other words after it
+    for sid in ("step-fix", "step-check"):
+        body = _all(_by_id(GUIDE, sid), "div", "gl-body")[0]
+        opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
+        assert opening == ["p", "h3", "dl", "p"], sid
+    assert "margin-top: 24px" in _rule(".sp-ifs + p")
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
          "the new results.")]
