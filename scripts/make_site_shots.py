@@ -39,7 +39,9 @@ import judgekeeper
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "website" / "assets" / "shots"
 CHROME_PORT = 8803  # Chrome's DevTools
-WIDTH, HEIGHT, SCALE = 1440, 900, 2
+# 852 tall: the marking page's list shows 15 whole rows (52px each, under its 72px bar), and
+# the result ends in the space above its first list of answers
+WIDTH, HEIGHT, SCALE = 1440, 852, 2
 MAX_BYTES = 250_000
 QUALITIES = (85, 82, 78, 74, 70, 65, 60)
 MARKED_FIRST = range(12, 21)  # how many answers are marked before the labeling picture
@@ -316,7 +318,7 @@ class Socket:
 
 
 class Chrome:
-    """Headless Chrome with one tab, at 1440 x 900 and twice the pixels."""
+    """Headless Chrome with one tab, at 1440 x 852 and twice the pixels."""
 
     def __init__(self, path: str, profile: Path):
         self.process = subprocess.Popen(
@@ -413,6 +415,22 @@ def webp_size(path: Path) -> tuple[int, int]:
 SECONDS = 6  # a person's pace on each answer: the result page says when marks look too fast
 
 
+# The list starts on a whole row (it scrolls up to the row cut at its top); what is left at
+# its foot is the part of a row the picture would cut, so it must be 0.
+WHOLE_ROWS = ("(function () { var list = document.querySelector('.list'), rows = list.children,"
+              " top = list.getBoundingClientRect().top;"
+              " for (var i = 0; i < rows.length; i++) {"
+              "   var gap = rows[i].getBoundingClientRect().top - top;"
+              "   if (gap > -rows[i].offsetHeight) { list.scrollTop += gap; break; } }"
+              " return list.clientHeight % rows[0].offsetHeight; })()")
+# Any heading, line or table the bottom edge of the picture would cut through
+CUT_AT_FOOT = ("(function () { var foot = window.innerHeight;"
+               " return Array.prototype.filter.call(document.querySelectorAll('h1, h2, h3, p, table'),"
+               "   function (e) { var r = e.getBoundingClientRect();"
+               "     return r.height > 0 && r.top < foot && r.bottom > foot; })"
+               " .map(function (e) { return e.textContent.trim().slice(0, 60); }); })()")
+
+
 def mark(start: Start, items: list[dict]) -> None:
     for item in items:
         start.post("/label", {"id": item["id"], "label": my_mark(item), "seconds": SECONDS})
@@ -434,10 +452,17 @@ def label_and_result(chrome: Chrome, folder: Path, out: Path) -> list[Path]:
         time.sleep(0.8)
         if not chrome.run("document.getElementById('intro').hidden"):
             raise SystemExit("the first-time card is still showing")
+        left = chrome.run(WHOLE_ROWS)
+        if left:
+            raise SystemExit(f"the marking page's list ends on {left}px of a row")
+        time.sleep(0.3)
         label = out / "label.webp"
         report(label, chrome.shot(label))
         mark(start, items[first:])
         chrome.visit(start.address("/result"), settle=4.0)  # the result draws itself
+        cut = chrome.run(CUT_AT_FOOT)
+        if cut:
+            raise SystemExit(f"the result picture would cut: {cut}")
         result = out / "result.webp"
         report(result, chrome.shot(result))
         return [label, result]

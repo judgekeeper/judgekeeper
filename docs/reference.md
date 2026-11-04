@@ -17,14 +17,14 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--new | --wait | --stop] [--version] [--debug]
 ```
 
-Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks.
+Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks. An LLM-as-a-judge that gave every answer one grade gets its result at the first mark the other way.
 
 | What is there | What `judgekeeper` does |
 |---|---|
 | Nothing marked yet | Find: names your eval tool, the answers, your LLM-as-a-judge and its rule, and checks its grades with no AI call. Mark: opens the marking page. |
 | Not enough marks yet | Opens the marking page again. |
 | Every answer marked, too few of one kind | Says so (a result needs 15 of each). Run your eval on more questions, then `judgekeeper mark`. |
-| Enough marks of each kind | Measure: how often your LLM-as-a-judge agrees with you, saved as `.judgekeeper/report.html`. |
+| Enough marks | Measure: how often your LLM-as-a-judge agrees with you, saved as `.judgekeeper/report.html`. |
 | Marks for another LLM-as-a-judge or eval tool | Asks before it starts over. |
 | Something to choose, and no terminal | Prints the flag that answers and exits 3. |
 
@@ -95,7 +95,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 `judgekeeper mark` takes the flag too. Put your project folder first: `judgekeeper evals --labels your-labels.csv`.
 
-**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Two columns for the same thing (such as `label` and `human_label`, or `output` and `answer`) stop it: it names both and asks you to keep one. So does a row with more filled cells than the header (a quote closed in the wrong place): it names the line. Your results file and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
+**The file's columns** (any case): the answer, `output`, `answer`, `response`, `completion` or `reply`; the label, `label` or `human_label`; and, if you have them, the question, `input`, `question` or `query`, and an `id`. Other columns are ignored. Two label columns (such as `label` and `human_label`), both `output` and `answer`, or both `input` and `question` stop it: it names both and asks you to keep one. So does a row with more filled cells than the header (a quote closed in the wrong place): it names the line. Your results file and the template judgekeeper writes both work. Excel files are not read: save the sheet as CSV first.
 
 **How a label finds its answer:** by `id` when the answer text (if given) is the same too, else by the answer text, word for word. Line endings, spaces at both ends and a spreadsheet's `'` before `=` don't matter; anything else must be the same (no fuzzy matching). Two answers with the same text and different questions need a question column to tell them apart. A label counts for every repeat of its answer.
 
@@ -107,7 +107,7 @@ If you already have Pass/Fail labels, judgekeeper can use them as your marks, so
 
 **In your result** each imported mark counts like a page mark, and the result says once how many came from where: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
-Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (or all of them, if there are fewer), so judgekeeper can check the imported marks against yours.
+Imported marks count toward the numbers. A result of good enough or needs work also needs 15 answers marked on the page among those your LLM-as-a-judge passed and 15 among those it failed (or every answer left to mark there, if fewer are left).
 
 Once you have 15 page marks among the answers your LLM-as-a-judge passed and 15 among those it failed, judgekeeper compares them with the imported marks in each group. When they differ too much to be a coincidence (Fisher's exact test, p under 0.025 in either group), the result warns that the numbers may be off. It is a warning, never a stop.
 
@@ -162,7 +162,7 @@ On the answers kept aside it found, it counts the answers the new rule fixed and
 | Safe to try | Else, a non-inferiority test (Tango's score test for paired proportions, one-sided 2.5%) rules out the new rule being more than 10 percentage points worse |
 | Can't tell yet | Else. It says whether it leans toward better, looks the same, or leans toward worse. Unless it leans toward worse, it also says how many of your LLM-as-a-judge's mistakes are kept aside, and about how many fixed (and none broken) "better" needs |
 
-The fixed and broke counts are weighted to your whole set of answers: the marks kept aside hold more of your LLM-as-a-judge's fails than your results do, so each kept-aside mark counts for its share of its group.
+The fixed and broke counts are weighted to your whole set of answers: the marks kept aside hold its two grades in other shares than your results do, so each kept-aside mark counts for its share of its group.
 
 After "Worse", copy your old rule back (`mistakes.md` keeps a copy). After "Better" or "Safe to try", keep the new rule and run `judgekeeper check <new results file>` on the same new results: they grade every answer you marked. Running your eval again would make new answers, which judgekeeper can't compare. Each extra test on the same marks is stricter (the levels divided by the number of tests): "Better" or "Worse" needs the 5% level for the first rule, 2.5% for the second and about 1.7% for the third. So over 3 rules, a coincidence says "Better" or "Worse" at least once in at most about 9 cases in 100 (5 + 2.5 + 1.7), not 5. After 3 rules, or once `check` switches to a rule tested on them (for results without a rule, only after 3 rules), your next marks become a new set kept aside. Mark [about 40 more answers for a clear answer](examples/kept-aside/report.md) (at least 10; with fewer than about 40, the result will often be "can't tell yet"). All of them are kept aside: as many as `fix` keeps aside from about 80 marks. Each rule tested is saved in `rules/`.
 
@@ -199,9 +199,9 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 - **The same grade for every answer.**
 - **The reason says the opposite** of the grade.
 
-**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once, in blocks of 5 your LLM-as-a-judge passed and 5 it failed. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group. When a new batch is much bigger than the earlier ones, the ranges can get wider once it counts: they now speak for many more answers. Marking more of the new batch narrows them.
+**Which answers you mark:** every answer in the newest results with a clear Pass or Fail, counted once: the first 15 of each (fewer when one kind has 15 or fewer) in blocks of 5 your LLM-as-a-judge passed and 5 it failed, then the rest by each group's share. **Batches:** new answers join as the next batch, offered first. A later batch counts once each of its groups has marks in proportion to its size: 5 for a group as big as the first batch's, at least 1 and at most 15, or every answer of a smaller group. When a new batch is much bigger than the earlier ones, the ranges can get wider once it counts: they now speak for many more answers. Marking more of the new batch narrows them.
 
-**The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows more of the LLM-as-a-judge's fails than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is shown under "More details" on the result page and in report.html, and never decides the result: TPR and TNR do. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json and the page shows n/a.
+**The result** has three numbers: **TPR** (of the answers you passed, how many your LLM-as-a-judge passed), **TNR** (of the answers you failed, how many it failed) and **the real pass rate** of your answers. Each is weighted back by group size, since the page shows its two grades in other shares than your results hold. Each has a range, the middle 96% of draws from your marks, a level chosen by a [coverage check](examples/coverage/coverage.md) and checked on [public data](examples/real-data-check/report.md). Kappa (Cohen's kappa) is how much you agree beyond what your mix of Pass and Fail alone would give; it moves with that mix, so it is shown under "More details" on the result page and in report.html, and never decides the result: TPR and TNR do. When your LLM-as-a-judge gave every answer one grade, its TPR and TNR on your answers are 1 and 0, or 0 and 1, with no range; kappa is `null` in result.json and the page shows n/a.
 
 **Labels you brought** with `--labels` count like marks made on the page, in the same groups with the same weights. The result then says once: "{k} of your marks came from {name}. The numbers assume those answers were picked at random and labelled without looking at your LLM-as-a-judge's grade."
 
@@ -355,7 +355,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 
 ## Your API keys
 
-- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only programs it starts are its own marking page and your browser (the program in `BROWSER`, when you set it). When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
+- judgekeeper makes no AI call and needs no API key. It never runs your eval tool or your project's code; the only programs it starts are its own marking page, your browser (the program in `BROWSER`, when you set it), and, to name a command you can run, the `python3` on your PATH (`py` on Windows), to see if it imports judgekeeper. When you grade answers again, your eval tool uses your key, from your machine straight to the provider.
 - judgekeeper never prints a key or writes one to a file. Before text reaches disk or your terminal, `[REDACTED]` replaces the values of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MLFLOW_TRACKING_PASSWORD` and any variable ending in `_API_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`, when 8 characters or longer, even split by a hidden character. The same names set in your project's `.env` and `.env.*` files (`.env.local`, `.env.production` and the others) or in promptfoo's config `env:` block are hidden from the moment judgekeeper finds the project. A `.env` file or config that is a link, or over 1 MB, is not read, nor are the `.env` files past the first 50 in a folder, and judgekeeper says their keys are not hidden.
 - It also hides anything shaped like a key: `sk-ant-…`, `sk-…`, `AKIA…`, `ASIA…`, a 40-character secret after `aws_secret_access_key` or next to an AWS key, `ghp_…`, `gho_…`, `ghs_…`, `ghu_…`, `github_pat_…`, `AIza…`, `xoxb-…`, `xoxp-…`, `gsk_…`, `hf_…`, `xai-…`, a JWT, `Bearer …`, `Basic …`, and the login part of a URL: `user:password@`, `:password@`, or a long token alone.
 - An unexpected error prints one line, never its own text (it can hold an answer), and exits 2.

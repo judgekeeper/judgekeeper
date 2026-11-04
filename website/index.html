@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=16">
-<script src="assets/site.js?v=16" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=28">
+<script src="assets/site.js?v=28" defer></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"judgekeeper","url":"https://www.judgekeeper.com/"},{"@type":"SoftwareApplication","name":"judgekeeper","url":"https://www.judgekeeper.com/","description":"See how often your LLM-as-a-judge agrees with you.","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","license":"https://www.apache.org/licenses/LICENSE-2.0","sameAs":["https://github.com/judgekeeper/judgekeeper","https://pypi.org/project/judgekeeper/"]}]}</script>
 </head>
 <body>
@@ -38,7 +38,7 @@
   <div class="hero-l">
     <h1>Check your<br><span class="nb">LLM-as-a-judge</span><br><span class="nb">in 5 steps.</span></h1>
     <nav class="five" aria-label="The five steps"><a href="#steps" data-step="find" class="is-on">Find.</a><a href="#steps" data-step="mark">Mark.</a><a href="#steps" data-step="measure">Measure.</a><a href="#steps" data-step="fix">Fix.</a><a href="#steps" data-step="check">Re-check.</a></nav>
-    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-text" href="check.html">Or try step 1 in your browser</a></div>
+    <div class="cta"><a class="b-main" href="start.html">Get started</a><a class="b-side" href="check.html">Try the Find step in your browser</a></div>
   </div>
   <div class="hero-r"><section class="jk-card" id="demo" data-nosnippet tabindex="0" aria-label="Live demo of the marking page">
     <div class="rt-bar jk-bar" aria-hidden="true"><span class="rt-title">marking page</span></div>
@@ -283,12 +283,12 @@ and run `judgekeeper check` again.</template>
   <div class="rt-grid">
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/jailbreakbench/report.md">
       <span class="rt-big"><span class="rt-n" data-to="96">96</span> of 100</span>
-      <span class="rt-line">random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at once (another run gives a slightly different count)</span>
+      <span class="rt-line">random tests where judgekeeper's ranges held the true numbers</span>
       <span class="rt-src">JailbreakBench</span>
     </a>
     <a class="rt" href="https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/real-data-check/report.md">
       <span class="rt-big"><span class="rt-n" data-to="96">96</span> in 100</span>
-      <span class="rt-line">times, on average over TPR and TNR, the true value was in judgekeeper's range</span>
+      <span class="rt-line">times, on average, the true number fell inside judgekeeper's range</span>
       <span class="rt-src">Real-data check</span>
     </a>
   </div></div>
@@ -298,7 +298,7 @@ and run `judgekeeper check` again.</template>
   <div class="close-box">
     <div><h2>Have eval results?</h2><p>Check your LLM-as-a-judge. Your file stays on your computer.</p>
     <p class="close-prompt" aria-hidden="true"><span class="t-prompt">$</span> <span class="ck-cursor">▍</span></p></div>
-    <a class="b-main" href="check.html">Try step 1 in your browser</a>
+    <a class="b-main" href="check.html">Try the Find step in your browser</a>
   </div></div>
 </div></section>
 </main>

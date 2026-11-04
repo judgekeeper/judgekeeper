@@ -440,35 +440,37 @@
     nums.forEach(function (n) { seen.observe(n); });
   }
 
-  /* A picture of the Guide opens over the page, wide enough to read, to move around (swiped
-     on a phone); Close, a click or tap beside it or Escape closes it. */
+  /* A picture of the Guide opens over the page, as wide as the screen; Close, a click or tap
+     beside it or Escape closes it. */
   function setUpShots() {
     var links = $all(".gx-shot a");
     if (!links.length || typeof HTMLDialogElement !== "function") return;
-    var view = make("dialog", "shot-view"), bar = make("div", "shot-bar");
+    var view = make("dialog", "shot-view");
     var close = make("button", "shot-close", "Close"), pane = make("div", "shot-pane");
-    var img = make("img", "", undefined);
     close.type = "button";
     view.setAttribute("aria-label", "Picture, full size");
     pane.tabIndex = 0;
-    bar.appendChild(close);
-    pane.appendChild(img);
-    view.appendChild(bar);
+    view.appendChild(close);
     view.appendChild(pane);
     document.body.appendChild(view);
     function shut() { if (view.open) view.close(); }
     close.addEventListener("click", shut);
     view.addEventListener("click", function (e) { if (e.target === view || e.target === pane) shut(); });
     view.addEventListener("close", function () {
+      if (view.open) return;  /* opened again before this event came */
       document.documentElement.classList.remove("has-view");
-      img.removeAttribute("src");
+      pane.textContent = "";
     });
     links.forEach(function (a) {
       a.addEventListener("click", function (e) {
         e.preventDefault();
-        var shown = a.querySelector("img");
+        /* a new element each time: an image that lost its src can stay blank when reused */
+        var shown = a.querySelector("img"), img = make("img", "", undefined);
         img.src = a.getAttribute("href");
         img.alt = shown ? shown.alt : "";
+        pane.textContent = "";
+        pane.appendChild(img);
+        view.classList.toggle("close-low", a.hasAttribute("data-close-low"));
         document.documentElement.classList.add("has-view");
         view.showModal();
         pane.scrollLeft = 0;
@@ -476,6 +478,37 @@
         close.focus();
       });
     });
+  }
+
+  /* The Guide's rail: the word of the step in view is green, the steps before it ringed
+     green, and the line green down to it. It only changes colour, so it moves nothing, also
+     without reduced motion. On a phone the row scrolls to show it. */
+  function setUpRail() {
+    var rail = document.querySelector(".sp-rail");
+    if (!rail || !("IntersectionObserver" in window)) return;
+    var links = $all("a", rail), shown = {}, now = null;
+    var steps = links.map(function (a) { return $(a.getAttribute("href").slice(1)); });
+    function mark(id) {
+      now = id;
+      var at = links.map(function (a) { return a.getAttribute("href"); }).indexOf("#" + id);
+      links.forEach(function (a, i) {
+        a.classList.toggle("is-done", i < at);
+        if (i !== at) { a.removeAttribute("aria-current"); return; }
+        a.setAttribute("aria-current", "step");
+        /* the line under the words is green to the end of the word in view */
+        rail.querySelector("ol").style.setProperty("--fill", a.offsetLeft + a.offsetWidth + "px");
+        var left = a.offsetLeft, right = left + a.offsetWidth;
+        if (left < rail.scrollLeft || right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = left - 20;
+      });
+    }
+    var watch = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { shown[e.target.id] = e.isIntersecting; });
+      var first = steps.filter(function (s) { return shown[s.id]; })[0];
+      if (first) mark(first.id);
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    steps.forEach(function (s) { watch.observe(s); });
+    /* the words move apart or together with the window's width, so the green line follows */
+    window.addEventListener("resize", function () { if (now) mark(now); });
   }
 
   /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
@@ -504,6 +537,7 @@
   setUpCopy();
   setUpPhoneBreaks();
   setUpShots();
+  setUpRail();
   setUpDemo();
   setUpTour();
   setUpCounts();

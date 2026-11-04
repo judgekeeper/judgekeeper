@@ -95,7 +95,7 @@ The 4 draws that missed:
 
 **Why d060, d065 and d049 missed.** d060 and d065 had 16 disagreements each, the most of the 100 draws. In d060, 12 of the 41 answers GPT-4 failed were ones the experts passed, so its TPR and kappa ranges ended just below the real values; in d065, 11 of 41, so its kappa range ended just below. Both said "too early to tell". d049's TPR range started just above the real value.
 
-Draw 1's Measure (`hundred-marks/measure-draw-001.txt`, the result lines copied exactly):
+Draw 1's Measure (`hundred-marks/measure-draw-001.txt`, the result lines copied exactly as commit `e8de85d` printed them):
 
 ```
 Result: your LLM-as-a-judge is good enough to use.
@@ -118,7 +118,7 @@ Every draw's seed, counts, estimates, ranges and inside yes/no are in `hundred-m
 
 ## Two batches, 20 draws, 250 marks per draw (commit `7059dbd`)
 
-These draws were made with judgekeeper 1.0.2. New answers can join the marking as a second batch. This repeat checks that the ranges still hold when they do. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed different answers.
+These draws were made on commit `7059dbd`, after 1.0.2. New answers can join the marking as a second batch. This repeat checks that the ranges still hold when they do. Each draw used a fresh project folder, so judgekeeper picked a new random seed and showed different answers.
 
 1. **Batch 1.** The results file held rows 0 to 149. The script marked every answer the page offered with the experts' majority, and Measure ran.
 2. **Batch 2 joins.** The results file was written again with all 300 rows, the same LLM-as-a-judge's grades. `judgekeeper mark` added the 150 new answers as batch 2 (rows 150 to 299), and the script marked the batch-2 answers the page offered.
@@ -190,7 +190,7 @@ Measure said "Result: too early to tell. Mark more answers to get a result." wit
 | When the experts say Fail, GPT-4 also says Fail (TNR) | about 90% | 78% to 97% |
 | Kappa (agreement beyond coincidence) | 0.81 | 0.65 to 0.90 |
 
-judgekeeper shows half Pass and half Fail answers from the LLM-as-a-judge, so it weights each half by its real share before it gives a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (83% to 98%).
+judgekeeper 1.0.0b2 showed half Pass and half Fail answers from the LLM-as-a-judge, so it weighted each half by its real share before it gave a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (83% to 98%).
 
 ### After 200 marks
 

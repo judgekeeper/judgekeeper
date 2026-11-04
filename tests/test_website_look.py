@@ -260,7 +260,8 @@ def test_monospace_text_shows_what_you_type():
 DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#767c86",
         "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
         "rule": "#343941", "term-bg": "#07080a", "term-bar": "#101215", "term-dot": "#33373e",
-        "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40"}
+        "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40",
+        "slate": "#1E293B"}  # the logo's two colours: its green and its dark half
 
 
 def _tokens() -> dict[str, str]:
@@ -496,12 +497,10 @@ def test_the_hero_is_the_headline_the_five_words_two_buttons_and_the_demo():
     (five,) = _all(hero, "nav", "five")
     words = [(a.attrs["href"], a.attrs["data-step"], _flat(a)) for a in _all(five, "a")]
     assert words == [("#steps", key, f"{label}.") for key, label, _ in STEPS]
-    # one button; the browser check is a plain link beside it
     buttons = [(a.attrs["href"], a.classes(), _flat(a)) for a in _all(hero, "a")
-               if {"b-main", "b-side", "b-text"} & a.classes()]
+               if {"b-main", "b-side"} & a.classes()]
     assert buttons == [("start.html", {"b-main"}, "Get started"),
-                       ("check.html", {"b-text"}, "Or try step 1 in your browser")]
-    assert "min-height: 46px" in _rule(".b-text") and "align-items: center" in _rule(".b-text")
+                       ("check.html", {"b-side"}, "Try the Find step in your browser")]
     assert not _all(hero, "p", None) or all(
         any("jk-card" in a.classes() for a in p.ancestors()) for p in _all(hero, "p"))
     # the chosen step's green line, which gives way while another word is hovered or focused
@@ -640,7 +639,7 @@ def test_the_closing_box_points_to_the_browser_check():
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
     (button,) = _all(close, "a", "b-main")
-    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try step 1 in your browser")
+    assert (button.attrs["href"], _flat(button)) == ("check.html", "Try the Find step in your browser")
 
 
 def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
@@ -678,9 +677,8 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        ("random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at "
-         "once (another run gives a slightly different count)"),
-        "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
+        "random tests where judgekeeper's ranges held the true numbers",
+        "times, on average, the true number fell inside judgekeeper's range"]
     assert [len(_all(t, "span", "rt-n")) for t in tiles] == [1, 1]  # each a green number
     for tile in tiles:
         assert not _flat(tile).startswith(">")
@@ -707,8 +705,30 @@ def test_the_demo_card_is_a_window_called_marking_page():
     first = next(el for el in card.children if isinstance(el, Element))
     assert {"rt-bar", "jk-bar"} <= first.classes() and first.attrs.get("aria-hidden") == "true"
     assert _flat(_all(first, "span", "rt-title")[0]) == "marking page"
-    assert "background: var(--term-bg)" in _rule(".jk-card")
     assert "flex: none" in _rule(".jk-bar")
+
+
+def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green():
+    """The marking card, the example project, the public datasets and your project: each in
+    the Guide's slate panel. The chosen step's number is green in a ring with a soft glow,
+    like the Guide's rail."""
+    for selector in (".jk-card", ".steps-grid .term", ".rt-win", ".close-win"):
+        assert "background: var(--slate-panel)" in _rule(selector), selector
+    for selector in (".jk-card", ".rt-win"):
+        assert "border: 1px solid var(--slate)" in _rule(selector), selector
+    chosen = _rule(".steplist button[aria-selected=true] .n")
+    for part in ("color: var(--green)", "border-color: var(--green)",
+                 "box-shadow: 0 0 0 4px var(--green-glow)"):
+        assert part in chosen, part
+    assert "border-radius: 50%" in _rule(".steplist .n")
+    assert "border-left-color: var(--green)" in _rule(".steplist button[aria-selected=true]")
+    assert not [sel for sel, d in _rules() if sel.startswith(".steplist") and "transition" in d]
+    # text in the windows keeps 4.5 to 1 on the slate panel over the page
+    t = _tokens()
+    panel = "#" + "".join(f"{round(.4 * int(t['slate'][i:i + 2], 16) + .6 * int(t['bg'][i:i + 2], 16)):02x}"
+                          for i in (1, 3, 5))
+    for text in ("fg", "muted", "green", "red"):
+        assert _contrast(t[text], panel) >= 4.5, (text, panel)
 
 
 # The Guide ------------------------------------------------------------------------------------
@@ -716,8 +736,8 @@ def test_the_demo_card_is_a_window_called_marking_page():
 REFERENCE_MD = f"{GITHUB}/blob/main/docs/reference.md"
 GUIDE_STEPS = [("step-find", "Find your eval results"),
                ("step-mark", "Mark your answers Pass or Fail"),
-               ("step-measure", "Measure: see how often your LLM-as-a-judge agrees with you"),
-               ("step-fix", "Fix: write a better rule and test it"),
+               ("step-measure", "See how often your LLM-as-a-judge agrees with you"),
+               ("step-fix", "Write a better rule and test it"),
                ("step-check", "Re-check after you change your LLM-as-a-judge")]
 
 
@@ -751,50 +771,58 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        ("With pip, in your project’s virtual environment (in a uv virtual environment, uv "
-         "pip install judgekeeper)"), "With uv"]
+        "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
-        ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
-         '"judgekeeper[inspect]"; with uv, uvx --from "judgekeeper[mlflow]" judgekeeper or '
-         'uvx --from "judgekeeper[inspect]" judgekeeper.'),
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
-    assert not _all(_main(GUIDE), "nav")  # no side list
-    # three windows, the title in each bar (the h3 stays for screen readers): your own file
-    # or code across the column, then the keys and the handy commands side by side
+    (rail,) = _all(_main(GUIDE), "nav")  # the one side list: the steps' rail
+    assert "sp-rail" in rail.classes()
+    # three plain boxes under the steps, each a heading in view, then its words and its
+    # commands: no window and no bar. The long one is on the left, the other two stacked on
+    # the right, so a phone reads them in the same order
     rows = _all(sections[2], "div", "gm-row")
     assert [(r.attrs["id"], _flat(_all(r, "h3")[0])) for r in rows] == [
         ("own-format", "Your own file or code"), ("keys", "No API key needed"),
         ("misc", "Handy commands")]
     for r in rows:
         (h3,) = _all(r, "h3")
-        (bar,) = _all(r, "div", "rt-bar")
-        assert "sr" in h3.classes() and _flat(bar) == _flat(h3), r.attrs["id"]
-        assert bar.attrs.get("aria-hidden") == "true"
-    (pair,) = _all(sections[2], "div", "gm-pair")
-    assert [r.attrs["id"] for r in _all(pair, "div", "gm-row")] == ["keys", "misc"]
-    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr)" in _rule(".gm-pair", _wide())
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gm-pair")  # stacked, keys first
+        assert h3.parent is r and "sr" not in h3.classes(), r.attrs["id"]
+        assert not _all(r, "div", "rt-bar"), r.attrs["id"]
+    assert all("sp-block" in r.classes() for r in rows)
+    assert [r.parent.classes() for r in rows] == [{"sp-band"}, {"sp-stack"}, {"sp-stack"}]
+    assert rows[1].parent is rows[2].parent and rows[1].parent.parent is rows[0].parent
+    assert not _all(sections[2], "div", "gm-pair") and ".gm-pair" not in CSS
     assert _flat(_all(_by_id(GUIDE, "keys"), "div", "gx-text")[0]) == (
         "In your project, judgekeeper reads your results files and writes only in "
         ".judgekeeper/, plus "
         "judgekeeper.toml after you say yes. It makes no AI call and needs no API key. "
         "When you grade answers again, your own eval tool makes the calls, with your own key.")
     assert not _all(sections[2], "div", "gx-card")
-    # the steps and the windows below are as wide as the top section: "The 5 steps." starts
-    # under "Install", and the windows end where the install window ends
+    # the steps and the blocks below are as wide as the top section: "The 5 steps." starts
+    # under "Install", and the blocks end where the install window ends
     assert not [s for s, d in _rules() if ("gx-steps .wrap" in s or "gx-more .wrap" in s)
                 and "max-width" in d]
     # the top section is shorter, so the start of the steps shows on the first screen
     assert "padding-block: 64px 56px" in _rule(".gx-hero .wrap")
-    assert "padding-block: 48px 32px" in _rule(".gx-steps .wrap")
-    # the step windows and the windows below share one look and the column's full width
-    (window,) = [d for s, d in _rules() if s.endswith("\n.sw, .gm-row")]
-    for part in ("border: 1px solid var(--line)", "border-radius: 12px",
-                 "background: var(--term-bg)"):
-        assert part in window, part
-    assert "margin-left" not in window
+    assert "padding-block: 64px 0" in _rule(".gx-steps .wrap")
+    # 96px and a line between steps; the three blocks below are plain bordered boxes, side
+    # by side on a laptop and one under the other from 1100px down
+    step = _rule(".gl-step")
+    for part in ("padding-block: 48px", "border-top: 1px solid var(--line)"):
+        assert part in step, part
+    assert "background" not in step and "border-radius" not in step
+    box = _rule(".sp-block")
+    assert "border: 1px solid var(--line)" in box and "border-radius: 12px" in box
+    assert "background" not in box and "shadow" not in box
+    # two columns that end on one line: the grid stretches the left box, and the right
+    # column's last box takes what is left, its commands growing with it
+    band = _rule(".sp-band")
+    assert "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)" in band
+    assert "align-items" not in band
+    assert "flex-direction: column" in _rule(".sp-stack")
+    assert "flex: 1" in _rule(".sp-stack > .sp-block:last-child")
+    assert "flex: 1" in _rule(".sp-stack .gm-pre")
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-band", _narrow(1100))
     assert "clip: rect(0 0 0 0)" in _rule(".sr")
 
 
@@ -821,11 +849,8 @@ def test_your_own_file_or_code_is_two_short_ways_and_a_link_for_the_rest():
     assert link.attrs["href"] == f"{REFERENCE_MD}#how-grades-are-read"
     reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     assert "\n## How grades are read\n" in reference
-    # the reference line sits apart from the code: a gap, a thin line, room under it
-    small = _rule("#own-format .gx-small")
-    for part in ("margin-top: 24px", "padding-top: 18px", "border-top: 1px solid var(--line)",
-                 "line-height: 1.7"):
-        assert part in small, part
+    # the reference line sits apart from the lines above it
+    assert "margin-top: 24px" in _rule("#own-format .gx-small")
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("--pass-if", "pass_mark=", "can't test a new rule"):
         assert gone not in text, gone
@@ -851,122 +876,260 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
     assert (found.pool.n_pass, found.pool.n_fail) == (1, 1)
 
 
-def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
+STEP_WORDS = ["Find.", "Mark.", "Measure.", "Fix.", "Re-check."]
+
+
+def test_the_guides_bar_is_the_five_words_and_the_one_in_view_is_green():
+    """The five words of the tagline run across the top of the steps and stay in view, each a
+    link to its step, over a thin line that is green up to the step in view. The word of the
+    step in view is green, the ones before it a softer green: only a colour, no movement."""
+    (rail,) = _all(_main(GUIDE), "nav", "sp-rail")
+    assert rail.attrs["aria-label"] == "The 5 steps"
+    links = _all(rail, "a")
+    assert [_flat(a) for a in links] == STEP_WORDS
+    assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
+    assert all(set(a.attrs) == {"href"} for a in links)  # site.js marks the one in view
+    # one bar at every width: no side rail on a laptop and no other bar on a phone
+    bar = _rule(".sp-rail")
+    for part in ("position: sticky", "top: 0", "background: var(--bg)", "overflow-x: auto"):
+        assert part in bar, part
+    assert not [s for s, _ in _rules() if s == ".sp" or s.startswith(".sp {")]
+    row = _rule(".sp-rail ol")
+    assert "display: flex" in row and "justify-content: space-between" in row
+    assert "min-width: 100%" in row  # spread across the steps' width, the same edges
+    assert not [s for s, d in _rules() if s.startswith(".sp-rail") and "::before" in s
+                and "border-radius: 50%" in d]  # no dots
+    # the line under the words: grey across, green from the first word to the one in view
+    assert "bottom: 0" in _rule(".sp-rail ol::before, .sp-rail ol::after")
+    assert "background: var(--line)" in _last(".sp-rail ol::before")
+    assert "width: var(--fill, 0px)" in _last(".sp-rail ol::after")
+    assert "background: var(--green)" in _last(".sp-rail ol::after")
+    assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
+    assert "color: var(--muted)" in _rule(".sp-rail a")
+    assert "color: var(--green-muted)" in _rule(".sp-rail a.is-done")
+    assert not [s for s, d in _rules() if s.startswith(".sp-") and ("transition" in d or "animation" in d)]
+    rail_js = JS[JS.index("function setUpRail("):]
+    rail_js = rail_js[:rail_js.index("\n  }\n")]
+    assert "new IntersectionObserver" in rail_js and '"aria-current", "step"' in rail_js
+    assert '"is-done", i < at' in rail_js
+    assert 'setProperty("--fill", a.offsetLeft + a.offsetWidth + "px")' in rail_js
+    assert '"resize"' in rail_js  # the line follows the words when the window's width changes
+    assert "smooth" not in rail_js
+    assert "font-size: 16px" in _rule(".sp-rail a", _narrow(860))
+    # passed words muted green, still 4.5 to 1 on the page at 16px
+    assert "--green-muted: rgb(16 185 129 / 80%)" in _rule(":root")
+    t = _tokens()
+    mixed = "#" + "".join(f"{round(.8 * int(t['green'][i:i + 2], 16) + .2 * int(t['bg'][i:i + 2], 16)):02x}"
+                          for i in (1, 3, 5))
+    assert _contrast(mixed, t["bg"]) >= 4.5, mixed
+
+
+def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside_them():
     (steps,) = _all(_main(GUIDE), "ol", "gl")
     items = _all(steps, "li", "gl-step")
     assert [(li.attrs["id"], _flat(_all(li, "h3")[0])) for li in items] == GUIDE_STEPS
-    for n, li in enumerate(items, 1):
-        (number,) = _all(li, "span", "gl-n")
-        assert _flat(number) == str(n) and number.attrs.get("aria-hidden") == "true"
-        # the title sits in the window's bar; the h3 stays, hidden, for screen readers
-        (window,) = _all(li, "div", "sw")
-        (bar,) = _all(window, "div", "sw-bar")
-        (h3,) = _all(li, "h3")
-        assert _flat(bar) == _flat(h3) and "sr" in h3.classes(), li.attrs["id"]
-        assert bar.attrs.get("aria-hidden") == "true" and _all(window, "div", "sw-body")
-    assert "font-weight: 700" in _rule(".sw-t") and "var(--sans)" in _rule(".sw-t")
-    # a long title wraps on a phone, never cut: the bar grows with it
-    assert "nowrap" not in _rule(".sw-t") and "min-height: 44px" in _rule(".sw-bar")
-    # numbers in green circles joined by a line; on wide screens they hang in the margin
-    assert "var(--green)" in _rule(".gl-n") and "border-radius: 50%" in _rule(".gl-n")
-    assert "width: 1px" in _rule(".gl-step:not(:last-child)::before")
-    # a short line from each number to its window's bar
-    joins = [_rule(".gl-step::after", css) for css in (CSS, _wide(1440))]
-    assert "height: 1px" in joins[0] and "background: var(--line)" in joins[0]
-    assert "left: -24px" in joins[1]
-    assert "left: -68px" in _rule(".gl-n", _wide(1440)) and "display: block" in _rule(
-        ".gl-step", _wide(1440))
-    assert ".gl-n" not in _wide()  # from 1100 to 1440 wide the numbers keep their column
+    for word, li in zip(STEP_WORDS, items):
+        (body, side) = [el for el in li.children if isinstance(el, Element)]
+        assert "gl-body" in body.classes() and "sp-side" in side.classes()
+        # the step's word, big and bold, then its heading; the word is the rail's, so a screen
+        # reader hears the heading only
+        first, h3 = [el for el in body.children if isinstance(el, Element)][:2]
+        assert (first.tag, first.classes(), _flat(first)) == ("p", {"sp-word"}, word)
+        # the word white, its full stop green, like the check in the logo
+        (dot,) = _all(first, "span", "sp-dot")
+        assert _flat(dot) == "." and first.children[-1] is dot
+        assert first.attrs.get("aria-hidden") == "true" and h3.tag == "h3"
+        # every command is beside the words, none inside them
+        assert not _all(body, "div", "cmd"), li.attrs["id"]
+    # the step's word: big, bold, smaller than Home's hero
+    assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
+    assert "color: var(--green)" in _rule(".sp-dot")
+    # beside the words: as tall as what it holds, in the middle of the step's height,
+    # commands then window. One frame only: the window has the slate, nothing goes around it
+    side = _rule(".sp-side")
+    assert "stretch" not in side and "min-height" not in side
+    assert "align-items: start" in _rule(".gl-step")
+    assert "align-self: center" in side
+    for part in ("background", "border", "padding"):
+        assert part not in side, part
+    assert ".sp-side" not in _narrow(600)
+    window = _rule(".gwin")
+    for part in ("background: var(--slate-panel)", "border: 1px solid var(--slate)",
+                 "border-radius: 12px"):
+        assert part in window, part
+    assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")
+    assert "white-space: pre-wrap" in _rule(".sp-cmds .cmd code")  # wraps, never cut
+    # phones: a command stays on one line and a long one scrolls inside its bar
+    phone_cmd = _rule(".sp-cmds .cmd code", _narrow(600))
+    assert "white-space: pre" in phone_cmd and "pre-wrap" not in phone_cmd
+    assert "display: none" in _rule(".sp-cmds .cmd code wbr", _narrow(600))  # not at a "/"
+    assert "overflow-x: auto" in _rule(".cmd code")
+    # the install window opens the page in the same slate, on phones too
+    (card,) = _all(_main(GUIDE), "div", "gx-install")
+    assert "gwin" in card.classes() and ".gx-install.gwin" not in CSS
+    assert ".gx-install" not in _narrow(600)
+    assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
+    cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
+            for li in items}
+    assert cmds == {"step-find": ["judgekeeper", "judgekeeper path/to/results.json"],
+                    "step-mark": [], "step-measure": ["judgekeeper mark"],
+                    "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
+                    "step-check": ["judgekeeper check new-results.json"]}
+    # the "if" notes: the question, then its answer
+    ifs = {li.attrs["id"]: [(_flat(d.children[0]), _flat(d.children[1]))
+                            for dl in _all(li, "dl", "sp-ifs") for d in _all(dl, "div")]
+           for li in items}
+    assert ifs == {
+        "step-find": [("Nothing found?", ("Run your eval first so it saves its results, or point "
+                                          "judgekeeper to your results file."))],
+        "step-mark": [("Already have Pass/Fail labels?",
+                       ("Run judgekeeper --labels your-labels.csv, or judgekeeper --labels if they "
+                        "are in your results. Then mark more if needed."))],
+        "step-measure": [("Result says it’s too early to tell?",
+                          ("Your LLM-as-a-judge needs more of your marks to be measured. Mark more "
+                           "answers, then look again."))],
+        "step-fix": [("Result says your LLM-as-a-judge needs work?",
+                      ("It saves the answers your LLM-as-a-judge got wrong in "
+                       ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test "
+                       "your rule. Read it to write a better rule yourself, or hand it to a "
+                       "coding agent to help you write one."))],
+        "step-check": [("Changed your LLM-as-a-judge’s model or rule?",
+                        ("Grade your marked answers again (judgekeeper fix writes them to "
+                         ".judgekeeper/fix/marked-answers.csv)."))]}
+    # the step's word says what the step is, so no title starts with it and a colon; the
+    # commands sit beside the words, so no line ends in a colon; a note's question shows once
+    assert not [t for _, t in GUIDE_STEPS if t.split(" ")[0].endswith(":")]
+    lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
+    assert not [x for x in lines if x.endswith(":")]
+    assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
+    # a flag or a file name in a note never splits at its hyphens: its code wraps at spaces
+    labels = _all(_all(_by_id(GUIDE, "step-mark"), "dl", "sp-ifs")[0], "code")
+    assert [[_flat(s) for s in _all(c, "span", "nb")] for c in labels] == [
+        ["--labels", "your-labels.csv"], ["--labels"]]
+    assert "white-space: nowrap" in _rule(".nb")
+    # each note is a soft slate box like the windows, the question over its answer, the
+    # same at every width: no green line, no columns
+    row = _rule(".sp-ifs > div")
+    for part in ("background: var(--slate-panel)", "border-radius: 12px", "padding: 16px 20px"):
+        assert part in row, part
+    assert "border-left" not in row and "grid-template-columns" not in row
+    assert "color: var(--fg)" in _rule(".sp-ifs dt")
+    assert ".sp-ifs" not in _narrow(600) and ".sp-ifs" not in _narrow(860)
+    assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
+    # words beside commands on a laptop; one under the other from 1100px down
+    assert "minmax(0, 1fr) minmax(0, 1fr)" in _rule(".gl-step")
+    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))
+    assert "border-top: 0" in _rule(".gl-step:first-child")
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
             for step in ("step-find", "step-mark", "step-measure")}
-    assert done == {
-        "step-find": [("Nothing found? Run your eval first so it saves its results, or point "
-                       "judgekeeper to your results file:")],
-        "step-mark": [("When See the numbers so far or See your result appears at the top, "
-                       "click it.")],
-        "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. A result needs at least 15 Pass and 15 "
-                          "Fail marks from you. It also needs 20 marks on answers your "
-                          "LLM-as-a-judge passed and 20 on answers it failed (or all of them, if "
-                          "there are fewer). Mark more answers, then look again:")]}
+    assert done == {"step-find": [], "step-measure": [],
+                    "step-mark": [("When See the numbers so far or See your result appears at "
+                                   "the top, click it.")]}
     # each step's words, as the person reads them
-    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
-                   if not {"done", "gx-small", "gx-tap"} & p.classes()]
+    said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "gl-body")[0], "p")
+                   if not {"done", "gx-small", "gx-tap", "sp-word"} & p.classes()]
             for step in ("step-mark", "step-measure", "step-fix", "step-check")}
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
                        "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
-                       "Every mark is saved, so you can stop at any time and come back later. Now "
-                       "and then an answer you marked comes back once, to see how steady your "
-                       "marks are. Mark it as you see it."),
-                      ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
-                       "for a file with an output (or answer) column and a label (or "
-                       "human_label) column, or judgekeeper --labels for a human_label or label "
-                       "field in your results. Then mark more if needed.")],
+                       "Every mark is saved, so you can stop at any time and come back later.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
                           "disagreed.")],
         "step-fix": [
-            "Result says your LLM-as-a-judge needs work? Run:",
-            ("It saves the answers your LLM-as-a-judge got wrong in "
-             ".judgekeeper/fix/mistakes.md, apart from the marks kept aside to test your rule. "
-             "Read it to write a better rule yourself, or hand it to a coding agent to help you "
-             "write one."),
             ("Change the rule in your eval tool. Have it grade the answers in "
-             ".judgekeeper/fix/marked-answers.csv again, save the results, then run:"),
+             ".judgekeeper/fix/marked-answers.csv again, then save the results."),
             ("judgekeeper tests the new rule on the marks kept aside and tells you if it’s "
              "better, safe to try, worse, or if it can’t tell yet. How many marks you need "
              "depends on how big the change is: see the reference.")],
         "step-check": [
-            ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
-             ".judgekeeper/fix/regrade.yaml), "
-             "then run:"),
-            ("judgekeeper finds the answers you marked in your new results by their question "
-             "and answer, word for word, compares the new grades with your marks, and tells you "
-             "if your LLM-as-a-judge still agrees with you. You don’t need to mark anything "
-             "again. Grading only your marked answers is enough to compare the two. To count "
-             "new marks, grade all your answers with your new LLM-as-a-judge.")]}
+            ("judgekeeper compares the new grades with your marks and tells you if your "
+             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
-    assert bold == {"step-measure": ["Result says it’s too early to tell?"],
-                    "step-fix": ["Result says your LLM-as-a-judge needs work?", "better",
-                                 "safe to try", "worse", "can’t tell yet"],
-                    "step-check": ["Changed your LLM-as-a-judge’s model or rule?"]}
+    assert bold == {"step-measure": [],
+                    "step-fix": ["better", "safe to try", "worse", "can’t tell yet"],
+                    "step-check": []}
     assert not _all(_main(GUIDE), "details")  # no fold
     # the numbers: in the reference (the one link opens the picture)
     assert not [a for a in _all(_by_id(GUIDE, "step-measure"), "a") if a.parent.tag != "figure"]
     assert not _all(_by_id(GUIDE, "step-fix"), "table")  # the six results: in the reference
-    # step 4 opens with when to run fix, then what it saves
-    body = _all(_by_id(GUIDE, "step-fix"), "div", "gl-body")[0]
-    opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
-    assert opening == ["h3", "p", "div", "p"]
+    # steps 4 and 5 open with when to run them, in a note, with their other words after it
+    for sid in ("step-fix", "step-check"):
+        body = _all(_by_id(GUIDE, sid), "div", "gl-body")[0]
+        opening = [el.tag for el in body.children if isinstance(el, Element)][:4]
+        assert opening == ["p", "h3", "dl", "p"], sid
+    assert "margin-top: 24px" in _rule(".sp-ifs + p")
     assert [_flat(p) for p in _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")] == [
         ("judgekeeper prints how to grade the answers again with your eval tool. It only reads "
          "the new results.")]
-    # the two pictures sit in their step's window with a plain border, no second bar
+    # the two pictures sit beside their step's words, each in a window like Home's
     shots = [li.attrs["id"] for li in items for f in _all(li, "figure", "gx-shot")]
     assert shots == ["step-mark", "step-measure"]
-    assert not any(_all(f, "div", "rt-bar") for f in _all(steps, "figure", "gx-shot"))
-    assert "border: 1px solid var(--line)" in _rule(".gx-shot")
-    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the window
+    for li, title in ((_by_id(GUIDE, "step-mark"), "marking page"),
+                      (_by_id(GUIDE, "step-measure"), "result page")):
+        (win,) = _all(li, "div", "sp-shot")
+        assert "gwin" in win.classes() and _all(win, "figure", "gx-shot")
+        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == title
+    # a step with no picture has its commands in a window like the install box, so every
+    # step has a matching window beside its words; Fix's small line goes under its commands
+    for sid in ("step-find", "step-fix", "step-check"):
+        (side,) = _all(_by_id(GUIDE, sid), "div", "sp-side")
+        (win,) = _all(side, "div", "gwin")
+        assert "sp-win" in win.classes() and not _all(win, "figure")
+        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
+            "your project folder")
+        (inner,) = _all(win, "div", "gwin-body")
+        assert _all(inner, "div", "sp-cmds"), sid
+    assert len(_all(steps, "div", "gwin")) == 5  # one window a step
+    (small,) = _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")
+    assert "gwin-body" in small.parent.classes()
+    # Find's note stays beside its words: under the commands, it would leave the words short
+    assert _all(_all(_by_id(GUIDE, "step-find"), "div", "gl-body")[0], "dl", "sp-ifs")
+    assert "border: 0" in _rule(".sp-shot .gx-shot")
+    assert "max-width" not in _rule(".gx-shot")  # the pictures fill the step's width
     text = GUIDE.read_text(encoding="utf-8")
     for gone in ("<template", "steplist", "t-out", "learn.html", "data-panel", "npx"):
         assert gone not in text, gone
 
 
+def test_running_text_is_justified_only_once_the_columns_are_full_width():
+    """Straight edges on both sides for paragraphs, never for headings, the big words, tip
+    questions, commands or the install box. Narrower lines stay left-aligned, as they would
+    get big holes between words."""
+    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
+    wide = wide[:wide.index("\n}\n")]
+    chosen = ".gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .sp-block p, .rt-line"
+    assert "text-align: justify" in _rule(chosen, wide)
+    assert CSS.count("text-align: justify") == 1
+    assert "text-wrap: wrap" in _last(".rt-line", wide)  # "pretty" leaves the first line short
+    # a path wraps after a "/" there, so the line before it isn't left short
+    assert "white-space: normal" in _rule(".gx-text code.path", wide)
+    paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
+    assert len(paths) == 4
+    text = GUIDE.read_text(encoding="utf-8")
+    assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
+
+
 def test_the_guides_commands_look_like_terminal_lines():
     """A green "$" before each one-line command, drawn by CSS so Copy copies the command
-    alone. Handy commands are a window of terminal lines."""
+    alone. Handy commands are a box of terminal lines."""
     assert 'content: "$"' in _rule(".gx .cmd code::before")
     assert "var(--green)" in _rule(".gx .cmd code::before")
     assert "background: var(--term-bg)" in _rule(".gx .cmd")
     assert "code.textContent" in JS  # what Copy copies: never the "$"
     misc = _by_id(GUIDE, "misc")
-    assert _flat(_all(misc, "div", "rt-bar")[0]) == "Handy commands"
+    assert _flat(_all(misc, "h3")[0]) == "Handy commands"
     (pre,) = _all(misc, "pre", "gm-pre")
-    assert pre.parent is misc  # straight in the window, no second bar
+    # in a narrow box each comment goes under its command; half a wide page fits both
+    assert "display: block" in _rule(".sp-block .gm-pre .t-dim")
+    wide = CSS[CSS.index("@media (min-width: 1280px)"):]
+    assert "display: inline" in _rule(".sp-block .gm-pre .t-dim", wide)
+    assert "font-size: 13px" in _rule(".sp-block .gm-pre", wide)  # the longest line fits
+    assert pre.parent is misc  # straight under its heading
+    for part in ("border: 1px solid var(--line)", "background: var(--term-bg)"):
+        assert part in _rule(".gm-pre"), part
     lines = [" ".join(line.split()) for line in pre.text().splitlines()]
     assert lines == ["$ judgekeeper --stop # close the marking page",
                      "$ judgekeeper --new # start over (old marks are kept)",
@@ -1125,11 +1288,11 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     left, term = [el for el in _all(section, "div") if el.parent.parent is section]
     assert "ck2-l" in left.classes() and {"term", "ck2-term"} <= term.classes()
     (h1,) = _all(left, "h1")
-    assert _flat(h1) == "Try step 1 in your browser."
+    assert _flat(h1) == "Try the Find step in your browser."
     assert [_flat(s) for s in _all(h1, "span", "nb")] == ["in your browser."]
     titles = re.findall(r'<title>([^<]*)</title>|content="([^"]*\| judgekeeper)"',
                         CHECK.read_text(encoding="utf-8"))
-    assert {a or b for a, b in titles} == {"Try step 1 in your browser | judgekeeper"}
+    assert {a or b for a, b in titles} == {"Try the Find step in your browser | judgekeeper"}
     # the drop box: an upload icon and what to drop; after a file, the file and Clear
     drop = _by_id(CHECK, "fc-drop")
     assert drop.tag == "button" and drop.attrs.get("type") == "button"
@@ -1152,6 +1315,16 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert not [el for el in parse(CHECK).iter() if el.attrs.get("id") == "ck-clear"]
     file_input = _by_id(CHECK, "fc-file")
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
+    # the heading, the drop box, then the examples: no lines between them; the box lists the
+    # files it reads and the terminal's status bar links to the install
+    assert [(el.tag, sorted(el.classes())) for el in left.children
+            if isinstance(el, Element) and "sr" not in el.classes()] == [
+        ("h1", []), ("div", ["fc-zone"]), ("div", ["fc-try"])]
+    assert not _all(left, "p", "gx-small")
+    # the drop box and the terminal in the slate of Home's windows
+    assert "background: var(--slate-panel)" in _rule(".ck2-drop")
+    term_look = _rule(".ck2-term")
+    assert "background: var(--slate-panel)" in term_look and "border-color: var(--slate)" in term_look
     # the examples, under a divider; no command row (the status bar links to the Guide)
     (divider,) = _all(left, "p", "ex-or")
     assert _flat(divider) == "or try an example"
@@ -1197,15 +1370,17 @@ def test_waiting_terminal_uses_the_codes_labels(tmp_path):
         assert f"\n{label}" in "\n" + printed, label  # the check prints each, as a line's start
 
 
-def test_the_browser_check_is_two_even_columns_that_end_together():
+def test_the_browser_check_is_two_columns_and_its_terminal_fits_its_lines():
     wrap = _rule(".ck2 .wrap")
     for part in ("grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr)", "gap: 28px 48px",
-                 "align-items: stretch"):
+                 "align-items: start"):
         assert part in wrap, part
     assert "clamp(34px, 3.6vw, 48px)" in _rule(".ck2-l h1") and "font-weight: 800" in _rule(
         ".ck2-l h1")
-    assert "min-height: 524px" in _rule(".ck2-term")  # the same height before and after a file
-    assert "overflow-y: auto" in _rule(".ck2-term .ck-out")  # output scrolls inside
+    # as tall as its lines, so no empty space under the waiting ones; a long check scrolls
+    assert "min-height" not in _rule(".ck2-term")
+    out = _rule(".ck2-term .ck-out")
+    assert "flex: none" in out and "max-height: 560px" in out and "overflow-y: auto" in out
     narrow = CSS[CSS.index("@media (max-width: 1000px) {\n  .ck2"):]
     narrow = narrow[:narrow.index("\n}\n")]
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".ck2 .wrap", narrow)
@@ -1326,13 +1501,11 @@ def test_a_line_quoted_from_judgekeeper_is_what_it_prints():
 
 def test_guide_page_pictures_after_first_paragraph():
     for step, picture in (("step-mark", "label.webp"), ("step-measure", "result.webp")):
-        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
-        tags = [el.tag for el in body.children if not isinstance(el, str)]
-        assert tags[:3] == ["h3", "p", "figure"], step
-        (img,) = _all(body, "img")
+        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
+        (img,) = _all(side, "img")
         assert img.attrs["src"] == f"assets/shots/{picture}"
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
-        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
+        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1704")
         assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
     assert "max-width" not in _rule(".gx-shot")  # the pictures fill their step's window
     assert "width: 100%" in _rule(".gx-shot img")  # the figure draws the border
@@ -1345,17 +1518,18 @@ def test_on_a_phone_the_guides_pictures_open_full_size():
     on phones only."""
     for step, picture, page in (("step-mark", "label.webp", "marking"),
                                 ("step-measure", "result.webp", "result")):
-        body = _all(_by_id(GUIDE, step), "div", "gl-body")[0]
-        (figure,) = _all(body, "figure", "gx-shot")
+        side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
+        (figure,) = _all(side, "figure", "gx-shot")
         (link,) = _all(figure, "a")
-        assert link.attrs == {"href": f"assets/shots/{picture}",
-                              "aria-label": f"Enlarge the picture of the {page} page"}, step
+        assert {k: v for k, v in link.attrs.items() if k != "data-close-low"} == {
+            "href": f"assets/shots/{picture}",
+            "aria-label": f"Enlarge the picture of the {page} page"}, step
         assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
-        after = [el for el in body.children if isinstance(el, Element)]
-        tap = after[after.index(figure) + 1]
+        after = [el for el in side.children if isinstance(el, Element)]
+        tap = after[after.index(figure.parent) + 1]
         assert (tap.tag, tap.classes(), _flat(tap)) == ("p", {"gx-tap"}, "Tap to enlarge")
-    assert "display: none" in _rule(".gx-text .gx-tap")
-    assert "display: block" in _rule(".gx-text .gx-tap", _narrow(600))
+    assert "display: none" in _rule(".gx .gx-tap")
+    assert "display: block" in _rule(".gx .gx-tap", _narrow(600))
 
 
 def test_testing_a_new_rule_is_said_for_every_eval_tool():
@@ -1498,7 +1672,7 @@ def test_on_a_phone_the_text_is_14px_or_more():
                      ".term-bar, .rt-bar, .term-foot, .steplist .n", ".gx-code, .gm-pre",
                      ".ck-out", ".rt-src"):
         assert "font-size: 14px" in _last(selector, phone), selector
-    for selector in (".foot .wrap", ".gx-text .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
+    for selector in (".foot .wrap", ".gx .gx-tap", ".ex-or, .fc-kinds, .ck2-term .term-bar"):
         assert "font-size: 15px" in _last(selector, phone), selector
     assert "max(14px, min(17px, calc((100vw - 40px) / 19)))" in _last(".five", _narrow(359))
     assert "white-space: normal" in _last(".b-main, .b-side", _narrow(359))
@@ -1512,14 +1686,11 @@ def test_on_a_phone_the_text_is_14px_or_more():
 
 
 def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
-    """At 480px and below a step's number sits in its window's bar; "$" stays on a command's
-    first line; Copy shows only its tick (its word stays for a screen reader); a path breaks
-    after its "/". At 300px and below the boxes are narrower and a command breaks only at a
-    space or after a "/"."""
-    small = _narrow(480)
-    assert "display: block" in _last(".gl-step", small)
-    assert "position: absolute" in _last(".gl-n", small)
-    assert "padding-left: 52px" in _last(".sw-bar", small)
+    """On a phone the Guide has a 20px gutter and a step's commands take the whole width; "$" stays on a command's first line; Copy shows only its tick (its word stays
+    for a screen reader); a path breaks after its "/". At 300px and below the boxes are
+    narrower and a command breaks only at a space or after a "/"."""
+    assert "max(20px" in _rule("body:has(> main.gx) .wrap")
+    assert "width: 100%" in _rule(".sp-cmds .cmd") and "min-width: 0" in _rule(".sp-cmds .cmd")
     phone = _narrow(600)
     assert "align-items: flex-start" in _last(".cmd code", phone)
     copied = _last(".cmd .copy.done .copied", phone)
@@ -1529,15 +1700,15 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
                                          ".judgekeeper/fix/marked-answers.csv",
                                          ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/regrade.yaml"]
+                                         ".judgekeeper/records/"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 
 def test_a_picture_opens_over_the_page_at_every_width():
-    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: a
-    dialog at least 1100px wide (the window's width when wider) that can be moved around, with
-    a Close button 44px tall; the page behind does not scroll. Without the script the link
-    opens the file."""
+    """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: as
+    wide as the screen, so nothing is off its edge, starting at the very top, with a red Close
+    button 44px tall floating over its corner; the page behind does not scroll. Without the
+    script the link opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
     for part in ("e.preventDefault()", "view.showModal()",
@@ -1545,9 +1716,32 @@ def test_a_picture_opens_over_the_page_at_every_width():
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
     assert "narrow()" not in shots
-    assert "width: max(1100px, 100%)" in _rule(".shot-pane img")
+    # each open makes a new picture element: a reused one can stay blank on the second open
+    opened = shots[shots.index("links.forEach("):]
+    assert 'make("img", "", undefined)' in opened and "pane.appendChild(img)" in opened
+    assert "removeAttribute" not in shots
+    picture = _rule(".shot-pane img")
+    assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
+    assert "max(1100px" not in CSS
     assert "overflow: auto" in _rule(".shot-pane")
     assert "min-height: 44px" in _rule(".shot-close")
+    # Close is red and white as the Fail button, a little brighter on hover, keeps the site's
+    # focus ring for a keyboard, and floats 16px from the picture's top and right edges, with
+    # no bar above the picture
+    close = _rule(".shot-close")
+    assert "background: var(--red-fill)" in close and "color: #fff" in close
+    assert "background: var(--red-fill)" in _rule(".jk-fail")
+    assert _rule(".shot-close:hover") == _rule(".jk-fail:hover")
+    for part in ("position: absolute", "top: 16px", "right: 16px"):
+        assert part in close, part
+    assert "shot-bar" not in CSS and "shot-bar" not in JS
+    # the marking page's counter is in that corner: Close sits under its header from 601px
+    assert 'toggle("close-low", a.hasAttribute("data-close-low"))' in shots
+    assert "@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }" in CSS
+    lows = [a.attrs["href"] for a in _all(_main(GUIDE), "a") if "data-close-low" in a.attrs]
+    assert lows == ["assets/shots/label.webp"]
+    assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
+    assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
     assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
     assert not [s for s, d in _rules() if "shot-" in s and s in _narrow(600)]
 

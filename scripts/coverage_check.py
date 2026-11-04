@@ -943,8 +943,8 @@ def markdown(result: dict) -> str:
               (f"With {s['draws']:,} draws, {s['seeds']} other seeds moved a range end by at "
               f"most {s['largest_change']:.4f} on the counts tried."), "",
               "## How wide the ranges are", "",
-              (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block as "
-              f"`judgekeeper` picks, until {RELIABLE} Correct and {RELIABLE} Wrong. "
+              (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block, "
+              f"until {RELIABLE} Correct and {RELIABLE} Wrong. "
               "The share whose TPR and TNR ranges are both no wider than each width, and the "
               "average widths. No rule in judgekeeper follows a range's width."), "",
               "| pi | a | w | " + " | ".join(f"≤ {m:.2f}" for m in WIDTHS)
