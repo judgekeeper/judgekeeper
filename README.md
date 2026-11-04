@@ -40,7 +40,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
    - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv`, or `judgekeeper --labels` if they are in your results. Then mark more if needed.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you.
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
-5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
+5. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 

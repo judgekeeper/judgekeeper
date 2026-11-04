@@ -952,7 +952,7 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
              "depends on how big the change is: see the reference.")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv)."),
+             "(judgekeeper fix writes them to .judgekeeper/fix/marked-answers.csv)."),
             ("judgekeeper compares the new grades with your marks and tells you if your "
              "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
