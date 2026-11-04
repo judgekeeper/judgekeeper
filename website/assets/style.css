@@ -412,11 +412,12 @@ td:first-child { min-width: 14ch; }
 .shot-view { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
 .shot-view[open] { display: flex; flex-direction: column; }
 .shot-view::backdrop { background: var(--bg); }
-/* Close: red as the Fail button, with room around it in its bar */
-.shot-bar { flex: none; display: flex; justify-content: flex-end; padding: 16px; border-bottom: 1px solid var(--line); background: var(--term-bar); }
-.shot-close { min-height: 44px; padding: 0 20px; border-radius: 4px; background: var(--red-fill); color: #fff; font-weight: 700; font-size: 15px; }
+/* Close: red as the Fail button, floating over the picture's top right corner */
+.shot-close { position: absolute; top: 16px; right: 16px; z-index: 1; min-height: 44px; padding: 0 20px; border-radius: 4px; background: var(--red-fill); color: #fff; font-weight: 700; font-size: 15px; }
 .shot-close:hover { filter: brightness(1.08); }
-@media (min-width: 1280px) { .shot-bar { padding: 24px; } }
+/* the marking page's counter is in that corner, so Close sits just under its header (5% of the
+   picture's width); on a phone the counter ends above Close */
+@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }
 .shot-pane { flex: 1; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .shot-pane img { display: block; width: 100%; max-width: 100%; height: auto; }
 html.has-view, html.has-view body { overflow: hidden; }

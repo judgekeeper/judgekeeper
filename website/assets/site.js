@@ -445,15 +445,14 @@
   function setUpShots() {
     var links = $all(".gx-shot a");
     if (!links.length || typeof HTMLDialogElement !== "function") return;
-    var view = make("dialog", "shot-view"), bar = make("div", "shot-bar");
+    var view = make("dialog", "shot-view");
     var close = make("button", "shot-close", "Close"), pane = make("div", "shot-pane");
     var img = make("img", "", undefined);
     close.type = "button";
     view.setAttribute("aria-label", "Picture, full size");
     pane.tabIndex = 0;
-    bar.appendChild(close);
     pane.appendChild(img);
-    view.appendChild(bar);
+    view.appendChild(close);
     view.appendChild(pane);
     document.body.appendChild(view);
     function shut() { if (view.open) view.close(); }
@@ -469,6 +468,7 @@
         var shown = a.querySelector("img");
         img.src = a.getAttribute("href");
         img.alt = shown ? shown.alt : "";
+        view.classList.toggle("close-low", a.hasAttribute("data-close-low"));
         document.documentElement.classList.add("has-view");
         view.showModal();
         pane.scrollLeft = 0;

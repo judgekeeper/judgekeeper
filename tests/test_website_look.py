@@ -1487,8 +1487,9 @@ def test_on_a_phone_the_guides_pictures_open_full_size():
         side = _all(_by_id(GUIDE, step), "div", "sp-side")[0]
         (figure,) = _all(side, "figure", "gx-shot")
         (link,) = _all(figure, "a")
-        assert link.attrs == {"href": f"assets/shots/{picture}",
-                              "aria-label": f"Enlarge the picture of the {page} page"}, step
+        assert {k: v for k, v in link.attrs.items() if k != "data-close-low"} == {
+            "href": f"assets/shots/{picture}",
+            "aria-label": f"Enlarge the picture of the {page} page"}, step
         assert [el.tag for el in link.children if isinstance(el, Element)] == ["img"]
         after = [el for el in side.children if isinstance(el, Element)]
         tap = after[after.index(figure.parent) + 1]
@@ -1670,8 +1671,9 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
 
 def test_a_picture_opens_over_the_page_at_every_width():
     """A click or tap on a Guide picture opens it over the page, on a laptop as on a phone: as
-    wide as the screen, so nothing is off its edge, with a red Close button 44px tall and room
-    around it; the page behind does not scroll. Without the script the link opens the file."""
+    wide as the screen, so nothing is off its edge, starting at the very top, with a red Close
+    button 44px tall floating over its corner; the page behind does not scroll. Without the
+    script the link opens the file."""
     shots = JS[JS.index("function setUpShots("):]
     shots = shots[:shots.index("\n  }\n")]
     for part in ("e.preventDefault()", "view.showModal()",
@@ -1685,13 +1687,20 @@ def test_a_picture_opens_over_the_page_at_every_width():
     assert "overflow: auto" in _rule(".shot-pane")
     assert "min-height: 44px" in _rule(".shot-close")
     # Close is red and white as the Fail button, a little brighter on hover, keeps the site's
-    # focus ring for a keyboard, and has 16px around it in its bar (24px from 1280px)
+    # focus ring for a keyboard, and floats 16px from the picture's top and right edges, with
+    # no bar above the picture
     close = _rule(".shot-close")
     assert "background: var(--red-fill)" in close and "color: #fff" in close
     assert "background: var(--red-fill)" in _rule(".jk-fail")
     assert _rule(".shot-close:hover") == _rule(".jk-fail:hover")
-    assert "padding: 16px" in _rule(".shot-bar")
-    assert "padding: 24px" in _rule(".shot-bar", _wide(1280))
+    for part in ("position: absolute", "top: 16px", "right: 16px"):
+        assert part in close, part
+    assert "shot-bar" not in CSS and "shot-bar" not in JS
+    # the marking page's counter is in that corner: Close sits under its header from 601px
+    assert 'toggle("close-low", a.hasAttribute("data-close-low"))' in shots
+    assert "@media (min-width: 601px) { .shot-view.close-low .shot-close { top: calc(5vw + 8px); } }" in CSS
+    lows = [a.attrs["href"] for a in _all(_main(GUIDE), "a") if "data-close-low" in a.attrs]
+    assert lows == ["assets/shots/label.webp"]
     assert not [s for s, d in _rules() if "shot-close" in s and "focus" in s]
     assert "outline: 2px solid var(--fg)" in _rule(":focus-visible")
     assert "overflow: hidden" in _rule("html.has-view, html.has-view body")
