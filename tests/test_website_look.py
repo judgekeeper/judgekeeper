@@ -870,42 +870,44 @@ def test_the_guides_record_line_saves_what_judgekeeper_reads(tmp_path, monkeypat
 STEP_WORDS = ["Find.", "Mark.", "Measure.", "Fix.", "Re-check."]
 
 
-def test_the_guides_rail_is_the_five_words_and_the_one_in_view_is_green():
-    """The five words of the tagline run down the left, joined by a thin line, each a link to
-    its step. The word of the step in view turns green: only a colour, no movement."""
+def test_the_guides_bar_is_the_five_words_and_the_one_in_view_is_green():
+    """The five words of the tagline run across the top of the steps and stay in view, each a
+    link to its step, over a thin line that is green up to the step in view. The word of the
+    step in view is green, the ones before it a softer green: only a colour, no movement."""
     (rail,) = _all(_main(GUIDE), "nav", "sp-rail")
     assert rail.attrs["aria-label"] == "The 5 steps"
     links = _all(rail, "a")
     assert [_flat(a) for a in links] == STEP_WORDS
     assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
     assert all(set(a.attrs) == {"href"} for a in links)  # site.js marks the one in view
-    assert "position: sticky" in _rule(".sp-rail")
-    assert "width: 1px" in _rule(".sp-rail ol::before, .sp-rail ol::after")
-    assert "border-radius: 50%" in _rule(".sp-rail a::before")
-    assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
-    # the rail shows progress: the line green down to the step in view, the steps before it
-    # ringed green, the one in view filled green with a soft glow
-    assert "height: var(--fill, 0px)" in _last(".sp-rail ol::after")
+    # one bar at every width: no side rail on a laptop and no other bar on a phone
+    bar = _rule(".sp-rail")
+    for part in ("position: sticky", "top: 0", "background: var(--bg)", "overflow-x: auto"):
+        assert part in bar, part
+    assert not [s for s, _ in _rules() if s == ".sp" or s.startswith(".sp {")]
+    row = _rule(".sp-rail ol")
+    assert "display: flex" in row and "justify-content: space-between" in row
+    assert "min-width: 100%" in row  # spread across the steps' width, the same edges
+    assert not [s for s, d in _rules() if s.startswith(".sp-rail") and "::before" in s
+                and "border-radius: 50%" in d]  # no dots
+    # the line under the words: grey across, green from the first word to the one in view
+    assert "bottom: 0" in _rule(".sp-rail ol::before, .sp-rail ol::after")
+    assert "background: var(--line)" in _last(".sp-rail ol::before")
+    assert "width: var(--fill, 0px)" in _last(".sp-rail ol::after")
     assert "background: var(--green)" in _last(".sp-rail ol::after")
-    assert "border-color: var(--green)" in _rule(".sp-rail a.is-done::before")
-    current = _rule(".sp-rail a[aria-current]::before")
-    assert "background: var(--green)" in current and "0 0 0 4px var(--green-glow)" in current
-    assert "--green-glow: rgb(16 185 129 / 20%)" in _rule(":root")
+    assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
+    assert "color: var(--muted)" in _rule(".sp-rail a")
+    assert "color: var(--green-muted)" in _rule(".sp-rail a.is-done")
     assert not [s for s, d in _rules() if s.startswith(".sp-") and ("transition" in d or "animation" in d)]
     rail_js = JS[JS.index("function setUpRail("):]
     rail_js = rail_js[:rail_js.index("\n  }\n")]
     assert "new IntersectionObserver" in rail_js and '"aria-current", "step"' in rail_js
-    assert '"is-done", i < at' in rail_js and 'setProperty("--fill", a.offsetTop + "px")' in rail_js
+    assert '"is-done", i < at' in rail_js
+    assert 'setProperty("--fill", a.offsetLeft + a.offsetWidth + "px")' in rail_js
+    assert '"resize"' in rail_js  # the line follows the words when the window's width changes
     assert "smooth" not in rail_js
-    # tablets and phones: a row of the five words that stays at the top, scrolling sideways
-    tablet = _narrow(860)
-    assert "display: flex" in _rule(".sp-rail ol", tablet)
-    assert "overflow-x: auto" in _rule(".sp-rail", tablet) and "top: 0" in _rule(".sp-rail", tablet)
-    assert "display: none" in _rule(".sp-rail ol::before, .sp-rail ol::after, .sp-rail a::before",
-                                    tablet)
+    assert "font-size: 16px" in _rule(".sp-rail a", _narrow(860))
     # passed words muted green, still 4.5 to 1 on the page at 16px
-    assert "color: var(--green-muted)" in _rule(".sp-rail a.is-done", tablet)
-    assert "inset 0 -2px var(--green)" in _rule(".sp-rail a[aria-current]", tablet)
     assert "--green-muted: rgb(16 185 129 / 80%)" in _rule(":root")
     t = _tokens()
     mixed = "#" + "".join(f"{round(.8 * int(t['green'][i:i + 2], 16) + .2 * int(t['bg'][i:i + 2], 16)):02x}"
@@ -933,9 +935,12 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     # the step's word: big, bold, smaller than Home's hero
     assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
     assert "color: var(--green)" in _rule(".sp-dot")
-    # beside the words: one slate panel the step's whole height, commands then picture
+    # beside the words: one slate panel as tall as what it holds, its top level with the
+    # step's word, commands then picture
     panel = _rule(".sp-side")
-    for part in ("align-self: stretch", "background: var(--slate-panel)",
+    assert "stretch" not in panel and "min-height" not in panel
+    assert "align-items: start" in _rule(".gl-step")
+    for part in ("align-self: start", "background: var(--slate-panel)",
                  "border: 1px solid var(--slate)", "border-radius: 12px", "padding: 24px"):
         assert part in panel, part
     assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")

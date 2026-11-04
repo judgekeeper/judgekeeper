@@ -484,15 +484,17 @@
   function setUpRail() {
     var rail = document.querySelector(".sp-rail");
     if (!rail || !("IntersectionObserver" in window)) return;
-    var links = $all("a", rail), shown = {};
+    var links = $all("a", rail), shown = {}, now = null;
     var steps = links.map(function (a) { return $(a.getAttribute("href").slice(1)); });
     function mark(id) {
+      now = id;
       var at = links.map(function (a) { return a.getAttribute("href"); }).indexOf("#" + id);
       links.forEach(function (a, i) {
         a.classList.toggle("is-done", i < at);
         if (i !== at) { a.removeAttribute("aria-current"); return; }
         a.setAttribute("aria-current", "step");
-        rail.querySelector("ol").style.setProperty("--fill", a.offsetTop + "px");
+        /* the line under the words is green to the end of the word in view */
+        rail.querySelector("ol").style.setProperty("--fill", a.offsetLeft + a.offsetWidth + "px");
         var left = a.offsetLeft, right = left + a.offsetWidth;
         if (left < rail.scrollLeft || right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = left - 20;
       });
@@ -503,6 +505,8 @@
       if (first) mark(first.id);
     }, { rootMargin: "-35% 0px -60% 0px" });
     steps.forEach(function (s) { watch.observe(s); });
+    /* the words move apart or together with the window's width, so the green line follows */
+    window.addEventListener("resize", function () { if (now) mark(now); });
   }
 
   /* On a phone only (a laptop's text stays as it is): "LLM-as-a-judge" in a step's words never
