@@ -257,7 +257,9 @@ def test_the_reference_says_what_a_result_needs_near_its_top():
     assert NEEDS in " ".join(text[:second].split())
 
 
-def test_the_readmes_measure_step_says_what_a_result_needs():
+def test_the_reference_states_the_whole_rule_for_a_result_and_the_readme_no_part_of_it():
+    """judgekeeper says how many more to mark, so the README's measure step gives no count:
+    half the rule would read as enough. The reference states all of it."""
     from judgekeeper import front, targets
 
     n, g = targets.ROUGH, targets.FIRST_GROUP
@@ -266,11 +268,10 @@ def test_the_readmes_measure_step_says_what_a_result_needs():
              "of them, if there are fewer).")
     assert NEEDS.startswith(first + " If ")
     assert f"under {front.FEW_FAILS:.0%} of the answers" in NEEDS
+    assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
     readme = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
     at = next(i for i, line in enumerate(readme) if line.startswith("3. **Measure:**"))
-    measure = " ".join(x.strip() for x in readme[at:at + 3])  # the step and its short lines
-    assert first in measure
-    assert NEEDS in " ".join((ROOT / "docs" / "reference.md").read_text(encoding="utf-8").split())
+    assert not re.search(r"\d", readme[at][len("3."):]), readme[at]
 
 
 def test_the_reference_says_which_marks_wait_in_the_words_check_uses():
