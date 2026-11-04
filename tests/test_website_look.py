@@ -1249,6 +1249,13 @@ def test_the_browser_check_is_the_drop_box_beside_a_terminal():
     assert not [el for el in parse(CHECK).iter() if el.attrs.get("id") == "ck-clear"]
     file_input = _by_id(CHECK, "fc-file")
     assert file_input.attrs["type"] == "file" and "sr" in file_input.classes()
+    # the box lists the files it reads, so the line under it names only the other tools
+    assert [_flat(p) for p in _all(left, "p", "gx-small")][1:] == [
+        "For Inspect AI and MLflow, run judgekeeper itself in your project (see the Guide)."]
+    # the drop box and the terminal in the slate of Home's windows
+    assert "background: var(--slate-panel)" in _rule(".ck2-drop")
+    term_look = _rule(".ck2-term")
+    assert "background: var(--slate-panel)" in term_look and "border-color: var(--slate)" in term_look
     # the examples, under a divider; no command row (the status bar links to the Guide)
     (divider,) = _all(left, "p", "ex-or")
     assert _flat(divider) == "or try an example"
@@ -1294,15 +1301,17 @@ def test_waiting_terminal_uses_the_codes_labels(tmp_path):
         assert f"\n{label}" in "\n" + printed, label  # the check prints each, as a line's start
 
 
-def test_the_browser_check_is_two_even_columns_that_end_together():
+def test_the_browser_check_is_two_columns_and_its_terminal_fits_its_lines():
     wrap = _rule(".ck2 .wrap")
     for part in ("grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr)", "gap: 28px 48px",
-                 "align-items: stretch"):
+                 "align-items: start"):
         assert part in wrap, part
     assert "clamp(34px, 3.6vw, 48px)" in _rule(".ck2-l h1") and "font-weight: 800" in _rule(
         ".ck2-l h1")
-    assert "min-height: 524px" in _rule(".ck2-term")  # the same height before and after a file
-    assert "overflow-y: auto" in _rule(".ck2-term .ck-out")  # output scrolls inside
+    # as tall as its lines, so no empty space under the waiting ones; a long check scrolls
+    assert "min-height" not in _rule(".ck2-term")
+    out = _rule(".ck2-term .ck-out")
+    assert "flex: none" in out and "max-height: 560px" in out and "overflow-y: auto" in out
     narrow = CSS[CSS.index("@media (max-width: 1000px) {\n  .ck2"):]
     narrow = narrow[:narrow.index("\n}\n")]
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".ck2 .wrap", narrow)
