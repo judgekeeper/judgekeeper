@@ -676,9 +676,8 @@ def test_the_public_datasets_sit_in_a_window_of_two_linked_numbers():
     assert [_flat(_all(t, "span", "rt-src")[0]) for t in tiles] == ["JailbreakBench",
                                                                     "Real-data check"]
     assert [_flat(_all(t, "span", "rt-line")[0]) for t in tiles] == [
-        ("random tests (100 marks each) where the ranges held the true TPR, TNR and kappa at "
-         "once (another run gives a slightly different count)"),
-        "times, on average over TPR and TNR, the true value was in judgekeeper's range"]
+        "random tests where judgekeeper's ranges held the true numbers",
+        "times, on average, the true number fell inside judgekeeper's range"]
     assert [len(_all(t, "span", "rt-n")) for t in tiles] == [1, 1]  # each a green number
     for tile in tiles:
         assert not _flat(tile).startswith(">")

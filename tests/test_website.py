@@ -240,8 +240,7 @@ def test_the_public_dataset_tiles_match_the_reports_they_link_to():
                          " ".join(big.text().split()))
         if "jailbreakbench" in report:  # the count is of draws with all three inside
             assert " ".join(line.text().split()) == (
-                "random tests (100 marks each) where the ranges held the true TPR, TNR and kappa "
-                "at once (another run gives a slightly different count)"), report
+                "random tests where judgekeeper's ranges held the true numbers"), report
     assert found == expected
     # and the reports say the same in words
     jbb = (ROOT / "docs/examples/jailbreakbench/report.md").read_text(encoding="utf-8")
