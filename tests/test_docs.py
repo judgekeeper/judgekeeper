@@ -319,32 +319,15 @@ def _step(n: int) -> str:
     return " ".join([lines[at], *under])
 
 
-def _guide(wanted: str) -> str:
-    from tests.website_pages import WEBSITE, parse
-
-    root = parse(WEBSITE / "start.html")
-    (el,) = [e for e in root.iter() if e.attrs.get("id") == wanted]
-    return " ".join(el.text().replace("’", "'").split())
-
-
-STEADY = ("Now and then an answer you marked comes back once, to see how steady your marks "
-          "are. Mark it as you see it.")
-
-
 def test_the_mark_step_keeps_two_sentences_and_short_lines_under_it():
     lines = _sections(_readme())["The 5 steps"].splitlines()
     at = next(i for i, x in enumerate(lines) if x.startswith("2. "))
     assert lines[at].startswith("2. **Mark:** a page opens in your browser. Mark answers Pass or "
                                 "Fail; the LLM-as-a-judge's grade stays hidden.")
-    under = lines[at + 1:at + 4]
-    assert [x[:5] for x in under] == ["   - "] * 3
-    assert STEADY in under[0] and NO_BROWSER in under[1] and "--labels" in under[2]
-
-
-def test_the_mark_step_says_a_marked_answer_comes_back():
-    """About 1 in 20 answers comes back once, so the person's own steadiness can be seen."""
-    assert STEADY in _step(2)
-    assert STEADY in _guide("step-mark")
+    under = lines[at + 1:at + 3]
+    assert [x[:5] for x in under] == ["   - "] * 2
+    assert NO_BROWSER in under[0] and "--labels" in under[1]
+    assert not lines[at + 3].startswith("   ")
 
 
 NO_BROWSER = ("No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the "
@@ -381,31 +364,15 @@ def test_kappa_never_decides_and_the_readme_says_what_it_is():
                      "give.")
 
 
-def test_the_fix_step_is_a_loop_and_cant_tell_yet_is_normal():
-    from judgekeeper import fix
-
-    step = _step(4)
-    assert ("- It is a loop: change the rule, grade again, then run "
-            "`judgekeeper fix <new results file>`.") in step
-    assert ("- With promptfoo, the rule to change is usually in `.judgekeeper/fix/regrade.yaml`. "
-            "When `fix` can't write that file, it says how to grade again.") in step
-    assert ("grade your marked answers again, then run `judgekeeper check <new results file>`. "
-            "- Your marked answers are in `.judgekeeper/fix/marked-answers.csv`. With promptfoo, "
-            "`fix` usually writes `.judgekeeper/fix/regrade.yaml` to grade them.") in _step(5)
-    assert "With few marks, \"can't tell yet\" is a normal answer." in step
-    assert "Result: can't tell yet." in fix.RESULT["same"]
-
-
 def test_each_recheck_step_says_new_marks_count_once_every_answer_is_graded():
     """Grading only the marked answers again compares on them; a mark made later waits until
     every answer is graded, in the words `check` uses (check.WAIT_NEXT): said the same way in
-    the README and eval-tools.md."""
+    eval-tools.md."""
     from judgekeeper import check
 
     grade_all = check.WAIT_NEXT.split(", then ")[0]  # "grade all your answers with ..."
     said = (f"Grading only your marked answers is enough to compare the two. To count new marks, "
             f"{grade_all}.")
-    assert said in _step(5)
     assert said in _flat((ROOT / "docs" / "eval-tools.md").read_text(encoding="utf-8"))
 
 
@@ -434,11 +401,6 @@ def test_the_docs_say_mark_asks_for_a_switched_to_pass_mark_again():
             "and a plain `judgekeeper` ask for the pass mark again with it as the default.") in changelog
     for text in (reference, changelog):
         assert "`check`, `fix` and `mark` runs read" not in text
-    assert ("If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark "
-            "again, with the one you gave as the default. With no terminal, it prints the "
-            "`--pass-if` to give.") in _step(3)
-    assert ("If you switched to a new pass mark with `judgekeeper check --pass-if`, a plain "
-            "`judgekeeper` and `judgekeeper mark` ask for the pass mark again") in _step(5)
 
 
 def test_the_jailbreakbench_screens_are_what_this_version_prints():

@@ -749,13 +749,9 @@ def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     assert not _all(card, "div", "cmd-2") and ".cmd-2" not in CSS
     # pip into the project's virtual environment: a system Python refuses it (PEP 668)
     assert [_flat(h) for h in _all(card, "p", "gx-way-h")] == [
-        ("With pip, in your project’s virtual environment (in a uv virtual environment, uv "
-         "pip install judgekeeper)"), "With uv"]
+        "With pip, in your project’s virtual environment", "With uv"]
     assert [_flat(s) for s in _all(card, "p", "gx-small")] == [
-        "With uv, put uvx before each command below, for example uvx judgekeeper fix.",
-        ('For MLflow or Inspect AI results: pip install "judgekeeper[mlflow]" or '
-         '"judgekeeper[inspect]"; with uv, uvx --from "judgekeeper[mlflow]" judgekeeper or '
-         'uvx --from "judgekeeper[inspect]" judgekeeper.'),
+        "MLflow or Inspect AI results need one extra install: see the reference.",
         "Works on macOS, Linux and Windows, with Python 3.11 to 3.14.", AGENT_LINE]
     assert AGENT_LINE in (ROOT / "README.md").read_text(encoding="utf-8")  # the same words
     assert not _all(_main(GUIDE), "nav")  # no side list
@@ -883,10 +879,7 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
         "step-mark": [("When See the numbers so far or See your result appears at the top, "
                        "click it.")],
         "step-measure": [("Result says it’s too early to tell? Your LLM-as-a-judge needs more "
-                          "of your marks to be measured. A result needs at least 15 Pass and 15 "
-                          "Fail marks from you. It also needs 20 marks on answers your "
-                          "LLM-as-a-judge passed and 20 on answers it failed (or all of them, if "
-                          "there are fewer). Mark more answers, then look again:")]}
+                          "of your marks to be measured. Mark more answers, then look again:")]}
     # each step's words, as the person reads them
     said = {step: [_flat(p) for p in _all(_all(_by_id(GUIDE, step), "div", "sw-body")[0], "p")
                    if not {"done", "gx-small", "gx-tap"} & p.classes()]
@@ -894,13 +887,10 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
     assert said == {
         "step-mark": [("Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to "
                        "decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. "
-                       "Every mark is saved, so you can stop at any time and come back later. Now "
-                       "and then an answer you marked comes back once, to see how steady your "
-                       "marks are. Mark it as you see it."),
-                      ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv "
-                       "for a file with an output (or answer) column and a label (or "
-                       "human_label) column, or judgekeeper --labels for a human_label or label "
-                       "field in your results. Then mark more if needed.")],
+                       "Every mark is saved, so you can stop at any time and come back later."),
+                      ("Already have Pass/Fail labels? Run judgekeeper --labels your-labels.csv, "
+                       "or judgekeeper --labels if they are in your results. Then mark more if "
+                       "needed.")],
         "step-measure": [("The result page tells you one of three things: your LLM-as-a-judge "
                           "is good enough to use, it needs work, or it’s too early to tell. "
                           "Below that, it lists the answers where you and your LLM-as-a-judge "
@@ -918,14 +908,9 @@ def test_the_guide_shows_each_step_as_a_window_beside_a_number_rail():
              "depends on how big the change is: see the reference.")],
         "step-check": [
             ("Changed your LLM-as-a-judge’s model or rule? Grade your marked answers again "
-             "(.judgekeeper/fix/marked-answers.csv; with promptfoo, usually "
-             ".judgekeeper/fix/regrade.yaml), "
-             "then run:"),
-            ("judgekeeper finds the answers you marked in your new results by their question "
-             "and answer, word for word, compares the new grades with your marks, and tells you "
-             "if your LLM-as-a-judge still agrees with you. You don’t need to mark anything "
-             "again. Grading only your marked answers is enough to compare the two. To count "
-             "new marks, grade all your answers with your new LLM-as-a-judge.")]}
+             "(.judgekeeper/fix/marked-answers.csv), then run:"),
+            ("judgekeeper compares the new grades with your marks and tells you if your "
+             "LLM-as-a-judge still agrees with you. You don’t need to mark anything again.")]}
     bold = {step: [_flat(b) for b in _all(_by_id(GUIDE, step), "b")]
             for step in ("step-measure", "step-fix", "step-check")}
     assert bold == {"step-measure": ["Result says it’s too early to tell?"],
@@ -1526,8 +1511,7 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     paths = [c for c in _all(parse(GUIDE), "code") if "path" in c.classes()]
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
                                          ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/marked-answers.csv",
-                                         ".judgekeeper/fix/regrade.yaml"]
+                                         ".judgekeeper/fix/marked-answers.csv"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 
 

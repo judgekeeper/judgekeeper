@@ -26,11 +26,8 @@ In your project folder, in its virtual environment:
 pip install judgekeeper
 judgekeeper
 ```
-In a uv virtual environment, install it with `uv pip install judgekeeper` instead.
-
-With no virtual environment, run `uvx judgekeeper`. judgekeeper runs on Python 3.11 to 3.14.
-
-Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file. In your own file, judgekeeper looks for three columns: `input` (the question), `output` (the answer) and `verdict` (Pass or Fail from your LLM-as-a-judge). For Inspect AI logs or MLflow: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (with uv: `uvx --from "judgekeeper[inspect]" judgekeeper` or `uvx --from "judgekeeper[mlflow]" judgekeeper`).
+Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
+Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns. Inspect AI logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
 
 Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
 
@@ -38,20 +35,11 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
 
 1. **Find:** `judgekeeper` finds your eval results.
 2. **Mark:** a page opens in your browser. Mark answers Pass or Fail; the LLM-as-a-judge's grade stays hidden. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result.
-   - Now and then an answer you marked comes back once, to see how steady your marks are. Mark it as you see it.
    - No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead.
-   - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv` (or `judgekeeper --labels` for labels already in your results), then mark more if needed.
-3. **Measure:** run `judgekeeper` again to see how often it agrees with you.
-   - A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer).
-   - If your LLM-as-a-judge gives scores, a plain `judgekeeper` asks for the pass mark again, with the one you gave as the default. With no terminal, it prints the `--pass-if` to give.
+   - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv`, or `judgekeeper --labels` if they are in your results. Then mark more if needed.
+3. **Measure:** run `judgekeeper` again to see how often it agrees with you. You need at least 15 Pass and 15 Fail marks.
 4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
-   - It is a loop: change the rule, grade again, then run `judgekeeper fix <new results file>`.
-   - With promptfoo, the rule to change is usually in `.judgekeeper/fix/regrade.yaml`. When `fix` can't write that file, it says how to grade again.
-   - With few marks, "can't tell yet" is a normal answer.
-5. **Re-check:** after you change the model or the rule, grade your marked answers again, then run `judgekeeper check <new results file>`.
-   - Your marked answers are in `.judgekeeper/fix/marked-answers.csv`. With promptfoo, `fix` usually writes `.judgekeeper/fix/regrade.yaml` to grade them.
-   - Grading only your marked answers is enough to compare the two. To count new marks, grade all your answers with your new LLM-as-a-judge.
-   - If you switched to a new pass mark with `judgekeeper check --pass-if`, a plain `judgekeeper` and `judgekeeper mark` ask for the pass mark again, with the new one as the default.
+5. **Re-check:** after you change the model or the rule, grade your marked answers again (`.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
 
