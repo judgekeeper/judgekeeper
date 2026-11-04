@@ -22,8 +22,8 @@
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/style.css?v=18">
-<script src="assets/site.js?v=18" defer></script>
+<link rel="stylesheet" href="assets/style.css?v=19">
+<script src="assets/site.js?v=19" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to the content</a>
@@ -67,7 +67,7 @@
   <ol class="gl">
     <li class="gl-step" id="step-find">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Find.</p>
+      <p class="sp-word" aria-hidden="true">Find<span class="sp-dot">.</span></p>
       <h3>Find your eval results</h3>
       <p>Run judgekeeper in your project folder. It finds your eval results and opens the marking page.</p>
       <dl class="sp-ifs">
@@ -82,7 +82,7 @@
     </div></li>
     <li class="gl-step" id="step-mark">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Mark.</p>
+      <p class="sp-word" aria-hidden="true">Mark<span class="sp-dot">.</span></p>
       <h3>Mark your answers Pass or Fail</h3>
       <p>Mark each answer Pass or Fail, the way you want your LLM-as-a-judge to decide. You won’t see your LLM-as-a-judge’s grade, so it can’t sway you. Every mark is saved, so you can stop at any time and come back later.</p>
       <p class="done">When <b>See the numbers so far</b> or <b>See your result</b> appears at the top, click it.</p>
@@ -99,7 +99,7 @@
     </div></li>
     <li class="gl-step" id="step-measure">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Measure.</p>
+      <p class="sp-word" aria-hidden="true">Measure<span class="sp-dot">.</span></p>
       <h3>See how often your LLM-as-a-judge agrees with you</h3>
       <p>The result page tells you one of three things: your LLM-as-a-judge is good enough to use, it needs work, or it’s too early to tell. Below that, it lists the answers where you and your LLM-as-a-judge disagreed.</p>
       <dl class="sp-ifs">
@@ -118,7 +118,7 @@
     </div></li>
     <li class="gl-step" id="step-fix">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Fix.</p>
+      <p class="sp-word" aria-hidden="true">Fix<span class="sp-dot">.</span></p>
       <h3>Write a better rule and test it</h3>
       <p><b>Result says your LLM-as-a-judge needs work?</b></p>
       <p>It saves the answers your LLM-as-a-judge got wrong in <code class="path">.judgekeeper/fix/mistakes.md</code>, apart from the marks kept aside to test your rule. Read it to write a better rule yourself, or hand it to a coding agent to help you write one.</p>
@@ -134,7 +134,7 @@
     </div></li>
     <li class="gl-step" id="step-check">
     <div class="gl-body gx-text">
-      <p class="sp-word" aria-hidden="true">Re-check.</p>
+      <p class="sp-word" aria-hidden="true">Re-check<span class="sp-dot">.</span></p>
       <h3>Re-check after you change your LLM-as-a-judge</h3>
       <p><b>Changed your LLM-as-a-judge’s model or rule?</b> Grade your marked answers again (<code>judgekeeper fix</code> writes them to <code class="path">.judgekeeper/fix/marked-answers.csv</code>).</p>
       <p>judgekeeper compares the new grades with your marks and tells you if your LLM-as-a-judge still agrees with you. You don’t need to mark anything again.</p>

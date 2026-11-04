@@ -478,18 +478,21 @@
     });
   }
 
-  /* The Guide's rail: the word of the step in view is green. It only changes colour, so it
-     moves nothing, also without reduced motion. On a phone the row scrolls to show it. */
+  /* The Guide's rail: the word of the step in view is green, the steps before it ringed
+     green, and the line green down to it. It only changes colour, so it moves nothing, also
+     without reduced motion. On a phone the row scrolls to show it. */
   function setUpRail() {
     var rail = document.querySelector(".sp-rail");
     if (!rail || !("IntersectionObserver" in window)) return;
     var links = $all("a", rail), shown = {};
     var steps = links.map(function (a) { return $(a.getAttribute("href").slice(1)); });
     function mark(id) {
-      links.forEach(function (a) {
-        var on = a.getAttribute("href") === "#" + id;
-        if (!on) { a.removeAttribute("aria-current"); return; }
+      var at = links.map(function (a) { return a.getAttribute("href"); }).indexOf("#" + id);
+      links.forEach(function (a, i) {
+        a.classList.toggle("is-done", i < at);
+        if (i !== at) { a.removeAttribute("aria-current"); return; }
         a.setAttribute("aria-current", "step");
+        rail.querySelector("ol").style.setProperty("--fill", a.offsetTop + "px");
         var left = a.offsetLeft, right = left + a.offsetWidth;
         if (left < rail.scrollLeft || right > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = left - 20;
       });

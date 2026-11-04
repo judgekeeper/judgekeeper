@@ -260,7 +260,8 @@ def test_monospace_text_shows_what_you_type():
 DARK = {"bg": "#0b0c0e", "fg": "#e6e8eb", "muted": "#8b919a", "faint": "#767c86",
         "line": "#262a30", "hover": "#121418", "current": "#17191e", "panel": "#0b0c0e",
         "rule": "#343941", "term-bg": "#07080a", "term-bar": "#101215", "term-dot": "#33373e",
-        "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40"}
+        "green": "#10B981", "green-fill": "#047857", "red": "#e5484d", "red-fill": "#c73b40",
+        "slate": "#1E293B"}  # the logo's two colours: its green and its dark half
 
 
 def _tokens() -> dict[str, str]:
@@ -856,20 +857,38 @@ def test_the_guides_rail_is_the_five_words_and_the_one_in_view_is_green():
     assert [_flat(a) for a in links] == STEP_WORDS
     assert [a.attrs["href"] for a in links] == ["#" + i for i, _ in GUIDE_STEPS]
     assert all(set(a.attrs) == {"href"} for a in links)  # site.js marks the one in view
-    assert "position: sticky" in _rule(".sp-rail") and "width: 1px" in _rule(".sp-rail ol::before")
+    assert "position: sticky" in _rule(".sp-rail")
+    assert "width: 1px" in _rule(".sp-rail ol::before, .sp-rail ol::after")
     assert "border-radius: 50%" in _rule(".sp-rail a::before")
     assert "color: var(--green)" in _rule(".sp-rail a[aria-current]")
-    assert "background: var(--green)" in _rule(".sp-rail a[aria-current]::before")
+    # the rail shows progress: the line green down to the step in view, the steps before it
+    # ringed green, the one in view filled green with a soft glow
+    assert "height: var(--fill, 0px)" in _last(".sp-rail ol::after")
+    assert "background: var(--green)" in _last(".sp-rail ol::after")
+    assert "border-color: var(--green)" in _rule(".sp-rail a.is-done::before")
+    current = _rule(".sp-rail a[aria-current]::before")
+    assert "background: var(--green)" in current and "0 0 0 4px var(--green-glow)" in current
+    assert "--green-glow: rgb(16 185 129 / 20%)" in _rule(":root")
     assert not [s for s, d in _rules() if s.startswith(".sp-") and ("transition" in d or "animation" in d)]
     rail_js = JS[JS.index("function setUpRail("):]
     rail_js = rail_js[:rail_js.index("\n  }\n")]
     assert "new IntersectionObserver" in rail_js and '"aria-current", "step"' in rail_js
+    assert '"is-done", i < at' in rail_js and 'setProperty("--fill", a.offsetTop + "px")' in rail_js
     assert "smooth" not in rail_js
     # tablets and phones: a row of the five words that stays at the top, scrolling sideways
     tablet = _narrow(860)
     assert "display: flex" in _rule(".sp-rail ol", tablet)
     assert "overflow-x: auto" in _rule(".sp-rail", tablet) and "top: 0" in _rule(".sp-rail", tablet)
-    assert "display: none" in _rule(".sp-rail ol::before, .sp-rail a::before", tablet)
+    assert "display: none" in _rule(".sp-rail ol::before, .sp-rail ol::after, .sp-rail a::before",
+                                    tablet)
+    # passed words muted green, still 4.5 to 1 on the page at 16px
+    assert "color: var(--green-muted)" in _rule(".sp-rail a.is-done", tablet)
+    assert "inset 0 -2px var(--green)" in _rule(".sp-rail a[aria-current]", tablet)
+    assert "--green-muted: rgb(16 185 129 / 80%)" in _rule(":root")
+    t = _tokens()
+    mixed = "#" + "".join(f"{round(.8 * int(t['green'][i:i + 2], 16) + .2 * int(t['bg'][i:i + 2], 16)):02x}"
+                          for i in (1, 3, 5))
+    assert _contrast(mixed, t["bg"]) >= 4.5, mixed
 
 
 def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside_them():
@@ -883,11 +902,24 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         # reader hears the heading only
         first, h3 = [el for el in body.children if isinstance(el, Element)][:2]
         assert (first.tag, first.classes(), _flat(first)) == ("p", {"sp-word"}, word)
+        # the word white, its full stop green, like the check in the logo
+        (dot,) = _all(first, "span", "sp-dot")
+        assert _flat(dot) == "." and first.children[-1] is dot
         assert first.attrs.get("aria-hidden") == "true" and h3.tag == "h3"
         # every command is beside the words, none inside them
         assert not _all(body, "div", "cmd"), li.attrs["id"]
     # the step's word: big, bold, smaller than Home's hero
     assert "font-size: 44px" in _rule(".sp-word") and "font-weight: 800" in _rule(".sp-word")
+    assert "color: var(--green)" in _rule(".sp-dot")
+    # beside the words: one slate panel the step's whole height, commands then picture
+    panel = _rule(".sp-side")
+    for part in ("align-self: stretch", "background: var(--slate-panel)",
+                 "border: 1px solid var(--slate)", "border-radius: 12px", "padding: 24px"):
+        assert part in panel, part
+    assert "--slate-panel: rgb(30 41 59 / 40%)" in _rule(":root")
+    assert "white-space: pre-wrap" in _rule(".sp-cmds .cmd code")  # wraps, never cut
+    # the install window opens the page in the same slate
+    assert "background: var(--slate-panel)" in _rule(".gx-install.gwin")
     assert "font-size: 36px" in _rule(".sp-word", _narrow(860))
     cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
             for li in items}
@@ -915,11 +947,13 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
     assert not [x for x in lines if x.endswith(":")]
     assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
-    assert "grid-template-columns: 180px minmax(0, 1fr)" in _rule(".sp-ifs > div")
+    row = _rule(".sp-ifs > div")
+    assert "grid-template-columns: 180px minmax(0, 1fr)" in row
+    assert "border-left: 2px solid var(--green)" in row and "border-top" not in row
     assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-ifs > div", _narrow(600))
     # words beside commands on a laptop; one under the other from 1100px down
-    assert "minmax(0, 11fr) minmax(0, 9fr)" in _rule(".gl-step")
+    assert "minmax(0, 1fr) minmax(0, 1fr)" in _rule(".gl-step")
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))
     assert "border-top: 0" in _rule(".gl-step:first-child")
     done = {step: [_flat(p) for p in _all(_by_id(GUIDE, step), "p", "done")]
