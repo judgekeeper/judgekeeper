@@ -983,6 +983,11 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
     assert not [x for x in lines if x.endswith(":")]
     assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
+    # a flag or a file name in a note never splits at its hyphens: its code wraps at spaces
+    labels = _all(_all(_by_id(GUIDE, "step-mark"), "dl", "sp-ifs")[0], "code")
+    assert [[_flat(s) for s in _all(c, "span", "nb")] for c in labels] == [
+        ["--labels", "your-labels.csv"], ["--labels"]]
+    assert "white-space: nowrap" in _rule(".nb")
     # each note is a soft slate box like the windows, the question over its answer, the
     # same at every width: no green line, no columns
     row = _rule(".sp-ifs > div")
