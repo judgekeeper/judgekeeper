@@ -1681,6 +1681,10 @@ def test_a_picture_opens_over_the_page_at_every_width():
                  'classList.add("has-view")', 'classList.remove("has-view")'):
         assert part in shots, part
     assert "narrow()" not in shots
+    # each open makes a new picture element: a reused one can stay blank on the second open
+    opened = shots[shots.index("links.forEach("):]
+    assert 'make("img", "", undefined)' in opened and "pane.appendChild(img)" in opened
+    assert "removeAttribute" not in shots
     picture = _rule(".shot-pane img")
     assert "width: 100%" in picture and "max-width: 100%" in picture and "height: auto" in picture
     assert "max(1100px" not in CSS

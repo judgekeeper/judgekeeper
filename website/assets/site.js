@@ -447,11 +447,9 @@
     if (!links.length || typeof HTMLDialogElement !== "function") return;
     var view = make("dialog", "shot-view");
     var close = make("button", "shot-close", "Close"), pane = make("div", "shot-pane");
-    var img = make("img", "", undefined);
     close.type = "button";
     view.setAttribute("aria-label", "Picture, full size");
     pane.tabIndex = 0;
-    pane.appendChild(img);
     view.appendChild(close);
     view.appendChild(pane);
     document.body.appendChild(view);
@@ -459,15 +457,19 @@
     close.addEventListener("click", shut);
     view.addEventListener("click", function (e) { if (e.target === view || e.target === pane) shut(); });
     view.addEventListener("close", function () {
+      if (view.open) return;  /* opened again before this event came */
       document.documentElement.classList.remove("has-view");
-      img.removeAttribute("src");
+      pane.textContent = "";
     });
     links.forEach(function (a) {
       a.addEventListener("click", function (e) {
         e.preventDefault();
-        var shown = a.querySelector("img");
+        /* a new element each time: an image that lost its src can stay blank when reused */
+        var shown = a.querySelector("img"), img = make("img", "", undefined);
         img.src = a.getAttribute("href");
         img.alt = shown ? shown.alt : "";
+        pane.textContent = "";
+        pane.appendChild(img);
         view.classList.toggle("close-low", a.hasAttribute("data-close-low"));
         document.documentElement.classList.add("has-view");
         view.showModal();
