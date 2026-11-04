@@ -79,7 +79,7 @@ img, svg { max-width: 100%; }
 }
 
 /* ---- the marking card, as the product draws it ---- */
-.jk-card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); color: var(--fg); display: flex; flex-direction: column; text-align: left; min-width: 0; font-family: var(--sans); }
+.jk-card { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); color: var(--fg); display: flex; flex-direction: column; text-align: left; min-width: 0; font-family: var(--sans); }
 .jk-card:focus-visible { border-radius: 12px; }
 .jk-bar { flex: none; }  /* the window bar: it never takes the card's spare room */
 /* site.js gives the card the height of its tallest answer; the room left sits under the answer */
@@ -238,16 +238,16 @@ img, svg { max-width: 100%; }
 .steplist button { width: 100%; height: 100%; text-align: left; display: grid; grid-template-columns: 28px 1fr; align-content: center; gap: 12px; padding: 16px 22px 16px 20px; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; color: var(--muted); line-height: 1.4; }
 .steplist button:last-child { border-bottom: 0; }
 .steplist button:hover { background: var(--hover); color: var(--fg); }
-.steplist button[aria-selected=true] { background: var(--current); color: var(--fg); border-left-color: var(--fg); }
-.steplist .n { font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); padding-top: 4px; }
-.steplist button[aria-selected=true] .n { color: var(--fg); }
+.steplist button[aria-selected=true] { background: var(--current); color: var(--fg); border-left-color: var(--green); }
+.steplist .n { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 50%; font-family: var(--mono); font-variant-ligatures: none; font-size: 12px; color: var(--muted); }
+.steplist button[aria-selected=true] .n { color: var(--green); border-color: var(--green); box-shadow: 0 0 0 4px var(--green-glow); }
 .steplist b { display: block; font-size: 16px; font-weight: 700; color: var(--fg); }
 .steplist .d { display: block; font-size: 14.5px; margin-top: 2px; }
-.steps-grid .term { border: 0; min-width: 0; }
+.steps-grid .term { border: 0; min-width: 0; background: var(--slate-panel); }
 /* "On public datasets.": two numbers in a window like the steps box, each a link to its report */
 .real { padding: 24px 0 8px; }
 .real h2 { margin: 0 0 28px; font-size: 32px; font-weight: 800; letter-spacing: -.022em; }
-.rt-win { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
+.rt-win { border: 1px solid var(--slate); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
 .rt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rt { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 32px 36px 28px; border-left: 1px solid var(--line); color: var(--fg); text-decoration: none; font-family: var(--mono); font-variant-ligatures: none; transition: background 120ms ease; }
 .rt:first-child { border-left: 0; }
@@ -274,7 +274,7 @@ img, svg { max-width: 100%; }
 /* "Have eval results?" as your own terminal: a green border (no glow), waiting at a prompt,
    with the same space above it as above "On public datasets." (8 + 17 = 24 + the 1px line) */
 .close { padding-top: 17px; }
-.close-win { border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 12px; overflow: hidden; background: var(--term-bg); }
+.close-win { border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 12px; overflow: hidden; background: var(--slate-panel); }
 .close-win .close-box { border: 0; padding: 36px 40px; }
 .close-win h2 { font-family: var(--mono); font-variant-ligatures: none; font-weight: 500; font-size: 26px; letter-spacing: -.01em; }
 .close-win p { font-family: var(--mono); font-variant-ligatures: none; font-size: 14px; margin-top: 10px; }

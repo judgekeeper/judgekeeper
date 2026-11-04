@@ -705,8 +705,30 @@ def test_the_demo_card_is_a_window_called_marking_page():
     first = next(el for el in card.children if isinstance(el, Element))
     assert {"rt-bar", "jk-bar"} <= first.classes() and first.attrs.get("aria-hidden") == "true"
     assert _flat(_all(first, "span", "rt-title")[0]) == "marking page"
-    assert "background: var(--term-bg)" in _rule(".jk-card")
     assert "flex: none" in _rule(".jk-bar")
+
+
+def test_the_homes_windows_share_the_guides_slate_and_the_chosen_step_is_green():
+    """The marking card, the example project, the public datasets and your project: each in
+    the Guide's slate panel. The chosen step's number is green in a ring with a soft glow,
+    like the Guide's rail."""
+    for selector in (".jk-card", ".steps-grid .term", ".rt-win", ".close-win"):
+        assert "background: var(--slate-panel)" in _rule(selector), selector
+    for selector in (".jk-card", ".rt-win"):
+        assert "border: 1px solid var(--slate)" in _rule(selector), selector
+    chosen = _rule(".steplist button[aria-selected=true] .n")
+    for part in ("color: var(--green)", "border-color: var(--green)",
+                 "box-shadow: 0 0 0 4px var(--green-glow)"):
+        assert part in chosen, part
+    assert "border-radius: 50%" in _rule(".steplist .n")
+    assert "border-left-color: var(--green)" in _rule(".steplist button[aria-selected=true]")
+    assert not [sel for sel, d in _rules() if sel.startswith(".steplist") and "transition" in d]
+    # text in the windows keeps 4.5 to 1 on the slate panel over the page
+    t = _tokens()
+    panel = "#" + "".join(f"{round(.4 * int(t['slate'][i:i + 2], 16) + .6 * int(t['bg'][i:i + 2], 16)):02x}"
+                          for i in (1, 3, 5))
+    for text in ("fg", "muted", "green", "red"):
+        assert _contrast(t[text], panel) >= 4.5, (text, panel)
 
 
 # The Guide ------------------------------------------------------------------------------------
