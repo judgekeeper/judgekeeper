@@ -1311,7 +1311,7 @@ def test_guide_page_pictures_after_first_paragraph():
         (img,) = _all(body, "img")
         assert img.attrs["src"] == f"assets/shots/{picture}"
         assert (WEBSITE / "assets" / "shots" / picture).is_file()
-        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1800")
+        assert (img.attrs["width"], img.attrs["height"]) == ("2880", "1704")
         assert len(img.attrs["alt"]) > 80 and "screenshot" not in img.attrs["alt"].lower()
     assert "max-width" not in _rule(".gx-shot")  # the pictures fill their step's window
     assert "width: 100%" in _rule(".gx-shot img")  # the figure draws the border
