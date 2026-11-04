@@ -12,14 +12,14 @@
 - Two range ends that look the same get a second decimal. A number or a range end shows as 100% or 0% only when it is 100% or 0%.
 - Opening the result page before there is a result writes nothing. Its "What next" says the same as the terminal.
 - "Its reason" shows only when some answers have a reason, and a saved reason closes its box. The marking page's status always agrees with the result page.
-- A mark can always be changed. When every answer is marked, the result page links to the marking page, and `judgekeeper mark` opens it.
+- A mark can always be changed. When every answer is marked, the result page links to the marking page.
 - When the only answers left to mark are ones you skipped, judgekeeper says to mark those or run your eval on more questions.
 - With too few answers left for a result, a plain run and `mark` exit 3, as `fix` and `check` do.
 - A labels file is read row by row, with no row cap. An open marking page sees imported marks and skips those answers.
 - An import that adds nothing says why. `--label-map WORD=error` skips rows with no decision.
 - Labels match answers whose accents are written the other way. A label written `1.0` or `0.0` reads as 1 or 0.
 - Scores edited in Inspect AI are not used. Inspect keeps a label only when a person changes a score, so they would be mostly disagreements.
-- A labels file takes the same column names as a results file (`response`, `question`, ...). One with two columns for the same thing stops and asks you to keep one.
+- A labels file takes the same answer column names as a results file (`response`, ...). One with two label columns, both `output` and `answer`, or both `input` and `question` stops and asks you to keep one.
 - A CSV whose notes have line breaks is read, not refused.
 - A row with more cells than the header stops and names the line. A model column is read the same way in CSV and JSONL files.
 - After `check`, labels for answers your LLM-as-a-judge didn't grade Pass or Fail are sorted as before. `--new --labels FILE` keeps `--labels FILE` in the commands it prints.
@@ -74,7 +74,7 @@
 - An Inspect AI `.eval` log whose header lists no sample ids (one written with inspect_ai's `write_eval_log`) is read. judgekeeper reads the samples it holds.
 - Large runs are faster. Marks and answers are read once per run.
 - `record()`, `jk_record.py` and `jk_record.ts` name their records `LLM-as-a-judge` by default. Older records still read.
-- The README and the start page now cover `uvx` before each command, the MLflow and Inspect AI extras, the columns a labels file needs, `--no-browser` for coding agents, and that a faithfulness check needs the documents open while you mark.
+- The README and the start page now cover the MLflow and Inspect AI extras and `--no-browser` for coding agents.
 - The reference says what 1.1.0 changed: marks that wait, starting from `/`, labels file rules, the promptfoo re-grade file, and `check --pass-if`.
 
 ## 1.0.2 (2026-10-31)
