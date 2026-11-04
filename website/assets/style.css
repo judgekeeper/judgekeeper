@@ -461,6 +461,8 @@ html.has-view, html.has-view body { overflow: hidden; }
 /* a long command wraps in its box, never cut at the panel's edge; Copy still copies one line */
 .sp-cmds .cmd code { align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; }
 .sp-shot .gx-shot { margin: 0; border: 0; border-radius: 0; }
+/* a step with no picture: its commands in a window like the install box's */
+.sp-win .gwin-body { padding: 24px; }
 /* below the steps: three plain boxes side by side */
 .gx-more .wrap { padding-block: 0 80px; }
 .sp-band { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; padding-top: 48px; border-top: 1px solid var(--line); }
@@ -513,6 +515,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   .sp-ifs > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
   .sp-block { padding: 20px; }
   .sp-side { padding: 20px; }
+  .sp-win .gwin-body { padding: 16px; }
   .cmd code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; }
   .cmd .copy { min-width: 44px; padding: 0 12px; }
   .gx-code { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -716,6 +719,7 @@ html.has-view, html.has-view body { overflow: hidden; }
   .sp-rail { margin-inline: -12px; padding-inline: 12px; }
   .sp-block { padding: 16px 12px; }
   .sp-side { padding: 16px 12px; }
+  .sp-win .gwin-body { padding: 12px; }
   .cmd code, .gx-pair .cmd code { padding: 12px 10px; font-size: 14px; overflow-wrap: normal; }
   .cmd .copy { padding: 0 8px; }
   .gm-pre { padding: 14px 10px; }

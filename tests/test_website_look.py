@@ -1041,7 +1041,21 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
         (win,) = _all(li, "div", "sp-shot")
         assert "gwin" in win.classes() and _all(win, "figure", "gx-shot")
         assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == title
-    assert len(_all(steps, "div", "gwin")) == 2  # the step's commands: plain bars, no window
+    # a step with no picture has its commands in a window like the install box, so every
+    # step has a matching window beside its words; Fix's small line goes under its commands
+    for sid in ("step-find", "step-fix", "step-check"):
+        (side,) = _all(_by_id(GUIDE, sid), "div", "sp-side")
+        (win,) = _all(side, "div", "gwin")
+        assert "sp-win" in win.classes() and not _all(win, "figure")
+        assert _flat(_all(_all(win, "div", "rt-bar")[0], "span", "rt-title")[0]) == (
+            "your project folder")
+        (inner,) = _all(win, "div", "gwin-body")
+        assert _all(inner, "div", "sp-cmds"), sid
+    assert len(_all(steps, "div", "gwin")) == 5  # one window a step
+    (small,) = _all(_by_id(GUIDE, "step-fix"), "p", "gx-small")
+    assert "gwin-body" in small.parent.classes()
+    # Find's note stays beside its words: under the commands, it would leave the words short
+    assert _all(_all(_by_id(GUIDE, "step-find"), "div", "gl-body")[0], "dl", "sp-ifs")
     assert "border: 0" in _rule(".sp-shot .gx-shot")
     assert "max-width" not in _rule(".gx-shot")  # the pictures fill the step's width
     text = GUIDE.read_text(encoding="utf-8")
