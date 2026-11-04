@@ -983,11 +983,15 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     lines = [_flat(el) for li in items for el in _all(li, "p") + _all(li, "dd")]
     assert not [x for x in lines if x.endswith(":")]
     assert not [p for li in items for p in _all(li, "p", "gx-way-h")]
+    # each note is a soft slate box like the windows, the question over its answer, the
+    # same at every width: no green line, no columns
     row = _rule(".sp-ifs > div")
-    assert "grid-template-columns: 180px minmax(0, 1fr)" in row
-    assert "border-left: 2px solid var(--green)" in row and "border-top" not in row
+    for part in ("background: var(--slate-panel)", "border-radius: 12px", "padding: 16px 20px"):
+        assert part in row, part
+    assert "border-left" not in row and "grid-template-columns" not in row
+    assert "color: var(--fg)" in _rule(".sp-ifs dt")
+    assert ".sp-ifs" not in _narrow(600) and ".sp-ifs" not in _narrow(860)
     assert "margin: 24px 0 0" in _rule(".sp-ifs") and "color: var(--muted)" in _rule(".sp-ifs dd")
-    assert "grid-template-columns: minmax(0, 1fr)" in _rule(".sp-ifs > div", _narrow(600))
     # words beside commands on a laptop; one under the other from 1100px down
     assert "minmax(0, 1fr) minmax(0, 1fr)" in _rule(".gl-step")
     assert "grid-template-columns: minmax(0, 1fr)" in _rule(".gl-step", _narrow(1100))

@@ -448,11 +448,11 @@ html.has-view, html.has-view body { overflow: hidden; }
 .sp-dot { color: var(--green); }
 .gl-body > h3 { margin: 0 0 16px; font-size: 22px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
 .gl-body p { max-width: 60ch; }
-/* the "if" notes: the question on the left, its answer muted on the right */
+/* the "if" notes: a soft slate box, the question in white with its answer muted under it */
 .sp-ifs { margin: 24px 0 0; max-width: 60ch; display: grid; gap: 12px; }
-.sp-ifs > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); column-gap: 24px; padding: 4px 0 4px 16px; border-left: 2px solid var(--green); }
-.sp-ifs dt { font-weight: 600; line-height: 1.6; }
-.sp-ifs dd { margin: 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+.sp-ifs > div { padding: 16px 20px; border-radius: 12px; background: var(--slate-panel); }
+.sp-ifs dt { font-weight: 600; line-height: 1.6; color: var(--fg); }
+.sp-ifs dd { margin: 4px 0 0; color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
 /* beside the words: the step's command bars, then its picture in a window like Home's; the
    panel is as tall as what it holds, its top level with the step's word */
 .sp-side { min-width: 0; align-self: start; display: grid; gap: 16px; padding: 24px; border: 1px solid var(--slate); border-radius: 12px; background: var(--slate-panel); }
@@ -512,7 +512,6 @@ html.has-view, html.has-view body { overflow: hidden; }
   .sp-rail { margin-inline: -20px; padding-inline: 20px; }
 }
 @media (max-width: 600px) {
-  .sp-ifs > div { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
   .sp-block { padding: 20px; }
   /* a step's window uses the full width, as the pictures do: no panel around it */
   .sp-side { padding: 0; border: 0; border-radius: 0; background: none; }
