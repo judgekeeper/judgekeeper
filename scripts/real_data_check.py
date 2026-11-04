@@ -5,7 +5,7 @@
 
 Public datasets exist where an LLM judge and people both decided on the same answers, so how
 often the judge agrees with all of the people's labels is known. This script pretends a person
-labeled only a few of them, as `judgekeeper` picks, works out the numbers with
+labeled only a few of them, works out the numbers with
 judgekeeper's own weighted.corrected, and counts how often each range held the value worked
 out from all of the dataset's human labels. No judge is called; nothing costs money.
 
@@ -417,8 +417,8 @@ def markdown(result: dict) -> str:
         ("Each LLM-as-a-judge below decided on every answer in a public dataset, and people "
          "labeled the same answers. So how often the LLM-as-a-judge agrees with the people is "
          "known: it is worked out from all of the dataset's human labels. Each check pretends a "
-         "person labeled only a few answers, picked as `judgekeeper` picks them (as many from "
-         "the LLM-as-a-judge's passes as from its fails), and works out TPR (how often the "
+         "person labeled only a few answers, as many from "
+         "the LLM-as-a-judge's passes as from its fails, and works out TPR (how often the "
          "LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people "
          "failed) and the real pass rate with judgekeeper's own maths, each with a range. A "
          f"range should hold the value from all labels about {w['level']:.0%} of the time. No "

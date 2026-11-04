@@ -257,7 +257,7 @@ With 20,000 draws, 5 other seeds moved a range end by at most 0.0066 on the coun
 
 ## How wide the ranges are
 
-1,000 simulated labelings per case, 5 from each group per block as `judgekeeper` picks, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. No rule in judgekeeper follows a range's width.
+1,000 simulated labelings per case, 5 from each group per block, until 25 Correct and 25 Wrong. The share whose TPR and TNR ranges are both no wider than each width, and the average widths. No rule in judgekeeper follows a range's width.
 
 | pi | a | w | ≤ 0.25 | ≤ 0.30 | ≤ 0.35 | ≤ 0.40 | TPR width | TNR width |
 |---|---|---|---|---|---|---|---|---|

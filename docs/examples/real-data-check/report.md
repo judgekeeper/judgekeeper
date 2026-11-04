@@ -2,7 +2,7 @@
 
 Made by `scripts/real_data_check.py`; do not edit by hand.
 
-Each LLM-as-a-judge below decided on every answer in a public dataset, and people labeled the same answers. So how often the LLM-as-a-judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labeled only a few answers, picked as `judgekeeper` picks them (as many from the LLM-as-a-judge's passes as from its fails), and works out TPR (how often the LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No LLM-as-a-judge was called.
+Each LLM-as-a-judge below decided on every answer in a public dataset, and people labeled the same answers. So how often the LLM-as-a-judge agrees with the people is known: it is worked out from all of the dataset's human labels. Each check pretends a person labeled only a few answers, as many from the LLM-as-a-judge's passes as from its fails, and works out TPR (how often the LLM-as-a-judge passed answers people passed), TNR (how often it failed answers people failed) and the real pass rate with judgekeeper's own maths, each with a range. A range should hold the value from all labels about 96% of the time. No LLM-as-a-judge was called.
 
 ## The result
 
