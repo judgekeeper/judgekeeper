@@ -162,8 +162,9 @@ def _theirs(store: Path) -> list[Path]:
 
 
 OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}), so it looks "
-              "like another eval. To mark it, put it in a folder of its own and run `{program}` "
-              "there.")
+              "like another eval.")
+TO_MARK_IT = "To mark it, put it in a folder of its own and run `{program}` there."
+OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there."
 
 
 def other_eval(store: Path, path: Path) -> Path | None:
@@ -220,13 +221,25 @@ def _results(path: Path) -> bool:
 def other_eval_line(path: Path, marked: Path) -> str:
     """The line for `path`, another eval beside `marked`: both named as every path line names
     them (textio.line_path), a typed path too."""
+    return f"{_other_eval_said(path, marked)} {TO_MARK_IT.format(program=program_anywhere())}"
+
+
+def other_eval_stop(path: Path, marked: Path) -> tuple[str, str]:
+    """(the line, the Next step) for a command that stops at `path`, another eval beside
+    `marked`."""
     from judgekeeper import textio
 
-    return OTHER_EVAL.format(file=textio.line_path(path), marked=textio.line_path(marked),
-                             program=_program_anywhere())
+    return _other_eval_said(path, marked), OTHER_EVAL_NEXT.format(
+        file=textio.line_path(path), program=program_anywhere())
 
 
-def _program_anywhere() -> str:
+def _other_eval_said(path: Path, marked: Path) -> str:
+    from judgekeeper import textio
+
+    return OTHER_EVAL.format(file=textio.line_path(path), marked=textio.line_path(marked))
+
+
+def program_anywhere() -> str:
     """judgekeeper as typed in a folder of its own: as typed here when that holds no path
     (`judgekeeper`, `uvx judgekeeper`, `python3 -P -m judgekeeper`), else plain `judgekeeper`:
     a path from here runs wrong there, and a whole or home path is never printed."""
@@ -254,9 +267,6 @@ def _same_eval(path: Path, store: Path) -> bool:
     an error here."""
     import json
 
-    from judgekeeper import find, start, table
-    from judgekeeper.records import RecordsError, derive_record_id
-
     ws = Workspace(store)
     try:
         tool = json.loads(ws.start.read_text(encoding="utf-8")).get("tool")
@@ -264,6 +274,15 @@ def _same_eval(path: Path, store: Path) -> bool:
                 if line.strip()]
     except (OSError, ValueError, AttributeError, RecursionError):
         return True  # the session's own files: the command says what is wrong with them
+    return same_questions(path, tool, held)
+
+
+def same_questions(path: Path, tool: str | None, held: list) -> bool:
+    """Whether the results file `path` is of the eval of `tool` whose answers are `held`
+    (dicts with input, output and id), as _same_eval says."""
+    from judgekeeper import find, start, table
+    from judgekeeper.records import RecordsError, derive_record_id
+
     kind = find.classify_file(path)
     if not tool or kind is None:
         return False

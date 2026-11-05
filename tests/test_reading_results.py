@@ -286,8 +286,9 @@ def test_another_results_file_is_named_with_its_command(here, capsys):
             "`judgekeeper judge_b.csv --port 0 --no-browser`.") in flat(out)
 
 
-def test_other_promptfoo_files_are_named_with_their_commands_before_any_mark(here, capsys):
-    """The newest is read. The others (a same-config copy, another eval) are named."""
+def test_other_promptfoo_files_are_named_before_any_mark(here, capsys):
+    """The newest is read. The others, another eval beside it, are named with where to check
+    them: a command here would stop once marking starts."""
     (here / "promptfooconfig.yaml").write_text("description: support bot\n", encoding="utf-8")
     now = time.time()
     for age, (name, tag) in enumerate([("other.json", " OTHER"), ("results-regraded.json", ""),
@@ -299,9 +300,8 @@ def test_other_promptfoo_files_are_named_with_their_commands_before_any_mark(her
     code, out = find(capsys)
     assert code == 0, out
     assert "File:            other.json" in out
-    assert ("Also found results-regraded.json and results.json. To check one, run "
-            "`judgekeeper results-regraded.json --port 0 --no-browser` or "
-            "`judgekeeper results.json --port 0 --no-browser`.") in flat(out)
+    assert ("Also found results-regraded.json and results.json, with other questions. To check "
+            "one, put it in a folder of its own and run `judgekeeper` there.") in flat(out)
 
 
 def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
@@ -313,8 +313,8 @@ def test_other_inspect_logs_are_named_before_any_mark(here, capsys):
     assert code == 0, out
     read = re.search(r"File: +(\S+)", out)[1]
     other = ({"logs/a.json", "logs/b.json"} - {read}).pop()
-    assert (f"Also found {other}. To check it, run "
-            f"`judgekeeper {other} --port 0 --no-browser`.") in flat(out)
+    assert (f"Also found {other}, with other questions. To check it, put it in a folder of its "
+            "own and run `judgekeeper` there.") in flat(out)
 
 
 def test_at_most_three_other_files_are_named(here, capsys):

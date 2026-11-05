@@ -536,8 +536,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
     store = project.project_of(asked)
     if path.is_file() and (marked := project.other_eval(store, path)) is not None:
-        talk.para(project.other_eval_line(path, marked))  # never read, marked or set apart
-        raise talk.stop(EXIT_QUESTION)
+        line, step = project.other_eval_stop(path, marked)  # never read, marked or set apart
+        talk.para(line)
+        raise talk.stop(EXIT_QUESTION, step)
     if not asked.is_file():  # the marked file is read still: why not the other
         for other, marked in project.others_beside(store):
             talk.para(project.other_eval_line(other, marked))
@@ -1257,15 +1258,32 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
 
 def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     """Results files found next to the one read, never read with it: named (at most
-    OTHERS), with the command that checks one, the person's flags kept."""
+    OTHERS), with the command that checks one, the person's flags kept. Another eval beside
+    it can't be checked here once marking starts (project.other_eval): a folder of its own."""
     if found.tool not in FILE_TOOLS or found.given:
         return None
-    others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
-    if not others:
-        return None
-    commands = start._or([f"`{talk.command_at(r)}`" for r in others])
-    return (f"Also found {start._and(others)}. To check "
-            f"{'it' if len(others) == 1 else 'one'}, run {commands}.")
+    others = [r for r in found.results if r.rel not in found.used][:OTHERS]
+    apart = [r.rel for r in others if _another_eval(r, found)]
+    here = [r.rel for r in others if r.rel not in apart]
+    said = []
+    if here:
+        commands = start._or([f"`{talk.command_at(r)}`" for r in here])
+        said.append(f"Also found {start._and(here)}. To check "
+                    f"{'it' if len(here) == 1 else 'one'}, run {commands}.")
+    if apart:
+        said.append(f"Also found {start._and(apart)}, with other questions. To check "
+                    f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
+                    f"run `{project.program_anywhere()}` there.")
+    return " ".join(said) or None
+
+
+def _another_eval(result: find.Result, found: start.Found) -> bool:
+    """Whether `result`, not read, sits beside a file read and is another eval than `found`."""
+    read = {r.path.resolve().parent for r in found.results if r.rel in found.used}
+    if result.path.resolve().parent not in read or not found.pool.answers:
+        return False
+    held = [{"input": a.input, "output": a.output, "id": a.id} for a in found.pool.answers]
+    return not project.same_questions(result.path.resolve(), found.tool, held)
 
 
 def _other_projects(found: start.Found) -> str | None:

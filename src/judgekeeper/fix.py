@@ -1331,7 +1331,10 @@ def run(path: str = ".", new: bool = False) -> int:
             marked := project.other_eval(state.ws.root, results)) is not None:
         talk.say(STEP)  # as check and mark: never read as new results
         talk.say()
-        talk.para(project.other_eval_line(results, marked))
+        line, step = project.other_eval_stop(results, marked)
+        talk.para(line)
+        talk.say()
+        talk.next(step)
         return EXIT_NEEDS_YOU
     ws = state.ws if state is not None else None
     m = Marks(ws) if ws is not None else None
