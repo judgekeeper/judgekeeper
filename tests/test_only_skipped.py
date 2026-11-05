@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import html
 import re
+from collections import Counter
 
 import pytest
 
@@ -22,18 +23,20 @@ def _flat(text: str) -> str:
 
 def _project(root, skip: int, left: int = 0):
     """60 answers; the first `skip` skipped, the last `left` not marked, the rest marked with
-    one in six against the judge: too early to tell."""
+    one in six of each group against the judge, whatever the queue's order: too early to tell."""
     promptfoo_project(root, split(30, 30), tag=" SECRET-TEXT")
     ws = start_label.prepare(start.find_judge(root), say=lambda line: None)
     session = start_label.StartSession(ws)
     groups = {q["id"]: q["group"] for q in ws.data()["queue"]}
     items = session.items
+    seen = Counter()
     for k, item in enumerate(items[:len(items) - left]):
         if k < skip:
             session.update({"id": item["id"], "deferred": True, "seconds": 3})
             continue
         g = groups[item["id"]]
-        mark = g if k % 6 else ("fail" if g == "pass" else "pass")
+        seen[g] += 1
+        mark = g if seen[g] % 6 else ("fail" if g == "pass" else "pass")
         session.update({"id": item["id"], "label": mark, "seconds": 3})
     return ws
 
