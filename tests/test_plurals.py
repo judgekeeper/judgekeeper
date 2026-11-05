@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,7 +15,9 @@ from judgekeeper import (
     check,
     front,
     judge_check,
+    mark_page,
     records,
+    report_page,
     start,
     start_label,
     textio,
@@ -77,3 +80,35 @@ def test_partial_credit_on_one_answer(here, capsys):
     _, out, _ = run(capsys)
     assert "Inspect gave partial credit (P) on 1 answer." in out
     assert not SLIP.search(out), out
+
+
+def test_one_repeat_reads_as_one():
+    found = SimpleNamespace(pool=SimpleNamespace(n_repeats=1))
+    assert check.repeats_line(found) == "1 repeated result in your new results was counted once."
+    found.pool.n_repeats = 2
+    assert check.repeats_line(found) == "2 repeated results in your new results were counted once."
+
+
+@pytest.mark.parametrize("n, words", [(1, "1 new answer,"), (2, "2 new answers,")])
+def test_new_marks_to_make_read_by_count(n, words):
+    assert words in check.next_new_marks("judgekeeper mark", n, "judgekeeper check")
+
+
+def test_one_answer_marked_is_not_all_of_one():
+    assert front.marked_all(1, "marked") == "You have marked the one answer."
+    assert front.marked_all(1, "marks on") == "You have marks on the one answer."
+    assert front.marked_all(2, "marked") == "You have marked all 2 answers."
+
+
+def test_one_answer_agreed_on_is_not_all_of_one():
+    counts = {"passed": 1, "failed": 0, "strict": 0, "easy": 0}
+    assert report_page.disagreed(counts) == (
+        f"You and your {report_page.TERM} agreed on the one answer.")
+    assert report_page.disagreed({**counts, "failed": 2}) == (
+        f"You and your {report_page.TERM} agreed on all <b>3</b> answers.")
+    assert front.agreed_all(1) == "You and your LLM-as-a-judge agreed on the one answer."
+    assert front.agreed_all(3) == "You and your LLM-as-a-judge agreed on all 3 answers."
+
+
+def test_the_marking_page_says_the_one_answer():
+    assert '"You have marked the one answer."' in mark_page.BODY

@@ -196,8 +196,8 @@ _n = plural  # textio.plural
 
 _NO_DECISION_WORDS = {ERROR: ("call failed", "calls failed"),
                       UNREADABLE: ("reply could not be read", "replies could not be read"),
-                      EMPTY_ANSWER_REFUSED: ("empty answer it could not judge",
-                                             "empty answers it could not judge"),
+                      EMPTY_ANSWER_REFUSED: ("empty answer it could not grade",
+                                             "empty answers it could not grade"),
                       ERROR_GRADE: ("error", "errors"),
                       EMPTY: ("empty decision", "empty decisions")}
 _COUNTED = {"pass": ("counted it as a pass", "counted them as passes"),

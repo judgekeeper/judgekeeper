@@ -2394,8 +2394,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
-        talk.say(f"You have {'marks on' if some_imported else 'marked'} all "
-                 f"{_n(n, 'answer')}.")  # the page didn't mark the imported ones
+        talk.say(marked_all(n, "marks on" if some_imported else "marked"))  # imported: not marked
         waits = _waits(ws, session)
         if waits is not None:  # the step is grading them again, not more questions
             _say_waits(talk, waits)
@@ -2492,6 +2491,16 @@ def _pct(x: float) -> str:
     return f"{x:.0%}"
 
 
+def marked_all(n: int, did: str) -> str:
+    """The person's marks cover all `n` answers (`did`: "marked", or "marks on")."""
+    return f"You have {did} the one answer." if n == 1 else f"You have {did} all {n} answers."
+
+
+def agreed_all(n: int) -> str:
+    what = "the one answer" if n == 1 else f"all {n} answers"
+    return f"You and your LLM-as-a-judge agreed on {what}."
+
+
 def agreement_lines(r: dict) -> list[str]:
     """Under the verdict, as on the result page: how many answers you and your judge
     disagreed on, then the two counts, indented; before a result, your two counts only."""
@@ -2503,7 +2512,7 @@ def agreement_lines(r: dict) -> list[str]:
                 f"  You failed {_n(c['failed'], 'answer')}."]
     n, d = c["passed"] + c["failed"], c["strict"] + c["easy"]
     first = (f"You and your LLM-as-a-judge disagreed on {d} of {_n(n, 'answer')}." if d else
-             f"You and your LLM-as-a-judge agreed on all {_n(n, 'answer')}.")
+             agreed_all(n))
     return [first, "",
             (f"  You passed {_n(c['passed'], 'answer')}. Of those, your LLM-as-a-judge passed "
              f"{c['passed'] - c['strict']} and failed {c['strict']}."),

@@ -1059,7 +1059,7 @@
   var COUNTING_TOOLS = { promptfoo: 'promptfoo', deepeval: 'DeepEval' };  // tools that count decisions themselves
   var NO_DECISION_WORDS = {
     error: ['call failed', 'calls failed'], unreadable: ['reply could not be read', 'replies could not be read'],
-    empty_answer_refused: ['empty answer it could not judge', 'empty answers it could not judge'],
+    empty_answer_refused: ['empty answer it could not grade', 'empty answers it could not grade'],
     error_grade: ['error', 'errors'], empty: ['empty decision', 'empty decisions']
   };
   var COUNTED = {

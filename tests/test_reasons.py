@@ -601,7 +601,7 @@ def test_report_html_shows_reasons_read_only_with_no_input(here):
     html = _report(ws)
     assert not re.search(r"<(input|textarea)\b|<[^>]*\saria-pressed=", html)
     flat = _flat(html)
-    assert ("Your reason: it has a wrong fact; the rule doesn't say how to judge this; "
+    assert ("Your reason: it has a wrong fact; the rule doesn't say how to grade this; "
             "“Wrong year”") in flat
     assert "Add a reason" not in flat
     assert re.findall(r"<script>(.*?)</script>", html, re.DOTALL) == [report_page.SCRIPT]
@@ -615,7 +615,7 @@ def test_the_live_page_asks_why_in_each_row(here):
     assert "Why did you mark it Pass?" in _box(html, fails[0])
     for words in ("It has a wrong fact", "It doesn't answer the question",
                   "It leaves out something important", "It's unsafe or not allowed",
-                  "Wrong format or tone", "The rule doesn't say how to judge this",
+                  "Wrong format or tone", "The rule doesn't say how to grade this",
                   "I'm not sure about my own mark", "Other…"):
         assert _e(words) in _box(html, passes[0]), words
     for words in ("It's right, just worded differently", "Small slips don't matter here",
@@ -648,9 +648,9 @@ def test_fix_counts_the_reasons_and_prints_the_two_lines_at_2_or_more(here, caps
     _, out = run_fix(capsys)
     flat = " ".join(out.split())
     assert ("Your reasons for your LLM-as-a-judge's mistakes: it has a wrong fact (2), the "
-            "rule doesn't say how to judge this (2), short, but it answers the question (1)."
+            "rule doesn't say how to grade this (2), short, but it answers the question (1)."
             ) in flat
-    assert ("Your LLM-as-a-judge's rule may be missing something: write in it how to judge "
+    assert ("Your LLM-as-a-judge's rule may be missing something: write in it how to grade "
             "these answers.") in flat
     assert ("Your LLM-as-a-judge says Pass on answers with wrong facts: say in the rule that "
             "one wrong fact is a Fail.") in flat
@@ -817,7 +817,7 @@ def test_with_no_reason_left_two_are_needed():
      "Pass a correct answer even when its words differ from what you expect."),
     ("small_slips", "Small slips in spelling or format don't make an answer Fail."),
     ("short_ok", "A short answer that answers the question is a Pass."),
-    ("rule_silent", "Your rule doesn't cover 2 answers: write how to judge them."),
+    ("rule_silent", "Your rule doesn't cover 2 answers: write how to grade them."),
 ])
 def test_each_suggested_line_comes_from_a_fixed_template(reason, line):
     judge = "fail" if reason in ("worded_differently", "small_slips", "short_ok") else "pass"

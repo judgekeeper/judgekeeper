@@ -182,7 +182,7 @@ def summary(rows: list[dict]) -> dict:
     false = [r for r in rows if (r["change"] <= 0 and r["counts"]["better"])
              or (r["change"] >= 0 and r["counts"]["worse"])]
     worse = [r for r in rows if (r["rule"], r["marks"]) == (SLIPS, MARKS[-1])]
-    lop = [r for r in rows if r["rule"] == LOPSIDED and r["change"] < -100 * targets.SAFE_MARGIN]
+    lop = [r for r in rows if r["rule"] == LOPSIDED and r["change"] < 0 and r["pi"] > 0.5]
     return {"worse_at_most": {k: [min(r[k] for r in worse), max(r[k] for r in worse)]
                               for k in KINDS},
             "quarter": {"rule": QUARTER, **needed(rows)[QUARTER]},"never_false_better": all(not r["counts"]["better"] for r in rows
@@ -307,7 +307,11 @@ def markdown(result: dict) -> str:
 
 
 def main() -> None:
-    result = run()
+    if "--render" in sys.argv[1:]:  # only the summary and report, from the committed rows
+        result = json.loads((OUT / "results.json").read_text(encoding="utf-8"))
+        result["summary"] = summary(result["rows"])
+    else:
+        result = run()
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "results.json").write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
     (OUT / "report.md").write_text(markdown(result), encoding="utf-8")

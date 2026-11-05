@@ -344,7 +344,7 @@ def test_every_website_page_loads_the_new_site_js_and_style_css():
         refs = re.findall(r"assets/(?:style\.css|site\.js)\?v=(\d+)", page.read_text(encoding="utf-8"))
         assert refs and set(refs) == {"28"}, (page.name, refs)
     # the browser check's script has its own version number
-    assert "assets/freecheck.js?v=17" in (site / "check.html").read_text(encoding="utf-8")
+    assert "assets/freecheck.js?v=18" in (site / "check.html").read_text(encoding="utf-8")
 
 
 def test_a_reason_ending_in_inspects_grade_line_is_shown_without_it():

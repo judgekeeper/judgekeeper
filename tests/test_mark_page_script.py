@@ -286,11 +286,12 @@ def test_the_end_card_with_more_than_one_skipped_answer_left():
                              "your eval on more questions."), "again": "Mark them"}
 
 
-@pytest.mark.parametrize(("n", "title"), [
-    (1, "1 skipped answer. Look again, or leave it out."),
-    (2, "2 skipped answers. Look again, or leave them out."),
+@pytest.mark.parametrize(("n", "title", "button"), [
+    (1, "You skipped one answer. Go back to it, or leave it out.", "Go back to it"),
+    (2, "You skipped 2 answers. Go back to them, or leave them out.", "Go back to them"),
 ])
-def test_with_a_result_the_end_card_never_says_to_run_the_eval_for_skipped_answers(n, title):
+def test_with_a_result_the_end_card_never_says_to_run_the_eval_for_skipped_answers(n, title,
+                                                                                    button):
     """With a coloured result already, only skipped answers left: look again or leave them
     out. "Run your eval on more questions" is for a result that is too early to tell."""
     got = _run(f"""
@@ -298,8 +299,8 @@ def test_with_a_result_the_end_card_never_says_to_run_the_eval_for_skipped_answe
       for (var i = 0; i < {n}; i++) {{ key("s"); await settle(); later(500); }}
       for (var i = {n}; i < 3; i++) {{ key("ArrowRight"); await settle(); later(500); }}
       console.log(JSON.stringify({{title: ids["end-title"].textContent,
-        again: ids["again"].hidden}}));""", data=_data(3))
-    assert got == {"title": title, "again": False}
+        again: ids["again"].hidden, button: ids["again"].textContent}}));""", data=_data(3))
+    assert got == {"title": title, "again": False, "button": button}
 
 
 def test_end_card_focus_and_enter():

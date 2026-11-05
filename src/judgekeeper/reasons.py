@@ -37,7 +37,7 @@ REASONS = {
     "small_slips": ("Small slips don't matter here", "fail"),
     "short_ok": ("Short, but it answers the question", "fail"),
     "not_asked": ("The LLM-as-a-judge wanted something I didn't ask for", "fail"),
-    "rule_silent": ("The rule doesn't say how to judge this", None),
+    "rule_silent": ("The rule doesn't say how to grade this", None),
     "unsure": ("I'm not sure about my own mark", None),
 }
 UNSURE = "unsure"
@@ -479,7 +479,7 @@ def clue_lines(rows: list[dict], fence=None) -> list[str]:
                    + ", ".join(f"{names[k]} ({counts[k]})" for k in _order(counts)) + ".")
     if counts["rule_silent"] >= TWICE:
         out.append("Your LLM-as-a-judge's rule may be missing something: write in it how to "
-                   "judge these answers.")
+                   "grade these answers.")
     if sum("wrong_fact" in (r.get("reasons") or []) for r in rows
            if r.get("judge") == "pass") >= TWICE:
         out.append("Your LLM-as-a-judge says Pass on answers with wrong facts: say in the rule "
@@ -574,7 +574,7 @@ TEMPLATES = {
     "small_slips": "Small slips in spelling or format don't make an answer Fail.",
     "short_ok": "A short answer that answers the question is a Pass.",
     "not_asked": "Don't fail an answer for leaving out something the question didn't ask for.",
-    "rule_silent": "Your rule doesn't cover {n} answers: write how to judge them.",
+    "rule_silent": "Your rule doesn't cover {n} answers: write how to grade them.",
 }
 PART_LINE = "Make rule part {n} more precise: your LLM-as-a-judge missed it {times}."
 RULE_PART = "RULE PART"  # the fence its words go in: data, as an answer's

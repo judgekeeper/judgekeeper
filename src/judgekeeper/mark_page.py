@@ -311,7 +311,7 @@ __TOP__
   </section>
   <section class="card end" id="end" hidden aria-live="polite" tabindex="-1"><h2 id="end-title"></h2>
     <p class="note" id="end-note" hidden>Opening your result…</p>
-    <button type="button" class="go" id="again" hidden>Look at them</button></section>
+    <button type="button" class="go" id="again" hidden>Go back to them</button></section>
   <p class="foot">To come back: <code>__COMMAND__</code>__HELD__</p>
 </main>
 </div>
@@ -351,7 +351,7 @@ __TOP__
   var shownAt = Date.now();  // when the answer on screen was shown: each mark sends its seconds
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
-  var walkingSkipped = false;  // "Mark them" or "Look at them": going through the skipped ones
+  var walkingSkipped = false;  // "Mark them" or "Go back to them": going through the skipped ones
   var lockUntil = 0;         // clicks are ignored until then, after each mark
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
@@ -834,7 +834,8 @@ __TOP__
       if (stay) {  // a mark can still be changed; the bar links to the result
         changing = true;
         var n = counts.correct + counts.wrong;
-        setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
+        setText("end-title", n === 1 ? "You have marked the one answer."
+                                     : "You have marked all " + n + " answers.");
         setText("end-note", WORDS.change);
         focusCard(); return;
       }
@@ -845,11 +846,12 @@ __TOP__
     // no coloured result yet: a mark more, or more answers, can bring it; with one, the
     // skipped answers can be left out
     setText("end-title", status && status.ready
-      ? (skipped === 1 ? "1 skipped answer" : skipped + " skipped answers") +
-        ". Look again, or leave " + (skipped === 1 ? "it" : "them") + " out."
+      ? (skipped === 1 ? "You skipped one answer. Go back to it, or leave it out."
+                       : "You skipped " + skipped +
+                         " answers. Go back to them, or leave them out.")
       : (skipped === 1 ? WORDS.skippedOne : WORDS.skippedMany).replace("{n}", String(skipped)));
     var ready = !!(status && status.ready);  // else only the skipped answers are left: centred
-    setText("again", ready ? (skipped === 1 ? "Look at it" : "Look at them")
+    setText("again", ready ? (skipped === 1 ? "Go back to it" : "Go back to them")
       : (skipped === 1 ? "Mark it" : "Mark them"));
     $("end").classList.toggle("only", !ready);
     fitEnd();

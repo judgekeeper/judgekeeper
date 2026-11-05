@@ -395,7 +395,7 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
     assert ('<section class="card end" id="end" hidden aria-live="polite" tabindex="-1">'
             '<h2 id="end-title"></h2>'
             '\n    <p class="note" id="end-note" hidden>Opening your result…</p>'
-            '\n    <button type="button" class="go" id="again" hidden>Look at them</button>'
+            '\n    <button type="button" class="go" id="again" hidden>Go back to them</button>'
             "</section>") in page
     style = mark_page.STYLE
     assert (".end { padding: 56px 28px; display: flex; flex-direction: column; "

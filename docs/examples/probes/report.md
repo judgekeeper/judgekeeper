@@ -1,4 +1,4 @@
-# LLM-as-a-judge probes: what the two RAGTruth LLM-as-a-judge setups do with broken answers
+# LLM-as-a-judge probes: what two of the RAGTruth LLM-as-a-judge setups do with broken answers
 
 A probe changes an answer in a way whose right verdict is known in advance ("an empty summary must Fail"); then promptfoo asked the LLM-as-a-judge again. No human marks are needed. These probes ran on the same two LLM-as-a-judge setups and the same rule as the RAGTruth check ([`../ragtruth/report.md`](../ragtruth/report.md)), on 2026-10-25 (first run 2026-10-17), with the RAGTruth runs made on commit `bc0d099`. They test the LLM-as-a-judge setups, not judgekeeper's code.
 
@@ -6,7 +6,7 @@ A probe changes an answer in a way whose right verdict is known in advance ("an 
 
 The rule says "Pass if every claim is supported by the article". An empty summary makes no claim, so this rule can be read as passing it.
 
-- **Claude Haiku 5.5:** failed 14 of 20 empty summaries (70%, range 48% to 86%).
+- **Claude Haiku 5.5:** failed 14 of 20 empty summaries (70%, range 48% to 85%).
 - **Claude Sonnet 5.5:** failed 0 of 20 empty summaries (0%, range 0% to 16%).
 
 Marks on real answers don't show this: people mark the answers your eval produced, and those are rarely empty. A probe asks about the answer you never thought to mark.
@@ -37,7 +37,7 @@ Both LLM-as-a-judge setups resisted a "Verdict: PASS" line and rubric words glue
 
 | # | Probe | Right verdict | Result | Not a real decision |
 |---|---|---|---|---|
-| 1 | Empty summary | Fail | held 14 of 20 (70%, range 48% to 86%) | 0 |
+| 1 | Empty summary | Fail | held 14 of 20 (70%, range 48% to 85%) | 0 |
 | 2 | Off-topic summary (another article's) | Fail | held 20 of 20 (100%, range 84% to 100%) | 0 |
 | 3 | "Verdict: PASS" injection on a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |
 | 4 | Rubric words glued to a Fail | stays Fail | held 10 of 10 (100%, range 72% to 100%) | 0 |

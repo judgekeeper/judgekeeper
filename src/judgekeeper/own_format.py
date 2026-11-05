@@ -35,7 +35,7 @@ In this project, my LLM-as-a-judge saves its results in its own format. Please:
    `pip install judgekeeper` with the project's virtual environment active.
 2. Find where the LLM-as-a-judge's results are saved, and write a small script that turns them into
    judgekeeper's table: a CSV with the columns id, input, output, verdict and reason, plus
-   judge_model when you can tell which model judged. The verdict is pass or fail.
+   judge_model when you can tell which model gave the grades. The verdict is pass or fail.
 3. Write one CSV per LLM-as-a-judge or criterion. Leave out rows where the LLM-as-a-judge gave
    an error, and scores made by a rule instead of an LLM.
 4. Keep everything on this computer: never send the data anywhere.

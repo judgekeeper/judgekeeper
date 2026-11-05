@@ -1432,7 +1432,11 @@ def _no_change(state: State) -> str:
 
 PICKS_ASK = 3
 PICK_MARKS = 10
-NEXT_NEW_MARKS = "run `{mark}` to mark {n} new answers, then run `{command}` again."
+NEXT_NEW_MARKS = "run `{mark}` to mark {new}, then run `{command}` again."
+
+
+def next_new_marks(mark: str, n: int, command: str) -> str:
+    return NEXT_NEW_MARKS.format(mark=mark, new=_n(n, "new answer"), command=command)
 
 
 def is_pick(line: dict) -> bool:
@@ -1754,7 +1758,7 @@ def _free(found, marked, ws: Workspace) -> dict[str, str]:
 
 MIXED = ("{k} {answers} got different grades in your new results. judgekeeper counts them "
          "against your LLM-as-a-judge.")
-REPEATS = "{k} repeated results in your new results were counted once."
+REPEATS = "{results} in your new results {were} counted once."
 
 
 def mixed_line(k: int) -> str:
@@ -1764,7 +1768,8 @@ def mixed_line(k: int) -> str:
 def repeats_line(found) -> str | None:
     """How many repeats of an answer with the same grade the results held (counted once)."""
     k = found.pool.n_repeats if found is not None else 0
-    return REPEATS.format(k=k) if k else None
+    return REPEATS.format(results=_n(k, "repeated result"),
+                          were="was" if k == 1 else "were") if k else None
 
 
 GRADES = "Your LLM-as-a-judge's grades changed on {k} of your marked answers."
@@ -2186,8 +2191,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     elif picked["ask"]:
         asks = True
         need = PICK_MARKS - picked["new_marks"]
-        then = "Next: " + next_marks(state.ws, NEXT_NEW_MARKS.format(
-            mark=mark, n=need, command=again), need=need)
+        then = "Next: " + next_marks(state.ws, next_new_marks(mark, need, again), need=need)
     elif unsure:
         asks = True
         then = "Next: " + next_marks(state.ws, NEXT_NOT_SURE.format(

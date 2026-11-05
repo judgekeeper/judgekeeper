@@ -644,8 +644,8 @@ def disagreed(c: dict) -> str:
     (front.agreement_lines), the numbers in bold."""
     d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
     if not d:
-        return (f"You and your {TERM} agreed on all <b>{n}</b> "
-                f"{'answer' if n == 1 else 'answers'}.")
+        what = "the one answer" if n == 1 else f"all <b>{n}</b> answers"
+        return f"You and your {TERM} agreed on {what}."
     return f"You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> answers."
 
 
