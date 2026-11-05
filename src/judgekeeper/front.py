@@ -2215,6 +2215,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     session = StartSession(ws)
     if unreadable := marks.unreadable_line(marks.read(ws.marks)):
         head.append(unreadable)
+    if lost := start_label.lost_marks_line(ws):
+        head.append(lost)
     counts = session.counts()
     enough = start_label.has_result(batches.counted_strata(
         ws.data(), batches.graded(ws.data(), session.marked())))
