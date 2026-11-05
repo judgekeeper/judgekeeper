@@ -546,7 +546,8 @@ class _Walk:
                         if is_mlflow_folder(sub):  # else only mlflow.db's artifacts
                             self.add("mlflow", sub)
                             self.sign("mlflow", self.rel(sub) + "/")
-                    elif walked(entry) and self.project and is_project(sub):
+                    elif walked(entry) and self.project and is_project(sub) \
+                            and not _left_empty(sub):
                         if sub not in self.search.nested:
                             self.search.nested.append(sub)
                     elif walked(entry) and self.depth(sub) <= MAX_DEPTH:
@@ -736,6 +737,13 @@ def is_project(folder: Path) -> bool:
         return any((folder / m).exists() for m in (*PROJECT_MARKERS, ".judgekeeper"))
     except OSError:
         return False
+
+
+def _left_empty(folder: Path) -> bool:
+    """Whether `folder` is a project only by a .judgekeeper/ every command passes over."""
+    from judgekeeper import project
+
+    return project.marks_above(folder) is not None
 
 
 def nested_results(found: Search) -> list[str]:

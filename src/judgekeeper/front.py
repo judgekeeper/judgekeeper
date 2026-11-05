@@ -543,6 +543,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         for other, marked in project.others_beside(store):
             talk.para(project.other_eval_line(other, marked))
             talk.say()
+    path = _project_reads(path, store)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -554,6 +555,23 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         found = start.rebased(found, root, path)
         _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _project_reads(path: Path, store: Path) -> Path:
+    """Where a run from `path` reads: the project folder `store` when `path` is a folder below
+    it with the results its marks are on, as if run there, so no second session starts. A
+    folder of logs is the project's choice of folder (_log_folder_of), and a folder with no
+    results reads the project above and says so (start._locate)."""
+    if not path.is_dir() or find.is_mlflow_folder(path) or store == path.resolve():
+        return path
+    try:
+        tool = json.loads(Workspace(store).start.read_text(encoding="utf-8"))["tool"]
+    except (OSError, ValueError, RecursionError, KeyError, TypeError):
+        return path
+    search = find.search(path)
+    if tool in ("deepeval", "inspect") or not any(search.readable(t) for t in find.TOOLS):
+        return path
+    return store
 
 
 def _log_folder_of(root: Path, found: start.Found) -> bool:
@@ -1188,7 +1206,9 @@ def _session_owning(path: Path) -> str | None:
     no_project = not project.is_project(root)
     while folder != root:
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file() or no_project and project.is_project(folder):
+        held = (ws.start.is_file() or ws.labels.is_file()) and (
+            project.marks_above(folder, path.resolve()) is None)
+        if held or no_project and project.is_project(folder):
             return textio.folder_from_here(folder)
         folder = folder.parent
     return None
@@ -2747,6 +2767,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     ws = Workspace(project.project_of(path))
     if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
         ws = Workspace(start.reads_in(path))  # the folder a run from here reads
+    if path.is_dir() and not is_open(ws.dir) and is_open(Workspace(path).dir):
+        ws = Workspace(path)  # a page open on a session every command now passes over
     below = [] if is_open(ws.dir) or not path.is_dir() else [
         name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
     if len(below) == 1:  # opened from the folder right below

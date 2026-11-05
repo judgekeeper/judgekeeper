@@ -61,9 +61,34 @@ def project_of(path: Path) -> Path:
     same with a path given or not."""
     here, given = _here(path)
     above = store_above(here)
-    if above is None or above != here and _apart(here, above, given):
+    if above is None:
         return here
+    marked = marks_above(above, given)
+    if marked is not None:
+        return marked
+    return here if above != here and _apart(here, above, given) else above
+
+
+def marks_above(store: Path, given: Path | None = None) -> Path | None:
+    """The folder above `store` whose marks are for the results in `store`, when the session
+    in `store` holds none and `store` is no project of its own: a run there used to start it,
+    and every command passes over it now, leaving it as it is. Else None."""
+    if is_project(store) or _holds_marks(store):
+        return None
+    above = store_above(store.parent)
+    if above is None or not _holds_marks(above) or _apart(store, above, given):
+        return None
     return above
+
+
+def _holds_marks(folder: Path) -> bool:
+    """Whether the .judgekeeper/ in `folder` holds marks, or a sheet of them (labels.csv). One
+    that can't be read may hold them: it is never passed over."""
+    ws = Workspace(folder)
+    try:
+        return ws.labels.is_file() or bool(marks.read(ws.marks).last)
+    except (OSError, ValueError):
+        return True
 
 
 def kept_apart(here: Path, given: Path | None = None) -> tuple[Path, list[str]] | None:
