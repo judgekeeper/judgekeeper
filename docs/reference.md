@@ -59,7 +59,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
-| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.1.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.1.0" |
+| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.1.1 is ready" and a `Next:` line; piped, only "judgekeeper 1.1.1" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
@@ -179,7 +179,7 @@ Run it after you change your LLM-as-a-judge or eval tool and grade the answers y
 | Flag | What it does |
 |---|---|
 | `PATH` | A new results file or MLflow store (`mlflow.db` or an `mlruns/` folder), or your project folder (default: this folder, with its newest results). A folder is read as step 1 reads it |
-| `--pass-if RULE` | Re-check with this pass mark for your LLM-as-a-judge's scores (the one `fix` suggests), e.g. `'score>=0.7'`, instead of the one you marked with. It works only when your LLM-as-a-judge gives scores and you gave the pass mark with `--pass-if`. Once `check` switches to it, later `check` and `fix` runs read your results with it. `mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the default; with nothing to ask (no terminal), they print the `--pass-if` to give and exit 3. If the pass mark is set in your eval itself, change it there and run your eval; if it is set in judgekeeper.toml `[start]`, change `pass_mark` there. Then run `judgekeeper check` |
+| `--pass-if RULE` | Re-check with this pass mark for your LLM-as-a-judge's scores (the one `fix` suggests), e.g. `'score>=0.7'`, instead of the one in use. It works only when your LLM-as-a-judge gives scores and you gave the pass mark with `--pass-if`. Once `check` switches to it, later `check` and `fix` runs read your results with it. `mark` and a plain `judgekeeper` ask for the pass mark again, with that one as the default; with nothing to ask (no terminal), they print the `--pass-if` to give and exit 3. If the pass mark is set in your eval itself, change it there and run your eval; if it is set in judgekeeper.toml `[start]`, change `pass_mark` there. Then run `judgekeeper check` |
 
 **Which results it reads.** It names the file first ("New results: ...", or "Results: ..." for a file you marked from). With a saved choice in `judgekeeper.toml`, check reads only there; name a file to check another. When newer results of the same eval are somewhere else, it says where and the command that checks them.
 
@@ -225,7 +225,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 - "Your LLM-as-a-judge is good enough to use." when the low end of both wider ranges (99%) is at least 80%;
 - "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
-- "Too early to tell. Mark more answers to get a result." otherwise.
+- "Too early to tell. The numbers below are your best estimate so far. Mark more answers to narrow the ranges." otherwise.
 
 The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
 

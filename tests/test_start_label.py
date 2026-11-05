@@ -21,6 +21,10 @@ from judgekeeper.records import LLM, RecordList, ScoreRecord
 from tests.start_projects import promptfoo_project, save_result, split, unwrapped
 from tests.test_label_server import Client
 
+OLD_TOO_EARLY_LINE = "Too early to tell. Mark more answers to get a result."  # in 1.1.0's results
+TOO_EARLY_LINE = ("Too early to tell. The numbers below are your best estimate so far. Mark more "
+                  "answers to narrow the ranges.")
+
 
 def _found(root, n_pass=20, n_fail=12, **kwargs):
     promptfoo_project(root, split(n_pass, n_fail), **kwargs)
@@ -310,10 +314,10 @@ def test_the_verdict_levels_follow_the_ranges():
     early = _result(900, 100, 20, 20, 20, 0)       # the Fail side's range is wide: no colour
     too_few = _result(100, 100, 10, 9, 10, 1)      # 10 Pass, 10 Fail
     assert green["verdict"] == "Your LLM-as-a-judge is good enough to use."
-    assert amber["verdict"] == "Too early to tell. Mark more answers to get a result."
+    assert amber["verdict"] == TOO_EARLY_LINE
     assert red["verdict"] == "Your LLM-as-a-judge needs work."
     assert early["verdict_level"] == "check"  # a wide range is never too early by itself
-    assert early["verdict"] == "Too early to tell. Mark more answers to get a result."
+    assert early["verdict"] == TOO_EARLY_LINE
     assert too_few["verdict"] == "Mark a few more answers to see your result."
     assert start_label.sentences(too_few) == [
         "Mark a few more answers to see your result. So far: 10 Pass, 10 Fail."]
@@ -559,3 +563,8 @@ def test_the_welcome_box_is_asked_for_until_an_answer_is_marked_or_skipped(works
     assert session.state()["intro"] is True
     session.update({"id": session.items[0]["id"], "seconds": 3, **change})
     assert start_label.StartSession(ws).state()["intro"] is False
+
+
+@pytest.mark.parametrize("saved", [TOO_EARLY_LINE, OLD_TOO_EARLY_LINE])
+def test_no_line_asks_for_more_marks_in_either_version_of_a_saved_result(saved):
+    assert start_label.without_mark_more(saved) == "Too early to tell."

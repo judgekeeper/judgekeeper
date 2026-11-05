@@ -112,6 +112,13 @@ def check(correct: int, wrong: int, groups: dict | None = None) -> dict:
     return {"check": "too_few" if min(correct, wrong) < ROUGH or short else "result"}
 
 
+def few_answers(passed: int, failed: int) -> bool:
+    """Whether the judge's `passed` and `failed` answers are too few for a first result: under
+    ROUGH of each kind can be marked. With one grade for every answer, one mark the other way
+    is a result (check), so they are never too few."""
+    return bool(passed and failed) and passed + failed < 2 * ROUGH
+
+
 TINY = 1e-300  # a chance under this adds nothing the power can show
 
 

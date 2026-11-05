@@ -152,7 +152,7 @@ Every draw's estimates and ranges are in `two-batches/draws.csv`.
 
 ## One draw on commit `6437d85`
 
-The first draw of the check (100 marks, one batch) was run once more on an older build, judgekeeper 1.0.0b2, commit `6437d85`. It is one random draw; no new draw was made on later builds. Its screen is `measure-round-1.txt`. The same 100 marks (the answers marked in `ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.0 through the page's own calls, with no AI call. Measure gave the same numbers and the same result. Its result lines on 1.1.0, copied exactly:
+The first draw of the check (100 marks, one batch) was run once more on an older build, judgekeeper 1.0.0b2, commit `6437d85`. It is one random draw; no new draw was made on later builds. The same 100 marks (the answers marked in `ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.1 through the page's own calls, with no AI call. Measure gave the same numbers and the same result. That screen is `measure-round-1.txt`. Its result lines, copied exactly:
 
 ```
 Result: your LLM-as-a-judge is good enough to use.
@@ -182,7 +182,7 @@ The check was first run on judgekeeper 1.0.0b2, commit `e3052c7` (2026-10-17). T
 
 ### After 100 marks
 
-Measure said "Result: too early to tell. Mark more answers to get a result." with 10 disagreements in 100 (`first-run/measure-round-1.txt`). "Too early to tell" means the Fail range still reaches below 80%, so judgekeeper does not give a verdict yet. At this point the terminal shows only the counts. The estimates are in the report page, under "More details" (`first-run/report-round-1.html`):
+Measure said "Result: too early to tell." with 10 disagreements in 100. "Too early to tell" means the Fail range still reaches below 80%, so judgekeeper does not give a verdict yet. On 1.0.0b2 the terminal showed only the counts here, and the estimates were in the report page, under "More details" (`first-run/report-round-1.html`). The same 100 marks were entered again on judgekeeper 1.1.1, with no AI call, and that screen shows them too (`first-run/measure-round-1.txt`):
 
 | How often the LLM-as-a-judge agrees with the experts | Estimate | Range (middle 96%) |
 |---|---|---|
@@ -194,10 +194,11 @@ judgekeeper 1.0.0b2 showed half Pass and half Fail answers from the LLM-as-a-jud
 
 ### After 200 marks
 
-The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed its screen (`first-run/measure-round-2.txt`). The same 200 marks (the answers marked in `first-run/ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.0 through the page's own calls, with no AI call. Its result lines on 1.1.0, copied exactly:
+The script then followed the Next line: `judgekeeper mark`. The page offered 100 more answers, the script marked them the same way, and Measure printed its screen. The same 200 marks (the answers marked in `first-run/ids-and-grades.csv`, each with the experts' majority) were entered again on judgekeeper 1.1.1 through the page's own calls, with no AI call. That screen is `first-run/measure-round-2.txt`. Its result lines, copied exactly:
 
 ```
-Result: too early to tell. Mark more answers to get a result.
+Result: too early to tell. The numbers below are your best
+estimate so far. Mark more answers to narrow the ranges.
 You and your LLM-as-a-judge disagreed on 20 of 200 answers.
 
   You passed 108 answers. Of those, your LLM-as-a-judge passed
@@ -210,7 +211,7 @@ How often your LLM-as-a-judge agrees with you (estimates):
   When you say Fail, it also says Fail: about 90% (between 82% and 96%)
 ```
 
-On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use". 1.1.0 gives the result from a wider range (99%), and for Fail that range still reaches below 80%, so it says "too early to tell". The counts, estimates and ranges are the same on both.
+On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use". 1.1.1 gives the result from a wider range (99%), and for Fail that range still reaches below 80%, so it says "too early to tell". The counts, estimates and ranges are the same on both.
 
 The report page (`report.html`) gives kappa 0.81, range 0.70 to 0.88.
 
@@ -247,10 +248,10 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 - **`draw_counts.py`:** counts, from the draws' project folders in `cache/`, the answers each draw showed and the four ways the LLM-as-a-judge and the experts met on them (`python3 -I draw_counts.py`).
 - **`hundred-marks/`:** `draws.csv` (each draw's seed, counts, ranges and inside yes/no), `draw-counts.csv` (each draw's answers shown, by the LLM-as-a-judge's grade, and the four counts), `summary.json` (the real values, the counts and the average range widths), and draw 1's Measure screen.
 - **`ids-and-grades.csv`:** row id, GPT-4 grade, expert majority, and whether it was marked in the draw on `6437d85`. No text.
-- **`measure-round-1.txt`, `true-figures.json`:** the Measure screen and the figures of the draw on `6437d85`.
+- **`measure-round-1.txt`, `true-figures.json`:** the Measure screen of the draw's marks on 1.1.1, and the draw's figures with that run's result.
 - **`two-batches/`** (250 marks per draw): `draws.csv` (each draw's counts, ranges and inside yes/no), `summary.json` (the real values and the 20-draw result), and draw 1's Measure screens after batch 1 and after both batches.
 - **`report.html`:** judgekeeper's report page after 200 marks in the first run, with each prompt and response replaced by its row id. Its result line is judgekeeper 1.0.0's; on the same marks 1.1.0 says "too early to tell" (see "After 200 marks").
-- **`first-run/`:** the first run's Measure screens, report page after 100 marks, ids and grades, figures, and the 20 repeat draws.
+- **`first-run/`:** the first run's Measure screens and figures, made again on 1.1.1 from its marks, its report page after 100 marks, ids and grades, and the 20 repeat draws.
 
 Every CSV, text and JSON file here starts with the same header: the dataset, its revision, the subset and split, and where the grades come from. The report pages carry it as a comment.
 

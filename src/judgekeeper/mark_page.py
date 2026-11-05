@@ -751,7 +751,7 @@ __TOP__
     see.textContent = status.ready ? WORDS.seeReady : WORDS.seeFirst;
     // the answers, without the cards shown again (each adds one to `total`, never a mark)
     var answers = total - items.filter(function (it) { return it.again != null; }).length;
-    var few = answers < WORDS.minPool;  // fewer answers than a first result needs: said at once
+    var few = status.few;  // fewer answers than a first result needs: said at once
     keep.hidden = status.ready || status.only_wait || (!status.first && looked < FIRST && !few);
     // only skipped answers left (nothing else to mark): what the card in the middle says
     var skippedLeft = counts.skipped || 0, onlySkipped = skippedLeft > 0 && looked >= answers;
@@ -1122,7 +1122,7 @@ def _words() -> str:
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),
              "skippedMany": only_skipped(2, ONLY_SKIPPED_CARD).replace("2", "{n}"),
              # fewer answers than a first result needs (start.MIN_POOL): as `mark` says it
-             "few": FEW_ANSWERS.format(n=MIN_POOL), "minPool": MIN_POOL}
+             "few": FEW_ANSWERS.format(n=MIN_POOL)}
     # no `_` either: a command can never hold a name the server fills in (_text)
     return json.dumps(words).replace("<", "\\u003c").replace("_", "\\u005f")
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1 (2026-11-05)
+
+- Run judgekeeper in a folder below your marks and it uses those marks, with no new empty session. A project already stuck this way recovers by itself.
+- With a second results file of other questions, judgekeeper says to put it in its own folder and run judgekeeper there. The refusal has a Next line.
+- A missing marks file means no marks, and the page opens. A page that stops by itself is no longer called a busy port: judgekeeper says what happened and points at `page.log`.
+- When your marks file holds fewer marks than your last result, judgekeeper says how many of each.
+- An LLM-as-a-judge that gave every answer one grade is no longer told it needs 30 answers. The page opens, and the result comes at the first mark the other way.
+- "Too early to tell" now says the numbers are your best estimate so far, and that more marks narrow the ranges.
+- `check --help` says `--pass-if` replaces the pass mark in use.
+- The package is built with hatchling 1.33.0.
+
 ## 1.1.0 (2026-11-03)
 
 - Bring labels you already have: `judgekeeper --labels <file>` or, for labels already in your results, `judgekeeper --labels`. Mark more on the page if needed.

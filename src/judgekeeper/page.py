@@ -92,7 +92,7 @@ def choose_port(port: int, say) -> int:
 def marking_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters (start_label.start_status; `run`: the command that opened
     the page); once a result is ready it adds how to get it."""
-    status = start_label.start_status(session, run)
+    status = {**start_label.start_status(session, run), "few": start_label.few_answers(session)}
     if status["ready"]:
         from judgekeeper.textio import program
 

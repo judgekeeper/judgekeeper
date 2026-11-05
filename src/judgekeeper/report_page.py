@@ -24,7 +24,16 @@ from html import escape
 
 from judgekeeper import batches, look, reasons, targets
 from judgekeeper.judge_check import shown_reason
-from judgekeeper.start_label import EARLY, GOOD, MARK_MORE, NEEDS, VERDICTS, wider
+from judgekeeper.start_label import (
+    BEST_SO_FAR,
+    EARLY,
+    GOOD,
+    NARROW,
+    NEEDS,
+    TO_A_RESULT,
+    VERDICTS,
+    wider,
+)
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -664,7 +673,8 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
         then = (f"{_e(only_skipped(n))} "
                 f"{_code_line(next_only_skipped(n, commands(r)['more']))}")
     elif back:
-        then = f'<a href="{_e(back)}">{_e(MARK_MORE)}</a>'
+        then = (f'<a href="{_e(back)}">{_e(TO_A_RESULT)}</a>' if level is None else
+                f'{_e(BEST_SO_FAR)} <a href="{_e(back)}">{_e(NARROW)}</a>')
     else:
         then = f"Run <code>{look.command(_e(commands(r)['mark']))}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)

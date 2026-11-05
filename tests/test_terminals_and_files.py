@@ -301,7 +301,8 @@ def test_a_folder_with_a_backtick_gives_a_command_that_can_be_copied(tmp_path, m
         pytest.skip("POSIX shells' quoting")
     folder = tmp_path / "evals `v2`"
     folder.mkdir()
-    (folder / "results.csv").write_text("input,output,verdict\nq,a,pass\n", encoding="utf-8")
+    (folder / "results.csv").write_text("input,output,verdict\nq,a,pass\nr,b,fail\n",
+                                        encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     main(["evals `v2`", "--no-browser"])
     out = capsys.readouterr().out

@@ -80,9 +80,9 @@
           "correct": 57,
           "wrong": 43
         },
-        "check": "reliable",
+        "check": "result",
         "verdict_level": "gate",
-        "verdict": "Your judge is good enough to use.",
+        "verdict": "Your LLM-as-a-judge is good enough to use.",
         "disagreements": 7,
         "left": 200,
         "made": {
@@ -91,7 +91,7 @@
           "fail": 43,
           "sittings": 1,
           "seconds": null,
-          "under_second": 0,
+          "under_second": 98,
           "not_counted": 0,
           "printed": 100,
           "browser_env": 0,

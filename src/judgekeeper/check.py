@@ -2216,10 +2216,10 @@ def _from_marks(ws: Workspace) -> dict | None:
 def _verdict_words(r: dict) -> str:
     """The result's verdict as one line goes on with it: "too early to tell.", "your
     LLM-as-a-judge needs work." (the Next line says how to mark more)."""
-    from judgekeeper.start_label import MARK_MORE, VERDICTS
+    from judgekeeper.start_label import VERDICTS, without_mark_more
 
     words = str(r.get("verdict") or VERDICTS.get(r.get("verdict_level")) or "")
-    words = words.replace(f" {MARK_MORE}", "")
+    words = without_mark_more(words)
     return words[:1].lower() + words[1:]
 
 
