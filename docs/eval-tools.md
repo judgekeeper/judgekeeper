@@ -37,7 +37,7 @@ judgekeeper
 
 Tested with promptfoo 0.123 and 0.124. It reads JSON files from `promptfoo eval -o` or `promptfoo export eval`. When results are only in promptfoo's database, it prints how to save them: `promptfoo eval -o promptfoo-results.json`, or `promptfoo list evals` and `promptfoo export eval <id> -o promptfoo-results.json`. It runs neither. `--metric` is an assertion's `metric:`, else its type (`llm-rubric`, `g-eval`, `factuality` and the other model-graded types); code assertions are left out. The rule `fix` shows is the assertion's `value`, unless it differs per test. An assertion's `threshold` is its pass mark: `check` notices when it changes, and `fix` may test a better one. The question is the test's vars; a test with no vars (questions written in `prompts:`) is asked by its prompt. Ids are the test's `description` when each is unique, else a hash of its vars.
 
-To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.yaml` (the same answers, word for word as marked) as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
+To grade the same answers again, `judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader is a named provider (such as `openai:<model>`): `marked-answers.yaml` (the same answers, word for word as marked) as its tests and the `echo` provider, which returns each answer as it is. It looks like this (change the rule in it, and run it with `npx promptfoo eval -c .judgekeeper/fix/regrade.yaml -o .judgekeeper/fix/new.json`):
 
 ```yaml
 prompts: ['{{answer}}']
@@ -58,7 +58,7 @@ Your grader's `config` is kept, except fields that may hold a key (a name with k
 
 For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
 
-The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `promptfoo eval -c regrade.yaml -o new.json` (from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`.
+The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `npx promptfoo eval -c regrade.yaml -o new.json` (from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`.
 
 **Traps.**
 

@@ -28,7 +28,7 @@ judgekeeper
 ```
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 
-Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns. Inspect AI logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
+Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
 
 Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
 
