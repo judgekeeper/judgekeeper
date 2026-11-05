@@ -173,7 +173,29 @@ OWN = f"Grade {ANSWERS} with your own code."
 # promptfoo: a ready config that grades the marked answers again (written as text: no YAML
 # parser; every value is a JSON string, which is also a YAML string)
 REGRADE_FILE, NEW_JSON = "regrade.yaml", "new.json"
-TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers exactly, no guard
+TESTS_FILE = "marked-answers.yaml"  # regrade.yaml's tests: the answers as text, no guard
+# What promptfoo acts on in a test's value: a template, a file or package to load
+LOADS = ("file://", "package:")
+TEMPLATE = re.compile(r"\{[{%#]|#\}")
+ONE_VALUE = {"disableVarExpansion": True}  # a list in vars is one value, not one test each
+PRINTS = re.compile(r"\{|#\}")
+PRINTED = {"{": '{{ "{" }}', "#}": '{{ "#" }}}', "f": '{{ "f" }}', "p": '{{ "p" }}',
+           "\n": '{{ "\\n" }}'}
+PLAIN_OF = {tag: text for text, tag in PRINTED.items()}
+PRINTED_TAG = re.compile("|".join(re.escape(tag) for tag in sorted(PLAIN_OF, key=len,
+                                                                  reverse=True)))
+# What regrade.yaml may carry from the results file (_plain_grader, _plain_rule, _plain_setting)
+MODEL_HOSTS = frozenset(("openai", "anthropic", "azure", "azureopenai", "bedrock", "vertex",
+                         "google", "mistral", "groq", "deepseek", "xai", "openrouter",
+                         "togetherai", "perplexity", "cohere", "fireworks", "ollama"))
+MODEL_NAME = re.compile(r"[A-Za-z0-9_.:@+/-]+")
+MODEL_SETTINGS = frozenset((
+    "temperature", "top_p", "topP", "top_k", "topK", "max_tokens", "maxTokens",
+    "max_completion_tokens", "max_output_tokens", "maxOutputTokens", "seed", "stop",
+    "stop_sequences", "frequency_penalty", "presence_penalty", "reasoning_effort", "reasoning",
+    "thinking", "verbosity", "response_format"))
+REGION = re.compile(r"[a-z0-9-]+")
+RULE_VARIABLE = re.compile(r"(?<!\{)\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}(?!\})")
 REGRADE_STEPS = ("1. Change the {what} in {file} (line {line}).\n"
                  "2. Run: `npx promptfoo eval -c {config} -o {new}`{calls}\n"
                  "3. Then{where}: `{command} {after}`")
@@ -1458,7 +1480,7 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     w = csv.writer(buf)
     w.writerow(ANSWER_COLUMNS)
     for question, answer in rows:
-        w.writerow([guard_cell(question), guard_cell(answer)])
+        w.writerow([_csv_cell(m, question), _csv_cell(m, answer)])
     path = _folder(ws) / ANSWERS
     marks._refuse_links(path)
     make_private(path.parent)
@@ -1472,9 +1494,63 @@ def write_answers(ws: Workspace, m: Marks) -> int:
 
 def tests_yaml(rows: list[tuple[str, str]]) -> str:
     """The marked answers as promptfoo tests (fix/marked-answers.yaml, in the CSV's order):
-    each question and answer exactly as marked."""
-    return "".join("- vars: " + _yaml_string({"question": q, "answer": a}) + "\n"
-                   for q, a in rows) or "[]\n"
+    each question and answer as text, whatever it holds (_test_var)."""
+    def line(question: str, answer: str) -> str:
+        values = {"question": _test_var(question), "answer": _test_var(answer)}
+        lists = any(isinstance(v, list) for v in values.values())
+        return ((f"- options: {_yaml_string(ONE_VALUE)}\n  vars: " if lists else "- vars: ")
+                + _yaml_string(values) + "\n")
+
+    return "".join(line(q, a) for q, a in rows) or "[]\n"
+
+
+def acted_on(text: str) -> bool:
+    """Whether promptfoo would act on `text` as a test's value: as a template, or as a file or
+    package to load (only these exact prefixes: it never trims them or ignores their case)."""
+    return text.startswith(LOADS) or TEMPLATE.search(text) is not None
+
+
+def _test_var(text: str):
+    """`text` as a value in marked-answers.yaml. promptfoo renders a string, drops one new line
+    at its end and loads one that names a file, and does none of that to a list. Only a list
+    with a `file://` value is still looked into, and its path rendered: that one is printed."""
+    if text.startswith(LOADS[0]):
+        return printed(text)
+    return [text] if acted_on(text) or text.endswith("\n") else text
+
+
+def printed(text: str) -> str:
+    """`text` as a template that prints it: each opening brace and comment end, a first letter
+    that makes a loader's prefix and a last new line come from a string in a tag, so no tag
+    of its own can open, close or end one of these."""
+    out = PRINTS.sub(lambda m: PRINTED[m.group()], text)
+    if text.startswith(LOADS):
+        out = PRINTED[text[0]] + out[1:]
+    return out[:-1] + PRINTED["\n"] if out.endswith("\n") else out
+
+
+def unprinted(text: str) -> str:
+    """The text `printed` was given."""
+    return PRINTED_TAG.sub(lambda m: PLAIN_OF[m.group()], text)
+
+
+def plain_var(value):
+    """A value of a row graded from marked-answers.yaml or .csv as the text marked: `vars` come
+    back from promptfoo as they were written (_test_var, printed). Anything else as it is."""
+    if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
+        return value[0]
+    return unprinted(value) if isinstance(value, str) else value
+
+
+def promptfoo_cell(text: str) -> str:
+    """`text` as a CSV cell promptfoo reads: a cell can only be a string."""
+    return printed(text) if acted_on(text) or text.endswith("\n") else text
+
+
+def _csv_cell(m: Marks, text: str) -> str:
+    """`text` as marked-answers.csv holds it (only promptfoo templates it, so only its
+    project's file is printed)."""
+    return guard_cell(promptfoo_cell(text) if m.data.get("tool") == "promptfoo" else text)
 
 
 def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> None:
@@ -1489,8 +1565,8 @@ def _rewrite_lacking(talk: Talk, ws: Workspace, m: Marks, ids: list[str]) -> Non
     except (OSError, UnicodeDecodeError, csv.Error):
         held = set()
     rows = (m.rows.get(i, {}) for i in ids)
-    if all((guard_cell(question_text(r.get("input"), r.get("output"))),
-            guard_cell(answer_text(r.get("output"))))
+    if all((_csv_cell(m, question_text(r.get("input"), r.get("output"))),
+            _csv_cell(m, answer_text(r.get("output"))))
            in held for r in rows):
         return
     write_answers(ws, m)
@@ -1516,12 +1592,13 @@ def asked(value, output):
     marked-answers.csv hands a row back (its two columns as the named values, the answer the
     one graded, as the `echo` provider gives), the question the file held. marked-answers.csv,
     the marking page, its list and the result page all take the question from here."""
-    from judgekeeper.check import _text
+    from judgekeeper.check import _json_text, _text
 
-    if (isinstance(value, dict) and set(value) == set(ANSWER_COLUMNS)
-            and isinstance(value["question"], str) and output is not None
-            and _text(output) != "" and _text(value["answer"]) == _text(output)):
-        return value["question"]
+    if isinstance(value, dict) and set(value) == set(ANSWER_COLUMNS):
+        question, answer = plain_var(value["question"]), plain_var(value["answer"])
+        if (isinstance(question, str) and output is not None and _text(output) != ""
+                and _json_text(_text(answer)) == _json_text(_text(output))):
+            return question
     return value
 
 
@@ -1709,23 +1786,61 @@ RULE_NOTE = ("  # your rule: change it here. {{question}} is the question, {{ans
              "answer")
 
 
+def _plain_grader(provider: str, grader: str) -> bool:
+    """Whether `grader` names a model of a known host: nothing after the prefix that is a URL,
+    a path or a template."""
+    name = grader.removeprefix(f"{provider}:")
+    return (provider in MODEL_HOSTS and name != grader and MODEL_NAME.fullmatch(name) is not None
+            and "//" not in name and ".." not in name
+            and not any(part.startswith(("/", ".")) for part in name.split(":")))
+
+
+def _plain_rule(rule: str) -> bool:
+    """Whether `rule` is text with plain `{{name}}` variables and nothing else for a template
+    to run. `env` is promptfoo's own: it reads the person's environment."""
+    return (not rule.startswith(LOADS) and "env" not in RULE_VARIABLE.findall(rule)
+            and TEMPLATE.search(RULE_VARIABLE.sub(" ", rule)) is None)
+
+
+def _plain_setting(name: str, value) -> bool:
+    """Whether a grader's config field is a model setting with a plain value."""
+    if name == "region":
+        return isinstance(value, str) and REGION.fullmatch(value) is not None
+    return name in MODEL_SETTINGS and _plain_value(value)
+
+
+def _plain_value(value) -> bool:
+    """A number, true or false, or text that is no template, URL or file, or a list or set of
+    them."""
+    if isinstance(value, str):
+        return not (value.startswith(LOADS) or "://" in value or TEMPLATE.search(value))
+    if isinstance(value, list):
+        return all(_plain_value(v) for v in value)
+    if isinstance(value, dict):
+        return all(_plain_value(k) and _plain_value(v) for k, v in value.items())
+    return value is None or isinstance(value, int | float)
+
+
 def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
     """The text of fix/regrade.yaml: the marked answers as tests, the `echo` provider, the
     grader the results name, the same assertion type (and metric name) with the rule as its
     value. The grader keeps its config, without any field that may hold a key: a comment
     names each one left out. None when the grader, the assertion or the one rule can't be
-    read."""
+    read, or when they would have promptfoo do more than call a model: they come from a
+    results file, and the person runs this file with their keys set."""
     fp = data.get("fingerprint") if isinstance(data.get("fingerprint"), dict) else {}
     provider, grader, rule = fp.get("provider"), fp.get("model"), data.get("rule")
     if not (isinstance(provider, str) and isinstance(grader, str) and isinstance(rule, str)
             and rule.strip() and data.get("one_rule", True)
-            and provider not in ("file", "exec") and grader.startswith(f"{provider}:")):
+            and _plain_grader(provider, grader) and _plain_rule(rule)):
         return None
     found = _promptfoo_grader(ws, data)
-    if found is None:
+    if found is None or (found[1] and TEMPLATE.search(found[1])):
         return None
     kind, config = found[:2], found[2]
     kept, left = _without_keys(config)
+    if not all(_plain_setting(name, value) for name, value in kept.items()):
+        return None
     lines = ["prompts: [" + _yaml_string("{{answer}}") + "]",
              "providers: [" + _yaml_string("echo") + "]" + ECHO_NOTE,
              "tests: " + _yaml_string(f"file://{TESTS_FILE}") + TESTS_NOTE,

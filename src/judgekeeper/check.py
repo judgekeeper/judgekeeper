@@ -560,9 +560,9 @@ def _remember(state: State, found, setup: dict) -> None:
         write_replacing(path, json.dumps({
             "judgekeeper_version": __version__, "key": key, "setup": setup,
             "setup_hash": judge_setup.hash_of(setup),
-            "read": [_from_root(p, root) for p in read],
-            "newest": _from_root(found.results[0].path, root),
-            "configs": [_from_root(p, root) for p in _configs(found)],
+            "read": [scrub(_from_root(p, root)) for p in read],
+            "newest": scrub(_from_root(found.results[0].path, root)),
+            "configs": [scrub(_from_root(p, root)) for p in _configs(found)],
             "covered": False}, indent=2, ensure_ascii=False) + "\n")
     except (OSError, ValueError, marks.MarksError):
         pass  # the next check reads the results again
@@ -1163,7 +1163,7 @@ def _save_verdicts(ws: Workspace, setup: dict, found, verdicts: dict[str, str]) 
     head = scrub_value({"setup": setup, "setup_hash": setup_hash,
                         "fingerprint": dict(found.fingerprint or {}, created_at=utc_now()),
                         "judgekeeper_version": __version__})
-    lines = [head] + [{"id": i, "verdict": v} for i, v in merged.items()]
+    lines = [head] + [{"id": scrub(i), "verdict": v} for i, v in merged.items()]
     write_replacing(path, "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines))
 
 
@@ -1564,14 +1564,29 @@ def _text_now(value) -> str:
     return unguard_cell(text).strip()
 
 
+def _json_text(text: str) -> str:
+    """`text` as promptfoo saves a value that is a JSON list or object: with no spaces between
+    its parts, though the answer it graded keeps them. Any other text as it is."""
+    if text[:1] not in ("{", "["):
+        return text
+    try:
+        value = json.loads(text)
+    except (ValueError, RecursionError):
+        return text
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
 def _questions(value) -> set[str]:
     """The texts a results row asks its question by: the whole, and each named value of a set
     of them (promptfoo's vars), since grading marked-answers.csv again puts the marked
     question in one of them (`question`)."""
+    from judgekeeper.fix import plain_var
+
     texts = {_text(value)}
     if isinstance(value, dict):
-        texts |= {_text(v) for v in value.values()}
-    return texts - {""}
+        texts |= {_text(v) for v in value.values()} | {_text(plain_var(v))
+                                                       for v in value.values()}
+    return (texts | {_json_text(t) for t in texts}) - {""}
 
 
 def _marked_question(value, output=None) -> tuple[str, ...]:
@@ -1581,7 +1596,8 @@ def _marked_question(value, output=None) -> tuple[str, ...]:
     questions share is no question."""
     from judgekeeper.fix import question_text
 
-    return tuple(sorted({_text(value), _text(question_text(value, output))} - {""}))
+    texts = {_text(value), _text(question_text(value, output))}
+    return tuple(sorted((texts | {_json_text(t) for t in texts}) - {""}))
 
 
 def _rows(ws: Workspace) -> dict:

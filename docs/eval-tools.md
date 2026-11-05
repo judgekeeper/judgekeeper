@@ -52,11 +52,11 @@ defaultTest:
       value: Your new rule. The question was {{question}}.
 ```
 
-Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and run promptfoo from your project folder.
+Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.yaml` and run promptfoo from your project folder.
 
-Your grader's `config` is kept, except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
+Your grader's `config` is kept when it holds only plain model settings (such as `temperature` and `max_tokens`), except fields that may hold a key (a name with key, token, secret, password, passwd, credential, auth, bearer, cookie or session in it, unless its value is a number or true/false; a value that looks like a key; or a list of headers that names one): judgekeeper never writes keys to files, so a comment in the file names each one left out. Set those the way your own config does.
 
-For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no file and prints the steps instead. Write the file yourself from the example above.
+For a `file://` or `exec:` grader, promptfoo's default grader, or a grader, setting or rule that is more than a plain model call with simple `{{name}}` variables, it writes no file and prints the steps instead. Write the file yourself from the example above.
 
 The rule's variables must be the CSV's column names, `{{question}}` and `{{answer}}`. Run `npx promptfoo eval -c regrade.yaml -o new.json` (from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`.
 
