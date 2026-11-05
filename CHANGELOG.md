@@ -9,6 +9,10 @@
 - An LLM-as-a-judge that gave every answer one grade is no longer told it needs 30 answers. The page opens, and the result comes at the first mark the other way.
 - "Too early to tell" now says the numbers are your best estimate so far, and that more marks narrow the ranges.
 - `check --help` says `--pass-if` replaces the pass mark in use.
+- `judgekeeper fix` now gives promptfoo your answers and questions as plain text, whatever characters they hold.
+- `regrade.yaml` now carries only plain model graders, settings and rule variables. For anything else, `fix` writes no file and prints the steps.
+- On Windows, judgekeeper no longer starts a Python found in the current folder.
+- Text that looks like a key is now scrubbed from ids and file names before they are saved.
 - The package is built with hatchling 1.33.0.
 
 ## 1.1.0 (2026-11-03)

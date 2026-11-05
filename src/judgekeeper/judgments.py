@@ -22,8 +22,8 @@ from judgekeeper.redact import scrub, scrub_fingerprint
 from judgekeeper.runners.base import Judgment
 from judgekeeper.textio import jsonl_lines, read_utf8, shown_path, write_replacing
 
-# Fields of a judgment line that hold text from the model or the provider.
-FREE_TEXT_FIELDS = ("rationale", "rationale_ba", "error", "error_ba")
+# Fields of a judgment line that hold text from the results, the model or the provider.
+FREE_TEXT_FIELDS = ("id", "rationale", "rationale_ba", "error", "error_ba")
 
 
 class JudgmentsError(Exception):

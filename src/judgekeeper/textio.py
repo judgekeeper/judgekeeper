@@ -124,13 +124,24 @@ _imports: dict[str, bool] = {}
 IMPORTED = "import judgekeeper, os; print(os.path.realpath(judgekeeper.__file__))"
 
 
+def _in_this_folder(path: str) -> bool:
+    """Whether a program found on the PATH sits in the current folder, which Windows looks in
+    first: a results folder may hold a file of that name, and it is never started."""
+    try:
+        here = os.path.realpath(os.getcwd())
+    except OSError:
+        return True
+    folder = os.path.realpath(os.path.dirname(os.path.abspath(path)))
+    return os.path.normcase(folder) == os.path.normcase(here)
+
+
 def imports_judgekeeper(python: str) -> bool:
     """Whether `python` on the PATH imports this judgekeeper, not another install (asked once
-    per program found)."""
+    per program found, never one in the current folder)."""
     import shutil
 
     found = shutil.which(python)
-    if found is None:
+    if found is None or _in_this_folder(found):
         return False
     if found not in _imports:
         this = _same(os.path.join(os.path.dirname(os.path.realpath(__file__)), "__init__.py"))

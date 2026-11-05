@@ -355,18 +355,16 @@ def test_the_grader_config_is_kept_without_any_key(here, capsys):
     from tests.test_fix import regraded
 
     ws = project(here)
-    _grader_config(here, {"temperature": 0, "apiBaseUrl": "http://127.0.0.1:9590/v1",
-                          "max_tokens": 300, "apiKey": SECRET, "access_token": SECRET,
-                          "headers": {"X-Team": "support", "Authorization": BEARER}})
+    _grader_config(here, {"temperature": 0, "max_tokens": 300, "apiKey": SECRET,
+                          "access_token": SECRET, "Authorization": BEARER})
     code, out = run(capsys)
     assert code == 0, out
     text = (ws.dir / "fix" / "regrade.yaml").read_text(encoding="utf-8")
     provider = yaml.safe_load(text)["defaultTest"]["options"]["provider"]
     assert provider == {"id": "openai:gpt-4.1-mini",
-                        "config": {"temperature": 0, "apiBaseUrl": "http://127.0.0.1:9590/v1",
-                                   "max_tokens": 300, "headers": {"X-Team": "support"}}}
+                        "config": {"temperature": 0, "max_tokens": 300}}
     assert SECRET not in text and "abcdefghijklmnop" not in text
-    for name in ("apiKey", "access_token", "headers.Authorization"):
+    for name in ("apiKey", "access_token", "Authorization"):
         assert (f"    # {name} left out: judgekeeper never writes keys to files. Set it the "
                 "way your own config does.\n") in text
     lines = text.splitlines()
@@ -401,8 +399,9 @@ def test_the_docs_say_when_no_regrade_file_is_written():
                     .read_text(encoding="utf-8").split())
     assert ("`judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader "
             "is a named provider") in docs
-    assert ("For a `file://` or `exec:` grader, or promptfoo's default grader, it writes no "
-            "file and prints the steps instead.") in docs
+    assert ("For a `file://` or `exec:` grader, promptfoo's default grader, or a grader, "
+            "setting or rule that is more than a plain model call with simple `{{name}}` "
+            "variables, it writes no file and prints the steps instead.") in docs
 
 
 def test_the_docs_example_has_the_tests_line_fix_writes():
@@ -416,7 +415,7 @@ def test_the_docs_example_has_the_tests_line_fix_writes():
     assert yaml.safe_load(block)["tests"] == f"file://{fix.TESTS_FILE}"
     docs = " ".join(text.split())
     assert f"`{fix.TESTS_FILE}` (the same answers, word for word as marked) as its tests" in docs
-    assert ("Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.csv` and "
+    assert ("Writing it yourself? Use `tests: file://.judgekeeper/fix/marked-answers.yaml` and "
             "run promptfoo from your project folder.") in docs
     assert ("(from the folder that holds your regrade.yaml), then `judgekeeper fix new.json`"
             in docs)
