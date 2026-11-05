@@ -536,12 +536,14 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
     store = project.project_of(asked)
     if path.is_file() and (marked := project.other_eval(store, path)) is not None:
-        talk.para(project.other_eval_line(path, marked))  # never read, marked or set apart
-        raise talk.stop(EXIT_QUESTION)
+        line, step = project.other_eval_stop(path, marked)  # never read, marked or set apart
+        talk.para(line)
+        raise talk.stop(EXIT_QUESTION, step)
     if not asked.is_file():  # the marked file is read still: why not the other
         for other, marked in project.others_beside(store):
             talk.para(project.other_eval_line(other, marked))
             talk.say()
+    path = _project_reads(path, store)
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved)
     found = _marked_files(talk, where, saved, found)
@@ -553,6 +555,23 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         found = start.rebased(found, root, path)
         _folder_chosen(talk, found, path.resolve())
     return found, saved
+
+
+def _project_reads(path: Path, store: Path) -> Path:
+    """Where a run from `path` reads: the project folder `store` when `path` is a folder below
+    it with the results its marks are on, as if run there, so no second session starts. A
+    folder of logs is the project's choice of folder (_log_folder_of), and a folder with no
+    results reads the project above and says so (start._locate)."""
+    if not path.is_dir() or find.is_mlflow_folder(path) or store == path.resolve():
+        return path
+    try:
+        tool = json.loads(Workspace(store).start.read_text(encoding="utf-8"))["tool"]
+    except (OSError, ValueError, RecursionError, KeyError, TypeError):
+        return path
+    search = find.search(path)
+    if tool in ("deepeval", "inspect") or not any(search.readable(t) for t in find.TOOLS):
+        return path
+    return store
 
 
 def _log_folder_of(root: Path, found: start.Found) -> bool:
@@ -1187,7 +1206,9 @@ def _session_owning(path: Path) -> str | None:
     no_project = not project.is_project(root)
     while folder != root:
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file() or no_project and project.is_project(folder):
+        held = (ws.start.is_file() or ws.labels.is_file()) and (
+            project.marks_above(folder, path.resolve()) is None)
+        if held or no_project and project.is_project(folder):
             return textio.folder_from_here(folder)
         folder = folder.parent
     return None
@@ -1257,15 +1278,32 @@ def _notes(found: start.Found, labels_command: str | None = None) -> list[str]:
 
 def _other_files(found: start.Found, talk: FrontTalk) -> str | None:
     """Results files found next to the one read, never read with it: named (at most
-    OTHERS), with the command that checks one, the person's flags kept."""
+    OTHERS), with the command that checks one, the person's flags kept. Another eval beside
+    it can't be checked here once marking starts (project.other_eval): a folder of its own."""
     if found.tool not in FILE_TOOLS or found.given:
         return None
-    others = [r.rel for r in found.results if r.rel not in found.used][:OTHERS]
-    if not others:
-        return None
-    commands = start._or([f"`{talk.command_at(r)}`" for r in others])
-    return (f"Also found {start._and(others)}. To check "
-            f"{'it' if len(others) == 1 else 'one'}, run {commands}.")
+    others = [r for r in found.results if r.rel not in found.used][:OTHERS]
+    apart = [r.rel for r in others if _another_eval(r, found)]
+    here = [r.rel for r in others if r.rel not in apart]
+    said = []
+    if here:
+        commands = start._or([f"`{talk.command_at(r)}`" for r in here])
+        said.append(f"Also found {start._and(here)}. To check "
+                    f"{'it' if len(here) == 1 else 'one'}, run {commands}.")
+    if apart:
+        said.append(f"Also found {start._and(apart)}, with other questions. To check "
+                    f"{'it' if len(apart) == 1 else 'one'}, put it in a folder of its own and "
+                    f"run `{project.program_anywhere()}` there.")
+    return " ".join(said) or None
+
+
+def _another_eval(result: find.Result, found: start.Found) -> bool:
+    """Whether `result`, not read, sits beside a file read and is another eval than `found`."""
+    read = {r.path.resolve().parent for r in found.results if r.rel in found.used}
+    if result.path.resolve().parent not in read or not found.pool.answers:
+        return False
+    held = [{"input": a.input, "output": a.output, "id": a.id} for a in found.pool.answers]
+    return not project.same_questions(result.path.resolve(), found.tool, held)
 
 
 def _other_projects(found: start.Found) -> str | None:
@@ -2177,6 +2215,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     session = StartSession(ws)
     if unreadable := marks.unreadable_line(marks.read(ws.marks)):
         head.append(unreadable)
+    if lost := start_label.lost_marks_line(ws):
+        head.append(lost)
     counts = session.counts()
     enough = start_label.has_result(batches.counted_strata(
         ws.data(), batches.graded(ws.data(), session.marked())))
@@ -2729,6 +2769,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     ws = Workspace(project.project_of(path))
     if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
         ws = Workspace(start.reads_in(path))  # the folder a run from here reads
+    if path.is_dir() and not is_open(ws.dir) and is_open(Workspace(path).dir):
+        ws = Workspace(path)  # a page open on a session every command now passes over
     below = [] if is_open(ws.dir) or not path.is_dir() else [
         name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
     if len(below) == 1:  # opened from the folder right below

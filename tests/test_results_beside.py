@@ -106,6 +106,13 @@ def _other_eval(file: str, marked: str) -> str:
             "there.")
 
 
+def _refused(file: str, marked: str) -> str:
+    """The same, for a command that stops at the file: what to do is its Next line."""
+    return (f"{file} shares few questions with the results you marked ({marked}), so it looks like "
+            f"another eval. Next: put {file} in a folder of its own, then run `judgekeeper` "
+            "there.")
+
+
 def _write_other(here, other: str) -> str:
     """Another eval beside the session's sub2/results.csv: other questions in a CSV, or a
     promptfoo file. Its name."""
@@ -130,7 +137,7 @@ def test_another_eval_beside_the_results_is_said_and_changes_nothing(here, capsy
     file = name if inside else f"sub2/{name}"
     code, said = _said(capsys, *command, file)
     assert code == 3, said
-    assert _other_eval(file, "results.csv" if inside else "sub2/results.csv") in said, said
+    assert _refused(file, "results.csv" if inside else "sub2/results.csv") in said, said
     assert "Start over" not in said and "changed since your marks" not in said, said
     assert "own marks" not in said, said
     assert not (here / "sub2" / ".judgekeeper").exists(), said
@@ -260,8 +267,9 @@ def test_results_of_one_tool_beside_join_when_they_share_questions(here, capsys,
         monkeypatch.chdir(folder)
         code, said = _said(capsys, *argv)
         assert "didn't expect" not in said, (argv, said)
-        line = (_other_eval(f"evals/{second}", f"evals/{first}") if folder == here
-                else _other_eval(second, first))
+        said_as = _refused if argv else _other_eval
+        line = (said_as(f"evals/{second}", f"evals/{first}") if folder == here
+                else said_as(second, first))
         if same:  # check: 5 marks are too few for a re-check
             assert code == (3 if argv[:1] == ["check"] else 0), (argv, said)
             assert "another eval" not in said, (argv, said)
@@ -316,7 +324,8 @@ def test_a_file_beside_is_the_same_eval_only_when_it_shares_its_questions(here, 
         assert "didn't expect" not in said, (argv, said)
         if second == "other questions":
             assert code == (3 if argv else 0), (argv, said)
-            assert _other_eval("evals/b.json", "evals/a.json") in said, (argv, said)
+            line = (_refused if argv else _other_eval)("evals/b.json", "evals/a.json")
+            assert line in said, (argv, said)
             assert (here / ".judgekeeper" / "pool.jsonl").read_bytes() == pool, (argv, said)
         else:
             assert "another eval" not in said, (argv, said)

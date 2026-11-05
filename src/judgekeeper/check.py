@@ -1898,7 +1898,10 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     state = _state(path)
     if state is not None and Path(path).is_file() and (
             marked := project.other_eval(state.ws.root, Path(path))) is not None:
-        said.say(project.other_eval_line(Path(path), marked))  # never read as new results
+        line, step = project.other_eval_stop(Path(path), marked)  # never read as new results
+        said.say(line)
+        said.say()
+        said.say(f"Next: {step}")
         return EXIT_NEEDS_YOU
     if state is None or not state.enough:
         return _not_set_up(path, state, said)

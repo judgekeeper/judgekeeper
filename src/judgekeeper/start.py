@@ -2075,8 +2075,8 @@ def _same_eval_only(path: Path, results: list) -> list:
     kept = [r for r in results if project.other_eval(store, r.path) is None]
     if kept:
         return kept
-    marked = project.other_eval(store, results[0].path)
-    raise StartError(project.other_eval_line(results[0].path, marked))
+    line, step = project.other_eval_stop(results[0].path, project.other_eval(store, results[0].path))
+    raise StartError(line, step.replace("{", "{{").replace("}", "}}"))  # next_step is a format
 
 
 def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | None = None,

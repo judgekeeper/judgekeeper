@@ -821,6 +821,13 @@ class StartSession(LabelSession):
         self._marks_seen: tuple | None = None  # marks.jsonl as last read or written
         self.before: str | None = None  # marks.jsonl's version before the last change (version)
         self._status: tuple | None = None  # (changes, start.json's stamp, the status)
+        # read from marks.jsonl (_resume); no file is no marks
+        self.page_marked: set[str] = set()
+        self.slots: set[int] = set()
+        self.repeated: set[str] = set()
+        self.slot_mark: dict[int, str] = {}
+        self.line_of: dict[str, int] = {}
+        self.lines = 0
         super().__init__(ws.pool, ws.marks)
         raw = [loads(line) for line in jsonl_lines(ws.pool.read_text(encoding="utf-8"))
                if line.strip()]
@@ -1751,6 +1758,24 @@ def _same_result(ws: Workspace, digest: str) -> dict | None:
         return None
     return saved if isinstance(saved, dict) and saved.get("marks_sha256") == digest and \
         saved.get("numbers_version") == NUMBERS_VERSION else None
+
+
+def lost_marks_line(ws: Workspace) -> str | None:
+    """Said when marks.jsonl holds fewer answers than the saved result counted: marks only ever
+    add lines, so a mark taken back is still in the file and these went from outside it."""
+    try:
+        labels = loads(ws.result_json.read_text(encoding="utf-8"))["labels"]
+        had = labels["correct"] + labels["wrong"]
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return None
+    m = marks.read(ws.marks)
+    if not isinstance(had, int) or len(m.last) >= had:
+        return None
+    left = len(m.counted())
+    said = f"Your last result had {plural(had, 'mark')}, but "
+    if not left:
+        return f"{said}none can be read now. They are gone from {FOLDER}/{marks.FILE}."
+    return f"{said}only {left} can be read now. The rest are gone from {FOLDER}/{marks.FILE}."
 
 
 def recompute_old(ws: Workspace, worse: str | None = None, flags: dict | None = None) -> bool:

@@ -78,6 +78,10 @@ def start(folder: Path, settings: dict, token: str, timeout: float = WAIT) -> st
             proc.kill()
         raise
     proc.kill()
+    try:  # gone before the caller looks at its port: else a free port looks taken
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        pass
     return None
 
 
