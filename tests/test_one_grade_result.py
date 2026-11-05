@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from judgekeeper import page as page_mod
 from judgekeeper import start_label, targets, weighted
 from tests.start_projects import promptfoo_project, split
 from tests.test_front import flat, run
@@ -150,3 +151,54 @@ def test_a_result_with_ranges_still_says_to_mark_more_at_any_time(tmp_path, caps
     assert background.stop(ws.dir)
     _, out, _ = run(capsys)
     assert "To mark more answers at any time, run `judgekeeper mark`." in out
+
+
+@pytest.mark.parametrize(("passed", "failed", "few"), [
+    (20, 0, False), (0, 20, False), (1, 0, False),  # one grade: one mark the other way is enough
+    (15, 9, True), (28, 1, True),  # both grades: never 15 Pass and 15 Fail marks
+    (15, 15, False), (29, 1, False)])
+def test_only_answers_with_both_grades_can_be_too_few(passed, failed, few):
+    assert targets.few_answers(passed, failed) is few
+
+
+@pytest.fixture
+def twenty(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(20, 0))
+    return tmp_path
+
+
+def test_under_30_answers_with_one_grade_the_page_opens_and_no_line_says_30(twenty, capsys, pages):
+    code, out, _ = run(capsys, "--no-browser")
+    said = flat(out)
+    assert code == 0, said
+    assert ("Your LLM-as-a-judge said Pass on every answer. Your result comes as soon as you mark "
+            "one answer Fail.") in said, said
+    assert "first result" not in said and "at least 30" not in said, said
+    assert said.endswith('Next: mark answers on the page until a "See the numbers so far" link '
+                         "appears, then click it."), said
+
+
+def test_mark_under_30_answers_with_one_grade_says_no_30_either(twenty, capsys, pages):
+    run(capsys, "--no-browser")
+    code, out, _ = run(capsys, "mark", "--no-browser")
+    assert code == 0 and "at least 30" not in flat(out), out
+
+
+@pytest.mark.parametrize(("passed", "failed", "few"), [(15, 9, True), (20, 0, False)])
+def test_the_marking_page_is_told_only_both_grades_are_too_few(tmp_path, monkeypatch, capsys, pages,
+                                                               passed, failed, few):
+    monkeypatch.chdir(tmp_path)
+    promptfoo_project(tmp_path, split(passed, failed))
+    run(capsys, "mark", "--no-browser")
+    session = start_label.StartSession(start_label.Workspace(tmp_path))
+    assert page_mod.marking_status(session)["few"] is few
+
+
+def test_all_20_agreed_says_a_result_needs_more_answers(twenty, capsys, pages):
+    run(capsys, "--no-browser")
+    _mark(twenty, ["pass"] * 20)
+    code, out, _ = run(capsys)
+    said = flat(out)
+    assert code == 3, said
+    assert "You've marked every answer: 20 Pass, 0 Fail. A result needs at least 15 of each." in said

@@ -5,24 +5,38 @@
 # Holds: ids, grades and counts only; no prompt or response
 # The screen below is judgekeeper's Measure output, copied exactly.
 
-judgekeeper 1.0.0b2
+judgekeeper 1.1.1
 
 Step 3 of 5: Measure
 
-100 of your marks were made through a link printed where another
-program could read it.
+96 of your marks took under a second each. That is faster than a
+person reads, so a program may have made them.
 
-Result: too early to tell. Mark more answers to get a result.
-You and your judge disagreed on 10 of 100 answers.
+100 of your marks came through a link judgekeeper printed.
+That's expected if you opened it yourself.
 
-  You passed 54 answers. Of those, your judge passed 47 and failed 7.
-  You failed 46 answers. Of those, your judge passed 3 and failed 43.
+Result: too early to tell. The numbers below are your best
+estimate so far. Mark more answers to narrow the ranges.
+You and your LLM-as-a-judge disagreed on 10 of 100 answers.
+
+  You passed 54 answers. Of those, your LLM-as-a-judge passed 47
+  and failed 7.
+  You failed 46 answers. Of those, your LLM-as-a-judge passed 3
+  and failed 43.
+
+To tell judgekeeper why you disagree on 4 of them, run
+`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9813 --no-browser`.
+6 more disagreements are kept aside on purpose, so a new rule
+can be tested on answers you haven't looked at again.
+
+How often your LLM-as-a-judge agrees with you (estimates):
+  When you say Pass, it also says Pass: about 91% (between 84% and 96%)
+  When you say Fail, it also says Fail: about 90% (between 78% and 97%)
+The result line uses wider ranges than these, so a lucky streak
+can't decide it. You can look after every mark.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 
-To mark more answers at any time, run
-`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9901 --no-browser`.
-
 Next: run
-`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9901 --no-browser`
+`judgekeeper mark --judge-model openai:gpt-4-0613 --port 9813 --no-browser`
 to mark more answers.

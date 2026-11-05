@@ -81,7 +81,9 @@ class Demo(webbrowser.BaseBrowser):
 webbrowser.register("demo", None, Demo("demo"), preferred=True)
 sys.argv[0] = "judgekeeper"
 from judgekeeper.__main__ import main
-sys.exit(main())
+from judgekeeper.textio import plainly
+with plainly():  # the demo's commands as a person types them, never this run's path
+    sys.exit(main())
 """
 
 TERMINAL = """<!doctype html>

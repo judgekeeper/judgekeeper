@@ -506,8 +506,10 @@ def test_good_and_needs_work_lead_with_the_disagreements():
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
     said = said.replace("LLM-as-a-judge", TERM)
     served = _html(_result(*counts), back="/?token=t")
-    assert (f'<p class="lead">{said}<a href="/?token=t">Mark more answers to get a result.</a>'
-            "</p>") in served
+    link = ('<a href="/?token=t">Mark more answers to get a result.</a>' if counts == TOO_FEW else
+            'The numbers below are your best estimate so far. <a href="/?token=t">Mark more '
+            "answers to narrow the ranges.</a>")
+    assert f'<p class="lead">{said}{link}</p>' in served
     saved = _html(_result(*counts))
     assert (f'<p class="lead">{said}Run <code>{program("mark")}</code> to mark more answers.</p>'
             in saved)

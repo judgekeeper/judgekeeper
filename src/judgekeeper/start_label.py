@@ -83,7 +83,10 @@ def shown_folder(ws: Workspace) -> str:
 GOOD = "Your LLM-as-a-judge is good enough to use."
 NEEDS = "Your LLM-as-a-judge needs work."
 EARLY = "Too early to tell."
-MARK_MORE = "Mark more answers to get a result."
+BEST_SO_FAR = "The numbers below are your best estimate so far."
+NARROW = "Mark more answers to narrow the ranges."
+MARK_MORE = f"{BEST_SO_FAR} {NARROW}"
+TO_A_RESULT = "Mark more answers to get a result."  # the result page before any numbers; 1.1.0's
 VERDICTS = {  # the result line (targets.level decides)
     "gate": GOOD,
     "check": f"{EARLY} {MARK_MORE}",
@@ -620,6 +623,19 @@ def shown_question(ws: Workspace, value, output=None):
 def coloured(r: dict) -> bool:
     """Whether the result has a coloured verdict: good enough or needs work."""
     return r["check"] != "too_few" and r.get("verdict_level") in ("gate", "not_gate")
+
+
+def without_mark_more(verdict: str) -> str:
+    """The result line without its ask to mark more, in a saved result's older words too."""
+    for ask in (MARK_MORE, TO_A_RESULT):
+        verdict = verdict.replace(f" {ask}", "")
+    return verdict
+
+
+def few_answers(session: StartSession) -> bool:
+    """targets.few_answers for every answer to mark, each batch's too."""
+    grades = list(session.groups.values())
+    return targets.few_answers(grades.count("pass"), grades.count("fail"))
 
 
 def status_line(r: dict) -> str:

@@ -1057,7 +1057,7 @@ def test_the_line_under_the_bar_says_a_first_result_needs_more_answers():
     from judgekeeper import start
 
     data = _data(24, counts={"correct": 4, "wrong": 2, "skipped": 0},
-                 status={"text": "x", "first": False, "ready": False})
+                 status={"text": "x", "first": False, "ready": False, "few": True})
     for item in data["items"][:6]:
         item["label"] = "pass"
     show = 'console.log(JSON.stringify([ids["keep"].hidden, ids["keep"].textContent]));'

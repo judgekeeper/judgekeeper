@@ -184,9 +184,10 @@ def test_a_side_that_can_not_tell_yet_is_too_early_with_both_numbers(project, ca
     promptfoo_project(project, split(360, 40))  # the judge passes 90%: few answers fail
     out = _measured(project, capsys, lambda g, n: g, each=20)  # 20 + 20, all agreed
     lines = out.splitlines()
-    assert "Result: too early to tell. Mark more answers to get a result." in lines
+    assert ("Result: too early to tell. The numbers below are your best estimate so far. Mark "
+            "more answers to narrow the ranges.") in " ".join(out.split())
     at = lines.index("How often your LLM-as-a-judge agrees with you (estimates):")
-    assert at > lines.index("Result: too early to tell. Mark more answers to get a result.")
+    assert at > next(i for i, x in enumerate(lines) if x.startswith("Result: too early to tell."))
     for line, word in zip(lines[at + 1:at + 3], ("Pass", "Fail"), strict=True):
         assert re.fullmatch(rf"  When you say {word}, it also says {word}: (about )?\d+% "
                             r"\(between \d+% and \d+%\)", line), line

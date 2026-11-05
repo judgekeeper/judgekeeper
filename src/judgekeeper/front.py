@@ -1840,12 +1840,12 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     _write(found)
     saved = new is not None and _save(talk, found, new, made=mapped is not None)
     n = len(pool.answers)
-    if n < start.MIN_POOL:
+    if targets.few_answers(pool.n_pass, pool.n_fail):
         talk.say()
         talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
                   "for a first result.")
         raise talk.stop(EXIT_QUESTION, (
-            f"mark {'this one' if n == 1 else f'these {n}'} now with "
+            f"mark these {n} now with "
             f"`{_command_of(talk, saved, 'mark')}`. Your marks are kept. Then run your eval to "
             f"make more answers (that makes model calls), and run `{talk.command()}` again."))
     talk.say()
@@ -2467,14 +2467,15 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     talk.say()
     next_step = NEXT_MORE if enough else NEXT_MARK
     out_of_reach = not enough and side_out_of_reach(**_each_kind(session))
-    few = out_of_reach or (not enough and len(session.items) < start.MIN_POOL)  # exit 3
+    too_few = not enough and start_label.few_answers(session)
+    few = out_of_reach or too_few  # exit 3
     if not enough and n and waits is None and (skipped := _only_skipped(session)):
         next_step = start_label.next_only_skipped(  # the page that marks it: `mark`
             skipped, _command_of(talk, saved, "mark"), on_page=marking
         ).replace("{", "{{").replace("}", "}}")
     elif out_of_reach:  # as FAILS_OUT_OF_REACH says
         next_step = start_label.NEXT_ALL_MARKED
-    elif not enough and len(session.items) < start.MIN_POOL:  # no link can appear
+    elif too_few:  # no link can appear
         next_step = NEXT_FEW_ANSWERS.format(n=len(session.items), min=start.MIN_POOL,
                                             command=_command_of(talk, saved, "mark")
                                             ).replace("{", "{{").replace("}", "}}")
@@ -2536,7 +2537,7 @@ def verdict_line(r: dict) -> str | None:
         return None
     verdict = r["verdict"]
     if start_label.all_labeled(r) or r.get("only_wait"):  # nothing left to mark that counts
-        verdict = verdict.replace(f" {start_label.MARK_MORE}", "")
+        verdict = start_label.without_mark_more(verdict)
     return f"Result: {verdict[:1].lower()}{verdict[1:]}"
 
 

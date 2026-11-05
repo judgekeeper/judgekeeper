@@ -65,9 +65,9 @@
   "skipped": 0,
   "disagreements": 13,
   "left": 0,
-  "made_at": "2026-11-03T22:32:31Z",
+  "made_at": "2026-11-05T05:44:34Z",
   "numbers_version": 4,
-  "judgekeeper_version": "1.1.0",
+  "judgekeeper_version": "1.1.1",
   "fingerprint": {
     "provider": null,
     "model": "my-judge-v1",
@@ -75,7 +75,7 @@
     "prompt_hash": "fcb5a7cb87cee633d85dfe37e03bb590d5da2eb90fec928f9c74fa9b9f211308",
     "rubric_version": null,
     "temperature": 0.0,
-    "created_at": "2026-11-03T22:32:30Z",
+    "created_at": "2026-11-05T05:44:34Z",
     "endpoint": "unknown"
   },
   "judge": {
@@ -86,9 +86,9 @@
     "one_rule": true,
     "description": null,
     "results_files": [
-      ".judgekeeper/records/Polite-and-correct-2026-11-03-38832.jsonl"
+      ".judgekeeper/records/Polite-and-correct-2026-11-05-99785.jsonl"
     ],
-    "results_date": "2026-11-03 22:32"
+    "results_date": "2026-11-05 00:44"
   },
   "judge_check": {
     "answers": 40,
@@ -127,5 +127,5 @@
     "path": ".",
     "port": 8765
   },
-  "marks_sha256": "6a084baab1d85e6307220d120c2712601cb7216d16719f025d443d50be9498df"
+  "marks_sha256": "661acd06bf06fa85f77abf57fbd89de7fd3d6cecf8d04812bd11170f88ce9997"
 }

@@ -80,9 +80,9 @@
           "correct": 54,
           "wrong": 46
         },
-        "check": "reliable",
+        "check": "result",
         "verdict_level": "check",
-        "verdict": "Too early to tell. Mark more answers to get a result.",
+        "verdict": "Too early to tell. The numbers below are your best estimate so far. Mark more answers to narrow the ranges.",
         "disagreements": 10,
         "left": 200,
         "made": {
@@ -91,9 +91,12 @@
           "fail": 46,
           "sittings": 1,
           "seconds": null,
-          "under_second": 0,
+          "under_second": 96,
           "not_counted": 0,
-          "printed": 100
+          "printed": 100,
+          "browser_env": 0,
+          "unsure": 0,
+          "after_result": 0
         }
       },
       "raw_on_marked": {
@@ -168,9 +171,9 @@
           "correct": 108,
           "wrong": 92
         },
-        "check": "reliable",
-        "verdict_level": "gate",
-        "verdict": "Your judge is good enough to use.",
+        "check": "result",
+        "verdict_level": "check",
+        "verdict": "Too early to tell. The numbers below are your best estimate so far. Mark more answers to narrow the ranges.",
         "disagreements": 20,
         "left": 100,
         "made": {
@@ -179,9 +182,12 @@
           "fail": 92,
           "sittings": 2,
           "seconds": null,
-          "under_second": 0,
+          "under_second": 189,
           "not_counted": 0,
-          "printed": 200
+          "printed": 200,
+          "browser_env": 0,
+          "unsure": 0,
+          "after_result": 0
         }
       },
       "raw_on_marked": {

@@ -287,6 +287,13 @@ def test_the_demo_script_checks_the_outline_of_every_frame():
         make_demo.check_outline(whole)
 
 
+def test_the_demo_prints_commands_as_a_person_types_them():
+    """Run through `python -c`, the program's path would print as `./judgekeeper fix`."""
+    text = (ROOT / "scripts" / "make_demo.py").read_text(encoding="utf-8")
+    opener = text.split('OPENER = """', 1)[1].split('"""', 1)[0]
+    assert "with plainly():" in opener and opener.rstrip().endswith("    sys.exit(main())")
+
+
 def test_no_ghost_of_the_first_time_card_stays_in_the_marking_page_frames():
     """The card (centred over the answer area) is shown in the first marking frames, then it is
     gone: from then on the part of the answer area below any answer text (the card's second
@@ -414,7 +421,8 @@ def test_the_jailbreakbench_screens_are_what_this_version_prints():
     assert not re.search(r"\byour judge\b", text, re.IGNORECASE)
     assert "in the wording of an older version" not in text
     after_200 = flat.split("### After 200 marks", 1)[1].split("###", 1)[0]
-    assert "Result: too early to tell. Mark more answers to get a result." in after_200
+    assert ("Result: too early to tell. The numbers below are your best estimate so far. Mark "
+            "more answers to narrow the ranges.") in after_200
     assert "Result: your LLM-as-a-judge is good enough to use." not in after_200
     assert ('On the same 200 marks, judgekeeper 1.0.0b2 said "good enough to use"' in after_200)
     draw = flat.split("## One draw on commit `6437d85`", 1)[1].split("## ", 1)[0]
