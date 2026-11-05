@@ -13,9 +13,33 @@ permissions:
   contents: read
 
 jobs:
+  # As in ci.yml: only "false" skips anything, and each job keeps its name when nothing runs.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - id: diff
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        # A pull request checks out its merge commit: its first parent is the base.
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --no-renames --name-only HEAD^1 HEAD | python3 scripts/ci_changes.py >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # Every optional extra and Node.js, like test and test-extras in ci.yml, so the Inspect,
   # MLflow and promptfoo (npx) paths run on Windows too.
   test-windows:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -40,6 +64,8 @@ jobs:
 
   # The oldest and newest Python the package supports, on Windows.
   test-windows-versions:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -47,14 +73,18 @@ jobs:
         python-version: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: needs.changes.outputs.code != 'false'
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        if: needs.changes.outputs.code != 'false'
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
+        if: needs.changes.outputs.code != 'false'
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Test
+        if: needs.changes.outputs.code != 'false'
         run: pytest -rfEs

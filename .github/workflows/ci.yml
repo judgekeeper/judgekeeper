@@ -9,7 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  # Whether a pull request changes code (scripts/ci_changes.py). Only "false" skips anything:
+  # if this job fails, every job below still runs. Each job keeps its name when nothing runs,
+  # as the required checks need: a matrix job skipped whole would not report `test (3.12)`, so
+  # those jobs start and skip their steps. Every push to main runs them all.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - id: diff
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        # A pull request checks out its merge commit: its first parent is the base.
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --no-renames --name-only HEAD^1 HEAD | python3 scripts/ci_changes.py >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -17,32 +44,46 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         with:
           python-version: ${{ matrix.python-version }}
       # Node.js 22.18 or later runs the TypeScript record() snippet in docs/examples/records/jk_record.ts as it is.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         with:
           node-version: "22"
       - name: Install
+        if: needs.changes.outputs.code != 'false' || matrix.python-version == '3.12'
         # The mlflow extra lets tests/test_import_mlflow.py build and read a real MLflow store.
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,mlflow]"
       - name: Test
+        if: needs.changes.outputs.code != 'false'
         # -rfEs lists every failed, erroring and skipped test (and why); the TypeScript
         # snippet test may not skip here.
         env:
           JUDGEKEEPER_NEEDS_NODE: "1"
         run: pytest -rfEs
       - name: Lint
+        if: needs.changes.outputs.code != 'false'
         run: ruff check src tests
+      # Only docs or website pages changed: the tests that read them, on one Python.
+      - name: Test the docs and website
+        if: needs.changes.outputs.code == 'false' && matrix.python-version == '3.12'
+        env:
+          JUDGEKEEPER_NEEDS_NODE: "1"
+        run: pytest -rfEs $(grep -lE "README|CHANGELOG|SECURITY|reference\.md|eval-tools|docs/|website|WEBSITE" tests/test_*.py)
 
   # The whole suite with every optional extra installed: with inspect_ai, Inspect logs are
   # read through it, a path the test job above never takes.
   test-extras:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -61,6 +102,8 @@ jobs:
   # The marking page runs as its own process (judgekeeper mark). The unit tests run on Linux
   # here and on Windows in windows.yml; this runs that page's real-process test on macOS.
   test-macos:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -80,6 +123,8 @@ jobs:
   # so a packaging mistake (a missing font, a broken entry point) fails here rather than
   # on release day. The same steps run in release.yml before publishing.
   package:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

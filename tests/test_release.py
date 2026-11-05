@@ -347,8 +347,9 @@ def test_ci_tests_every_python_the_classifiers_name_and_windows_on_every_pull_re
     on = win["on"]
     assert set(on) == {"pull_request", "push", "workflow_dispatch"}
     assert on["push"] == {"branches": ["main"]}
-    assert set(win["jobs"]) == {"test-windows", "test-windows-versions"}
-    for job in win["jobs"].values():
+    assert set(win["jobs"]) == {"changes", "test-windows", "test-windows-versions"}
+    for name in ("test-windows", "test-windows-versions"):
+        job = win["jobs"][name]
         assert job["runs-on"] == "windows-latest" and "pytest" in _steps_text(job)
     assert "not yet a supported platform" not in (WORKFLOWS / "windows.yml").read_text(
         encoding="utf-8")
