@@ -462,7 +462,7 @@ def test_numbers_are_refused(here, capsys):
     write_labels(here / "mine.csv", [{"answer": answer(0), "label": "0.7"},
                                      {"answer": answer(1), "label": "1"}])
     code, out = run(capsys, "--labels", "mine.csv")
-    assert code == 3 and "Labels must be Pass or Fail, not numbers." in flat(out)
+    assert code == 3 and "Labels must be Pass or Fail, or 1 and 0, not other numbers." in flat(out)
     _nothing_written(Workspace(here))
 
 

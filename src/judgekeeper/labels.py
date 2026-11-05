@@ -341,7 +341,7 @@ def read_marks(values: list, label_map: dict | None, name: str,
         else:
             words.append(value)
     if numbers:
-        raise LabelsStop(["Labels must be Pass or Fail, not numbers."])
+        raise LabelsStop(["Labels must be Pass or Fail, or 1 and 0, not other numbers."])
     if words:
         shown = ", ".join(sorted({_word(w) for w in words})[:WORDS_SHOWN])
         where = ("--labels",) if given is None else ("--labels", runnable(given, labels=True))

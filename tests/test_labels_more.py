@@ -44,7 +44,7 @@ def test_other_numbers_are_still_refused(here, capsys, value):
     write_labels(here / "mine.csv", [{"answer": answer(0), "label": value},
                                      {"answer": answer(1), "label": "1.0"}])
     code, out = run(capsys, "--labels", "mine.csv")
-    assert code == 3 and "Labels must be Pass or Fail, not numbers." in flat(out), out
+    assert code == 3 and "Labels must be Pass or Fail, or 1 and 0, not other numbers." in flat(out), out
 
 
 # Two columns for the same thing ---------------------------------------------------------------

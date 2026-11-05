@@ -972,7 +972,7 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
     cmds = {li.attrs["id"]: [_flat(c) for c in _all(li, "code") if c.parent.classes() == {"cmd"}]
             for li in items}
     assert cmds == {"step-find": ["judgekeeper", "judgekeeper path/to/results.json"],
-                    "step-mark": [], "step-measure": ["judgekeeper mark"],
+                    "step-mark": [], "step-measure": ["judgekeeper", "judgekeeper mark"],
                     "step-fix": ["judgekeeper fix", "judgekeeper fix new-results.json"],
                     "step-check": ["judgekeeper check new-results.json"]}
     # the "if" notes: the question, then its answer
@@ -1143,8 +1143,8 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
     install = ["pip install judgekeeper", "judgekeeper", "uvx judgekeeper"]  # one per box
     assert [_flat(_all(b, "code")[0]) for b in boxes] == [
         *install, "judgekeeper", "judgekeeper path/to/results.json",
-        "judgekeeper mark", "judgekeeper fix", "judgekeeper fix new-results.json",
-        "judgekeeper check new-results.json",
+        "judgekeeper", "judgekeeper mark", "judgekeeper fix",
+        "judgekeeper fix new-results.json", "judgekeeper check new-results.json",
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
     for box in boxes:  # each button is named by the command it copies
         (button,) = _all(box, "button", "copy")

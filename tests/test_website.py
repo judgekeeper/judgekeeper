@@ -63,7 +63,9 @@ def test_the_sitemap_lists_every_page():
         url = "https://www.judgekeeper.com/" + ("" if name == "index.html" else name)
         assert url in locs, url
     assert sitemap.count("<lastmod>") == sitemap.count("<loc>") == 4
-    assert sitemap.count("<lastmod>2026-11-04</lastmod>") == 3  # the privacy page did not change
+    assert sitemap.count("<lastmod>2026-11-05</lastmod>") == 2  # home and the Guide
+    assert "start.html</loc><lastmod>2026-11-05</lastmod>" in sitemap
+    assert "judgekeeper.com/</loc><lastmod>2026-11-05</lastmod>" in sitemap
 
 
 # Commands
