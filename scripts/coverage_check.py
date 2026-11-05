@@ -885,12 +885,12 @@ def markdown(result: dict) -> str:
              "A 95% range should hold it about 95 times in 100."), "",
              (f"Grid: the LLM-as-a-judge's pass share (pi) "
              f"{', '.join(f'{x:.0%}' for x in SHARES)}; the chance an answer the LLM-as-a-judge "
-             f"passed is Correct (a) {', '.join(map(str, CORRECT_IF_PASS))}; "
-             f"the chance an answer it failed is Wrong (w) {', '.join(map(str, WRONG_IF_FAIL))}; "
+             f"passed is marked Pass (a) {', '.join(map(str, CORRECT_IF_PASS))}; "
+             f"the chance an answer it failed is marked Fail (w) {', '.join(map(str, WRONG_IF_FAIL))}; "
              f"{', '.join(map(str, LABELS))} answers labeled in each group. {CHECKS:,} simulated "
              f"checks per cell, fixed seed {SEED}. Jeffreys ranges: {result['draws']:,} draws, "
              f"seed {result['seed']}. Checks where a number is unknown (TNR when every labeled "
-             "answer is Correct, say) are left out of that number's coverage and counted."), "",
+             "answer is marked Pass, say) are left out of that number's coverage and counted."), "",
              "## `judgekeeper`: the level", "",
              (f"Rule: the first of {', '.join(f'{x:.0%}' for x in CANDIDATES)} whose ranges hold "
              f"the true TPR, TNR and real pass rate at least {FLOOR_CELL:.0%} of the time in "
@@ -944,7 +944,7 @@ def markdown(result: dict) -> str:
               f"most {s['largest_change']:.4f} on the counts tried."), "",
               "## How wide the ranges are", "",
               (f"{RELIABLE_RUNS:,} simulated labelings per case, 5 from each group per block, "
-              f"until {RELIABLE} Correct and {RELIABLE} Wrong. "
+              f"until {RELIABLE} Pass and {RELIABLE} Fail marks. "
               "The share whose TPR and TNR ranges are both no wider than each width, and the "
               "average widths. No rule in judgekeeper follows a range's width."), "",
               "| pi | a | w | " + " | ".join(f"≤ {m:.2f}" for m in WIDTHS)

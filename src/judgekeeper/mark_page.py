@@ -834,7 +834,8 @@ __TOP__
       if (stay) {  // a mark can still be changed; the bar links to the result
         changing = true;
         var n = counts.correct + counts.wrong;
-        setText("end-title", "You have marked all " + n + (n === 1 ? " answer." : " answers."));
+        setText("end-title", n === 1 ? "You have marked the one answer."
+                                     : "You have marked all " + n + " answers.");
         setText("end-note", WORDS.change);
         focusCard(); return;
       }

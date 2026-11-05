@@ -190,7 +190,7 @@ Measure said "Result: too early to tell." with 10 disagreements in 100. "Too ear
 | When the experts say Fail, GPT-4 also says Fail (TNR) | about 90% | 78% to 97% |
 | Kappa (agreement beyond coincidence) | 0.81 | 0.65 to 0.90 |
 
-judgekeeper 1.0.0b2 showed half Pass and half Fail answers from the LLM-as-a-judge, so it weighted each half by its real share before it gave a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (83% to 98%).
+judgekeeper 1.0.0b2 showed half Pass and half Fail answers from the LLM-as-a-judge, so it weighted each half by its real share before it gave a number. Without that weighting, the 100 marks alone would say 87% (76% to 94%) and 93% (82% to 98%).
 
 ### After 200 marks
 
@@ -255,6 +255,6 @@ So with 100 marks, whether you get a verdict yet depends on which answers you we
 
 Every CSV, text and JSON file here starts with the same header: the dataset, its revision, the subset and split, and where the grades come from. The report pages carry it as a comment.
 
-Both report pages were rebuilt with judgekeeper 1.0.0 from the committed grades and marks, with no AI call; their counts, estimates and ranges are the same as the runs gave. The Measure `.txt` files are the runs' own output. The two screens quoted under "One draw on commit `6437d85`" and "After 200 marks" are judgekeeper 1.1.0's, made again from the same marks with no AI call.
+Both report pages were rebuilt with judgekeeper 1.0.0 from the committed grades and marks, with no AI call; their counts, estimates and ranges are the same as the runs gave. The Measure `.txt` files are the runs' own output, except `measure-round-1.txt`, `first-run/measure-round-1.txt` and `first-run/measure-round-2.txt`, which judgekeeper 1.1.1 made again from the same marks with no AI call. The two screens quoted under "One draw on commit `6437d85`" and "After 200 marks" are judgekeeper 1.1.1's, made the same way.
 
 Data: JailbreakBench, Chao et al., NeurIPS 2024 Datasets and Benchmarks Track, MIT license, Copyright (c) 2023 JailbreakBench Team. The license and the full citation are in [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md).

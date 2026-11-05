@@ -37,7 +37,7 @@ The news-summary check found two things: the setups failed most of what people f
 
 ## Limits
 
-- **One run each,** at temperature 1. In the news-summary check, the same setup's TPR moved by up to 3 points between runs, so small differences here mean little.
+- **One run each,** at temperature 1. In the news-summary check, the same setup's TPR moved by up to 4 points between runs, so small differences here mean little.
 - **The answers are old:** from 2023 models, in a public dataset since 2024, so the two LLM-as-a-judge models may have seen them.
 - **One kind of task and one rule.** Question answers here are short, and the passages are web text from MS MARCO.
 - **Not the people's rule:** RAGTruth's people labeled with a different rule from the one the LLM-as-a-judge was given, so part of the disagreement is the rule, not the LLM-as-a-judge.
