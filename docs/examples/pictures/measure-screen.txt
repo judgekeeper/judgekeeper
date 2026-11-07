@@ -1,4 +1,4 @@
-judgekeeper 1.1.1
+judgekeeper 1.1.2
 
 Step 3 of 5: Measure
 
@@ -20,6 +20,9 @@ can be tested on answers you haven't looked at again.
 How often your LLM-as-a-judge agrees with you:
   When you say Pass, it also says Pass: 86% (you marked every answer)
   When you say Fail, it also says Fail: 44% (you marked every answer)
+
+Kappa (agreement beyond coincidence): 0.32 (you marked every
+answer). It never decides the result.
 
 Full report: .judgekeeper/report.html (open it in your browser)
 

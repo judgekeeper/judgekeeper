@@ -223,7 +223,7 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         estimate, between = report_page.estimate(r[key], r[f"{key}_interval"],
                                                  report_page.why_for(r, key))
         return estimate if between == "–" else f"{estimate} (between {between})"
-    assert lines[2:18] == [
+    assert lines[2:21] == [
         "Step 3 of 5: Measure", "",
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
         "You and your LLM-as-a-judge agreed on all 36 answers.", "",
@@ -234,8 +234,10 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         "How often your LLM-as-a-judge agrees with you:",  # no range: no estimates
         f"  When you say Pass, it also says Pass: {said('tpr')}",
         f"  When you say Fail, it also says Fail: {said('tnr')}", "",  # no range: no note
+        "Kappa (agreement beyond coincidence): 1.00 (you marked every",
+        "answer). It never decides the result.", "",
         "Full report: .judgekeeper/report.html (open it in your browser)", ""]
-    for gone in ("Your marks:", "Kappa", "can see a drop", "Your LLM-as-a-judge vs your marks",
+    for gone in ("Your marks:", "can see a drop", "Your LLM-as-a-judge vs your marks",
                  "These are estimates", "could be", "Where it goes wrong"):
         assert gone not in out, gone
     assert "still open" not in out  # every answer is marked: nothing left on the page

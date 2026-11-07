@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.2 (2026-11-07)
+
+- The Measure result in the terminal now shows kappa, as the result page does. It never decides the result.
+- Counts of one read right, as in "You have marked the one answer."
+- On the marking page, skipped answers now say "Go back to it" or "Go back to them".
+- Lines that used "judge" as a verb now say "grade".
+- The labels error says numbers can be 1 and 0: "Labels must be Pass or Fail, or 1 and 0, not other numbers."
+
 ## 1.1.1 (2026-11-05)
 
 - Run judgekeeper in a folder below your marks and it uses those marks, with no new empty session. A project already stuck this way recovers by itself.
