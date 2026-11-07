@@ -31,7 +31,8 @@ BROKEN_CODES = ["\x1b[3\u200b1m", "\x1b\u200b[31m", "\x1b[\x001m", "\x1b[3\xad1m
                 "\x1bO\x07P"]
 # As logs and other tools keep them
 LOG_CODES = ["[38:5:196m", "[2K", "[K", "[1G", "[?25l", "[10;20H", "%1B%5B31m", "\\23331m",
-             "\\02331m", "\x1b]0;t\x9c"]
+             "\\02331m", "\x1b]0;t\x9c", "[1;24r", "[12d", "[1P", "[2X", "[1L", "[1M",
+             "[>4;2m", "[1t", "[=3h", "(B", "(0", ")0"]
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -76,10 +77,33 @@ def test_a_named_secret_after_a_code_is_hidden(code):
 
 
 @pytest.mark.parametrize("key", KEYS)
-def test_a_code_early_in_a_key_is_hidden(key):
-    for at in (3, 8):
-        said = redact.scrub(f"{key[:at]}\x1b[31m{key[at:]}")
-        assert redact.REDACTED in said and key[-3:] not in said, at
+@pytest.mark.parametrize("code", ["\x1b[31m", "\x1b[m\x1b[K", "\x1b[0m", "\\u001b[0m", "[K"])
+def test_a_code_anywhere_in_a_key_hides_all_of_it(key, code):
+    for at in range(1, len(key)):
+        assert redact.scrub(f"{key[:at]}{code}{key[at:]}") == redact.REDACTED, at
+
+
+def test_grep_colours_around_the_start_of_a_key_hide_all_of_it():
+    key = KEYS[0]
+    text = f"key=\x1b[01;31m\x1b[K{key[:17]}\x1b[m\x1b[K{key[17:]}"
+    assert redact.scrub(text) == f"key=\x1b[01;31m\x1b[K{redact.REDACTED}"
+
+
+def test_a_known_value_with_a_code_in_it_is_hidden_whole(monkeypatch):
+    value = "Zy9Xw8Vu" * 6
+    monkeypatch.setenv("OPENAI_API_KEY", value)
+    assert redact.scrub(f"{value[:20]}\x1b[0m{value[20:]}") == redact.REDACTED
+
+
+def test_a_named_secret_with_a_code_in_it_is_hidden_whole():
+    said = redact.scrub("Authorization: Bearer abcdEFGH1234567890\x1b[0mabcd1234")
+    assert said == f"Authorization: Bearer {redact.REDACTED}"
+
+
+def test_words_beside_a_secret_found_across_a_code_stay():
+    aws = "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY12"
+    said = redact.scrub(f'[FAIL] [Section 2] "aws_secret_access_key": "\x1b[31m{aws}" [Done]')
+    assert said == f'[FAIL] [Section 2] "aws_secret_access_key": "\x1b[31m{redact.REDACTED}" [Done]'
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -95,7 +119,9 @@ def test_text_with_a_code_and_no_key_stays_as_it_is():
                  "\x1b[31mskipped this one", "C:\\e[1]\\file.txt", "see [31m and [1m",
                  "ESC[31m is a colour", "task-force-of-twenty-one-people-working", "50%1B[31m",
                  "risk-assessment-framework-for-teams-and-people",
-                 "[ask-the-user-for-some-more-details-first]", "see [2] and [K] and [1m]"):
+                 "[ask-the-user-for-some-more-details-first]", "see [2] and [K] and [1m]",
+                 "Basic [AuthenticationProvider]", "Bearer [TOKEN_FROM_STEP_1_ABCDEF]",
+                 "[Ask-the-question-right-now-please]", "(Bearer of the news)", "(0 of 12)"):
         assert redact.scrub(text) == text
 
 

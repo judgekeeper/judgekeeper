@@ -7,7 +7,8 @@ ignored, since they would match ordinary text. Second, as a backstop for keys no
 environment, strings shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the
 login part of a URL (`user:password@`, `:password@`, or a long token alone). A key split by
 a hidden character is looked for with the character dropped, and a key right after one even
-after a letter.
+after a letter. A secret with a terminal code in it, or right after one, is looked for with
+the code taken out.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -88,7 +89,7 @@ _TERMINAL_CODE = re.compile(
     r"|\][^\x07\x1b\\]{0,64}?(?:\x07|\x9c|\x1b\\|\\x07|\\0?07|\\a|\\u0007)"  # a title
     rf"|[NO].|[ -/]*[0-~])"
     rf"|(?:\x9b|\\x9[bB]|\\u009[bB]|\\0?233){_CODE_END}|[\x8e\x8f]."
-    r"|\[[0-9;:?]*[A-HJKSTfhlmnsu]", re.DOTALL)
+    r"|\[(?:[<=>?]?[0-9;:]*[0-9][A-Za-z]|[Km])|[()][0B]", re.DOTALL)
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
@@ -294,31 +295,27 @@ def scrub(text: str | None) -> str | None:
 
 
 def _scrub_now(text: str | None) -> str | None:
-    """_read, then once more with terminal codes taken out, for a secret a code sits in or next
-    to (after a quote, in a URL): when that finds one, the text comes back without its codes."""
-    out = _read(text)
-    if not out or not _TERMINAL_CODE.search(out):
-        return out
-    plain = _TERMINAL_CODE.sub("", out)  # from what is already hidden: this can only hide more
-    again = _read(plain)
-    return out if again == plain else again
-
-
-def _read(text: str | None) -> str | None:
     if not text:
         return text
+    if not (_ESCAPED_KEY.search(text) or _TERMINAL_CODE.search(text) or _SPLITTERS.search(text)):
+        return _scrub(text)
+    return _redacted(*_found(text))
+
+
+def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, int]]]:
+    """The text to show, and where in it a secret is."""
     escaped = _ESCAPED_KEY.search(text) is not None
     coded = _TERMINAL_CODE.search(text) is not None
-    if not escaped and not coded and not _SPLITTERS.search(text):
-        return _scrub(text)
     as_is = _spans(text)
     if escaped:  # read once more with each such escape's last character a space
         as_is += _spans(_ESCAPED_KEY.sub(_last_a_space, text))
     if coded:
         as_is += [span for reading in _code_readings(text) for span in _spans(reading)]
+        if across_codes:
+            as_is += _spans_across_codes(text)
     as_is = _merged(as_is)
     if not _SPLITTERS.search(text):
-        return _redacted(text, as_is)
+        return text, as_is
     # Read as it is; with each hidden character a space (a key right after one, even after a
     # letter); with them dropped (a key split by one); and with them dropped and a space where
     # one came after a letter and a key starts once they are dropped (a key after one and
@@ -346,8 +343,32 @@ def _read(text: str | None) -> str | None:
             found.append((a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b)))
     found = _merged(found)
     if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
-        return _redacted(text, as_is)
-    return _redacted(joined, found)
+        return text, as_is
+    return joined, found
+
+
+def _spans_across_codes(text: str) -> list[tuple[int, int]]:
+    """Where in `text` a secret is once its terminal codes are taken out: a code inside a
+    secret is hidden with it, and every other code and word stays."""
+    cut = _TERMINAL_CODE.sub("", text)
+    shown, found = _found(cut, across_codes=False)
+    if shown is not cut:
+        found = _restored(_SPLIT_RUNS.finditer(cut), found)
+    return _restored(_TERMINAL_CODE.finditer(text), found)
+
+
+def _restored(cuts, spans) -> list[tuple[int, int]]:
+    """`spans` of a text the matches `cuts` (in order, apart) were taken out of, as spans of
+    the text they were in. What was cut from inside a span is in the span."""
+    at, before = array("q"), array("q", [0])
+    for m in cuts:
+        at.append(m.start() - before[-1])
+        before.append(before[-1] + m.end() - m.start())
+
+    def place(p: int) -> int:
+        return p + before[bisect.bisect_right(at, p)]
+
+    return [(place(a), place(b - 1) + 1) for a, b in spans]
 
 
 def _last_a_space(m: re.Match) -> str:
