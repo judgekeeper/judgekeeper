@@ -340,14 +340,14 @@ def read_marks(values: list, label_map: dict | None, name: str,
             numbers = True
         else:
             words.append(value)
+    if not numbers and not words:
+        return out
     where = ("--labels",) if given is None else ("--labels", runnable(given, labels=True))
     say_what = WORDS_NEXT.format(command=_plain(command)(*where, "--label-map", WORD_MAP))
     if numbers:
         raise LabelsStop(["Labels must be Pass or Fail, or 1 and 0, not other numbers."], say_what)
-    if words:
-        shown = ", ".join(sorted({_word(w) for w in words})[:WORDS_SHOWN])
-        raise LabelsStop([f"Some labels in {name} aren't Pass or Fail: {shown}."], say_what)
-    return out
+    shown = ", ".join(sorted({_word(w) for w in words})[:WORDS_SHOWN])
+    raise LabelsStop([f"Some labels in {name} aren't Pass or Fail: {shown}."], say_what)
 
 
 def _word(value) -> str:

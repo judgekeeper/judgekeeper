@@ -77,10 +77,17 @@ _KEY_START = re.compile(_KEY_BEGINS)
 # An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
 _ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
-# A terminal code (a colour, a cursor move), or one written out as text (`\u001b[31m`). Its last
-# character would join the word of a key right after it.
-_TERMINAL_CODE = re.compile(r"(?:\x1b|\\u001[bB]|\\x1[bB]|\\0?33|\\e)(?:\[[0-?]*[ -/]*[@-~]|[ -/]*[0-~])"
-                            r"|\x9b[0-?]*[ -/]*[@-~]")
+# A terminal code (a colour, a cursor move), as it is, written out as text (`\u001b[31m`), or
+# with its escape character lost (`[31m`, as in a log). It would hide what comes right after it:
+# its last character joins a key's word, and a name such as `Bearer` no longer touches its value.
+_ESC = (r"(?:\x1b|\^\[|\u241b|ESC|\\[eE]|\\0?33|\\x1[bB]|\\u001[bB]|\\U0000001[bB]|"
+        r"\\u\{0*1[bB]\}|&#0*27;|&#[xX]0*1[bB];|%1[bB])")
+_CODE_END = r"[0-?]*[ -/]*[@-~]"
+_TERMINAL_CODE = re.compile(
+    rf"{_ESC}(?:\[{_CODE_END}"
+    r"|\][^\x07\x1b]{0,200}?(?:\x07|\x1b\\|\\x07|\\0?07|\\a|\\u0007)"  # a title: to its end
+    rf"|[NO].|[ -/]*[0-~])"
+    rf"|(?:\x9b|\\x9[bB]|\\u009[bB]){_CODE_END}|[\x8e\x8f].|\[[0-9;]*m", re.DOTALL)
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
@@ -108,6 +115,8 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # too), so a key split by one is never joined back when it prints
 _SPLITTERS = _CONTROL
 _SPLIT_RUNS = re.compile(f"{_SPLITTERS.pattern}+")
+# Hidden characters, but not those a terminal code starts or ends with
+_HIDDEN_IN_CODE = re.compile(f"(?![\\x07\\x1b\\x8e\\x8f\\x9b]){_SPLITTERS.pattern}")
 # Hidden characters right after a letter or digit, before the first letter of a key's start:
 # a key may start after them (`key<ZWSP>sk-…`, `key<ZWSP>AK<ZWSP>IA…`)
 _AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxe])")
@@ -292,8 +301,8 @@ def _scrub_now(text: str | None) -> str | None:
     as_is = _spans(text)
     if escaped:  # read once more with each such escape's last character a space
         as_is += _spans(_ESCAPED_KEY.sub(_last_a_space, text))
-    if coded:  # and with each terminal code's
-        as_is += _spans(_TERMINAL_CODE.sub(_last_a_space, text))
+    if coded:
+        as_is += [span for reading in _code_readings(text) for span in _spans(reading)]
     as_is = _merged(as_is)
     if not _SPLITTERS.search(text):
         return _redacted(text, as_is)
@@ -307,8 +316,10 @@ def _scrub_now(text: str | None) -> str | None:
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
     if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
         found += _spans(_ESCAPED_KEY.sub(_last_a_space, joined))
-    if coded:  # a terminal code before one: only `text` has it whole, with its escape character
-        found += _spans(_SPLITTERS.sub("", _TERMINAL_CODE.sub(_last_a_space, text)))
+    kept = _HIDDEN_IN_CODE.sub("", text)  # a code with a hidden character in it is whole here
+    if _TERMINAL_CODE.search(kept):
+        found += [span for reading in _code_readings(kept)
+                  for span in _spans(_SPLITTERS.sub("", reading))]
     starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
               if _KEY_START.match(joined, at)]
     if starts:  # a space put into `joined` at each
@@ -325,6 +336,18 @@ def _scrub_now(text: str | None) -> str | None:
 
 def _last_a_space(m: re.Match) -> str:
     return m[0][:-1] + " "
+
+
+def _blanked(code: str) -> str:
+    """`code` as spaces, of the same length once hidden characters are dropped."""
+    return "".join(c if _SPLITTERS.fullmatch(c) else " " for c in code)
+
+
+def _code_readings(text: str) -> list[str]:
+    """`text` with each terminal code blanked; and with its last character kept, for a code
+    not ended when a key starts, which takes the key's first letter as its own."""
+    return [_TERMINAL_CODE.sub(lambda m: _blanked(m[0]), text),
+            _TERMINAL_CODE.sub(lambda m: _blanked(m[0][:-1]) + m[0][-1], text)]
 
 
 def _spans(text: str) -> list[tuple[int, int]]:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from judgekeeper import report_page, start_label
 
 
@@ -21,6 +23,22 @@ def test_a_judge_with_both_grades_still_needs_marks_of_each_kind():
                                          {"pass": 25, "fail": 15})
     assert lines[0] == "You've marked every answer: 30 Pass, 10 Fail. A result needs at least 15 of each."
     assert start_label.all_marked_lines({"correct": 30, "wrong": 10}, "judgekeeper mark") == lines
+
+
+def test_marks_of_both_kinds_are_never_told_to_wait_for_one_mark():
+    """After a re-check the pool can be another judge's: with both kinds marked, the count is
+    what stands between the person and a result."""
+    lines = start_label.all_marked_lines({"correct": 35, "wrong": 5}, "judgekeeper mark",
+                                         {"pass": 40, "fail": 0})
+    assert lines[0].endswith("A result needs at least 15 of each.")
+
+
+def test_reading_labels_that_are_fine_builds_no_next_line(monkeypatch):
+    from judgekeeper import labels
+
+    monkeypatch.setattr(labels, "runnable", lambda *a, **k: pytest.fail("built a Next line"))
+    assert labels.read_marks(["pass", "fail"], None, "mine.csv", given="100%.csv") == [
+        "pass", "fail"]
 
 
 def test_more_details_escapes_what_a_saved_result_holds():

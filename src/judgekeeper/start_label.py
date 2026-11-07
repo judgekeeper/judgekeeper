@@ -1246,7 +1246,8 @@ def all_marked_lines(labels: dict, command: str | None = None,
     (mark_command) adds them once the eval ran on more questions."""
     command = command or mark_command()
     pool = pool or {}
-    one_grade = bool(pool.get("pass")) != bool(pool.get("fail"))
+    one_grade = (bool(pool.get("pass")) != bool(pool.get("fail"))
+                 and not (labels["correct"] and labels["wrong"]))
     other = "Fail" if pool.get("pass") else "Pass"
     needs = NEEDS_ONE.format(other=other) if one_grade else NEEDS_EACH.format(n=ROUGH)
     first = ALL_MARKED.format(marks=marks_words(labels)) + needs
