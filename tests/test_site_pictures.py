@@ -67,6 +67,7 @@ def measured(tmp_path, monkeypatch, capsys):
     return folder / ".judgekeeper", _run(capsys)  # every answer marked: no page opens
 
 
+@pytest.mark.version_number  # the committed screen shows the version line
 def test_the_pictures_numbers_are_the_committed_runs(measured):
     kept, screen = measured
     made = {"result.json": (kept / "result.json").read_text(encoding="utf-8"),

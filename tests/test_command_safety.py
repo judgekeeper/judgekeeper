@@ -413,6 +413,7 @@ def test_report_html_names_the_program_plainly_when_typed_as_a_path(tmp_path, mo
     assert "judgekeeper mark --port 0 --no-browser" in html  # the run's flags, as the terminal
 
 
+@pytest.mark.version_number  # a beta is named as uvx judgekeeper@<version>
 def test_report_html_names_uvx_when_uvx_started_it(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(textio, "_typed", TYPED)
