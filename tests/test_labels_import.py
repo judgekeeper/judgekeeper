@@ -96,7 +96,7 @@ def labelled(ids, mark=None) -> list[dict]:
 def test_labels_in_the_results_are_named_and_not_used_without_the_flag(here, capsys):
     table(here, extra={"human_label": ["pass"] * 20 + ["fail"] * 20})
     _code, out = run(capsys)
-    assert ("Found 40 Pass/Fail labels in your results. To use them as your marks, run `"
+    assert ("Found 40 labels in your results. To use them as your marks, run `"
             f"{CMD} --labels`.") in flat(out)
     assert "does not use them" not in out and "Added" not in out
     ws = Workspace(here)
@@ -112,7 +112,7 @@ def test_the_find_line_keeps_the_path_in_its_command(here, capsys):
 def test_one_label_in_the_results_is_said_in_the_singular(here, capsys):
     table(here, extra={"human_label": ["pass"] + [""] * 39})
     _, out = run(capsys)
-    assert "Found 1 Pass/Fail label in your results." in flat(out)
+    assert "Found 1 label in your results." in flat(out)
 
 
 # --labels alone: the labels in the results ----------------------------------------------
@@ -934,7 +934,7 @@ def test_new_answers_with_labels_get_the_find_line(here, capsys):
     _, out = run(capsys)
     text = flat(out)
     assert "Your newest results have 10 answers you haven't seen." in text
-    assert ("Found 10 Pass/Fail labels in your results. To use them as your marks, run `"
+    assert ("Found 10 labels in your results. To use them as your marks, run `"
             f"{CMD} --labels`.") in text
 
 
@@ -948,7 +948,7 @@ def test_labels_for_another_question_are_not_used(here, capsys):
                                 "input": question(i), "output": answer(i), "evaluator": {},
                                 "created_at": "2026-10-05T11:00:00Z"}) + "\n")
     _, out = run(capsys)
-    assert "Found 1 Pass/Fail label in your results." in flat(out)
+    assert "Found 1 label in your results." in flat(out)
     _, out = run(capsys, "--labels")
     assert "Added 1 mark from your results (0 Pass, 1 Fail)." in flat(out)
     assert by_output(Workspace(here)) == {answer(30): "fail"}

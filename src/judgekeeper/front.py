@@ -162,6 +162,7 @@ PORT_KEPT = "The marking page is already open on port {port}, so --port {asked} 
 STILL_OPEN = ("The marking page is still open. Mark more answers to make these ranges "
               "narrower, so the numbers are more certain.")
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
+KAPPA_LINE = "Kappa (agreement beyond coincidence): {value}. It never decides the result."
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Where you and your LLM-as-a-judge disagree, say why. `fix` uses your reasons."
@@ -2324,7 +2325,8 @@ def _say_head(talk: FrontTalk, head: list[str]) -> None:
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
     labels = {"correct": counts["correct"], "wrong": counts["wrong"]}
     return start_label.all_marked_lines(labels,
-                                        start_label.mark_command(_command_of(talk, saved)))
+                                        start_label.mark_command(_command_of(talk, saved)),
+                                        ws.data().get("pool"))
 
 
 def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | None:
@@ -2539,6 +2541,16 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
     return [AGREES if ranged else AGREES.replace(" (estimates)", ""), *out]
 
 
+def kappa_line(r: dict) -> str:
+    """Kappa as the result page's More details has it, with a plain minus sign: a legacy code
+    page has no real one, and would print "?0.09" (textio.lenient_streams)."""
+    from judgekeeper.report_page import kappa_shown
+
+    shown, lo, hi = kappa_shown(r)
+    value = shown if lo is None else f"about {shown} (between {lo} and {hi})"
+    return KAPPA_LINE.format(value=value.replace("−", "-"))
+
+
 def verdict_line(r: dict) -> str | None:
     """The one line on how good the judge is, "Result: ...", with the result page's
     headlines; None before a first result."""
@@ -2687,6 +2699,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
             talk.say(line)
         if report_page.shows_range(r):  # with no range shown, nothing is wider
             talk.para(start_label.wider(r))
+        talk.say()  # apart from the lines above: it plays no part in the result
+        talk.para(kappa_line(r))
     assumes = labels_mod.assumes_line(r.get("imported"))  # marks brought with --labels
     if assumes:
         talk.say()

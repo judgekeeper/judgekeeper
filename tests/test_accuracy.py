@@ -173,7 +173,10 @@ def test_the_result_has_each_side_on_one_line_with_its_range(project, capsys):
     counts = [x for x in lines if x.startswith("  You ")]
     assert [x.split(" answers.")[0] for x in counts] == ["  You passed 30", "  You failed 30"]
     assert all(len(x) <= 80 for x in lines)
-    for gone in ("Kappa", "kappa", "Your marks:", "sitting", "can see a drop", "likely",
+    said = " ".join(out.split())  # kappa: apart from the lines the result uses, after the note
+    assert "It never decides the result." in said
+    assert said.index("Kappa (agreement") > said.index("The result line uses wider ranges")
+    for gone in ("Your marks:", "sitting", "can see a drop", "likely",
                  "Probably", "These are estimates", "could be"):
         assert gone not in out, gone
 

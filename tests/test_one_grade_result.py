@@ -201,4 +201,5 @@ def test_all_20_agreed_says_a_result_needs_more_answers(twenty, capsys, pages):
     code, out, _ = run(capsys)
     said = flat(out)
     assert code == 3, said
-    assert "You've marked every answer: 20 Pass, 0 Fail. A result needs at least 15 of each." in said
+    assert ("You've marked every answer: 20 Pass, 0 Fail. Your result comes once you mark a new "
+            "answer Fail.") in said

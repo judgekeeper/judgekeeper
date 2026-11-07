@@ -34,7 +34,7 @@ body:
     attributes:
       label: judgekeeper version
       description: What `judgekeeper --version` prints. At a terminal its first line is "✓ judgekeeper <version> is ready".
-      placeholder: ✓ judgekeeper 1.1.1 is ready
+      placeholder: ✓ judgekeeper 1.1.2 is ready
     validations:
       required: true
   - type: checkboxes

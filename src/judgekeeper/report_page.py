@@ -1265,21 +1265,30 @@ def _panel_open(ranged: bool, caption: str = "") -> str:
             + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
 
 
-def _details(r: dict) -> str:
-    """More details, folded: kappa and its range (none when it has no width, and why)."""
+def kappa_shown(r: dict) -> tuple[str, str | None, str | None]:
+    """Kappa as text and the ends of its range: none when it has no width (the text says why
+    in brackets) or is too narrow to write (the number stands alone)."""
     kappa, (lo, hi) = r.get("kappa"), (r.get("kappa_interval") or (None, None))
     shown = _two(kappa) if kappa is not None else "n/a"
-    if kappa is not None and lo is not None and hi is not None and _two(lo) == _two(hi):
-        if targets.width_word([lo, hi]) == "exact":  # else too narrow to write: alone
+    if kappa is None or lo is None or hi is None:
+        return shown, None, None
+    if _two(lo) == _two(hi):
+        if targets.width_word([lo, hi]) == "exact":
             shown = f"{shown} ({why_for(r, 'kappa')})"
-        lo = None
+        return shown, None, None
+    return shown, _two(lo), _two(hi)
+
+
+def _details(r: dict) -> str:
+    """More details, folded: kappa and its range (none when it has no width, and why)."""
+    shown, lo, hi = kappa_shown(r)
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    ranged = lo is not None and hi is not None
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{shown}</td>'
-            + (f'<td data-label="Between">{_two(lo)} and {_two(hi)}</td>' if ranged else "")
+    ranged = lo is not None
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{_e(shown)}</td>'
+            + (f'<td data-label="Between">{lo} and {hi}</td>' if ranged else "")
             + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
             f"</summary>{_panel_open(ranged)}<tbody>{body}</tbody></table></details>")

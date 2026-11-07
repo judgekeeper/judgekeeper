@@ -399,8 +399,8 @@ def test_the_docs_say_when_no_regrade_file_is_written():
                     .read_text(encoding="utf-8").split())
     assert ("`judgekeeper fix` writes `.judgekeeper/fix/regrade.yaml` for you when your grader "
             "is a named provider") in docs
-    assert ("For a `file://` or `exec:` grader, promptfoo's default grader, or a grader, "
-            "setting or rule that is more than a plain model call with simple `{{name}}` "
+    assert ("For a `file://` or `exec:` grader, promptfoo's default grader, a coding agent as "
+            "the grader (such as Codex or Claude Code), or a grader, setting or rule that is more than a plain model call with simple `{{name}}` "
             "variables, it writes no file and prints the steps instead.") in docs
 
 

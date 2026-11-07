@@ -451,7 +451,7 @@ def test_the_original_file_with_a_pinned_version_is_the_same_grades(here, capsys
     given = results.relative_to(here)
     code, out = run(capsys, "fix", given)
     assert code == 3, out
-    assert "These grades are the same as when you marked" in out
+    assert "these grades match the last ones judgekeeper read" in " ".join(out.split())
     assert json.loads((ws.dir / "fix" / "split.json").read_text(encoding="utf-8"))["tests"] == []
     code, out = run(capsys, "check", given)
     assert code == 0, out

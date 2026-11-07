@@ -7,7 +7,8 @@ ignored, since they would match ordinary text. Second, as a backstop for keys no
 environment, strings shaped like a key (_KEY_SHAPES), Bearer and Basic headers, and the
 login part of a URL (`user:password@`, `:password@`, or a long token alone). A key split by
 a hidden character is looked for with the character dropped, and a key right after one even
-after a letter.
+after a letter. A secret with a terminal code in it, or right after one, is looked for with
+the code taken out.
 
 `printable` drops terminal escape sequences from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
@@ -43,18 +44,22 @@ _named_values: set[str] = set()
 
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"
 _BEARER = re.compile(rf"(\bBearer\s+)(?={_TOKEN_CHARS}*\d){_TOKEN_CHARS}{{16,}}", re.IGNORECASE)
-_BASIC = re.compile(r"(\bBasic\s+)[A-Za-z0-9+/]{16,}={0,2}", re.IGNORECASE)
+# Short ones too when they end in base64 padding: `Ym9iOnNlY3JldA==` is `bob:secret`
+_BASIC = re.compile(r"(\bBasic\s+)(?:[A-Za-z0-9+/]{16,}={0,2}|[A-Za-z0-9+/]{6,}={1,2})",
+                    re.IGNORECASE)
 # The scheme is bounded: unbounded, every word start in "a.a.a.a..." would scan to the end of
 # the run looking for "://", making scrub() quadratic on long dotted text.
+# `\/` as PHP writes a slash in JSON. A password may hold an @: the login ends at the last one
+# before a slash, a quote or a comma.
+_URL_START = r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}:(?:\\?/){2})"
 _URL_USERINFO = re.compile(
-    r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?:[^/@\s:]+:[^/@\s]*|:[^/@\s]+)@")
+    _URL_START + r"(?:[^/@\s:]+:[^/@\s]*|:[^/@\s]+)(?:@[^/@\s\"',]+)*@")
 # A token as the whole login (`https://<token>@host`): long, with a digit, so `git@` stays
-_URL_TOKEN = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?=[^/@\s:]*\d)"
-                        r"[A-Za-z0-9._~+=-]{20,}@")
+_URL_TOKEN = re.compile(_URL_START + r"(?=[^/@\s:]*\d)[A-Za-z0-9._~+=-]{20,}@")
 # A key starts after anything but an ASCII letter or digit (`key_sk-`, `café` and a key). The
 # check comes after its first letter, which lets the search jump from one such letter to the next.
-def _key(first: str, rest: str, before: str = "A-Za-z0-9") -> re.Pattern:
-    return re.compile(f"{first}(?<![{before}]{first}){rest}")
+def _key(first: str, rest: str) -> re.Pattern:
+    return re.compile(f"{first}(?<![A-Za-z0-9]{first}){rest}")
 
 
 _KEY_SHAPES = (
@@ -69,19 +74,40 @@ _KEY_SHAPES = (
     _key("h", r"f_[A-Za-z0-9]{30,}"),  # Hugging Face
     _key("x", r"ai-[A-Za-z0-9]{20,}"),  # xAI
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
-    _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", "A-Za-z0-9_-"),
+    _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
 )
 # How each key above starts
 _KEY_BEGINS = r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|xai-|eyJ)"
 _KEY_START = re.compile(_KEY_BEGINS)
-# An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
-# `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
-_ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
+# How a secret with a name before its value starts
+_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key)"
+# An escaped character right before a secret: `\n` or `\t` (JSON kept as a string in JSON),
+# `"`, `\x00` or `\0` (repr of bytes), a URL's `%20`, or cat -A's `^I`. Its last letter or digit
+# would join the secret's word.
+_ESCAPED_KEY = re.compile(r"(?:\\[nrt0]|\\x[0-9A-Fa-f]{2}|\\u00[0-9A-Fa-f]{2}|%[0-9A-Fa-f]{2}"
+                          rf"|\^[@-_])(?={_KEY_BEGINS}|{_NAME_BEGINS})")
+# How a secret starts, and what right before that start hides the secret
+_SECRET_START = re.compile(rf"{_KEY_BEGINS}|{_NAME_BEGINS}"
+                           r"|[A-Za-z][A-Za-z0-9+.-]{0,30}:(?:\\?/){2}")
+_JOINS_A_SECRET = re.compile("[A-Za-z0-9_-]")
+# A terminal code (a colour, a cursor move), as it is, written out as text (`\u001b[31m`), or
+# with its escape character lost (`[31m`, as in a log). It would hide what comes right after it:
+# its last character joins a key's word, and a name such as `Bearer` no longer touches its value.
+_ESC = (r"(?:\x1b|\^\[|\u241b|ESC|\\[eE]|\\0?33|\\x1[bB]|\\u001[bB]|\\U0000001[bB]|"
+        r"\\u\{0*1[bB]\}|&#0*27;|&#[xX]0*1[bB];|%1[bB])")
+_CODE_END = r"[0-?]*[ -/]*[@-~]"
+_TERMINAL_CODE = re.compile(
+    rf"{_ESC}(?:(?:\[|%5[bB]){_CODE_END}"
+    r"|\][^\x07\x1b\\]{0,64}?(?:\x07|\x9c|\x1b\\|\\x07|\\0?07|\\a|\\u0007|\^G)"  # a title
+    rf"|[NO].|[ -/]*[0-~])"
+    rf"|(?:\x9b|\\x9[bB]|\\u009[bB]|\\0?233){_CODE_END}|[\x8e\x8f]."
+    r"|\[(?:[<=>?]?[0-9;:]*[0-9][A-Za-z]|[Km])|[()][0B]", re.DOTALL)
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
 _AWS_SECRET = re.compile(
-    r"(\baws_secret_access_key[\"']?(?:\s*[:=]\s*|\s+)[\"']?)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
+    r"((?<![A-Za-z0-9])(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|secret[_-]?access[_-]?key)"
+    r"[\"'\\]*(?:\s*(?:=>|[:=])\s*|\s+)[\"'\\]*)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
 _AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
@@ -104,6 +130,9 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # too), so a key split by one is never joined back when it prints
 _SPLITTERS = _CONTROL
 _SPLIT_RUNS = re.compile(f"{_SPLITTERS.pattern}+")
+# Hidden characters, but not those a terminal code starts or, with a title, ends with
+_HIDDEN_IN_CODE = tuple(re.compile(f"(?![{keep}]){_SPLITTERS.pattern}")
+                        for keep in (r"\x07\x1b\x8e\x8f\x9b\x9c", r"\x1b\x8e\x8f\x9b"))
 # Hidden characters right after a letter or digit, before the first letter of a key's start:
 # a key may start after them (`key<ZWSP>sk-…`, `key<ZWSP>AK<ZWSP>IA…`)
 _AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxe])")
@@ -281,15 +310,25 @@ def scrub(text: str | None) -> str | None:
 def _scrub_now(text: str | None) -> str | None:
     if not text:
         return text
-    escaped = _ESCAPED_KEY.search(text) is not None
-    if not escaped and not _SPLITTERS.search(text):
+    if not (_ESCAPED_KEY.search(text) or _TERMINAL_CODE.search(text) or _SPLITTERS.search(text)):
         return _scrub(text)
+    return _redacted(*_found(text))
+
+
+def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, int]]]:
+    """The text to show, and where in it a secret is."""
+    escaped = _ESCAPED_KEY.search(text) is not None
+    coded = _TERMINAL_CODE.search(text) is not None
     as_is = _spans(text)
     if escaped:  # read once more with each such escape's last character a space
-        as_is += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", text))
+        as_is += _spans(_ESCAPED_KEY.sub(_last_a_space, text))
+    if coded:
+        as_is += [span for reading in _code_readings(text) for span in _spans(reading)]
+        if across_codes:
+            as_is += _spans_across_codes(text)
     as_is = _merged(as_is)
     if not _SPLITTERS.search(text):
-        return _redacted(text, as_is)
+        return text, as_is
     # Read as it is; with each hidden character a space (a key right after one, even after a
     # letter); with them dropped (a key split by one); and with them dropped and a space where
     # one came after a letter and a key starts once they are dropped (a key after one and
@@ -299,19 +338,84 @@ def _scrub_now(text: str | None) -> str | None:
     found = [*as_is, *_spans(_SPLITTERS.sub(" ", text))]
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
     if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
-        found += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", joined))
+        found += _spans(_ESCAPED_KEY.sub(_last_a_space, joined))
+    for hidden in _HIDDEN_IN_CODE:  # a code with a hidden character in it is whole in one of these
+        kept = hidden.sub("", text)
+        if _TERMINAL_CODE.search(kept):
+            found += [span for reading in _code_readings(kept)
+                      for span in _spans(_SPLITTERS.sub("", reading))]
+    if _TERMINAL_CODE.search(joined):  # and here, for one with an ESC in it
+        found += [span for reading in _code_readings(joined) for span in _spans(reading)]
     starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
               if _KEY_START.match(joined, at)]
-    if starts:  # a space put into `joined` at each
-        cuts = [0, *starts, len(joined)]
-        spaced = " ".join(joined[a:b] for a, b in itertools.pairwise(cuts))
-        moved = [at + n for n, at in enumerate(starts)]  # where each space is in `spaced`
-        for a, b in _spans(spaced):
-            found.append((a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b)))
+    if starts:
+        found += _spans_with_spaces(joined, starts, _spans)
     found = _merged(found)
     if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
-        return _redacted(text, as_is)
-    return _redacted(joined, found)
+        return text, as_is
+    return joined, found
+
+
+def _spans_across_codes(text: str) -> list[tuple[int, int]]:
+    """Where in `text` a secret is once its terminal codes are taken out: a code inside a
+    secret is hidden with it, and every other code and word stays. A code before a secret's
+    start leaves a space, or the word before the code would join the secret."""
+    cut = _TERMINAL_CODE.sub("", text)
+    found = _spans_read(cut)
+    starts, gone = set(), 0
+    for m in _TERMINAL_CODE.finditer(text):
+        at = m.start() - gone
+        if _SECRET_START.match(cut, at) and _JOINS_A_SECRET.match(cut, at - 1):
+            starts.add(at)
+        gone += m.end() - m.start()
+    if starts:
+        found += _spans_with_spaces(cut, sorted(starts), _spans_read)
+    return _restored(_TERMINAL_CODE.finditer(text), _merged(found))
+
+
+def _spans_read(text: str) -> list[tuple[int, int]]:
+    """Where in `text` _found finds a secret, with no further look across codes."""
+    shown, found = _found(text, across_codes=False)
+    return found if shown is text else _restored(_SPLIT_RUNS.finditer(text), found)
+
+
+def _spans_with_spaces(text: str, starts: list[int], read) -> list[tuple[int, int]]:
+    """Where `read` finds a secret in `text` with a space put in at each of `starts`."""
+    cuts = [0, *starts, len(text)]
+    spaced = " ".join(text[a:b] for a, b in itertools.pairwise(cuts))
+    moved = [at + n for n, at in enumerate(starts)]  # where each space is in `spaced`
+    return [(a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b))
+            for a, b in read(spaced)]
+
+
+def _restored(cuts, spans) -> list[tuple[int, int]]:
+    """`spans` of a text the matches `cuts` (in order, apart) were taken out of, as spans of
+    the text they were in. What was cut from inside a span is in the span."""
+    at, before = array("q"), array("q", [0])
+    for m in cuts:
+        at.append(m.start() - before[-1])
+        before.append(before[-1] + m.end() - m.start())
+
+    def place(p: int) -> int:
+        return p + before[bisect.bisect_right(at, p)]
+
+    return [(place(a), place(b - 1) + 1) for a, b in spans]
+
+
+def _last_a_space(m: re.Match) -> str:
+    return m[0][:-1] + " "
+
+
+def _blanked(code: str) -> str:
+    """`code` as spaces, of the same length once hidden characters are dropped."""
+    return "".join(c if _SPLITTERS.fullmatch(c) else " " for c in code)
+
+
+def _code_readings(text: str) -> list[str]:
+    """`text` with each terminal code blanked; and with its last character kept, for a code
+    not ended when a key starts, which takes the key's first letter as its own."""
+    return [_TERMINAL_CODE.sub(lambda m: _blanked(m[0]), text),
+            _TERMINAL_CODE.sub(lambda m: _blanked(m[0][:-1]) + m[0][-1], text)]
 
 
 def _spans(text: str) -> list[tuple[int, int]]:
