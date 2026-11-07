@@ -44,18 +44,22 @@ _named_values: set[str] = set()
 
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"
 _BEARER = re.compile(rf"(\bBearer\s+)(?={_TOKEN_CHARS}*\d){_TOKEN_CHARS}{{16,}}", re.IGNORECASE)
-_BASIC = re.compile(r"(\bBasic\s+)[A-Za-z0-9+/]{16,}={0,2}", re.IGNORECASE)
+# Short ones too when they end in base64 padding: `Ym9iOnNlY3JldA==` is `bob:secret`
+_BASIC = re.compile(r"(\bBasic\s+)(?:[A-Za-z0-9+/]{16,}={0,2}|[A-Za-z0-9+/]{6,}={1,2})",
+                    re.IGNORECASE)
 # The scheme is bounded: unbounded, every word start in "a.a.a.a..." would scan to the end of
 # the run looking for "://", making scrub() quadratic on long dotted text.
+# `\/` as PHP writes a slash in JSON. A password may hold an @: the login ends at the last one
+# before a slash, a quote or a comma.
+_URL_START = r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}:(?:\\?/){2})"
 _URL_USERINFO = re.compile(
-    r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?:[^/@\s:]+:[^/@\s]*|:[^/@\s]+)@")
+    _URL_START + r"(?:[^/@\s:]+:[^/@\s]*|:[^/@\s]+)(?:@[^/@\s\"',]+)*@")
 # A token as the whole login (`https://<token>@host`): long, with a digit, so `git@` stays
-_URL_TOKEN = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]{0,30}://)(?=[^/@\s:]*\d)"
-                        r"[A-Za-z0-9._~+=-]{20,}@")
+_URL_TOKEN = re.compile(_URL_START + r"(?=[^/@\s:]*\d)[A-Za-z0-9._~+=-]{20,}@")
 # A key starts after anything but an ASCII letter or digit (`key_sk-`, `café` and a key). The
 # check comes after its first letter, which lets the search jump from one such letter to the next.
-def _key(first: str, rest: str, before: str = "A-Za-z0-9") -> re.Pattern:
-    return re.compile(f"{first}(?<![{before}]{first}){rest}")
+def _key(first: str, rest: str) -> re.Pattern:
+    return re.compile(f"{first}(?<![A-Za-z0-9]{first}){rest}")
 
 
 _KEY_SHAPES = (
@@ -70,17 +74,21 @@ _KEY_SHAPES = (
     _key("h", r"f_[A-Za-z0-9]{30,}"),  # Hugging Face
     _key("x", r"ai-[A-Za-z0-9]{20,}"),  # xAI
     # a JWT: two base64url parts that start with {" and a signature (empty when unsigned)
-    _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*", "A-Za-z0-9_-"),
+    _key("e", r"yJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"),
 )
 # How each key above starts
 _KEY_BEGINS = r"(?:sk-|AKIA|ASIA|gh[opsu]_|github_pat_|AIza|xox[bp]-|gsk_|hf_|xai-|eyJ)"
 _KEY_START = re.compile(_KEY_BEGINS)
-# An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
-# `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
-_ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
+# How a secret with a name before its value starts
+_NAME_BEGINS = r"(?i:bearer\s|basic\s|aws_secret_access_key)"
+# An escaped character right before a secret: `\n` or `\t` (JSON kept as a string in JSON),
+# `"`, `\x00` or `\0` (repr of bytes), a URL's `%20`, or cat -A's `^I`. Its last letter or digit
+# would join the secret's word.
+_ESCAPED_KEY = re.compile(r"(?:\\[nrt0]|\\x[0-9A-Fa-f]{2}|\\u00[0-9A-Fa-f]{2}|%[0-9A-Fa-f]{2}"
+                          rf"|\^[@-_])(?={_KEY_BEGINS}|{_NAME_BEGINS})")
 # How a secret starts, and what right before that start hides the secret
-_SECRET_START = re.compile(rf"{_KEY_BEGINS}|(?i:bearer\s|basic\s|aws_secret_access_key)"
-                           r"|[A-Za-z][A-Za-z0-9+.-]{0,30}://")
+_SECRET_START = re.compile(rf"{_KEY_BEGINS}|{_NAME_BEGINS}"
+                           r"|[A-Za-z][A-Za-z0-9+.-]{0,30}:(?:\\?/){2}")
 _JOINS_A_SECRET = re.compile("[A-Za-z0-9_-]")
 # A terminal code (a colour, a cursor move), as it is, written out as text (`\u001b[31m`), or
 # with its escape character lost (`[31m`, as in a log). It would hide what comes right after it:
@@ -90,7 +98,7 @@ _ESC = (r"(?:\x1b|\^\[|\u241b|ESC|\\[eE]|\\0?33|\\x1[bB]|\\u001[bB]|\\U0000001[b
 _CODE_END = r"[0-?]*[ -/]*[@-~]"
 _TERMINAL_CODE = re.compile(
     rf"{_ESC}(?:(?:\[|%5[bB]){_CODE_END}"
-    r"|\][^\x07\x1b\\]{0,64}?(?:\x07|\x9c|\x1b\\|\\x07|\\0?07|\\a|\\u0007)"  # a title
+    r"|\][^\x07\x1b\\]{0,64}?(?:\x07|\x9c|\x1b\\|\\x07|\\0?07|\\a|\\u0007|\^G)"  # a title
     rf"|[NO].|[ -/]*[0-~])"
     rf"|(?:\x9b|\\x9[bB]|\\u009[bB]|\\0?233){_CODE_END}|[\x8e\x8f]."
     r"|\[(?:[<=>?]?[0-9;:]*[0-9][A-Za-z]|[Km])|[()][0B]", re.DOTALL)
@@ -98,7 +106,8 @@ _TERMINAL_CODE = re.compile(
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
 _AWS_SECRET = re.compile(
-    r"(\baws_secret_access_key[\"']?(?:\s*[:=]\s*|\s+)[\"']?)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
+    r"((?<![A-Za-z0-9])(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|secret[_-]?access[_-]?key)"
+    r"[\"'\\]*(?:\s*(?:=>|[:=])\s*|\s+)[\"'\\]*)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
 _AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
