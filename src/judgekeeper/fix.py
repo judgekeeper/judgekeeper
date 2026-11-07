@@ -125,8 +125,8 @@ REWROTE = ("judgekeeper wrote {answers} again. It now also holds the kept-aside 
 NOT_ENOUGH = "You have not marked enough answers yet to fix your LLM-as-a-judge."
 # The same rule and model as a file tested before, with other grades: the way to test them
 TEST_AS_NEW = "To test these grades as a new LLM-as-a-judge, change its rule and grade again."
-SAME_GRADES = ("These grades are the same as when you marked. Use the results from after your "
-               "change.")
+SAME_GRADES = ("On the answers kept aside, these grades match the last ones judgekeeper read. Use "
+               "the results from after your change.")
 EARLIER = ("{k} of the {n} answers kept aside {have} no grade from your LLM-as-a-judge as it "
            "is now, only from one before it, so judgekeeper leaves {them} out.")
 TOOK = ("Your LLM-as-a-judge had not graded {k} kept-aside {answers} before. judgekeeper now "
@@ -189,6 +189,8 @@ MODEL_HOSTS = frozenset(("openai", "anthropic", "azure", "azureopenai", "bedrock
                          "google", "mistral", "groq", "deepseek", "xai", "openrouter",
                          "togetherai", "perplexity", "cohere", "fireworks", "ollama"))
 MODEL_NAME = re.compile(r"[A-Za-z0-9_.:@+/-]+")
+# promptfoo's local coding agents, under a model host's name: it starts them in the project folder
+AGENT_GRADERS = re.compile(r"(?:codex|agents(?::|$)|claude-agent-sdk|claude-code)", re.IGNORECASE)
 MODEL_SETTINGS = frozenset((
     "temperature", "top_p", "topP", "top_k", "topK", "max_tokens", "maxTokens",
     "max_completion_tokens", "max_output_tokens", "maxOutputTokens", "seed", "stop",
@@ -1788,9 +1790,10 @@ RULE_NOTE = ("  # your rule: change it here. {{question}} is the question, {{ans
 
 def _plain_grader(provider: str, grader: str) -> bool:
     """Whether `grader` names a model of a known host: nothing after the prefix that is a URL,
-    a path or a template."""
+    a path, a template or a coding agent."""
     name = grader.removeprefix(f"{provider}:")
     return (provider in MODEL_HOSTS and name != grader and MODEL_NAME.fullmatch(name) is not None
+            and AGENT_GRADERS.match(name) is None
             and "//" not in name and ".." not in name
             and not any(part.startswith(("/", ".")) for part in name.split(":")))
 
@@ -1836,6 +1839,10 @@ def _regrade_yaml(ws: Workspace, data: dict) -> str | None:
         return None
     found = _promptfoo_grader(ws, data)
     if found is None or (found[1] and TEMPLATE.search(found[1])):
+        return None
+    from judgekeeper.readers.promptfoo import AGENT_GRADED
+
+    if str(found[0]).removeprefix("not-") in AGENT_GRADED:  # a model with tools
         return None
     kind, config = found[:2], found[2]
     kept, left = _without_keys(config)

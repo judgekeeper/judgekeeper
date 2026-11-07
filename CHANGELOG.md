@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.2 (2026-11-07)
+
+- The Measure result in the terminal now shows kappa, as the result page does. It never decides the result.
+- Counts of one read right, as in "You have marked the one answer."
+- On the marking page, skipped answers now say "Go back to it" or "Go back to them".
+- Lines that used "judge" as a verb now say "grade".
+- The labels error says numbers can be 1 and 0: "Labels must be Pass or Fail, or 1 and 0, not other numbers." It now has a Next line, with `--label-map`.
+- `regrade.yaml` is no longer written for a coding agent as the grader, such as Codex or Claude Code. `fix` prints the steps instead.
+- A key or other secret right after a terminal colour code, or with one inside it, is now hidden.
+- More secrets are hidden as tools write them: in JSON and `repr` text, after `-` or `_`, in `cat -A` output, AWS secrets under their other names, a URL password with `@` in it, and short `Basic` logins.
+- `fix` no longer says grades are "the same as when you marked" when they are not.
+- Labels in your results are now called "labels" until judgekeeper has read them, not "Pass/Fail labels".
+- With an LLM-as-a-judge that gave every answer one grade, and every answer marked the same, judgekeeper now says a new answer marked the other way gives the result.
+
 ## 1.1.1 (2026-11-05)
 
 - Run judgekeeper in a folder below your marks and it uses those marks, with no new empty session. A project already stuck this way recovers by itself.

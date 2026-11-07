@@ -358,8 +358,9 @@ def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link
 
 
 def test_kappa_never_decides_and_the_readme_says_what_it_is():
-    """The result comes from the TPR and TNR ranges only (targets.level); kappa is under
-    More details on the result page and in report.html. The README's line, word for word."""
+    """The result comes from the TPR and TNR ranges only (targets.level); kappa stands
+    apart: on its own line in the terminal, and under More details on the result page and in
+    report.html. The README's line, word for word."""
     import inspect
 
     from judgekeeper import report_page, targets

@@ -106,6 +106,20 @@ def test_fix_gives_no_verdict_when_answers_kept_aside_are_missing(here, capsys, 
     assert code == 3
 
 
+def test_results_a_check_took_on_are_no_rule_test_and_the_line_stays_true(here, capsys, monkeypatch):
+    project("jsonl", here, monkeypatch)
+    capsys.readouterr()
+    run(capsys, "fix")
+    rows = [(i, person(i)) for i in range(N)]  # the new grades agree with every mark: no drop
+    name = _jsonl(here / "new.jsonl", rows).name
+    code, out = run(capsys, "check", name)
+    assert code == 0, out
+    code, out = run(capsys, "fix", name)
+    assert code == 3, out
+    assert "these grades match the last ones judgekeeper read" in flat(out)
+    assert "when you marked" not in flat(out)
+
+
 def test_the_same_rule_graded_again_in_full_is_a_new_test(here, capsys, monkeypatch):
     """A partial regrade, then the full one with the same rule: the full one is tested, not
     called the test before."""
@@ -132,8 +146,8 @@ def test_the_marked_results_again_are_no_rule_test(tool, here, capsys, monkeypat
     run(capsys, "fix")
     code, out = run(capsys, "fix", FIRST[tool])
     assert code == 3, out
-    assert ("These grades are the same as when you marked. Use the results from after your "
-            "change.") in flat(out)
+    assert ("On the answers kept aside, these grades match the last ones judgekeeper read. Use "
+            "the results from after your change.") in flat(out)
     assert "Result:" not in out
     assert fix.read_split(ws).tests == []
 
