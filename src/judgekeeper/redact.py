@@ -78,6 +78,7 @@ _KEY_START = re.compile(_KEY_BEGINS)
 # An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
 _ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
+_JOINS_A_KEY = re.compile("[A-Za-z0-9_-]")  # right before a key's start, it hides the key
 # A terminal code (a colour, a cursor move), as it is, written out as text (`\u001b[31m`), or
 # with its escape character lost (`[31m`, as in a log). It would hide what comes right after it:
 # its last character joins a key's word, and a name such as `Bearer` no longer touches its value.
@@ -335,12 +336,8 @@ def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, i
         found += [span for reading in _code_readings(joined) for span in _spans(reading)]
     starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
               if _KEY_START.match(joined, at)]
-    if starts:  # a space put into `joined` at each
-        cuts = [0, *starts, len(joined)]
-        spaced = " ".join(joined[a:b] for a, b in itertools.pairwise(cuts))
-        moved = [at + n for n, at in enumerate(starts)]  # where each space is in `spaced`
-        for a, b in _spans(spaced):
-            found.append((a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b)))
+    if starts:
+        found += _spans_with_spaces(joined, starts, _spans)
     found = _merged(found)
     if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
         return text, as_is
@@ -349,12 +346,34 @@ def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, i
 
 def _spans_across_codes(text: str) -> list[tuple[int, int]]:
     """Where in `text` a secret is once its terminal codes are taken out: a code inside a
-    secret is hidden with it, and every other code and word stays."""
+    secret is hidden with it, and every other code and word stays. A code before a key's start
+    leaves a space, or the word before the code would join the key."""
     cut = _TERMINAL_CODE.sub("", text)
-    shown, found = _found(cut, across_codes=False)
-    if shown is not cut:
-        found = _restored(_SPLIT_RUNS.finditer(cut), found)
-    return _restored(_TERMINAL_CODE.finditer(text), found)
+    found = _spans_read(cut)
+    starts, gone = set(), 0
+    for m in _TERMINAL_CODE.finditer(text):
+        at = m.start() - gone
+        if _KEY_START.match(cut, at) and _JOINS_A_KEY.match(cut, at - 1):
+            starts.add(at)
+        gone += m.end() - m.start()
+    if starts:
+        found += _spans_with_spaces(cut, sorted(starts), _spans_read)
+    return _restored(_TERMINAL_CODE.finditer(text), _merged(found))
+
+
+def _spans_read(text: str) -> list[tuple[int, int]]:
+    """Where in `text` _found finds a secret, with no further look across codes."""
+    shown, found = _found(text, across_codes=False)
+    return found if shown is text else _restored(_SPLIT_RUNS.finditer(text), found)
+
+
+def _spans_with_spaces(text: str, starts: list[int], read) -> list[tuple[int, int]]:
+    """Where `read` finds a secret in `text` with a space put in at each of `starts`."""
+    cuts = [0, *starts, len(text)]
+    spaced = " ".join(text[a:b] for a, b in itertools.pairwise(cuts))
+    moved = [at + n for n, at in enumerate(starts)]  # where each space is in `spaced`
+    return [(a - bisect.bisect_left(moved, a), b - bisect.bisect_left(moved, b))
+            for a, b in read(spaced)]
 
 
 def _restored(cuts, spans) -> list[tuple[int, int]]:

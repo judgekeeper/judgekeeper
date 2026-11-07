@@ -83,6 +83,15 @@ def test_a_code_anywhere_in_a_key_hides_all_of_it(key, code):
         assert redact.scrub(f"{key[:at]}{code}{key[at:]}") == redact.REDACTED, at
 
 
+@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("before", ["word", "10:22:01", "Key"])
+@pytest.mark.parametrize("lead", ["\x1b[31m", "\x1b[01;31m\x1b[K", "\\u001b[31m", "[31m"])
+def test_a_code_in_a_key_after_a_word_and_a_code_hides_all_of_it(key, before, lead):
+    for at in range(1, len(key)):
+        said = redact.scrub(f"{before}{lead}{key[:at]}\x1b[0m{key[at:]} end")
+        assert said.endswith(f"{redact.REDACTED} end") and key[:3] not in said, at
+
+
 def test_grep_colours_around_the_start_of_a_key_hide_all_of_it():
     key = KEYS[0]
     text = f"key=\x1b[01;31m\x1b[K{key[:17]}\x1b[m\x1b[K{key[17:]}"
