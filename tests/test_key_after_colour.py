@@ -26,7 +26,12 @@ CODES = ["\x1b[31m", "\x1b[0m", "\x1b[1;31m", "\x1b[38;5;196m", "\x1b[2K", "\x1b
 # The code's last character is the key's first letter: a code not ended when the key starts
 OPEN_CODES = ["\x1b[31", "\x9b31", "\\x1b", "\\033", "\\e", "\\e[1", "\x1b-", "\x1b"]
 # A hidden character inside the code
-BROKEN_CODES = ["\x1b[3\u200b1m", "\x1b\u200b[31m", "\x1b[\x001m", "\x1b[3\xad1m"]
+BROKEN_CODES = ["\x1b[3\u200b1m", "\x1b\u200b[31m", "\x1b[\x001m", "\x1b[3\xad1m",
+                "\x1b[3\x071m", "\x1b[\x1b31m", "\x1b[3\x8e1m", "\x8e[31m", "\x9b[31m",
+                "\x1bO\x07P"]
+# As logs and other tools keep them
+LOG_CODES = ["[38:5:196m", "[2K", "[K", "[1G", "[?25l", "[10;20H", "%1B%5B31m", "\\23331m",
+             "\\02331m", "\x1b]0;t\x9c"]
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -39,7 +44,7 @@ def test_a_key_right_after_a_terminal_code_is_hidden(key, code):
 
 
 @pytest.mark.parametrize("key", KEYS)
-@pytest.mark.parametrize("code", OPEN_CODES + BROKEN_CODES)
+@pytest.mark.parametrize("code", OPEN_CODES + BROKEN_CODES + LOG_CODES)
 def test_a_key_after_a_code_left_open_or_broken_is_hidden(key, code):
     for text in (f"{code}{key}", f"before {code}{key} after"):
         assert key not in redact.scrub(text), text
@@ -55,8 +60,26 @@ def test_a_secret_named_by_what_comes_before_it_is_hidden_after_a_code(before, s
     assert secret not in redact.scrub(f"{before}{code}{secret}")
 
 
-def test_a_login_in_a_url_is_hidden_after_a_code():
-    assert "s3cretpass" not in redact.scrub("\x1b[31mhttps://user:s3cretpass@host.example/")
+@pytest.mark.parametrize("code", ["\x1b[31m", "\\u001b[31m", "\x1b[3\x071m", "[31m", "\x1b[2K"])
+def test_a_secret_with_a_code_between_its_name_and_its_value_is_hidden(code):
+    aws = "abcdEFGH1234567890abcdEFGH1234567890abcd"
+    assert aws not in redact.scrub(f'"aws_secret_access_key": "{code}{aws}"')
+    token = "abcdEFGH1234567890abcdEFGH"
+    assert token not in redact.scrub(f"https://{code}{token}@host.example/")
+
+
+@pytest.mark.parametrize("code", ["\x1b[3\x071m", "\x1b[31m"])
+def test_a_named_secret_after_a_code_is_hidden(code):
+    token = "abcdEFGH1234567890abcd"
+    assert token not in redact.scrub(f"{code}Bearer {token}")
+    assert "s3cretpass" not in redact.scrub(f"{code}https://user:s3cretpass@host.example/")
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_a_code_early_in_a_key_is_hidden(key):
+    for at in (3, 8):
+        said = redact.scrub(f"{key[:at]}\x1b[31m{key[at:]}")
+        assert redact.REDACTED in said and key[-3:] not in said, at
 
 
 @pytest.mark.parametrize("key", KEYS)
@@ -71,7 +94,8 @@ def test_text_with_a_code_and_no_key_stays_as_it_is():
     for text in ("\x1b[31mred\x1b[0m", "\\e[31m plain", "\\033[1m skills and more",
                  "\x1b[31mskipped this one", "C:\\e[1]\\file.txt", "see [31m and [1m",
                  "ESC[31m is a colour", "task-force-of-twenty-one-people-working", "50%1B[31m",
-                 "risk-assessment-framework-for-teams-and-people"):
+                 "risk-assessment-framework-for-teams-and-people",
+                 "[ask-the-user-for-some-more-details-first]", "see [2] and [K] and [1m]"):
         assert redact.scrub(text) == text
 
 
@@ -84,10 +108,11 @@ def test_text_around_the_key_is_kept():
 def test_a_long_text_of_codes_stays_fast():
     import time
 
-    text = "\x1b[" * 200_000 + "1" * 200_000
-    start = time.monotonic()
-    redact.scrub(text)
-    assert time.monotonic() - start < 5
+    for text in ("\x1b[" * 200_000 + "1" * 200_000, "\\e]\u200b" * 250_000, "\\e]" * 330_000,
+                 "ESC]" * 250_000, "[" * 100_000 + "1m" + "m" * 100_000):
+        start = time.monotonic()
+        redact.scrub(text)
+        assert time.monotonic() - start < 6, text[:8]
 
 
 def test_no_file_keeps_a_key_after_a_code(tmp_path, monkeypatch, capsys):

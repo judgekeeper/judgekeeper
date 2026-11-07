@@ -84,10 +84,11 @@ _ESC = (r"(?:\x1b|\^\[|\u241b|ESC|\\[eE]|\\0?33|\\x1[bB]|\\u001[bB]|\\U0000001[b
         r"\\u\{0*1[bB]\}|&#0*27;|&#[xX]0*1[bB];|%1[bB])")
 _CODE_END = r"[0-?]*[ -/]*[@-~]"
 _TERMINAL_CODE = re.compile(
-    rf"{_ESC}(?:\[{_CODE_END}"
-    r"|\][^\x07\x1b]{0,200}?(?:\x07|\x1b\\|\\x07|\\0?07|\\a|\\u0007)"  # a title: to its end
+    rf"{_ESC}(?:(?:\[|%5[bB]){_CODE_END}"
+    r"|\][^\x07\x1b\\]{0,64}?(?:\x07|\x9c|\x1b\\|\\x07|\\0?07|\\a|\\u0007)"  # a title
     rf"|[NO].|[ -/]*[0-~])"
-    rf"|(?:\x9b|\\x9[bB]|\\u009[bB]){_CODE_END}|[\x8e\x8f].|\[[0-9;]*m", re.DOTALL)
+    rf"|(?:\x9b|\\x9[bB]|\\u009[bB]|\\0?233){_CODE_END}|[\x8e\x8f]."
+    r"|\[[0-9;:?]*[A-HJKSTfhlmnsu]", re.DOTALL)
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
@@ -115,8 +116,9 @@ _CONTROL = re.compile(f"[\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f{_HIDDEN}]")
 # too), so a key split by one is never joined back when it prints
 _SPLITTERS = _CONTROL
 _SPLIT_RUNS = re.compile(f"{_SPLITTERS.pattern}+")
-# Hidden characters, but not those a terminal code starts or ends with
-_HIDDEN_IN_CODE = re.compile(f"(?![\\x07\\x1b\\x8e\\x8f\\x9b]){_SPLITTERS.pattern}")
+# Hidden characters, but not those a terminal code starts or, with a title, ends with
+_HIDDEN_IN_CODE = tuple(re.compile(f"(?![{keep}]){_SPLITTERS.pattern}")
+                        for keep in (r"\x07\x1b\x8e\x8f\x9b\x9c", r"\x1b\x8e\x8f\x9b"))
 # Hidden characters right after a letter or digit, before the first letter of a key's start:
 # a key may start after them (`key<ZWSP>sk-…`, `key<ZWSP>AK<ZWSP>IA…`)
 _AFTER_LETTER = re.compile(f"(?<=[A-Za-z0-9]){_SPLITTERS.pattern}+(?=[sAghxe])")
@@ -292,6 +294,17 @@ def scrub(text: str | None) -> str | None:
 
 
 def _scrub_now(text: str | None) -> str | None:
+    """_read, then once more with terminal codes taken out, for a secret a code sits in or next
+    to (after a quote, in a URL): when that finds one, the text comes back without its codes."""
+    out = _read(text)
+    if not out or not _TERMINAL_CODE.search(out):
+        return out
+    plain = _TERMINAL_CODE.sub("", out)  # from what is already hidden: this can only hide more
+    again = _read(plain)
+    return out if again == plain else again
+
+
+def _read(text: str | None) -> str | None:
     if not text:
         return text
     escaped = _ESCAPED_KEY.search(text) is not None
@@ -316,10 +329,13 @@ def _scrub_now(text: str | None) -> str | None:
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
     if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
         found += _spans(_ESCAPED_KEY.sub(_last_a_space, joined))
-    kept = _HIDDEN_IN_CODE.sub("", text)  # a code with a hidden character in it is whole here
-    if _TERMINAL_CODE.search(kept):
-        found += [span for reading in _code_readings(kept)
-                  for span in _spans(_SPLITTERS.sub("", reading))]
+    for hidden in _HIDDEN_IN_CODE:  # a code with a hidden character in it is whole in one of these
+        kept = hidden.sub("", text)
+        if _TERMINAL_CODE.search(kept):
+            found += [span for reading in _code_readings(kept)
+                      for span in _spans(_SPLITTERS.sub("", reading))]
+    if _TERMINAL_CODE.search(joined):  # and here, for one with an ESC in it
+        found += [span for reading in _code_readings(joined) for span in _spans(reading)]
     starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
               if _KEY_START.match(joined, at)]
     if starts:  # a space put into `joined` at each
