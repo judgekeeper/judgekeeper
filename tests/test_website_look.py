@@ -39,9 +39,9 @@ GUIDE = WEBSITE / "start.html"
 PRIVACY = WEBSITE / "privacy.html"
 CHECK = WEBSITE / "check.html"
 NOT_FOUND = WEBSITE / "errors" / "404.html"
-AGENT_LINE = ("Using a coding agent? Give it this page. It runs the steps and gives you the "
-              "marking page link; you mark, then it explains the result. Tell it: "
-              '"Follow this to check my LLM-as-a-judge."')  # word for word
+AGENT_LINE = ('Using a coding agent? Give it this page and tell it: "Follow this to check my '
+              'LLM-as-a-judge." It runs the steps and gives you the marking page link; you '
+              "mark, then the coding agent explains the result.")  # word for word
 TRADEMARK_NOTE = ("judgekeeper and the judgekeeper logo are [trademarks](https://github.com/"
                   "judgekeeper/judgekeeper/blob/main/TRADEMARKS.md) of Sathvik Thota. The "
                   "Apache-2.0 license covers the code, not the name or logo.")  # word for word
@@ -1096,12 +1096,13 @@ def test_the_guide_shows_each_step_as_its_word_its_words_and_its_commands_beside
 
 
 def test_running_text_is_justified_only_once_the_columns_are_full_width():
-    """Straight edges on both sides for paragraphs, never for headings, the big words, tip
-    questions, commands or the install box. Narrower lines stay left-aligned, as they would
-    get big holes between words."""
+    """Straight edges on both sides for paragraphs and the install box's notes, never for
+    headings, the big words, tip questions or commands. Narrower lines stay left-aligned, as
+    they would get big holes between words."""
     wide = CSS[CSS.index("@media (min-width: 1280px)"):]
     wide = wide[:wide.index("\n}\n")]
-    chosen = ".gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .sp-block p, .rt-line"
+    chosen = (".gl-body p:not(.sp-word), .sp-ifs dd, .sp-win .gx-small, .gx-install .gx-small, "
+              ".sp-block p, .rt-line")
     assert "text-align: justify" in _rule(chosen, wide)
     assert CSS.count("text-align: justify") == 1
     assert "text-wrap: wrap" in _last(".rt-line", wide)  # "pretty" leaves the first line short
