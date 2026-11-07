@@ -349,8 +349,9 @@ def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link
     assert NO_BROWSER in _step(2)
     install = _flat(_sections(_readme())["Install"])
     (note,) = link_lines({"printed": 2})
-    assert ("Using a coding agent? Give it this page. It runs the steps and gives you the "
-            "marking page link; you mark, then it explains the result.") in install
+    assert ('Using a coding agent? Give it this page and tell it: "Follow this to check my '
+            'LLM-as-a-judge." It runs the steps and gives you the marking page link; you '
+            "mark, then the coding agent explains the result.") in install
     assert "came through a link" not in install
     assert "came through a link judgekeeper printed" in note
     assert "That's expected if you opened it yourself." in note
