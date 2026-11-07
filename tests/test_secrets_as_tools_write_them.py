@@ -102,3 +102,20 @@ def test_the_skip_changes_no_result(monkeypatch):
     fast = [redact.scrub(t) for t in texts]
     monkeypatch.setattr(redact, "_SECRET_SIGN", type("Always", (), {"search": lambda s, t: True})())
     assert fast == [redact.scrub(t) for t in texts]
+
+
+@pytest.mark.parametrize("text", ["Use basic format=json here", "basic timeout=30",
+                                  "Basic length=10 works", "basic format==json here"])
+def test_a_setting_after_the_word_basic_stays(text):
+    assert redact.scrub(text) == text
+
+
+@pytest.mark.parametrize("text, hidden", [
+    ("Basic Ym9iOnNlY3JldA==", f"Basic {redact.REDACTED}"),
+    ("Authorization: Basic Ym9iOnNlY3JldA==\nnext line",
+     f"Authorization: Basic {redact.REDACTED}\nnext line"),
+    ('"Authorization: Basic Ym9iOnNlY3JldA=="', f'"Authorization: Basic {redact.REDACTED}"'),
+    ("'Basic YWxpY2U6cHc=' sent", f"'Basic {redact.REDACTED}' sent"),
+])
+def test_a_short_login_is_hidden_at_a_line_end_and_before_a_quote(text, hidden):
+    assert redact.scrub(text) == hidden

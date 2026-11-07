@@ -45,8 +45,9 @@ _named_values: set[str] = set()
 _TOKEN_CHARS = r"[A-Za-z0-9._~+/=-]"
 _BEARER = re.compile(rf"(\bBearer\s+)(?={_TOKEN_CHARS}*\d){_TOKEN_CHARS}{{16,}}", re.IGNORECASE)
 # Short ones too when they end in base64 padding: `Ym9iOnNlY3JldA==` is `bob:secret`
-_BASIC = re.compile(r"(\bBasic\s+)(?:[A-Za-z0-9+/]{16,}={0,2}|[A-Za-z0-9+/]{6,}={1,2})",
-                    re.IGNORECASE)
+# (padding ends a login: `format=json` is a setting)
+_BASIC = re.compile(r"(\bBasic\s+)(?:[A-Za-z0-9+/]{16,}={0,2}"
+                    r"|[A-Za-z0-9+/]{6,}={1,2}(?![A-Za-z0-9=]))", re.IGNORECASE)
 # The scheme is bounded: unbounded, every word start in "a.a.a.a..." would scan to the end of
 # the run looking for "://", making scrub() quadratic on long dotted text.
 # `\/` as PHP writes a slash in JSON. A password may hold an @: the login ends at the last one
