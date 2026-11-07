@@ -78,7 +78,10 @@ _KEY_START = re.compile(_KEY_BEGINS)
 # An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
 _ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
-_JOINS_A_KEY = re.compile("[A-Za-z0-9_-]")  # right before a key's start, it hides the key
+# How a secret starts, and what right before that start hides the secret
+_SECRET_START = re.compile(rf"{_KEY_BEGINS}|(?i:bearer\s|basic\s|aws_secret_access_key)"
+                           r"|[A-Za-z][A-Za-z0-9+.-]{0,30}://")
+_JOINS_A_SECRET = re.compile("[A-Za-z0-9_-]")
 # A terminal code (a colour, a cursor move), as it is, written out as text (`\u001b[31m`), or
 # with its escape character lost (`[31m`, as in a log). It would hide what comes right after it:
 # its last character joins a key's word, and a name such as `Bearer` no longer touches its value.
@@ -346,14 +349,14 @@ def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, i
 
 def _spans_across_codes(text: str) -> list[tuple[int, int]]:
     """Where in `text` a secret is once its terminal codes are taken out: a code inside a
-    secret is hidden with it, and every other code and word stays. A code before a key's start
-    leaves a space, or the word before the code would join the key."""
+    secret is hidden with it, and every other code and word stays. A code before a secret's
+    start leaves a space, or the word before the code would join the secret."""
     cut = _TERMINAL_CODE.sub("", text)
     found = _spans_read(cut)
     starts, gone = set(), 0
     for m in _TERMINAL_CODE.finditer(text):
         at = m.start() - gone
-        if _KEY_START.match(cut, at) and _JOINS_A_KEY.match(cut, at - 1):
+        if _SECRET_START.match(cut, at) and _JOINS_A_SECRET.match(cut, at - 1):
             starts.add(at)
         gone += m.end() - m.start()
     if starts:

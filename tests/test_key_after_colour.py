@@ -92,6 +92,18 @@ def test_a_code_in_a_key_after_a_word_and_a_code_hides_all_of_it(key, before, le
         assert said.endswith(f"{redact.REDACTED} end") and key[:3] not in said, at
 
 
+@pytest.mark.parametrize("before", ["word", "10:22:01"])
+@pytest.mark.parametrize("name, secret", [
+    ("Bearer ", "abcdEFGH1234567890abcd1234"), ("bearer ", "abcdEFGH1234567890abcd1234"),
+    ("Basic ", "dXNlcjpwYXNzd29yZDEyMzQ1"),
+    ("aws_secret_access_key=", "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY12"),
+    ("https://u:", "p4ssw0rd-long-value@host")])
+def test_a_code_in_a_named_secret_after_a_word_and_a_code_hides_it(before, name, secret):
+    for at in range(1, len(secret) - 6):
+        said = redact.scrub(f"{before}\x1b[31m{name}{secret[:at]}\x1b[0m{secret[at:]} end")
+        assert redact.REDACTED in said and secret[at:at + 6] not in said, at
+
+
 def test_grep_colours_around_the_start_of_a_key_hide_all_of_it():
     key = KEYS[0]
     text = f"key=\x1b[01;31m\x1b[K{key[:17]}\x1b[m\x1b[K{key[17:]}"
