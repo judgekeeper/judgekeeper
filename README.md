@@ -30,7 +30,7 @@ Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 
 Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
 
-Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result.
+Using a coding agent? Give it this page. It runs the steps and gives you the marking page link; you mark, then it explains the result. Tell it: "Follow this to check my LLM-as-a-judge."
 
 ## The 5 steps
 
@@ -39,7 +39,7 @@ Using a coding agent? Give it this page. It runs the steps and gives you the mar
    - No browser here, or a coding agent runs it? `judgekeeper --no-browser` prints the link to open instead.
    - Already have Pass/Fail labels? Run `judgekeeper --labels your-labels.csv`, or `judgekeeper --labels` if they are in your results. Then mark more if needed.
 3. **Measure:** run `judgekeeper` again to see how often it agrees with you.
-4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside.
+4. **Fix:** `judgekeeper fix` helps you write a better rule and tests it on marks kept aside. It makes no AI call: you grade the marked answers again with your own eval tool, which may use your API key.
 5. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
