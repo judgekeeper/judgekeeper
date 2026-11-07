@@ -2325,7 +2325,8 @@ def _say_head(talk: FrontTalk, head: list[str]) -> None:
 def _all_marked_lines(talk: FrontTalk, ws: Workspace, counts: dict, saved: bool) -> list[str]:
     labels = {"correct": counts["correct"], "wrong": counts["wrong"]}
     return start_label.all_marked_lines(labels,
-                                        start_label.mark_command(_command_of(talk, saved)))
+                                        start_label.mark_command(_command_of(talk, saved)),
+                                        ws.data().get("pool"))
 
 
 def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | None:

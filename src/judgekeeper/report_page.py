@@ -1287,7 +1287,7 @@ def _details(r: dict) -> str:
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
     ranged = lo is not None
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{shown}</td>'
+    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{_e(shown)}</td>'
             + (f'<td data-label="Between">{lo} and {hi}</td>' if ranged else "")
             + "</tr>")
     return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'

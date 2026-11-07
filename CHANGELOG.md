@@ -6,7 +6,12 @@
 - Counts of one read right, as in "You have marked the one answer."
 - On the marking page, skipped answers now say "Go back to it" or "Go back to them".
 - Lines that used "judge" as a verb now say "grade".
-- The labels error says numbers can be 1 and 0: "Labels must be Pass or Fail, or 1 and 0, not other numbers."
+- The labels error says numbers can be 1 and 0: "Labels must be Pass or Fail, or 1 and 0, not other numbers." It now has a Next line, with `--label-map`.
+- `regrade.yaml` is no longer written for a coding agent as the grader, such as Codex or Claude Code. `fix` prints the steps instead.
+- A key right after a terminal colour code is now hidden, as `SECURITY.md` says.
+- `fix` no longer says grades are "the same as when you marked" when they are not.
+- Labels in your results are now called "labels" until judgekeeper has read them, not "Pass/Fail labels".
+- With an LLM-as-a-judge that gave every answer one grade, and every answer marked the same, judgekeeper now says a new answer marked the other way gives the result.
 
 ## 1.1.1 (2026-11-05)
 

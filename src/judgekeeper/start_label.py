@@ -99,6 +99,7 @@ ALL_LABELED = "Every saved answer is marked. Run your eval again for more answer
 # the Measure screen, the marking page's end card and the result page
 ALL_MARKED = "You've marked every answer: {marks}."
 NEEDS_EACH = " A result needs at least {n} of each."
+NEEDS_ONE = " Your result comes once you mark a new answer {other}."  # one grade for all
 EVERY_MARKED = "You marked every answer."  # the page's line once a result is ready
 # The marking page, once there is a coloured verdict (good enough or needs work) and, from the
 # first numbers (ROUGH of each kind) until then, the line under its bar
@@ -757,7 +758,7 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     if not status["ready"] and every:
         counts = session.counts()  # nothing left to mark: the end card says what comes next
         done = all_marked_lines({"correct": counts["correct"], "wrong": counts["wrong"]},
-                                mark_command(run))
+                                mark_command(run), data.get("pool"))
         status.update(text=done[0], done=done)
     elif every:  # never "keep marking": there is none left to mark
         status.update(text=EVERY_MARKED)
@@ -1170,8 +1171,10 @@ def sentences(r: dict) -> list[str]:
         if all_labeled(r):
             from judgekeeper.start import command_from
 
+            g = r.get("groups") or {}
             return all_marked_lines(r["labels"],
-                                    mark_command(command_from(r.get("flags"), kept=True)))
+                                    mark_command(command_from(r.get("flags"), kept=True)),
+                                    {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")})
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     from judgekeeper.report_page import why_for
 
@@ -1234,13 +1237,19 @@ def mark_command(run: str | None = None) -> str:
     return " ".join(x for x in (program("mark"), flags) if x)
 
 
-def all_marked_lines(labels: dict, command: str | None = None) -> list[str]:
+def all_marked_lines(labels: dict, command: str | None = None,
+                     pool: dict | None = None) -> list[str]:
     """Every answer is marked, so there is none left to mark: the line that says so (what a
-    result needs: with every answer marked, only a kind under ROUGH can stop one), and the
-    Next: line. New answers join the marks as a batch (batches.py): `command` (mark_command)
-    adds them once the eval ran on more questions."""
+    result needs: with every answer marked, only a kind under ROUGH can stop one; when `pool`,
+    how many the judge passed and failed, has one grade for every answer, a new answer marked
+    the other way), and the Next: line. New answers join the marks as a batch (batches.py): `command`
+    (mark_command) adds them once the eval ran on more questions."""
     command = command or mark_command()
-    first = ALL_MARKED.format(marks=marks_words(labels)) + NEEDS_EACH.format(n=ROUGH)
+    pool = pool or {}
+    one_grade = bool(pool.get("pass")) != bool(pool.get("fail"))
+    other = "Fail" if pool.get("pass") else "Pass"
+    needs = NEEDS_ONE.format(other=other) if one_grade else NEEDS_EACH.format(n=ROUGH)
+    first = ALL_MARKED.format(marks=marks_words(labels)) + needs
     return [first, "Next: " + NEXT_ALL_MARKED.format(command=command)]
 
 

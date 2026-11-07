@@ -77,6 +77,10 @@ _KEY_START = re.compile(_KEY_BEGINS)
 # An escaped character right before a key: `\n` or `\t` (JSON kept as a string in JSON),
 # `"`, or a URL's `%20`. Its last letter or digit would join the key's word.
 _ESCAPED_KEY = re.compile(rf"(?:\\[nrt]|\\u00[0-9A-Fa-f]{{2}}|%[0-9A-Fa-f]{{2}})(?={_KEY_BEGINS})")
+# A terminal code (a colour, a cursor move), or one written out as text (`\u001b[31m`). Its last
+# character would join the word of a key right after it.
+_TERMINAL_CODE = re.compile(r"(?:\x1b|\\u001[bB]|\\x1[bB]|\\0?33|\\e)(?:\[[0-?]*[ -/]*[@-~]|[ -/]*[0-~])"
+                            r"|\x9b[0-?]*[ -/]*[@-~]")
 # An AWS secret has no shape of its own: it is found after its name (then `=`, `:` or a
 # space), or as a 40-character string on the same line as an AWS access key. A bare one with
 # neither clue stays: guessing would hide real text.
@@ -282,11 +286,14 @@ def _scrub_now(text: str | None) -> str | None:
     if not text:
         return text
     escaped = _ESCAPED_KEY.search(text) is not None
-    if not escaped and not _SPLITTERS.search(text):
+    coded = _TERMINAL_CODE.search(text) is not None
+    if not escaped and not coded and not _SPLITTERS.search(text):
         return _scrub(text)
     as_is = _spans(text)
     if escaped:  # read once more with each such escape's last character a space
-        as_is += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", text))
+        as_is += _spans(_ESCAPED_KEY.sub(_last_a_space, text))
+    if coded:  # and with each terminal code's
+        as_is += _spans(_TERMINAL_CODE.sub(_last_a_space, text))
     as_is = _merged(as_is)
     if not _SPLITTERS.search(text):
         return _redacted(text, as_is)
@@ -299,7 +306,9 @@ def _scrub_now(text: str | None) -> str | None:
     found = [*as_is, *_spans(_SPLITTERS.sub(" ", text))]
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
     if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
-        found += _spans(_ESCAPED_KEY.sub(lambda m: m[0][:-1] + " ", joined))
+        found += _spans(_ESCAPED_KEY.sub(_last_a_space, joined))
+    if coded:  # a terminal code before one: only `text` has it whole, with its escape character
+        found += _spans(_SPLITTERS.sub("", _TERMINAL_CODE.sub(_last_a_space, text)))
     starts = [at for at in (to_joined(m.start()) for m in _AFTER_LETTER.finditer(text))
               if _KEY_START.match(joined, at)]
     if starts:  # a space put into `joined` at each
@@ -312,6 +321,10 @@ def _scrub_now(text: str | None) -> str | None:
     if found == _merged((to_joined(a), to_joined(b)) for a, b in as_is):
         return _redacted(text, as_is)
     return _redacted(joined, found)
+
+
+def _last_a_space(m: re.Match) -> str:
+    return m[0][:-1] + " "
 
 
 def _spans(text: str) -> list[tuple[int, int]]:
