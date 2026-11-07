@@ -71,3 +71,34 @@ def test_normal_text_stays(text):
 def test_a_mail_address_after_a_url_login_stays():
     said = redact.scrub('"https://u:p@host","mail@x.example"')
     assert said.endswith('@host","mail@x.example"')
+
+
+TEXTS = [f"see {ANT} here", f"Bearer {TOK}", f"bearer {TOK}", "Basic YWxpY2U6c2VjcmV0MTIz", JWT,
+         f"aws_secret_access_key={AWS}", f"SecretAccessKey: {AWS}", f"--aws-secret-key {AWS}",
+         f"AKIAABCDEFGH12345678 {AWS}", "ASIAABCDEFGH12345678", "https://u:pass1234@host",
+         "https:\\/\\/u:pass1234@host", f"https://{TOK}@host", "ghp_" + "A1b2C3d4" * 5,
+         "github_pat_" + "A1b2C3d4" * 5, "AIza" + "A1b2C3d4" * 5, "xoxb-" + "A1b2C3d4" * 3,
+         "gsk_" + "A1b2C3d4" * 4, "hf_" + "A1b2C3d4" * 5, "xai-" + "A1b2C3d4" * 4]
+
+
+@pytest.mark.parametrize("text", TEXTS)
+def test_every_secret_scrub_can_hide_shows_a_sign(text):
+    """A text with no sign skips every search, so the sign must cover all of them."""
+    assert redact._SECRET_SIGN.search(text)
+    assert redact._scrub(text) != text
+
+
+def test_a_value_from_the_environment_needs_no_sign(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "Zy9Xw8Vu" * 6)
+    assert redact.scrub("value Zy9Xw8Vu" + "Zy9Xw8Vu" * 5) == f"value {redact.REDACTED}"
+
+
+def test_the_skip_changes_no_result(monkeypatch):
+    import random
+
+    rng = random.Random(9)
+    parts = [*TEXTS, "\x1b[31m", "\x1b[0m", "\\u001b[0m", "[K", "\u200b", "word", " ", "\\n", "-"]
+    texts = ["".join(rng.choice(parts) for _ in range(rng.randint(1, 6))) for _ in range(3000)]
+    fast = [redact.scrub(t) for t in texts]
+    monkeypatch.setattr(redact, "_SECRET_SIGN", type("Always", (), {"search": lambda s, t: True})())
+    assert fast == [redact.scrub(t) for t in texts]

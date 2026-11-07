@@ -108,6 +108,8 @@ _TERMINAL_CODE = re.compile(
 _AWS_SECRET = re.compile(
     r"((?<![A-Za-z0-9])(?:aws[_-]?secret[_-]?(?:access[_-]?)?key|secret[_-]?access[_-]?key)"
     r"[\"'\\]*(?:\s*(?:=>|[:=])\s*|\s+)[\"'\\]*)[A-Za-z0-9/+=]{40}", re.IGNORECASE)
+# Something every pattern in _scrub needs: a text with none of these holds nothing they find
+_SECRET_SIGN = re.compile(rf"{_KEY_BEGINS}|:\\?/|(?i:bearer|basic|secret[_-]?(?:access[_-]?)?key)")
 _AWS_KEY_ID = _KEY_SHAPES[2]
 _AWS_SECRET_SHAPE = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])")
 _LINE = re.compile(r"[^\n]+")
@@ -339,8 +341,8 @@ def _found(text: str, across_codes: bool = True) -> tuple[str, list[tuple[int, i
     found = [(to_joined(a), to_joined(b)) for a, b in found] + _spans(joined)
     if _ESCAPED_KEY.search(joined):  # an escape before a key split by a hidden character
         found += _spans(_ESCAPED_KEY.sub(_last_a_space, joined))
-    for hidden in _HIDDEN_IN_CODE:  # a code with a hidden character in it is whole in one of these
-        kept = hidden.sub("", text)
+    # a code with a hidden character in it is whole in one of these; `joined` is read below
+    for kept in {hidden.sub("", text) for hidden in _HIDDEN_IN_CODE} - {joined}:
         if _TERMINAL_CODE.search(kept):
             found += [span for reading in _code_readings(kept)
                       for span in _spans(_SPLITTERS.sub("", reading))]
@@ -406,6 +408,7 @@ def _last_a_space(m: re.Match) -> str:
     return m[0][:-1] + " "
 
 
+@functools.lru_cache(maxsize=4096)
 def _blanked(code: str) -> str:
     """`code` as spaces, of the same length once hidden characters are dropped."""
     return "".join(c if _SPLITTERS.fullmatch(c) else " " for c in code)
@@ -473,7 +476,10 @@ def _scrub(text: str, hide=lambda found: REDACTED) -> str:
     def login(m):  # and the @ after a URL's login
         return m[1] + hide(m[0][len(m[1]):-1]) + "@"
 
-    for value in _secret_values():
+    secrets = _secret_values()
+    if not _SECRET_SIGN.search(text) and not any(value in text for value in secrets):
+        return text
+    for value in secrets:
         text = text.replace(value, hide(value))
     text = _BEARER.sub(after_name, text)
     text = _BASIC.sub(after_name, text)
