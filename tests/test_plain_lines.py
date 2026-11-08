@@ -33,13 +33,13 @@ def test_marks_short_on_one_group_say_how_many_each_has(here, capsys):
             ) in said, said
     from judgekeeper.start_label import start_status
 
-    status = start_status(StartSession(Workspace(here)))  # the page says it too, not "keep going"
-    assert status["group"] == "You marked 10 answers your LLM-as-a-judge failed. A result needs 20."
+    status = start_status(StartSession(Workspace(here)))  # the page: no count by grade
+    assert status["group"] == "Keep marking. Your result needs more answers."
 
 
 def test_a_group_with_fewer_answers_than_a_result_needs_says_why_all(here, capsys):
     """The LLM-as-a-judge failed only 14 answers, fewer than the 20 marks a group needs: the
-    line says why a result needs all 14, in the terminal and on the page."""
+    line says why a result needs all 14 in the terminal; the page says only to keep marking."""
     table_project(here, split(50, 14))
     _main(capsys, "--no-browser", "--port", "0")
     session = StartSession(Workspace(here))
@@ -54,7 +54,8 @@ def test_a_group_with_fewer_answers_than_a_result_needs_says_why_all(here, capsy
     assert line in _flat(said), said
     from judgekeeper.start_label import start_status
 
-    assert start_status(StartSession(Workspace(here)))["group"] == line
+    assert start_status(StartSession(Workspace(here)))["group"] == (
+        "Keep marking. Your result needs more answers.")  # the page: no count by grade
 
 
 def test_a_group_of_one_answer_says_it_in_the_singular(here, capsys):
