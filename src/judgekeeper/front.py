@@ -2898,8 +2898,7 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
         if opened.server is not None:
             talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
-        talk.para("Next: " + start_label.NEXT_ALL_MARKED.format(
-            command=_command_of(talk, False, "mark")))
+        talk.para("Next: " + no_grades.more_answers(ws, _command_of(talk, False), surer=True))
         if opened.server is not None:
             page.serve(opened.server)
         return EXIT_OK
@@ -2949,9 +2948,9 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         opened, _ = _open(talk, ws, wait, False)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
-    mark = _command_of(talk, False, "mark")
-    talk.para("Next: " + (NEXT_MARK_MORE if r["left"] else start_label.NEXT_ALL_MARKED).format(
-        command=mark))
+    talk.para("Next: " + (NEXT_MARK_MORE.format(command=_command_of(talk, False, "mark"))
+                          if r["left"] else
+                          no_grades.more_answers(ws, _command_of(talk, False), surer=True)))
     if opened is not None:
         page.serve(opened.server)
     return EXIT_OK

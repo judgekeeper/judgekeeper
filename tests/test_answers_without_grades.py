@@ -350,3 +350,24 @@ def test_every_answer_marked_under_ten_asks_for_more_answers(here, capsys, pages
             "see your result.") in said
     assert line in said
     assert "your eval" not in said
+
+
+@pytest.mark.parametrize("argv", [[], ["mark"]])
+def test_every_answer_marked_with_a_result_asks_for_more_for_a_surer_number(here, capsys,
+                                                                            pages, argv):
+    write_answers(here, 12)
+    run(capsys, "--no-browser")
+    mark(here, ["pass"] * 8 + ["fail"] * 4)
+    _, out, _ = run(capsys, *argv, "--no-browser")
+    said = flat(out)
+    assert ("Next: add more answers to results.csv for a surer number, then run "
+            "`judgekeeper` again.") in said
+    assert "your eval" not in said
+
+
+def test_answers_left_after_a_result_say_mark_more(here, capsys, pages):
+    write_answers(here, 12)
+    run(capsys, "--no-browser")
+    mark(here, ["pass"] * 6 + ["fail"] * 4)
+    _, out, _ = run(capsys, "--no-browser")
+    assert "Next: run `judgekeeper mark --no-browser` to mark more answers." in flat(out)

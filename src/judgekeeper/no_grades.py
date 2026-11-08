@@ -31,6 +31,8 @@ COUNTS = "You passed {k} of {n}."  # the headline, the pop-up and the terminal
 REASONS_LINE = "Your reasons: {said}."
 # every answer marked, fewer than MIN_MARKS: the terminal's and the end card's Next line
 MORE_ANSWERS = "add more answers to {file} (at least {n} in all), then run `{command}` again."
+# every answer marked, a result: the same, for a surer number
+SURER = "add more answers to {file} for a surer number, then run `{command}` again."
 
 
 NO_JUDGE = "Your answers have no grades, so there is no LLM-as-a-judge to {what}."
@@ -319,14 +321,15 @@ def results_file(ws) -> str:
     return line_path(path)
 
 
-def more_answers(ws, run: str | None = None) -> str:
-    """MORE_ANSWERS for the run that opened the page or made the marks (`run`), without the
-    page's own flags (start_label.mark_command's)."""
+def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
+    """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
+    the marks (`run`), without the page's own flags (start_label.mark_command's)."""
     from judgekeeper.start_label import _PAGE_FLAGS
     from judgekeeper.textio import program
 
     command = _PAGE_FLAGS.sub("", run or program())
-    return MORE_ANSWERS.format(file=results_file(ws), n=MIN_MARKS, command=command)
+    return (SURER if surer else MORE_ANSWERS).format(file=results_file(ws), n=MIN_MARKS,
+                                                     command=command)
 
 
 def toward(n: int) -> dict:
