@@ -86,7 +86,9 @@ def numbers(k: int, n: int) -> dict:
     if n < MIN_MARKS:
         return {"check": "too_few", "pass_rate": None, "pass_rate_interval": None}
     w = wilson(k, n)
-    return {"check": "result", "pass_rate": w["p"], "pass_rate_interval": [w["lo"], w["hi"]]}
+    lo = 0.0 if k == 0 else w["lo"]  # exactly: never 0.01% or 99.99% from float noise
+    hi = 1.0 if k == n else w["hi"]
+    return {"check": "result", "pass_rate": w["p"], "pass_rate_interval": [lo, hi]}
 
 
 def counts_line(k: int, n: int) -> str:

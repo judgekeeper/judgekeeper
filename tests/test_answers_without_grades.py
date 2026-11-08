@@ -664,6 +664,22 @@ def test_check_and_fix_with_only_answers_with_no_grade_and_no_marks(here, capsys
         assert "didn't expect" not in out + err and "Traceback" not in out + err
 
 
+@pytest.mark.parametrize(("k", "n"), [(0, 10), (10, 10), (0, 30), (30, 30), (0, 500),
+                                      (500, 500), (0, 997), (997, 997)])
+def test_none_or_every_answer_passed_ends_at_0_or_100(k, n):
+    """No Pass mark: the range starts at 0%; every mark Pass: it ends at 100%, never at
+    "99.99%" or "0.01%" from float noise. (Ends that round alike take one decimal, as on
+    every result page: "between 99.6% and 100.0%".)"""
+    r = no_grades.numbers(k, n)
+    words = no_grades.rate_words(r)
+    if k == 0:
+        assert r["pass_rate_interval"][0] == 0
+        assert words.startswith(("about 0%, between 0% and ", "about 0.0%, between 0.0% and "))
+    else:
+        assert r["pass_rate_interval"][1] == 1 and words.endswith((" and 100%", " and 100.0%"))
+    assert "0.01%" not in words and "99.99%" not in words
+
+
 @pytest.mark.parametrize("column", ["label", "human_label"])
 def test_labels_in_the_answers_file_stop_with_a_question_as_before(here, capsys, pages,
                                                                      column):
