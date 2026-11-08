@@ -463,6 +463,11 @@ def _mistakes(n_easy: int, n_strict: int) -> list[dict]:
 
 
 HIDDEN = "kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
+KEPT = "kept aside to test your fix."  # on the result page; HIDDEN: in the terminal
+EASY_H = (f'<h2 id="g-easy">You said <span class="w-fail">Fail</span>, your {TERM} said '
+          '<span class="w-pass">Pass</span></h2>')
+STRICT_H = (f'<h2 id="g-strict">You said <span class="w-pass">Pass</span>, your {TERM} said '
+            '<span class="w-fail">Fail</span></h2>')
 
 
 def _part(html: str, start: str, end: str = "</section>") -> str:
@@ -495,13 +500,13 @@ def test_each_result_level_shows_its_state(counts, state, headline):
 def test_good_and_needs_work_lead_with_the_disagreements():
     for counts, d, n in ((GATE, 2, 60), (NOT_GATE_TNR, 20, 80)):
         html = start_label.result_html(_result(*counts))
-        assert (f'<p class="lead">You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> '
-                "answers.</p>") in html
+        assert (f'<p class="lead">You and your {TERM} disagreed on <b class="off">{d}</b> of '
+                f"<b>{n}</b> answers.</p>") in html
 
 
 @pytest.mark.parametrize("counts, said", [
-    (CHECK, "You and your LLM-as-a-judge disagreed on <b>8</b> of <b>40</b> answers. "),
-    (TOO_EARLY, "You and your LLM-as-a-judge disagreed on <b>2</b> of <b>50</b> answers. "),
+    (CHECK, 'You and your LLM-as-a-judge disagreed on <b class="off">8</b> of <b>40</b> answers. '),
+    (TOO_EARLY, 'You and your LLM-as-a-judge disagreed on <b class="off">2</b> of <b>50</b> answers. '),
     (TOO_FEW, "")])  # no result yet: no count
 def test_too_early_leads_to_the_marking_page_or_says_the_command(counts, said):
     said = said.replace("LLM-as-a-judge", TERM)
@@ -525,7 +530,7 @@ def test_every_result_level_says_how_many_answers_you_disagreed_on(counts, level
     assert r["verdict_level"] == level
     c = report_page.counts(r)
     html = start_label.result_html(r)
-    assert (f"You and your {TERM} disagreed on <b>{c['strict'] + c['easy']}</b> of "
+    assert (f"You and your {TERM} disagreed on <b class=\"off\">{c['strict'] + c['easy']}</b> of "
             f"<b>{c['passed'] + c['failed']}</b> answers.") in html
 
 
@@ -544,47 +549,49 @@ def test_the_counts_row_in_every_state():
         r = _result(*counts)
         c = report_page.counts(r)
         text = _text(start_label.result_html(r))
-        assert (f"You passed {c['passed']} answers. It passed "
+        assert (f"You passed {c['passed']} answers. Of these, your LLM-as-a-judge passed "
                 f"{c['passed'] - c['strict']} and failed {c['strict']}.") in text, counts
-        assert (f"You failed {c['failed']} answers. It passed {c['easy']} "
-                f"and failed {c['failed'] - c['easy']}.") in text, counts
+        assert (f"You failed {c['failed']} answers. Of these, your LLM-as-a-judge passed "
+                f"{c['easy']} and failed {c['failed'] - c['easy']}.") in text, counts
     r = _result(*TOO_FEW)  # before a result: the person's own counts only
     c = report_page.counts(r)
     text = _text(start_label.result_html(r))
     assert f"You passed {c['passed']} answers. You failed {c['failed']} answers." in text
-    assert "It passed" not in text
+    assert "It passed" not in text and "Of these" not in text
     html = start_label.result_html(_result(*NOT_GATE_TNR))
-    assert ('<div class="counts"><p>You passed <span class="mono">24</span> answers. It passed '
-            '<span class="mono">22</span> and failed <span class="mono off">2'
-            "</span>.</p><p>") in html
+    assert ('<div class="cnts"><p class="c-pass"><span class="c-main">You <span class="w-pass">'
+            'passed</span> <span class="mono">24</span> answers.</span> <span class="c-sub">Of '
+            f'these, your {TERM} passed <span class="mono">22</span> and failed '
+            '<span class="mono off">2</span>.</span></p><p class="c-fail">') in html
 
 
 def test_one_answer_is_said_in_the_singular():
     assert report_page.count_line("passed", 1, 1, 0) == (
-        'You passed <span class="mono">1</span> answer. It passed '
-        '<span class="mono">1</span> and failed <span class="mono">0</span>.')
+        '<span class="c-main">You <span class="w-pass">passed</span> <span class="mono">1</span> '
+        f'answer.</span> <span class="c-sub">Of these, your {TERM} passed '
+        '<span class="mono">1</span> and failed <span class="mono">0</span>.</span>')
 
 
 def test_ungraded_answers_are_said_under_the_counts():
     check = {"answers": 57, "error": 2, "unreadable": 1, "nothing_checked": 4,
              "tool": "promptfoo", "tool_counted_as": "fail"}
     html = start_label.result_html(_result(*CHECK, judge_check=check))
-    assert (f'<p class="left-out band">Your {TERM} gave no Pass or Fail on 3 answers. They are '
-            "left out.</p>") in html
+    assert (f'<ul class="notes-list"><li>Your {TERM} gave no Pass or Fail on 3 answers. They '
+            "are left out.</li></ul>") in html
     one = start_label.result_html(_result(*CHECK, judge_check={"answers": 9, "empty": 1}))
     assert "Your LLM-as-a-judge gave no Pass or Fail on 1 answer. It is left out." in _text(one)
     for clean in ({"answers": 57}, None):
-        assert 'class="left-out' not in start_label.result_html(_result(*CHECK,
-                                                                         judge_check=clean))
+        html = start_label.result_html(_result(*CHECK, judge_check=clean))
+        assert "gave no Pass or Fail" not in html and 'class="notes-list' not in html
 
 
 def test_the_disagreement_groups_show_three_rows_then_show_all():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(5, 2)})
-    first = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2>' in first
-    assert f'{c["easy"] - 5} more of these are kept aside on purpose' in first
+    first = _part(html, '<section class="sec group" aria-labelledby="g-easy">')
+    assert EASY_H in first
+    assert f'{c["easy"] - 5} more are {KEPT}' in first
     assert ('<button type="button" class="more" aria-expanded="false" data-n="2" '
             'aria-controls="t-easy">Show 2 more</button>') in first
     assert ('<thead><tr><th scope="col">Question</th><th scope="col">Answer</th>'
@@ -593,13 +600,13 @@ def test_the_disagreement_groups_show_three_rows_then_show_all():
     assert [bool(x) for x in rows] == [False] * 3 + [True] * 2
     assert ('<td data-label="Question">easy 0</td><td data-label="Answer" id="a-easy-0">a</td>'
             '<td data-label="Its reason">r</td>') in first
-    second = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert f'<h2 id="g-strict">You said Pass, your {TERM} said Fail</h2>' in second
+    second = _part(html, '<section class="sec group" aria-labelledby="g-strict">')
+    assert STRICT_H in second
     assert '<th scope="col">Its reason</th>' in second and "why strict 1" in second
     assert 'class="more"' not in second  # 3 rows or fewer: no link
     assert html.index('id="g-easy"') < html.index('id="g-strict"')
     only = start_label.result_html(r, fixing={"mistakes": _mistakes(0, c["strict"])})
-    easy = _part(only, '<section class="group band" aria-labelledby="g-easy">')
+    easy = _part(only, '<section class="sec group" aria-labelledby="g-easy">')
     assert easy == "" and 'id="g-easy"' not in only  # none to show: the group is left out
 
 
@@ -615,93 +622,91 @@ def test_each_group_says_under_its_heading_how_many_are_kept_aside():
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 4,
                                                                     c["strict"] - 1)})
-    easy = _part(html, '<section class="group band" aria-labelledby="g-easy">')
-    assert (f'<h2 id="g-easy">You said Fail, your {TERM} said Pass</h2></div>'
-            f'<p class="kept">4 more of these are {HIDDEN}</p>') in easy
-    strict = _part(html, '<section class="group band" aria-labelledby="g-strict">')
-    assert f'<p class="kept">1 more of these is {HIDDEN}</p>' in strict
+    easy = _part(html, '<section class="sec group" aria-labelledby="g-easy">')
+    assert f'<div class="gh">{EASY_H}<p class="kept">4 more are {KEPT}</p></div>' in easy
+    strict = _part(html, '<section class="sec group" aria-labelledby="g-strict">')
+    assert f'<div class="gh">{STRICT_H}<p class="kept">1 more is {KEPT}</p></div>' in strict
     none = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], c["strict"])})
     assert "more are hidden" not in none and "more is hidden" not in none
     hidden_only = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"], 0)})
     assert 'id="g-strict"' not in hidden_only
-    assert (f'<div class="band kept-after"><p class="kept">{c["strict"]} more disagreements are {HIDDEN}</p>'
-            '</div>') in hidden_only
+    assert f'<p class="sec slim">{c["strict"]} more disagreements are {KEPT}</p>' in hidden_only
+    assert HIDDEN not in hidden_only
     early = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": []})
-    assert "kept aside on purpose" not in early and 'class="group' not in early
+    assert "kept aside" not in early and 'class="sec group' not in early
+
+
+SCORE_OPEN = '<section class="sec score" aria-labelledby="nums-h">'
 
 
 @pytest.mark.parametrize("counts", [GATE, CHECK, NOT_GATE_TNR])
-def test_more_details_is_folded_with_the_estimates_and_kappa(counts):
+def test_the_score_shows_the_three_numbers_with_their_ranges(counts):
+    """No More details fold: kappa is the third number, beside TPR and TNR, each with its
+    range under it, and the counts under the three."""
     r = _result(*counts)
     html = start_label.result_html(r)
-    main = _part(html, '<section class="main-lines band"')
-    part = _part(html, '<details class="details band">', "</details>")
-    assert '<summary><h2 id="details-h">More details</h2></summary>' in part
-    assert f"<caption>How often your {TERM} agrees with you" in main
-    for table in (main, part):
-        assert ('<thead><tr><td></td><th scope="col">Estimate</th><th scope="col">Between</th>'
-                "</tr></thead>") in table
+    score = _part(html, SCORE_OPEN)
+    assert f'<div class="sh"><h2 id="nums-h">How often your {TERM} agrees with you</h2>' in score
+    assert "More details" not in html and "<details" not in score
+    assert ">Estimate<" not in html and ">Between<" not in html
     (plo, phi), (flo, fhi), (klo, khi) = (r["tpr_interval"], r["tnr_interval"],
                                           r["kappa_interval"])
-    text = _text(main)
+    text = _text(score)
     share = report_page.share  # an end is never 100% or 0% unless it is exactly that
     assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {r['tpr']:.0%} "
-            f"{share(plo)} and {share(phi)}") in text
+            f"between {share(plo)} and {share(phi)}") in text
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
-            f"{share(flo)} and {share(fhi)}") in text
-    assert "Kappa" not in text and "When you say" not in _text(part)
-    text = _text(part)
-    kappa = f"{r['kappa']:.2f} {klo:.2f} and {khi:.2f}".replace("-", "−")
+            f"between {share(flo)} and {share(fhi)}") in text
+    kappa = f"{r['kappa']:.2f} between {klo:.2f} and {khi:.2f}".replace("-", "−")
     assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in text
     assert ('<button type="button" class="i" aria-describedby="kappa-tip" '
             'aria-expanded="false" aria-controls="kappa-tip" '
-            'aria-label="What kappa means">ⓘ</button>') in part
-    assert "<details open" not in html and 'hidden' not in part  # folded, all there
-    # the main lines are open, under the headline result and before the lists
-    assert html.index('class="counts"') < html.index('class="main-lines')
-    assert html.index('class="main-lines') < html.index('<details class="details band">')
-    assert "<details" not in main
+            'aria-label="What kappa means">ⓘ</button>') in score
+    cells = re.findall(r'<div class="cell (c-\w+)">', score)
+    assert cells == ["c-tpr", "c-tnr", "c-kappa"]
+    assert score.index('class="nums"') < score.index('class="cnts"')  # the counts under them
+    assert html.index('class="verdict"') < html.index(SCORE_OPEN)
 
 
 def test_a_judge_that_gave_every_answer_one_grade_shows_kappa_as_n_a():
-    part = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)),
-                 '<details class="details band">', "</details>")
-    assert _text(part).endswith(f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a")
-    assert "Between" not in part  # no range: no column for one
+    score = _part(start_label.result_html(_result(100, 0, 60, 20, 0, 0)), SCORE_OPEN)
+    kappa = _part(score, '<div class="cell c-kappa">', '<div class="cnts">')
+    assert _text(kappa).endswith(f"Kappa ⓘ {report_page.KAPPA_MEANS} n/a")
+    assert 'class="n-rng"' not in kappa  # no range: none under it
 
 
-def test_a_side_still_too_early_shows_its_number_and_range_in_more_details():
+def test_a_side_still_too_early_shows_its_number_and_range():
     r = _result(100, 100, 40, 22, 40, 2)
     r["tnr_interval"] = [0.1, 0.9]  # wider than the result can use
-    part = _part(start_label.result_html(r), '<section class="main-lines band"')
+    part = _part(start_label.result_html(r), SCORE_OPEN)
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {r['tnr']:.0%} "
-            "10% and 90%") in _text(part)
+            "between 10% and 90%") in _text(part)
 
 
 def test_too_early_to_tell_shows_the_counts_the_estimates_and_the_disagreements():
-    """A result that can't tell yet: everything but what to do next, and the note that the
-    result line uses wider ranges."""
+    """A result that can't tell yet: everything but what to do next."""
     r = _result(*TOO_EARLY)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(3, 3)})
-    assert 'class="counts"' in html
-    part = _part(html, '<section class="main-lines band"')
+    assert 'class="cnts"' in html
+    part = _part(html, SCORE_OPEN)
     (plo, phi), (flo, fhi) = r["tpr_interval"], r["tnr_interval"]
     text = _text(part)
     share = report_page.share  # never 100% for a value under 1
     assert (f"When you say Pass, your LLM-as-a-judge also says Pass about {share(r['tpr'])} "
-            f"{share(plo)} and {share(phi)}") in text
+            f"between {share(plo)} and {share(phi)}") in text
     assert (f"When you say Fail, your LLM-as-a-judge also says Fail about {share(r['tnr'])} "
-            f"{share(flo)} and {share(fhi)}") in text
+            f"between {share(flo)} and {share(fhi)}") in text
     assert "too early to tell" not in text
-    assert 'class="group' in html and 'class="next' not in html
-    assert '<p class="note wider">' in html
+    assert 'class="sec group' in html and 'id="next-h"' not in html
+    assert "wider ranges" not in html  # the terminal says it; the page no longer does
 
 
 def test_before_a_result_the_page_shows_the_counts_only():
     html = start_label.result_html(_result(*TOO_FEW), fixing={"mistakes": _mistakes(3, 3)})
-    assert 'class="counts"' in html
-    for gone in ('class="group', 'class="main-lines', 'id="details-h"', 'class="next',
-                 'class="note"'):
+    score = _part(html, '<section class="sec score" aria-label="Your marks">')
+    assert score.startswith('<div class="cnts">')
+    for gone in ('class="sec group', 'id="nums-h"', 'class="nums"', 'id="next-h"',
+                 'class="notes-list'):
         assert gone not in html, gone
 
 
@@ -709,13 +714,13 @@ def test_can_t_tell_yet_keeps_everything_but_what_next():
     r = _result(*CHECK)
     c = report_page.counts(r)
     html = start_label.result_html(r, fixing={"mistakes": _mistakes(c["easy"] - 1, c["strict"])})
-    for needed in ('class="counts"', 'id="g-easy"', 'id="g-strict"', "1 more of these is kept aside on purpose",
-                   'id="details-h"'):
+    for needed in ('class="cnts"', 'id="g-easy"', 'id="g-strict"', f"1 more is {KEPT}",
+                   'id="nums-h"'):
         assert needed in html, needed
-    assert 'class="next' not in html and "Keep checking it" not in html
+    assert 'id="next-h"' not in html and "Keep checking it" not in html
 
 
-NEXT_OPEN = '<section class="next band" aria-labelledby="next-h">'
+NEXT_OPEN = '<section class="sec next-box" aria-labelledby="next-h">'
 SAVED = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
          "folder. You can close this page.</p>")
 KEEP_MARKING = ('<p>Want more certain numbers? <a href="/?token=t">Keep marking</a>. It closes '
@@ -730,11 +735,11 @@ def test_what_next_has_the_fix_command_for_a_judge_that_needs_work():
     fix = program("fix")
     assert '<h2 id="next-h">What next</h2>' in part and "Fix it" not in html
     assert SAVED in part
-    assert "<p>Next, in your terminal, in your project folder:</p>" in part
+    assert "<p>Next, in your project folder:</p>" in part
     assert (f'<div class="cmd"><code>{fix}</code><button type="button" class="copy" data-copy '
             f'aria-label="Copy command: {fix}">') in part
     assert "Nothing more to do" not in part
-    assert part.index("saved in this project") < part.index("Next, in your terminal") \
+    assert part.index("saved in this project") < part.index("Next, in your project folder") \
         < part.index('class="cmd"')
 
 
@@ -744,7 +749,7 @@ def test_what_next_says_there_is_nothing_more_when_the_judge_is_good_enough():
     assert SAVED in part
     assert (f"<p>Nothing more to do. Run <code>judgekeeper check</code> after you change your "
             f"{TERM}.</p>") in part
-    assert 'class="cmd"' not in part and "Next, in your terminal" not in part
+    assert 'class="cmd"' not in part and "Next, in your project folder" not in part
 
 
 def test_what_next_links_back_to_the_marking_page_only_on_the_page_the_server_serves():
@@ -796,10 +801,10 @@ def test_what_next_is_the_same_one_command_for_a_table_of_grades():
     every eval tool (`fix` says what to do next)."""
     html = start_label.result_html(_result(*NOT_GATE_TNR, judge={"tool": "table", "rule": None}))
     part = _part(html, NEXT_OPEN)
-    assert "<p>Next, in your terminal, in your project folder:</p>" in part
+    assert "<p>Next, in your project folder:</p>" in part
     assert "re-run" not in part
     for counts in (CHECK, TOO_EARLY, TOO_FEW):  # no result yet: no end panel
-        assert 'class="next' not in start_label.result_html(_result(*counts)), counts
+        assert 'id="next-h"' not in start_label.result_html(_result(*counts)), counts
 
 
 def test_what_next_keeps_the_path_the_result_was_made_for():
@@ -827,79 +832,85 @@ def test_what_is_gone_from_the_result_page(counts):
         text = _text(html)
         for gone in GONE:
             assert gone not in text, (gone, back)
-        above = _text(html.split('class="main-lines')[0])
-        assert "%" not in above  # no percentage above the two main lines
+        above = _text(html.split('class="sec score')[0])
+        assert "%" not in above  # no percentage above the score
         if r["verdict_level"] not in ("too_early", None, "check"):
             assert "Mark more answers" not in text
 
 
 def test_the_result_page_style():
     style = report_page.STYLE
-    for rule in ((".band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));\n"
-                  "  padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }"),
-                 ":root { --gutter: 32px; }",
-                 ".verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }",
-                 (".verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); "
+    for rule in (":root { --pad: 56px; --bar: #14171c; }",
+                 ".verdict { padding: 60px 40px 52px; text-align: center; }",
+                 (".verdict h1 { margin: 0 auto; font-size: clamp(34px, 3.2vw, 48px); "
                   "line-height: 1.1;"),
                  ".verdict h1.needs { color: var(--amber); }",
                  ".verdict h1.good { color: var(--green); }",
                  ".verdict h1.plain { color: var(--text); }",
                  (".lead b { font-family: var(--mono); font-weight: 500; font-size: 18px; "
                   "color: var(--text); }"),
-                 ".mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }",
-                 (".counts { border-top: 1px solid var(--line); border-bottom: 1px solid "
-                  "var(--line); display: grid; grid-template-columns: 1fr 1fr; }"),
-                 (".counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; "
-                  "line-height: 1.4; font-weight: 500; }"),
-                 (".left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
-                  "max-width: 80ch; }"),
-                 ".group { padding-top: 64px; }",
-                 (".gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; "
-                  "}"),
+                 ".lead b.off { color: var(--amber); }",
+                 ".mono { font-family: var(--mono); font-weight: 500; white-space: nowrap;",
+                 ".w-pass { color: #5cc99b; }", ".w-fail { color: #ef7a7e; }",
+                 # every section opens with the same lit bar, its heading centred
+                 ".sec { border-top: 1px solid var(--line); }",
+                 (".sh, .gh, .h-head { background: var(--bar); border-bottom: 1px solid "
+                  "var(--line);\n  padding: 26px var(--pad) 24px; text-align: center; }"),
+                 (".sh h2, .gh h2, .h-head h2 { margin: 0; font-size: 26px; font-weight: 800;"),
+                 ".nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }",
+                 ".n-val { font-family: var(--sans); font-weight: 700; font-size: 58px;",
+                 (".cnts { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid "
+                  "var(--line); }"),
                  (".open-row { font-size: 14px; color: var(--muted); text-decoration: "
                   "underline;\n  text-decoration-color: var(--faint); text-underline-offset: 3px;"),
                  (".tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } "
                   ".tbl col.c3 { width: 28%; }"),
                  ".tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0;",
-                 (".note { margin: 16px 0 0; font-size: 14px; color: var(--muted); "
-                  "text-align: left;\n  max-width: 80ch; }"),
-                 ".details { margin-top: 64px; border-top: 1px solid var(--line); }",
-                 (".panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } "
-                  ".panel col.d3 { width: 26%; }"),
-                 ".panel td { font-size: 17px; padding: 20px 32px 20px 0;",
+                 (".notes-list { margin: 0; padding: 0; list-style: none; display: block; "
+                  "columns: 2;"),
+                 (".nx-split { display: grid; grid-template-columns: 1fr 1fr; "
+                  "grid-template-rows: auto 1fr;"),
+                 (".nx-split p { margin: 0; font-size: 17px; line-height: 1.6; color: "
+                  "var(--muted); }"),
                  # a tap opens kappa's tip and a second tap closes it; hover only with a mouse
                  (".kappa .i[aria-expanded=\"true\"] + .tip, "
                   ".kappa .i:focus-visible:not([data-shut]) + .tip {\n  display: block; }"),
                  "@media (hover: hover) { .kappa:hover .tip { display: block; } }",
-                 (".next { border-top: 1px solid var(--line); padding-top: 48px; "
-                  "padding-bottom: 72px; }"),
-                 (".next p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); "
-                  "max-width: 64ch; }"),
                  # the website's command box: 8px corners, its own dark ground
                  ("  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; "
                   "max-width: 100%;\n  min-width: min(380px, 100%); background: #07080a; }"),
                  "@media (max-width: 720px) {"):
         assert rule in style, rule
+    for gone in (".band {", "--gutter", ".counts {", ".left-out {", ".note {", ".details {",
+                 ".panel ", ".next {", ".main-lines", ".kept-after", ".add-why"):
+        assert gone not in style, gone
     assert "box-shadow" not in style.replace(".part[aria-pressed=\"true\"] .bx { background: "
                                              "var(--text); border-color: var(--text);\n  "
                                              "box-shadow: inset 0 0 0 2px var(--bg); }", "")
-    assert set(re.findall(r"border-radius: ([^;]+);", style)) <= {"0", "3px", "4px", "8px"}
+    assert set(re.findall(r"border-radius: ([^;]+);", style)) <= {"0", "3px", "4px", "8px",
+                                                                   "50%"}
+    laptop = style.split("@media (max-width: 1100px) {")[1].split("\n}\n")[0]
+    assert ":root { --pad: 36px; }" in laptop and ".n-val { font-size: 46px; }" in laptop
+    tablet = style.split("@media (max-width: 860px) {")[1].split("\n}\n")[0]
+    assert ".nums, .cnts { grid-template-columns: 1fr; }" in tablet
+    assert ".notes-list { columns: 1; }" in tablet
     narrow = style.split("@media (max-width: 720px) {")[1]
-    assert ":root { --gutter: 16px; }" in narrow
+    assert ":root { --pad: 16px; }" in narrow
     assert ".tbl, .tbl tbody, .tbl tr, .tbl td { display: block; }" in narrow
     assert ".tbl td::before { content: attr(data-label);" in narrow
-    # on a phone: "judgekeeper fix" on one line, and no text under 13px
-    for rule in (".cmd code { padding: 12px 14px; }", ".cmd { display: grid; width: 100%; min-width: 0; }",
-                 ".tbl td::before { font-size: 13px; }",
-                 ".panel td[data-label]::before, .panel caption, .note { font-size: 14px; }",
-                 ".kappa .tip { font-size: 15px; }"):
+    # on a phone: today's sizes, "judgekeeper fix" on one line, and no text under 13px
+    for rule in (".verdict { padding: 48px var(--pad) 40px; }", ".lead { font-size: 17px; }",
+                 ".sh h2, .gh h2, .h-head h2 { font-size: 22px; }",
+                 ".cmd code { padding: 12px 14px; }",
+                 ".cmd { display: grid; width: 100%; min-width: 0; }",
+                 "font-size: 13px; letter-spacing: .06em;", ".kappa .tip { font-size: 15px; }"):
         assert rule in narrow, rule
-    # on a phone or a touch screen, "Show all" and kappa's ⓘ are big enough to tap (48 and
-    # 44px), with the laptop layout unchanged
+    # on a phone or a touch screen, kappa's ⓘ is big enough to tap (44px), with the laptop
+    # layout unchanged; "Show N more" is a full-width row, 16px everywhere
     touch = style.split("@media (max-width: 720px), (pointer: coarse) {")[1].split("\n}\n")[0]
-    assert ".more { font-size: 16px; }" in touch
     assert (".kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }"
             in touch)
+    assert ".more { display: block; width: 100%; padding: 18px var(--pad);" in style
     # from 300px down (a phone with bigger text), Copy goes under the command
     tiny = style.split("@media (max-width: 300px) {")[1].split("\n}\n")[0]
     assert ".cmd { grid-template-columns: 1fr; }" in tiny
@@ -1031,7 +1042,7 @@ def test_the_counts_on_the_page_add_up(tmp_path, monkeypatch):
     assert c["easy"] + c["strict"] == seen + hidden and hidden > 0
     html = ws.report_html.read_text(encoding="utf-8")
     assert html.count('<td data-label="Question">') == seen
-    kept = re.findall(r"(\d+) more (?:of these |disagreements? )?(?:is|are) kept aside on purpose", _text(html))
+    kept = re.findall(r"(\d+) more (?:disagreements? )?(?:is|are) kept aside", _text(html))
     assert sum(map(int, kept)) == hidden
 
 # The page for an old link ------------------------------------------------------------------
@@ -1071,23 +1082,24 @@ def test_the_pages_name_the_eval_tool_as_the_terminal_does(tool, files, name):
         assert f'Eval tool:</span><span class="v">{escape(name)}</span>' in page
 
 
-def test_the_top_bar_labels_and_the_details_table_are_readable_by_everyone():
-    """The Judge and Eval tool labels at 4.5:1; every value in More details has a column and a
-    row header, so a screen reader says what each number is."""
+def test_the_top_bar_labels_and_the_numbers_are_readable_by_everyone():
+    """The Judge and Eval tool labels at 4.5:1; each of the three numbers sits in one cell
+    with its label, value and range, in that order, so a screen reader says what each is."""
     colours = _tokens()
     label = re.search(r"\.meta \.k \{([^}]*)\}", look.BASE).group(1)
     colour = re.search(r"color: var\(--([a-z-]+)\)", label).group(1)
     assert _contrast(colours[colour], colours["bg"]) >= 4.5, colour
+    for name in ("w-pass", "w-fail"):  # the Pass and Fail words, on the page and the bar
+        shade = re.search(rf"\.{name} \{{ color: (#[0-9a-f]{{6}}); \}}", report_page.STYLE)[1]
+        for ground in (colours["bg"], "#14171c"):
+            assert _contrast(shade, ground) >= 4.5, (name, ground)
     html = _served()["report.html"]
-    tables = re.findall(r'<table class="panel">.*?</table>', html, re.DOTALL)
-    assert len(tables) == 2  # the two main lines, and kappa in More details
-    rows = [row for table in tables for row in re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])]
-    assert len(rows) == 3
-    for row in rows:
-        assert row.startswith('<th scope="row">'), row
-        assert row.count("<td") == 2
-    for table in tables:
-        assert '<th scope="col">Estimate</th><th scope="col">Between</th>' in table
+    cells = re.findall(r'<div class="cell c-\w+">(.*?)</div>', html, re.DOTALL)
+    assert len(cells) == 3
+    for cell in cells:
+        parts = re.findall(r'<span class="(n-lab|n-val|n-rng)">', cell)
+        assert parts == ["n-lab", "n-val", "n-rng"], cell
+    assert "<table class=\"panel" not in html
 
 
 # Bold and bullets in an answer or a question: only these two --------------------------------
@@ -1152,43 +1164,29 @@ def test_an_answer_with_no_marks_is_escaped_text_as_before():
     assert cell == "a &lt; b &amp; c\n\nd -e **"
 
 
-def test_the_wider_ranges_note_shows_only_with_a_range_on_screen():
-    """The note is about the ranges shown: with every answer marked there are none, so the
-    result page and report.html leave it out; one range on screen keeps it."""
-    every = _result(30, 30, 30, 27, 30, 3, left=0)  # no range on either line
-    one = _result(30, 900, 30, 30, 25, 5, left=875)  # TNR exact, TPR with a range
+def test_the_pages_leave_the_wider_ranges_note_to_the_terminal():
+    """The terminal says why the result line uses wider ranges; the pages no longer do."""
+    r = _result(30, 900, 30, 30, 25, 5, left=875)  # TNR exact, TPR with a range
     for back in ("/?token=t", None):  # the result page, report.html
-        assert '<p class="note wider">' not in start_label.result_html(every, back=back)
-        assert '<p class="note wider">' in start_label.result_html(one, back=back)
-
-
-def test_the_wider_ranges_note_on_the_pages_names_the_result_and_the_terminal_its_line():
-    """The pages have no result line: there the note says "The result"."""
-    r = _result(30, 900, 30, 30, 25, 5, left=875)
+        html = start_label.result_html(r, back=back)
+        assert "wider ranges" not in html and 'class="note wider"' not in html
     line = ("The result line uses wider ranges than these, so a lucky streak can't decide it. "
             "You can look after every mark.")  # word for word
-    on_page = ("The result uses wider ranges than these, so a lucky streak can't decide it. "
-               "You can look after every mark.")
-    for back in ("/?token=t", None):  # the result page, report.html
-        assert unescape(_part(start_label.result_html(r, back=back), '<p class="note wider">',
-                              "</p>")) == on_page
     assert start_label.wider(r) == line
     waits = {**r, "only_wait": True}  # nothing to say about the next mark while marks wait
     assert start_label.wider(waits) == line.split(" You can")[0]
 
 
 @pytest.mark.parametrize("page", ["result page", "report.html"])
-def test_with_no_range_anywhere_there_is_no_between_column(page):
+def test_with_no_range_anywhere_there_is_no_range_and_one_exact_note(page):
     r = _result(*GATE)
     for key in ("tpr", "tnr", "kappa"):
         r[f"{key}_interval"] = (r[key], r[key])  # every answer marked: exact
     r["left"] = 0
     html = start_label.result_html(r, back="/" if page == "result page" else None)
-    assert "Between" not in html and '<col class="d3">' not in html
-    tables = re.findall(r'<table class="panel no-range">.*?</table>', html, re.DOTALL)
-    assert len(tables) == 2
-    for table in tables:
-        assert '<th scope="col">Value</th></tr></thead>' in table
-        rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
-        assert rows and all(row.count("<td") == 1 for row in rows)
-    assert "you marked every answer" in _text(html)
+    score = _part(html, SCORE_OPEN)
+    assert "between" not in _text(score) and 'class="n-rng"' not in score
+    assert 'class="about"' not in score
+    assert "you marked every answer)" not in _text(html)
+    assert score.count('<p class="foot">You marked every answer, so these numbers are '
+                       "exact.</p>") == 1

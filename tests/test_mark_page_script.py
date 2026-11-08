@@ -743,11 +743,11 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
       key("ArrowRight"); await settle();
       var before = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert")];
       status.first = true; status.ready = true; later(500);
-      status.headline = "Your LLM-as-a-judge needs work.";
+      status.headline = "Your LLM-as-a-judge needs work.";  // still sent; the box never shows it
       key("ArrowLeft"); await settle();
       var shown = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
                    document.activeElement === ids["ready-box"], ids["ready-see"].getAttribute("href"),
-                   sent.length, ids["ready-note"].textContent];
+                   sent.length, ids["ready-box"].textContent.indexOf("needs work")];
       key("ArrowRight"); await settle();  // behind the box: nothing is marked
       var behind = sent.length;
       ids["ready-box"].fire("keydown", {key: "Escape"});
@@ -757,8 +757,7 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
       console.log(JSON.stringify({before: before, shown: shown, behind: behind, closed: closed,
                                   again: ids["ready"].hidden, sent: sent.length}));""")
     assert got["before"] == [True, None]
-    assert got["shown"] == [False, "", True, "/result?token=t0k", 2,
-                            "Your LLM-as-a-judge needs work."]
+    assert got["shown"] == [False, "", True, "/result?token=t0k", 2, -1]
     assert got["behind"] == 2
     assert got["closed"] == [True, None, True]
     assert got["again"] is True and got["sent"] == 3
@@ -795,7 +794,7 @@ def test_the_ready_box_has_the_welcome_boxs_look_and_its_words():
     assert 'class="intro" id="ready-box" role="dialog" aria-modal="true"' in box
     assert "judgekeeper" in box and 'class="brand"' in box  # the logo
     assert '<h2 id="ready-title">Your result is ready.</h2>' in box
-    assert '<p class="note" id="ready-note"></p>' in box  # the verdict's words, when it opens
+    assert "ready-note" not in box and 'class="note"' not in box  # no verdict line: the page has it
     assert '<a class="go" id="ready-see" href="#">See your result</a>' in box
     assert 'id="ready-keep">Keep marking</button>' in box
 

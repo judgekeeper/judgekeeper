@@ -2,6 +2,8 @@
 
 ## 1.1.2 (2026-11-07)
 
+- New result page layout: three big numbers first, then the answers you disagreed on, then what to do next. Pass and Fail are in colour, with fewer small notes.
+- The "Your result is ready." box on the marking page now shows only See your result and Keep marking.
 - The Measure result in the terminal now shows kappa, as the result page does. It never decides the result.
 - Counts of one read right, as in "You have marked the one answer."
 - On the marking page, skipped answers now say "Go back to it" or "Go back to them".

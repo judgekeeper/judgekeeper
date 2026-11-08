@@ -179,7 +179,8 @@ def test_measure_with_every_answer_marked_never_says_mark_more(here, capsys):
     assert "it also says Pass: 85% (you marked every answer)" in out
     assert "about" not in out and "between" not in out and "exactly" not in out
     html = Workspace(here).report_html.read_text(encoding="utf-8")
-    assert "85% (you marked every answer)" in html and "exactly" not in html
+    assert '<span class="n-val">85%</span>' in html and "exactly" not in html
+    assert "You marked every answer, so these numbers are exact." in html
     assert "coincidence can" not in out and "coincidence can" not in html  # no range to be wider
     assert "Mark more answers" not in out
     assert not says_mark(_next(out))
@@ -223,7 +224,7 @@ def _said_in_report(report: str) -> list[str]:
     """The headline, the two counts and the kept-aside line, as report.html says them."""
     text = re.sub(r"<[^>]+>", "", report)
     return re.findall(r"Your LLM-as-a-judge [^.]*\.|Too early to tell\.|You (?:passed|failed) \d+ "
-                      r"answers\. It passed \d+ and failed \d+\.|"
+                      r"answers\. Of these, your LLM-as-a-judge passed \d+ and failed \d+\.|"
                       r"\* \d+ more (?:is|are) kept aside", text)
 
 
@@ -234,14 +235,14 @@ def test_report_after_a_check_is_the_new_judges(here, capsys):
     assert _jk(capsys)[0] == 0
     # the person fails 12 answers the judge passed and passes 4 it failed
     _mark(Workspace(here), {i: "fail" for i in range(12)} | {i: "pass" for i in range(30, 34)})
-    assert "disagreed on <b>16</b> of <b>60</b>" in (_jk(capsys), _report(here))[1]
+    assert 'disagreed on <b class="off">16</b> of <b>60</b>' in (_jk(capsys), _report(here))[1]
     new = split(30, 30)
     new[2:12] = [False] * 10  # the new judge fails 10 of the 12
     table_project(here, new)
     code, out = _check(capsys)
     assert code == 0, out
     after_check = _report(here)
-    assert ("You failed 38 answers. It passed 2 and failed 36."
+    assert ("You failed 38 answers. Of these, your LLM-as-a-judge passed 2 and failed 36."
             in _said_in_report(after_check)), _said_in_report(after_check)
     _jk(capsys)
     assert _said_in_report(_report(here)) == _said_in_report(after_check)

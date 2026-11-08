@@ -1,5 +1,5 @@
 """Short wording on the result page, report.html and the marking page, and one look shared
-with the website: counts, lists, More details, next steps and the marking page."""
+with the website: counts, lists, the score, next steps and the marking page."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from tests.test_product_pages import (
 )
 
 KEPT = " kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
+SHORT = " kept aside to test your fix."  # the result page's words
 
 
 def _page(result=NOT_GATE_TNR, mistakes=(1, 0), live=False, **fixing) -> str:
@@ -33,25 +34,25 @@ def _page(result=NOT_GATE_TNR, mistakes=(1, 0), live=False, **fixing) -> str:
 
 def test_the_counts_say_it_and_show_where_it_disagrees_in_amber():
     text = _text(_page())
-    assert "You passed 24 answers. It passed 22 and failed 2." in text
-    assert "You failed 56 answers. It passed 18 and failed 38." in text
-    assert "Of those" not in text
-    counts = _part(_page(), '<div class="counts">', "</div>")
+    assert "You passed 24 answers. Of these, your LLM-as-a-judge passed 22 and failed 2." in text
+    assert "You failed 56 answers. Of these, your LLM-as-a-judge passed 18 and failed 38." in text
+    assert "Of those" not in text and "It passed" not in text
+    counts = _part(_page(), '<div class="cnts">', "</div>")
     assert counts.count('class="mono off"') == 2
     assert 'failed <span class="mono off">2</span>' in counts
     assert 'passed <span class="mono off">18</span>' in counts
-    assert ".counts .off { color: var(--amber); }" in report_page.STYLE
+    assert ".off { color: var(--amber); }" in report_page.STYLE
 
 
 def test_a_count_of_none_against_you_stays_plain():
     counts = _part(start_label.result_html(_result(100, 100, 40, 40, 40, 40)),
-                   '<div class="counts">', "</div>")
+                   '<div class="cnts">', "</div>")
     assert "off" not in counts
 
 
 def test_before_a_result_the_counts_are_your_own_with_no_amber():
-    counts = _part(start_label.result_html(_result(*TOO_FEW)), '<div class="counts">', "</div>")
-    assert "It passed" not in counts and "off" not in counts
+    counts = _part(start_label.result_html(_result(*TOO_FEW)), '<div class="cnts">', "</div>")
+    assert counts and "Of these" not in counts and "off" not in counts
 
 
 # The lists ------------------------------------------------------------------------------------
@@ -63,19 +64,20 @@ def test_no_line_asks_for_reasons_above_the_lists():
 
 def test_group_headings_are_text_coloured_with_no_count():
     html = _page(mistakes=(3, 1))
-    assert "said Pass</h2>" in html and "said Fail</h2>" in html
+    assert 'said <span class="w-pass">Pass</span></h2>' in html
+    assert 'said <span class="w-fail">Fail</span></h2>' in html
     assert not re.search(r"said (Pass|Fail) \(\d+\)", html)
-    rule = report_page.STYLE.split(".gh h2 {", 1)[1].split("}", 1)[0]
-    assert "amber" not in rule
+    rule = report_page.STYLE.split(".sh h2, .gh h2, .h-head h2 {", 1)[1].split("}", 1)[0]
+    assert "amber" not in rule and "color: var(--text)" in rule
 
 
 def test_the_kept_aside_count_is_under_its_own_group():
     # 18 you failed that it passed: 3 shown, 15 kept aside; 2 the other way: 1 shown, 1 kept
     html = _page(mistakes=(3, 1))
     easy, strict = _part(html, 'id="g-easy"'), _part(html, 'id="g-strict"')
-    assert '<p class="kept">15 more of these are' + KEPT + "</p>" in easy
-    assert '<p class="kept">1 more of these is' + KEPT + "</p>" in strict
-    assert easy.index("kept aside on purpose") < easy.index("<table")
+    assert '<p class="kept">15 more are' + SHORT + "</p></div>" in easy
+    assert '<p class="kept">1 more is' + SHORT + "</p></div>" in strict
+    assert easy.index("kept aside") < easy.index("<table")
     assert "*" not in _text(html) and "a new rule fairly" not in html
 
 
@@ -83,8 +85,9 @@ def test_kept_aside_with_no_list_comes_after_the_lists():
     html = _page(mistakes=(2, 0))  # the 2 failed by it, passed by you: all kept aside
     assert 'id="g-strict"' not in html
     after = html.split('id="g-easy"', 1)[1].split("</section>", 1)[1]
-    assert '<p class="kept">2 more disagreements are' + KEPT + "</p>" in after.split('class="details', 1)[0]
-    assert html.count(KEPT) == 2
+    assert '<p class="sec slim">2 more disagreements are' + SHORT + "</p>" in after.split(
+        'id="next-h"', 1)[0]
+    assert KEPT not in html and html.count(SHORT) == 2
 
 
 def test_show_more_is_a_row_under_the_table():
@@ -99,8 +102,8 @@ def test_the_third_column_is_its_reason_and_headers_use_the_small_label():
     html = _page(mistakes=(1, 1))
     assert html.count('<th scope="col">Its reason</th>') == 2
     assert "Why your LLM-as-a-judge" not in html
-    th = report_page.STYLE.split(".tbl th, .panel th {", 1)[1].split("}", 1)[0]
-    for part in ("font-family: var(--sans)", "font-size: 11px", "font-weight: 600",
+    th = report_page.STYLE.split(".tbl th {", 1)[1].split("}", 1)[0]
+    for part in ("font-family: var(--sans)", "font-size: 12px", "font-weight: 600",
                  "letter-spacing: .1em", "color: var(--faint)"):
         assert part in th
 
@@ -130,7 +133,7 @@ def test_the_row_foot_has_its_button_first_and_show_all_last_with_no_dots():
     foot = _part(_reasoned(True), '<p class="why-line">', "</p>")
     assert foot.startswith('<button type="button" class="add-reason sbtn"')
     assert ">Change</button>" in foot
-    assert foot.rstrip().endswith("Show all</button>")
+    assert foot.rstrip().endswith("Show more</button>") and "Show all" not in foot
     assert "·" not in _reasoned(True) and "·" not in _reasoned(False)
     assert ".sbtn { display: inline-flex; align-items: center; height: 32px;" in (
         report_page.STYLE)
@@ -182,43 +185,40 @@ def test_opening_a_reason_box_opens_its_row():
     assert json.loads(out.stdout.strip().splitlines()[-1]) == [1, True, 1, 1]
 
 
-# More details ---------------------------------------------------------------------------------
+# The score -----------------------------------------------------------------------------------
 
-def test_more_details_is_folded_with_one_caption_line():
+def test_the_score_heading_is_a_bar_with_no_line_under_it():
     html = _page()  # 80 of 200 marked
-    assert '<details class="details band"><summary><h2 id="details-h">More details</h2>' in html
-    assert ("How often your <span class=\"term\">LLM-as-a-judge</span> agrees with you, "
-            "estimated for all 200 answers (you marked 80).") in html
+    assert "More details" not in html and "<details class=\"details" not in html
+    assert ('<div class="sh"><h2 id="nums-h">How often your <span class="term">LLM-as-a-judge'
+            '</span> agrees with you</h2></div>') in html
+    assert "Estimated for all" not in html
     assert "Worked out for all" not in html and "(estimates)" not in html
 
 
-def test_right_under_the_counts_more_details_adds_no_second_line():
-    assert ".counts + .details { margin-top: 0; border-top: 0; }" in report_page.STYLE
-
-
-def test_with_every_answer_marked_the_caption_is_short():
+def test_with_every_answer_marked_the_heading_stands_alone_too():
     html = start_label.result_html(_result(40, 40, 40, 38, 40, 22))
-    cap = _part(html, "<caption>", "</caption>")
-    assert _text(f"<body>{cap}") == "How often your LLM-as-a-judge agrees with you."
+    head = _part(html, '<div class="sh">', "</div>")
+    assert _text(f"<body>{head}") == "How often your LLM-as-a-judge agrees with you"
 
 
-def test_too_early_shows_the_counts_and_the_folded_details():
+def test_too_early_shows_the_counts_and_the_numbers_but_no_what_next():
     html = start_label.result_html(_result(*TOO_EARLY))
-    assert '<details class="details band">' in html and 'class="next band"' not in html
+    assert 'id="nums-h"' in html and 'class="cnts"' in html and 'id="next-h"' not in html
 
 
 def test_good_enough_has_no_fix_command():
     html = start_label.result_html(_result(*GATE))
-    assert 'class="cmd"' not in html and '<details class="details band">' in html
-    assert 'class="next band"' in html
+    assert 'class="cmd"' not in html and 'id="nums-h"' in html
+    assert '<section class="sec next-box" aria-labelledby="next-h">' in html
 
 
 # What next ------------------------------------------------------------------------------------
 
 def test_what_next_has_the_websites_command_box():
     html = _page()
-    fix = unwrapped(_part(html, '<section class="next band"'))
-    assert "<p>Next, in your terminal, in your project folder:</p>" in fix
+    fix = unwrapped(_part(html, '<section class="sec next-box"'))
+    assert "<p>Next, in your project folder:</p>" in fix and "in your terminal" not in fix
     assert "marked-answers.csv" not in fix and "In your project folder" not in fix
     assert '<div class="cmd"><code>judgekeeper fix</code><button type="button" class="copy" ' \
            'data-copy aria-label="Copy command: judgekeeper fix">' in fix
@@ -249,15 +249,12 @@ def test_report_html_keeps_one_closing_line():
     assert "uses your reasons" not in text and "Optional: tell judgekeeper" not in text
 
 
-def test_the_live_page_says_above_the_first_list_that_reasons_are_optional():
-    html = unwrapped(_page(mistakes=(2, 1), live=True))
-    line = ('<div class="band"><p class="add-why">Optional: tell judgekeeper why you disagree. '
-            '<code>judgekeeper fix</code> uses your reasons to find where your LLM-as-a-judge goes '
-            'wrong.</p></div>')
-    assert html.count(line) == 1
-    assert html.index(line) < html.index('id="g-easy"') < html.index('id="g-strict"')
-    none = _page(mistakes=(0, 0), live=True)
-    assert "Optional: tell judgekeeper" not in none
+def test_no_page_says_reasons_are_optional():
+    """The live page's "Optional: tell judgekeeper why..." line is cut; the reason box's own
+    question asks."""
+    for mistakes in ((2, 1), (0, 0)):
+        html = unwrapped(_page(mistakes=mistakes, live=True))
+        assert "Optional: tell judgekeeper" not in html and 'class="add-why"' not in html
 
 
 def test_the_term_stays_on_one_line_everywhere():
@@ -330,9 +327,11 @@ def test_the_website_copy_clears_its_selection_after_the_fallback():
 
 
 def test_the_what_next_copy_box_keeps_one_width_when_copied():
-    # the box is as wide as its 380px minimum (or the page), so "Copied" fits inside it
-    assert ".next-in { display: flex; flex-direction: column; align-items: flex-start;" \
-        in report_page.STYLE
+    # in What next the box fills its column (up to 640px), so "Copied" fits inside it
+    style = report_page.STYLE
+    assert ".nx-split .cmd { min-width: 0; width: 100%; max-width: 640px; }" in style
+    assert ".nx-split .cmd code { font-size: 18px; padding: 18px 22px; }" in style
+    assert ".nx-split .cmd .copy { padding: 0 22px; }" in style
     assert "min-width: min(380px, 100%)" in report_page.STYLE.split("\n.cmd {", 1)[1].split("}", 1)[0]
 
 

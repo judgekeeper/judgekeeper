@@ -60,10 +60,18 @@ def _no_width(text: str) -> bool:
             and "exactly" not in text)
 
 
+def _no_width_on_page(html: str) -> bool:
+    """The same on the result page: "100%" and "0%" alone, the exact note once at the foot,
+    no range, and never "exactly"."""
+    return (all(f'<span class="n-val">{x}%</span>' in html for x in (0, 100))
+            and html.count("You marked every answer, so these numbers are exact.") == 1
+            and 'class="n-rng"' not in html and "exactly" not in html)
+
+
 def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
     ws = _marked(here)
     _old(ws)
-    assert not _no_width(ws.report_html.read_text(encoding="utf-8"))
+    assert not _no_width_on_page(ws.report_html.read_text(encoding="utf-8"))
     code, out, err = run(capsys, "--no-browser")
     assert code == 0, out + err
     assert AGAIN in " ".join(out.split())
@@ -72,7 +80,7 @@ def test_an_old_result_is_worked_out_again_before_it_is_shown(here, capsys):
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["numbers_version"] == start_label.NUMBERS_VERSION
     assert r["tpr_interval"] == [1.0, 1.0] and r["tnr_interval"] == [0.0, 0.0]
-    assert _no_width(ws.report_html.read_text(encoding="utf-8"))
+    assert _no_width_on_page(ws.report_html.read_text(encoding="utf-8"))
     saved = [json.loads(p.read_text(encoding="utf-8")) for p in ws.history.glob("result-*.json")]
     assert [s["tpr_interval"] for s in saved] == [[0.86, 1.0]]  # the old result, kept
 
@@ -106,7 +114,7 @@ def test_a_report_drawn_again_by_fix_or_a_reason_uses_the_new_numbers(here):
     ws = _marked(here)
     _old(ws)
     start_label.write_report(ws)  # what fix, check and a reason on the page do
-    assert _no_width(ws.report_html.read_text(encoding="utf-8"))
+    assert _no_width_on_page(ws.report_html.read_text(encoding="utf-8"))
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
     assert r["numbers_version"] == start_label.NUMBERS_VERSION
     assert len(list(ws.history.glob("result-*.json"))) == 1
@@ -116,4 +124,4 @@ def test_the_marking_page_result_uses_the_new_numbers(here):
     ws = _marked(here)
     _old(ws)
     page = start_label.live_result(ws, StartSession(ws))
-    assert _no_width(page)
+    assert _no_width_on_page(page)

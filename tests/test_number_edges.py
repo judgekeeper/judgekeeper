@@ -12,6 +12,13 @@ import pytest
 
 from judgekeeper import front, report_page, start_label, targets, weighted
 
+
+def _score(r: dict) -> str:
+    """The result page's score section for `r`, a result with these numbers."""
+    return report_page._score({"check": "result", "verdict_level": "gate", **r},
+                              {"passed": 1, "failed": 1, "strict": 0, "easy": 0})
+
+
 SRC = Path(__file__).parents[1] / "src" / "judgekeeper"
 
 
@@ -51,8 +58,8 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
     out = weighted.corrected(30, 900, 30, 30, 25, 5)
     assert out["tnr_interval"] == [1.0, 1.0]
     r = _r((30, 900), (30, 25), out, left=875)
-    page = report_page._main_lines(r)
-    assert "100% (you marked every answer it passed)" in page
+    page = _score(r)
+    assert '<span class="n-val">100% (you marked every answer it passed)</span>' in page
     assert start_label.side_sentence("tnr", 1.0, [1.0, 1.0], report_page.why_for(r, "tnr")) == (
         "You failed: your LLM-as-a-judge also failed 100% (you marked every answer it passed).")
     # in every place a number is shown
@@ -67,8 +74,9 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
     assert front.estimate_lines(every)[1:] == [
         "  When you say Pass, it also says Pass: 100% (you marked every answer)",
         "  When you say Fail, it also says Fail: 78% (you marked every answer)"]
-    page = report_page._details({"kappa": 0.62, "kappa_interval": [0.62, 0.62], "left": 0})
-    assert "0.62 (you marked every answer)" in page and "0.62 and 0.62" not in page
+    page = _score({"kappa": 0.62, "kappa_interval": [0.62, 0.62], "left": 0})
+    assert '<span class="n-val">0.62</span>' in page and "0.62 and 0.62" not in page
+    assert f'<p class="foot">{report_page.EXACT}</p>' in page  # said once, not "exactly"
     assert targets.check(25, 25) == {"check": "result"}
     r = {"check": "result", "verdict_level": targets.level([1.0, 1.0], [0.0, 0.0])}
     assert start_label.status_line(r) == "Your result is ready."  # needs work, with no range
@@ -151,6 +159,6 @@ def test_almost_exact_reads_the_same_on_the_result_page():
          "tnr": 0.99335, "tnr_interval": [0.99332, 0.99338], "left": 5,
          "labels": {"correct": 300, "wrong": 300},
          "groups": {"pass": {"pool": 600}, "fail": {"pool": 600}}}
-    html = report_page._main_lines(r)
-    assert '<td data-label="Estimate">about 99.3%</td>' in html, html
-    assert '<td data-label="Between">99.33% and 99.34%</td>' in html, html
+    html = _score(r)
+    assert '<span class="n-val"><span class="about">about </span>99.3%</span>' in html, html
+    assert '<span class="n-rng">between 99.33% and 99.34%</span>' in html, html

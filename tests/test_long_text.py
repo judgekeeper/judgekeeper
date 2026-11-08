@@ -277,6 +277,7 @@ CONTEXT = ("Context:\n" + "Pets in the cabin cost $125 each way. " * 30
            + "\n\nA missing bag must be reported within 24 hours.\n\n"
            + "Question: How long do I have to report a missing bag?")
 HIDDEN = "kept aside on purpose, so a new rule can be tested on answers you haven't looked at again."
+SHORT = "kept aside to test your fix."  # the result page's words
 
 
 HEAD_TAIL = """
@@ -388,10 +389,11 @@ def test_each_heading_has_its_own_kept_aside_line_under_it():
     r = _result(*NOT_GATE_TNR)
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"] - 4, c["strict"] - 1))
-    assert ('<h2 id="g-easy">You said Fail, your <span class="term">LLM-as-a-judge</span> said '
-            f'Pass</h2></div><p class="kept">4 more of these are {HIDDEN}</p>') in html
+    assert ('<h2 id="g-easy">You said <span class="w-fail">Fail</span>, your <span '
+            'class="term">LLM-as-a-judge</span> said <span class="w-pass">Pass</span></h2>'
+            f'<p class="kept">4 more are {SHORT}</p></div>') in html
     assert "shown;" not in html and "* " not in _text(html)
-    assert f'<p class="kept">1 more of these is {HIDDEN}</p>' in html
+    assert f'<p class="kept">1 more is {SHORT}</p></div>' in html
     none = _html(_mistakes(c["easy"], c["strict"]))
     assert 'class="kept"' not in none and "more are hidden" not in none
 
@@ -401,10 +403,10 @@ def test_a_split_that_cant_be_used_shows_no_footnote_but_one_plain_line():
     for live in (False, True):
         html = unwrapped(report_page.page(r, back="/?token=t" if live else None,
                                           fixing={"mistakes": [], "split_unknown": True}))
-        assert "kept aside to test" not in html and 'class="group' not in html
-        assert ('<p class="add-why">judgekeeper can\'t use the file that says which answers are '
-                'kept aside. Run <code>judgekeeper fix</code> to see why and what to do.</p>'
-                ) in html.replace("&#x27;", "'")
+        assert "kept aside to test" not in html and 'class="sec group' not in html
+        assert ('<section class="sec slim"><p>judgekeeper can\'t use the file that says which '
+                'answers are kept aside. Run <code>judgekeeper fix</code> to see why and what to '
+                "do.</p></section>") in html.replace("&#x27;", "'")
     plain = report_page.page(r, fixing={"mistakes": []})  # a split that was read: none kept
     assert "can't tell which" not in plain.replace("&#x27;", "'")
 
@@ -414,10 +416,10 @@ def test_a_group_with_none_shown_is_left_out_but_still_counted():
     c = report_page.counts(r)
     html = _html(_mistakes(c["easy"], 0))
     assert 'id="g-strict"' not in html and "said Fail (0" not in html
-    assert f"{c['strict']} more disagreements are {HIDDEN}" in html
+    assert f"{c['strict']} more disagreements are {SHORT}" in html
 
 
-OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
+OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show more'
             '</button>')
 
 
@@ -429,7 +431,7 @@ def test_rows_fold_to_four_lines_with_one_show_all_per_row():
     laptop = style.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
     assert "max-height: calc(4 * 1.55em);" in laptop and "line-height: 1.55;" in laptop
     assert "line-clamp" not in style  # a fade, never "…" after a full stop
-    assert "grid-template-columns: 28fr 44fr 28fr;" in laptop
+    assert "grid-template-columns: 26fr 46fr 28fr; column-gap: 48px;" in laptop
     assert ".tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }" in laptop
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
     assert ".open-row { margin-left: auto;" in style and ".dot" not in style
@@ -446,7 +448,7 @@ def test_a_question_at_the_end_of_a_long_field_folds_to_its_start_and_its_end_in
                     f'<span class="q-full">{start}\n\n</span><span class="q-end">{end}</span>')
     laptop = report_page.STYLE.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
     assert ".tbl td.ht { max-height: calc(5 * 1.55em); }" in laptop
-    assert 'td.classList.contains("ht")' in report_page.SCRIPT  # always "Show all"
+    assert 'td.classList.contains("ht")' in report_page.SCRIPT  # always "Show more"
     plain = _html([{**_mistakes(1, 0)[0], "question": "Policy:\n" + "Bags are free. " * 40}])
     assert 'class="ht"' not in plain  # no question at the end: 4 lines
 
@@ -533,7 +535,7 @@ def test_a_saved_reason_shows_in_one_line_with_change():
     html = _html([_with_reason(why)], live=True, parts=["Be polite", "Never promise refunds"])
     line = re.search(r'<p class="why-line">.*?</p>', html)[0]
     text = re.sub(r"<[^>]+>", "", line)
-    assert text == "ChangeYour reason: it has a wrong fact; rule part 2; “Wrong year”Show all"
+    assert text == "ChangeYour reason: it has a wrong fact; rule part 2; “Wrong year”Show more"
     assert "Add a reason" not in line
 
 
@@ -648,15 +650,19 @@ def test_an_emoji_keeps_its_variation_selector_and_other_hidden_marks_still_go()
     assert "Yes \u2708\ufe0f<" in page and "\u202e" not in page
 
 
-# More details -------------------------------------------------------------------------------
+# The score ----------------------------------------------------------------------------------
 
-def test_weighted_estimates_say_for_how_many_answers_in_one_line():
+def test_the_score_heading_has_no_line_under_it_marked_or_not():
+    """"about" and the ranges say the numbers are estimates: no "Estimated for all N answers"
+    line under the heading, with some answers unmarked or none."""
     term = '<span class="term">LLM-as-a-judge</span>'
     html = start_label.result_html(_result(*NOT_GATE_TNR))  # 80 of 200 marked
-    assert (f"<caption>How often your {term} agrees with you, estimated for all 200 answers "
-            "(you marked 80).</caption>") in html
     every = start_label.result_html(_result(40, 40, 40, 22, 40, 2))  # every answer marked
-    assert f"<caption>How often your {term} agrees with you.</caption>" in every
+    for page in (html, every):
+        assert f'<h2 id="nums-h">How often your {term} agrees with you</h2></div>' in page
+        assert "Estimated for all" not in page and "estimated for all" not in page
+        assert 'class="sub"' not in page.split('id="nums-h"')[1].split("</section>")[0]
+    assert 'class="about"' in html
     assert "weighted" not in every and "weighted" not in report_page.STYLE
 
 

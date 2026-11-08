@@ -877,7 +877,7 @@ def test_a_damaged_file_after_marking_is_said_under_step_1(here, capsys, no_brow
 
 # The result page says what fix does, for every LLM-as-a-judge ---------------------------------
 
-S11_FIX = "Next, in your terminal, in your project folder: `judgekeeper fix`"
+S11_FIX = "Next, in your project folder: `judgekeeper fix`"  # the page; the terminal names it
 
 
 def _page_text(html: str) -> str:
@@ -965,7 +965,8 @@ def test_marks_under_a_second_are_said_on_the_result_page_and_report_too(here, c
     assert report.count(line) == 1
     live = start_label.live_result(ws, start_label.StartSession(ws), back="/?token=t")
     assert live.count(line) == 1
-    assert report.index('class="counts"') < report.index(line)  # beside the result
+    assert report.index('class="cnts"') < report.index(line)  # in the notes, after the counts
+    assert report.index('class="notes-list"') < report.index(line)
 
 
 def test_marks_at_a_person_s_pace_add_no_line_to_the_pages(here, capsys, no_browser):

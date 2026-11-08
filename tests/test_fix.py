@@ -1442,7 +1442,7 @@ def test_a_damaged_split_counts_none_as_kept_aside_on_the_result(here, capsys):
     assert ("judgekeeper can't use the file that says which answers are kept aside. Run "
             "judgekeeper fix to see why and what to do.") in flat
     assert '<code>judgekeeper fix</code>' in unwrapped(html)
-    assert 'class="group' not in html and "Add a reason" not in html
+    assert 'class="sec group' not in html and "Add a reason" not in html
 
 
 def test_a_split_written_before_its_sha256_is_read_and_gets_one(here, capsys):

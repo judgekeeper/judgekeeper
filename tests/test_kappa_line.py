@@ -1,4 +1,4 @@
-"""The terminal result says kappa, as the result page's More details does.
+"""The terminal result says kappa, as the result page's score does.
 
 Kappa never decides the result, so it stands apart from the lines the result uses, and `check`,
 which reuses those lines, stays as it is.
@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from judgekeeper import front, report_page
 from judgekeeper.textio import wrap
+
+
+def _score(r: dict) -> str:
+    """The result page's score section for `r`, a result with these numbers."""
+    return report_page._score({"check": "result", "verdict_level": "gate", **r},
+                              {"passed": 1, "failed": 1, "strict": 0, "easy": 0})
+
 
 SAYS = "Kappa (agreement beyond coincidence): {}. It never decides the result."
 
@@ -44,13 +51,14 @@ def test_a_range_too_narrow_to_write_shows_the_number_alone():
 def test_no_kappa_reads_as_on_the_result_page():
     r = {"kappa": None, "kappa_interval": None, "left": 3}
     assert front.kappa_line(r) == SAYS.format("n/a")
-    assert ">n/a<" in report_page._details(r)
+    assert '<span class="n-val">n/a</span>' in _score(r)
 
 
 def test_the_page_and_the_terminal_show_the_same_numbers():
     r = {"kappa": 0.128, "kappa_interval": [-0.092, 0.334], "left": 3}
-    page = report_page._details(r)
-    assert ">0.13<" in page and "−0.09 and 0.33" in page
+    page = _score(r)
+    assert '<span class="n-val">0.13</span>' in page
+    assert '<span class="n-rng">between −0.09 and 0.33</span>' in page
 
 
 def test_the_lines_check_reuses_hold_no_kappa():

@@ -27,8 +27,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import make_site_shots as shots
 
 # What the result picture and the demo's last frame show
-SHOWN = ("13 of 40 answers", "You passed 22 answers. It passed 19 and failed 3",
-         "You failed 18 answers. It passed 10 and failed 8")
+SHOWN = ("13 of 40 answers",
+         "You passed 22 answers. Of these, your LLM-as-a-judge passed 19 and failed 3",
+         "You failed 18 answers. Of these, your LLM-as-a-judge passed 10 and failed 8")
 NUMBERS = ("tpr", "tnr", "kappa", "groups", "disagreements", "check", "verdict",
            "verdict_level", "labels", "tpr_interval", "tnr_interval", "kappa_interval")
 

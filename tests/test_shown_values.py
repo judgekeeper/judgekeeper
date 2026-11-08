@@ -7,6 +7,13 @@ import pytest
 from judgekeeper import front, report_page, targets
 from judgekeeper.start_label import side_sentence
 
+
+def _score(r: dict) -> str:
+    """The result page's score section for `r`, a result with these numbers."""
+    return report_page._score({"check": "result", "verdict_level": "gate", **r},
+                              {"passed": 1, "failed": 1, "strict": 0, "easy": 0})
+
+
 # A large judge-pass group, all but one answer marked: 499 of 500 it passed, 2 of the 20 it
 # failed are a Pass to the person. The TPR range is 0.002 points wide.
 NEAR = {"tpr": 0.9960159362549801, "tpr_interval": [0.9959948949661799, 0.9960159362549801],
@@ -42,8 +49,9 @@ def test_the_narrow_range_reads_the_same_on_the_terminal_and_the_page():
     lines = front.estimate_lines(NEAR)
     assert "  When you say Pass, it also says Pass: about 99.6%" in lines
     assert not any("100% (you marked" in line for line in lines)
-    html = report_page._main_lines(NEAR)
-    assert '<td data-label="Estimate">about 99.6%</td>' in html, html
+    html = _score(NEAR)
+    assert '<span class="n-val"><span class="about">about </span>99.6%</span>' in html, html
+    assert 'class="n-rng">between 99' not in html  # too narrow to write: the number alone
     assert side_sentence("tpr", NEAR["tpr"], NEAR["tpr_interval"]) == (
         "You passed: your LLM-as-a-judge also passed about 99.6%.")
 
@@ -104,9 +112,12 @@ def test_the_terminal_range_uses_the_same_decimals_as_the_page():
 
 def test_a_kappa_range_that_reads_the_same_shows_the_number_alone():
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.4999, 0.5001]}
-    assert '<td data-label="Value">0.50</td>' in report_page._details(r)
+    kappa = _score(r).split('<div class="cell c-kappa">')[1].split("</div>")[0]
+    assert '<span class="n-val">0.50</span>' in kappa and "n-rng" not in kappa
     r = {**NEAR, "kappa": 0.5, "kappa_interval": [0.5, 0.5], "left": 0}
-    assert "0.50 (you marked every answer)" in report_page._details(r)
+    html = _score(r)
+    assert '<span class="n-val">0.50</span>' in html
+    assert f'<p class="foot">{report_page.EXACT}</p>' in html
 
 
 def test_with_a_newer_batch_unmarked_the_bracket_names_the_answers_it_counts():

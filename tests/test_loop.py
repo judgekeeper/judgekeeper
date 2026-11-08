@@ -330,7 +330,7 @@ def test_promptfoo_project_one_run_then_clicks(here, capsys,
     html = ws.report_html.read_text(encoding="utf-8")
     term = '<span class="term">LLM-as-a-judge</span>'
     assert r["verdict"].split(".")[0].replace("LLM-as-a-judge", term) in html
-    assert 'class="counts"' in html
+    assert 'class="cnts"' in html
     code, out, err = run(capsys)
     assert code == 0 and "  When you say Pass, it also says Pass: " in out
 

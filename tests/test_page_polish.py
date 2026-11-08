@@ -81,18 +81,19 @@ def test_wide_screens_keep_a_comfortable_width():
     laptop = _laptop()
     assert ".row, .actions, .status, .foot, .sub { padding-right: max(40px, calc(100cqw - 1160px)); }" in laptop
     assert ".main { container-type: inline-size; }" in laptop
-    assert ("padding-left: max(var(--gutter), calc((100% - 1376px) / 2));"
-            in report_page.STYLE.split(".band {", 1)[1])
-    # the two counts line up with the lists under them
-    assert ".counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));" in (
-        report_page.STYLE)
+    # the result page runs edge to edge: every part keeps the same side padding, --pad
+    style = report_page.STYLE
+    assert ":root { --pad: 56px; --bar: #14171c; }" in style
+    for sel in (".sh, .gh, .h-head {", ".sec.slim {", ".nx-notes {", ".last-check {", ".more {"):
+        assert "var(--pad)" in style.split(sel, 1)[1].split("}", 1)[0], sel
 
 
 def test_small_text_is_one_size():
     style = report_page.STYLE
-    for sel in (".note {", ".left-out {", ".add-why {", ".panel caption {"):
+    for sel in (".kept {", ".sec.slim {", ".n-rng {", ".foot {", ".nx-split p.small {",
+                "\n.notes-list li {"):
         rule = style.split(sel, 1)[1].split("}", 1)[0]
-        assert "font-size: 14px;" in rule and "max-width: 80ch;" in rule, sel
+        assert "font-size: 16px;" in rule, sel
 
 
 def test_the_list_title_drops_a_leading_label_and_reads_in_its_own_direction():
@@ -348,7 +349,7 @@ def test_a_chat_transcript_stays_plain_text_on_both_pages(tmp_path, monkeypatch)
 # Shut, a long row or group comes back into view -------------------------------------------
 
 def _report_script(scenario: str) -> dict:
-    """The result page's script in node, against a small stand-in: one row with its Show all,
+    """The result page's script in node, against a small stand-in: one row with its Show more,
     one group with its Show N more, and each one's top on the screen given by `top`."""
     import json
     import shutil
@@ -652,8 +653,7 @@ def _rows(n: int, prompt: str) -> list[dict]:
 
 def test_a_field_the_same_in_every_row_is_shown_once_folded():
     prompt = "You help riders at Spoke & Chain bikes.\nBe brief. " * 20
-    html = report_page._groups({"easy": 2, "strict": 2}, {"mistakes": _rows(4, prompt)},
-                               mark="judgekeeper mark")
+    html = report_page._groups({"easy": 2, "strict": 2}, {"mistakes": _rows(4, prompt)})
     assert html.count(report_page._e(prompt)) == 1
     assert ('<details class="same"><summary><span class="fname">agent_prompt</span>The same '
             'in every answer below</summary>') in html
