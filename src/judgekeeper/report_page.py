@@ -674,7 +674,8 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
                 f"{_code_line(next_only_skipped(n, commands(r)['more']))}")
     elif back:
         then = (f'<a href="{_e(back)}">{_e(TO_A_RESULT)}</a>' if level is None else
-                f'{_e(BEST_SO_FAR)} <a href="{_e(back)}">{_e(NARROW)}</a>')
+                f'{_e(BEST_SO_FAR)} <a href="{_e(back)}">'
+                f'{_e(NARROW if shows_range(r) else TO_A_RESULT)}</a>')
     else:
         then = f"Run <code>{look.command(_e(commands(r)['mark']))}</code> to mark more answers."
     lead = " ".join(x for x in (disagreed(c) if level is not None else "", then) if x)

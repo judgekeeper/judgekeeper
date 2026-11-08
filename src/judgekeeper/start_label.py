@@ -631,7 +631,7 @@ def coloured(r: dict) -> bool:
 
 def without_mark_more(verdict: str) -> str:
     """The result line without its ask to mark more, in a saved result's older words too."""
-    for ask in (MARK_MORE, TO_A_RESULT):
+    for ask in (MARK_MORE, BEST_SO_FAR, TO_A_RESULT):  # BEST_SO_FAR alone: exact numbers
         verdict = verdict.replace(f" {ask}", "")
     return verdict
 
@@ -1129,8 +1129,14 @@ def _level(r: dict) -> str | None:
 
 
 def _verdict(r: dict) -> str:
-    """The verdict's words."""
-    return VERDICTS[r["verdict_level"]]
+    """The verdict's words; too early to tell with no range shown (exact numbers), without
+    the ask to narrow the ranges."""
+    from judgekeeper.report_page import shows_range
+
+    words = VERDICTS[r["verdict_level"]]
+    if r["verdict_level"] in ("check", "too_early") and not shows_range(r):
+        return words.replace(f" {NARROW}", "")
+    return words
 
 
 def describe(corrected: dict) -> dict:
