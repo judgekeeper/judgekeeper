@@ -228,7 +228,7 @@ def _search_order(root: Path, first: str | None = None) -> list[Path]:
 
 
 def _shown(line: str) -> str:
-    line = line.strip()
+    line = scrub(line).strip()  # keys hidden before the cut
     return line if len(line) <= LINE_SHOWN else line[:LINE_SHOWN - 1] + "…"
 
 

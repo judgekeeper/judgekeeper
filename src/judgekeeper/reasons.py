@@ -687,7 +687,7 @@ def suggestions_md(rows: list[dict], command: str = "judgekeeper mark") -> str:
         parts.append(f"- {line}")
         parts += [fence(note) for note in notes]
         for r in hits:
-            parts.append(fenced("ANSWER", canonical(r.get("output") or "")[:SHOWN]))
+            parts.append(fenced("ANSWER", scrub(canonical(r.get("output") or ""))[:SHOWN]))
         parts.append("")
     if not once:
         parts.append("Nothing.")

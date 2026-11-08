@@ -371,7 +371,7 @@ def go(talk: FrontTalk, path: Path, wait: bool, stop: bool, marking: bool) -> in
             return _stop(talk, path)
         uri = str(talk.options.get("tracking_uri") or "")
         if not path.exists() and not uri.startswith(start.SERVERS):
-            raise not_found(path)  # no step ran: the error alone
+            raise not_found(path, talk.path)  # no step ran: the error alone
         if talk.labels is not None or not marking and not _started(path):  # an import
             talk.say(STEP.format(n=1, name="Find"))  # always says something: Find, now
             talk.say()
@@ -527,7 +527,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if uri is not None and str(uri).startswith(start.SERVERS):
         raise _tracking_server(talk, path, str(uri))
     if not path.exists():
-        raise not_found(path)
+        raise not_found(path, talk.path)
     asked, path = path, _remembered(talk, path)  # a folder given stays the project
     if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
             sessions := _sessions_below(path)):  # never a second session above one, nor
@@ -679,12 +679,13 @@ def _remembered(talk: FrontTalk, path: Path) -> Path:
         return path
 
 
-def not_found(path: Path) -> StartError:
+def not_found(path: Path, given: str | None = None) -> StartError:
     """PATH is not there, in the words `check` says it with (check.no_such); a single word is
-    taken for a command that does not exist."""
+    taken for a command that does not exist. `given`: the path as typed, before Path made
+    "https://" one slash, so a URL's password is still known to be one and hidden."""
     from judgekeeper.check import no_such
 
-    word = str(path)
+    word = given if given and Path(given) == path else str(path)
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", word):
         return StartError(f"`{word}` is not a judgekeeper command, and there is no folder "
                           f"named {word} here.", f"run `{program()}`, or "
@@ -857,7 +858,7 @@ def _ignored(talk: FrontTalk, found: start.Found) -> None:
 
 
 def _shown(values) -> str:
-    texts = [start.shown_value(v) for v in values]
+    texts = [scrub(start.shown_value(v)) for v in values]  # keys hidden before the cut
     texts = [t[:VALUE_WIDTH - 1] + "…" if len(t) > VALUE_WIDTH else t for t in texts]
     return ", ".join(sorted(texts)[:10]) + (f" and {len(texts) - 10} more"
                                              if len(texts) > 10 else "")
@@ -1563,12 +1564,13 @@ def _rule_lines(found: start.Found) -> list[str]:
         return ["Rule:            compared with each test's reference answer"]
     if not found.rule:
         return ["Rule:            not in your results"]
+    rule = scrub(found.rule)  # keys hidden before the cut: a key cut short is not known
     if not found.one_rule:
-        first = " ".join(found.rule.split())
+        first = " ".join(rule.split())
         if len(first) > FIRST_SHOWN:
             first = first[:FIRST_SHOWN - 1].rstrip() + "…"
         return [f'Rule:            differs per test ({found.n_rules} rules). First: "{first}"']
-    text = " ".join(found.rule.split())
+    text = " ".join(rule.split())
     if len(text) <= RULE_SHOWN:
         return [f'Rule:            "{text}"']
     where = _rule_file(found)
@@ -2813,7 +2815,7 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     """--stop: close the page open for this project, or the one opened from a folder right
     below it (Find looks one level down); with several there, where they are."""
     if not path.exists():
-        raise not_found(path)
+        raise not_found(path, talk.path)
     ws = Workspace(project.project_of(path))
     if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
         ws = Workspace(start.reads_in(path))  # the folder a run from here reads
