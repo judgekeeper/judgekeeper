@@ -359,14 +359,17 @@ def test_the_readme_says_how_to_get_the_link_and_the_result_notes_a_printed_link
 
 def test_kappa_never_decides_and_the_readme_says_what_it_is():
     """The result comes from the TPR and TNR ranges only (targets.level); kappa stands
-    apart: on its own line in the terminal, and under More details on the result page and in
+    apart: on its own line in the terminal, and as the third number on the result page and in
     report.html. The README's line, word for word."""
     import inspect
 
     from judgekeeper import report_page, targets
 
     assert "kappa" not in inspect.getsource(targets.level).lower()
-    assert '<h2 id="details-h">More details</h2>' in inspect.getsource(report_page)
+    assert '<div class="cell c-{key}">' in inspect.getsource(report_page)
+    assert "More details" not in inspect.getsource(report_page)
+    assert 'as the third number on the result page and in report.html' in (
+        ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     kappa = next(x for x in _sections(_readme())["The numbers"].splitlines()
                  if x.startswith("- **Kappa:**"))
     assert kappa == ("- **Kappa:** how much you agree beyond what matching at random would "

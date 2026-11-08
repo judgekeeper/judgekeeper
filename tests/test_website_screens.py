@@ -360,9 +360,11 @@ def test_site_example_report_is_the_measure_step():
     assert len([q for q, *_ in SHOP if q in text]) == 8  # 4 shown of each kind of mistake
     for gone in ("Last check", "old LLM-as-a-judge", "new LLM-as-a-judge"):
         assert gone not in text, gone
-    for number in ("16 of 37 answers", "You passed 20 answers. It passed 12 and failed 8",
-                   "You failed 17 answers. It passed 8 and failed 9", "about 63% 52% and 70%",
-                   "about 49% 38% and 66%", "0.13 −0.09 and 0.33"):
+    for number in ("16 of 37 answers",
+                   "You passed 20 answers. Of these, your LLM-as-a-judge passed 12 and failed 8",
+                   "You failed 17 answers. Of these, your LLM-as-a-judge passed 8 and failed 9",
+                   "about 63% between 52% and 70%", "about 49% between 38% and 66%",
+                   "0.13 between −0.09 and 0.33"):
         assert number in text, number
     readme = (SITE_EXAMPLE / "README.md").read_text(encoding="utf-8")
     assert "Measure step" in readme

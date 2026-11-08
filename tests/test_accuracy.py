@@ -246,13 +246,13 @@ def test_kappa_after_asking_again_has_a_range():
     assert lo < out["kappa"] < hi
 
 
-def test_kappa_is_in_more_details_with_its_range_and_no_bar():
+def test_kappa_is_the_third_number_with_its_range_and_no_bar():
     from html import unescape
 
     r = result(0.5, (20, 17), (20, 3))
     html = " ".join(unescape(re.sub(r"<[^>]+>", " ", start_label.result_html(r))).split())
     lo, hi = r["kappa_interval"]
-    kappa = f"{r['kappa']:.2f} {lo:.2f} and {hi:.2f}".replace("-", "\u2212")
+    kappa = f"{r['kappa']:.2f} between {lo:.2f} and {hi:.2f}".replace("-", "\u2212")
     assert f"Kappa ⓘ {report_page.KAPPA_MEANS} {kappa}" in html
     assert "or more is good" not in html and "beyond luck" not in html
 

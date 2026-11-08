@@ -174,7 +174,6 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro .logo-mark svg { width: 30px; height: 33px; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
-.intro .note { margin: 0; color: var(--muted); font-size: 15px; }
 .intro .quiet { padding: 10px 20px; }
 .answer ul, .question ul { margin: .4em 0; padding-left: 1.4em; white-space: normal; }
 .answer li, .question li { margin: .15em 0; }
@@ -327,7 +326,6 @@ __TOP__
   <div class="intro" id="ready-box" role="dialog" aria-modal="true" aria-labelledby="ready-title" tabindex="-1">
     __BRAND__
     <h2 id="ready-title">Your result is ready.</h2>
-    <p class="note" id="ready-note"></p>
     <a class="go" id="ready-see" href="#">See your result</a>
     <button type="button" class="quiet" id="ready-keep">Keep marking</button>
   </div>
@@ -1053,7 +1051,6 @@ __TOP__
   $("ready-see").setAttribute("href", url("/result"));
   function showReady() {
     readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
-    setText("ready-note", status.headline || "");
     $("ready").hidden = false; $("app").setAttribute("inert", "");
     readyBox.focus();
   }

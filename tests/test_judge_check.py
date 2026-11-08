@@ -425,8 +425,8 @@ def test_result_counts_and_left_out_line(tmp_path,
     r = save_result(ws, session, say=lambda line: None)
     assert r["judge_check"]["error"] == 1
     html = ws.report_html.read_text(encoding="utf-8")
-    assert ('<p class="left-out band">Your <span class="term">LLM-as-a-judge</span> gave no Pass '
-            "or Fail on 1 answer. It is left out.</p>") in html
+    assert ('<li>Your <span class="term">LLM-as-a-judge</span> gave no Pass '
+            "or Fail on 1 answer. It is left out.</li>") in html
     assert judge_check.TITLE not in html  # the full findings: the terminal and the CSV file
 
 
@@ -436,11 +436,11 @@ def test_a_clean_result_page_has_no_left_out_line(tmp_path, capsys):
     ws = start_label.Workspace(tmp_path)
     save_result(ws, start_label.StartSession(ws), say=lambda line: None)
     html = ws.report_html.read_text(encoding="utf-8")
-    assert 'class="left-out' not in html and judge_check.EVERY_ANSWER not in html
+    assert "gave no Pass or Fail" not in html and judge_check.EVERY_ANSWER not in html
 
 
 def test_an_old_result_without_the_block_shows_nothing_new():
-    assert 'class="left-out' not in start_label.result_html(_old_result())
+    assert "gave no Pass or Fail" not in start_label.result_html(_old_result())
 
 
 def _old_result():

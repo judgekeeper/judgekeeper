@@ -1,7 +1,7 @@
 """The result page: what the marking page shows at /result, and `.judgekeeper/report.html`.
 
 One self-contained page (look.py: nothing loaded from anywhere else); every string in it is
-escaped. Its one script ("Show all", kappa's ⓘ and Copy) is fixed text: the page's Content-Security-Policy
+escaped. Its one script ("Show more", kappa's ⓘ and Copy) is fixed text: the page's Content-Security-Policy
 lets exactly that run (by its hash) and nothing else, both when served and in the saved copy.
 
 Served by the marking page (`back` given), each disagreement also asks why the person marked it
@@ -32,10 +32,9 @@ from judgekeeper.start_label import (
     NEEDS,
     TO_A_RESULT,
     VERDICTS,
-    wider,
 )
 
-ROWS_SHOWN = 3  # disagreements shown in a group before "Show all"
+ROWS_SHOWN = 3  # disagreements shown in a group before "Show N more"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
                "means perfect agreement.")
 STATES = {"gate": ("good", GOOD), "not_gate": ("needs", NEEDS), "check": ("plain", EARLY),
@@ -52,7 +51,7 @@ COPY_ICONS = ('<svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusa
 SCRIPT = """
   (function () {
     function each(list, f) { Array.prototype.forEach.call(list, f); }
-    // A row's "Show all": only when one of its cells is longer than its 4 lines; a cut cell
+    // A row's "Show more": only when one of its cells is longer than its 4 lines; a cut cell
     // fades out at the bottom.
     function fit() {
       each(document.querySelectorAll(".open-row"), function (b) {
@@ -76,7 +75,7 @@ SCRIPT = """
         var row = b.closest("tr"), open = !row.hasAttribute("data-open");
         if (open) { row.setAttribute("data-open", ""); } else { row.removeAttribute("data-open"); }
         b.setAttribute("aria-expanded", String(open));
-        b.textContent = open ? "Show less" : "Show all";
+        b.textContent = open ? "Show less" : "Show more";
         fit();
         if (!open) { backInView(row); }
       });
@@ -283,69 +282,102 @@ def script_csp(live: bool = False) -> str:
     return LIVE_CSP if live else CSP
 
 STYLE = """
-:root { --gutter: 32px; }
+:root { --pad: 56px; --bar: #14171c; }
 /* the website's focus ring, in the text colour */
 :focus-visible { outline: 2px solid var(--text); outline-offset: 3px; border-radius: 4px; }
 table { border-collapse: collapse; width: 100%; }
-.mono { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.mono { font-family: var(--mono); font-weight: 500; white-space: nowrap;
+  font-variant-ligatures: none; }
 .term { white-space: nowrap; }
+.off { color: var(--amber); }
+/* Pass and Fail, calmer than the marking page's buttons */
+.w-pass { color: #5cc99b; }
+.w-fail { color: #ef7a7e; }
 /* a command in a sentence: the website's code chip */
-main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,.06);
-  border-radius: 4px; padding: 2px 6px; -webkit-box-decoration-break: clone;
-  box-decoration-break: clone; }
-/* Wide: the lists, the notes, More details and What next keep to 1376px, in the middle; the
-   hairlines run the full width */
-.band { padding-left: max(var(--gutter), calc((100% - 1376px) / 2));
-  padding-right: max(var(--gutter), calc((100% - 1376px) / 2)); }
-.verdict { padding-top: 88px; padding-bottom: 72px; text-align: center; }
-.verdict h1 { margin: 0 auto; font-size: clamp(34px, 4vw, 56px); line-height: 1.1;
-  letter-spacing: -.02em; font-weight: 800; max-width: 20ch; text-wrap: balance; }
+main p code, .notes-list code { font-size: .9em; color: var(--text);
+  background: rgba(255,255,255,.06); border-radius: 4px; padding: 2px 6px;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.verdict { padding: 60px 40px 52px; text-align: center; }
+.verdict h1 { margin: 0 auto; font-size: clamp(34px, 3.2vw, 48px); line-height: 1.1;
+  letter-spacing: -.02em; font-weight: 800; max-width: 24ch; text-wrap: balance; }
 .verdict h1.needs { color: var(--amber); }
 .verdict h1.good { color: var(--green); }
 .verdict h1.plain { color: var(--text); }
 .lead { margin: 20px auto 0; font-size: 20px; line-height: 1.4; color: var(--muted); }
 .lead b { font-family: var(--mono); font-weight: 500; font-size: 18px; color: var(--text); }
+.lead b.off { color: var(--amber); }
 .lead a { color: var(--text); text-decoration: underline; text-decoration-color: var(--muted);
   text-underline-offset: 3px; }
 .lead a:hover { text-decoration-color: var(--text); }
-.counts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
-.counts p { margin: 0; padding: 32px var(--gutter); font-size: 19px; line-height: 1.4; font-weight: 500; }
-.counts p + p { border-left: 1px solid var(--line); }
-.counts .off { color: var(--amber); }
-.counts { padding-left: max(0px, calc((100% - 1376px) / 2 - var(--gutter)));
-  padding-right: max(0px, calc((100% - 1376px) / 2 - var(--gutter))); }
-.left-out { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .file { overflow-wrap: anywhere; }  /* a file name with no break in it wraps, also on a phone */
-.group { padding-top: 64px; }
-.gh { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
-.gh h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
-.kept { margin: 10px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
-.kept-after { padding-top: 24px; }
-.kept-after .kept { margin: 0; }
-/* a row's "Show all": a quiet link */
+/* every section: edge to edge, a lit heading bar, then its content */
+.sec { border-top: 1px solid var(--line); }
+.sh, .gh, .h-head { background: var(--bar); border-bottom: 1px solid var(--line);
+  padding: 26px var(--pad) 24px; text-align: center; }
+.sh h2, .gh h2, .h-head h2 { margin: 0; font-size: 26px; font-weight: 800;
+  letter-spacing: -.015em; line-height: 1.25; color: var(--text); }
+.kept { margin: 8px auto 0; font-size: 16px; color: var(--muted); max-width: 70ch;
+  text-align: center; }
+.sec.slim { margin: 0; padding: 22px var(--pad); text-align: center; font-size: 16px;
+  color: var(--muted); }
+/* the score: the three numbers side by side, big, then your two counts */
+.nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.cell { padding: 32px 32px 34px; text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 10px; }
+.cell + .cell { border-left: 1px solid var(--line); }
+.n-lab { font-size: 17px; line-height: 1.45; color: var(--muted); max-width: 30ch; }
+.n-val { font-family: var(--sans); font-weight: 700; font-size: 58px;
+  font-variant-numeric: tabular-nums; line-height: 1.05; color: var(--text);
+  letter-spacing: -.02em; }
+.n-val .about { font-size: 22px; font-weight: 600; color: var(--muted); margin-right: 4px;
+  letter-spacing: 0; vertical-align: middle; }
+.n-rng { font-size: 16px; color: var(--muted); }
+.kappa { position: relative; display: inline-block; }
+.kappa .i { font-size: 15px; color: var(--muted); margin-left: 6px; line-height: 1;
+  min-width: 24px; min-height: 24px; }
+.kappa .tip { position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(100% + 8px); width: min(320px, 80vw); background: var(--bg);
+  border: 1px solid var(--line); padding: 10px 12px; font-family: var(--sans); font-size: 13px;
+  font-weight: 500; line-height: 1.45; letter-spacing: 0; text-transform: none;
+  text-align: left; color: var(--text); white-space: normal; display: none; z-index: 2; }
+.kappa .i[aria-expanded="true"] + .tip, .kappa .i:focus-visible:not([data-shut]) + .tip {
+  display: block; }
+@media (hover: hover) { .kappa:hover .tip { display: block; } }
+.cnts { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.cnts p { margin: 0; padding: 24px 32px; text-align: center; font-size: 19px; font-weight: 700;
+  line-height: 1.4; }
+.cnts p + p { border-left: 1px solid var(--line); }
+.c-main, .c-sub { display: block; }
+.c-sub { margin-top: 4px; font-size: 17px; font-weight: 500; color: var(--muted);
+  line-height: 1.5; text-wrap: balance; }
+.c-sub .mono { color: var(--text); }
+.c-sub .mono.off { color: var(--amber); }
+.foot { margin: 0; padding: 16px 32px; border-top: 1px solid var(--line); text-align: center;
+  font-size: 16px; color: var(--muted); }
+/* a row's "Show more": a quiet link */
 .open-row { font-size: 14px; color: var(--muted); text-decoration: underline;
   text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
 .open-row:hover, .open-row:focus-visible { color: var(--text); }
 /* a group's "Show N more": a full-width row under its table */
-.more { display: block; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--line);
-  text-align: left; font-size: 14px; font-weight: 600; color: var(--muted); }
+.more { display: block; width: 100%; padding: 18px var(--pad);
+  border-top: 1px solid var(--line); text-align: center; font-size: 16px; font-weight: 600;
+  color: var(--muted); }
 .more:hover { color: var(--text); background: var(--hover); }
-.tbl { margin-top: 28px; table-layout: fixed; }
+.tbl { margin: 0; padding: 8px var(--pad) 0; table-layout: fixed; }
 .tbl col.c1 { width: 28%; } .tbl col.c2 { width: 44%; } .tbl col.c3 { width: 28%; }
 .tbl.no-reason col.c2 { width: 72%; }
 /* the small labels: the marking page's .label */
-.tbl th, .panel th { font-family: var(--sans); font-size: 11px; font-weight: 600;
+.tbl th { font-family: var(--sans); font-size: 12px; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: left;
-  border-bottom: 1px solid var(--line); }
-.tbl th { padding: 0 32px 14px 0; }
+  border-bottom: 1px solid var(--line); padding: 0 32px 14px 0; }
 .tbl td { font-size: 17px; line-height: 1.55; padding: 24px 32px 24px 0; vertical-align: top;
   border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tbl th:last-child, .tbl td:last-child { padding-right: 0; }
+/* the last row shown: "Show N more" or the next section draws the line under it */
+.tbl tbody tr:last-child, .tbl tbody tr:has(+ tr[hidden]) { border-bottom: 0; }
 .tbl td[data-label]:nth-child(3) { color: var(--muted); }
-.note { margin: 16px 0 0; font-size: 14px; color: var(--muted); text-align: left;
-  max-width: 80ch; }
 /* a row's foot: its button first (the website's small bordered button), the reason saved,
-   "Show all" at the right */
+   "Show more" at the right */
 .why-line, .row-foot { display: flex; align-items: center; gap: 14px; min-width: 0;
   min-height: 32px; font-size: 14px; color: var(--muted); }
 .open-row { margin-left: auto; padding: 3px 0; flex: none; }
@@ -358,9 +390,10 @@ main p code { font-size: .9em; color: var(--text); background: rgba(255,255,255,
 .said-text, .said { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .said-text b, .said b { color: var(--text); font-weight: 600; }
 .why-body { margin-top: 16px; padding: 4px 0 6px 18px; border-left: 2px solid var(--line); }
-.add-why { margin: 24px 0 0; font-size: 14px; color: var(--muted); max-width: 80ch; }
 .tbl td[data-label] { border-bottom: 0; padding-bottom: 10px; }
 .tbl td.why-cell { white-space: normal; padding-top: 0; color: var(--text); }
+/* a row foot with nothing in it takes no room */
+.tbl td.why-cell:not(:has(button:not([hidden]), a, .why-body, .said, .why)) { display: none; }
 .row-foot, .why-line { margin: 14px 0 0; }
 /* the text as written: no font ligature turns -> into an arrow */
 .tbl td[data-label], .said, .why { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
@@ -404,20 +437,8 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .mark-part, .clear-part { font-size: 14px; text-decoration: underline;
   text-underline-offset: 3px; }
 .saved { font-size: 13px; color: var(--muted); }
-/* More details, folded behind the website's chevron, on a hairline */
-.details { margin-top: 64px; border-top: 1px solid var(--line); }
-.counts + .details { margin-top: 0; border-top: 0; }
-.details summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
-  gap: 14px; padding: 28px 0; }
-.details summary::-webkit-details-marker { display: none; }
-.details summary::before { content: ""; width: 8px; height: 8px; flex: none;
-  border-right: 1.75px solid var(--muted); border-bottom: 1.75px solid var(--muted);
-  transform: rotate(-45deg) translateY(-2px); }
-.details[open] summary::before { transform: rotate(45deg) translateY(-4px); }
-.details h2, .next h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
-.details summary h2 { font-size: 22px; }
 /* a field the same in every row (an agent's prompt), once above the lists, folded */
-.same { margin: 48px 0 0; }
+.same { margin: 0; }
 .same summary { list-style: none; cursor: pointer; display: flex; align-items: baseline;
   gap: 14px; color: var(--muted); font-size: 15px; }
 .same summary::-webkit-details-marker { display: none; }
@@ -428,40 +449,44 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .same summary .fname { margin: 0; }
 .same p { margin: 14px 0 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap;
   overflow-wrap: anywhere; }
-.panel { margin: 0 0 12px; table-layout: fixed; }
-.panel caption { text-align: left; font-size: 14px; color: var(--muted); padding: 0 0 20px;
-  max-width: 80ch; }
-.panel col.d1 { width: 48%; } .panel col.d2 { width: 26%; } .panel col.d3 { width: 26%; }
-.panel.no-range col.d2 { width: 52%; }
-.panel th { padding: 0 24px 10px 0; }
-.panel thead td { border-bottom: 1px solid var(--line); }
-.panel td { font-size: 17px; padding: 20px 32px 20px 0; border-bottom: 1px solid var(--line);
-  vertical-align: top; }
-.panel tbody th { font-family: var(--sans); font-size: 17px; font-weight: 400; letter-spacing: 0;
-  text-transform: none; color: var(--text); padding: 20px 32px 20px 0; vertical-align: top; }
-.panel tbody td { font-family: var(--mono); font-size: 15px; white-space: nowrap; }
-.kappa { position: relative; display: inline-block; }
-.kappa .i { font-size: 15px; color: var(--muted); margin-left: 6px; line-height: 1;
-  min-width: 24px; min-height: 24px; }
-.kappa .tip { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(320px, 80vw);
-  background: var(--bg); border: 1px solid var(--line); padding: 10px 12px; font-size: 13px;
-  line-height: 1.45; color: var(--text); white-space: normal; display: none; z-index: 2; }
-.kappa .i[aria-expanded="true"] + .tip, .kappa .i:focus-visible:not([data-shut]) + .tip {
-  display: block; }
-@media (hover: hover) { .kappa:hover .tip { display: block; } }
-.next { border-top: 1px solid var(--line); padding-top: 48px; padding-bottom: 72px; }
-.next-in { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.next p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 64ch; }
-.main-lines { padding-top: 40px; }
-.main-lines .panel { margin-bottom: 0; }
 /* bold and a list in an answer or a question: only these two */
 .tbl td ul { margin: 6px 0; padding-left: 1.3em; white-space: normal; }
 .tbl td li { margin: 2px 0; }
 .tbl td strong { font-weight: 700; }
+/* What next: where your marks are kept, the command beside it, the notes under both */
+.nx-split { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr;
+  grid-template-areas: "lead act" "more act"; }
+.nx-split > div { padding: 32px var(--pad) 0; display: flex; flex-direction: column; gap: 16px;
+  align-items: flex-start; min-width: 0; }
+.a-lead { grid-area: lead; }
+.a-more { grid-area: more; padding-top: 16px !important; }
+.nx-split > div:last-child, .nx-split > .a-act { padding-bottom: 36px; }
+.a-act { grid-area: act; border-left: 1px solid var(--line); }
+.nx-split p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--muted); }
+.nx-split p, .notes-list li { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+.nx-split p.small { font-size: 16px; }
+.nx-split a { color: var(--text); }
+.nx-notes { padding: 24px var(--pad) 32px; border-top: 1px solid var(--line); }
+.notes-list { margin: 0; padding: 0; list-style: none; display: block; columns: 2;
+  column-gap: 72px; }
+.notes-list li { position: relative; padding-left: 18px; margin-bottom: 12px;
+  break-inside: avoid; font-size: 16px; line-height: 1.55; color: var(--muted); }
+.notes-list li::before { content: ""; position: absolute; left: 2px; top: .7em; width: 6px;
+  height: 6px; border-radius: 50%; background: var(--faint); }
+/* after a check found the new LLM-as-a-judge worse: that check, above the verdict */
+.last-check { padding: 28px var(--pad) 30px; text-align: center;
+  border-bottom: 1px solid var(--line); }
+.last-check h2 { margin: 0 0 6px; font-size: 24px; font-weight: 800; }
+.last-check p { max-width: 90ch; margin: 10px auto 0; font-size: 16px; line-height: 1.6;
+  color: var(--muted); }
+.last-check .lc-top { color: var(--text); font-size: 17px; }
 /* the command box with Copy: the same as the website's; the "$" is drawn, never copied */
 .cmd { display: inline-grid; grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid var(--line); border-radius: 8px; overflow: hidden; max-width: 100%;
   min-width: min(380px, 100%); background: #07080a; }
+.nx-split .cmd { min-width: 0; width: 100%; max-width: 640px; }
+.nx-split .cmd code { font-size: 18px; padding: 18px 22px; }
+.nx-split .cmd .copy { padding: 0 22px; }
 .cmd code { display: block; align-self: center; padding: 12px 18px; font-size: 15px;
   white-space: nowrap; overflow-x: auto; color: var(--text); font-variant-ligatures: none; }
 .cmd code::before { content: "$"; margin-right: .6em; color: var(--green); }
@@ -480,13 +505,13 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 @media (min-width: 721px) {
   .tbl, .tbl thead, .tbl tbody { display: block; }
   .tbl colgroup { display: none; }
-  .tbl tr { display: grid; grid-template-columns: 28fr 44fr 28fr; column-gap: 32px;
+  .tbl tr { display: grid; grid-template-columns: 26fr 46fr 28fr; column-gap: 48px;
     border-bottom: 1px solid var(--line); }
-  .tbl.no-reason tr { grid-template-columns: 28fr 72fr; }
+  .tbl.no-reason tr { grid-template-columns: 1fr 1fr; column-gap: 56px; }
   .tbl th, .tbl td { display: block; padding: 0; border-bottom: 0; }
-  .tbl thead th { padding-bottom: 14px; }
-  .tbl tbody tr { padding: 22px 0; }
-  .tbl td[data-label] { font-size: 16px; line-height: 1.55; max-height: calc(4 * 1.55em);
+  .tbl thead th { padding: 18px 0 14px; }
+  .tbl tbody tr { padding: 24px 0; }
+  .tbl td[data-label] { font-size: 17px; line-height: 1.55; max-height: calc(4 * 1.55em);
     overflow: hidden; }
   .tbl td[data-label].cut { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5em), transparent); }
   .tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }
@@ -501,41 +526,40 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
   .tbl td.why-cell { grid-column: 1 / -1; }
   .tbl td[data-label], .tbl td.why-cell { padding-bottom: 0; border-bottom: 0; }
 }
+@media (max-width: 1100px) {
+  :root { --pad: 36px; }
+  .n-val { font-size: 46px; }
+  .tbl tr { column-gap: 32px; }
+}
+@media (max-width: 860px) {
+  .nums, .cnts { grid-template-columns: 1fr; }
+  .cell + .cell, .cnts p + p { border-left: 0; border-top: 1px solid var(--line); }
+  .nx-split { grid-template-columns: 1fr; grid-template-rows: auto;
+    grid-template-areas: "lead" "act" "more"; }
+  .a-act { border-left: 0; }
+  .notes-list { columns: 1; }
+}
 @media (max-width: 720px) {
-  :root { --gutter: 16px; }
-  .verdict { padding-top: 72px; padding-bottom: 64px; }
+  :root { --pad: 16px; }
+  .verdict { padding: 48px var(--pad) 40px; }
   .lead { font-size: 17px; }
-  .counts { grid-template-columns: 1fr; }
-  .counts p { font-size: 18px; padding: 24px var(--gutter); }
-  .counts p + p { border-left: 0; border-top: 1px solid var(--line); }
-  .gh { flex-direction: column; gap: 10px; }
-  .gh h2 { font-size: 20px; }
-  .tbl thead, .panel thead { display: none; }
+  .sh h2, .gh h2, .h-head h2 { font-size: 22px; }
+  .tbl thead { display: none; }
   .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; }
   .tbl tr { padding: 18px 0; border-bottom: 1px solid var(--line); }
   .tbl td { border: 0; padding: 0; font-size: 16px; }
   .tbl td + td { margin-top: 10px; }
   .tbl td.why-cell { margin-top: 0; }
   .tbl td::before { content: attr(data-label); display: block; font-family: var(--mono);
-    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
     margin-bottom: 3px; }
   .tbl td[data-label], .tbl td.why-cell { padding-bottom: 0; border-bottom: 0; }
   .tbl td.why-cell::before { content: none; }
-  .panel, .panel tbody, .panel tr, .panel th, .panel td, .panel caption { display: block; }
-  .panel tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .panel th, .panel td { border: 0; padding: 0; }
-  .panel tbody td { margin-top: 4px; }
-  .panel td[data-label]::before { content: attr(data-label) " "; font-family: var(--sans);
-    color: var(--muted); font-size: 13px; }
-  .next { padding-top: 40px; padding-bottom: 56px; }
   .cmd { display: grid; width: 100%; min-width: 0; }
   .cmd code { padding: 12px 14px; }
-  .tbl td::before { font-size: 13px; }
-  .panel td[data-label]::before, .panel caption, .note { font-size: 14px; }
   .kappa .tip { font-size: 15px; }
 }
 @media (max-width: 720px), (pointer: coarse) {
-  .more { font-size: 16px; }
   .kappa .i { font-size: 18px; padding: 13px 14px; margin: -13px -14px -13px -8px; }
 }
 @media (max-width: 300px) {
@@ -592,17 +616,15 @@ def commands(r: dict) -> dict[str, str]:
             "fix": command_from(path, "fix", kept=True), "more": mark_command(run)}
 
 
-def held_note(r: dict, shown: str) -> str:
+def held_note(r: dict, shown: str) -> list[str]:
     """When a command in `shown` (the page's parts) shows NAME, on Windows: each value the
-    commands show as NAME, as data."""
+    commands show as NAME, as data, for the notes."""
     from judgekeeper.start import held_values
     from judgekeeper.textio import PLACEHOLDER
 
     if not re.search(rf"\b{PLACEHOLDER}\b", shown):
-        return ""
-    lines = "".join(f'<p class="note"><code>{_e(f"{PLACEHOLDER}: {v}")}</code></p>'
-                    for v in held_values(r.get("flags")))
-    return f'<div class="band">{lines}</div>' if lines else ""
+        return []
+    return [f'<code>{_e(f"{PLACEHOLDER}: {v}")}</code>' for v in held_values(r.get("flags"))]
 
 
 def next_step(r: dict) -> str | None:
@@ -641,12 +663,12 @@ def _code_line(text: str) -> str:
 
 def disagreed(c: dict) -> str:
     """How many answers the person and the judge disagreed on, as the terminal says it
-    (front.agreement_lines), the numbers in bold."""
+    (front.agreement_lines), the numbers in bold, the disagreements in amber."""
     d, n = c["strict"] + c["easy"], c["passed"] + c["failed"]
     if not d:
         what = "the one answer" if n == 1 else f"all <b>{n}</b> answers"
         return f"You and your {TERM} agreed on {what}."
-    return f"You and your {TERM} disagreed on <b>{d}</b> of <b>{n}</b> answers."
+    return f'You and your {TERM} disagreed on <b class="off">{d}</b> of <b>{n}</b> answers.'
 
 
 def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
@@ -686,7 +708,7 @@ def _verdict(r: dict, c: dict, back: str | None, worse: str | None = None,
     written = "".join(f'<p class="lead">{_term(x.strip())}</p>'  # as `check` said it
                       for x in r.get("written_from") or [])
     written += waiting_html(r)
-    return (f'<section class="verdict band" aria-labelledby="verdict-h"><h1 id="verdict-h" '
+    return (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
             f'class="{cls}">{_term(headline)}</h1>{written}{gate}<p class="lead">{lead}</p>'
             "</section>")
 
@@ -737,19 +759,28 @@ def _files(html: str, r: dict) -> str:
 
 
 def count_line(did: str, n: int, judge_passed: int, judge_failed: int) -> str:
-    """"You passed 15 answers. It passed 7 and failed 8.", numbers in mono; where it went the
-    other way from you (failed what you passed, passed what you failed), amber above 0."""
+    """"You passed 15 answers." and, on its own line, "Of these, your LLM-as-a-judge passed 7
+    and failed 8.", numbers in mono, "passed" and "failed" in Pass and Fail colours; where it
+    went the other way from you (failed what you passed, passed what you failed), amber above
+    0."""
     def mono(x: int, off: bool = False) -> str:
         return f'<span class="mono{" off" if off and x else ""}">{x}</span>'
-    return (f"You {did} {mono(n)} {'answer' if n == 1 else 'answers'}. It passed "
+    return (f'<span class="c-main">You {_verb(did)} {mono(n)} '
+            f'{"answer" if n == 1 else "answers"}.</span> <span class="c-sub">Of these, your '
+            f"{TERM} passed "
             f"{mono(judge_passed, did == 'failed')} and failed "
-            f"{mono(judge_failed, did == 'passed')}.")
+            f"{mono(judge_failed, did == 'passed')}.</span>")
 
 
 def own_line(did: str, n: int) -> str:
     """"You passed 15 answers.", the number in mono: before a result, the person's own count
     only, so marking an answer and taking it back never shows the judge's grade on it."""
-    return f'You {did} <span class="mono">{n}</span> {"answer" if n == 1 else "answers"}.'
+    return f'You {_verb(did)} <span class="mono">{n}</span> {"answer" if n == 1 else "answers"}.'
+
+
+def _verb(did: str) -> str:
+    """"passed" or "failed" in the colour of the marking page's Pass or Fail button."""
+    return f'<span class="w-{did.removesuffix("ed")}">{did}</span>'
 
 
 def no_grade_line(r: dict) -> str | None:
@@ -766,33 +797,36 @@ def no_grade_line(r: dict) -> str | None:
 
 
 def _counts(r: dict, c: dict) -> str:
-    """The two counts (before a result, the person's own only), and the answers the judge gave
-    no Pass or Fail on (left out), if any."""
+    """The two counts side by side (before a result, the person's own only), under the
+    numbers."""
     if r["check"] == "too_few":
         lines = [own_line("passed", c["passed"]), own_line("failed", c["failed"])]
     else:
         lines = [count_line("passed", c["passed"], c["passed"] - c["strict"], c["strict"]),
                  count_line("failed", c["failed"], c["easy"], c["failed"] - c["easy"])]
-    row = '<div class="counts">' + "".join(f"<p>{x}</p>" for x in lines) + "</div>"
-    left = batches.line(r.get("batches"))
-    if left:
-        row += f'<p class="left-out band">{_term(left)}</p>'
-    none = no_grade_line(r)
-    if none:
-        row += f'<p class="left-out band">{_term(none)}</p>'
-    from judgekeeper.labels import assumes_line, looks_off_line
-    from judgekeeper.start_label import second_thoughts
+    return (f'<div class="cnts"><p class="c-pass">{lines[0]}</p>'
+            f'<p class="c-fail">{lines[1]}</p></div>')
 
+
+def _notes(r: dict) -> list[str]:
+    """The small notes, said once at the end next to What next: the answers left out (a newer
+    batch, no grade), imported marks, second thoughts, and marks made too fast
+    (start_label.quick_lines) or through a printed link (start_label.link_lines), as in the
+    terminal."""
+    from judgekeeper.labels import assumes_line, looks_off_line
+    from judgekeeper.start_label import link_lines, quick_lines, second_thoughts
+
+    out = [_term(x) for x in (batches.line(r.get("batches")), no_grade_line(r)) if x]
     assumes = assumes_line(r.get("imported"))  # marks brought with --labels
     off = looks_off_line(r.get("imports_off"), r.get("imported"))  # unlike the page marks
     thoughts = second_thoughts(r.get("made"), r.get("real_pass_rate"),
                                (r.get("tpr"), r.get("tnr")))
-    for line in [x for x in (assumes, off) if x] + thoughts:
-        row += f'<p class="left-out band">{_files(_term(line), r)}</p>'
-    return row
+    out += [_files(_term(x), r) for x in [x for x in (assumes, off) if x] + thoughts]
+    return out + [_term(x) for x in quick_lines(r.get("made"), r.get("imported"))
+                  + link_lines(r.get("made"))]
 
 
-OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show all'
+OPEN_ROW = ('<button type="button" class="open-row" aria-expanded="false" hidden>Show more'
             '</button>')
 
 
@@ -986,16 +1020,6 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
     return "".join(out) + "</div></div>"
 
 
-def _made(r: dict) -> str:
-    """The notes on marks made too fast (start_label.quick_lines) or another program could
-    have made (start_label.link_lines), as in the terminal."""
-    from judgekeeper.start_label import link_lines, quick_lines
-
-    said = quick_lines(r.get("made"), r.get("imported")) + link_lines(r.get("made"))
-    return ('<div class="band">' + "".join(f'<p class="note">{_term(x)}</p>' for x in said)
-            + "</div>") if said else ""
-
-
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
            left_out: int = 0, same: tuple = (), reasons_given: bool = True) -> str:
@@ -1003,7 +1027,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
     table (its REASON column only when an answer marked has a reason: `reasons_given`), then
     "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
-    saved, and the row's own "Show all" (SCRIPT) at the right; in report.html the person's
+    saved, and the row's own "Show more" (SCRIPT) at the right; in report.html the person's
     reasons, read-only."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
@@ -1029,8 +1053,8 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
     more = (f'<button type="button" class="more" aria-expanded="false" data-n="{len(rows) - ROWS_SHOWN}" '
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
-    return (f'<section class="group band" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{_term(said)}</h2></div>{_kept(kept, of_these=True)}'
+    return (f'<section class="sec group" aria-labelledby="g-{key}"><div class="gh">'
+            f'<h2 id="g-{key}">{_colour(_term(said))}</h2>{_kept(kept)}</div>'
             f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
             f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
             f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
@@ -1048,9 +1072,25 @@ def kept_line(n: int, of_these: bool = False) -> str:
             "can be tested on answers you haven't looked at again.")
 
 
-def _kept(n: int, of_these: bool = False) -> str:
-    """How many more of a group are kept aside, or nothing."""
-    return f'<p class="kept">{kept_line(n, of_these)}</p>' if n else ""
+def _kept(n: int) -> str:
+    """Under a group's heading: how many more of it are kept aside, in fewer words than the
+    terminal's kept_line, or nothing."""
+    if not n:
+        return ""
+    return f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test your fix.</p>'
+
+
+def _kept_after(n: int) -> str:
+    """After the lists, for the groups with none to show: how many disagreements are kept
+    aside, in the page's words (the terminal keeps kept_line)."""
+    what = "disagreement is" if n == 1 else "disagreements are"
+    return f"{n} more {what} kept aside to test your fix."
+
+
+def _colour(html: str) -> str:
+    """Pass and Fail in a heading, each in its own colour."""
+    return re.sub(r"\b(Pass|Fail)\b",
+                  lambda m: f'<span class="w-{m[1].lower()}">{m[1]}</span>', html)
 
 
 def kept_count(c: dict, mistakes: list[dict]) -> int:
@@ -1078,58 +1118,57 @@ def _same(rows: list[dict]) -> list[tuple[str, str]]:
 
 
 SAME = "The same in every answer below"
-WHY_OPTIONAL = "Optional: tell judgekeeper why you disagree."  # above the first list
-WHY_USES = "uses your reasons to find where your LLM-as-a-judge goes wrong."
 
 
 def _groups(c: dict, fixing: dict | None, live: bool = False,
-            mark: str | None = None, fix_command: str | None = None) -> str:
+            fix_command: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups (a group with none
-    to show is left out), each with how many more of it are kept aside; those of a group
-    with none to show after the lists. In report.html, which can't save a reason, a line
-    last: to say why, run `mark` (`mark`: the command)."""
-    from judgekeeper.fix import without_why
-    from judgekeeper.start_label import say_why_run
-
+    to show is left out), each with how many more of it are kept aside; those of a group with
+    none to show after the lists."""
     mistakes = (fixing or {}).get("mistakes") or []
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
     out = []
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
-        return (f'<div class="band"><p class="add-why">{_e(SPLIT_UNKNOWN[0])}<code>'
+        return (f'<section class="sec slim"><p>{_e(SPLIT_UNKNOWN[0])}<code>'
                 f'{look.command(_e(fix_command or "judgekeeper fix"))}</code>'
-                f'{_e(SPLIT_UNKNOWN[1])}</p></div>')
+                f'{_e(SPLIT_UNKNOWN[1])}</p></section>')
     same = _same(mistakes)
-    out += [f'<div class="band"><details class="same"><summary><span class="fname">{_e(k)}'
-            f'</span>{SAME}</summary><p>{_e(v)}</p></details></div>' for k, v in same]
+    if same:  # each field folded, in one box above the lists
+        out.append('<div class="sec slim">' + "".join(
+            f'<details class="same"><summary><span class="fname">{_e(k)}</span>{SAME}</summary>'
+            f'<p>{_e(v)}</p></details>' for k, v in same) + "</div>")
     names = tuple(k for k, _ in same)
     left = 0  # kept aside of a group with none to show
-    first = True
     for key, said, judge in (("easy", "You said Fail, your LLM-as-a-judge said Pass", "pass"),
                              ("strict", "You said Pass, your LLM-as-a-judge said Fail", "fail")):
         rows = [m for m in mistakes if m.get("judge") == judge]
         kept = max(0, c[key] - len(rows))
         if rows:
-            if first and live:  # where a reason can be added; report.html says it once, below
-                out.append(f'<div class="band"><p class="add-why">{_e(WHY_OPTIONAL)} <code>'
-                           f'{look.command(_e(fix_command or "judgekeeper fix"))}</code> '
-                           f'{_e(WHY_USES)}</p></div>')
-            first = False
             out.append(_group(key, said, rows, kept, live, parts, own,
                               (fixing or {}).get("left_out", 0), names,
                               (fixing or {}).get("reasons_given", True)))
         else:
             left += kept
     if left:
-        out.append(f'<div class="band kept-after">{_kept(left)}</div>')
-    asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
-    if asked and not live and mark:
-        tell = say_why_run(asked, mark, len(mistakes) - asked)
-        out.append(f'<div class="band"><p class="add-why">{_code_line(tell)}</p></div>')
+        out.append(f'<p class="sec slim">{_kept_after(left)}</p>')
     return "".join(out)
 
 
+def say_why(fixing: dict | None, live: bool, mark: str | None) -> str:
+    """report.html, which can't save a reason: how to say why (`mark`: the command), for What
+    next; nothing on the live page."""
+    from judgekeeper.fix import without_why
+    from judgekeeper.start_label import say_why_run
+
+    mistakes = (fixing or {}).get("mistakes") or []
+    asked = len(without_why(mistakes))  # the ones listed with no reason yet: never kept aside
+    if not asked or live or not mark or (fixing or {}).get("split_unknown"):
+        return ""
+    return _code_line(say_why_run(asked, mark, len(mistakes) - asked))
+
+
 def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
-    """An estimate and its range for More details: "about 57%", "37% and 74%", also while the
+    """An estimate and its range for the numbers box: "about 57%", "37% and 74%", also while the
     range is too wide for a result (the headline says it is too early to tell). Too early to
     tell when there is no number yet. A range of no width is not shown: the number says why
     in brackets, `why` (why_no_range), as in "78% (you marked every answer)". Ends that round
@@ -1173,6 +1212,8 @@ def _about(shown: str) -> str:
 
 # Why a number has no range, said in brackets after it: "78% (you marked every answer)"
 EVERY_MARKED = "you marked every answer"
+EXACT = "You marked every answer, so these numbers are exact."  # said once, under the numbers
+NUM_HEAD = "How often your LLM-as-a-judge agrees with you"  # the numbers' heading
 CHANGE_MARK = "Change a mark"  # the result page's link to marking, every answer marked
 SAME_GRADE = "it gave every answer the same grade"
 EVERY_OF = "you marked every answer it {did}"
@@ -1212,18 +1253,6 @@ def why_for(r: dict, key: str) -> str:
     return why
 
 
-def _caption(r: dict) -> str:
-    """More details' one line: when some answers are not marked, the estimates are worked out
-    for them all (each mark weighed by its grade's share)."""
-    g = r.get("groups") or {}
-    every = sum((g.get(k) or {}).get("pool") or 0 for k in ("pass", "fail"))
-    marked = sum((g.get(k) or {}).get("labeled") or 0 for k in ("pass", "fail"))
-    if not marked or marked >= every:
-        return f"How often your {TERM} agrees with you."
-    return (f"How often your {TERM} agrees with you, estimated for all {every} answers "
-            f"(you marked {marked}).")
-
-
 def shows_range(r: dict) -> bool:
     """Whether either main line shows a range: with none (every answer marked), the note
     that the result line uses wider ranges has nothing to compare with."""
@@ -1231,39 +1260,45 @@ def shows_range(r: dict) -> bool:
                for k in ("tpr", "tnr"))
 
 
-def _main_lines(r: dict) -> str:
-    """Under the headline result, open: how often the judge agrees with the person when they
-    say Pass and when they say Fail, estimated (weighted, with their ranges)."""
-    rows = []
+def _score(r: dict, c: dict) -> str:
+    """Under the verdict: once there is a result, how often the judge agrees with the person
+    when they say Pass and when they say Fail, and kappa, side by side, each with its range
+    when it has one; under them the two counts. The heading has no line under it: "about"
+    and the ranges say these are estimates. "(you marked every answer)" is said once at the
+    foot (EXACT), not after each number. Before a result, the counts only."""
+    if r["check"] == "too_few" or r.get("verdict_level") is None:
+        return f'<section class="sec score" aria-label="Your marks">{_counts(r, c)}</section>'
+    tail = f" ({EVERY_MARKED})"
+    cells, exact = [], False
     for said, key in (("Pass", "tpr"), ("Fail", "tnr")):
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
-        rows.append((f"When you say {said}, your LLM-as-a-judge also says {said}", est, between))
-    ranged = shows_range(r)
-    body = "".join(f'<tr><th scope="row">{_term(name)}</th><td data-label="{_head(ranged)}">'
-                   f"{_e(est)}</td>"
-                   + (f'<td data-label="Between">{_e(between)}</td>' if ranged else "")
-                   + "</tr>" for name, est, between in rows)
-    return ('<section class="main-lines band" aria-label="How often your LLM-as-a-judge agrees '
-            f'with you">{_panel_open(ranged, f"<caption>{_caption(r)}</caption>")}'
-            f"<tbody>{body}</tbody></table>"
-            + (f'<p class="note wider">{_e(wider(r, page=True))}</p>' if ranged else "")
-            + "</section>")
+        if est.endswith(tail):
+            est, exact = est.removesuffix(tail), True
+        cells.append((key, _term(f"When you say {said}, your LLM-as-a-judge also says {said}"),
+                      est, None if between == "–" else _e(between)))
+    shown, lo, hi = kappa_shown(r)
+    if shown.endswith(tail):
+        shown, exact = shown.removesuffix(tail), True
+    tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
+           '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
+           'aria-label="What kappa means">ⓘ</button><span class="tip" '
+           f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
+    cells.append(("kappa", tip, shown, f"{lo} and {hi}" if lo is not None else None))
+    body = "".join(f'<div class="cell c-{key}"><span class="n-lab">{name}</span>'
+                   f'<span class="n-val">{_value(value)}</span>'
+                   + (f'<span class="n-rng">between {rng}</span>' if rng else "") + "</div>"
+                   for key, name, value, rng in cells)
+    return ('<section class="sec score" aria-labelledby="nums-h"><div class="sh">'
+            f'<h2 id="nums-h">{_term(NUM_HEAD)}</h2></div>'
+            f'<div class="nums">{body}</div>{_counts(r, c)}'
+            + (f'<p class="foot">{_e(EXACT)}</p>' if exact else "") + "</section>")
 
 
-def _head(ranged: bool) -> str:
-    """The numbers' column head: "Estimate" with a range, else (every answer marked, so the
-    numbers are exact) "Value"."""
-    return "Estimate" if ranged else "Value"
-
-
-def _panel_open(ranged: bool, caption: str = "") -> str:
-    """An estimates table's start: its columns and heads, with no Between column when no row
-    has a range (every answer marked)."""
-    return (f'<table class="panel{"" if ranged else " no-range"}">{caption}'
-            '<colgroup><col class="d1"><col class="d2">'
-            + ('<col class="d3">' if ranged else "") + "</colgroup>"
-            f'<thead><tr><td></td><th scope="col">{_head(ranged)}</th>'
-            + ('<th scope="col">Between</th>' if ranged else "") + "</tr></thead>")
+def _value(text: str) -> str:
+    """A number as the score shows it: "about" smaller and muted, before the number."""
+    if text.startswith("about "):
+        return f'<span class="about">about </span>{_e(text[6:])}'
+    return _e(text)
 
 
 def kappa_shown(r: dict) -> tuple[str, str | None, str | None]:
@@ -1280,67 +1315,66 @@ def kappa_shown(r: dict) -> tuple[str, str | None, str | None]:
     return shown, _two(lo), _two(hi)
 
 
-def _details(r: dict) -> str:
-    """More details, folded: kappa and its range (none when it has no width, and why)."""
-    shown, lo, hi = kappa_shown(r)
-    tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
-           '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
-           'aria-label="What kappa means">ⓘ</button><span class="tip" '
-           f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    ranged = lo is not None
-    body = (f'<tr><th scope="row">{tip}</th><td data-label="{_head(ranged)}">{_e(shown)}</td>'
-            + (f'<td data-label="Between">{lo} and {hi}</td>' if ranged else "")
-            + "</tr>")
-    return ('<details class="details band"><summary><h2 id="details-h">More details</h2>'
-            f"</summary>{_panel_open(ranged)}<tbody>{body}</tbody></table></details>")
-
-
-def _next(r: dict, back: str | None) -> str:
+def _next(r: dict, back: str | None, extra: list[str]) -> str:
     """What next, once there is a result: where the marks are saved; when the judge needs work,
     the command (`judgekeeper fix` prints what to do next) in the website's command box with
     Copy; when it is good enough, that there is nothing more to do; then, unless every answer
     is marked, how to mark more: on the page the marking server serves, a link back to the
     marking page (`back`, with its token) and the command for once it has closed; in
-    report.html the command only, so the token is never saved."""
+    report.html the command only, so the token is never saved. `extra`: lines under the
+    command (how to say why, STARTED_ELSE). NOTES marks where the notes go."""
     step = next_step(r)
     if step == "mark":
         return ""
-    saved = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
-             "folder. You can close this page.</p>")
-    out = [saved]
+    lead = ("<p>Your marks and reasons are saved in this project's <code>.judgekeeper</code> "
+            "folder. You can close this page.</p>")
+    act = []
     if step == "fix" and r.get("fix_ready") is False:  # `fix` would say this: mark more
         from judgekeeper.fix import NOT_ENOUGH
 
-        out.append(f"<p>{_e(NOT_ENOUGH)}</p>")
+        act.append(f"<p>{_e(NOT_ENOUGH)}</p>")
     elif step == "fix":
-        out.append("<p>Next, in your terminal, in your project folder:</p>"
+        act.append("<p>Next, in your project folder:</p>"
                    f'<div class="cmd"><code>{look.command(_e(commands(r)["fix"]))}</code>'
                    '<button type="button" '
                    f'class="copy" data-copy aria-label="Copy command: {_e(commands(r)["fix"])}">'
                    f"{COPY_ICONS}</button>"
                    "</div>")
     else:
-        out.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
+        act.append(f'<p>Nothing more to do. Run <code>{look.command(_e(commands(r)["check"]))}'
                    '</code> after '
                    f"you change your {TERM}.</p>")
+    act += [f'<p class="small">{x}</p>' for x in extra]
     mark = f"<code>{look.command(_e(commands(r)['mark']))}</code>"
     # with every answer marked, or only answers a mark would wait on, nothing sends to marking
     more = r.get("left") != 0 and not r.get("only_wait")
     if more and back is not None and shows_range(r):  # no range: no more marks to ask for
-        out.append(f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>. It '
-                   f"closes by itself after 30 minutes without use. Then run {mark} to open it "
-                   "again.</p>")
+        then = (f'<p>Want more certain numbers? <a href="{_e(back)}">Keep marking</a>. It '
+                f"closes by itself after 30 minutes without use. Then run {mark} to open it "
+                "again.</p>")
     elif more and step == "fix" and r.get("fix_ready") is False:  # NOT_ENOUGH: how to mark more
-        out.append(f"<p>To mark more, run {mark} in your project folder.</p>")
+        then = f"<p>To mark more, run {mark} in your project folder.</p>"
     elif more:  # no link back to marking: report.html, or numbers that marks would not narrow
-        pass
+        then = ""
     elif back is not None:  # every answer marked: a mark can still be changed
-        out.append(f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
-                   "it again.</p>")
+        then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                "it again.</p>")
     else:
-        out.append(f"<p>To change a mark, run {mark} in your project folder.</p>")
-    return ('<section class="next band" aria-labelledby="next-h"><div class="next-in">'
-            f'<h2 id="next-h">What next</h2>{"".join(out)}</div></section>')
+        then = f"<p>To change a mark, run {mark} in your project folder.</p>"
+    return ('<section class="sec next-box" aria-labelledby="next-h"><div class="nx">'
+            '<div class="h-head"><h2 id="next-h">What next</h2></div><div class="nx-split">'
+            f'<div class="a-lead">{lead}</div><div class="a-act">{"".join(act)}</div>'
+            + (f'<div class="a-more">{then}</div>' if then else "") + f"</div></div>{NOTES}"
+            "</section>")
+
+
+NOTES = "<!--notes-->"  # where the notes go in What next
+
+
+def _notes_html(lines: list[str]) -> str:
+    """The notes as a list, at the foot of What next (in two columns when it is wide)."""
+    return ('<div class="nx-notes"><ul class="notes-list">'
+            + "".join(f"<li>{x}</li>" for x in lines) + "</ul></div>") if lines else ""
 
 
 def _last_check(last: dict | None, worse: str) -> str:
@@ -1350,9 +1384,10 @@ def _last_check(last: dict | None, worse: str) -> str:
         return ""
     judge = f"Your new {TERM}" + (f" ({_e(last['judge'])})" if last.get("judge") else "")
     said = "".join(f"<p>{_term(x)}</p>" for x in last.get("lines") or [])
-    return (f'<section class="band last-check" aria-labelledby="last-h"><h2 id="last-h">'
-            f"Last check</h2><p>{judge}: <b>Worse</b>. The result below is still about your "
-            f"old {TERM}.</p>{said}<p>{_code_line(worse)}</p></section>")
+    return (f'<section class="last-check" aria-labelledby="last-h"><h2 id="last-h">'
+            f'Last check</h2><p class="lc-top">{judge}: <b class="off">Worse</b>. The result '
+            f'below is still about your old {TERM}.</p>{said}<p class="lc-next">'
+            f"{_code_line(worse)}</p></section>")
 
 
 STARTED_ELSE = ("These commands start with `judgekeeper`. If you start judgekeeper another way, "
@@ -1367,7 +1402,11 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     and of What next; `last`: that check (check.last_check), said at the top;
     `started_else`: report.html of a run not started as its commands name the program
     (STARTED_ELSE under them). The page carries its Content-Security-Policy in a meta tag, so
-    the saved copy keeps it too."""
+    the saved copy keeps it too.
+
+    One column, edge to edge: the verdict, the score (the numbers, then your counts), each
+    list of disagreements, then What next with the notes. Each section starts with the same
+    lit heading bar."""
     from judgekeeper.front import tool_name
 
     c = counts(r)
@@ -1375,27 +1414,29 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     tool = tool_name(judge.get("tool"), judge.get("results_files"))
     model = (r.get("fingerprint") or {}).get("model")
     left = look.meta(_e(model) if model else None, _e(tool) if tool else None)
-    level = r.get("verdict_level") if r["check"] != "too_few" else None
-    top = _last_check(last, worse) if worse else ""
-    parts = [top, _verdict(r, c, back, worse, above=bool(top)), _counts(r, c), _made(r)]
     live = back is not None
-    if level is not None:  # a result, also a rough one: the two main lines, open
-        parts.append(_main_lines(r))
-    if shows_disagreements(r):  # real numbers: the disagreements and the estimates
+    top = _last_check(last, worse) if worse else ""
+    lists, extra = "", []  # extra: lines under What next's command
+    if shows_disagreements(r):  # real numbers: the disagreements
         mark = None if live or worse else commands(r)["mark"]  # after Worse: one way out
-        parts += [_groups(c, fixing, live, mark, commands(r)["fix"]), _details(r)]
-    elif level is not None:  # too early to tell: the estimates and their ranges all the same
-        parts.append(_details(r))
-    if not worse:
-        parts.append(_next(r, back))
-    parts.append(held_note(r, "".join(parts)))
+        lists = _groups(c, fixing, live, commands(r)["fix"])
+        extra.append(say_why(fixing, live, mark))
     if started_else:
-        note = _e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>")
-        parts.append(f'<div class="band"><p class="note">{note}</p></div>')
+        extra.append(_e(STARTED_ELSE).replace("`judgekeeper`", "<code>judgekeeper</code>"))
+    extra = [x for x in extra if x]
+    nxt = "" if worse else _next(r, back, extra)
+    head = top + _verdict(r, c, back, worse, above=bool(top))
+    notes = _notes(r) + held_note(r, head + lists + nxt + "".join(extra))
+    if nxt:
+        nxt = nxt.replace(NOTES, _notes_html(notes))
+    else:
+        notes += extra  # no What next to put them under
+        nxt = f'<section class="sec next-box">{_notes_html(notes)}</section>' if notes else ""
+    body = head + _score(r, c) + lists + nxt
     meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
     scripts = f"<script>{SCRIPT}</script>\n"
-    if live and 'class="why"' in "".join(parts):
+    if live and 'class="why"' in body:
         scripts += f"<script>{REASONS_SCRIPT}</script>\n"
     return (look.head("judgekeeper: your result", STYLE, meta)
-            + look.top(left, "") + '<main class="result">' + "".join(parts)
+            + look.top(left, "") + f'<main class="result">{body}'
             + f"</main>\n{scripts}</body>\n</html>\n")

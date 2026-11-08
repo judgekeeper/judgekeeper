@@ -2546,7 +2546,7 @@ def agreement_lines(r: dict) -> list[str]:
 
 
 def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None) -> list[str]:
-    """How often the judge agrees with you, estimated, as the result page's More details
+    """How often the judge agrees with you, estimated, as the result page's score
     (report_page.estimate): "about 57% (between 37% and 74%)", also while it is too early to
     tell; "78% (you marked every answer)" with no width; too early to tell only with no number
     yet. `every` (every answer is marked) and `pool` (how many the judge passed and failed):
@@ -2565,7 +2565,7 @@ def estimate_lines(r: dict, every: bool | None = None, pool: dict | None = None)
 
 
 def kappa_line(r: dict) -> str:
-    """Kappa as the result page's More details has it, with a plain minus sign: a legacy code
+    """Kappa as the result page's score has it, with a plain minus sign: a legacy code
     page has no real one, and would print "?0.09" (textio.lenient_streams)."""
     from judgekeeper.report_page import kappa_shown
 

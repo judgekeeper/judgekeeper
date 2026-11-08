@@ -410,7 +410,7 @@ LOREM = ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod 
 
 
 def test_the_report_keeps_a_long_answer_whole(here, capsys):
-    """The result page folds each row and "Show all" opens it: the text is whole."""
+    """The result page folds each row and "Show more" opens it: the text is whole."""
     table_project(here, split(20, 16))
     long = ("Start " + LOREM * 200)[:20000]
     rows = (here / "results.csv").read_text(encoding="utf-8").splitlines()
