@@ -1236,6 +1236,7 @@ def no_such(path: str) -> str:
         shown_from_here,
     )
 
+    path = scrub(path)  # as the Next line shows it: split first, a URL's password is not known
     given = Path(path)
     name = given.name or path
     what = "file" if given.suffix else "file or folder"
