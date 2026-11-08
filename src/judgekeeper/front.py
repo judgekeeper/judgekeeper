@@ -479,14 +479,18 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
     if talk.labels is None:
         return
     mine = talk.options["label_map"] or _kept_label_map(found.root)  # the person's own map
+    command = talk.command
+    if talk.options["label_map"] is None and isinstance(mine, str):  # saved by an earlier run:
+        def command(*extra: str) -> str:  # a --label-map in a Next line adds to it, as typed
+            return talk.command(*_with_given_map(mine, extra))
     try:
         if path is None:
-            talk.labels_read = labels_mod.in_results(found.pool, found.metric, talk.command, mine)
+            talk.labels_read = labels_mod.in_results(found.pool, found.metric, command, mine)
             talk.labels_from = marks.FROM_RESULTS
         else:
             start._read_anyway(talk, path, ("--labels", textio.quote_arg(talk.labels)))
             talk.labels_read = labels_mod.read_file(path, found.pool.label_map, mine,
-                                                    talk.command, talk.labels)
+                                                    command, talk.labels)
             talk.labels_from = path.name
     except labels_mod.LabelsStop as e:
         raise _labels_stop(talk, e) from None
@@ -912,6 +916,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     a guess: a wrong one turns fails into passes)."""
     values = list(dict.fromkeys(found.pool.unmapped))
     terminal = start._interactive()
+    keep = talk.labels_flags()  # a run with --labels: its Next lines keep it
     if found.tool == "inspect" and "P" in values:  # model_graded_qa(partial_credit=True)
         n = found.pool.n_unmapped.get(repr("P"), 0)
         for line in found_block(found):  # what was found; the count waits for the answer
@@ -922,14 +927,14 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
         if not terminal:
             raise talk.stop(EXIT_QUESTION, (
                 "decide whether partial credit (P) counts as Pass or Fail, then run "
-                f"`{talk.command('--label-map', 'P=pass')}` or "
-                f"`{talk.command('--label-map', 'P=fail')}`."))
+                f"`{talk.command(*keep, '--label-map', 'P=pass')}` or "
+                f"`{talk.command(*keep, '--label-map', 'P=fail')}`."))
         i = talk.choose("Should partial credit count as Pass or Fail?", ["Pass", "Fail"], "")
         _add_label_map(talk, f"P={('pass', 'fail')[i]}")
         return
     if all(_numeric(v) for v in values):
         if not terminal and (rule := _rule_in_use(found)) != PASS_IF:  # measured: it is saved
-            again = talk.command("--pass-if", rule)
+            again = talk.command(*keep, "--pass-if", rule)
             talk.step = None  # a saved pass mark: past Find, so no "Step 1 of 5: Find" above it
             talk.para(PASS_MARK_AGAIN.format(rule=_saved_pass_mark(found)["rule"]))
             raise talk.stop(EXIT_QUESTION, f"run `{again}`.")
@@ -937,7 +942,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
                  "do not say which score passes.")
         if not terminal:
             raise talk.stop(EXIT_QUESTION, "decide which score counts as a pass, then run "
-                                           f"`{talk.command('--pass-if', _rule_in_use(found))}`.")
+                                           f"`{talk.command(*keep, '--pass-if', _rule_in_use(found))}`.")
         while True:
             answer = talk.ask("Pass when the score is at least", _mark_in_use(found))
             if _numeric(answer):
@@ -952,7 +957,7 @@ def _unread_values(talk: FrontTalk, found: start.Found) -> None:
     if not terminal:
         raise talk.stop(EXIT_QUESTION, (
             "decide which of the values above mean Pass, which mean Fail and which mean no "
-            f"decision (error), then run `{talk.command('--label-map', LABEL_MAP)}`."))
+            f"decision (error), then run `{talk.command(*keep, '--label-map', LABEL_MAP)}`."))
     picked = []
     for w in words:
         i = talk.choose(f"Does {w!r} mean Pass or Fail?", ["Pass", "Fail"], "")
@@ -980,7 +985,7 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
         fix = "check where your LLM-as-a-judge's decisions are saved"
     talk.para("judgekeeper can't tell which of your LLM-as-a-judge's decisions mean Pass and which "
               f"mean Fail: {where}.")
-    return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command()}`.")
+    return talk.stop(EXIT_QUESTION, f"{fix}, then run `{talk.command(*talk.labels_flags())}`.")
 
 
 OTHERS_HOME = "in another person's home folder, which judgekeeper doesn't name in full"

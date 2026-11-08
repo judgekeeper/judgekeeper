@@ -333,6 +333,15 @@ class OtherName(str):
     then says the name to grade under."""
 
 
+def _graded_again(path: Path) -> bool:
+    """Whether `path` is marked-answers.csv graded again: its question and answer columns
+    with a verdict column, read as a table (table.as_marked)."""
+    from judgekeeper.table import as_marked
+
+    return (path.suffix.lower() in find.TABLE_SUFFIXES
+            and find.is_table(as_marked(find.table_columns(path))))
+
+
 def read_given(state: State, path: Path):
     """The judge of the marks in the results file `path`, read as step 1 reads results (the
     same eval tool, the same LLM-as-a-judge): (found, None), or (None, why in one line) when
@@ -350,6 +359,8 @@ def read_given(state: State, path: Path):
     shown = Path(path).name
     try:
         kind = find.classify_file(Path(path))
+        if kind is None and tool == "table" and _graded_again(Path(path)):
+            kind = options["tool"] = "table"
     except (OSError, ValueError):
         kind = None
     if kind is not None and kind != tool and tool != "mapped":
@@ -1679,7 +1690,20 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
             out[i] = next(a for a in same if a.verdict != mark)
             mixed.add(i)
 
+    # A repeat graded differently when it was marked was marked copy by copy, as Measure
+    # counts it: each copy (run) is compared with the same copy in these results, alone. An
+    # answer marked once that now has two grades still counts against the judge (take).
+    try:
+        queued = {q["id"] for q in ws.data().get("queue") or []}
+    except (OSError, ValueError):
+        queued = set()
+    copied = {i.split("#")[0] for i in queued if "#" in i}
+    own = {a.id: a for a in answers
+           if repeat_of.get(a.id, a.id) in copied and a.id in queued}
     for i in marked:
+        if i in own and _same_answer(own[i], rows.get(i) or {}):
+            take(i, [own[i]])
+            continue
         same = [a for a in by_id.get(i, []) if _same_answer(a, rows.get(i) or {})]
         if same:
             take(i, same)

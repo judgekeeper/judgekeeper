@@ -105,6 +105,9 @@ EVERY_MARKED = "You marked every answer."  # the page's line once a result is re
 # first numbers (ROUGH of each kind) until then, the line under its bar
 READY = "Your result is ready."
 FIRST_NUMBERS = "Your first numbers are in. Too early to tell: keep marking."
+# The marking page while the LLM-as-a-judge's groups still lack marks: no count. A count by
+# group moves only when the answer just marked is in that group, so it shows its hidden grade
+KEEP_MARKING = "Keep marking. Your result needs more answers."
 # Under the two main lines on the result page and in the terminal: why the result line can
 # still say too early to tell when a range on screen is above the bar (weighted.VERDICT_LEVEL)
 WIDER_ONLY = "The result line uses wider ranges than these, so a lucky streak can't decide it."
@@ -764,9 +767,7 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
         status.update(text=EVERY_MARKED)
     labels = [i["label"] for i in session.items]
     if not status["first"] and min(labels.count("pass"), labels.count("fail")) >= targets.ROUGH:
-        from judgekeeper import front  # enough of each kind: the groups' marks are missing
-
-        status["group"] = front._group_marks(session)  # the page's keep-going line, as Mark
+        status["group"] = KEEP_MARKING  # enough of each kind: the groups' marks are missing
     from judgekeeper import check
 
     only = only_wait(data, session)

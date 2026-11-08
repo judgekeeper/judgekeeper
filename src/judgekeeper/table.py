@@ -79,6 +79,36 @@ def _known_names(row: dict) -> dict:
     return out
 
 
+# marked-answers.csv's columns (fix.ANSWER_COLUMNS) graded again: in a file given to fix or
+# check (check._graded_again) with a grade column but no input or output, input and output
+AS_INPUT_OUTPUT = (("input", "question"), ("output", "answer"))
+GRADE_NAMES = ("verdict", "judge_verdict", "judge")  # find.VERDICT_COLUMNS
+
+
+def as_marked(names) -> list:
+    """`names` as judgekeeper knows them (column_name); with a grade column, question as input
+    and answer as output when the file has no column of that name (AS_INPUT_OUTPUT)."""
+    out = [column_name(n) for n in names]
+    if not any(g in out for g in GRADE_NAMES):
+        return out
+    for own, theirs in AS_INPUT_OUTPUT:
+        if own in out or (own == "output" and "output_a" in out):
+            continue
+        same = [i for i, n in enumerate(out) if isinstance(n, str) and n.strip().lower() == theirs]
+        if len(same) == 1:
+            out[same[0]] = own
+    return out
+
+
+def as_marked_rows(rows: list[dict]) -> list[dict]:
+    """`rows` with as_marked's names; the same rows when it renames nothing."""
+    names = list(dict.fromkeys(k for row in rows for k in row))
+    new = dict(zip(names, as_marked(names), strict=True))
+    if all(k == v for k, v in new.items()):
+        return rows
+    return [{new[k]: v for k, v in row.items()} for row in rows]
+
+
 class TableError(Exception):
     """The table cannot be read as judgments: a usage error."""
 

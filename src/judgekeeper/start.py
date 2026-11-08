@@ -62,11 +62,12 @@ from judgekeeper.records import (
     load_json,
     read_records,
 )
-from judgekeeper.redact import one_line, scrub
+from judgekeeper.redact import REDACTED, one_line, scrub
 from judgekeeper.table import (
     KNOWN_COLUMNS,
     MORE_CELLS,
     _blank,
+    as_marked_rows,
     cut_off,
     make_fingerprint,
     open_quote,
@@ -656,7 +657,7 @@ def read_results_table(path: Path) -> RecordList:
     if cut_off(path):  # its last row would be read as whole, with an empty grade
         cut = damaged(path, CUT_OFF_FROM, CUT_OFF)
         raise StartError(str(cut), cut.next_step)
-    rows = read_table(path)
+    rows = as_marked_rows(read_table(path))  # marked-answers.csv graded again, too
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
     ids = [None if _blank(row.get("id")) else sheet_id(row["id"]) for row in rows]
@@ -1047,7 +1048,15 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 names = experiments_with_traces(uri)
             except StoreTooBig as too_many:
                 raise usage_error(too_many) from None
-            raise _no_experiment(experiment, [(store, names)]) from None
+            # A name that looks like a secret is saved hidden (start.json): the one experiment
+            # whose name hides to it is read by its real name, which is never shown or saved
+            real = [n for n in names if REDACTED in experiment and scrub(n) == experiment]
+            if len(real) != 1:
+                raise _no_experiment(experiment, [(store, names)]) from None
+            try:
+                found = [(experiment, read_mlflow(real[0], tracking_uri=uri, metric=metric))]
+            except (TracesMissing, JudgeCallsFailed, ArtifactServer, StoreTooBig) as e:
+                raise usage_error(e) from None
     else:
         from mlflow import MlflowClient
 
@@ -1402,6 +1411,28 @@ def reads_in(folder: Path) -> Path:
     return root
 
 
+ITS_COLUMNS = ". Its columns are {names}"  # a table judgekeeper can't read: what it holds
+MOST_COLUMNS = 8  # columns named; more are counted
+
+
+def _its_columns(path: Path) -> str:
+    """ITS_COLUMNS for a CSV, TSV or JSONL file whose first line names columns, else "": the
+    names as written (keys hidden, on one line), the first MOST_COLUMNS of them."""
+    if path.suffix.lower() not in find.TABLE_SUFFIXES:
+        return ""
+    try:
+        names = [scrub(one_line(n)) for n in find.table_columns(path) if str(n).strip()]
+    except (OSError, ValueError):
+        return ""
+    if not names:
+        return ""
+    shown = names[:MOST_COLUMNS]
+    if len(names) > MOST_COLUMNS:
+        shown.append(f"{len(names) - MOST_COLUMNS} more")
+    said = shown[0] if len(shown) == 1 else ", ".join(shown[:-1]) + " and " + shown[-1]
+    return ITS_COLUMNS.format(names=said)
+
+
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
     """(project folder, tool, its readable results newest first, tool signs)."""
     if not path.exists():
@@ -1425,7 +1456,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
-                             "with input, output and a verdict or score column)")
+                             "with input, output and a verdict or score column)"
+                             + _its_columns(path))
         path = path.resolve()
         return path.parent, kind, [find.Result(kind, path, path.name, path.stat().st_size)], {}
     root = path.resolve()
