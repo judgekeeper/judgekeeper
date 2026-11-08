@@ -6,7 +6,7 @@
 - Counts of one read right, as in "You have marked the one answer."
 - On the marking page, skipped answers now say "Go back to it" or "Go back to them".
 - Lines that used "judge" as a verb now say "grade".
-- The labels error says numbers can be 1 and 0: "Labels must be Pass or Fail, or 1 and 0, not other numbers." It now has a Next line, with `--label-map`.
+- The labels error says numbers can be 1 and 0, and names the numbers it found: "Labels must be Pass or Fail, or 1 and 0, not other numbers: 2." It now has a Next line, with `--label-map`.
 - `regrade.yaml` is no longer written for a coding agent as the grader, such as Codex or Claude Code. `fix` prints the steps instead.
 - A key or other secret right after a terminal colour code, or with one inside it, is now hidden.
 - More secrets are hidden as tools write them: in JSON and `repr` text, after `-` or `_`, in `cat -A` output, AWS secrets under their other names, a URL password with `@` in it, and short `Basic` logins.
@@ -25,6 +25,7 @@
 - For an Inspect AI scorer of your own, `fix` names that scorer where the rule goes, not `model_graded_qa(...)`.
 - `fix`'s long-answers clue says "usually" for the middle length, and names the answers it compares with.
 - A field named after a key, such as a promptfoo var, is now hidden on the marking page and in the files judgekeeper writes.
+- The README lists the `verdict` values that work.
 
 ## 1.1.1 (2026-11-05)
 

@@ -44,7 +44,8 @@ def test_other_numbers_are_still_refused(here, capsys, value):
     write_labels(here / "mine.csv", [{"answer": answer(0), "label": value},
                                      {"answer": answer(1), "label": "1.0"}])
     code, out = run(capsys, "--labels", "mine.csv")
-    assert code == 3 and "Labels must be Pass or Fail, or 1 and 0, not other numbers." in flat(out), out
+    said = f"Labels must be Pass or Fail, or 1 and 0, not other numbers: {value}."
+    assert code == 3 and said in flat(out), out
     assert "Next: say what each one means, then run" in flat(out), out
     assert '--labels mine.csv --label-map "WORD=pass,WORD=fail"' in flat(out), out
 
@@ -164,3 +165,16 @@ def test_new_answers_never_bring_back_the_import_gate(here, capsys):
     assert "on 1 of 2 batches" in out, out
     assert "Mark at least" not in out, out
     assert "too early" not in out.lower(), out
+
+
+def test_the_number_error_names_the_numbers_it_found(here, capsys):
+    """Each number once, smallest first, as in the file: "each one" in the Next line then
+    points at something."""
+    table(here)
+    write_labels(here / "mine.csv", [{"answer": answer(i), "label": v}
+                                     for i, v in enumerate(["2", "-1", "2", "1", "0", "10"])])
+    code, out = run(capsys, "--labels", "mine.csv")
+    said = flat(out)
+    assert code == 3, said
+    assert "Labels must be Pass or Fail, or 1 and 0, not other numbers: -1, 2, 10." in said, said
+    assert "Next: say what each one means, then run" in said, said
