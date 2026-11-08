@@ -30,7 +30,6 @@ from tests.start_projects import (
     answer,
     deepeval_data,
     inspect_data,
-    marked_rows,
     promptfoo_data,
     question,
 )
@@ -258,8 +257,7 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     if os.name != "nt":
         assert mode(folder / "mistakes.md") == mode(folder / "marked-answers.csv") == 0o600
     rows = list(csv.reader((folder / "marked-answers.csv").open(encoding="utf-8")))
-    header = ["input", "output"] if tool == "jsonl" else ["question", "answer"]  # a table's own
-    assert rows[0] == header and len(rows) == N + 1
+    assert rows[0] == ["question", "answer"] and len(rows) == N + 1
     assert {tuple(r) for r in rows[1:]} == {(question(i), answer(i)) for i in range(N)}
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
@@ -428,7 +426,7 @@ def test_marked_answers_hide_keys_and_guard_formulas(here, capsys, monkeypatch):
                 and table.guard_cell(cell) != cell]
 
     # graded again straight from the file, guard quotes and all: every answer is still found
-    rows = marked_rows(csv.DictReader(written.splitlines(keepends=True)))
+    rows = list(csv.DictReader(written.splitlines(keepends=True)))
     where = {table.unguard_cell(r["question"]): r for r in rows}
     regraded = here / "regraded.jsonl"
     regraded.write_text("".join(json.dumps(

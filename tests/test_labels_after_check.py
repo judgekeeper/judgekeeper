@@ -11,7 +11,7 @@ import pytest
 
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import answer, marked_rows, question, table_project
+from tests.start_projects import answer, question, table_project
 from tests.test_labels_import import flat, run
 
 SKIPPED = ("Skipped 8 labels: 3 don't match any answer in your results (the answer text must "
@@ -46,7 +46,7 @@ def _checked(here, capsys):
     assert code == 3 and SKIPPED in flat(before), before
     main(["--stop"])
     main(["fix"])
-    marked = marked_rows(csv.DictReader((here / ".judgekeeper" / "fix" / "marked-answers.csv").open(
+    marked = list(csv.DictReader((here / ".judgekeeper" / "fix" / "marked-answers.csv").open(
         encoding="utf-8", newline="")))
     with (here / "new.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)

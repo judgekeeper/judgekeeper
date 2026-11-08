@@ -1470,11 +1470,9 @@ def more_marks_line(ws: Workspace) -> str:
 
 
 def write_answers(ws: Workspace, m: Marks) -> int:
-    """fix/marked-answers.csv: every marked answer, question and answer only, shuffled, each
+    """fix/marked-answers.csv: every marked answer, `question,answer` only, shuffled, each
     once; cells guarded as a spreadsheet would run them (table.guard_cell). No mark, grade or
-    id: the answers kept aside can't be told from the others. A table's file has the table's
-    own question and answer columns (table_columns), so it goes back to `fix` as it is with a
-    grade column added; any other tool's, `question,answer`. How many rows it holds."""
+    id: the answers kept aside can't be told from the others. How many rows it holds."""
     rows = list(dict.fromkeys((question_text((r := m.rows.get(i, {})).get("input"),
                                              r.get("output")),
                                answer_text(r.get("output")))
@@ -1482,8 +1480,7 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     random.SystemRandom().shuffle(rows)
     buf = io.StringIO()
     w = csv.writer(buf)
-    header = (table_columns(ws)[:2] if m.data.get("tool") == "table" else ANSWER_COLUMNS)
-    w.writerow([_csv_cell(m, scrub(name)) for name in header])
+    w.writerow(ANSWER_COLUMNS)
     for question, answer in rows:
         w.writerow([_csv_cell(m, question), _csv_cell(m, answer)])
     path = _folder(ws) / ANSWERS
@@ -1963,13 +1960,13 @@ def regrade_line(tool: str | None, run: str = f"run `judgekeeper fix {NEW_RECORD
 def table_columns(ws: Workspace) -> tuple[str, ...]:
     """The first results file's question, answer and grade columns as written in it, or
     TABLE_COLUMNS when it can't be read."""
-    from judgekeeper.table import column_name, columns
+    from judgekeeper.table import as_marked, columns
 
     file = _first_file(ws)
     names = columns(Path(ws.root) / file) if file else []
     known = {}
-    for name in names:
-        known.setdefault(column_name(name), name)
+    for own, name in zip(as_marked(names), names, strict=True):
+        known.setdefault(own, name)
     grade = next((known[g] for g in GRADE_COLUMNS if g in known), None)
     if "input" in known and "output" in known and grade:
         return known["input"], known["output"], grade

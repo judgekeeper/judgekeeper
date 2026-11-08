@@ -15,7 +15,7 @@
 - With an LLM-as-a-judge that gave every answer one grade, and every answer marked the same, judgekeeper now says a new answer marked the other way gives the result.
 - The marking page no longer counts marks by the LLM-as-a-judge's grade, which showed the hidden grade of the answer just marked. It now says "Keep marking. Your result needs more answers."
 - `check` now counts a repeated answer with a different grade the way Measure does.
-- `marked-answers.csv` from a table uses the table's own column names, so it can be graded again. A file judgekeeper can't read now has its columns named in the error.
+- With your own CSV, TSV or JSONL file, `fix` and `check` now read `marked-answers.csv` back as it is, with a `verdict` column added. A file judgekeeper can't read now has its columns named in the error.
 - After `--labels`, the Next lines keep a `--label-map` saved by an earlier run, and keep `--labels`.
 - An MLflow experiment whose name looks like a secret stays hidden, and `fix` and `check` now find it.
 

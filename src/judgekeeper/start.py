@@ -67,6 +67,7 @@ from judgekeeper.table import (
     KNOWN_COLUMNS,
     MORE_CELLS,
     _blank,
+    as_marked_rows,
     cut_off,
     make_fingerprint,
     open_quote,
@@ -656,7 +657,7 @@ def read_results_table(path: Path) -> RecordList:
     if cut_off(path):  # its last row would be read as whole, with an empty grade
         cut = damaged(path, CUT_OFF_FROM, CUT_OFF)
         raise StartError(str(cut), cut.next_step)
-    rows = read_table(path)
+    rows = as_marked_rows(read_table(path))  # marked-answers.csv graded again, too
     if not rows:  # a header and nothing under it
         raise StartError(f"{path.name} has no rows")
     ids = [None if _blank(row.get("id")) else sheet_id(row["id"]) for row in rows]

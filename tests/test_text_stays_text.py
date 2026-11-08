@@ -17,7 +17,7 @@ import yaml
 
 from judgekeeper import check, fix, judgments, textio
 from judgekeeper.fingerprint import JudgeFingerprint
-from tests.start_projects import marked_rows, promptfoo_data
+from tests.start_projects import promptfoo_data
 from tests.test_fix import RULE, project, run
 
 TEMPLATES = [
@@ -173,7 +173,7 @@ def test_a_last_new_line_in_a_cell_is_printed():
 
 def _cells(ws):
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        return marked_rows(csv.DictReader(f))
+        return list(csv.DictReader(f))
 
 
 def test_the_csv_of_a_promptfoo_project_is_printed_and_another_tools_is_not(here, monkeypatch):

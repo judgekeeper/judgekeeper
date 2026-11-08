@@ -333,6 +333,15 @@ class OtherName(str):
     then says the name to grade under."""
 
 
+def _graded_again(path: Path) -> bool:
+    """Whether `path` is marked-answers.csv graded again: its question and answer columns
+    with a verdict column, read as a table (table.as_marked)."""
+    from judgekeeper.table import as_marked
+
+    return (path.suffix.lower() in find.TABLE_SUFFIXES
+            and find.is_table(as_marked(find.table_columns(path))))
+
+
 def read_given(state: State, path: Path):
     """The judge of the marks in the results file `path`, read as step 1 reads results (the
     same eval tool, the same LLM-as-a-judge): (found, None), or (None, why in one line) when
@@ -350,6 +359,8 @@ def read_given(state: State, path: Path):
     shown = Path(path).name
     try:
         kind = find.classify_file(Path(path))
+        if kind is None and tool == "table" and _graded_again(Path(path)):
+            kind = options["tool"] = "table"
     except (OSError, ValueError):
         kind = None
     if kind is not None and kind != tool and tool != "mapped":
