@@ -176,6 +176,20 @@ def _ranged(r: dict) -> bool:
     return any(b != "–" for _, b in shown) or report_page.kappa_shown(r)[1] is not None
 
 
+def _apart(text: str) -> tuple[str, str | None]:
+    """A shown number without " (you marked every answer)", and the why in its other brackets."""
+    text = text.removesuffix(f" ({report_page.EVERY_MARKED})")
+    m = re.fullmatch(r"(.+?) \((.+)\)", text)
+    return (m.group(1), m.group(2)) if m else (text, None)
+
+
+def _why_under(r: dict) -> bool:
+    """Whether a number with no range says why under it."""
+    shown = [report_page.estimate(r.get(k), r.get(f"{k}_interval"), report_page.why_for(r, k))[0]
+             for k in ("tpr", "tnr")] + [report_page.kappa_shown(r)[0]]
+    return any(_apart(t)[1] for t in shown)
+
+
 def _exact(r: dict) -> bool:
     tail = f"({report_page.EVERY_MARKED})"
     said = [report_page.estimate(r.get(k), r.get(f"{k}_interval"), report_page.why_for(r, k))[0]
@@ -204,7 +218,7 @@ def test_each_state_has_its_sections_in_order(name, live):
         cells = score.find("div", "cell")
         assert [sorted(c.classes - {"cell"}) for c in cells] == [["c-tpr"], ["c-tnr"],
                                                                   ["c-kappa"]]
-        assert bool(score.find(cls="n-rng")) == _ranged(r)
+        assert bool(score.find(cls="n-rng")) == (_ranged(r) or _why_under(r))
         assert bool(score.find("p", "foot")) == _exact(r)
     else:
         assert [k.tag for k in score.kids] == ["div"] and not score.find(cls="nums")
@@ -401,21 +415,23 @@ def _plain(node: Node) -> str:
 def test_each_number_is_its_estimate_and_each_count_line_its_counts(name, live):
     r, _, _ = state(name)
     main = _main(page(name, live))
-    tail = f" ({report_page.EVERY_MARKED})"
     if main.find(id="nums-h"):
         cells = {min(c.classes - {"cell"}): c for c in main.find("div", "cell")}
         for key in ("tpr", "tnr"):
             shown, between = report_page.estimate(r.get(key), r.get(f"{key}_interval"),
                                                   report_page.why_for(r, key))
+            value, why = _apart(shown)
             cell = cells[f"c-{key}"]
-            assert _plain(cell.find(cls="n-val")[0]) == shown.removesuffix(tail)
+            assert _plain(cell.find(cls="n-val")[0]) == value
             rng = cell.find(cls="n-rng")
-            assert [_plain(x) for x in rng] == ([] if between == "–" else [f"between {between}"])
+            assert [_plain(x) for x in rng] == (
+                [f"between {between}"] if between != "–" else [why] if why else [])
         kappa, lo, hi = report_page.kappa_shown(r)
+        value, why = _apart(kappa)
         cell = cells["c-kappa"]
-        assert _plain(cell.find(cls="n-val")[0]) == kappa.removesuffix(tail)
+        assert _plain(cell.find(cls="n-val")[0]) == value
         assert [_plain(x) for x in cell.find(cls="n-rng")] == (
-            [] if lo is None else [f"between {lo} and {hi}"])
+            [f"between {lo} and {hi}"] if lo is not None else [why] if why else [])
     c = report_page.counts(r)
     lines = [_plain(p) for p in main.find("div", "cnts")[0].find("p")]
     if main.find(id="nums-h"):
@@ -426,3 +442,60 @@ def test_each_number_is_its_estimate_and_each_count_line_its_counts(name, live):
             f"your LLM-as-a-judge passed {c['easy']} and failed {c['failed'] - c['easy']}.")]
     else:
         assert lines == [f"You passed {c['passed']} answers.", f"You failed {c['failed']} answers."]
+
+
+# A number with no range: the value alone, why under it -----------------------------------
+
+COUNTS = {"passed": 1, "failed": 1, "strict": 0, "easy": 0}
+
+
+def _gate(**r) -> dict:
+    return {"check": "result", "verdict_level": "gate", "kappa": None, "kappa_interval": None,
+            **r}
+
+
+CELL = re.compile(r'<span class="n-val">((?:<span class="about">[^<]*</span>)?[^<]*)</span>'
+                  r'(?:<span class="n-rng">([^<]*)</span>)?</div>')
+
+
+def _cells(page: str) -> list[tuple[str, str | None]]:
+    """Each number cell's big value and the small line under it (None when there is none)."""
+    return [(unescape(re.sub(r"<[^>]+>", "", v)), unescape(n) if n else None)
+            for v, n in CELL.findall(page)]
+
+
+@pytest.mark.parametrize("r, want", [
+    # an LLM-as-a-judge that gave every answer one grade
+    (_gate(tpr=1.0, tpr_interval=[1.0, 1.0], tnr=0.0, tnr_interval=[0.0, 0.0], left=14,
+           groups={"pass": {"pool": 44}, "fail": {"pool": 0}}),
+     [("100%", "it gave every answer the same grade"),
+      ("0%", "it gave every answer the same grade"), ("n/a", None)]),
+    # every answer it failed is marked: TPR has no range, TNR has one
+    (_gate(tpr=1.0, tpr_interval=[1.0, 1.0], tnr=0.8, tnr_interval=[0.6, 0.9], left=9,
+           groups={"pass": {"pool": 30}, "fail": {"pool": 20}}),
+     [("100%", "you marked every answer it failed"), ("about 80%", "between 60% and 90%"),
+      ("n/a", None)]),
+])
+def test_a_number_with_no_range_shows_its_value_alone_and_why_under_it(r, want):
+    page = report_page._score(r, COUNTS)
+    assert _cells(page) == want
+    assert "(it gave" not in page and "(you marked" not in page
+
+
+def test_every_answer_marked_still_says_it_once_at_the_foot():
+    r = _gate(tpr=0.9, tpr_interval=[0.9, 0.9], tnr=0.8, tnr_interval=[0.8, 0.8], left=0,
+              groups={"pass": {"pool": 30}, "fail": {"pool": 20}}, kappa=0.7,
+              kappa_interval=[0.7, 0.7])
+    page = report_page._score(r, COUNTS)
+    assert _cells(page) == [("90%", None), ("80%", None), ("0.70", None)]
+    assert page.count(report_page.EXACT) == 1
+
+
+def test_the_three_numbers_sit_on_one_line_whatever_their_labels_length():
+    style = report_page.STYLE
+    assert ".nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }" in style
+    cell = style.split("\n.cell {", 1)[1].split("}", 1)[0]
+    assert "grid-row: span 3" in cell and "grid-template-rows: subgrid" in cell
+    assert "display: flex" not in cell
+    lab = style.split("\n.n-lab {", 1)[1].split("}", 1)[0]
+    assert "align-self: end" in lab

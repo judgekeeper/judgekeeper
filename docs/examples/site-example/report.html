@@ -106,10 +106,13 @@ main p code, .notes-list code { font-size: .9em; color: var(--text);
   color: var(--muted); }
 /* the score: the three numbers side by side, big, then your two counts */
 .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-.cell { padding: 32px 32px 34px; text-align: center; display: flex; flex-direction: column;
-  align-items: center; gap: 10px; }
+/* each cell's label, number and small line are rows shared by the three cells (subgrid), so
+   the numbers sit on one line whatever their labels' length; a short label sits on its number */
+.cell { padding: 32px 32px 34px; text-align: center; display: grid; grid-row: span 3;
+  grid-template-rows: subgrid; justify-items: center; row-gap: 10px; }
 .cell + .cell { border-left: 1px solid var(--line); }
-.n-lab { font-size: 17px; line-height: 1.45; color: var(--muted); max-width: 30ch; }
+.n-lab { font-size: 17px; line-height: 1.45; color: var(--muted); max-width: 30ch;
+  align-self: end; }
 .n-val { font-family: var(--sans); font-weight: 700; font-size: 58px;
   font-variant-numeric: tabular-nums; line-height: 1.05; color: var(--text);
   letter-spacing: -.02em; }
