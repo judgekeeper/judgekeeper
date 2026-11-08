@@ -62,7 +62,7 @@ from judgekeeper.records import (
     load_json,
     read_records,
 )
-from judgekeeper.redact import one_line, scrub
+from judgekeeper.redact import REDACTED, one_line, scrub
 from judgekeeper.table import (
     KNOWN_COLUMNS,
     MORE_CELLS,
@@ -1047,7 +1047,15 @@ def _mlflow_experiment(talk: Talk, store: find.Result, experiment: str | None,
                 names = experiments_with_traces(uri)
             except StoreTooBig as too_many:
                 raise usage_error(too_many) from None
-            raise _no_experiment(experiment, [(store, names)]) from None
+            # A name that looks like a secret is saved hidden (start.json): the one experiment
+            # whose name hides to it is read by its real name, which is never shown or saved
+            real = [n for n in names if REDACTED in experiment and scrub(n) == experiment]
+            if len(real) != 1:
+                raise _no_experiment(experiment, [(store, names)]) from None
+            try:
+                found = [(experiment, read_mlflow(real[0], tracking_uri=uri, metric=metric))]
+            except (TracesMissing, JudgeCallsFailed, ArtifactServer, StoreTooBig) as e:
+                raise usage_error(e) from None
     else:
         from mlflow import MlflowClient
 
