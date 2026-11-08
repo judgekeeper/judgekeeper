@@ -322,7 +322,6 @@ main p code, .notes-list code { font-size: .9em; color: var(--text);
   color: var(--muted); }
 /* the score: the three numbers side by side, big, then your two counts */
 .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-.nums.one { grid-template-columns: 1fr; }
 .cell { padding: 32px 32px 34px; text-align: center; display: flex; flex-direction: column;
   align-items: center; gap: 10px; }
 .cell + .cell { border-left: 1px solid var(--line); }
@@ -1452,6 +1451,7 @@ FAILED = "Answers you failed"  # the one list, with no LLM-as-a-judge
 RATE_HEAD = "Your pass rate"
 RATE = "Of the answers you marked, you passed"
 SURER_MARK = "Mark more answers for a surer number."
+ONE_CELL = ".nums.one { grid-template-columns: 1fr; }\n"  # this page only: the others stay as they are
 
 
 def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1533,6 +1533,6 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
 
     judge = r.get("judge") or {}
     tool = tool_name(judge.get("tool"), judge.get("results_files"))
-    return (look.head("judgekeeper: your result", STYLE, meta)
+    return (look.head("judgekeeper: your result", STYLE + ONE_CELL, meta)
             + look.top(look.meta(None, _e(tool) if tool else None), "")
             + f'<main class="result">{body}</main>\n{scripts}</body>\n</html>\n')

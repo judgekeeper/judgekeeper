@@ -516,3 +516,12 @@ def test_a_reason_makes_no_copy_in_history(here, capsys, pages):
     page.update({"id": fail, "label": "pass", "seconds": 3})  # a mark changed: kept
     start_label.live_result(ws, _session(here), back=BACK)
     assert len(list(ws.history.glob("result-*.json"))) == 1
+
+
+def test_the_page_with_grades_keeps_its_style(here, capsys, pages):
+    """The one-cell rule is this page's only: a result with grades is drawn as before."""
+    from judgekeeper import report_page
+
+    assert ".nums.one" not in report_page.STYLE
+    _with_result(here, capsys, ["pass"] * 6 + ["fail"] * 4)
+    assert ".nums.one" in _report(here)
