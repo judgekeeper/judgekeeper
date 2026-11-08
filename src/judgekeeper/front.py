@@ -781,7 +781,8 @@ def _find(talk: FrontTalk, path: Path, saved, only: list[str] | None = None) -> 
         try:
             try:
                 found = start.find_judge(path, talk=talk, saved=saved, store=talk.store,
-                                         only=only, **{**options, "judge_model": given or
+                                         only=only, answers=True,
+                                         **{**options, "judge_model": given or
                                                        options["judge_model"]})
             except StartError:
                 if given is None and kept is None and kept_tool is None:

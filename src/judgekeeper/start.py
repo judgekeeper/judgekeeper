@@ -635,7 +635,7 @@ def model_column(rows: list[dict], columns) -> tuple[str | None, bool]:
     return column, column is not None and mapper.names_models([row.get(column) for row in rows])
 
 
-def read_results_table(path: Path) -> RecordList:
+def read_results_table(path: Path, answers: bool = False) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
@@ -672,7 +672,7 @@ def read_results_table(path: Path) -> RecordList:
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdicts = verdicts or find.grade_columns(columns)
-    if not verdicts and find.answers_only(path):  # no grade: the person marks each
+    if not verdicts and answers and find.answers_only(path):  # no grade: the person marks each
         return _answers_only(rows, ids if own else None)
     if not verdicts or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and a verdict or score column; "
@@ -754,10 +754,12 @@ def usage_error(e: Exception, text: str | None = None) -> StartError:
                       getattr(e, "drop", None))
 
 
-def _read(result: find.Result) -> Loaded:
+def _read(result: find.Result, answers: bool = False) -> Loaded:
+    """`result` read; `answers`: a table with no grade is read as answers to mark
+    (read_results_table), not refused."""
     try:
         if result.tool == "table":
-            records = read_results_table(result.path)
+            records = read_results_table(result.path, answers)
         elif result.tool == "inspect":  # a sample that errored before it was scored, too
             records = read_inspect(result.path, with_errors=True)
         else:
@@ -770,12 +772,12 @@ def _read(result: find.Result) -> Loaded:
     return Loaded(result.rel, records)
 
 
-def _readable(talk: Talk, results: list[find.Result], root: Path):
+def _readable(talk: Talk, results: list[find.Result], root: Path, answers: bool = False):
     """Each of `results` read (_read), newest first; one that can't be read is said and
     left out."""
     for r in results:
         try:
-            yield _read(r)
+            yield _read(r, answers)
         except RecordsError as e:
             _note(talk, f"{_unread(e, r, root)} It is left out.")
 
@@ -2138,7 +2140,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                talk: Talk | None = None, prefer: str | None = None,
                tracking_uri: str | None = None, store: str | None = None,
                saved: settings.StartSettings | None = None,
-               only: list[str] | None = None) -> Found:
+               only: list[str] | None = None, answers: bool = False) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
@@ -2147,6 +2149,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     (the MLflow store of the last check) likewise. `tracking_uri` names the MLflow store.
     `saved` stands in for judgekeeper.toml's [start] table (a map not saved yet). `only`
     (paths in the project) keeps to those results files: the ones the marks were made on.
+    `answers`: a table with no grade is answers to mark (Found.graded False); else, as for
+    `check`, it is refused (read_results_table).
     """
     talk = talk or Talk(quiet=True)
     if saved is None and tool is None and tracking_uri is None:
@@ -2218,7 +2222,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             while first is None:  # a file that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
-                    first = _read(newest)
+                    first = _read(newest, answers)
                 except RecordsError as e:
                     if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None

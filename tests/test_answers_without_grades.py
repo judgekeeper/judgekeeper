@@ -61,7 +61,7 @@ def mark(here, marks: list[str]) -> start_label.StartSession:
 def test_a_file_with_input_and_output_only_is_read(here, kind):
     name = write_answers(here, 12, kind)
     assert find.classify_file(here / name) == "table"
-    found = start.find_judge(here / name)
+    found = start.find_judge(here / name, answers=True)
     assert found.graded is False
     assert len(found.pool.answers) == 12
     assert {a.verdict for a in found.pool.answers} == {None}
@@ -71,14 +71,14 @@ def test_a_file_with_input_and_output_only_is_read(here, kind):
 @pytest.mark.parametrize("kind", ["csv", "tsv", "jsonl"])
 def test_a_folder_search_finds_it_when_it_is_all_there_is(here, kind):
     write_answers(here, 12, kind)
-    found = start.find_judge(here)
+    found = start.find_judge(here, answers=True)
     assert found.graded is False and len(found.pool.answers) == 12
 
 
 def test_beside_results_with_grades_only_those_are_read(here):
     write_answers(here, 12, name="dataset")
     write_answers(here, 40, name="results", grades=["pass", "fail"] * 20)
-    found = start.find_judge(here)
+    found = start.find_judge(here, answers=True)
     assert found.graded is True
     assert [r.rel for r in found.results] == ["results.csv"]
 
@@ -110,7 +110,7 @@ def test_a_judge_column_by_another_name_is_not_answers_with_no_grade(here):
 
 def test_a_file_with_grades_is_read_as_before(here, capsys, pages):
     write_answers(here, 40, grades=["pass", "fail"] * 20)
-    found = start.find_judge(here / "results.csv")
+    found = start.find_judge(here / "results.csv", answers=True)
     assert found.graded is True and found.pool.n_pass == 20
     _, out, _ = run(capsys, "--no-browser")
     assert "Your LLM-as-a-judge passed 20 answers and failed 20." in flat(out)
@@ -597,7 +597,7 @@ def test_results_in_the_project_above_are_read_not_the_answers_here(here, monkey
     assert find.search(src).readable("table") == []
     assert find.results_above(src) == here
     monkeypatch.chdir(src)
-    found = start.find_judge(src)
+    found = start.find_judge(src, answers=True)
     assert found.graded is True
 
 
@@ -610,3 +610,50 @@ def test_answers_alone_never_make_a_folder_hold_results(here):
     src = here / "a" / "src"
     src.mkdir()
     assert find.results_above(src) is None
+
+
+GRADES_GONE = "results.csv needs input, output and a verdict or score column"
+
+
+def test_check_and_fix_stop_when_the_results_lost_their_grades(here, capsys, pages):
+    """Marks made on graded results, then the file has no grade column: `check` and `fix`
+    stop with what the file needs, never read it as an LLM-as-a-judge with no grades."""
+    write_answers(here, 40, grades=["pass", "fail"] * 20)
+    run(capsys, "--no-browser")
+    mark(here, ["pass", "fail"] * 15)
+    write_answers(here, 40)  # the verdict column is gone
+    code, out, err = run(capsys, "check")
+    assert code != 0 and GRADES_GONE in flat(out + err), out + err
+    assert "worse" not in out.lower()
+    code, out, err = run(capsys, "check", "results.csv")
+    assert code != 0 and GRADES_GONE in flat(out + err), out + err
+    code, out, err = run(capsys, "fix")
+    assert "didn't expect" not in out + err, out + err
+    assert "Traceback" not in out + err
+
+
+def test_check_and_fix_with_only_answers_with_no_grade_and_no_marks(here, capsys, pages):
+    write_answers(here, 12)
+    for command in ("check", "fix"):
+        code, out, err = run(capsys, command)
+        assert code != 0, out + err
+        assert "didn't expect" not in out + err and "Traceback" not in out + err
+
+
+@pytest.mark.parametrize("column", ["label", "human_label"])
+def test_labels_in_the_answers_file_stop_with_a_question_as_before(here, capsys, pages,
+                                                                     column):
+    """A table of input, output and the person's labels, with --labels on it: not answers to
+    mark (a labels column is never answers with no grade); as before, judgekeeper asks how
+    to read it and stops, with no traceback."""
+    with (here / "results.csv").open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["input", "output", column])
+        for i, r in enumerate(_rows(12)):
+            w.writerow([r["input"], r["output"], "fail" if i % 3 == 0 else "pass"])
+    assert not find.answers_only(here / "results.csv")
+    code, out, err = run(capsys, "--labels", "results.csv", "--no-browser")
+    assert code == 3, out + err
+    assert "format of its own" in flat(out) and "Mark each one Pass or Fail" not in out
+    assert "didn't expect" not in out + err
+    assert not no_grades.here(start_label.Workspace(here))
