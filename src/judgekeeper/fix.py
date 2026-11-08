@@ -1291,6 +1291,12 @@ def _sessions_below(path: str) -> tuple[str, str] | None:
 MAY_BE_IN = "Your LLM-as-a-judge's rule may be in"
 
 
+def _scorer(data: dict) -> str | None:
+    """The Inspect scorer the marks test, by its name (the metric before any `.key`)."""
+    metric = data.get("metric")
+    return metric.split(".", 1)[0] if isinstance(metric, str) else None
+
+
 def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     """Where the rule is, one answer per tool: the file and line that hold it; for Inspect,
     the file Find names too (start_fix_rule.opened_rule_file); else where the eval keeps it."""
@@ -1308,7 +1314,7 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
     if read and read != task:
         file_link = start_fix_rule.file_link
         return (f"{said} {file_link(ws.root, read)}, which {file_link(ws.root, task)} reads "
-                f"into {start_fix_rule.field(tool, data.get('rule_field'))}")
+                f"into {start_fix_rule.field(tool, data.get('rule_field'), _scorer(data))}")
     if start_fix_rule.rule_config(ws.root, tool, data):
         return f"{said} {home}"
     if home == start_fix_rule.OWN_CODE:
@@ -1989,7 +1995,7 @@ NEW_LOG_TOO = "new-2.eval"  # when the marks test new.eval itself: never the log
 # to ask before writing over it
 INSPECT_SCORE = "inspect score {log} --scorer {scorer}{rule} --action overwrite --overwrite"
 _SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a name `--scorer` takes: a function, or pkg/name
-INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")
+INSPECT_OWN = start_fix_rule.INSPECT_OWN
 # The new rule, by the option the log set it in: model_graded_qa reads a template from a file
 NEW_RULE = {"instructions": "<new rule>", "template": "<file with the new rule>"}
 NOW_RULE = {"instructions": "<current rule>", "template": "<file with the current rule>"}  # check
