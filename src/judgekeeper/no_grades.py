@@ -29,6 +29,8 @@ from judgekeeper.textio import loads, make_private, plural, write_replacing
 MIN_MARKS = 10  # marks for a first result
 COUNTS = "You passed {k} of {n}."  # the headline, the pop-up and the terminal
 REASONS_LINE = "Your reasons: {said}."
+# every answer marked, fewer than MIN_MARKS: the terminal's and the end card's Next line
+MORE_ANSWERS = "add more answers to {file} (at least {n} in all), then run `{command}` again."
 
 
 NO_JUDGE = "Your answers have no grades, so there is no LLM-as-a-judge to {what}."
@@ -286,15 +288,7 @@ def status(session, run: str | None = None) -> dict:
     """The marking page's status (start_label.start_status): before MIN_MARKS marks the usual
     line; from them the result is ready, its headline the counts. With every answer marked and
     no result yet, what the end card says."""
-    from judgekeeper.start_label import (
-        ALL_MARKED,
-        EVERY_MARKED,
-        NEXT_ALL_MARKED,
-        READY,
-        VERDICTS,
-        mark_command,
-        marks_words,
-    )
+    from judgekeeper.start_label import ALL_MARKED, EVERY_MARKED, READY, VERDICTS, marks_words
 
     marked = session.marked()
     n, k = len(marked), sum(m == "pass" for m in marked.values())
@@ -305,11 +299,34 @@ def status(session, run: str | None = None) -> dict:
             counts = session.counts()
             labels = {"correct": counts["correct"], "wrong": counts["wrong"]}
             done = [f"{ALL_MARKED.format(marks=marks_words(labels))} {VERDICTS[None]}",
-                    "Next: " + NEXT_ALL_MARKED.format(command=mark_command(run))]
+                    "Next: " + more_answers(session.workspace, run)]
             out.update(text=done[0], done=done)
         return out
     return {"text": EVERY_MARKED if every else READY, "first": True, "ready": True,
             "headline": counts_line(k, n)}
+
+
+def results_file(ws) -> str:
+    """The results file the marks are on, named from here (textio.line_path)."""
+    from judgekeeper.start import results_path
+    from judgekeeper.textio import line_path
+
+    data = ws.cached_data()
+    path = results_path(ws.root, data)
+    files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    if path.is_dir() and files:
+        path = path / files[0]
+    return line_path(path)
+
+
+def more_answers(ws, run: str | None = None) -> str:
+    """MORE_ANSWERS for the run that opened the page or made the marks (`run`), without the
+    page's own flags (start_label.mark_command's)."""
+    from judgekeeper.start_label import _PAGE_FLAGS
+    from judgekeeper.textio import program
+
+    command = _PAGE_FLAGS.sub("", run or program())
+    return MORE_ANSWERS.format(file=results_file(ws), n=MIN_MARKS, command=command)
 
 
 def toward(n: int) -> dict:

@@ -333,3 +333,20 @@ def test_labels_brought_with_labels_count_as_marks(here, capsys, pages):
     assert "File: results.csv" in said  # never the labels file
     assert "Added 11 marks from mylabels.csv (7 Pass, 4 Fail)." in said
     assert "You passed 7 of 11 answers." in said
+
+
+def test_every_answer_marked_under_ten_asks_for_more_answers(here, capsys, pages):
+    write_answers(here, 9)
+    run(capsys, "--no-browser")
+    page = mark(here, ["pass"] * 6 + ["fail"] * 3)
+    done = page.summary()["status"]["done"]
+    line = ("Next: add more answers to results.csv (at least 10 in all), then run "
+            "`judgekeeper` again.")
+    assert done[1] == line
+    code, out, _ = run(capsys, "--no-browser")
+    said = flat(out)
+    assert code == 3
+    assert ("You've marked every answer: 6 Pass, 3 Fail. Mark a few more answers to "
+            "see your result.") in said
+    assert line in said
+    assert "your eval" not in said
