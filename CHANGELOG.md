@@ -18,6 +18,13 @@
 - With your own CSV, TSV or JSONL file, `fix` and `check` now read `marked-answers.csv` back as it is, with a `verdict` column added. A file judgekeeper can't read now has its columns named in the error.
 - After `--labels`, the Next lines keep a `--label-map` saved by an earlier run, and keep `--labels`.
 - An MLflow experiment whose name looks like a secret stays hidden, and `fix` and `check` now find it.
+- The result page says the same as the terminal when every answer is marked and the LLM-as-a-judge gave one grade: a new answer marked the other way gives the result.
+- With every answer marked, Measure's Next line says to run your eval on more questions, as `fix` does.
+- "Too early to tell" no longer asks to narrow the ranges when no number has a range.
+- Answers that `--labels` marks in the same run are no longer called answers "you haven't seen".
+- For an Inspect AI scorer of your own, `fix` names that scorer where the rule goes, not `model_graded_qa(...)`.
+- `fix`'s long-answers clue says "usually" for the middle length, and names the answers it compares with.
+- A field named after a key, such as a promptfoo var, is now hidden on the marking page and in the files judgekeeper writes.
 
 ## 1.1.1 (2026-11-05)
 
