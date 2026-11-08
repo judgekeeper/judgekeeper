@@ -322,10 +322,13 @@ main p code, .notes-list code { font-size: .9em; color: var(--text);
   color: var(--muted); }
 /* the score: the three numbers side by side, big, then your two counts */
 .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-.cell { padding: 32px 32px 34px; text-align: center; display: flex; flex-direction: column;
-  align-items: center; gap: 10px; }
+/* each cell's label, number and small line are rows shared by the three cells (subgrid), so
+   the numbers sit on one line whatever their labels' length; a short label sits on its number */
+.cell { padding: 32px 32px 34px; text-align: center; display: grid; grid-row: span 3;
+  grid-template-rows: subgrid; justify-items: center; row-gap: 10px; }
 .cell + .cell { border-left: 1px solid var(--line); }
-.n-lab { font-size: 17px; line-height: 1.45; color: var(--muted); max-width: 30ch; }
+.n-lab { font-size: 17px; line-height: 1.45; color: var(--muted); max-width: 30ch;
+  align-self: end; }
 .n-val { font-family: var(--sans); font-weight: 700; font-size: 58px;
   font-variant-numeric: tabular-nums; line-height: 1.05; color: var(--text);
   letter-spacing: -.02em; }
@@ -1277,24 +1280,33 @@ def _score(r: dict, c: dict) -> str:
         est, between = estimate(r.get(key), r.get(f"{key}_interval"), why_for(r, key))
         if est.endswith(tail):
             est, exact = est.removesuffix(tail), True
+        est, why = _why_apart(est)
         cells.append((key, _term(f"When you say {said}, your LLM-as-a-judge also says {said}"),
-                      est, None if between == "–" else _e(between)))
+                      est, why if between == "–" else f"between {between}"))
     shown, lo, hi = kappa_shown(r)
     if shown.endswith(tail):
         shown, exact = shown.removesuffix(tail), True
+    shown, why = _why_apart(shown)
     tip = ('<span class="kappa">Kappa<button type="button" class="i" aria-describedby='
            '"kappa-tip" aria-expanded="false" aria-controls="kappa-tip" '
            'aria-label="What kappa means">ⓘ</button><span class="tip" '
            f'role="tooltip" id="kappa-tip">{_e(KAPPA_MEANS)}</span></span>')
-    cells.append(("kappa", tip, shown, f"{lo} and {hi}" if lo is not None else None))
+    cells.append(("kappa", tip, shown, f"between {lo} and {hi}" if lo is not None else why))
     body = "".join(f'<div class="cell c-{key}"><span class="n-lab">{name}</span>'
                    f'<span class="n-val">{_value(value)}</span>'
-                   + (f'<span class="n-rng">between {rng}</span>' if rng else "") + "</div>"
-                   for key, name, value, rng in cells)
+                   + (f'<span class="n-rng">{_e(under)}</span>' if under else "") + "</div>"
+                   for key, name, value, under in cells)
     return ('<section class="sec score" aria-labelledby="nums-h"><div class="sh">'
             f'<h2 id="nums-h">{_term(NUM_HEAD)}</h2></div>'
             f'<div class="nums">{body}</div>{_counts(r, c)}'
             + (f'<p class="foot">{_e(EXACT)}</p>' if exact else "") + "</section>")
+
+
+def _why_apart(text: str) -> tuple[str, str | None]:
+    """A number and why it has no range, apart: "100% (it gave every answer the same grade)"
+    is "100%" big and "it gave every answer the same grade" under it, where a range sits."""
+    m = re.fullmatch(r"(.+?) \((.+)\)", text)
+    return (m.group(1), m.group(2)) if m else (text, None)
 
 
 def _value(text: str) -> str:

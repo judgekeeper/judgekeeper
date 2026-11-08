@@ -59,7 +59,8 @@ def test_a_number_with_no_range_says_why_and_never_exactly():
     assert out["tnr_interval"] == [1.0, 1.0]
     r = _r((30, 900), (30, 25), out, left=875)
     page = _score(r)
-    assert '<span class="n-val">100% (you marked every answer it passed)</span>' in page
+    assert ('<span class="n-val">100%</span><span class="n-rng">you marked every answer it '
+            'passed</span>') in page
     assert start_label.side_sentence("tnr", 1.0, [1.0, 1.0], report_page.why_for(r, "tnr")) == (
         "You failed: your LLM-as-a-judge also failed 100% (you marked every answer it passed).")
     # in every place a number is shown

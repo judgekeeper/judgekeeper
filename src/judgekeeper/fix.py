@@ -1325,7 +1325,7 @@ def _rule_place(ws: Workspace, rule: str, tool: str, data: dict) -> str:
 
 
 def _rule_quote(rule: str) -> str:
-    text = " ".join(rule.split())
+    text = " ".join(scrub(rule).split())  # keys hidden before the cut
     if len(text) > RULE_SHOWN:
         text = text[:RULE_SHOWN - 1].rstrip() + "…"
     return f'"{text}"'

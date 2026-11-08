@@ -2077,6 +2077,7 @@ def rubric_line(prompt) -> str | None:
     text = rule_text(prompt)
     if text is None:
         return None
+    text = scrub(text)  # keys hidden before the cut: a key cut short is not known
     line = next(line.strip() for line in text.splitlines() if line.strip())
     line = re.sub(r"^1\.\s+", "", line)  # the first of numbered steps
     if len(line) <= RUBRIC_WIDTH:

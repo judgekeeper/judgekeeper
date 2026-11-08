@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from judgekeeper.redact import scrub
 from judgekeeper.textio import NOT_JSON, NOT_TEXT, jsonl_lines, lone_surrogate, read_utf8
 
 SIDE, JUDGE = "{side}", "{judge}"
@@ -272,7 +273,7 @@ def number(value) -> float | None:
 
 
 def _example(value) -> str:
-    text = json.dumps(value, ensure_ascii=False)
+    text = scrub(json.dumps(value, ensure_ascii=False))  # keys hidden before the cut
     return text[:EXAMPLE_WIDTH - 1] + "…" if len(text) > EXAMPLE_WIDTH else text
 
 
