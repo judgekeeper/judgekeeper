@@ -2943,6 +2943,9 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     if line:
         talk.para(line)
     talk.say()
+    report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
+    talk.say(f"Full report: {report} (open it in your browser)")
+    talk.say()
     opened = None
     if wait and r["left"] and not is_open(ws.dir):
         opened, _ = _open(talk, ws, wait, False)

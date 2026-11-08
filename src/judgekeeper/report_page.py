@@ -322,6 +322,7 @@ main p code, .notes-list code { font-size: .9em; color: var(--text);
   color: var(--muted); }
 /* the score: the three numbers side by side, big, then your two counts */
 .nums { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.nums.one { grid-template-columns: 1fr; }
 .cell { padding: 32px 32px 34px; text-align: center; display: flex; flex-direction: column;
   align-items: center; gap: 10px; }
 .cell + .cell { border-left: 1px solid var(--line); }
@@ -971,10 +972,12 @@ def _part(k: int, text: str, pressed: bool) -> str:
             f'<span class="t">{_e(text)}</span></button>')
 
 
-def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) -> str:
+def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
+         asked: list[str] | None = None) -> str:
     """The row foot and reason box of one disagreement on the live page (`left_out`: the
     rule's parts with no button): "Add a reason" (or "Change" and the reason saved), "Show
-    all" at the right; in the box, the everyday reasons first, then the rule's parts."""
+    all" at the right; in the box, the everyday reasons first (`asked`, when not those
+    reasons.offered gives for the judge's grade), then the rule's parts."""
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
     mark = "Fail" if m["final"] == "fail" else "Pass"
@@ -994,7 +997,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
            (f'<div class="box-h"><p class="q" id="q-{n}">{_e(reasons.QUESTION.format(mark=mark))}'
             '</p><span class="saved" aria-live="polite"></span></div>')]
     chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"', _reason_said(k, words))
-             for k in reasons.offered(m["judge"])]
+             for k in (reasons.offered(m["judge"]) if asked is None else asked)]
     chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"',
                     _reason_said(c["id"], words))
               for c in own if c.get("from") != m["id"]]
@@ -1022,13 +1025,14 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0) 
 
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
-           left_out: int = 0, same: tuple = (), reasons_given: bool = True) -> str:
+           left_out: int = 0, same: tuple = (), reasons_given: bool = True,
+           asked: list[str] | None = None) -> str:
     """One group of disagreements: its title, how many more are kept aside (`kept`), the
     table (its REASON column only when an answer marked has a reason: `reasons_given`), then
     "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show more" (SCRIPT) at the right; in report.html the person's
-    reasons, read-only."""
+    reasons, read-only. `asked`: the reason buttons, when not the judge's (_box)."""
     parts, own = parts or [], own or []
     words = {c["id"]: c["text"] for c in own}
     third = (('<col class="c3">', f'<th scope="col">{REASON}</th>') if reasons_given
@@ -1037,7 +1041,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
     for k, m in enumerate(rows):
         n = f"{key}-{k}"
         box = live and m.get("id") is not None
-        foot = (_box(m, n, parts, own, left_out) if box
+        foot = (_box(m, n, parts, own, left_out, asked) if box
                 else f'<p class="row-foot">{_said(m, parts, words)}{OPEN_ROW}</p>')
         extra = ' class="extra" hidden' if k >= ROWS_SHOWN else ""
         ht, question = _question(m, same)
@@ -1440,3 +1444,95 @@ def page(r: dict, back: str | None = None, fixing: dict | None = None,
     return (look.head("judgekeeper: your result", STYLE, meta)
             + look.top(left, "") + f'<main class="result">{body}'
             + f"</main>\n{scripts}</body>\n</html>\n")
+
+
+# Answers with no grade (no_grades) ----------------------------------------------------------
+
+FAILED = "Answers you failed"  # the one list, with no LLM-as-a-judge
+RATE_HEAD = "Your pass rate"
+RATE = "Of the answers you marked, you passed"
+SURER_MARK = "Mark more answers for a surer number."
+
+
+def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
+                   worse: str | None = None, last: dict | None = None,
+                   started_else: bool = False) -> str:
+    """The result page for answers with no grade (no_grades), from page()'s parts, nothing
+    about an LLM-as-a-judge: the counts as the headline, the pass rate with its Wilson range,
+    the person's counts, the answers they failed in `fixing["mistakes"]`'s order (no_grades.
+    section) with the reasons about the answer only (no_grades.offered), then What next.
+    Before MIN_MARKS marks, the usual line and the counts only. `worse` and `last` are never
+    given: there is no check."""
+    from judgekeeper import no_grades
+    from judgekeeper.start_label import _PAGE_FLAGS, ALL_MARKED, TO_A_RESULT, VERDICTS, marks_words
+
+    fixing = fixing or {}
+    labels = r["labels"]
+    k, n = labels["correct"], labels["correct"] + labels["wrong"]
+    live, left = back is not None, r.get("left")
+    cmd = commands(r)
+    mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
+    file = fixing.get("file") or "your results file"
+    more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
+        file=file, n=no_grades.MIN_MARKS, command=_PAGE_FLAGS.sub("", cmd["run"]))
+    cnts = (f'<div class="cnts"><p class="c-pass">{own_line("passed", k)}</p>'
+            f'<p class="c-fail">{own_line("failed", n - k)}</p></div>')
+    if r["check"] != "result":  # too few marks: as before a graded result
+        if left == 0:
+            lead = f"{_e(ALL_MARKED.format(marks=marks_words(labels)))} {_code_line(more)}"
+        elif live:
+            lead = f'<a href="{_e(back)}">{_e(TO_A_RESULT)}</a>'
+        else:
+            lead = f"Run {mark} to mark more answers."
+        body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
+                f'class="plain">{_e(VERDICTS[None])}</h1><p class="lead">{lead}</p></section>'
+                f'<section class="sec score" aria-label="Your marks">{cnts}</section>')
+    else:
+        head = _e(no_grades.COUNTS).format(k=f"<b>{k}</b>", n=f"<b>{n}</b> answer"
+                                           + ("" if n == 1 else "s"))
+        est, between = estimate(r["pass_rate"], r["pass_rate_interval"])
+        rng = f'<span class="n-rng">between {_e(between)}</span>' if between != "–" else ""
+        rows = fixing.get("mistakes") or []
+        names = tuple(x for x, _ in _same(rows))
+        lists = (_group("fail", FAILED, rows, 0, live, [], fixing.get("own") or [], 0, names,
+                        reasons_given=False, asked=no_grades.offered()) if rows else "")
+        if left:
+            act = (f'<p><a href="{_e(back)}">{_e(SURER_MARK)}</a></p>' if live else
+                   f"<p>{_e(SURER_MARK)} Run {mark} in your project folder.</p>")
+            then = ""
+        else:
+            act = f"<p>{_code_line(more)}</p>"
+            then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
+                    "it again.</p>" if live else
+                    f"<p>To change a mark, run {mark} in your project folder.</p>")
+        if started_else:
+            act += ('<p class="small">' + _e(STARTED_ELSE).replace(
+                "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
+        from judgekeeper.start_label import link_lines, quick_lines
+
+        notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
+        body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
+                f'class="plain">{head}</h1></section>'
+                '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'
+                f'<h2 id="nums-h">{_e(RATE_HEAD)}</h2></div><div class="nums one">'
+                f'<div class="cell c-rate"><span class="n-lab">{_e(RATE)}</span>'
+                f'<span class="n-val">{_value(est)}</span>{rng}</div></div>{cnts}</section>'
+                + lists +
+                '<section class="sec next-box" aria-labelledby="next-h"><div class="nx">'
+                '<div class="h-head"><h2 id="next-h">What next</h2></div><div class="nx-split">'
+                "<div class=\"a-lead\"><p>Your marks and reasons are saved in this project's "
+                "<code>.judgekeeper</code> folder. You can close this page.</p></div>"
+                f'<div class="a-act">{act}</div>'
+                + (f'<div class="a-more">{then}</div>' if then else "")
+                + f"</div></div>{_notes_html(notes)}</section>")
+    meta = f'<meta http-equiv="Content-Security-Policy" content="{script_csp(live)}">\n'
+    scripts = f"<script>{SCRIPT}</script>\n"
+    if live and 'class="why"' in body:
+        scripts += f"<script>{REASONS_SCRIPT}</script>\n"
+    from judgekeeper.front import tool_name
+
+    judge = r.get("judge") or {}
+    tool = tool_name(judge.get("tool"), judge.get("results_files"))
+    return (look.head("judgekeeper: your result", STYLE, meta)
+            + look.top(look.meta(None, _e(tool) if tool else None), "")
+            + f'<main class="result">{body}</main>\n{scripts}</body>\n</html>\n')

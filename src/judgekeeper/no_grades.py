@@ -179,9 +179,9 @@ def check_reason(ws, item_id: str, mark: str | None, body: dict, before: dict | 
     if mark != "fail" or not _result_shown(ws):
         raise ValueError(reasons.NOT_LISTED)
     saved = reasons.of_line(before)
-    body = {"reasons": saved["reasons"], "note": saved["note"], **body}
-    if body.get("rule_parts") or body.get("spans"):
-        raise ValueError("with no LLM-as-a-judge, a reason is a button or your own words")
+    body = {"reasons": saved["reasons"], "note": saved["note"], "spans": saved["spans"], **body}
+    if body.get("rule_parts"):  # no rule: no part of it
+        raise ValueError("rule_parts must be empty: there is no rule")
     got = body.get("reasons", [])
     if not isinstance(got, list) or not all(isinstance(r, str) for r in got) or \
             len(set(got)) != len(got):
@@ -204,6 +204,9 @@ def check_reason(ws, item_id: str, mark: str | None, body: dict, before: dict | 
             from judgekeeper.redact import scrub
 
             out["note"] = scrub(note.strip())
+    spans = reasons.checked_spans(ws, item_id, body.get("spans") or [])
+    if spans:
+        out["spans"] = spans
     return out
 
 
@@ -255,11 +258,74 @@ def digest(ws, session) -> str:
     return hashlib.sha256(json.dumps([marked, rows]).encode("utf-8")).hexdigest()
 
 
-def store(ws, session, flags: dict | None = None) -> dict:
-    """The result from the marks so far, saved in result.json (the last one copied to
-    history/); the same result when nothing changed since."""
+def made(ws, session, flags: dict | None = None) -> dict:
+    """The result from the marks so far with the flags of the run (start.run_flags), not
+    saved."""
     from judgekeeper.start import kept_command, saved_flags
-    from judgekeeper.start_label import _scrubbed, _write_json
+
+    r = compute(ws, session)
+    flags = saved_flags(flags)
+    r.update(command=kept_command(flags), flags=flags, marks_sha256=digest(ws, session),
+             marked=[list(x) for x in sorted(session.marked().items())])
+    return r
+
+
+def section(ws, r: dict, session=None) -> dict | None:
+    """What the result page lists for the result `r`: the answers the person failed in its
+    order (r["fails"]), each as fix.report_section gives a mistake (no LLM-as-a-judge grade
+    or reason), the person's own buttons and the results file. None before a result."""
+    from judgekeeper.start_label import StartSession, shown_question
+
+    if r.get("check") != "result":
+        return None
+    session = session or StartSession(ws)
+    m = marks.read(ws.marks) if ws.marks.is_file() else None
+    rows = []
+    for i in r.get("fails") or []:
+        item, raw = session.by_id.get(i), session.raw.get(i)
+        if not item or item["label"] != "fail" or raw is None:
+            continue
+        out = str(raw.get("output", "")).strip()
+        shown = shown_question(ws, raw.get("input"), raw.get("output"))
+        fields = None
+        if isinstance(shown, list):  # named values: those that are not the answer itself
+            kept = [[k, v] for k, v in shown if v.strip() != out]
+            shown = kept[0][1] if len(kept) == 1 else "\n".join(f"{k}: {v}" for k, v in kept)
+            fields = kept if len(kept) > 1 else None
+        why = reasons.of_line(m.last.get(i) if m else None)
+        rows.append({"id": i, "judge": None, "final": "fail", "question": shown,
+                     "fields": fields, "answer": reasons.canonical(raw.get("output")),
+                     "reason": "", "why": {"reasons": why["reasons"], "note": why["note"],
+                                           "rule_parts": [], "spans": why["spans"]}})
+    return {"mistakes": rows, "own": reasons.own_chips(ws), "file": results_file(ws)}
+
+
+def draw(ws, r: dict, session=None) -> None:
+    """report.html for the result `r`."""
+    from judgekeeper.start_label import _fixing, _scrubbed, result_html
+
+    write_replacing(ws.report_html, result_html(_scrubbed(r), fixing=_fixing(ws, r, session)))
+
+
+def redraw(ws) -> None:
+    """After a reason was given or taken back: the result made again (the list's order and
+    the reasons count follow it) and report.html drawn again; nothing before a result."""
+    from judgekeeper.start_label import StartSession
+
+    try:
+        saved = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(saved, dict) or saved.get("graded") is not False:
+        return
+    session = StartSession(ws)
+    draw(ws, store(ws, session, saved.get("flags"), drawn=False), session)
+
+
+def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
+    """The result from the marks so far, saved in result.json (the last one copied to
+    history/) after its report.html (`drawn`); the same result when nothing changed since."""
+    from judgekeeper.start_label import _same_time, _scrubbed, _write_json
 
     d = digest(ws, session)
     try:
@@ -268,10 +334,11 @@ def store(ws, session, flags: dict | None = None) -> dict:
         saved = None
     if isinstance(saved, dict) and saved.get("marks_sha256") == d and saved.get("graded") is False:
         return saved
-    r = compute(ws, session)
-    flags = saved_flags(flags)
-    r.update(command=kept_command(flags), flags=flags, marks_sha256=d)
-    if isinstance(saved, dict):  # the last result: kept in history/
+    r = made(ws, session, flags)
+    if drawn:
+        draw(ws, r, session)
+    # the last result, kept in history/ when the marks changed (not a reason only)
+    if isinstance(saved, dict) and saved.get("marked") != r["marked"]:
         make_private(ws.history)
         stamp = re.sub(r"[^0-9A-Za-z-]", "", str(saved.get("made_at") or "").replace(":", "-"))
         stamp = stamp[:32] or utc_now().replace(":", "-")
@@ -283,6 +350,8 @@ def store(ws, session, flags: dict | None = None) -> dict:
         if os.path.dirname(os.path.abspath(target)) == os.path.abspath(ws.history):
             write_replacing(target, ws.result_json.read_text(encoding="utf-8"))
     _write_json(ws.result_json, _scrubbed(r))
+    if drawn:
+        _same_time(ws.report_html, ws.result_json)
     return r
 
 

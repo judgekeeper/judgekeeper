@@ -1514,8 +1514,10 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
     hidden character (redact.visible). Without `back` it is report.html, a file people share:
     its commands name the program plainly (textio.plainly), the next step's too."""
     from judgekeeper import textio
-    from judgekeeper.report_page import page
+    from judgekeeper.report_page import no_grades_page, page
 
+    if r.get("graded") is False:
+        page = no_grades_page  # answers with no grade: their own page
     if back is not None:
         return visible(page(r, back, fixing, worse, last))
     typed = textio.program()
@@ -1526,20 +1528,24 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
         return visible(page(r, back, fixing, worse, last, started_else=typed != plain))
 
 
-def _fixing(ws: Workspace, r: dict) -> dict | None:
+def _fixing(ws: Workspace, r: dict, session: StartSession | None = None) -> dict | None:
     """The disagreements the page for the result `r` lists, after the hidden marks are set
     aside (fix.prepare_split): no mistake is shown from a mark that a later test hides. Once
     one is shown, a mark changed later is stamped (reasons.saw_grades). None while the page
-    lists none. The answers' ids stay as they are: the page posts them."""
-    from judgekeeper import fix
+    lists none. The answers' ids stay as they are: the page posts them. With no grade, the
+    answers failed (no_grades.section; `session`: the marks, when the caller has them)."""
+    from judgekeeper import fix, no_grades
     from judgekeeper.report_page import shows_disagreements
 
-    if not shows_disagreements(r):
+    if r.get("graded") is False:
+        section = no_grades.section(ws, r, session)
+    elif not shows_disagreements(r):
         return None
-    section = fix.prepared_section(ws)
+    else:
+        section = fix.prepared_section(ws)
     if not section:
         return None
-    if section["mistakes"]:
+    if section["mistakes"] and r.get("graded") is not False:
         reasons.saw_grades(ws)
     ids = [m["id"] for m in section["mistakes"]]
     section = _scrubbed(section)
@@ -1602,7 +1608,12 @@ def _last_check(ws: Workspace, worse: str | None) -> dict | None:
 
 def write_report(ws: Workspace, worse: str | None = None) -> None:
     """report.html again from the saved result (made again first when it was worked out
-    another way: recompute_old); nothing when there is no result yet."""
+    another way: recompute_old); nothing when there is no result yet. With no grade, the result
+    is made again first (no_grades.redraw)."""
+    from judgekeeper import no_grades
+
+    if no_grades.here(ws):
+        return no_grades.redraw(ws)
     if recompute_old(ws, worse=worse):
         return
     try:
@@ -1622,6 +1633,20 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     disagreement listed: the hidden marks can't be set aside first. Before there is a result,
     nothing is written, as in the terminal: the page shows the numbers so far. A saved result
     is written again (a mark taken back since), so no file keeps the old one."""
+    from judgekeeper import no_grades
+
+    if no_grades.here(ws):
+        ready = (len(session.marked()) >= no_grades.MIN_MARKS or ws.result_json.is_file())
+        try:
+            r = (no_grades.store(ws, session, flags) if ready
+                 else no_grades.made(ws, session, flags))
+        except OSError:
+            r = no_grades.made(ws, session, flags)
+        try:
+            fixing = _fixing(ws, r, session)
+        except OSError:
+            fixing = None
+        return result_html(_scrubbed(r), back, fixing=fixing)
     ready = (has_result(batches.counted_strata(ws.data(), batches.graded(ws.data(),
                                                                            session.marked())))
              or ws.result_json.is_file())
@@ -1996,7 +2021,15 @@ def repair(ws: Workspace) -> None:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if not isinstance(r, dict) or "labels" not in r or r.get("graded") is False:
+    if not isinstance(r, dict) or "labels" not in r:
+        return
+    if r.get("graded") is False:  # answers with no grade: no history line
+        try:
+            if (not ws.report_html.is_file()
+                    or ws.result_json.stat().st_mtime_ns > ws.report_html.stat().st_mtime_ns):
+                write_report(ws)
+        except (OSError, marks.MarksError):
+            pass
         return
     try:
         stale = (not ws.report_html.is_file()

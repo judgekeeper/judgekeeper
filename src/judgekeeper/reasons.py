@@ -367,7 +367,15 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     if parts:
         out["rule_parts"] = sorted(parts)
         out["rule_hash"] = rule_hash(data.get("rule"))
-    spans = body.get("spans") or []
+    spans = checked_spans(ws, item_id, body.get("spans") or [])
+    if spans:
+        out["spans"] = spans
+    return out
+
+
+def checked_spans(ws, item_id: str, spans) -> list[list[int]]:
+    """The words the person marked in the answer (`spans`), checked: at most MAX_SPANS
+    [start, end] pairs inside it; a ValueError otherwise."""
     length = len(canonical(_output(ws, item_id)))
     if not isinstance(spans, list) or len(spans) > MAX_SPANS or not all(
             isinstance(s, list) and len(s) == 2
@@ -375,9 +383,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
             and 0 <= s[0] < s[1] <= length for s in spans):
         raise ValueError(f"spans must be at most {MAX_SPANS} [start, end] pairs inside the "
                          "answer")
-    if spans:
-        out["spans"] = [list(s) for s in spans]
-    return out
+    return [list(s) for s in spans]
 
 
 def _output(ws, item_id: str) -> str:

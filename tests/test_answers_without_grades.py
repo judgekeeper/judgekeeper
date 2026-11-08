@@ -371,3 +371,148 @@ def test_answers_left_after_a_result_say_mark_more(here, capsys, pages):
     mark(here, ["pass"] * 6 + ["fail"] * 4)
     _, out, _ = run(capsys, "--no-browser")
     assert "Next: run `judgekeeper mark --no-browser` to mark more answers." in flat(out)
+
+
+# The result page --------------------------------------------------------------------------
+
+BACK = "/?token=t"
+
+
+def _live(here, page=None) -> str:
+    ws = start_label.Workspace(here)
+    return start_label.live_result(ws, page or _session(here), back=BACK)
+
+
+def _report(here) -> str:
+    return start_label.Workspace(here).report_html.read_text(encoding="utf-8")
+
+
+def _row_ids(html: str) -> list[str]:
+    import re
+
+    return re.findall(r'<div class="why" data-id="([^"]+)"', html)
+
+
+def _chips(html: str, item_id: str) -> list[str]:
+    import re
+
+    box = html.split(f'data-id="{item_id}"', 1)[1].split('<div class="why" ', 1)[0]
+    return re.findall(r'data-reason="([^"]+)"', box)
+
+
+def _seen(html: str) -> str:
+    """The page as a person reads it: no style or script, no tags."""
+    import re
+
+    html = re.sub(r"<(style|script)\b.*?</\1>", "", html, flags=re.DOTALL)
+    return re.sub(r"<[^>]+>", " ", html)
+
+
+JUDGE_WORDS = ("LLM-as-a-judge", "Kappa", "kappa", "When you say", "kept aside",
+               "judgekeeper fix", "Its reason", "rule part")
+
+
+def test_the_result_page_says_the_counts_and_the_range(here, capsys, pages):
+    write_answers(here, 12)
+    run(capsys, "--no-browser")
+    mark(here, ["pass"] * 6 + ["fail"] * 4)
+    _, out, _ = run(capsys, "--no-browser")
+    assert "Full report: .judgekeeper/report.html (open it in your browser)" in flat(out)
+    for html in (_report(here), _live(here)):
+        assert ('<h1 id="verdict-h" class="plain">You passed <b>6</b> of <b>10</b> answers.'
+                "</h1>") in html
+        assert "about </span>60%" in html and "between 31% and 83%" in html
+        assert "Answers you failed" in html
+        for word in JUDGE_WORDS:
+            assert word not in _seen(html), word
+
+
+def test_thirty_of_thirty_shows_the_range_on_the_page(here, capsys, pages):
+    write_answers(here, 30)
+    run(capsys, "--no-browser")
+    mark(here, ["pass"] * 18 + ["fail"] * 12)
+    run(capsys, "--no-browser")
+    html = _report(here)
+    assert "between 42% and 75%" in html
+    assert "every answer, so" not in html  # no "exact" note
+
+
+def test_the_page_lists_only_the_fails_in_reason_order(here, capsys, pages):
+    page = _with_result(here, capsys, ["fail", "pass"] * 5)
+    fails = [i["id"] for i in page.items if i["label"] == "fail"]
+    page.update({"id": fails[3], "reasons": ["wrong_fact"]})
+    page.update({"id": fails[1], "reasons": ["wrong_fact"]})
+    page.update({"id": fails[4], "reasons": ["left_out"]})
+    html = _live(here, page)
+    assert _row_ids(html) == [fails[1], fails[3], fails[4], fails[0], fails[2]]
+    assert html.count('class="add-reason sbtn"') == 5
+    r = json.loads(start_label.Workspace(here).result_json.read_text(encoding="utf-8"))
+    assert r["fails"] == _row_ids(html)
+
+
+def test_the_page_offers_only_the_reasons_about_the_answer(here, capsys, pages):
+    page = _with_result(here, capsys, ["fail", "pass"] * 5)
+    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    page.update({"id": fail, "note": "too long"})  # makes the person's own button
+    html = _live(here, page)
+    other = next(i for i in _row_ids(html) if i != fail)
+    chips = _chips(html, other)
+    assert chips[:6] == no_grades.offered()
+    assert len(chips) == 7 and chips[6] not in reasons.REASONS  # the person's own
+    assert "Other…" in html
+    for hidden in ("worded_differently", "small_slips", "short_ok", "not_asked",
+                   "rule_silent"):
+        assert f'data-reason="{hidden}"' not in html
+
+
+def test_marked_words_are_kept_on_a_fail(here, capsys, pages):
+    page = _with_result(here, capsys, ["fail", "pass"] * 5)
+    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    page.update({"id": fail, "spans": [[0, 4]]})
+    with pytest.raises(ValueError):
+        page.update({"id": fail, "rule_parts": [1]})
+    assert '<b class="hl">This</b>' in _live(here, _session(here))
+
+
+def test_what_next_with_answers_left_links_back_to_marking(here, capsys, pages):
+    _with_result(here, capsys, ["pass"] * 6 + ["fail"] * 4)
+    html = _live(here)
+    assert f'<a href="{BACK}">Mark more answers for a surer number.</a>' in html
+    assert "saved in this project's <code>.judgekeeper</code> folder" in html
+    report = _report(here)
+    assert "Mark more answers for a surer number." in report and BACK not in report
+    assert "Run judgekeeper mark" in " ".join(_seen(report).split())
+
+
+def test_what_next_with_every_answer_marked(here, capsys, pages):
+    _with_result(here, capsys, ["pass"] * 8 + ["fail"] * 4)
+    html = _live(here)
+    assert "Mark more answers for a surer number." not in html
+    assert ("Add more answers to results.csv for a surer number, then run judgekeeper "
+            "again.") in " ".join(_seen(html).split())
+    assert f'<a href="{BACK}">Change a mark</a>' in html
+
+
+def test_under_ten_the_page_asks_for_more_marks(here, capsys, pages):
+    write_answers(here, 12)
+    run(capsys, "--no-browser")
+    page = mark(here, ["pass"] * 5 + ["fail"] * 4)
+    html = _live(here, page)
+    assert start_label.VERDICTS[None] in html
+    assert "You passed <b>" not in html and "Answers you failed" not in html
+    assert not start_label.Workspace(here).result_json.exists()
+    for word in JUDGE_WORDS:
+        assert word not in _seen(html), word
+
+
+def test_a_reason_makes_no_copy_in_history(here, capsys, pages):
+    page = _with_result(here, capsys, ["fail", "pass"] * 5)
+    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    page.update({"id": fail, "reasons": ["wrong_fact"]})
+    ws = start_label.Workspace(here)
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert r["reasons"] == [["It has a wrong fact", 1]]
+    assert not ws.history.exists() or not list(ws.history.glob("result-*.json"))
+    page.update({"id": fail, "label": "pass", "seconds": 3})  # a mark changed: kept
+    start_label.live_result(ws, _session(here), back=BACK)
+    assert len(list(ws.history.glob("result-*.json"))) == 1
