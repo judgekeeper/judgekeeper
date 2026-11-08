@@ -113,6 +113,7 @@ def test_report_html_says_nothing_more_when_started_as_judgekeeper(ours, monkeyp
     assert STARTED_ELSE not in _report(capsys, Path.cwd())
 
 
+@pytest.mark.version_number  # a beta is named as uvx judgekeeper@<version>
 def test_report_html_says_nothing_more_when_started_by_uvx(ours, monkeypatch, capsys):
     monkeypatch.setattr(textio, "started_by_uvx", lambda: True)
     monkeypatch.setattr(textio, "extras_here", lambda: ())
