@@ -496,6 +496,14 @@ def _read_labels(talk: FrontTalk, found: start.Found, path: Path | None) -> None
         raise _labels_stop(talk, e) from None
 
 
+def _unmarked_newest(ws: Workspace, session: StartSession) -> int:
+    """How many answers of the newest batch have no mark: those --labels did not mark."""
+    batch = batches.of(ws.data())
+    newest = max(batch.values(), default=1)
+    marked = session.marked()
+    return sum(b == newest and i not in marked for i, b in batch.items())
+
+
 def _import_labels(talk: FrontTalk, ws: Workspace, found: start.Found, first: bool) -> None:
     """The labels read (_read_labels) as marks, once the pool is ready: said under Find."""
     if talk.labels_read is None:
@@ -2172,7 +2180,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     if regraded:  # the grades the numbers use are not the ones read: which, and the check
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
         head.append(_regraded_line(talk, ws, found, regraded))
-    added, took = 0, None
+    added, took, added_at = 0, None, None
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
@@ -2202,6 +2210,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
             head.append(_regraded_line(talk, ws, found, grades))
         then = _waiting(talk, ws, found, head, bool(changed))
     elif added:
+        added_at = len(head)
         head.append(batches.added_line(added))
         if talk.labels is None and (n := _new_labels(ws, found)):  # later runs say no Find
             head.append(labels_mod.found_line(n, talk.command("--labels")))
@@ -2219,6 +2228,12 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)
+    if added_at is not None:  # --labels may have marked some of them just now
+        unseen = _unmarked_newest(ws, session)
+        if not unseen:
+            del head[added_at]
+        elif unseen != added:
+            head[added_at] = batches.added_line(unseen)
     if unreadable := marks.unreadable_line(marks.read(ws.marks)):
         head.append(unreadable)
     if lost := start_label.lost_marks_line(ws):
