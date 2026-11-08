@@ -394,7 +394,7 @@ def test_the_fix_and_re_check_screens_are_the_committed_files():
     assert shown and (f"made {shown[1]} mistakes on the {used} marks used here. The other "
                       f"{hidden} marks are kept aside to test a new rule. In {shown[2]},") in screen
     assert f"In the other {shown[3]}, it said Fail" in screen
-    words = re.search(r"\(about \d+ words, while the others average \d+\)", mistakes)
+    words = re.search(r"\(usually about \d+ words, while answers you both \w+ have about \d+\)", mistakes)
     assert words and words[0] in screen
     marks = measured["marks"]
     assert len(split_["hidden"]) + len(split_["visible"]) == marks == len(marked.splitlines()) - 1

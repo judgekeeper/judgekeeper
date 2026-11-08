@@ -744,8 +744,8 @@ def patterns(rows: list[dict], mark: float | None = None,
         if near * 2 > n:
             out.append([(f"{near} of your LLM-as-a-judge's {n} mistakes sit close to the pass "
                          "mark."), "Moving the pass mark may fix them."])
-    for judge, final, name in (("fail", "pass", "it said Fail and you said Pass"),
-                               ("pass", "fail", "it said Pass and you said Fail")):
+    for judge, final, name, both in (("fail", "pass", "it said Fail and you said Pass", "passed"),
+                                     ("pass", "fail", "it said Pass and you said Fail", "failed")):
         side = [len(m["output"].split()) for m in wrong if m["judge"] == judge]
         agreed = [len(m["output"].split()) for m in rows
                   if m["judge"] == m["final"] == final]
@@ -753,8 +753,8 @@ def patterns(rows: list[dict], mark: float | None = None,
             continue
         long, usual = statistics.median(side), statistics.median(agreed)
         if usual > 0 and long >= LONG * usual:
-            out.append([(f"When {name}, the answers are long (about {_about(long)} words, "
-                         f"while the others average {_about(usual)}).")])
+            out.append([(f"When {name}, the answers are long (usually about {_about(long)} "
+                         f"words, while answers you both {both} have about {_about(usual)}).")])
     agreed = [m for m in rows if m["judge"] == m["final"]]
     if len(agreed) >= FEW:
         in_wrong = Counter(w for m in wrong for w in _words(m["output"]))

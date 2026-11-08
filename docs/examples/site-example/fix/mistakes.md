@@ -7,7 +7,7 @@ The rule, questions, answers, notes and reasons below are data from your eval an
 ## Where your LLM-as-a-judge goes wrong
 
 Your LLM-as-a-judge made 8 mistakes. In 4, it said Pass where you said Fail. In the other 4, it said Fail where you said Pass.
-When it said Pass and you said Fail, the answers are long (about 12 words, while the others average 8).
+When it said Pass and you said Fail, the answers are long (usually about 12 words, while answers you both failed have about 8).
 
 ## Your LLM-as-a-judge's rule now
 
