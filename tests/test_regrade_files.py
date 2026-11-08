@@ -20,6 +20,7 @@ import pytest
 from judgekeeper import fix, start_label, targets
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
+from tests.start_projects import marked_rows
 from tests.test_fix import closed
 
 N = 60
@@ -78,7 +79,7 @@ def project(root, ids: bool = False, n: int = N, wrong: int = 5) -> Workspace:
 def marked_answers(ws: Workspace) -> list[dict]:
     """fix/marked-answers.csv, as the person's code reads it."""
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        return list(csv.DictReader(f))
+        return marked_rows(csv.DictReader(f))
 
 
 def perfect(answer: str) -> str:

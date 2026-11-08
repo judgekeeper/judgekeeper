@@ -11,7 +11,7 @@ import pytest
 from judgekeeper import marks
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
-from tests.start_projects import table_project
+from tests.start_projects import marked_rows, table_project
 from tests.test_front import assert_one_next_at_the_end
 
 
@@ -38,7 +38,7 @@ def _regraded(here, as_marked: bool) -> None:
            for line in ws.pool.read_text(encoding="utf-8").splitlines()}
     marked = marks.read(ws.marks).counted()
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(csv.DictReader(f))
     with (here / "new.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict"])

@@ -1470,9 +1470,11 @@ def more_marks_line(ws: Workspace) -> str:
 
 
 def write_answers(ws: Workspace, m: Marks) -> int:
-    """fix/marked-answers.csv: every marked answer, `question,answer` only, shuffled, each
+    """fix/marked-answers.csv: every marked answer, question and answer only, shuffled, each
     once; cells guarded as a spreadsheet would run them (table.guard_cell). No mark, grade or
-    id: the answers kept aside can't be told from the others. How many rows it holds."""
+    id: the answers kept aside can't be told from the others. A table's file has the table's
+    own question and answer columns (table_columns), so it goes back to `fix` as it is with a
+    grade column added; any other tool's, `question,answer`. How many rows it holds."""
     rows = list(dict.fromkeys((question_text((r := m.rows.get(i, {})).get("input"),
                                              r.get("output")),
                                answer_text(r.get("output")))
@@ -1480,7 +1482,8 @@ def write_answers(ws: Workspace, m: Marks) -> int:
     random.SystemRandom().shuffle(rows)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(ANSWER_COLUMNS)
+    header = (table_columns(ws)[:2] if m.data.get("tool") == "table" else ANSWER_COLUMNS)
+    w.writerow([_csv_cell(m, scrub(name)) for name in header])
     for question, answer in rows:
         w.writerow([_csv_cell(m, question), _csv_cell(m, answer)])
     path = _folder(ws) / ANSWERS

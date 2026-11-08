@@ -13,6 +13,7 @@ import pytest
 
 from judgekeeper import fix
 from judgekeeper.start_label import Workspace
+from tests.start_projects import marked_rows
 from tests.test_project_folder_commands import USER, _commands, _program_in, _run, _started, home
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32",
@@ -48,7 +49,7 @@ def _new_results(proj: Path) -> None:
     import csv
 
     with (proj / ".judgekeeper" / "fix" / "marked-answers.csv").open(encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(csv.DictReader(f))
     with (proj / "new.csv").open("w", encoding="utf-8", newline="") as f:
         out = csv.writer(f)
         out.writerow(["input", "output", "verdict"])

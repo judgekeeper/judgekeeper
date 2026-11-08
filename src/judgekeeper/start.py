@@ -1402,6 +1402,28 @@ def reads_in(folder: Path) -> Path:
     return root
 
 
+ITS_COLUMNS = ". Its columns are {names}"  # a table judgekeeper can't read: what it holds
+MOST_COLUMNS = 8  # columns named; more are counted
+
+
+def _its_columns(path: Path) -> str:
+    """ITS_COLUMNS for a CSV, TSV or JSONL file whose first line names columns, else "": the
+    names as written (keys hidden, on one line), the first MOST_COLUMNS of them."""
+    if path.suffix.lower() not in find.TABLE_SUFFIXES:
+        return ""
+    try:
+        names = [scrub(one_line(n)) for n in find.table_columns(path) if str(n).strip()]
+    except (OSError, ValueError):
+        return ""
+    if not names:
+        return ""
+    shown = names[:MOST_COLUMNS]
+    if len(names) > MOST_COLUMNS:
+        shown.append(f"{len(names) - MOST_COLUMNS} more")
+    said = shown[0] if len(shown) == 1 else ", ".join(shown[:-1]) + " and " + shown[-1]
+    return ITS_COLUMNS.format(names=said)
+
+
 def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
     """(project folder, tool, its readable results newest first, tool signs)."""
     if not path.exists():
@@ -1425,7 +1447,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         if kind is None:
             raise StartError(f"{path.name} is not a results file judgekeeper can read "
                              "(promptfoo, DeepEval, Inspect AI, an MLflow store, or a table "
-                             "with input, output and a verdict or score column)")
+                             "with input, output and a verdict or score column)"
+                             + _its_columns(path))
         path = path.resolve()
         return path.parent, kind, [find.Result(kind, path, path.name, path.stat().st_size)], {}
     root = path.resolve()

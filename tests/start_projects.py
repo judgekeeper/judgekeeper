@@ -334,3 +334,10 @@ def unwrapped(html: str) -> str:
     import re
 
     return re.sub(r'<span class="cw">([^<]*)</span>', r"\1", html)
+
+
+def marked_rows(reader) -> list[dict]:
+    """fix/marked-answers.csv's rows as {"question", "answer"}: a table's file has the table's
+    own columns (input and output here), any other tool's question and answer."""
+    return [{"question": r.get("question", r.get("input")),
+             "answer": r.get("answer", r.get("output"))} for r in reader]
