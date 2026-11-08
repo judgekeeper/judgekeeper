@@ -126,6 +126,7 @@ class Search:
     bad_tables: list[tuple[str, str, Path, int]] = field(default_factory=list)
     # (path, size): answers with no grade (is_answers_table), read only when nothing else is
     answers_only: list[tuple[Path, int]] = field(default_factory=list)
+    answers_read: bool = False  # those answers are the results: nothing else is anywhere
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -771,10 +772,10 @@ def search(root: str | Path) -> Search:
     except _Stop:
         pass
     bad = walk.search.bad_tables
-    if not bad and not any(walk.search.results.values()) and not walk.search.signs.get(
-            "promptfoo"):  # answers with no grade: only when no LLM-as-a-judge results are here
+    if walk.search.answers_only and _answers_alone(walk.search, root):
         for path, size in walk.search.answers_only:
             walk.add("table", path, size)
+        walk.search.answers_read = True
     if bad and not any(walk.search.results.values()):  # all there is: read, so it is named
         for _, _, path, size in bad:
             walk.add("table", path, size)
@@ -790,6 +791,36 @@ def search(root: str | Path) -> Search:
         _look_deeper(walk)
         _look_above(walk)
     return walk.search
+
+
+def _answers_alone(found: Search, root: Path) -> bool:
+    """Whether answers with no grade are all `root` has: no results or table that can't be
+    read, no sign of any eval tool, nothing in a format of its own (own_format.search), no
+    results in a project below or above, no records above. A file of questions and answers
+    never takes the place of an LLM-as-a-judge's results."""
+    from judgekeeper import own_format
+
+    return (not found.bad_tables and not any(found.results.values())
+            and not any(found.signs.values()) and not _own_results(own_format.search(root))
+            and not nested_results(found) and results_above(root) is None
+            and records_above(root) is None)
+
+
+def _own_results(own) -> bool:
+    """Whether own_format.search found results in a format of its own: a table with a label
+    column is a person's labels (--labels), not an LLM-as-a-judge's."""
+    if own is None:
+        return False
+    if own.path.suffix.lower() in TABLE_SUFFIXES:
+        return not set(LABEL_COLUMNS) & set(table_columns(own.path))
+    return True
+
+
+def holds_results(found: Search) -> bool:
+    """Whether a search found results judgekeeper reads (or too big to read), answers with no
+    grade not counted."""
+    return not found.answers_read and (any(found.readable(t) for t in TOOLS)
+                                       or bool(found.too_big()))
 
 
 LINK = "a link: judgekeeper doesn't follow links"
@@ -823,8 +854,7 @@ def nested_results(found: Search) -> list[str]:
     reads, by their path from it."""
     out = []
     for folder in found.nested:
-        inner = search(folder)
-        if any(inner.readable(t) for t in TOOLS) or inner.too_big():
+        if holds_results(search(folder)):
             out.append(folder.relative_to(found.root).as_posix())
     return out
 
@@ -892,8 +922,7 @@ def results_above(root: Path) -> Path | None:
     up = project_folder(root)
     if up is None:
         return None
-    found = search(up)
-    return up if any(found.readable(t) for t in TOOLS) or found.too_big() else None
+    return up if holds_results(search(up)) else None
 
 
 def _look_above(walk: _Walk) -> None:

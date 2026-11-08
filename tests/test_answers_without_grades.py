@@ -547,3 +547,66 @@ def test_the_page_with_grades_keeps_its_style(here, capsys, pages):
     assert ".nums.one" not in report_page.STYLE
     _with_result(here, capsys, ["pass"] * 6 + ["fail"] * 4)
     assert ".nums.one" in _report(here)
+
+
+# A file with no grades never takes the place of LLM-as-a-judge results ----------------------
+
+def _own_format(folder):
+    lines = [json.dumps({"id": f"r{i}", "input": f"Q{i}?", "output": f"A{i}",
+                         "scores": {"helpful": {"verdict": "pass" if i % 3 else "fail"}}})
+             for i in range(40)]
+    (folder / "evals.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_own_format_results_beside_answers_with_no_grade_are_read(here, capsys, pages):
+    _own_format(here)
+    _, alone, _ = run(capsys, "--no-browser")
+    write_answers(here, 12, name="dataset")
+    assert find.search(here).readable("table") == []
+    _, out, _ = run(capsys, "--no-browser")
+    assert out == alone  # as with no answers file beside it
+    assert "format of its own" in flat(out) and "dataset.csv" not in out
+
+
+def test_a_deepeval_project_with_no_run_gives_the_deepeval_steps(here, capsys, pages):
+    (here / "requirements.txt").write_text("deepeval\n", encoding="utf-8")
+    write_answers(here, 12, name="dataset")
+    assert find.search(here).readable("table") == []
+    _, out, _ = run(capsys, "--no-browser")
+    assert "DeepEval saves results only when" in flat(out)
+    assert "Mark each one Pass or Fail" not in out
+
+
+def test_results_in_a_project_below_are_named_not_the_answers_here(here, capsys, pages):
+    below = here / "support-bot"
+    below.mkdir()
+    (below / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    write_answers(below, 40, grades=["pass", "fail"] * 20)
+    write_answers(here, 12, name="dataset")
+    assert [r.rel for r in find.search(here).readable("table")] == ["support-bot/results.csv"]
+    _, out, _ = run(capsys, "--no-browser")
+    assert "support-bot" in out and "dataset.csv" not in out
+
+
+def test_results_in_the_project_above_are_read_not_the_answers_here(here, monkeypatch):
+    (here / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
+    write_answers(here, 40, grades=["pass", "fail"] * 20)
+    src = here / "src"
+    src.mkdir()
+    write_answers(src, 12, name="sample")
+    assert find.search(src).readable("table") == []
+    assert find.results_above(src) == here
+    monkeypatch.chdir(src)
+    found = start.find_judge(src)
+    assert found.graded is True
+
+
+def test_answers_alone_never_make_a_folder_hold_results(here):
+    for name in ("a", "b"):
+        (here / name).mkdir()
+        (here / name / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+        write_answers(here / name, 12)
+    assert find.nested_results(find.search(here)) == []
+    src = here / "a" / "src"
+    src.mkdir()
+    assert find.results_above(src) is None

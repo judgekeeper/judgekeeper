@@ -1184,7 +1184,8 @@ def _projects_below(folder: Path) -> list[str]:
     (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before (ASKED). Each
     is a project of its own, never run."""
     found = find.search(folder)
-    if any("/" not in sign for signs in found.signs.values() for sign in signs):
+    if found.answers_read or any("/" not in sign for signs in found.signs.values()
+                                 for sign in signs):  # answers with no grade: one project
         return []
     tops = set()
     for result in (r for rs in found.results.values() for r in rs):
