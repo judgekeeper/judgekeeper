@@ -1679,7 +1679,20 @@ def lookup(found, marked, ws: Workspace) -> tuple[dict, set[str]]:
             out[i] = next(a for a in same if a.verdict != mark)
             mixed.add(i)
 
+    # A repeat graded differently when it was marked was marked copy by copy, as Measure
+    # counts it: each copy (run) is compared with the same copy in these results, alone. An
+    # answer marked once that now has two grades still counts against the judge (take).
+    try:
+        queued = {q["id"] for q in ws.data().get("queue") or []}
+    except (OSError, ValueError):
+        queued = set()
+    copied = {i.split("#")[0] for i in queued if "#" in i}
+    own = {a.id: a for a in answers
+           if repeat_of.get(a.id, a.id) in copied and a.id in queued}
     for i in marked:
+        if i in own and _same_answer(own[i], rows.get(i) or {}):
+            take(i, [own[i]])
+            continue
         same = [a for a in by_id.get(i, []) if _same_answer(a, rows.get(i) or {})]
         if same:
             take(i, same)
