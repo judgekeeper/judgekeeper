@@ -672,6 +672,8 @@ def read_results_table(path: Path) -> RecordList:
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdicts = verdicts or find.grade_columns(columns)
+    if not verdicts and find.answers_only(path):  # no grade: the person marks each
+        return _answers_only(rows, ids if own else None)
     if not verdicts or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and a verdict or score column; "
                          f"columns are: {', '.join(columns)}")
@@ -707,6 +709,24 @@ def read_results_table(path: Path) -> RecordList:
         if human and not _blank(row.get(human)):
             records.append(ScoreRecord(name=WHOLE_ANSWER, annotator_kind=HUMAN,
                                        label=row[human], **content))
+    return records
+
+
+def _answers_only(rows: list[dict], ids: list | None) -> RecordList:
+    """A table's answers with no grade (find.is_answers_table): no judge records, and its
+    answers as `answers` ({"id", "input", "output"}, with app_version when it has one), each
+    once. `ids`: the table's own ids, when every row has its own."""
+    records = RecordList(ids_derived=ids is None)
+    answers: dict[str, dict] = {}
+    for n, row in enumerate(rows, 1):
+        textio.reading(n)
+        key = ids[n - 1] if ids else derive_record_id(row.get("input"), row.get("output"))
+        answer = {"id": str(key), "input": row.get("input"), "output": row.get("output")}
+        if not _blank(row.get("app_version")):
+            answer["app_version"] = str(row["app_version"])
+        answers.setdefault(answer["id"], answer)
+    records.answers = list(answers.values())
+    records.repeats = len(rows) - len(answers)
     return records
 
 
@@ -1156,6 +1176,7 @@ class Found:
     warnings: list[str] = field(default_factory=list)  # the reader's, about this judge
     n_rules: int = 1  # how many rules the judge's verdicts have (one per test, say)
     reference: bool = False  # it compares each answer with its test's reference answer
+    graded: bool = True  # False: answers with no grade (no_grades.py), the person marks each
 
 
 def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
@@ -2206,6 +2227,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         raise _no_judge(talk, kind, [r.rel for r in unjudged], rules,
                                         False) from None
                     continue
+                if getattr(first.records, "answers", None) is not None:  # no grade in it
+                    return _answers_found(root, newest, first, signs)
                 if not _judges(first.records, kind):
                     unjudged.append(newest)
                     rules = rules and _rules_in_code(first.records, kind)
@@ -2300,6 +2323,22 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  warnings=[w for w in first.records.warnings if not is_stripped_warning(w)]
                  + list(first.records.per_metric.get(metric, {}).get("warnings") or [])
                  + unnamed)
+
+
+def _answers_found(root: Path, result: find.Result, loaded: Loaded, signs: dict) -> Found:
+    """The Found for a table of answers with no grade (_answers_only): every answer to mark,
+    no LLM-as-a-judge, no verdict."""
+    fingerprint = make_fingerprint({})
+    answers = [Answer(id=a["id"], input=a["input"], output=a["output"], verdict=None,
+                      reason="", score=None, fingerprint=fingerprint, source=loaded.label,
+                      agent={k: a[k] for k in ("app_version",) if k in a})
+               for a in loaded.records.answers]
+    pool = Pool(answers=answers, n_merged=loaded.records.repeats,
+                n_repeats=loaded.records.repeats)
+    versions = sorted({a.agent["app_version"] for a in answers if "app_version" in a.agent})
+    return Found(root=root, tool="table", results=[result], used=[loaded.label], metric=None,
+                 pool=pool, fingerprint=fingerprint.to_dict(), judge="", signs=signs,
+                 app_version=", ".join(versions) or None, graded=False)
 
 
 def _rule_key(r, kind: str) -> str | None:

@@ -325,8 +325,10 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     value in `before` (the answer's line now). Only for an answer marked Pass or Fail that the
     judge graded the other way, on the marks the person can see, once the disagreements were
     shown; every other answer gets the same NOT_LISTED."""
-    from judgekeeper import fix
+    from judgekeeper import fix, no_grades
 
+    if no_grades.here(ws):  # no LLM-as-a-judge: reasons on the answers the person failed
+        return no_grades.check_reason(ws, item_id, mark, body, before)
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
     split = fix.shown_split(ws)[1] if _disagreements_shown(ws) else None  # before any grade

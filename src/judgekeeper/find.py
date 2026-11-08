@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import itertools
 import json
 import os
 import re
@@ -123,6 +124,8 @@ class Search:
     no_question: list[str] = field(default_factory=list)  # verdicts and answers, no question
     # (rel, why, path, size): left out when something else is found, else read and named
     bad_tables: list[tuple[str, str, Path, int]] = field(default_factory=list)
+    # (path, size): answers with no grade (is_answers_table), read only when nothing else is
+    answers_only: list[tuple[Path, int]] = field(default_factory=list)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -225,6 +228,67 @@ def is_table(columns) -> bool:
     columns = set(columns)
     outputs = "output" in columns or {"output_a", "output_b"} <= columns
     return "input" in columns and outputs and bool(grade_columns(columns))
+
+
+LABEL_COLUMNS = ("human_label", "label")  # start.HUMAN_COLUMNS: a person's labels
+
+
+def answers_only(path: Path) -> bool:
+    """Whether the table at `path` holds answers with no grade: its header is an answers
+    table (is_answers_table), and in its first rows (mapper.SAMPLE_UNITS) no other part reads
+    as an LLM-as-a-judge's verdict (mapper.guess: a correctness column of pass and fail, or
+    scores nested in a JSONL line, are an own format's verdicts)."""
+    from judgekeeper import mapper
+
+    if not is_answers_table(table_columns(path)):
+        return False
+    try:
+        mapper.guess(_first_units(path, mapper.SAMPLE_UNITS))
+    except mapper.MapError as e:
+        return str(e) == mapper.NO_VERDICTS
+    return False
+
+
+def _first_units(path: Path, n: int) -> list:
+    """The first `n` rows of a table (a CSV or TSV's values as text) or lines of a JSONL file
+    (those that are JSON objects), read no further."""
+    from judgekeeper.table import _delimiter
+
+    out: list = []
+    with path.open(encoding="utf-8", errors="replace", newline="") as f:
+        if path.suffix.lower() in JSONL_SUFFIXES:
+            for line in f:
+                if len(out) >= n:
+                    break
+                try:
+                    unit = json.loads(line.removeprefix("\ufeff"))
+                except (ValueError, RecursionError):
+                    continue
+                if isinstance(unit, dict):
+                    out.append(unit)
+            return out
+        first = f.readline().removeprefix("\ufeff")
+        rows = csv.reader(itertools.chain([first], f),
+                          delimiter=_delimiter(first, path.suffix.lower()))
+        try:
+            head = next(rows, [])
+            for row in rows:
+                if len(out) >= n:
+                    break
+                out.append(dict(zip(head, row, strict=False)))
+        except csv.Error:
+            pass
+    return out
+
+
+def is_answers_table(columns) -> bool:
+    """A table of questions and answers with no grade: input and output, no verdict or
+    score column (and not two answers to compare). The person marks each answer. A table with
+    a label column is a labels file (--labels), not answers to mark."""
+    columns = set(columns)
+    return ({"input", "output"} <= columns and not grade_columns(columns)
+            and not {"output_a", "output_b", *LABEL_COLUMNS} & columns
+            and not is_records(columns))
 
 
 _VERDICT_WORDS = frozenset({"verdict"})
@@ -340,7 +404,8 @@ def classify_file(path: Path) -> str | None:
     if suffix in JSONL_SUFFIXES and is_records(table_columns(path)):
         return "records"
     if suffix in TABLE_SUFFIXES:
-        return "table" if is_table(table_columns(path)) else None
+        columns = table_columns(path)
+        return "table" if is_table(columns) or answers_only(path) else None
     if suffix == ".json":
         if DEEPEVAL_RUN.fullmatch(path.name) or path.name in DEEPEVAL_COPIES:
             return "deepeval"
@@ -500,6 +565,9 @@ class _Walk:
                     self.add("table", path, size)
                 else:  # one bad table never stops the scan: left out, said in one note
                     self.search.bad_tables.append((self.rel(path), why, path, size))
+            elif is_answers_table(columns) and answers_only(path):
+                if table_problem(path, size, columns) is None:
+                    self.search.answers_only.append((path, size))
             elif title_row(path):
                 self.search.unreadable.append((self.rel(path), TITLE_ROW))
             elif judge_table_without_answers(columns):
@@ -703,6 +771,10 @@ def search(root: str | Path) -> Search:
     except _Stop:
         pass
     bad = walk.search.bad_tables
+    if not bad and not any(walk.search.results.values()) and not walk.search.signs.get(
+            "promptfoo"):  # answers with no grade: only when no LLM-as-a-judge results are here
+        for path, size in walk.search.answers_only:
+            walk.add("table", path, size)
     if bad and not any(walk.search.results.values()):  # all there is: read, so it is named
         for _, _, path, size in bad:
             walk.add("table", path, size)

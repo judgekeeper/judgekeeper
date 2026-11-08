@@ -1354,8 +1354,15 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.next(f"give `{program_in(ANYWHERE, 'fix')}` the results of grading {ANSWERS} "
                   "again with your new rule, or run it in your project folder.")
         return EXIT_USAGE
+    from judgekeeper import no_grades, project
+
+    if (stop := no_grades.no_judge_stop(talk.path, "fix")) is not None:
+        talk.say(STEP)
+        talk.say()
+        talk.para(stop[0])
+        talk.next(stop[1])
+        return EXIT_NEEDS_YOU
     state = _state(talk.path)
-    from judgekeeper import project
 
     if state is not None and results is not None and results.is_file() and (
             marked := project.other_eval(state.ws.root, results)) is not None:

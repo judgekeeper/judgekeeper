@@ -28,6 +28,7 @@ SIDE, JUDGE = "{side}", "{judge}"
 CRITERION = "<criterion>"
 EXAMPLE_WIDTH = 60
 SAMPLE_UNITS = 50  # units looked at for a guess
+NO_VERDICTS = "no LLM-as-a-judge verdicts were found in it"
 MAX_DEPTH = 8
 
 INPUT_WORDS = ("input", "prompt", "question", "query", "instruction", "message", "request")
@@ -587,7 +588,7 @@ def guess(units: list, each: str | None = None) -> Guess:
         raise MapError(f"its score column {_as_path(rules[0])} is a rule in code (a "
                        f"{_WORD.findall(rules[0][-1])[0].lower()} match), not an LLM-as-a-judge")
     if not scores:
-        raise MapError("no LLM-as-a-judge verdicts were found in it")
+        raise MapError(NO_VERDICTS)
     if sides:
         placed = []
         for seg in scores:
