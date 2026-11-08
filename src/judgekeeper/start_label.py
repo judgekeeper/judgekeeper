@@ -1172,10 +1172,9 @@ def sentences(r: dict) -> list[str]:
         if all_labeled(r):
             from judgekeeper.start import command_from
 
-            g = r.get("groups") or {}
             return all_marked_lines(r["labels"],
                                     mark_command(command_from(r.get("flags"), kept=True)),
-                                    {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")})
+                                    graded(r))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     from judgekeeper.report_page import why_for
 
@@ -1198,6 +1197,12 @@ def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     shown, between = estimate(value, interval, why)  # the page's words and decimals
     said = shown if between == "–" else f"{shown} (between {between})"
     return f"You {did}: your LLM-as-a-judge also {did} {said}."
+
+
+def graded(r: dict) -> dict:
+    """How many answers the judge passed and failed, from a result's groups."""
+    g = r.get("groups") or {}
+    return {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")}
 
 
 def all_labeled(r: dict) -> bool:
