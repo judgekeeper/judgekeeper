@@ -631,7 +631,7 @@ def coloured(r: dict) -> bool:
 
 def without_mark_more(verdict: str) -> str:
     """The result line without its ask to mark more, in a saved result's older words too."""
-    for ask in (MARK_MORE, TO_A_RESULT):
+    for ask in (MARK_MORE, BEST_SO_FAR, TO_A_RESULT):  # BEST_SO_FAR alone: exact numbers
         verdict = verdict.replace(f" {ask}", "")
     return verdict
 
@@ -1129,8 +1129,14 @@ def _level(r: dict) -> str | None:
 
 
 def _verdict(r: dict) -> str:
-    """The verdict's words."""
-    return VERDICTS[r["verdict_level"]]
+    """The verdict's words; too early to tell with no range shown (exact numbers), without
+    the ask to narrow the ranges."""
+    from judgekeeper.report_page import shows_range
+
+    words = VERDICTS[r["verdict_level"]]
+    if r["verdict_level"] in ("check", "too_early") and not shows_range(r):
+        return words.replace(f" {NARROW}", "")
+    return words
 
 
 def describe(corrected: dict) -> dict:
@@ -1172,10 +1178,9 @@ def sentences(r: dict) -> list[str]:
         if all_labeled(r):
             from judgekeeper.start import command_from
 
-            g = r.get("groups") or {}
             return all_marked_lines(r["labels"],
                                     mark_command(command_from(r.get("flags"), kept=True)),
-                                    {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")})
+                                    graded(r))
         return [f"{VERDICTS[None]} So far: {marks_words(r['labels'])}."]
     from judgekeeper.report_page import why_for
 
@@ -1198,6 +1203,12 @@ def side_sentence(key: str, value, interval, why: str | None = None) -> str:
     shown, between = estimate(value, interval, why)  # the page's words and decimals
     said = shown if between == "–" else f"{shown} (between {between})"
     return f"You {did}: your LLM-as-a-judge also {did} {said}."
+
+
+def graded(r: dict) -> dict:
+    """How many answers the judge passed and failed, from a result's groups."""
+    g = r.get("groups") or {}
+    return {k: (g.get(k) or {}).get("pool") for k in ("pass", "fail")}
 
 
 def all_labeled(r: dict) -> bool:

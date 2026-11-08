@@ -6,6 +6,8 @@ the usual count on, once the hidden marks can be set aside."""
 
 from __future__ import annotations
 
+from html import unescape
+
 import pytest
 
 from judgekeeper import page as page_mod
@@ -203,3 +205,33 @@ def test_all_20_agreed_says_a_result_needs_more_answers(twenty, capsys, pages):
     assert code == 3, said
     assert ("You've marked every answer: 20 Pass, 0 Fail. Your result comes once you mark a new "
             "answer Fail.") in said
+
+
+def test_the_result_page_gives_the_same_one_grade_line(twenty, capsys, pages):
+    """Every answer marked Pass, as the LLM-as-a-judge graded: the result page says what the
+    terminal says, not that a result needs 15 of each."""
+    run(capsys, "--no-browser")
+    ws = start_label.Workspace(twenty)
+    page = _mark(twenty, ["pass"] * 20)
+    html = start_label.live_result(ws, page, back="/?token=t")
+    said = unescape(flat(html))
+    assert "A result needs at least" not in said, said
+    assert ("You've marked every answer: 20 Pass, 0 Fail. Your result comes once you mark a new "
+            "answer Fail.") in said, said
+
+
+def test_with_every_answer_marked_measure_gives_fix_its_step(twenty, capsys, pages):
+    """Nothing is left to mark: Measure's Next line is fix's, run the eval on more questions,
+    not "run mark when you want to continue"."""
+    from judgekeeper import background
+
+    run(capsys, "--no-browser")
+    _mark(twenty, ["fail"] + ["pass"] * 19)
+    assert background.stop(start_label.Workspace(twenty).dir)
+    _, out, _ = run(capsys)
+    _, fixed, _ = run(capsys, "fix")
+    said = flat(out)
+    assert "when you want to continue" not in said, said
+    nxt = said[said.rindex("Next:"):]
+    assert nxt.startswith("Next: run your eval on more questions, then run"), nxt
+    assert nxt == flat(fixed)[flat(fixed).rindex("Next:"):], (nxt, fixed)

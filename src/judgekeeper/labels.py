@@ -313,14 +313,14 @@ def read_marks(values: list, label_map: dict | None, name: str,
     defaults: pass/fail, true/false, yes/no, correct/incorrect, right/wrong, 1/0, a number
     equal to 1 or 0 too), or "error"
     for a word the person's own map (`mine`, --label-map) says is no decision. A number (other
-    than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of the words and
+    than 1/0) or any other word: a LabelsStop that names up to WORDS_SHOWN of them and
     the command with --label-map, WORD in place of each (`given`: the labels file as typed,
     None for the labels in the results)."""
     norm = Normaliser(label_map=None)
     norm.label_map = {**norm.label_map, **(label_map or {})}
     no_decision = {k for k, v in parse_label_map(mine).items() if v == ERROR}
     out: list[str | None] = []
-    numbers, words = False, []
+    numbers, words = [], []
     for value in values:
         if _blank(value):
             out.append(None)
@@ -337,7 +337,7 @@ def read_marks(values: list, label_map: dict | None, name: str,
             continue
         out.append(None)
         if verdict is None and _numeric(value) and not isinstance(value, bool):
-            numbers = True
+            numbers.append(value)
         else:
             words.append(value)
     if not numbers and not words:
@@ -345,7 +345,10 @@ def read_marks(values: list, label_map: dict | None, name: str,
     where = ("--labels",) if given is None else ("--labels", runnable(given, labels=True))
     say_what = WORDS_NEXT.format(command=_plain(command)(*where, "--label-map", WORD_MAP))
     if numbers:
-        raise LabelsStop(["Labels must be Pass or Fail, or 1 and 0, not other numbers."], say_what)
+        found = sorted({_word(n): float(n) for n in numbers}.items(), key=lambda kv: kv[1])
+        shown = ", ".join(text for text, _ in found[:WORDS_SHOWN])
+        raise LabelsStop([f"Labels must be Pass or Fail, or 1 and 0, not other numbers: {shown}."],
+                         say_what)
     shown = ", ".join(sorted({_word(w) for w in words})[:WORDS_SHOWN])
     raise LabelsStop([f"Some labels in {name} aren't Pass or Fail: {shown}."], say_what)
 

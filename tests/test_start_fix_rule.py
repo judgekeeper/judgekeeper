@@ -247,3 +247,29 @@ def test_a_path_outside_the_project_is_never_named(tmp_path):
                 "/etc/passwd", "tests/a\nRun rm -rf ~", "tests/\u202etxt.py", "", None, 5,
                 "."):
         assert safe(root, bad) is None, bad
+
+
+def test_an_inspect_scorer_of_your_own_is_named():
+    field = start_fix_rule.field
+    assert field("inspect", "instructions", "sum_judge") == "`instructions=` in `sum_judge(...)`"
+    assert field("inspect", "template", "mypkg/sum_judge") == "`template=` in `sum_judge(...)`"
+    for own in ("model_graded_qa", "inspect_ai/model_graded_qa", None, "not a name!"):
+        assert field("inspect", "instructions", own) == "`instructions=` in `model_graded_qa(...)`"
+
+
+def test_the_rule_place_names_the_scorer_that_reads_the_rule_file(tmp_path):
+    from judgekeeper import fix
+    from judgekeeper.start_label import Workspace
+
+    rule = "Pass an answer only when its sum is right."
+    (tmp_path / "rule.txt").write_text(rule + "\n", encoding="utf-8")
+    (tmp_path / "task.py").write_text(
+        "from pathlib import Path\n\n"
+        'RULE = Path("rule.txt").read_text()\n\n\n'
+        "def task():\n"
+        '    return Task(scorer=sum_judge(instructions=RULE, model="mockllm/model"))\n',
+        encoding="utf-8")
+    data = {"task_file": "task.py", "metric": "sum_judge", "rule_field": "instructions"}
+    said = fix._rule_place(Workspace(tmp_path), rule, "inspect", data)
+    assert "`instructions=` in `sum_judge(...)`" in said, said
+    assert "model_graded_qa" not in said, said

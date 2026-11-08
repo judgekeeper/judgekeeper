@@ -74,3 +74,42 @@ def test_the_newer_file_is_named_from_home_never_by_the_user_name(home, monkeypa
              else "~/jk-try/new-rule.csv")  # the home folder as each names it
     assert f"Reading {shown}, the newest results here." in out, out
     assert USER not in re.sub(r"`[^`]*`", "", out), out
+
+
+def test_every_plain_run_names_the_newest_of_two_files_after_a_check_took_it_on(here, capsys):
+    """A check took on results-v2.csv, the newest file of two here: later plain runs read the
+    same file as the last one, and still say which file they read."""
+    table_project(here, split(40, 40))
+    _run(capsys)
+    session = StartSession(Workspace(here))
+    for item in session.items:
+        session.update({"id": item["id"], "label": session.groups[item["id"]], "seconds": 4})
+    _run(capsys)  # the result
+    _newer(table_project(here, split(38, 42), name="results-v2.csv"))
+    assert main(["check", "results-v2.csv"]) != 2
+    capsys.readouterr()
+    for _ in range(2):
+        said = _run(capsys)
+        assert "Reading results-v2.csv, the newest results here." in said, said
+
+
+def test_after_a_check_of_a_file_in_fix_two_files_here_are_never_called_the_newest(here,
+                                                                                   capsys):
+    """The check read a file in .judgekeeper/fix/, which the search never reads: plain runs
+    are about that file, so they never say a file here is the one read."""
+    table_project(here, split(40, 40))
+    _run(capsys)
+    _newer(table_project(here, split(40, 40), name="results-v2.csv"))
+    _run(capsys)
+    session = StartSession(Workspace(here))
+    for item in session.items:
+        session.update({"id": item["id"], "label": session.groups[item["id"]], "seconds": 4})
+    _run(capsys)  # the result
+    checked = table_project(here, split(38, 42), name=".judgekeeper/fix/new.csv")
+    later = (here / "results-v2.csv").stat().st_mtime + 60
+    os.utime(checked, (later, later))  # newer than both files here
+    assert main(["check", ".judgekeeper/fix/new.csv"]) != 2
+    capsys.readouterr()
+    said = _run(capsys)
+    assert "the file your last check read" in said, said
+    assert "Reading" not in said and "the newest" not in said, said

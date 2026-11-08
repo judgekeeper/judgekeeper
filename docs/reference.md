@@ -225,7 +225,7 @@ This is the Begg-Greenes correction; kappa uses the same weighted table. For the
 
 - "Your LLM-as-a-judge is good enough to use." when the low end of both wider ranges (99%) is at least 80%;
 - "Your LLM-as-a-judge needs work." when a wider range stays below 80%;
-- "Too early to tell. The numbers below are your best estimate so far. Mark more answers to narrow the ranges." otherwise.
+- "Too early to tell. The numbers below are your best estimate so far. Mark more answers to narrow the ranges." otherwise, without its last sentence when neither number has a range.
 
 The ranges on screen are the middle 96%. The result line uses 99%, because you can look after every mark, and a run of good marks should not decide it. As you mark, the result can go back from good enough to too early, and come back again; the latest result is the one that counts.
 

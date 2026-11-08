@@ -41,6 +41,8 @@ FIELDS = {
     "mlflow": "`instructions=` in `make_judge(...)`, or the text of `Guidelines(...)`",
 }
 INSPECT_TEMPLATE = "`template=` in `model_graded_qa(...)`"
+INSPECT_OWN = ("model_graded_qa", "inspect_ai/model_graded_qa")  # Inspect's own LLM-as-a-judge
+INSPECT_SCORER = re.compile(r"[A-Za-z_][\w/-]*")  # a scorer's name, as `--scorer` takes it
 GEVAL_FIELDS = {"criteria": "`criteria=` in `GEval(...)`",
                 "evaluation_steps": "`evaluation_steps=[...]` in `GEval(...)`"}
 OWN_CODE = "where your code keeps the rule"
@@ -128,9 +130,14 @@ def safe_path(root: Path, name) -> str | None:
 
 # The hand-over ----------------------------------------------------------------------------
 
-def field(tool: str, rule_field: str | None = None) -> str:
-    """Where a tool keeps the rule; for Inspect, its template when the rule is that; for
-    DeepEval, the GEval option the results hold the rule in (start.Found.rule_field)."""
+def field(tool: str, rule_field: str | None = None, scorer: str | None = None) -> str:
+    """Where a tool keeps the rule; for Inspect, its template when the rule is that, and the
+    `scorer` by its name when it is not Inspect's own; for DeepEval, the GEval option the
+    results hold the rule in (start.Found.rule_field)."""
+    if (tool == "inspect" and scorer and scorer not in INSPECT_OWN
+            and INSPECT_SCORER.fullmatch(scorer)):
+        option = "template" if rule_field == "template" else "instructions"
+        return f"`{option}=` in `{scorer.rsplit('/', 1)[-1]}(...)`"
     if tool == "inspect" and rule_field == "template":
         return INSPECT_TEMPLATE
     if tool == "deepeval" and rule_field in GEVAL_FIELDS:

@@ -778,3 +778,25 @@ def test_a_check_with_grades_left_empty_says_to_grade_the_marked_answers_again(h
     _, out, _ = run(capsys, "check", "new.csv")
     assert "no decision from your LLM-as-a-judge" in flat(out), out
     assert _next(out) == REGRADE, out
+
+
+@pytest.mark.parametrize(("more", "unseen"), [(1, None), (2, "1 answer")])
+def test_an_answer_marked_by_labels_just_now_is_not_said_unseen(here, capsys, pages, more,
+                                                                unseen):
+    """The eval ran on more questions, and --labels brings the first one's mark: it is not one
+    "you haven't seen"; the others still are."""
+    from tests.start_projects import answer
+    from tests.test_labels_import import write_labels
+
+    table_project(here, split(20, 16))
+    assert run(capsys, "--no-browser")[0] == 0
+    _mark(Workspace(here))
+    table_project(here, split(20, 16) + split(more, 0))
+    write_labels(here / "labels-one.csv", [{"answer": answer(36), "label": "pass"}])
+    _, out, _ = run(capsys, "--labels", "labels-one.csv", "--no-browser")
+    said = flat(out)
+    assert "Added 1 mark from labels-one.csv" in said, said
+    if unseen is None:
+        assert "you haven't seen" not in said, said
+    else:
+        assert f"Your newest results have {unseen} you haven't seen." in said, said

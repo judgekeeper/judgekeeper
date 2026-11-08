@@ -1483,10 +1483,10 @@ def test_the_long_answer_clue_reads_plainly():
             + [{"judge": "fail", "final": "pass", "output": long_out}] * 4
             + [{"judge": j, "final": j, "output": short_out} for j in ("pass", "fail")] * 4)
     lines = fix.pattern_lines(rows)
-    assert ("When it said Pass and you said Fail, the answers are long (about 12 words, while the others "
-            "average 3).") in lines
-    assert ("When it said Fail and you said Pass, the answers are long (about 12 words, while the others "
-            "average 3).") in lines
+    assert ("When it said Pass and you said Fail, the answers are long (usually about 12 words, "
+            "while answers you both failed have about 3).") in lines
+    assert ("When it said Fail and you said Pass, the answers are long (usually about 12 words, "
+            "while answers you both passed have about 3).") in lines
     assert not any("where you said" in x and x.startswith("Where") for x in lines)
 
 
