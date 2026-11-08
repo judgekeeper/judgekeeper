@@ -612,6 +612,27 @@ def test_answers_alone_never_make_a_folder_hold_results(here):
     assert find.results_above(src) is None
 
 
+def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsys, pages):
+    """All 12 marked, then 10 answers added to the file: the result counts the answers left,
+    so the terminal and the pages say to mark more, not to add answers or change a mark."""
+    write_answers(here, 12)
+    run(capsys, "--no-browser")
+    mark(here, ["pass"] * 8 + ["fail"] * 4)
+    run(capsys, "--no-browser")
+    ws = start_label.Workspace(here)
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 0
+    write_answers(here, 22)  # the same 12 and 10 more
+    _, out, _ = run(capsys, "--no-browser")
+    said = flat(out)
+    assert "You passed 8 of 12 answers." in said
+    assert "Next: run `judgekeeper mark --no-browser` to mark more answers." in said
+    assert "for a surer number, then run" not in said
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 10
+    report = _report(here)
+    assert "Mark more answers for a surer number." in report and "Change a mark" not in report
+    assert f'<a href="{BACK}">Mark more answers for a surer number.</a>' in _live(here)
+
+
 GRADES_GONE = "results.csv needs input, output and a verdict or score column"
 
 

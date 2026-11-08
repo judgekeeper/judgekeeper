@@ -249,13 +249,15 @@ def compute(ws, session) -> dict:
 
 
 def digest(ws, session) -> str:
-    """What a result is made from: the marks and the reasons on the answers failed."""
+    """What a result is made from: the answers to mark (new ones change how many are left),
+    the marks and the reasons on the answers failed."""
     import hashlib
 
+    answers = sorted(item["id"] for item in session.items)
     marked = sorted(session.marked().items())
     rows = [[r["id"], r["reasons"], sorted(r["words"].items())]
             for r in reason_rows(ws, session)]
-    return hashlib.sha256(json.dumps([marked, rows]).encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps([answers, marked, rows]).encode("utf-8")).hexdigest()
 
 
 def made(ws, session, flags: dict | None = None) -> dict:
