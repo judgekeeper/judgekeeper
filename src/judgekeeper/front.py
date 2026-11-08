@@ -2774,9 +2774,10 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
     elif step == "fix" and not fix.can_run(ws):  # fix would say the same: mark more first
         talk.para(fix.NOT_ENOUGH)
         talk.say()
-        # with exact numbers (one grade), marking more would not make them more certain
-        next_step = (NEXT_MARK_MORE if ranges else NEXT_CONTINUE).format(
-            command=_command_of(talk, saved, "mark"))
+        # with exact numbers (one grade), marking more would not make them more certain; with
+        # every answer marked, fix's step: more questions first (next_marks)
+        next_step = start_label.next_marks(ws, (NEXT_MARK_MORE if ranges else NEXT_CONTINUE).format(
+            command=_command_of(talk, saved, "mark")))
     elif step == "fix":
         next_step = NEXT_FIX.format(command=_fix_command(talk))
     elif elsewhere:

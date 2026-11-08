@@ -218,3 +218,20 @@ def test_the_result_page_gives_the_same_one_grade_line(twenty, capsys, pages):
     assert "A result needs at least" not in said, said
     assert ("You've marked every answer: 20 Pass, 0 Fail. Your result comes once you mark a new "
             "answer Fail.") in said, said
+
+
+def test_with_every_answer_marked_measure_gives_fix_its_step(twenty, capsys, pages):
+    """Nothing is left to mark: Measure's Next line is fix's, run the eval on more questions,
+    not "run mark when you want to continue"."""
+    from judgekeeper import background
+
+    run(capsys, "--no-browser")
+    _mark(twenty, ["fail"] + ["pass"] * 19)
+    assert background.stop(start_label.Workspace(twenty).dir)
+    _, out, _ = run(capsys)
+    _, fixed, _ = run(capsys, "fix")
+    said = flat(out)
+    assert "when you want to continue" not in said, said
+    nxt = said[said.rindex("Next:"):]
+    assert nxt.startswith("Next: run your eval on more questions, then run"), nxt
+    assert nxt == flat(fixed)[flat(fixed).rindex("Next:"):], (nxt, fixed)
