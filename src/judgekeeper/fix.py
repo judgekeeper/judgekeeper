@@ -1960,13 +1960,13 @@ def regrade_line(tool: str | None, run: str = f"run `judgekeeper fix {NEW_RECORD
 def table_columns(ws: Workspace) -> tuple[str, ...]:
     """The first results file's question, answer and grade columns as written in it, or
     TABLE_COLUMNS when it can't be read."""
-    from judgekeeper.table import as_marked, columns
+    from judgekeeper.table import column_name, columns
 
     file = _first_file(ws)
     names = columns(Path(ws.root) / file) if file else []
     known = {}
-    for own, name in zip(as_marked(names), names, strict=True):
-        known.setdefault(own, name)
+    for name in names:
+        known.setdefault(column_name(name), name)
     grade = next((known[g] for g in GRADE_COLUMNS if g in known), None)
     if "input" in known and "output" in known and grade:
         return known["input"], known["output"], grade
