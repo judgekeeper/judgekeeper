@@ -1472,8 +1472,9 @@ def _newest(found: start.Found) -> str:
 
 def _newest_line(ws: Workspace, found: start.Found) -> str | None:
     """NEWEST when this run found other results files than the last one read (a newer one
-    saved in the folder), not given by path; READING when the one read is older than the
-    last one read (a run back on an earlier file)."""
+    saved in the folder), or the same ones with 2 or more results files here, not given by
+    path; READING when the one read is older than the last one read (a run back on an
+    earlier file)."""
     if found.given or found.tool in ("mlflow", "records") or not found.results:
         return None
     try:
@@ -1481,7 +1482,9 @@ def _newest_line(ws: Workspace, found: start.Found) -> str | None:
         files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
     except (OSError, ValueError, TypeError, AttributeError):
         return None
-    if not files or data.get("given") or _same_files(ws, data, files, found):
+    if not files or data.get("given"):
+        return None
+    if _same_files(ws, data, files, found) and len(found.results) < 2:
         return None
     return (READING if _older(ws, data, files, found) else NEWEST).format(file=_newest(found))
 

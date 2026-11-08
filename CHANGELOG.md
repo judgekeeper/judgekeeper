@@ -26,6 +26,7 @@
 - `fix`'s long-answers clue says "usually" for the middle length, and names the answers it compares with.
 - A field named after a key, such as a promptfoo var, is now hidden on the marking page and in the files judgekeeper writes.
 - The README lists the `verdict` values that work.
+- With 2 or more results files in the project folder, every plain run names the one it reads: "Reading results-v2.csv, the newest results here."
 
 ## 1.1.1 (2026-11-05)
 
