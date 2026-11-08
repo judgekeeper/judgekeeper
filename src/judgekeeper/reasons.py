@@ -358,7 +358,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
         if len(note) > MAX_NOTE:
             raise ValueError(f"a reason can be at most {MAX_NOTE} characters")
         if note.strip():
-            out["note"] = scrub(note.strip())
+            out["note"] = scrub(one_line_note(note))
     parts = body.get("rule_parts") or []
     count = len(rule_parts(data))
     if not isinstance(parts, list) or len(set(map(repr, parts))) != len(parts) or not all(
@@ -398,11 +398,20 @@ def _output(ws, item_id: str) -> str:
     return ""
 
 
+_BREAKS = re.compile(r"[ \t]*[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029][\s]*")
+
+
+def one_line_note(text: str) -> str:
+    """A note on one line, as the one-line "Other…" box holds it: each run of line breaks
+    (and the spaces around it) one space, so words are never glued ("Line one Line two")."""
+    return _BREAKS.sub(" ", text).strip()
+
+
 def of_line(line: dict | None) -> dict:
     """A marks line's reasons, as the page and `fix` read them."""
     line = line or {}
     return {"reasons": [r for r in line.get("reasons") or [] if isinstance(r, str)],
-            "note": str(line.get("note") or ""),
+            "note": one_line_note(str(line.get("note") or "")),
             "rule_parts": [n for n in line.get("rule_parts") or [] if isinstance(n, int)],
             "rule_hash": line.get("rule_hash"),
             "spans": [s for s in line.get("spans") or []

@@ -518,6 +518,28 @@ def test_a_reason_makes_no_copy_in_history(here, capsys, pages):
     assert len(list(ws.history.glob("result-*.json"))) == 1
 
 
+def test_a_note_over_several_lines_is_one_reason_on_one_line(here, capsys, pages):
+    """A note sent with \n on one answer and \r\n on another: saved on one line each, one
+    button, counted once with both answers, one line in the terminal."""
+    page = _with_result(here, capsys, ["fail", "pass"] * 5)
+    fails = [i["id"] for i in page.items if i["label"] == "fail"]
+    page.update({"id": fails[0], "note": "Line one\nLine two\nLine three"})
+    page.update({"id": fails[1], "note": "Line one\r\nLine two\r\nLine three"})
+    ws = start_label.Workspace(here)
+    m = __import__("judgekeeper.marks", fromlist=["read"]).read(ws.marks)
+    assert {m.last[i]["note"] for i in fails[:2]} == {"Line one Line two Line three"}
+    assert [c["text"] for c in reasons.own_chips(ws)] == ["Line one Line two Line three"]
+    html = _live(here, _session(here))
+    assert "Line one\n" not in html and "\r" not in html
+    assert 'value="Line one Line two Line three"' in html
+    r = json.loads(ws.result_json.read_text(encoding="utf-8"))
+    assert r["reasons"] == [["“Line one Line two Line three”", 2]]
+    _, out, _ = run(capsys, "--no-browser")
+    line = next(x for x in out.splitlines() if x.startswith("Your reasons:"))
+    assert "Your reasons: “Line one Line two Line three” (2)." in flat(out)
+    assert "Line one" in line  # the reason starts on the line it belongs to
+
+
 def test_the_page_with_grades_keeps_its_style(here, capsys, pages):
     """The one-cell rule is this page's only: a result with grades is drawn as before."""
     from judgekeeper import report_page

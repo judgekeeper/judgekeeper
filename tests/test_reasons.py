@@ -1278,3 +1278,24 @@ def test_the_reason_box_in_a_browser(here, tmp_path, width):
             "run `judgekeeper mark`."))])
 def test_the_line_asking_why_says_how_many_have_a_reason(n, have, line):
     assert start_label.say_why_run(n, "judgekeeper mark", have) == line
+
+
+@pytest.mark.parametrize("note", ["Line one\nLine two\nLine three",
+                                  "Line one\r\nLine two\r\nLine three",
+                                  "  Line one \n\n Line two\rLine three\n"])
+def test_a_note_over_several_lines_is_kept_on_one_line(here, served, note):
+    """A note sent with line breaks (a script, or text pasted elsewhere) is saved on one line,
+    each break a space, so the one-line box never glues its words ("Line oneLine two")."""
+    ws, passes, _, _ = _ready(here)
+    status, _ = served(ws).label(id=passes[0], reasons=["wrong_fact"], note=note)
+    assert status == 200
+    assert marks.read(ws.marks).last[passes[0]]["note"] == "Line one Line two Line three"
+    assert [c["text"] for c in reasons.own_chips(ws)] == ["Line one Line two Line three"]
+    for html in (_live(ws), _report(ws)):
+        assert "Line oneLine" not in html and "Line one\n" not in html and "\r" not in html
+        assert "“Line one Line two Line three”" in html
+
+
+def test_a_note_saved_over_several_lines_before_reads_on_one_line():
+    line = {"note": "Line one\r\nLine two\nLine three"}
+    assert reasons.of_line(line)["note"] == "Line one Line two Line three"

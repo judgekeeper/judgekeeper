@@ -203,7 +203,7 @@ def check_reason(ws, item_id: str, mark: str | None, body: dict, before: dict | 
         if note.strip():
             from judgekeeper.redact import scrub
 
-            out["note"] = scrub(note.strip())
+            out["note"] = scrub(reasons.one_line_note(note))
     spans = reasons.checked_spans(ws, item_id, body.get("spans") or [])
     if spans:
         out["spans"] = spans
