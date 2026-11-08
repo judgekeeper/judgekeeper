@@ -127,6 +127,9 @@ def test_the_first_run_finds_the_answers_and_opens_the_marking_page(here, capsys
     said = flat(out)
     assert "Step 1 of 5: Find" in said and "Step 2 of 5: Mark" in said
     assert "Answers: 12 answers" in said
+    lines = out.splitlines()
+    at = lines.index("Answers:         12 answers")
+    assert lines[at + 1] == "Grades:          none. You mark each answer."
     assert "question the input column" in said and "answer the output column" in said
     assert "LLM-as-a-judge" not in out
     assert "Mark each one Pass or Fail" in said

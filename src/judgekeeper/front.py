@@ -2860,6 +2860,9 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     return _no_grades_page(talk, ws, session, wait, marking, first)
 
 
+NO_GRADES = "none. You mark each answer."  # Find's Grades line: no LLM-as-a-judge checked
+
+
 def _no_grades_block(found: start.Found) -> list[str]:
     """Find's block for answers with no grade: the file, the answers, what was read."""
     answers = len(found.pool.answers)
@@ -2867,6 +2870,7 @@ def _no_grades_block(found: start.Found) -> list[str]:
              f"File:            {_read_from(found)}", f"Answers:         {_n(answers, 'answer')}"]
     if found.pool.n_merged:
         lines.append(INDENT + repeats_note(answers, found.pool))
+    lines.append(f"Grades:          {NO_GRADES}")
     rows = [("question", "the input column"), ("answer", "the output column")]
     if found.app_version:
         rows.append(("version", "the app_version column"))
