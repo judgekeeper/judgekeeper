@@ -26,7 +26,8 @@ dependencies = []
 # build, hatchling and pyyaml: tests/test_release.py builds the wheels and reads the workflows.
 dev = ["pytest>=8", "ruff==0.17.3", "build>=1", "hatchling>=1.26", "pyyaml>=6",
        "jsonschema>=4.18"]
-inspect = ["inspect-ai>=0.3"]
+# Inspect AI 0.3.288 fails to import with agent-client-protocol 1.0.0; drop when Inspect AI fixes it.
+inspect = ["inspect-ai>=0.3", "agent-client-protocol<1"]
 mlflow = ["mlflow>=3.1"]
 
 [project.scripts]

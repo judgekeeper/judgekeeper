@@ -84,6 +84,12 @@ def test_no_pytest_plugin_and_no_api_extras():
     assert not (ROOT / "packages").exists()
 
 
+def test_the_inspect_extra_keeps_agent_client_protocol_below_1():
+    """Inspect AI 0.3.288 fails to import with agent-client-protocol 1.0.0 (no acp.helpers)."""
+    main = _toml(ROOT / "pyproject.toml")["project"]
+    assert main["optional-dependencies"]["inspect"] == ["inspect-ai>=0.3", "agent-client-protocol<1"]
+
+
 def test_there_is_no_github_action():
     """1.0 is commands a person runs: no action.yml, its fixtures or its CI job."""
     assert not (ROOT / "action.yml").exists()

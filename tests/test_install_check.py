@@ -34,6 +34,12 @@ def _ask(i: int, model: str) -> dict:
                                                                      f"{i} + {i}?"}]}
 
 
+def test_inspect_is_installed_with_agent_client_protocol_below_1(ic):
+    """As the inspect extra: Inspect AI 0.3.288 fails to import with agent-client-protocol 1.0.0."""
+    for tool in ("inspect", "inspect-ollama"):
+        assert "agent-client-protocol<1" in ic.PIP[tool], tool
+
+
 def test_the_page_link_is_read_from_the_output(ic):
     out = ("Every click is saved.\nOpen this link in your browser: "
            "http://127.0.0.1:54321/?token=Ab-c_9\n  To stop: Ctrl-C.")
