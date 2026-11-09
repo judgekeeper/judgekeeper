@@ -325,8 +325,10 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     value in `before` (the answer's line now). Only for an answer marked Pass or Fail that the
     judge graded the other way, on the marks the person can see, once the disagreements were
     shown; every other answer gets the same NOT_LISTED."""
-    from judgekeeper import fix
+    from judgekeeper import fix, no_grades
 
+    if no_grades.here(ws):  # no LLM-as-a-judge: reasons on the answers the person failed
+        return no_grades.check_reason(ws, item_id, mark, body, before)
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
     split = fix.shown_split(ws)[1] if _disagreements_shown(ws) else None  # before any grade
@@ -356,7 +358,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
         if len(note) > MAX_NOTE:
             raise ValueError(f"a reason can be at most {MAX_NOTE} characters")
         if note.strip():
-            out["note"] = scrub(note.strip())
+            out["note"] = scrub(one_line_note(note))
     parts = body.get("rule_parts") or []
     count = len(rule_parts(data))
     if not isinstance(parts, list) or len(set(map(repr, parts))) != len(parts) or not all(
@@ -365,7 +367,15 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
     if parts:
         out["rule_parts"] = sorted(parts)
         out["rule_hash"] = rule_hash(data.get("rule"))
-    spans = body.get("spans") or []
+    spans = checked_spans(ws, item_id, body.get("spans") or [])
+    if spans:
+        out["spans"] = spans
+    return out
+
+
+def checked_spans(ws, item_id: str, spans) -> list[list[int]]:
+    """The words the person marked in the answer (`spans`), checked: at most MAX_SPANS
+    [start, end] pairs inside it; a ValueError otherwise."""
     length = len(canonical(_output(ws, item_id)))
     if not isinstance(spans, list) or len(spans) > MAX_SPANS or not all(
             isinstance(s, list) and len(s) == 2
@@ -373,9 +383,7 @@ def check(ws, item_id: str, mark: str | None, judge: str | None, body: dict,
             and 0 <= s[0] < s[1] <= length for s in spans):
         raise ValueError(f"spans must be at most {MAX_SPANS} [start, end] pairs inside the "
                          "answer")
-    if spans:
-        out["spans"] = [list(s) for s in spans]
-    return out
+    return [list(s) for s in spans]
 
 
 def _output(ws, item_id: str) -> str:
@@ -390,11 +398,20 @@ def _output(ws, item_id: str) -> str:
     return ""
 
 
+_BREAKS = re.compile(r"[ \t]*[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029][\s]*")
+
+
+def one_line_note(text: str) -> str:
+    """A note on one line, as the one-line "Other…" box holds it: each run of line breaks
+    (and the spaces around it) one space, so words are never glued ("Line one Line two")."""
+    return _BREAKS.sub(" ", text).strip()
+
+
 def of_line(line: dict | None) -> dict:
     """A marks line's reasons, as the page and `fix` read them."""
     line = line or {}
     return {"reasons": [r for r in line.get("reasons") or [] if isinstance(r, str)],
-            "note": str(line.get("note") or ""),
+            "note": one_line_note(str(line.get("note") or "")),
             "rule_parts": [n for n in line.get("rule_parts") or [] if isinstance(n, int)],
             "rule_hash": line.get("rule_hash"),
             "spans": [s for s in line.get("spans") or []

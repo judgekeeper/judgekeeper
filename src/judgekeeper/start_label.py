@@ -320,18 +320,23 @@ def save_judge_check(ws: Workspace, found) -> None:
     write_replacing(ws.judge_check_csv, buf.getvalue(), newline="")
 
 
-def prepare(found, say, ws: Workspace | None = None) -> Workspace:
+def prepare(found, say, ws: Workspace | None = None, keep_marks: bool = False) -> Workspace:
     """Write start.json, pool.jsonl and pool-judge.jsonl for `found` (a start.Found), in `ws`
-    (default: the project's `.judgekeeper/`).
+    (default: the project's `.judgekeeper/`). Answers with no grade: no_grades.prepare.
 
     When start.json already holds the same pool (the same answers with the same verdicts),
-    its seed and queue are kept, so labeling again carries on where it stopped.
+    its seed and queue are kept, so labeling again carries on where it stopped. `keep_marks`:
+    marks.jsonl stays as it is (marks made with no grade, no_grades.to_graded).
     """
+    from judgekeeper import no_grades
     from judgekeeper.labels import left_kept
     from judgekeeper.start import StartError
 
     ws = ws or Workspace(found.root)
     refuse_links(ws)
+    if not getattr(found, "graded", True):
+        no_grades.prepare(found, ws)
+        return ws
     answers = {a.id: a for a in found.pool.answers}
     old = ws.data() if ws.start.is_file() else None
     groups = {a.id: a.verdict for a in found.pool.answers}
@@ -339,7 +344,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
     if same:
         seed, queue, started = old["seed"], old["queue"], old.get("started_at")
     else:
-        if ws.marks.is_file() and marks.read(ws.marks).counted():
+        if not keep_marks and ws.marks.is_file() and marks.read(ws.marks).counted():
             raise StartError(f"{FOLDER}/{marks.FILE} holds marks for other results; nothing "
                              f"was changed. To start over, run {program()} --new (your marks "
                              f"move to {FOLDER}/previous-<date>/).")
@@ -395,7 +400,7 @@ def prepare(found, say, ws: Workspace | None = None) -> Workspace:
         "started_at": started or utc_now(),
         "updated_at": utc_now(),
     })
-    if not same or not ws.marks.is_file():
+    if not ws.marks.is_file() or not same and not keep_marks:
         begin_marks(ws)
     if first:
         say(SAVED_NOTE.format(folder=shown_folder(ws)))
@@ -743,8 +748,12 @@ def start_status(session: StartSession, run: str | None = None) -> dict:
     """The line under the meters for `start`'s labeling: from the session's labels. With
     every answer marked and no result yet, `done` holds what the end card says
     (all_marked_lines, with mark_command of `run`, the command that opened the page)."""
+    from judgekeeper import no_grades
+
     ws = session.workspace
     data = ws.cached_data()
+    if no_grades.is_off(data):
+        return no_grades.status(session, run)
     graded = batches.graded(data, session.marked())  # a mark that waits counts for nothing
     known = ws.cached_strata()
     few = True  # too few marks for a result: a stuck group (stuck_groups) holds nothing yet
@@ -1093,6 +1102,10 @@ class StartSession(LabelSession):
         if len(graded) < len(marked):  # the bar: only the marks that count (some wait)
             kinds = list(graded.values())
             counts["toward"] = {"correct": kinds.count("pass"), "wrong": kinds.count("fail")}
+        from judgekeeper import no_grades
+
+        if no_grades.is_off(self.workspace.cached_data()):  # full at its own first result
+            counts["toward"] = no_grades.toward(len(marked))
         return {"items": items, "total": len(self.items) + (due is not None), "start": start,
                 "counts": counts, "status": status, "version": self.version(),
                 "intro": touched < 0}  # the welcome box: no answer marked or skipped yet
@@ -1501,8 +1514,10 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
     hidden character (redact.visible). Without `back` it is report.html, a file people share:
     its commands name the program plainly (textio.plainly), the next step's too."""
     from judgekeeper import textio
-    from judgekeeper.report_page import page
+    from judgekeeper.report_page import no_grades_page, page
 
+    if r.get("graded") is False:
+        page = no_grades_page  # answers with no grade: their own page
     if back is not None:
         return visible(page(r, back, fixing, worse, last))
     typed = textio.program()
@@ -1513,20 +1528,24 @@ def result_html(r: dict, back: str | None = None, fixing: dict | None = None,
         return visible(page(r, back, fixing, worse, last, started_else=typed != plain))
 
 
-def _fixing(ws: Workspace, r: dict) -> dict | None:
+def _fixing(ws: Workspace, r: dict, session: StartSession | None = None) -> dict | None:
     """The disagreements the page for the result `r` lists, after the hidden marks are set
     aside (fix.prepare_split): no mistake is shown from a mark that a later test hides. Once
     one is shown, a mark changed later is stamped (reasons.saw_grades). None while the page
-    lists none. The answers' ids stay as they are: the page posts them."""
-    from judgekeeper import fix
+    lists none. The answers' ids stay as they are: the page posts them. With no grade, the
+    answers failed (no_grades.section; `session`: the marks, when the caller has them)."""
+    from judgekeeper import fix, no_grades
     from judgekeeper.report_page import shows_disagreements
 
-    if not shows_disagreements(r):
+    if r.get("graded") is False:
+        section = no_grades.section(ws, r, session)
+    elif not shows_disagreements(r):
         return None
-    section = fix.prepared_section(ws)
+    else:
+        section = fix.prepared_section(ws)
     if not section:
         return None
-    if section["mistakes"]:
+    if section["mistakes"] and r.get("graded") is not False:
         reasons.saw_grades(ws)
     ids = [m["id"] for m in section["mistakes"]]
     section = _scrubbed(section)
@@ -1589,14 +1608,19 @@ def _last_check(ws: Workspace, worse: str | None) -> dict | None:
 
 def write_report(ws: Workspace, worse: str | None = None) -> None:
     """report.html again from the saved result (made again first when it was worked out
-    another way: recompute_old); nothing when there is no result yet."""
+    another way: recompute_old); nothing when there is no result yet. With no grade, the result
+    is made again first (no_grades.redraw)."""
+    from judgekeeper import no_grades
+
+    if no_grades.here(ws):
+        return no_grades.redraw(ws)
     if recompute_old(ws, worse=worse):
         return
     try:
         r = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if isinstance(r, dict):
+    if isinstance(r, dict) and r.get("graded") is not False:
         write_replacing(ws.report_html, result_html(_scrubbed(_now(ws, r)), fixing=_fixing(ws, r),
                                                     worse=worse, last=_last_check(ws, worse)))
 
@@ -1609,6 +1633,20 @@ def live_result(ws: Workspace, session: StartSession, flags: dict | None = None,
     disagreement listed: the hidden marks can't be set aside first. Before there is a result,
     nothing is written, as in the terminal: the page shows the numbers so far. A saved result
     is written again (a mark taken back since), so no file keeps the old one."""
+    from judgekeeper import no_grades
+
+    if no_grades.here(ws):
+        ready = (len(session.marked()) >= no_grades.MIN_MARKS or ws.result_json.is_file())
+        try:
+            r = (no_grades.store(ws, session, flags) if ready
+                 else no_grades.made(ws, session, flags))
+        except OSError:
+            r = no_grades.made(ws, session, flags)
+        try:
+            fixing = _fixing(ws, r, session)
+        except OSError:
+            fixing = None
+        return result_html(_scrubbed(r), back, fixing=fixing)
     ready = (has_result(batches.counted_strata(ws.data(), batches.graded(ws.data(),
                                                                            session.marked())))
              or ws.result_json.is_file())
@@ -1697,8 +1735,13 @@ def result_numbers(data: dict, labels: dict[str, str], known: tuple | None = Non
 
 
 def compute(ws: Workspace, session: StartSession) -> dict:
-    """The result from the marks of the batches that count (batches.counting)."""
+    """The result from the marks of the batches that count (batches.counting); for answers
+    with no grade, no_grades.compute."""
+    from judgekeeper import no_grades
+
     data = ws.data()
+    if no_grades.is_off(data):
+        return no_grades.compute(ws, session)
     groups = {q["id"]: q["group"] for q in data["queue"]}
     labels = batches.counted_labels(data, batches.graded(data, session.marked()))
     disagreements = sum(m != groups[i] for i, m in labels.items())
@@ -1882,6 +1925,10 @@ def store_result(ws: Workspace, session: StartSession,
     With no new marks since the saved result, that result stays as it is, and history.jsonl
     gets no line; `redraw` draws its report.html again. `worse`: the next step after a check
     found the new judge worse (check.worse_step), on report.html."""
+    from judgekeeper import no_grades
+
+    if no_grades.here(ws):
+        return no_grades.store(ws, session, flags)
     digest = marks_digest(ws, session)
     same = _same_result(ws, digest)
     if same is not None:
@@ -1975,6 +2022,14 @@ def repair(ws: Workspace) -> None:
     except (OSError, ValueError):
         return
     if not isinstance(r, dict) or "labels" not in r:
+        return
+    if r.get("graded") is False:  # answers with no grade: no history line
+        try:
+            if (not ws.report_html.is_file()
+                    or ws.result_json.stat().st_mtime_ns > ws.report_html.stat().st_mtime_ns):
+                write_report(ws)
+        except (OSError, marks.MarksError):
+            pass
         return
     try:
         stale = (not ws.report_html.is_file()

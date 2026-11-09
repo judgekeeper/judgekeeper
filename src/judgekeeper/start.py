@@ -635,7 +635,7 @@ def model_column(rows: list[dict], columns) -> tuple[str | None, bool]:
     return column, column is not None and mapper.names_models([row.get(column) for row in rows])
 
 
-def read_results_table(path: Path) -> RecordList:
+def read_results_table(path: Path, answers: bool = False) -> RecordList:
     """A plain table (input, output and a verdict column) as judge records; a human label
     column, when there is one, as human records (counted, not used). A `model` (or
     `judge_model`) column names the judge's model, an `app_version` column the app's, and a
@@ -672,6 +672,8 @@ def read_results_table(path: Path) -> RecordList:
             c for c in columns if c not in verdicts and c not in KNOWN_COLUMNS
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdicts = verdicts or find.grade_columns(columns)
+    if not verdicts and answers and find.answers_only(path):  # no grade: the person marks each
+        return _answers_only(rows, ids if own else None)
     if not verdicts or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and a verdict or score column; "
                          f"columns are: {', '.join(columns)}")
@@ -710,6 +712,24 @@ def read_results_table(path: Path) -> RecordList:
     return records
 
 
+def _answers_only(rows: list[dict], ids: list | None) -> RecordList:
+    """A table's answers with no grade (find.is_answers_table): no judge records, and its
+    answers as `answers` ({"id", "input", "output"}, with app_version when it has one), each
+    once. `ids`: the table's own ids, when every row has its own."""
+    records = RecordList(ids_derived=ids is None)
+    answers: dict[str, dict] = {}
+    for n, row in enumerate(rows, 1):
+        textio.reading(n)
+        key = ids[n - 1] if ids else derive_record_id(row.get("input"), row.get("output"))
+        answer = {"id": str(key), "input": row.get("input"), "output": row.get("output")}
+        if not _blank(row.get("app_version")):
+            answer["app_version"] = str(row["app_version"])
+        answers.setdefault(answer["id"], answer)
+    records.answers = list(answers.values())
+    records.repeats = len(rows) - len(answers)
+    return records
+
+
 @dataclass
 class Loaded:
     """One results file (or one MLflow run), read."""
@@ -734,10 +754,12 @@ def usage_error(e: Exception, text: str | None = None) -> StartError:
                       getattr(e, "drop", None))
 
 
-def _read(result: find.Result) -> Loaded:
+def _read(result: find.Result, answers: bool = False) -> Loaded:
+    """`result` read; `answers`: a table with no grade is read as answers to mark
+    (read_results_table), not refused."""
     try:
         if result.tool == "table":
-            records = read_results_table(result.path)
+            records = read_results_table(result.path, answers)
         elif result.tool == "inspect":  # a sample that errored before it was scored, too
             records = read_inspect(result.path, with_errors=True)
         else:
@@ -750,12 +772,12 @@ def _read(result: find.Result) -> Loaded:
     return Loaded(result.rel, records)
 
 
-def _readable(talk: Talk, results: list[find.Result], root: Path):
+def _readable(talk: Talk, results: list[find.Result], root: Path, answers: bool = False):
     """Each of `results` read (_read), newest first; one that can't be read is said and
     left out."""
     for r in results:
         try:
-            yield _read(r)
+            yield _read(r, answers)
         except RecordsError as e:
             _note(talk, f"{_unread(e, r, root)} It is left out.")
 
@@ -1156,6 +1178,7 @@ class Found:
     warnings: list[str] = field(default_factory=list)  # the reader's, about this judge
     n_rules: int = 1  # how many rules the judge's verdicts have (one per test, say)
     reference: bool = False  # it compares each answer with its test's reference answer
+    graded: bool = True  # False: answers with no grade (no_grades.py), the person marks each
 
 
 def rebased(found: Found, root: Path, folder: Path | None = None) -> Found:
@@ -2118,7 +2141,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                talk: Talk | None = None, prefer: str | None = None,
                tracking_uri: str | None = None, store: str | None = None,
                saved: settings.StartSettings | None = None,
-               only: list[str] | None = None) -> Found:
+               only: list[str] | None = None, answers: bool = False) -> Found:
     """Find the results, choose what to use, make the pool and name the judge.
 
     `talk` says each step and asks the questions; the default says nothing and, with no one
@@ -2127,6 +2150,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     (the MLflow store of the last check) likewise. `tracking_uri` names the MLflow store.
     `saved` stands in for judgekeeper.toml's [start] table (a map not saved yet). `only`
     (paths in the project) keeps to those results files: the ones the marks were made on.
+    `answers`: a table with no grade is answers to mark (Found.graded False); else, as for
+    `check`, it is refused (read_results_table).
     """
     talk = talk or Talk(quiet=True)
     if saved is None and tool is None and tracking_uri is None:
@@ -2198,7 +2223,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
             while first is None:  # a file that can't be read never hides a good one beside it
                 newest = rest.pop(0)
                 try:
-                    first = _read(newest)
+                    first = _read(newest, answers)
                 except RecordsError as e:
                     if not rest and not unjudged:
                         raise usage_error(e, _unread(e, newest, root)) from None
@@ -2207,6 +2232,8 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                         raise _no_judge(talk, kind, [r.rel for r in unjudged], rules,
                                         False) from None
                     continue
+                if getattr(first.records, "answers", None) is not None:  # no grade in it
+                    return _answers_found(root, newest, first, signs)
                 if not _judges(first.records, kind):
                     unjudged.append(newest)
                     rules = rules and _rules_in_code(first.records, kind)
@@ -2301,6 +2328,22 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
                  warnings=[w for w in first.records.warnings if not is_stripped_warning(w)]
                  + list(first.records.per_metric.get(metric, {}).get("warnings") or [])
                  + unnamed)
+
+
+def _answers_found(root: Path, result: find.Result, loaded: Loaded, signs: dict) -> Found:
+    """The Found for a table of answers with no grade (_answers_only): every answer to mark,
+    no LLM-as-a-judge, no verdict."""
+    fingerprint = make_fingerprint({})
+    answers = [Answer(id=a["id"], input=a["input"], output=a["output"], verdict=None,
+                      reason="", score=None, fingerprint=fingerprint, source=loaded.label,
+                      agent={k: a[k] for k in ("app_version",) if k in a})
+               for a in loaded.records.answers]
+    pool = Pool(answers=answers, n_merged=loaded.records.repeats,
+                n_repeats=loaded.records.repeats)
+    versions = sorted({a.agent["app_version"] for a in answers if "app_version" in a.agent})
+    return Found(root=root, tool="table", results=[result], used=[loaded.label], metric=None,
+                 pool=pool, fingerprint=fingerprint.to_dict(), judge="", signs=signs,
+                 app_version=", ".join(versions) or None, graded=False)
 
 
 def _rule_key(r, kind: str) -> str | None:

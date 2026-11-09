@@ -1939,8 +1939,13 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
         said.say(f"Next: give `{program_in(ANYWHERE, 'check')}` your new results file, or run it "
                  "in your project folder.")
         return EXIT_USAGE
-    from judgekeeper import project
+    from judgekeeper import no_grades, project
 
+    if (stop := no_grades.no_judge_stop(path, "re-check")) is not None:
+        said.say(stop[0])
+        said.say()
+        said.say(f"Next: {stop[1]}")
+        return EXIT_NEEDS_YOU
     state = _state(path)
     if state is not None and Path(path).is_file() and (
             marked := project.other_eval(state.ws.root, Path(path))) is not None:

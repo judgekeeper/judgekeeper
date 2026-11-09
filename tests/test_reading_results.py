@@ -209,12 +209,13 @@ def test_a_score_column_with_no_pass_mark_stops_and_asks_for_it(here, capsys, su
     assert '--pass-if "score>=N"' in next_lines(out)[-1]
 
 
-def test_a_table_with_no_grade_column_names_verdict_or_score(here, capsys):
+def test_a_table_with_no_grade_column_is_answers_to_mark(here, capsys):
     write_csv(here / "results.tsv", ["input", "output", "reason"], [("q", "a", "r")],
               delimiter="\t")
     code, out = find(capsys, "results.tsv")
-    assert code == 2
-    assert "a table with input, output and a verdict or score column" in flat(out)
+    assert code == 0, out
+    assert "Answers: 1 answer" in flat(out)
+    assert "LLM-as-a-judge" not in out
 
 
 # A verdict and a score column with --pass-if -------------------------------------------------
