@@ -853,10 +853,12 @@ def _entry(x) -> bool:
         isinstance(v, str) for v in x.values())
 
 
-def read_before(ws) -> dict[str, list[dict]] | None:
-    """fix/before.json's questions: {question_key: [{"id", "answer"}, ...], the last two
-    answers marked, oldest first}. None when there is none, it is a link, can't be read, is
-    not as judgekeeper writes it or was changed by hand: nothing is compared, no error."""
+def read_before(ws) -> dict | None:
+    """fix/before.json: "questions", {question_key: [{"id", "answer"}, ...]}, the last two
+    answers marked, oldest first, and "round", the answers that came new with the results
+    now ({"stamp", "new"}, None in a file from before it). None when there is none, it is a
+    link, can't be read, is not as judgekeeper writes it or was changed by hand: nothing is
+    compared, no error."""
     from judgekeeper.fix import _sum
 
     path = _before_path(ws)
@@ -870,26 +872,47 @@ def read_before(ws) -> dict[str, list[dict]] | None:
             isinstance(k, str) and isinstance(v, list) and 1 <= len(v) <= 2
             and all(_entry(x) for x in v) for k, v in d["questions"].items()):
         return None
+    got = d.get("round")
+    if got is not None and not (isinstance(got, dict) and isinstance(got.get("stamp"), str)
+                                and _strings(got.get("new"))):
+        return None
     if d.get("sha256") != _sum(d):
         return None
-    return {k: [dict(x) for x in v] for k, v in d["questions"].items()}
+    return {"questions": {k: [dict(x) for x in v] for k, v in d["questions"].items()},
+            "round": {"stamp": got["stamp"], "new": list(got["new"])} if got else None}
+
+
+def _write_before(ws, before: dict) -> None:
+    from judgekeeper.fix import _sum
+
+    path = _before_path(ws)
+    make_private(path.parent)
+    d = {"questions": before["questions"],
+         **({"round": before["round"]} if before.get("round") else {})}
+    write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
+
+
+def _before_or_new(ws) -> dict | None:
+    """before.json to write to: as it is, or a new one; None when it is a link or can't be
+    read (never replaced)."""
+    path = _before_path(ws)
+    try:
+        marks._refuse_links(path)
+    except marks.MarksError:
+        return None
+    return read_before(ws) if path.exists() else {"questions": {}, "round": None}
 
 
 def remember(ws) -> None:
     """fix/before.json with the answers in pool.jsonl now: each answer marked Pass or Fail
     whose question is asked once there is its question's newest; a new answer text comes
-    after the one before it (two kept), the same text in its place. Never written through a
-    link, and one that can't be read is never replaced."""
-    from judgekeeper.fix import _sum
-
-    path = _before_path(ws)
-    try:
-        marks._refuse_links(path)
-    except marks.MarksError:
+    after the one before it (two kept). The same text again (the question's spaces changed)
+    takes its place alone: there is no change to compare. Never written through a link, and
+    one that can't be read is never replaced."""
+    before = _before_or_new(ws)
+    if before is None:
         return
-    questions = read_before(ws) if path.exists() else {}
-    if questions is None:
-        return
+    questions = before["questions"]
     try:
         rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8")) if x.strip()]
         counted = marks.read(ws.marks).counted() if ws.marks.is_file() else {}
@@ -899,7 +922,7 @@ def remember(ws) -> None:
     for row in rows:
         if isinstance(row, dict) and isinstance(row.get("id"), str):
             asked.setdefault(question_key(row.get("input")), []).append(row)
-    changed = not path.exists()
+    changed = not _before_path(ws).exists()
     for key, rows in asked.items():
         if len(rows) != 1 or rows[0]["id"] not in counted:
             continue
@@ -908,15 +931,29 @@ def remember(ws) -> None:
         if last and last[-1]["id"] == entry["id"]:
             continue
         if last and last[-1]["answer"] == entry["answer"]:
-            questions[key] = [*last[:-1], entry]
+            questions[key] = [entry]
         else:
             questions[key] = [*last, entry][-2:]
         changed = True
-    if not changed:
+    if changed:
+        _write_before(ws, before)
+
+
+def results_stamp(ids) -> str:
+    """The answers now, as a hash of their ids: the same answers saved again are the same
+    results, whatever the file's time."""
+    return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()[:16]
+
+
+def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
+    """New results (`stamp` changed): the answers in them that were not in the ones before
+    (`old`) are the ones compared now (compare); an answer carried over is never compared
+    again. The same answers read again, or saved again, keep the round they had."""
+    before = _before_or_new(ws)
+    if before is None or (before["round"] or {}).get("stamp") == stamp:
         return
-    make_private(path.parent)
-    d = {"questions": questions}
-    write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
+    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old)}
+    _write_before(ws, before)
 
 
 def change_kind(fixed: int, broke: int, n: int, test: int = 1) -> str:
@@ -932,13 +969,14 @@ def change_kind(fixed: int, broke: int, n: int, test: int = 1) -> str:
 
 def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     """What changed since the last answers. A question is compared when it is asked once in
-    the results and its answer now and the one marked before it (read_before) are both marked,
-    with different text. {"waiting": True} while a new answer of a compared question is not
-    marked. Retired set: {"new_set": True}. None of them kept aside: {"kept": 0}. Else the
+    the results, its answer came new with them (new_round), and its answer now and the one
+    marked before it (read_before) are both marked, with different text. A retired set:
+    {"new_set": True}, until new questions make a new one. {"waiting": True} while a new
+    answer of a compared question is not marked. None of them kept aside: {"kept": 0}. Else the
     counts on the questions kept aside ("kept", "fixed", "broke", "same"), the result ("kind",
     "clear"), this change's number on the set ("test") and its key (the answers kept aside
-    now). With either, the shown
-    answers that went from Pass to Fail ("shown_broke"). None when nothing is compared."""
+    now). With either, the shown answers that went from Pass to Fail ("shown_broke"). None
+    when nothing is compared."""
     from judgekeeper.fix import MAX_RULES
 
     try:
@@ -946,18 +984,22 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
         counted = marks.read(ws.marks).counted() if ws.marks.is_file() else {}
     except (SplitUnknown, OSError, ValueError):
         return None
-    questions = read_before(ws)
-    if split is None or not questions:
+    if split is None:
         return None
+    before = read_before(ws)
+    round_ = before["round"] if before else None
+    new = set(round_["new"]) if round_ else set()
     asked: dict[str, list[str]] = {}
     for i in session.by_id:
         asked.setdefault(question_key((session.raw.get(i) or {}).get("input")), []).append(i)
     pairs, waiting = [], False
-    for key, ids in asked.items():
-        last = questions.get(key)
+    for key, ids in asked.items() if round_ else ():
+        last = before["questions"].get(key)
         if len(ids) != 1 or not last:
             continue
         now = ids[0]
+        if now not in new:  # carried over from the results before: not compared again
+            continue
         if last[-1]["id"] == now:
             if len(last) < 2:
                 continue
@@ -972,14 +1014,14 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
             waiting = True
             continue
         pairs.append((now, counted[was["id"]], counted[now]))
-    if waiting:
-        return {"waiting": True}
-    if not pairs:
-        return None
     seen, hidden = set(split.seen), set(split.hidden)
     out: dict = {"shown_broke": [i for i, a, b in pairs if i in seen and (a, b) == ("pass", "fail")]}
     if split.fresh:
         return {"new_set": True, **out}
+    if waiting:
+        return {"waiting": True}
+    if not pairs:
+        return None
     kept = [(i, a, b) for i, a, b in pairs if i in hidden]
     if not kept:  # nothing to test the change on: no counts, no test
         return {"kept": 0, **out}
@@ -1073,6 +1115,11 @@ def prepare(found, ws) -> None:
     pool = _scrubbed([{"id": i, "input": answers[i].input, "output": answers[i].output,
                        **answers[i].agent} for i in order])
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))
+    try:
+        new_round(ws, results_stamp(order),
+                  {q["id"] for q in old["queue"]} if old is not None else set(), order)
+    except (OSError, marks.MarksError):
+        pass
     newest = found.results[0]
     p = found.pool
     _write_json(ws.start, {

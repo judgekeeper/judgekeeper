@@ -284,6 +284,58 @@ def test_counts_wait_for_every_changed_question_shown_ones_too(project):
     assert WAIT not in said and f"On the {len(kept)} questions kept aside" in said
 
 
+def _resave(here) -> None:
+    """results.csv saved again as it is: a newer modified time, the same answers."""
+    path = here / "results.csv"
+    st = path.stat()
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+
+
+def test_an_answer_carried_over_from_the_last_results_is_not_compared_again(project):
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
+    q, shown_pass = project.kept("fail")[0], project.shown("pass")[0]
+    project.again({q: "pass", shown_pass: "fail"})  # fixed and broke with these answers
+    assert "Answers that broke" in _report(project.here)
+    others = [i for i in project.kept() if i != q]
+    project.again({i: project.marks[i] for i in others})  # the next results: q's answer as it was
+    since = _result(project.here)["since"]
+    assert (since["kept"], since["fixed"], since["broke"]) == (len(others), 0, 0)
+    assert "Answers that broke" not in _report(project.here)
+
+
+def test_a_question_with_spaces_added_and_the_same_answer_is_never_compared(project):
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
+    q = project.kept("fail")[0]
+    project.again({q: "pass"})
+    assert _result(project.here)["since"]["fixed"] == 1
+    _write(project.here, project.outs, asked={q: f"What is  question {q}? "})
+    project.run()
+    unmarked = _result(project.here).get("since")
+    _mark(project.here, {q: "pass"})
+    project.run()
+    assert unmarked is None and _result(project.here).get("since") is None
+
+
+def test_the_same_answers_saved_again_keep_the_comparison_and_add_no_test(project):
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
+    project.again({i: "pass" for i in project.kept("fail")})
+    since = _result(project.here)["since"]
+    _resave(project.here)  # rewritten with the same answers: nothing new happened
+    project.run()
+    assert _result(project.here)["since"] == since
+    assert len(no_grades.read_split(_ws(project.here)).tests) == 1
+
+
+def test_an_answer_that_comes_back_to_an_earlier_text_is_compared(project):
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
+    q = project.kept("fail")[0]
+    project.again({q: "pass"})  # Fail, then Pass
+    project.outs[q] = f"First answer {q}."  # the first answer again: its Fail mark is kept
+    _write(project.here, project.outs)
+    said = project.run()
+    assert _counts_line(1, 0, 1, 0) in said
+
+
 # The result: the sign test, divided per change tested -------------------------------------
 
 @pytest.mark.parametrize("fixed, broke, same, line", [
