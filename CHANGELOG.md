@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 (2026-11-09)
+
+- No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
+- The answers you fail are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of your Pass marks and half of your Fail marks are kept aside, at random, to test the change.
+- After you change your AI and mark its new answers, judgekeeper counts how many were fixed, how many broke and how many stayed the same on the questions kept aside. It says whether the change helped, made it worse, or can't tell yet.
+- No answers yet? judgekeeper prints a prompt for your coding agent to write about 20 test questions and save your AI's answers.
+- Find's list of what judgekeeper reads, and `--help`, now say input and output, with a verdict column if an LLM-as-a-judge graded them.
+- On the result page, a long reason is shown in full when its row is open. Your own reason buttons are cut to 2 lines, with the full text on hover.
+- Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
+- The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
+
 ## 1.1.2 (2026-11-08)
 
 - New result page layout: three big numbers first, then the answers you disagreed on, then what to do next. Pass and Fail are in colour, with fewer small notes.
