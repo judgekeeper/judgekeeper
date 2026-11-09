@@ -339,7 +339,8 @@ def section(ws, r: dict, session=None) -> dict | None:
 
     rows = [x for x in map(row, r.get("fails") or []) if x]
     hidden = kept_aside(ws) or set()  # a button typed on one kept aside (an older version)
-    own = [c for c in reasons.own_chips(ws) if c.get("from") not in hidden]
+    own = [c for c in reasons.own_chips(ws)
+           if not (isinstance(c.get("from"), str) and c["from"] in hidden)]
     out = {"mistakes": rows, "own": own, "file": results_file(ws)}
     if has_failed(ws):
         out.update(failed=failed_shown(ws, True), prompt=fix_prompt(ws, True))
@@ -607,19 +608,24 @@ def _save_split(ws, split: AnswersSplit) -> None:
     write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
-def _whole(ids: list[str], key: dict[str, str]) -> tuple[list[str], dict[str, list[str]]]:
-    """One answer for each question in `ids` (the first by id), split for its question, and
-    each question's answers by that answer."""
+def _whole(ids: list[str], key: dict[str, str],
+           marked: dict[str, str]) -> tuple[list[str], dict[str, list[str]]]:
+    """One answer for each question in `ids`, split for its question: its first Fail by id,
+    else its first answer (so a question's only Fail is a Fail to the split, never kept aside
+    as one Pass of many), and each question's answers by that answer."""
     by: dict[str, list[str]] = {}
     for i in sorted(ids):
         by.setdefault(key[i], []).append(i)
-    return [x[0] for x in by.values()], {x[0]: x for x in by.values()}
+    first = [next((i for i in x if marked.get(i) == "fail"), x[0]) for x in by.values()]
+    return first, dict(zip(first, by.values(), strict=True))
 
 
-def _split_whole(split_by, ids: list[str], key: dict[str, str]) -> tuple[list[str], list[str]]:
+def _split_whole(split_by, ids: list[str], key: dict[str, str],
+                 marked: dict[str, str]) -> tuple[list[str], list[str]]:
     """(seen, hidden) of `ids` from `split_by` (fix._cells or fix._top_up on a list of
-    answers), one answer standing for its question: every answer to a question on its side."""
-    first, each = _whole(ids, key)
+    answers), one answer standing for its question (_whole): every answer to a question on
+    its side."""
+    first, each = _whole(ids, key, marked)
     seen, hidden = split_by(first)
     return [x for i in seen for x in each[i]], [x for i in hidden for x in each[i]]
 
@@ -642,11 +648,13 @@ def _one_side(split: AnswersSplit, key: dict[str, str]) -> None:
 
 
 def update_split(ws, session) -> AnswersSplit | None:
-    """The split made again with the marks now, saved: from MIN_MARKS marks, half of the Pass
-    marks and half of the Fail marks kept aside, rounded up, none of a kind with one
-    (fix._cells), one answer standing for its question: all the answers to a question are on
-    one side. Answers split before keep their side. A new answer to a question split before
-    takes its side; the rest are split the same way (fix._top_up). Answers no longer in the
+    """The split made again with the marks now, saved. From MIN_MARKS marks the questions are
+    split, each by one of its answers (_whole: its first Fail, else its first answer): half of
+    the questions standing as Pass and half of those standing as Fail kept aside, rounded up,
+    none of a kind with one (fix._cells), and every answer to a question on its side.
+    Answers split before keep their side. A new answer to a question split before takes its
+    side; new questions are split the same way (fix._top_up). A question with answers on
+    both sides (an older split's "both") is shown whole (_one_side). Answers no longer in the
     file are left out; their questions keep their side. Once the set is retired (retire), the
     new questions wait (`pending`) until the set's `fresh` want of them are marked, then are
     split as the first ones were, a new set. SplitUnknown as read_split."""
@@ -661,7 +669,7 @@ def update_split(ws, session) -> AnswersSplit | None:
     if split is None:
         seed = secrets.randbelow(2 ** 31)
         seen, hidden = _split_whole(lambda ids: _cells(m, ids, random.Random(seed)),
-                                    list(marked), key)
+                                    list(marked), key, marked)
         split = AnswersSplit(seed=seed, seen=sorted(seen), hidden=sorted(hidden),
                              made_at=utc_now())
     else:
@@ -679,16 +687,18 @@ def update_split(ws, session) -> AnswersSplit | None:
                 rest.append(i)
         if split.fresh:  # retired: a new set from enough new questions
             split.pending = rest
-            if len(_whole(rest, key)[0]) >= split.fresh["want"]:
+            if len(_whole(rest, key, marked)[0]) >= split.fresh["want"]:
                 rng = random.Random(f"{split.seed}/{split.set + 1}")
-                seen, hidden = _split_whole(lambda ids: _cells(m, ids, rng), rest, key)
+                seen, hidden = _split_whole(lambda ids: _cells(m, ids, rng), rest, key,
+                                            marked)
                 split.seen += seen
                 split.hidden += hidden
                 split.set, split.tests, split.fresh, split.pending = split.set + 1, [], None, []
         elif rest:
             rng = random.Random(f"{split.seed}/{len(known)}")
             seen, hidden = _split_whole(
-                lambda ids: _top_up(m, ids, known & set(marked), split.hidden, rng), rest, key)
+                lambda ids: _top_up(m, ids, known & set(marked), split.hidden, rng), rest, key,
+                marked)
             split.seen += seen
             split.hidden += hidden
     _one_side(split, key)

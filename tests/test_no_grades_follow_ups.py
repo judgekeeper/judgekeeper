@@ -149,6 +149,28 @@ def test_a_question_on_both_sides_in_an_older_file_is_shown_whole(here, capsys):
     assert no_grades.BOTH not in split.questions.values()
 
 
+def test_a_questions_only_fail_is_never_kept_aside_behind_its_pass(here, capsys, monkeypatch):
+    from judgekeeper.table import derive_id
+
+    def answer_id(text: str) -> str:
+        return derive_id({"input": "Question 10?", "output": text})
+
+    good, bad = next((f"Good answer {k}.", f"Bad answer {k}.") for k in range(100)
+                     if answer_id(f"Good answer {k}.") < answer_id(f"Bad answer {k}."))
+    rows = [(f"Question {i}?", f"Good answer {i}.") for i in range(10)]
+    _write(here, [*rows, ("Question 10?", good), ("Question 10?", bad)])  # the Pass first by id
+    _go(capsys)
+    page = _mark_by_answer(here)
+    ws = _ws(here)
+    fail = next(i for i in page.by_id if page.by_id[i]["label"] == "fail")
+    path = ws.dir / "fix" / no_grades.SPLIT_FILE
+    for seed in range(80):  # one Fail in all: never kept aside, whatever the seed
+        path.unlink(missing_ok=True)
+        monkeypatch.setattr(no_grades.secrets, "randbelow", lambda n, s=seed: s)
+        split = no_grades.update_split(ws, page)
+        assert fail in split.seen, seed
+
+
 # 2. No reasons on answers kept aside ----------------------------------------------------------
 
 @pytest.fixture
@@ -193,6 +215,20 @@ def test_a_button_made_on_an_answer_kept_aside_before_is_never_shown(here, capsy
     no_grades.redraw(ws)
     for html in (_live(here), _report(here)):
         assert "Old kept words" not in html
+
+
+@pytest.mark.parametrize("made_from", [["a", "b"], {"id": "x"}, 7, None])
+def test_a_button_whose_answer_is_not_a_string_is_kept_and_breaks_nothing(here, capsys,
+                                                                          made_from):
+    _marked(here, capsys, ["pass"] * 4 + ["fail"] * 6)
+    ws = _ws(here)
+    path = ws.dir / "reasons.json"
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    data["own"] = [{"id": "own-1", "text": "Odd words", "from": made_from}]  # edited by hand
+    path.write_text(json.dumps(data), encoding="utf-8")
+    code, out, err = run(capsys, "--no-browser")
+    assert code == 0, out + err
+    assert "Odd words" in _live(here)
 
 
 # 3. failed-answers.md after each mark ------------------------------------------------------------
@@ -348,6 +384,20 @@ def test_an_older_ready_seen_file_brings_no_pop_up_again(here, capsys):
         before.unlink()
     _go(capsys)
     assert _session(here).pop_up({"ready": True}) is False
+
+
+def test_answers_taken_out_of_the_file_bring_no_second_pop_up(here, capsys):
+    rows = [(f"Question {i}?", f"{'Bad' if i % 2 else 'Good'} answer {i}.") for i in range(12)]
+    _write(here, rows)
+    _go(capsys)
+    page = _mark_by_answer(here)
+    assert page.pop_up({"ready": True}) is True
+    run(capsys, "--stop")
+    _write(here, rows[:11])  # one answer taken out: new results, nothing new in them
+    _go(capsys)
+    assert _session(here).pop_up({"ready": True}) is False
+    (_ws(here).dir / "fix" / no_grades.BEFORE_FILE).write_text("{", encoding="utf-8")
+    assert _session(here).pop_up({"ready": True}) is False  # before.json can't be read
 
 
 # 8. The result page under 10 marks ------------------------------------------------------------

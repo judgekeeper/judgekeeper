@@ -1117,12 +1117,14 @@ class StartSession(LabelSession):
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
         page shows the pop-up then. Kept on disk (ready_seen), so a reload or a new page
-        never shows it again, even when the verdict goes back to too early and returns."""
+        never shows it again, even when the verdict goes back to too early and returns. With
+        no grade, once more for results that brought new answers (no_grades.ready_round)."""
         from judgekeeper import no_grades
 
         seen = self.workspace.ready_seen
         mine = no_grades.ready_round(self.workspace)  # new answers since: once more for them
-        if not status.get("ready") or seen.is_file() and _seen_round(seen) == mine:
+        if not status.get("ready") or seen.is_file() and (mine is None or
+                                                           _seen_round(seen) == mine):
             return False
         try:
             _write_json(seen, {"at": utc_now(), **({"round": mine} if mine else {})})
