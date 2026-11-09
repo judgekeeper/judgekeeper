@@ -287,9 +287,8 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "",
         "Running your AI may use your API key.",
         "",
-        "Next: run your eval once from this folder, then run",
-        "`judgekeeper` again. If your results are somewhere else, run",
-        "`judgekeeper PATH` with their file or folder.",
+        "Next: paste the prompt above into your coding agent, then run",
+        "`judgekeeper` again.",
     ]
     assert str(tmp_path) not in "\n".join(lines)
 

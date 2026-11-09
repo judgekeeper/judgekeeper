@@ -701,9 +701,8 @@ def test_nothing_found_names_the_folder_not_its_path(here, capsys):
     assert f"No eval results found in this folder ({here.name}). judgekeeper" in " ".join(
         out.split())
     assert str(here) not in out
-    assert assert_one_next_at_the_end(out) == (
-        "Next: run your eval once from this folder, then run `judgekeeper` again. If your "
-        "results are somewhere else, run `judgekeeper PATH` with their file or folder.")
+    assert assert_one_next_at_the_end(out) == (  # after the prompt to write questions
+        "Next: paste the prompt above into your coding agent, then run `judgekeeper` again.")
 
 
 def test_nothing_found_names_the_eval_tool_in_the_project(here, capsys):

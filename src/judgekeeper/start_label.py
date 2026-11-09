@@ -955,6 +955,10 @@ class StartSession(LabelSession):
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+        from judgekeeper import no_grades
+
+        if no_grades.here(self.workspace):  # the answers failed, for a coding agent, at once
+            no_grades.after_mark(self.workspace, self)
         done = self._all_marked()  # the result is there now: no repeat card in front of it
         if changed or done:  # a repeat card due for it would compare with the mark it had
             for slot, i in list(self.offered.items()):
@@ -1113,15 +1117,30 @@ class StartSession(LabelSession):
     def pop_up(self, status: dict) -> bool:
         """True the first time a marking page gets a coloured verdict (`status` ready): the
         page shows the pop-up then. Kept on disk (ready_seen), so a reload or a new page
-        never shows it again, even when the verdict goes back to too early and returns."""
+        never shows it again, even when the verdict goes back to too early and returns. With
+        no grade, once more for results that brought new answers (no_grades.ready_round)."""
+        from judgekeeper import no_grades
+
         seen = self.workspace.ready_seen
-        if not status.get("ready") or seen.is_file():
+        mine = no_grades.ready_round(self.workspace)  # new answers since: once more for them
+        if not status.get("ready") or seen.is_file() and (mine is None or
+                                                           _seen_round(seen) == mine):
             return False
         try:
-            _write_json(seen, {"at": utc_now()})
+            _write_json(seen, {"at": utc_now(), **({"round": mine} if mine else {})})
         except OSError:  # the mark is saved; the pop-up still shows on this page
             pass
         return True
+
+
+def _seen_round(path: Path) -> str | None:
+    """The results ready-seen.json was written for; None for the first ones, an older file or
+    one that can't be read."""
+    try:
+        d = loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("round") if isinstance(d, dict) and isinstance(d.get("round"), str) else None
 
 
 # The result ------------------------------------------------------------------------------

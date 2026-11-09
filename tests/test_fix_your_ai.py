@@ -12,7 +12,7 @@ from html import unescape
 
 import pytest
 
-from judgekeeper import fix, no_grades, reasons, report_page, start_fix_rule, start_label
+from judgekeeper import fix, marks, no_grades, reasons, report_page, start_fix_rule, start_label
 from judgekeeper.metrics import wilson
 from judgekeeper.textio import is_windows
 from tests.test_answers_without_grades import (
@@ -212,9 +212,17 @@ def test_a_kept_aside_answer_never_shows_but_is_counted(here, capsys, marked):
     kept = [i for i in fails if i in split.hidden]
     shown = [i for i in fails if i in split.seen]
     assert len(kept) == 3 and len(shown) == 3
-    for n, i in enumerate(fails):  # a reason on every one, as the page could never send
-        page.update({"id": i, "reasons": ["wrong_fact" if i in shown else "unsafe"],
-                     "note": f"note {n} {'shown' if i in shown else 'kept'}"})
+    for n, i in enumerate(fails):  # a reason on every one: refused on those kept aside
+        body = {"id": i, "reasons": ["wrong_fact" if i in shown else "unsafe"],
+                "note": f"note {n} {'shown' if i in shown else 'kept'}"}
+        if i in shown:
+            page.update(body)
+            continue
+        with pytest.raises(ValueError, match="not on your result page"):
+            page.update(body)
+        why = {"reasons": body["reasons"], "note": body["note"]}  # as an older version saved it
+        marks.append(page.out, marks.stamp(i, "fail", None, None, page.sitting, link=page.link,
+                                           why=why))
     _, out, _ = run(capsys, "--no-browser")
     said = flat(out)
     assert "You passed 4 of 10 answers." in said  # every mark counted

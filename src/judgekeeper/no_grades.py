@@ -46,6 +46,8 @@ MORE_ANSWERS = "add more answers to {file} (at least {n} in all), then run `{com
 # every answer marked, a result: the same, for a surer number
 SURER = "add more answers to {file} for a surer number, then run `{command}` again."
 
+ONLY_FAILED = "Reasons are only for answers you failed."  # /label: a reason on a Pass
+
 
 NO_JUDGE = "Your answers have no grades, so there is no LLM-as-a-judge to {what}."
 NO_JUDGE_NEXT = ("add your LLM-as-a-judge's grades to {file} as a verdict column (pass or fail), "
@@ -191,10 +193,15 @@ def fail_order(rows: list[dict]) -> list[str]:
 
 def check_reason(ws, item_id: str, mark: str | None, body: dict, before: dict | None) -> dict:
     """reasons.check with no LLM-as-a-judge: only on an answer the person failed, once there
-    is a result (MIN_MARKS marks), and only the reasons `offered` and the person's own."""
+    is a result (MIN_MARKS marks), never on one kept aside or waiting for a new set (as the
+    LLM-as-a-judge path, NOT_LISTED: which would tell it is), and only the reasons `offered`
+    and the person's own."""
     if mark not in ("pass", "fail"):
         raise ValueError("mark this answer Pass or Fail first")
-    if mark != "fail" or not _result_shown(ws):
+    if mark != "fail":
+        raise ValueError(ONLY_FAILED)
+    hidden = kept_aside(ws)
+    if not _result_shown(ws) or hidden is None or item_id in hidden:
         raise ValueError(reasons.NOT_LISTED)
     saved = reasons.of_line(before)
     body = {"reasons": saved["reasons"], "note": saved["note"], "spans": saved["spans"], **body}
@@ -331,9 +338,12 @@ def section(ws, r: dict, session=None) -> dict | None:
                                       "rule_parts": [], "spans": why["spans"]}}
 
     rows = [x for x in map(row, r.get("fails") or []) if x]
-    out = {"mistakes": rows, "own": reasons.own_chips(ws), "file": results_file(ws)}
+    hidden = kept_aside(ws) or set()  # a button typed on one kept aside (an older version)
+    own = [c for c in reasons.own_chips(ws)
+           if not (isinstance(c.get("from"), str) and c["from"] in hidden)]
+    out = {"mistakes": rows, "own": own, "file": results_file(ws)}
     if has_failed(ws):
-        out.update(failed=failed_shown(ws), prompt=fix_prompt(ws))
+        out.update(failed=failed_shown(ws, True), prompt=fix_prompt(ws, True))
     since = r.get("since")
     if since:  # the answers that broke: listed once more, read-only (their box is above)
         broke = [x for x in map(row, since.get("shown_broke") or []) if x]
@@ -481,6 +491,8 @@ FIX_PROMPT = ("Read {file}. It lists answers my AI gave that I marked Fail, with
               "answers.")
 AGENT_LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 FAILED_SAVED = "Your failed answers are saved in {file}."
+FIX_NEXT = ("paste the prompt above into your coding agent. After it changes your AI's prompt, "
+            "save your AI's new answers and run `{command}` again.")  # `fix`, with the prompt
 
 
 def question_key(text) -> str:
@@ -596,19 +608,56 @@ def _save_split(ws, split: AnswersSplit) -> None:
     write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
-def _side(questions: dict[str, str], key: str, side: str) -> None:
-    was = questions.get(key)
-    questions[key] = side if was in (None, side) else BOTH
+def _whole(ids: list[str], key: dict[str, str],
+           marked: dict[str, str]) -> tuple[list[str], dict[str, list[str]]]:
+    """One answer for each question in `ids`, split for its question: its first Fail by id,
+    else its first answer (so a question's only Fail is a Fail to the split, never kept aside
+    as one Pass of many), and each question's answers by that answer."""
+    by: dict[str, list[str]] = {}
+    for i in sorted(ids):
+        by.setdefault(key[i], []).append(i)
+    first = [next((i for i in x if marked.get(i) == "fail"), x[0]) for x in by.values()]
+    return first, dict(zip(first, by.values(), strict=True))
+
+
+def _split_whole(split_by, ids: list[str], key: dict[str, str],
+                 marked: dict[str, str]) -> tuple[list[str], list[str]]:
+    """(seen, hidden) of `ids` from `split_by` (fix._cells or fix._top_up on a list of
+    answers), one answer standing for its question (_whole): every answer to a question on
+    its side."""
+    first, each = _whole(ids, key, marked)
+    seen, hidden = split_by(first)
+    return [x for i in seen for x in each[i]], [x for i in hidden for x in each[i]]
+
+
+def _one_side(split: AnswersSplit, key: dict[str, str]) -> None:
+    """Each question on one side: a question with answers on both (an older split's "both")
+    is shown as a whole, as one of its answers was already shown and can no longer test a
+    change."""
+    kept = {key[i] for i in split.hidden}
+    both = {k for k, v in split.questions.items() if v == BOTH} | (
+        kept & {key[i] for i in split.seen})
+    if both:
+        split.seen += [i for i in split.hidden if key[i] in both]
+        split.hidden = [i for i in split.hidden if key[i] not in both]
+    for ids, side in ((split.seen, SHOWN), (split.hidden, KEPT)):
+        for i in ids:
+            split.questions[key[i]] = side
+    for k in both:
+        split.questions[k] = SHOWN
 
 
 def update_split(ws, session) -> AnswersSplit | None:
-    """The split made again with the marks now, saved: from MIN_MARKS marks, half of the Pass
-    marks and half of the Fail marks kept aside, rounded up, none of a kind with one
-    (fix._cells). Answers split before keep their side. A new answer to a question split
-    before takes its side; the rest are split the same way (fix._top_up). Answers no longer
-    in the file are left out; their questions keep their side. Once the set is retired
-    (retire), the new questions wait (`pending`) until the set's `fresh` want of them are
-    marked, then are split as the first ones were, a new set. SplitUnknown as read_split."""
+    """The split made again with the marks now, saved. From MIN_MARKS marks the questions are
+    split, each by one of its answers (_whole: its first Fail, else its first answer): half of
+    the questions standing as Pass and half of those standing as Fail kept aside, rounded up,
+    none of a kind with one (fix._cells), and every answer to a question on its side.
+    Answers split before keep their side. A new answer to a question split before takes its
+    side; new questions are split the same way (fix._top_up). A question with answers on
+    both sides (an older split's "both") is shown whole (_one_side). Answers no longer in the
+    file are left out; their questions keep their side. Once the set is retired (retire), the
+    new questions wait (`pending`) until the set's `fresh` want of them are marked, then are
+    split as the first ones were, a new set. SplitUnknown as read_split."""
     marked = session.marked()
     split = read_split(ws)
     if split is None and len(marked) < MIN_MARKS:
@@ -619,7 +668,8 @@ def update_split(ws, session) -> AnswersSplit | None:
     key = {i: question_key((session.raw.get(i) or {}).get("input")) for i in session.by_id}
     if split is None:
         seed = secrets.randbelow(2 ** 31)
-        seen, hidden = _cells(m, sorted(marked), random.Random(seed))
+        seen, hidden = _split_whole(lambda ids: _cells(m, ids, random.Random(seed)),
+                                    list(marked), key, marked)
         split = AnswersSplit(seed=seed, seen=sorted(seen), hidden=sorted(hidden),
                              made_at=utc_now())
     else:
@@ -637,19 +687,21 @@ def update_split(ws, session) -> AnswersSplit | None:
                 rest.append(i)
         if split.fresh:  # retired: a new set from enough new questions
             split.pending = rest
-            if len(rest) >= split.fresh["want"]:
-                seen, hidden = _cells(m, rest, random.Random(f"{split.seed}/{split.set + 1}"))
+            if len(_whole(rest, key, marked)[0]) >= split.fresh["want"]:
+                rng = random.Random(f"{split.seed}/{split.set + 1}")
+                seen, hidden = _split_whole(lambda ids: _cells(m, ids, rng), rest, key,
+                                            marked)
                 split.seen += seen
                 split.hidden += hidden
                 split.set, split.tests, split.fresh, split.pending = split.set + 1, [], None, []
         elif rest:
-            seen, hidden = _top_up(m, rest, known & set(marked), split.hidden,
-                                   random.Random(f"{split.seed}/{len(known)}"))
+            rng = random.Random(f"{split.seed}/{len(known)}")
+            seen, hidden = _split_whole(
+                lambda ids: _top_up(m, ids, known & set(marked), split.hidden, rng), rest, key,
+                marked)
             split.seen += seen
             split.hidden += hidden
-    for ids, side in ((split.seen, SHOWN), (split.hidden, KEPT)):
-        for i in ids:
-            _side(split.questions, key[i], side)
+    _one_side(split, key)
     try:
         before = read_split(ws)
     except SplitUnknown:
@@ -683,19 +735,20 @@ def failed_path(ws) -> Path:
     return ws.dir / "fix" / FAILED_FILE
 
 
-def failed_shown(ws) -> str:
-    """fix/failed-answers.md as the person types it: from where they ran judgekeeper, with
-    `\\` between folders on Windows; on one line (a folder name with a line break never starts
-    a line of the prompt)."""
-    from judgekeeper.start_label import shown_folder
+def failed_shown(ws, page: bool = False) -> str:
+    """fix/failed-answers.md as the person types it: from where they ran judgekeeper (`page`:
+    from the project folder, where the page's What next is read, whichever folder the page
+    was opened from), with `\\` between folders on Windows; on one line (a folder name with a
+    line break never starts a line of the prompt)."""
+    from judgekeeper.start_label import FOLDER, shown_folder
     from judgekeeper.textio import is_windows
 
-    shown = one_line(f"{shown_folder(ws)}/fix/{FAILED_FILE}")
+    shown = one_line(f"{FOLDER if page else shown_folder(ws)}/fix/{FAILED_FILE}")
     return shown.replace("/", "\\") if is_windows() else shown
 
 
-def fix_prompt(ws) -> str:
-    return FIX_PROMPT.format(file=failed_shown(ws))
+def fix_prompt(ws, page: bool = False) -> str:
+    return FIX_PROMPT.format(file=failed_shown(ws, page))
 
 
 def has_failed(ws) -> bool:
@@ -792,6 +845,21 @@ def _failed_rows(ws, session, r: dict) -> list[dict]:
     return rows
 
 
+def after_mark(ws, session) -> None:
+    """After a mark saved on the page, once there is a result: the new marks split first (so
+    an answer kept aside is never listed), then failed-answers.md written again at once."""
+    if not _result_shown(ws):
+        return
+    try:
+        update_split(ws, session)
+    except (SplitUnknown, marks.MarksError):
+        pass  # kept as it is: the file lists nothing from the marks (kept_aside)
+    try:
+        write_failed(ws, session, compute(ws, session))
+    except (OSError, marks.MarksError):
+        pass  # the mark is saved; the file catches up with the next result
+
+
 def write_failed(ws, session, r: dict) -> None:
     """fix/failed-answers.md written again from the result `r`; removed when it lists no
     answer (under MIN_MARKS marks, no Fail, or a split that can't be used). A link in its
@@ -818,6 +886,7 @@ SINCE = "Since your last answers"
 COMPARED = "On the {n} kept aside: fixed {fixed}, broke {broke}, same {same}."
 COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from."
 WAIT_NEW = "Mark the new answers to see what changed."
+FOUND_NEW = "Found {n} since your last results. Mark them to see what changed."
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 MARK_MORE = "Mark more questions for a clearer answer."
 CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
@@ -954,6 +1023,34 @@ def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
         return
     before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old)}
     _write_before(ws, before)
+
+
+def round_of(ws) -> dict | None:
+    """The results now as before.json keeps them ({"stamp", "new"}); None without."""
+    before = read_before(ws)
+    return before["round"] if before else None
+
+
+def found_new(ws, was: dict | None) -> int:
+    """How many answers the results read now brought that the last results had not, when
+    they are new results (the round `was` before reading them changed); else 0."""
+    now = round_of(ws)
+    if not now or (was or {}).get("stamp") == now["stamp"]:
+        return 0
+    return len(now["new"])
+
+
+def found_line(n: int) -> str:
+    return FOUND_NEW.format(n=plural(n, "new answer"))
+
+
+def ready_round(ws) -> str | None:
+    """The results whose result-ready pop-up the marking page shows once (ready-seen.json):
+    the round, when it brought new answers; None for the first ones read and with grades."""
+    if not here(ws):
+        return None
+    now = round_of(ws)
+    return now["stamp"] if now and now["new"] else None
 
 
 def change_kind(fixed: int, broke: int, n: int, test: int = 1) -> str:

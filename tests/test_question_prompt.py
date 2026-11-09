@@ -60,7 +60,8 @@ def test_an_empty_folder_gets_the_prompt_after_what_judgekeeper_reads(here, caps
     assert code == 3
     assert _prompt(out) == _expected()
     assert flat(out).index(READS) < flat(out).index(FIRST)
-    assert assert_one_next_at_the_end(out).startswith("Next: run your eval once")
+    assert assert_one_next_at_the_end(out) == (
+        "Next: paste the prompt above into your coding agent, then run `judgekeeper` again.")
 
 
 def test_a_folder_with_files_but_no_eval_tool_gets_the_prompt(here, capsys):

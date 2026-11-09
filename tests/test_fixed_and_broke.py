@@ -444,8 +444,9 @@ def test_the_headline_and_the_failed_answers_are_the_newest_answers(project):
 def test_the_terminal_says_counts_comparison_reasons_then_the_prompt(project):
     project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
     page = _session(project.here)
+    shown = set(no_grades.read_split(_ws(project.here)).seen)
     for item in page.items:
-        if item["label"] == "fail":
+        if item["label"] == "fail" and item["id"] in shown:  # none on those kept aside
             page.update({"id": item["id"], "reasons": ["wrong_fact"]})
     said = project.again({i: "pass" for i in project.kept("fail")})
     at = [said.index(x) for x in ("You passed", "questions kept aside:", "Can't tell yet",

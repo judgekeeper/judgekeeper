@@ -94,7 +94,8 @@ def test_nothing_results_like_says_where_it_looked(here, capsys):
     text = _flat(out)
     assert ("No eval results found in this folder (support-bot). judgekeeper looked 4 folders "
             "down (2 for CSV, TSV and JSONL files).") in text
-    assert "`judgekeeper PATH --no-browser`" in text
+    assert text.endswith("Next: paste the prompt above into your coding agent, then run "
+                         "`judgekeeper --no-browser` again.")  # the flags as typed
     assert code == 3
 
 

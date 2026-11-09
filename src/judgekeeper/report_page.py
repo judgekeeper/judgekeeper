@@ -1546,7 +1546,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     Before MIN_MARKS marks, the usual line and the counts only. `worse` and `last` are never
     given: there is no check."""
     from judgekeeper import no_grades
-    from judgekeeper.start_label import _PAGE_FLAGS, ALL_MARKED, TO_A_RESULT, VERDICTS, marks_words
+    from judgekeeper.start_label import _PAGE_FLAGS, ALL_MARKED, VERDICTS, marks_words
 
     fixing = fixing or {}
     labels = r["labels"]
@@ -1564,12 +1564,13 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         if left == 0:
             lead = (f"{_e(ALL_MARKED.format(marks=marks_words(labels)))} "
                     f"{_path_code(_code_line(more), file)}")
-        elif live:
-            lead = f'<a href="{_e(back)}">{_e(TO_A_RESULT)}</a>'
+        elif live:  # the headline says it: one line only
+            lead = ""
         else:
             lead = f"Run {mark} to mark more answers."
+        lead = f'<p class="lead">{lead}</p>' if lead else ""
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-                f'class="plain">{_e(VERDICTS[None])}</h1><p class="lead">{lead}</p></section>'
+                f'class="plain">{_e(VERDICTS[None])}</h1>{lead}</section>'
                 f'<section class="sec score" aria-label="Your marks">{cnts}</section>')
     else:
         head = _e(no_grades.COUNTS).format(k=f"<b>{k}</b>", n=f"<b>{n}</b> answer"
