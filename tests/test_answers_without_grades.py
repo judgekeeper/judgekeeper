@@ -168,7 +168,7 @@ def test_ten_marks_give_a_result(here, capsys, pages, kind):
     assert "Step 3 of 5: Measure" in said
     assert "You passed 6 of 10 answers." in said
     assert "LLM-as-a-judge" not in out
-    for word in ("TPR", "TNR", "Kappa", "kappa", "kept aside", "fix"):
+    for word in ("TPR", "TNR", "Kappa", "kappa", "kept aside", "judgekeeper fix"):
         assert word not in out, word
     r = json.loads(start_label.Workspace(here).result_json.read_text(encoding="utf-8"))
     w = wilson(6, 10)
@@ -224,12 +224,19 @@ def test_only_the_reasons_about_the_answer_are_offered():
         assert reasons.REASONS[hidden][0] not in words
 
 
-def _with_result(here, capsys, marks):
-    write_answers(here, 12)
+def _with_result(here, capsys, marks, n: int = 12):
+    write_answers(here, n)
     run(capsys, "--no-browser")
     mark(here, marks)
     run(capsys, "--no-browser")  # the result is saved
     return _session(here)
+
+
+def shown_fails(here, page) -> list[str]:
+    """The answers failed that the person can see, in the page's order: about half of the
+    Fail marks are kept aside to test a fix (no_grades.update_split)."""
+    kept = no_grades.kept_aside(start_label.Workspace(here))
+    return [i["id"] for i in page.items if i["label"] == "fail" and i["id"] not in kept]
 
 
 def test_reasons_are_taken_on_fail_marks_once_there_is_a_result(here, capsys, pages):
@@ -253,8 +260,9 @@ def test_no_reasons_before_a_result(here, capsys, pages):
 
 
 def test_the_fail_list_and_the_terminal_follow_the_reason_counts(here, capsys, pages):
-    page = _with_result(here, capsys, ["fail"] * 8 + ["pass"] * 2)
-    fails = [i["id"] for i in page.items if i["label"] == "fail"]
+    page = _with_result(here, capsys, ["fail"] * 16 + ["pass"] * 4, n=20)
+    fails = shown_fails(here, page)
+    assert len(fails) == 8  # the other 8 kept aside
     given = {fails[0]: ["left_out"], fails[1]: ["wrong_fact"], fails[2]: ["wrong_fact"],
              fails[3]: ["left_out", "wrong_fact"], fails[4]: ["wrong_fact"],
              fails[5]: ["unsure"], fails[6]: ["left_out"]}  # fails[7]: none
@@ -411,8 +419,8 @@ def _seen(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html)
 
 
-JUDGE_WORDS = ("LLM-as-a-judge", "Kappa", "kappa", "When you say", "kept aside",
-               "judgekeeper fix", "Its reason", "rule part")
+JUDGE_WORDS = ("LLM-as-a-judge", "Kappa", "kappa", "When you say", "judgekeeper fix",
+               "Its reason", "rule part")  # "kept aside" is said: half the Fails are
 
 
 def test_the_result_page_says_the_counts_and_the_range(here, capsys, pages):
@@ -441,8 +449,9 @@ def test_thirty_of_thirty_shows_the_range_on_the_page(here, capsys, pages):
 
 
 def test_the_page_lists_only_the_fails_in_reason_order(here, capsys, pages):
-    page = _with_result(here, capsys, ["fail", "pass"] * 5)
-    fails = [i["id"] for i in page.items if i["label"] == "fail"]
+    page = _with_result(here, capsys, ["fail", "pass"] * 10, n=20)
+    fails = shown_fails(here, page)
+    assert len(fails) == 5
     page.update({"id": fails[3], "reasons": ["wrong_fact"]})
     page.update({"id": fails[1], "reasons": ["wrong_fact"]})
     page.update({"id": fails[4], "reasons": ["left_out"]})
@@ -470,7 +479,7 @@ def test_the_page_offers_only_the_reasons_about_the_answer(here, capsys, pages):
 
 def test_marked_words_are_kept_on_a_fail(here, capsys, pages):
     page = _with_result(here, capsys, ["fail", "pass"] * 5)
-    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    fail = shown_fails(here, page)[0]
     page.update({"id": fail, "spans": [[0, 4]]})
     with pytest.raises(ValueError):
         page.update({"id": fail, "rule_parts": [1]})
@@ -493,6 +502,7 @@ def test_what_next_with_every_answer_marked(here, capsys, pages):
     assert "Mark more answers for a surer number." not in html
     assert ("Add more answers to results.csv for a surer number, then run judgekeeper "
             "again.") in " ".join(_seen(html).split())
+    assert "Add more answers to <code>results.csv</code> for a surer number" in html
     assert f'<a href="{BACK}">Change a mark</a>' in html
 
 
@@ -510,7 +520,7 @@ def test_under_ten_the_page_asks_for_more_marks(here, capsys, pages):
 
 def test_a_reason_makes_no_copy_in_history(here, capsys, pages):
     page = _with_result(here, capsys, ["fail", "pass"] * 5)
-    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    fail = shown_fails(here, page)[0]
     page.update({"id": fail, "reasons": ["wrong_fact"]})
     ws = start_label.Workspace(here)
     r = json.loads(ws.result_json.read_text(encoding="utf-8"))
@@ -525,7 +535,7 @@ def test_a_note_over_several_lines_is_one_reason_on_one_line(here, capsys, pages
     """A note sent with \n on one answer and \r\n on another: saved on one line each, one
     button, counted once with both answers, one line in the terminal."""
     page = _with_result(here, capsys, ["fail", "pass"] * 5)
-    fails = [i["id"] for i in page.items if i["label"] == "fail"]
+    fails = shown_fails(here, page)
     page.update({"id": fails[0], "note": "Line one\nLine two\nLine three"})
     page.update({"id": fails[1], "note": "Line one\r\nLine two\r\nLine three"})
     ws = start_label.Workspace(here)
