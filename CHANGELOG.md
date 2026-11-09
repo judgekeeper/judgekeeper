@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.2 (2026-11-07)
+## 1.1.2 (2026-11-08)
 
 - New result page layout: three big numbers first, then the answers you disagreed on, then what to do next. Pass and Fail are in colour, with fewer small notes.
 - The "Your result is ready." box on the marking page now shows only See your result and Keep marking.
@@ -12,6 +12,8 @@
 - `regrade.yaml` is no longer written for a coding agent as the grader, such as Codex or Claude Code. `fix` prints the steps instead.
 - A key or other secret right after a terminal colour code, or with one inside it, is now hidden.
 - More secrets are hidden as tools write them: in JSON and `repr` text, after `-` or `_`, in `cat -A` output, AWS secrets under their other names, a URL password with `@` in it, and short `Basic` logins.
+- A key near the end of a long line, such as an LLM-as-a-judge's rule, is now hidden before the line is cut short.
+- A password in a URL that judgekeeper can't find is now hidden in the "There is no file named" line.
 - `fix` no longer says grades are "the same as when you marked" when they are not.
 - Labels in your results are now called "labels" until judgekeeper has read them, not "Pass/Fail labels".
 - With an LLM-as-a-judge that gave every answer one grade, and every answer marked the same, judgekeeper now says a new answer marked the other way gives the result.
