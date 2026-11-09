@@ -398,6 +398,8 @@ td:first-child { min-width: 14ch; }
 /* a prompt for a coding agent: its lines as they are, no "$" */
 .cmd.prompt code { align-items: flex-start; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gx .cmd.prompt code::before { content: none; }
+/* a path in the AI-check steps stays whole: no break at its "-" */
+#ai-check .gx-text code.path { white-space: nowrap; }
 .gx-small { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); }
 .gx-text h3 { margin: 0 0 12px; font-size: 18px; font-weight: 700; }
 .gx-text p { margin: 0 0 16px; line-height: 1.6; max-width: 66ch; overflow-wrap: anywhere; }
