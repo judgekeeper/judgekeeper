@@ -2975,6 +2975,8 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))
     labels = r["labels"]
     talk.para(no_grades.counts_line(labels["correct"], labels["correct"] + labels["wrong"]))
+    for said in no_grades.since_lines(r.get("since")):  # what changed since the last answers
+        talk.para(said)
     line = no_grades.reasons_line(no_grades.reason_rows(ws, session))
     if line:
         talk.para(line)
