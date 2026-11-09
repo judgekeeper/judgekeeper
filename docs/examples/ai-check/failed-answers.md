@@ -26,10 +26,10 @@ YOUR REASON>>>
 
 ## [F2] You said FAIL.
 <<<QUESTION
-When will I get my money back after I send a return?
+How long do I have to return something?
 QUESTION>>>
 <<<ANSWER
-Your refund arrives within 24 hours of sending the parcel.
+You can return an item within 14 days of delivery.
 ANSWER>>>
 <<<YOUR REASON
 it has a wrong fact
@@ -37,10 +37,10 @@ YOUR REASON>>>
 
 ## [F3] You said FAIL.
 <<<QUESTION
-How long do I have to return something?
+When will I get my money back after I send a return?
 QUESTION>>>
 <<<ANSWER
-You can return an item within 14 days of delivery.
+Your refund arrives within 24 hours of sending the parcel.
 ANSWER>>>
 <<<YOUR REASON
 it has a wrong fact

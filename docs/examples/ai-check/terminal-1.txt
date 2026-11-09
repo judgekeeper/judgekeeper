@@ -1,5 +1,5 @@
 $ judgekeeper
-judgekeeper 1.1.2
+judgekeeper 1.2.0
 
 Step 1 of 5: Find
 
@@ -21,7 +21,7 @@ Next: mark answers on the page until a "See your result" link
 appears, then click it.
 
 $ judgekeeper
-judgekeeper 1.1.2
+judgekeeper 1.2.0
 
 Step 3 of 5: Measure
 

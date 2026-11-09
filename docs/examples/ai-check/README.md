@@ -40,5 +40,4 @@ and 7 stayed the same. So judgekeeper can't tell yet whether the change helped: 
 toward better, but a split this small could easily be a coincidence. The line it prints
 after that, "Mark more questions for a clearer answer.", is the next step here.
 
-Made with judgekeeper from commit `5bced99` (first run) and `3c84b11` (second run) on
-2026-11-09.
+Made with judgekeeper 1.2.0 on 2026-11-09.

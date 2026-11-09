@@ -1,7 +1,10 @@
 $ judgekeeper
-judgekeeper 1.1.2
+judgekeeper 1.2.0
 
 Step 2 of 5: Mark
+
+Found 20 new answers since your last results. Mark them to see
+what changed.
 
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
@@ -11,7 +14,7 @@ Next: mark answers on the page until a "See your result" link
 appears, then click it.
 
 $ judgekeeper
-judgekeeper 1.1.2
+judgekeeper 1.2.0
 
 Step 3 of 5: Measure
 
