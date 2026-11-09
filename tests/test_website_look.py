@@ -1130,7 +1130,11 @@ def test_running_text_is_justified_only_once_the_columns_are_full_width():
     paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
     assert len(paths) == 5
     text = GUIDE.read_text(encoding="utf-8")
-    assert text.count('<code class="path">.judgekeeper/<wbr>') == 5
+    assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
+    # the AI-check band's path stays on one line: its band is left-aligned, so no wide gaps
+    assert '<code class="path">.judgekeeper/fix/failed-answers.md</code>' in text
+    assert "white-space: nowrap" in _rule("#ai-check .gx-text code.path")
+    assert "text-align: left" in _rule("#ai-check .gx-text p")
 
 
 def test_the_guides_commands_look_like_terminal_lines():
