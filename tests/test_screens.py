@@ -37,7 +37,7 @@ def screen(capsys, *argv) -> tuple[int, list[str]]:
     for line in lines:
         assert len(line) <= 80, line
         column = line.strip().startswith("input,") or line.rstrip(".").endswith(
-            (" column", " columns"))  # its real name
+            (" column", " columns")) or "verdict column" in line  # its real name
         assert "verdict" not in line.lower() or column, line
         assert "tell the person" not in line and "ask the person" not in line, line
     return code, lines
@@ -269,8 +269,23 @@ def test_screen_7_nothing_found(tmp_path, capsys, monkeypatch):
         "No eval results found in this folder (my-app). judgekeeper",
         "looked 4 folders down (2 for CSV, TSV and JSONL files).",
         "judgekeeper can read results from promptfoo, DeepEval,",
-        "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input,",
-        "output and verdict columns.",
+        "Inspect AI, MLflow, or a CSV, TSV or JSONL file with input and",
+        "output columns, and a verdict column if an LLM-as-a-judge graded",
+        "them.",
+        "",
+        "No answers yet? Paste this into your coding agent (Claude Code,",
+        "Cursor or Codex):",
+        "",
+        "Write about 20 test questions for the AI in this project, the",
+        "way its real users would ask them.",
+        "Mix a few topics it should handle, a few kinds of users, and",
+        "some hard cases (unclear, off-topic or tricky questions).",
+        "Run the AI on each question and save the questions and answers",
+        "in results.csv, with two columns: input (the question) and",
+        "output (the answer).",
+        "Do not grade the answers. Then run judgekeeper.",
+        "",
+        "Running your AI may use your API key.",
         "",
         "Next: run your eval once from this folder, then run",
         "`judgekeeper` again. If your results are somewhere else, run",
@@ -311,7 +326,7 @@ def test_screen_8_help(capsys):
         "",
         "judgekeeper can read results from promptfoo, DeepEval, Inspect AI,",
         "MLflow, or a CSV, TSV or JSONL file with these columns:",
-        "  input, output, verdict",
+        "  input, output, and verdict if an LLM-as-a-judge graded them",
         "",
         "usage: judgekeeper [PATH] [options]",
         "",
