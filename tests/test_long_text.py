@@ -592,7 +592,9 @@ var document = {getElementById: function () { return cell; },
 var location = {search: "?token=t"};
 var window = {getSelection: function () { return {rangeCount: 0}; },
   fetch: function (url, o) { sent.push(JSON.parse(o.body).note);
-    return {then: function () {}}; }};
+    return {then: function () {}}; },
+  dispatchEvent: function () {}};
+function Event(type) { this.type = type; }
 var input = parts["input"];
 function type(text) { input.value = text; input.fire("input"); }
 """

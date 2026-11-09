@@ -51,8 +51,8 @@ COPY_ICONS = ('<svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusa
 SCRIPT = """
   (function () {
     function each(list, f) { Array.prototype.forEach.call(list, f); }
-    // A row's "Show more": only when one of its cells is longer than its 4 lines; a cut cell
-    // fades out at the bottom.
+    // A row's "Show more": only when one of its cells is longer than its 4 lines, or its
+    // "Your reason: ..." line is longer than one line; a cut cell fades out at the bottom.
     function fit() {
       each(document.querySelectorAll(".open-row"), function (b) {
         var row = b.closest("tr"), open = row.hasAttribute("data-open"), cut = false;
@@ -61,6 +61,9 @@ SCRIPT = """
           var more = !open && (ht || td.scrollHeight > td.clientHeight + 1);
           td.classList.toggle("cut", more && !ht);
           cut = cut || more;
+        });
+        each(row.querySelectorAll(".said, .said-text"), function (s) {
+          cut = cut || (!open && s.scrollWidth > s.clientWidth + 1);
         });
         b.hidden = !open && !cut;
       });
@@ -187,6 +190,7 @@ REASONS_SCRIPT = """
         else { said.removeAttribute("title"); }
         now.hidden = !words.length;
         add.textContent = words.length ? "Change" : "Add a reason";
+        window.dispatchEvent(new Event("resize"));  // the row's Show more measures it again
       }
       // Opening the reason box opens its row too: the whole answer shows while you pick.
       add.addEventListener("click", function () {
@@ -392,6 +396,9 @@ main p code, .notes-list code { font-size: .9em; color: var(--text);
 .said-now { display: flex; min-width: 0; }
 .said-text, .said { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .said-text b, .said b { color: var(--text); font-weight: 600; }
+/* an open row shows its reason whole: Show less puts it back on one line */
+tr[data-open] .said, tr[data-open] .said-text { white-space: normal; overflow-wrap: anywhere; }
+tr[data-open] .why-line, tr[data-open] .row-foot { align-items: flex-start; }
 .why-body { margin-top: 16px; padding: 4px 0 6px 18px; border-left: 2px solid var(--line); }
 .tbl td[data-label] { border-bottom: 0; padding-bottom: 10px; }
 .tbl td.why-cell { white-space: normal; padding-top: 0; color: var(--text); }
