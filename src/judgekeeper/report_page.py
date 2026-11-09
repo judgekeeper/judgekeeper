@@ -1500,6 +1500,40 @@ PROMPT_BOX = (".cmd.prompt code { white-space: pre-wrap; overflow-wrap: anywhere
               ".nx-split p { text-align: left; hyphens: manual; -webkit-hyphens: manual; }\n")
 
 
+def _since(fixing: dict) -> str:
+    """"Since your last answers", with no grade (no_grades.compare), from the page's parts:
+    the three cells (Fixed, Broke, Same) as the score's, the result and what they were counted
+    on, then "Answers that broke" as "Answers you failed" (read-only); while new answers wait
+    for a mark, or once the set is retired, its one line. Nothing without a comparison."""
+    from judgekeeper import no_grades
+
+    c = fixing.get("since")
+    if not c:
+        return ""
+    if c.get("waiting"):
+        lines = [no_grades.WAIT_NEW]
+    elif c.get("new_set"):
+        lines = [no_grades.new_set_line()]
+    else:
+        lines = [no_grades.result_line(c), no_grades.counted_line(c)]
+        lines += [no_grades.new_set_line()] if c.get("last") else []
+    cells = ""
+    if "kept" in c:
+        cells = '<div class="nums">' + "".join(
+            f'<div class="cell"><span class="n-lab">{label}</span><span class="n-val">'
+            + (f'<span class="{colour}">{n}</span>' if colour else str(n)) + "</span></div>"
+            for label, n, colour in (("Fixed", c["fixed"], "w-pass"),
+                                     ("Broke", c["broke"], "w-fail"), ("Same", c["same"], ""))
+        ) + "</div>"
+    broke = fixing.get("broke") or []
+    return ('<section class="sec score" aria-labelledby="since-h"><div class="sh">'
+            f'<h2 id="since-h">{_e(no_grades.SINCE)}</h2></div>{cells}'
+            + "".join(f'<p class="sec slim">{_e(x)}</p>' for x in lines) + "</section>"
+            + (_group("broke", no_grades.BROKE, broke, 0, False, [], fixing.get("own") or [],
+                      0, tuple(x for x, _ in _same(broke)), reasons_given=False,
+                      asked=no_grades.offered()) if broke else ""))
+
+
 def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
                    worse: str | None = None, last: dict | None = None,
                    started_else: bool = False) -> str:
@@ -1573,7 +1607,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
 
         notes = [_e(x) for x in quick_lines(r.get("made"), None) + link_lines(r.get("made"))]
         body = (f'<section class="verdict" aria-labelledby="verdict-h"><h1 id="verdict-h" '
-                f'class="plain">{head}</h1></section>'
+                f'class="plain">{head}</h1></section>{_since(fixing)}'
                 '<section class="sec score" aria-labelledby="nums-h"><div class="sh">'
                 f'<h2 id="nums-h">{_e(RATE_HEAD)}</h2></div><div class="nums one">'
                 f'<div class="cell c-rate"><span class="n-lab">{_e(RATE)}</span>'
