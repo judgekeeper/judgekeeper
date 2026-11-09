@@ -680,7 +680,7 @@ def suggestions_md(rows: list[dict], command: str = "judgekeeper mark") -> str:
     the marks they can see, then everything given once, each with its answer fenced as data.
     The warning comes before any of the person's words, and each note is fenced. `command`:
     the `mark` command that opens the page, named while no line is suggested (none_yet)."""
-    from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced
+    from judgekeeper.start_fix_rule import DATA_WARNING, MARKS, fenced, sealed
 
     suggested, once = suggestions(rows)
     parts = ["# Suggested rule lines", "",
@@ -708,4 +708,4 @@ def suggestions_md(rows: list[dict], command: str = "judgekeeper mark") -> str:
         parts.append("")
     if not once:
         parts.append("Nothing.")
-    return cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
+    return sealed(cleaned(scrub("\n".join(parts).rstrip("\n") + "\n")))

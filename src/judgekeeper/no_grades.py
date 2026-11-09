@@ -35,7 +35,7 @@ from judgekeeper import __version__, marks, reasons
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.metrics import wilson
-from judgekeeper.redact import scrub_fingerprint
+from judgekeeper.redact import one_line, scrub_fingerprint
 from judgekeeper.textio import jsonl_lines, loads, make_private, plural, write_replacing
 
 MIN_MARKS = 10  # marks for a first result
@@ -66,7 +66,7 @@ def no_judge_stop(path, what: str) -> tuple[str, str] | None:
     if not here(ws):
         return None
     files = ws.cached_data().get("results_files") or []
-    file = files[0] if files and isinstance(files[0], str) else "your results file"
+    file = one_line(files[0]) if files and isinstance(files[0], str) else "your results file"
     return NO_JUDGE.format(what=what), NO_JUDGE_NEXT.format(file=file, command=program())
 
 
@@ -149,7 +149,7 @@ def _said(row_words: dict, key: str) -> str:
     quotes."""
     if key in reasons.REASONS:
         return reasons.REASONS[key][0]
-    return f"“{row_words.get(key, key)}”"
+    return f"“{one_line(row_words.get(key, key))}”"
 
 
 def tally(rows: list[dict]) -> list[tuple[str, str, int]]:
@@ -442,7 +442,7 @@ def results_file(ws) -> str:
     files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
     if path.is_dir() and files:
         path = path / files[0]
-    return line_path(path)
+    return one_line(line_path(path))  # a name with a line break never starts a line
 
 
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
@@ -685,11 +685,12 @@ def failed_path(ws) -> Path:
 
 def failed_shown(ws) -> str:
     """fix/failed-answers.md as the person types it: from where they ran judgekeeper, with
-    `\\` between folders on Windows."""
+    `\\` between folders on Windows; on one line (a folder name with a line break never starts
+    a line of the prompt)."""
     from judgekeeper.start_label import shown_folder
     from judgekeeper.textio import is_windows
 
-    shown = f"{shown_folder(ws)}/fix/{FAILED_FILE}"
+    shown = one_line(f"{shown_folder(ws)}/fix/{FAILED_FILE}")
     return shown.replace("/", "\\") if is_windows() else shown
 
 
@@ -718,7 +719,7 @@ def fix_lines(path) -> list[str]:
     try:
         read_split(ws)
     except SplitUnknown as e:
-        file = f"{shown_folder(ws)}/fix/{SPLIT_FILE}"
+        file = one_line(f"{shown_folder(ws)}/fix/{SPLIT_FILE}")
         return ["", DAMAGED.format(file=file, why=e)]
     if not has_failed(ws):
         return []
@@ -728,11 +729,10 @@ def fix_lines(path) -> list[str]:
 def _reason_words(row: dict) -> str:
     """The person's reason on one answer, on one line: the buttons tapped, their own words
     (once), the marked words."""
-    from judgekeeper.redact import one_line
-
     said = [reasons._words(row, k, True) for k in row.get("reasons") or []]
     note = one_line(row.get("why") or "")
-    if note and not any(reasons.same_words(w, note) for w in (row.get("words") or {}).values()):
+    if note and not any(reasons.same_words(one_line(w), note)
+                        for w in (row.get("words") or {}).values()):
         said.append(f"“{note}”")
     if row.get("spans"):
         said.append("the words in bold")
@@ -744,7 +744,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
     person's words, the reasons counted as the terminal says them, then each answer failed by
     the most common reason (reasons.groups), fenced as data (start_fix_rule.fenced)."""
     from judgekeeper.redact import scrub
-    from judgekeeper.start_fix_rule import MARKS, fenced
+    from judgekeeper.start_fix_rule import MARKS, fenced, sealed
 
     count = f"You failed {plural(len(rows), 'answer')} here."
     if kept:
@@ -768,7 +768,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
             if words:
                 parts.append(fenced("YOUR REASON", words))
             parts.append("")
-    return reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
+    return sealed(reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n")))
 
 
 def _failed_rows(ws, session, r: dict) -> list[dict]:
