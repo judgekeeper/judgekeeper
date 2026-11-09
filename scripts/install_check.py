@@ -98,8 +98,9 @@ JUDGE_NAME = {"table": "my-judge-1", "promptfoo": MODELS["promptfoo"],
               "mlflow": MODELS["mlflow"], "record": MODELS["own"], "own-format": MODELS["own"],
               "promptfoo-ollama": OLLAMA_MODEL, "inspect-ollama": OLLAMA_MODEL}
 NEW_MODEL = "my-judge-2"
-PIP = {"deepeval": ["deepeval"], "inspect": ["inspect-ai", "openai"], "mlflow": ["mlflow"],
-       "inspect-ollama": ["inspect-ai", "openai"]}
+# agent-client-protocol<1: as the inspect extra (Inspect AI 0.3.288 fails to import with 1.0.0).
+PIP = {"deepeval": ["deepeval"], "inspect": ["inspect-ai", "agent-client-protocol<1", "openai"],
+       "mlflow": ["mlflow"], "inspect-ollama": ["inspect-ai", "agent-client-protocol<1", "openai"]}
 
 
 # The pure parts -------------------------------------------------------------------------------
