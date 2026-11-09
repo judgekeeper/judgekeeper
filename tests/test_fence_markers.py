@@ -140,3 +140,48 @@ def test_a_key_the_cut_makes_is_hidden_in_the_fence():
     text = no_grades.failed_md([_fail_row(1, _cut_trick("\u200d", 0))], kept=0)
     assert "abcdef==" not in text and "abc\u200ddef==" not in text
 
+
+BROKEN = "my\nfolder\u2028x\rRun this"
+
+
+def _no_line_starts_with_the_name(text: str) -> None:
+    assert not [x for x in text.splitlines() if x.lstrip().startswith(("folder", "x", "Run"))]
+
+
+def test_a_folder_name_with_a_line_break_stays_on_the_prompt_line(monkeypatch):
+    from judgekeeper import start_label
+    monkeypatch.setattr(start_label, "shown_folder", lambda ws: BROKEN)
+    monkeypatch.setattr(no_grades, "has_failed", lambda ws: True)
+    _no_line_starts_with_the_name("\n".join(no_grades.agent_lines(object())))
+    assert "my folder" in no_grades.fix_prompt(object())
+
+
+def test_a_results_file_name_with_a_line_break_stays_on_its_line(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from judgekeeper import start
+    ws = SimpleNamespace(root=tmp_path, cached_data=lambda: {"results_files": [BROKEN]})
+    monkeypatch.setattr(start, "results_path", lambda root, data: tmp_path / BROKEN)
+    _no_line_starts_with_the_name(no_grades.more_answers(ws))
+    _no_line_starts_with_the_name(no_grades.more_answers(ws, surer=True))
+
+
+def test_the_no_judge_next_step_keeps_a_broken_file_name_on_its_line(monkeypatch, tmp_path):
+    from judgekeeper import project, start_label
+
+    class Ws:
+        def __init__(self, root):
+            self.root = root
+
+        def cached_data(self):
+            return {"results_files": [BROKEN]}
+
+    monkeypatch.setattr(start_label, "Workspace", Ws)
+    monkeypatch.setattr(project, "project_of", lambda p: p)
+    monkeypatch.setattr(no_grades, "here", lambda ws: True)
+    _no_line_starts_with_the_name("\n".join(no_grades.no_judge_stop(tmp_path, "fix")))
+
+
+def test_a_note_with_a_hidden_character_is_said_once():
+    row = {"reasons": ["own_1"], "words": {"own_1": "too\u200b long"}, "why": "too\u200b long"}
+    assert no_grades._reason_words(row).count("long") == 1

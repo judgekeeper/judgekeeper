@@ -61,7 +61,7 @@ def no_judge_stop(path, what: str) -> tuple[str, str] | None:
     if not here(ws):
         return None
     files = ws.cached_data().get("results_files") or []
-    file = files[0] if files and isinstance(files[0], str) else "your results file"
+    file = one_line(files[0]) if files and isinstance(files[0], str) else "your results file"
     return NO_JUDGE.format(what=what), NO_JUDGE_NEXT.format(file=file, command=program())
 
 
@@ -420,7 +420,7 @@ def results_file(ws) -> str:
     files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
     if path.is_dir() and files:
         path = path / files[0]
-    return line_path(path)
+    return one_line(line_path(path))  # a name with a line break never starts a line
 
 
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
@@ -618,11 +618,12 @@ def failed_path(ws) -> Path:
 
 def failed_shown(ws) -> str:
     """fix/failed-answers.md as the person types it: from where they ran judgekeeper, with
-    `\\` between folders on Windows."""
+    `\\` between folders on Windows; on one line (a folder name with a line break never starts
+    a line of the prompt)."""
     from judgekeeper.start_label import shown_folder
     from judgekeeper.textio import is_windows
 
-    shown = f"{shown_folder(ws)}/fix/{FAILED_FILE}"
+    shown = one_line(f"{shown_folder(ws)}/fix/{FAILED_FILE}")
     return shown.replace("/", "\\") if is_windows() else shown
 
 
@@ -651,7 +652,7 @@ def fix_lines(path) -> list[str]:
     try:
         read_split(ws)
     except SplitUnknown as e:
-        file = f"{shown_folder(ws)}/fix/{SPLIT_FILE}"
+        file = one_line(f"{shown_folder(ws)}/fix/{SPLIT_FILE}")
         return ["", DAMAGED.format(file=file, why=e)]
     if not has_failed(ws):
         return []
@@ -661,11 +662,10 @@ def fix_lines(path) -> list[str]:
 def _reason_words(row: dict) -> str:
     """The person's reason on one answer, on one line: the buttons tapped, their own words
     (once), the marked words."""
-    from judgekeeper.redact import one_line
-
     said = [reasons._words(row, k, True) for k in row.get("reasons") or []]
     note = one_line(row.get("why") or "")
-    if note and not any(reasons.same_words(w, note) for w in (row.get("words") or {}).values()):
+    if note and not any(reasons.same_words(one_line(w), note)
+                        for w in (row.get("words") or {}).values()):
         said.append(f"“{note}”")
     if row.get("spans"):
         said.append("the words in bold")
