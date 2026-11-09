@@ -12,11 +12,13 @@ import threading
 import pytest
 
 from judgekeeper import fix, no_grades, page, reasons, start, start_label
+from judgekeeper.textio import is_windows
 from tests.test_answers_without_grades import _live, _report, _seen, _session, write_answers
 from tests.test_front import assert_one_next_at_the_end, flat, run
 from tests.test_label_server import Client
 
-SHOWN_PATH = ".judgekeeper/fix/failed-answers.md"
+SHOWN_PATH = (".judgekeeper\\fix\\failed-answers.md" if is_windows()  # as the terminal names it
+              else ".judgekeeper/fix/failed-answers.md")
 FOUND_NEW = "Found {n} since your last results. Mark them to see what changed."
 QUESTION_NEXT = "Next: paste the prompt above into your coding agent, then run `judgekeeper` again."
 FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes your AI's "
