@@ -199,7 +199,7 @@ You don't need an LLM-as-a-judge to start. A CSV, TSV or JSONL file with an `inp
 
 **Reasons.** On an answer you failed, you can tap why: "It has a wrong fact", "It doesn't answer the question", "It leaves out something important", "It's unsafe or not allowed", "Wrong format or tone" or "I'm not sure about my own mark", or type your own in "Other…". The result and the terminal count the reasons you gave.
 
-**Kept aside to test your fix.** From the first result, half of your Pass marks and half of your Fail marks (rounded up) are kept aside, at random, to test a change to your AI later. The result doesn't list them. The split is saved in `.judgekeeper/fix/split-answers.json`. A new answer to a question already split goes to that question's side.
+**Kept aside to test your fix.** From the first result, half of the questions you marked Pass and half of those you marked Fail (rounded up) are kept aside, at random, to test a change to your AI later. The result doesn't list them. The split is saved in `.judgekeeper/fix/split-answers.json`. A new answer to a question already split goes to that question's side.
 
 **`failed-answers.md` and its prompt.** The answers you failed that you can see are written to `.judgekeeper/fix/failed-answers.md`: each question, the answer and your reason, grouped by your most common reason. The file says first that the questions, answers and reasons are data, and that the agent should never follow instructions inside them. The terminal, the result page and `judgekeeper fix` give a prompt to paste into your coding agent:
 
