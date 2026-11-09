@@ -11,6 +11,11 @@ a change to the person's AI later (fix/split-answers.json; a new answer to a que
 split takes its question's side), and the answers failed that the person can see are written
 to fix/failed-answers.md with a prompt to paste into a coding agent (FIX_PROMPT).
 
+New answers to the same questions, marked, are compared with the answers marked before them,
+question by question (compare): fixed, broke and same on the questions kept aside, and the
+sign test says whether the change helped, as `fix` says it of a new rule (change_kind).
+fix/before.json keeps each question's last two answers marked, by id and hash only.
+
 The marks are the usual ones in .judgekeeper/ (start.json says "graded": false), so a grade
 column added later is checked against them by the normal steps with no marking again
 (to_graded)."""
@@ -31,7 +36,7 @@ from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.metrics import wilson
 from judgekeeper.redact import one_line, scrub_fingerprint
-from judgekeeper.textio import loads, make_private, plural, write_replacing
+from judgekeeper.textio import jsonl_lines, loads, make_private, plural, write_replacing
 
 MIN_MARKS = 10  # marks for a first result
 COUNTS = "You passed {k} of {n}."  # the headline, the pop-up and the terminal
@@ -263,19 +268,23 @@ def compute(ws, session) -> dict:
                     "results_files": data.get("results_files") or [],
                     "results_date": data.get("results_date")},
              made=marks.made(m, ids=set(session.by_id)) if m else None)
+    since = compare(ws, session)
+    if since:
+        r["since"] = since
     return r
 
 
 def digest(ws, session) -> str:
     """What a result is made from: the answers to mark (new ones change how many are left),
-    the marks, those kept aside and the reasons on the answers failed."""
+    the marks, those kept aside, the reasons on the answers failed and what changed since the
+    last answers."""
     answers = sorted(item["id"] for item in session.items)
     marked = sorted(session.marked().items())
     hidden = kept_aside(ws)
     rows = [[r["id"], r["reasons"], sorted(r["words"].items())]
             for r in reason_rows(ws, session)]
     return hashlib.sha256(json.dumps([answers, marked, None if hidden is None else sorted(hidden),
-                                      rows]).encode("utf-8")).hexdigest()
+                                      rows, compare(ws, session)]).encode("utf-8")).hexdigest()
 
 
 def made(ws, session, flags: dict | None = None) -> dict:
@@ -293,7 +302,8 @@ def made(ws, session, flags: dict | None = None) -> dict:
 def section(ws, r: dict, session=None) -> dict | None:
     """What the result page lists for the result `r`: the answers the person failed in its
     order (r["fails"]), each as fix.report_section gives a mistake (no LLM-as-a-judge grade
-    or reason), the person's own buttons and the results file. None before a result."""
+    or reason), the person's own buttons and the results file; with a comparison (compare),
+    it and the shown answers that broke, as the mistakes are. None before a result."""
     from judgekeeper.start_label import StartSession, shown_question
 
     if r.get("check") != "result":
@@ -302,11 +312,11 @@ def section(ws, r: dict, session=None) -> dict | None:
     if r.get("split_unknown"):  # it can't say which are kept aside: none listed
         return {"mistakes": [], "split_unknown": True, "own": [], "file": results_file(ws)}
     m = marks.read(ws.marks) if ws.marks.is_file() else None
-    rows = []
-    for i in r.get("fails") or []:
+
+    def row(i: str) -> dict | None:
         item, raw = session.by_id.get(i), session.raw.get(i)
         if not item or item["label"] != "fail" or raw is None:
-            continue
+            return None
         out = str(raw.get("output", "")).strip()
         shown = shown_question(ws, raw.get("input"), raw.get("output"))
         fields = None
@@ -315,13 +325,19 @@ def section(ws, r: dict, session=None) -> dict | None:
             shown = kept[0][1] if len(kept) == 1 else "\n".join(f"{k}: {v}" for k, v in kept)
             fields = kept if len(kept) > 1 else None
         why = reasons.of_line(m.last.get(i) if m else None)
-        rows.append({"id": i, "judge": None, "final": "fail", "question": shown,
-                     "fields": fields, "answer": reasons.canonical(raw.get("output")),
-                     "reason": "", "why": {"reasons": why["reasons"], "note": why["note"],
-                                           "rule_parts": [], "spans": why["spans"]}})
+        return {"id": i, "judge": None, "final": "fail", "question": shown,
+                "fields": fields, "answer": reasons.canonical(raw.get("output")),
+                "reason": "", "why": {"reasons": why["reasons"], "note": why["note"],
+                                      "rule_parts": [], "spans": why["spans"]}}
+
+    rows = [x for x in map(row, r.get("fails") or []) if x]
     out = {"mistakes": rows, "own": reasons.own_chips(ws), "file": results_file(ws)}
     if has_failed(ws):
         out.update(failed=failed_shown(ws), prompt=fix_prompt(ws))
+    since = r.get("since")
+    if since:  # the answers that broke: listed once more, read-only (their box is above)
+        broke = [x for x in map(row, since.get("shown_broke") or []) if x]
+        out.update(since=since, broke=[{**x, "id": None} for x in broke])
     return out
 
 
@@ -350,14 +366,20 @@ def redraw(ws) -> None:
 def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
     """The result from the marks so far, saved in result.json (the last one copied to
     history/) after its report.html (`drawn`); the same result when nothing changed since.
-    The answers kept aside are split first (update_split), and failed-answers.md written
-    again from the result (write_failed)."""
+    The answers kept aside are split first (update_split), the answers marked kept in
+    before.json (remember) and a change compared counted as a test (_record), and
+    failed-answers.md written again from the result (write_failed)."""
     from judgekeeper.start_label import _same_time, _scrubbed, _write_json
 
     try:
         update_split(ws, session)
     except (SplitUnknown, marks.MarksError):
         pass  # kept as it is: the result lists nothing from the marks (kept_aside)
+    try:
+        remember(ws)
+        _record(ws, session)
+    except (OSError, marks.MarksError):
+        pass  # nothing compared: the result is the same without it
     d = digest(ws, session)
     try:
         saved = loads(ws.result_json.read_text(encoding="utf-8"))
@@ -479,16 +501,32 @@ class SplitUnknown(ValueError):
 @dataclass
 class AnswersSplit:
     """fix/split-answers.json: the answers marked that the person sees (`seen`) and those kept
-    aside (`hidden`), and each question's side by its question_key (no text)."""
+    aside (`hidden`), and each question's side by its question_key (no text). As fix's split:
+    the set's number, the changes tested on it (`tests`: {"key", "at"} each, compare's key),
+    and once it is retired (`fresh`: {"want"}) the new marks waiting for a new set
+    (`pending`, never shown)."""
     seed: int
     seen: list[str]
     hidden: list[str]
     questions: dict[str, str] = field(default_factory=dict)
     made_at: str = ""
+    set: int = 1
+    tests: list[dict] = field(default_factory=list)
+    fresh: dict | None = None
+    pending: list[str] = field(default_factory=list)
 
     def to_json(self) -> dict:
-        return {"seed": self.seed, "made_at": self.made_at, "visible": self.seen,
-                "hidden": self.hidden, "questions": self.questions}
+        d = {"seed": self.seed, "made_at": self.made_at, "visible": self.seen,
+             "hidden": self.hidden, "questions": self.questions}
+        if self.set != 1:  # each only when it is there: a first set's file is as it was
+            d["set"] = self.set
+        if self.tests:
+            d["tests"] = self.tests
+        if self.fresh:
+            d["fresh"] = self.fresh
+        if self.pending:
+            d["pending"] = self.pending
+        return d
 
 
 @dataclass
@@ -530,12 +568,22 @@ def read_split(ws) -> AnswersSplit | None:
             d.get("questions"), dict) or not all(
             isinstance(k, str) and v in (KEPT, SHOWN, BOTH) for k, v in d["questions"].items()):
         raise SplitUnknown("it is not as judgekeeper writes it")
-    if set(d["visible"]) & set(d["hidden"]):
+    number, tests, fresh = d.get("set", 1), d.get("tests", []), d.get("fresh")
+    if type(number) is not int or number < 1 or not isinstance(tests, list) or not all(
+            isinstance(t, dict) and isinstance(t.get("key"), str) for t in tests) or not (
+            fresh is None or isinstance(fresh, dict) and type(fresh.get("want")) is int) or \
+            not _strings(d.get("pending", [])):
+        raise SplitUnknown("it is not as judgekeeper writes it")
+    pending = set(d.get("pending", []))
+    if set(d["visible"]) & set(d["hidden"]) or pending & (set(d["visible"]) | set(d["hidden"])):
         raise SplitUnknown("it names some answers as both kept aside and shown")
     if d.get("sha256") != _sum(d):
         raise SplitUnknown("it was changed by hand")
     return AnswersSplit(seed=d["seed"], seen=list(d["visible"]), hidden=list(d["hidden"]),
-                        questions=dict(d["questions"]), made_at=str(d.get("made_at") or ""))
+                        questions=dict(d["questions"]), made_at=str(d.get("made_at") or ""),
+                        set=number, tests=[dict(t) for t in tests],
+                        fresh=dict(fresh) if fresh else None,
+                        pending=list(d.get("pending", [])))
 
 
 def _save_split(ws, split: AnswersSplit) -> None:
@@ -558,7 +606,9 @@ def update_split(ws, session) -> AnswersSplit | None:
     marks and half of the Fail marks kept aside, rounded up, none of a kind with one
     (fix._cells). Answers split before keep their side. A new answer to a question split
     before takes its side; the rest are split the same way (fix._top_up). Answers no longer
-    in the file are left out; their questions keep their side. SplitUnknown as read_split."""
+    in the file are left out; their questions keep their side. Once the set is retired
+    (retire), the new questions wait (`pending`) until the set's `fresh` want of them are
+    marked, then are split as the first ones were, a new set. SplitUnknown as read_split."""
     marked = session.marked()
     split = read_split(ws)
     if split is None and len(marked) < MIN_MARKS:
@@ -585,7 +635,14 @@ def update_split(ws, session) -> AnswersSplit | None:
                 split.seen.append(i)
             else:
                 rest.append(i)
-        if rest:
+        if split.fresh:  # retired: a new set from enough new questions
+            split.pending = rest
+            if len(rest) >= split.fresh["want"]:
+                seen, hidden = _cells(m, rest, random.Random(f"{split.seed}/{split.set + 1}"))
+                split.seen += seen
+                split.hidden += hidden
+                split.set, split.tests, split.fresh, split.pending = split.set + 1, [], None, []
+        elif rest:
             seen, hidden = _top_up(m, rest, known & set(marked), split.hidden,
                                    random.Random(f"{split.seed}/{len(known)}"))
             split.seen += seen
@@ -602,14 +659,24 @@ def update_split(ws, session) -> AnswersSplit | None:
     return split
 
 
+def retire(split: AnswersSplit) -> None:
+    """After fix.MAX_RULES changes tested on the set: every question is shown from now on
+    (fix.retire), and the next new questions make a new set (update_split)."""
+    from judgekeeper.fix import retire as retire_set
+
+    retire_set(split)
+    split.questions = dict.fromkeys(split.questions, SHOWN)
+    split.pending = []
+
+
 def kept_aside(ws) -> set[str] | None:
-    """The answers kept aside; None when split-answers.json can't be used (nothing can be
-    shown from the marks: it can't say which)."""
+    """The answers kept aside, and those waiting for a new set; None when split-answers.json
+    can't be used (nothing can be shown from the marks: it can't say which)."""
     try:
         split = read_split(ws)
     except SplitUnknown:
         return None
-    return set(split.hidden) if split else set()
+    return set(split.hidden) | set(split.pending) if split else set()
 
 
 def failed_path(ws) -> Path:
@@ -743,6 +810,281 @@ def write_failed(ws, session, r: dict) -> None:
     write_replacing(path, failed_md(rows, r.get("kept") or 0))
 
 
+# What changed since the last answers ------------------------------------------------------
+
+BEFORE_FILE = "before.json"  # in fix/: each question's last two answers marked, ids and hashes
+FEW_COMPARED = 5  # questions kept aside compared, fewer: never a clear answer
+SINCE = "Since your last answers"
+COMPARED = "On the {n} kept aside: fixed {fixed}, broke {broke}, same {same}."
+COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from."
+WAIT_NEW = "Mark the new answers to see what changed."
+NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
+MARK_MORE = "Mark more questions for a clearer answer."
+CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
+    "helped": "Your change helped. A difference this large is unlikely to be a coincidence.",
+    "worse": ("Your change made it worse. A difference this large is unlikely to be a "
+              "coincidence."),
+    "leans better": ("Can't tell yet. That leans toward better, but a split this small could "
+                     "easily be a coincidence."),
+    "leans worse": "Can't tell yet. That leans toward worse.",
+    "same": "Can't tell yet. Before and after look about the same.",
+}
+NEW_SET = ("You have tested {n} changes on these questions kept aside, so they no longer give a "
+           "fair test. Add about {fresh} new questions and mark their answers; half of them are "
+           "kept aside as a new test.")
+BROKE = "Answers that broke"
+
+
+def _before_path(ws) -> Path:
+    return ws.dir / "fix" / BEFORE_FILE
+
+
+def _answer_key(output) -> str:
+    """An answer's text, hashed as answer ids are: the same text, the same key."""
+    from judgekeeper.table import ID_LENGTH, canonical_json
+
+    data = canonical_json("" if output is None else output).encode("utf-8",
+                                                                    errors="surrogatepass")
+    return hashlib.sha256(data).hexdigest()[:ID_LENGTH]
+
+
+def _entry(x) -> bool:
+    return isinstance(x, dict) and set(x) == {"id", "answer"} and all(
+        isinstance(v, str) for v in x.values())
+
+
+def read_before(ws) -> dict | None:
+    """fix/before.json: "questions", {question_key: [{"id", "answer"}, ...]}, the last two
+    answers marked, oldest first, and "round", the answers that came new with the results
+    now ({"stamp", "new"}, None in a file from before it). None when there is none, it is a
+    link, can't be read, is not as judgekeeper writes it or was changed by hand: nothing is
+    compared, no error."""
+    from judgekeeper.fix import _sum
+
+    path = _before_path(ws)
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        d = loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(d, dict) or not isinstance(d.get("questions"), dict) or not all(
+            isinstance(k, str) and isinstance(v, list) and 1 <= len(v) <= 2
+            and all(_entry(x) for x in v) for k, v in d["questions"].items()):
+        return None
+    got = d.get("round")
+    if got is not None and not (isinstance(got, dict) and isinstance(got.get("stamp"), str)
+                                and _strings(got.get("new"))):
+        return None
+    if d.get("sha256") != _sum(d):
+        return None
+    return {"questions": {k: [dict(x) for x in v] for k, v in d["questions"].items()},
+            "round": {"stamp": got["stamp"], "new": list(got["new"])} if got else None}
+
+
+def _write_before(ws, before: dict) -> None:
+    from judgekeeper.fix import _sum
+
+    path = _before_path(ws)
+    make_private(path.parent)
+    d = {"questions": before["questions"],
+         **({"round": before["round"]} if before.get("round") else {})}
+    write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
+
+
+def _before_or_new(ws) -> dict | None:
+    """before.json to write to: as it is, or a new one; None when it is a link or can't be
+    read (never replaced)."""
+    path = _before_path(ws)
+    try:
+        marks._refuse_links(path)
+    except marks.MarksError:
+        return None
+    return read_before(ws) if path.exists() else {"questions": {}, "round": None}
+
+
+def remember(ws) -> None:
+    """fix/before.json with the answers in pool.jsonl now: each answer marked Pass or Fail
+    whose question is asked once there is its question's newest; a new answer text comes
+    after the one before it (two kept). The same text again (the question's spaces changed)
+    takes its place alone: there is no change to compare. Never written through a link, and
+    one that can't be read is never replaced."""
+    before = _before_or_new(ws)
+    if before is None:
+        return
+    questions = before["questions"]
+    try:
+        rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8")) if x.strip()]
+        counted = marks.read(ws.marks).counted() if ws.marks.is_file() else {}
+    except (OSError, ValueError):
+        return
+    asked: dict[str, list[dict]] = {}
+    for row in rows:
+        if isinstance(row, dict) and isinstance(row.get("id"), str):
+            asked.setdefault(question_key(row.get("input")), []).append(row)
+    changed = not _before_path(ws).exists()
+    for key, rows in asked.items():
+        if len(rows) != 1 or rows[0]["id"] not in counted:
+            continue
+        entry = {"id": rows[0]["id"], "answer": _answer_key(rows[0].get("output"))}
+        last = questions.get(key, [])
+        if last and last[-1]["id"] == entry["id"]:
+            continue
+        if last and last[-1]["answer"] == entry["answer"]:
+            questions[key] = [entry]
+        else:
+            questions[key] = [*last, entry][-2:]
+        changed = True
+    if changed:
+        _write_before(ws, before)
+
+
+def results_stamp(ids) -> str:
+    """The answers now, as a hash of their ids: the same answers saved again are the same
+    results, whatever the file's time."""
+    return hashlib.sha256(json.dumps(sorted(ids)).encode("utf-8")).hexdigest()[:16]
+
+
+def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
+    """New results (`stamp` changed): the answers in them that were not in the ones before
+    (`old`) are the ones compared now (compare); an answer carried over is never compared
+    again. The same answers read again, or saved again, keep the round they had."""
+    before = _before_or_new(ws)
+    if before is None or (before["round"] or {}).get("stamp") == stamp:
+        return
+    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old)}
+    _write_before(ws, before)
+
+
+def change_kind(fixed: int, broke: int, n: int, test: int = 1) -> str:
+    """CHANGE's key: clear when the sign test is under targets.SIGN_LEVEL divided by the
+    changes tested on the set (`test`, this one included) and FEW_COMPARED questions or more
+    were compared."""
+    from judgekeeper.targets import SIGN_LEVEL, sign_p
+
+    if n >= FEW_COMPARED and sign_p(fixed, broke) < SIGN_LEVEL / max(1, test):
+        return "helped" if fixed > broke else "worse"
+    return "leans better" if fixed > broke else "leans worse" if broke > fixed else "same"
+
+
+def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
+    """What changed since the last answers. A question is compared when it is asked once in
+    the results, its answer came new with them (new_round), and its answer now and the one
+    marked before it (read_before) are both marked, with different text. A retired set:
+    {"new_set": True}, until new questions make a new one. {"waiting": True} while a new
+    answer of a compared question is not marked. None of them kept aside: {"kept": 0}. Else the
+    counts on the questions kept aside ("kept", "fixed", "broke", "same"), the result ("kind",
+    "clear"), this change's number on the set ("test") and its key (the answers kept aside
+    now). With either, the shown answers that went from Pass to Fail ("shown_broke"). None
+    when nothing is compared."""
+    from judgekeeper.fix import MAX_RULES
+
+    try:
+        split = split or read_split(ws)
+        counted = marks.read(ws.marks).counted() if ws.marks.is_file() else {}
+    except (SplitUnknown, OSError, ValueError):
+        return None
+    if split is None:
+        return None
+    before = read_before(ws)
+    round_ = before["round"] if before else None
+    new = set(round_["new"]) if round_ else set()
+    asked: dict[str, list[str]] = {}
+    for i in session.by_id:
+        asked.setdefault(question_key((session.raw.get(i) or {}).get("input")), []).append(i)
+    pairs, waiting = [], False
+    for key, ids in asked.items() if round_ else ():
+        last = before["questions"].get(key)
+        if len(ids) != 1 or not last:
+            continue
+        now = ids[0]
+        if now not in new:  # carried over from the results before: not compared again
+            continue
+        if last[-1]["id"] == now:
+            if len(last) < 2:
+                continue
+            was = last[-2]
+        elif last[-1]["answer"] == _answer_key((session.raw.get(now) or {}).get("output")):
+            continue  # the same answer: not compared
+        else:
+            was = last[-1]
+        if counted.get(was["id"]) is None:
+            continue
+        if counted.get(now) is None:
+            waiting = True
+            continue
+        pairs.append((now, counted[was["id"]], counted[now]))
+    seen, hidden = set(split.seen), set(split.hidden)
+    out: dict = {"shown_broke": [i for i, a, b in pairs if i in seen and (a, b) == ("pass", "fail")]}
+    if split.fresh:
+        return {"new_set": True, **out}
+    if waiting:
+        return {"waiting": True}
+    if not pairs:
+        return None
+    kept = [(i, a, b) for i, a, b in pairs if i in hidden]
+    if not kept:  # nothing to test the change on: no counts, no test
+        return {"kept": 0, **out}
+    fixed = sum((a, b) == ("fail", "pass") for _, a, b in kept)
+    broke = sum((a, b) == ("pass", "fail") for _, a, b in kept)
+    key = hashlib.sha256(json.dumps(sorted(i for i, _, _ in kept)).encode()).hexdigest()[:16]
+    tested = [t["key"] for t in split.tests]
+    test = tested.index(key) + 1 if key in tested else len(tested) + 1
+    kind = change_kind(fixed, broke, len(kept), test)
+    return {"kept": len(kept), "fixed": fixed, "broke": broke,
+            "same": len(kept) - fixed - broke, "kind": kind,
+            "clear": kind in ("helped", "worse"), "test": test, "key": key,
+            "last": test >= MAX_RULES, **out}
+
+
+def _record(ws, session) -> None:
+    """A change compared on questions kept aside is one test on the set, once (its key);
+    one more after fix.MAX_RULES retires the set instead (retire)."""
+    from judgekeeper.fix import MAX_RULES
+
+    try:
+        split = read_split(ws)
+    except SplitUnknown:
+        return
+    c = compare(ws, session, split) if split else None
+    if not c or not c.get("kept") or c["key"] in [t["key"] for t in split.tests]:
+        return
+    if len(split.tests) >= MAX_RULES:
+        retire(split)
+    else:
+        split.tests.append({"key": c["key"], "at": utc_now()})
+    _save_split(ws, split)
+
+
+def new_set_line() -> str:
+    from judgekeeper.fix import FRESH, MAX_RULES
+
+    return NEW_SET.format(n=MAX_RULES, fresh=FRESH)
+
+
+def counted_line(c: dict) -> str:
+    return COUNTED.format(n=plural(c["kept"], "question"))
+
+
+def result_line(c: dict) -> str:
+    return CHANGE[c["kind"]] + ("" if c["clear"] else f" {MARK_MORE}")
+
+
+def since_lines(c: dict | None) -> list[str]:
+    """What the terminal says of the comparison `c` (compare), after the counts line."""
+    if not c:
+        return []
+    if c.get("waiting"):
+        return [WAIT_NEW]
+    if c.get("new_set"):
+        return [new_set_line()]
+    if not c.get("kept"):
+        return [NO_KEPT]
+    lines = [COMPARED.format(n=plural(c["kept"], "question"), fixed=c["fixed"],
+                             broke=c["broke"], same=c["same"]), result_line(c)]
+    return lines + ([new_set_line()] if c.get("last") else [])
+
+
 # Saving the answers -------------------------------------------------------------------------
 
 def prepare(found, ws) -> None:
@@ -753,6 +1095,11 @@ def prepare(found, ws) -> None:
 
     old = ws.data() if ws.start.is_file() else None
     old = old if is_off(old) else None
+    if old is not None:  # the answers marked so far, before new ones take their place
+        try:
+            remember(ws)
+        except (OSError, marks.MarksError):
+            pass
     answers = {a.id: a for a in found.pool.answers}
     if old is not None:
         seed, started = old["seed"], old.get("started_at")
@@ -768,6 +1115,11 @@ def prepare(found, ws) -> None:
     pool = _scrubbed([{"id": i, "input": answers[i].input, "output": answers[i].output,
                        **answers[i].agent} for i in order])
     write_replacing(ws.pool, "".join(json.dumps(p, ensure_ascii=False) + "\n" for p in pool))
+    try:
+        new_round(ws, results_stamp(order),
+                  {q["id"] for q in old["queue"]} if old is not None else set(), order)
+    except (OSError, marks.MarksError):
+        pass
     newest = found.results[0]
     p = found.pool
     _write_json(ws.start, {
