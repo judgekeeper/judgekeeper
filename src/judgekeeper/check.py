@@ -1942,7 +1942,7 @@ def full(path: str, said: Said, pass_if: str | None = None) -> int:
     from judgekeeper import no_grades, project
 
     if (stop := no_grades.no_judge_stop(path, "re-check")) is not None:
-        said.say(stop[0])
+        said.para(stop[0])  # wrapped, as fix says it
         said.say()
         said.say(f"Next: {stop[1]}")
         return EXIT_NEEDS_YOU

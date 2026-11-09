@@ -241,7 +241,8 @@ def shown_fails(here, page) -> list[str]:
 
 def test_reasons_are_taken_on_fail_marks_once_there_is_a_result(here, capsys, pages):
     page = _with_result(here, capsys, ["pass", "fail"] * 5)
-    by = {i["label"]: i["id"] for i in page.items if i["label"]}
+    shown = set(no_grades.read_split(start_label.Workspace(here)).seen)  # not kept aside
+    by = {i["label"]: i["id"] for i in page.items if i["label"] and i["id"] in shown}
     page.update({"id": by["fail"], "reasons": ["wrong_fact"]})
     with pytest.raises(ValueError):  # a Pass mark has no reasons
         page.update({"id": by["pass"], "reasons": ["wrong_fact"]})
@@ -464,7 +465,7 @@ def test_the_page_lists_only_the_fails_in_reason_order(here, capsys, pages):
 
 def test_the_page_offers_only_the_reasons_about_the_answer(here, capsys, pages):
     page = _with_result(here, capsys, ["fail", "pass"] * 5)
-    fail = next(i["id"] for i in page.items if i["label"] == "fail")
+    fail = shown_fails(here, page)[0]  # one kept aside takes no reason
     page.update({"id": fail, "note": "too long"})  # makes the person's own button
     html = _live(here, page)
     other = next(i for i in _row_ids(html) if i != fail)

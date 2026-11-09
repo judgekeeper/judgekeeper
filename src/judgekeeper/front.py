@@ -87,6 +87,7 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
          "LLM-as-a-judge graded them.")
 # No results and no eval tool: a prompt for the person's coding agent to make answers to check.
 # Each of its lines starts a line of its own, wrapped as every other line.
+QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
 QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
                    "Codex):")
 QUESTIONS_PROMPT = (
@@ -1101,6 +1102,7 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                   f"LLM-as-a-judge's results, run `{talk.command_at(own.rel)}`.")
     if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
         _questions_prompt(talk)
+        return talk.stop(EXIT_QUESTION, QUESTIONS_NEXT.format(command=talk.command()))
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")
@@ -2876,18 +2878,21 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
             _say_found(talk, line)
         talk.say()
     talk.ask_noted()
-    before = len(ws.data().get("queue") or []) if not first else None
+    before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
+    was = no_grades.round_of(ws) if not first else None
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
         start_label.prepare(found, say=lambda line: None, ws=ws)
         _import_labels(talk, ws, found, first)  # --labels: the marks it brings
-    if before is not None and before != len(ws.data()["queue"]) and is_open(ws.dir):
+    new = no_grades.found_new(ws, was) if not first else 0  # said once, on this run
+    if before is not None and before != [q["id"] for q in ws.data()["queue"]] and \
+            is_open(ws.dir):
         background.stop(ws.dir)  # the page open shows the answers without the new ones
     session = StartSession(ws)
     counts = session.counts()
     n = counts["correct"] + counts["wrong"]
     if n >= no_grades.MIN_MARKS and not marking:
-        return _no_grades_result(talk, ws, session, wait)
-    return _no_grades_page(talk, ws, session, wait, marking, first)
+        return _no_grades_result(talk, ws, session, wait, new)
+    return _no_grades_page(talk, ws, session, wait, marking, first, new)
 
 
 NO_GRADES = "none. You mark each answer."  # Find's Grades line: no LLM-as-a-judge checked
@@ -2910,9 +2915,10 @@ def _no_grades_block(found: start.Found) -> list[str]:
 
 
 def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait: bool,
-                    marking: bool, first: bool) -> int:
+                    marking: bool, first: bool, new: int = 0) -> int:
     """Step 2 with no grade: the marks so far and the marking page; with every answer marked
-    and too few for a result, what comes next (exit 3)."""
+    and too few for a result, what comes next (exit 3). `new`: answers new since the last
+    results, said first."""
     counts = session.counts()
     n_pass, n_fail = counts["correct"], counts["wrong"]
     n = n_pass + n_fail
@@ -2920,6 +2926,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     every = bool(session.items) and all(i["label"] for i in session.items)
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
+    if new:
+        talk.para(no_grades.found_line(new))
+        talk.say()
     if every and not enough:  # nothing left to mark, and no result yet
         done = no_grades.status(session, _command_of(talk, False))["done"]
         talk.para(done[0])
@@ -2967,11 +2976,15 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
 
 
 def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
-                      wait: bool) -> int:
+                      wait: bool, new: int = 0) -> int:
     """Step 3 with no grade: how many answers the person passed and the reasons they gave,
-    saved in result.json; nothing about an LLM-as-a-judge."""
+    saved in result.json; nothing about an LLM-as-a-judge. `new`: answers new since the last
+    results, said first."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
+    if new:
+        talk.para(no_grades.found_line(new))
+        talk.say()
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))
     labels = r["labels"]
     talk.para(no_grades.counts_line(labels["correct"], labels["correct"] + labels["wrong"]))
