@@ -90,3 +90,33 @@ def test_the_docs_quote_the_prompts_judgekeeper_prints():
     assert fix in _text(ROOT / "docs" / "reference.md")
     questions = front.QUESTIONS_PROMPT.format(program="judgekeeper")
     assert questions in html.unescape(_text(ROOT / "website" / "start.html"))
+
+
+def test_the_second_run_answered_the_same_questions_again():
+    with (EXAMPLE / "results-after.csv").open(encoding="utf-8", newline="") as f:
+        after = list(csv.DictReader(f))
+    assert len(after) == 20 and list(after[0]) == ["input", "output"]
+    assert [r["input"] for r in after] == [r["input"] for r in _rows()]
+    changed = sum(a["output"] != b["output"] for a, b in zip(after, _rows(), strict=True))
+    assert changed == 20  # every answer worded anew: every question is compared
+
+
+def test_the_second_run_printed_fixed_broke_and_same():
+    said = _flat(_text(EXAMPLE / "terminal-2.txt"))
+    compared = no_grades.COMPARED.format(n="10 questions", fixed=2, broke=1, same=7)
+    lean = f"{no_grades.CHANGE['leans better']} {no_grades.MARK_MORE}"
+    assert "You passed 16 of 20 answers." in said and compared in said and lean in said
+
+
+def test_the_docs_give_the_second_run_as_judgekeeper_says_it():
+    example = _flat(_text(EXAMPLE / "README.md"))
+    assert "16 of 20 answers passed" in example
+    assert "2 were fixed, 1 broke and 7 stayed the same" in example
+    assert f'"{no_grades.MARK_MORE}"' in example
+    reference = _flat(_text(ROOT / "docs" / "reference.md"))
+    assert "2 were fixed, 1 broke and 7 stayed the same" in reference
+    assert f'"{no_grades.CHANGE["leans better"]}"' in reference
+    for words in (no_grades.CHANGE["helped"].split(".")[0],
+                  no_grades.CHANGE["worse"].split(".")[0], no_grades.MARK_MORE, no_grades.BROKE):
+        assert f'"{words}' in reference, words
+    assert f"fewer than {no_grades.FEW_COMPARED} kept-aside questions" in reference

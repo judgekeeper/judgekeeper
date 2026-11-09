@@ -52,7 +52,7 @@ The same 5 steps work on your AI's own answers. Give judgekeeper a CSV, TSV or J
 2. **Mark:** mark each answer Pass or Fail. Add a reason to the ones you fail.
 3. **Measure:** from 10 marks, see how many passed, with a range.
 4. **Fix:** your failed answers are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
-5. **Re-check:** run your AI again and mark the new answers. judgekeeper shows which answers were fixed, which broke, and whether the change is more than a coincidence.
+5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
 [An example run](docs/examples/ai-check/README.md).
 

@@ -26,8 +26,19 @@ replacement.
 The result: 12 of 20 answers passed, about 60%, between 39% and 78%. Of the 8 failed, 4 are
 kept aside to test a fix, so the result lists the other 4: 3 with a wrong fact, 1 unsafe.
 
-<!-- TODO(PR3): the second run: results-after.csv, terminal-2.txt, and what was fixed, broke
-and stayed the same. -->
+## The second run
 
-Made with judgekeeper from commit `5bced99` (version 1.1.2 with the 1.2.0 changes so far) on
-2026-11-09, with times in UTC. No AI was called.
+The bot's prompt was changed, and it answered the same 20 questions again.
+
+- `results-after.csv`: the new answers. 6 of them say something new; the other 14 say the
+  same thing in new words.
+- `terminal-2.txt`: what `judgekeeper` printed. The first command opened the marking page for
+  the new answers; after every answer was marked, the second printed the result.
+
+The result: 16 of 20 answers passed. On the 10 questions kept aside, 2 were fixed, 1 broke
+and 7 stayed the same. So judgekeeper can't tell yet whether the change helped: it leans
+toward better, but a split this small could easily be a coincidence. The line it prints
+after that, "Mark more questions for a clearer answer.", is the next step here.
+
+Made with judgekeeper from commit `5bced99` (first run) and `3c84b11` (second run) on
+2026-11-09.
