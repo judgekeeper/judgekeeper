@@ -83,7 +83,21 @@ QUESTIONS = "judgekeeper needs your answer to {which}:"
 # Questions whose answer changes what is counted: the counts are printed after them
 COUNT_QUESTIONS = ("Count each as its own answer?", "Leave them out?")
 READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, "
-         "TSV or JSONL file with input, output and verdict columns.")
+         "TSV or JSONL file with input and output columns, and a verdict column if an "
+         "LLM-as-a-judge graded them.")
+# No results and no eval tool: a prompt for the person's coding agent to make answers to check.
+# Each of its lines starts a line of its own, wrapped as every other line.
+QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
+                   "Codex):")
+QUESTIONS_PROMPT = (
+    "Write about 20 test questions for the AI in this project, the way its real users would ask "
+    "them.\n"
+    "Mix a few topics it should handle, a few kinds of users, and some hard cases (unclear, "
+    "off-topic or tricky questions).\n"
+    "Run the AI on each question and save the questions and answers in results.csv, with two "
+    "columns: input (the question) and output (the answer).\n"
+    "Do not grade the answers. Then run {program}.")
+QUESTIONS_KEY = "Running your AI may use your API key."
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
 ASKED = {"--tool": "tool", "--metric": "metric", "--experiment": "experiment"}
@@ -1085,11 +1099,25 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                  else f"{size / 1000:,.0f} KB")
         talk.para(f"It left out {own.rel} ({shown}): too big to look into. If it holds your "
                   f"LLM-as-a-judge's results, run `{talk.command_at(own.rel)}`.")
+    if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
+        _questions_prompt(talk)
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
+
+
+def _questions_prompt(talk: FrontTalk) -> None:
+    """The prompt that has the person's coding agent write test questions and save the AI's
+    answers, for a project with none yet."""
+    talk.say()
+    talk.para(QUESTIONS_INTRO)
+    talk.say()
+    for line in QUESTIONS_PROMPT.format(program=textio.program()).splitlines():
+        talk.para(line)
+    talk.say()
+    talk.say(QUESTIONS_KEY)
 
 
 def _saved_marks(root: Path) -> int:
