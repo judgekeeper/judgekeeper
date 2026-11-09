@@ -128,3 +128,56 @@ def test_no_command_shows_a_password_given_in_its_path(tmp_path, monkeypatch, ca
     assert code != 0
     assert PW not in said, said
     assert "There is no " in said
+
+
+SK_BODY = "FAKEk3qZtRwLmXcVbNpHsJdGyAeKuQoWiEr7T2zY5u"
+BEARER_BODY = "FAKEk3qZtRwLmXcVbNpH9sJdGyAeKu"
+FENCE_KEYS = KEYS + [("sk-proj-" + SK_BODY, SK_BODY),
+                     ("Authorization: Bearer " + BEARER_BODY, BEARER_BODY)]
+
+
+def _fence_texts():
+    """Texts with each key starting at every place around fenced's cut: before, across and
+    just after it."""
+    width = start_fix_rule.CUT
+    for key, body in FENCE_KEYS:
+        for pad in range(width - len(key) - 4, width + 2):
+            yield "w" * pad + " " + key + " then more words to be cut away " + "z" * 60, body
+
+
+def test_the_fence_keys_are_hidden_whole():
+    for key, body in FENCE_KEYS:
+        assert not _shows_part(scrub(f"use {key} now"), body)
+
+
+def test_a_fenced_text_shows_no_part_of_a_key_where_it_is_cut():
+    for text, body in _fence_texts():
+        shown = start_fix_rule.fenced("ANSWER", text)
+        assert not _shows_part(shown, body), shown[-120:]
+        assert shown == f"<<<ANSWER\n{scrub(text)[:start_fix_rule.CUT]} (cut)\nANSWER>>>"
+
+
+def test_a_fenced_text_with_no_key_is_cut_as_before():
+    long = "word " * 400
+    assert start_fix_rule.fenced("ANSWER", long) == (
+        f"<<<ANSWER\n{long[:start_fix_rule.CUT]} (cut)\nANSWER>>>")
+    assert start_fix_rule.fenced("QUESTION", "Is it <<<open>>>?") == (
+        "<<<QUESTION\nIs it < <<open> >>?\nQUESTION>>>")
+    assert start_fix_rule.fenced("RULE", long, cut=False) == f"<<<RULE\n{long}\nRULE>>>"
+
+
+def test_the_failed_answers_and_mistakes_files_show_no_part_of_a_key_where_it_is_cut():
+    from judgekeeper import no_grades
+
+    for text, body in _fence_texts():
+        for field in ("input", "output", "why"):
+            row = {"id": "a", "input": "Q?", "output": "A.", "judge": "pass", "final": "fail",
+                   "reason": "ok", field: text}
+            failed = no_grades.failed_md([row], 0)
+            mistakes = fix.mistakes_md(None, [row])
+            for shown in (failed, mistakes):
+                assert not _shows_part(shown, body), (field, shown[-200:])
+                assert " (cut)\n" in shown
+        row = {"id": "a", "input": "Q?", "output": "A.", "judge": "pass", "final": "fail",
+               "reason": text}
+        assert not _shows_part(fix.mistakes_md(None, [row]), body)

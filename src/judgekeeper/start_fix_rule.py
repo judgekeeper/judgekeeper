@@ -95,13 +95,14 @@ def unmarked(text: str) -> str:
 
 def fenced(name: str, text, cut: bool = True) -> str:
     """`text` (cut, unless `cut` is False) between a <<<NAME line and a NAME>>> line. The
-    text is cleaned as the whole file is (reasons.cleaned, keys hidden) first, so no hidden
+    text is cleaned as the whole file is (reasons.cleaned, keys hidden) before the cut, so no hidden
     character left out later joins up what comes next: every <<< or >>> in it is broken up,
     so nothing in it can close the marker or open another."""
     from judgekeeper.reasons import cleaned
 
-    text = _cut(text) if cut else ("" if text is None else str(text))
-    return f"<<<{name}\n{unmarked(scrub(cleaned(text)))}\n{name}>>>"
+    text = scrub(cleaned("" if text is None else str(text)))  # keys hidden before the cut: a
+    # key cut short is too short for scrub to know
+    return f"<<<{name}\n{unmarked(_cut(text) if cut else text)}\n{name}>>>"
 
 
 # Text from the project's files -------------------------------------------------------------
