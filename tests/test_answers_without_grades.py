@@ -502,6 +502,7 @@ def test_what_next_with_every_answer_marked(here, capsys, pages):
     assert "Mark more answers for a surer number." not in html
     assert ("Add more answers to results.csv for a surer number, then run judgekeeper "
             "again.") in " ".join(_seen(html).split())
+    assert "Add more answers to <code>results.csv</code> for a surer number" in html
     assert f'<a href="{BACK}">Change a mark</a>' in html
 
 

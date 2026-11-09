@@ -12,7 +12,7 @@ from html import unescape
 
 import pytest
 
-from judgekeeper import fix, no_grades, reasons, start_fix_rule, start_label
+from judgekeeper import fix, no_grades, reasons, report_page, start_fix_rule, start_label
 from judgekeeper.metrics import wilson
 from tests.test_answers_without_grades import (
     _chips,
@@ -365,16 +365,30 @@ def test_the_page_shows_the_prompt_in_what_next(here, capsys, marked):
     for html in (_report(here), _live(here)):
         seen = " ".join(unescape(_seen(html)).split())
         at = seen.index("Your marks and reasons are saved")
-        saved = seen.index("Your failed answers are saved in .judgekeeper/fix/failed-answers.md. "
+        saved = seen.index("Your failed answers are saved in .judgekeeper/fix/failed-answers.md . "
                            "Give it to your coding agent to improve your AI's prompt:")
         prompt = seen.index(" ".join(PROMPT_LINES))
         after = seen.index("After you change the prompt, run your AI again, save the new "
                            "answers, and run judgekeeper to mark them.")
         assert at < saved < prompt < after
+        assert "saved in <code>.judgekeeper/fix/failed-answers.md</code>. Give" in html
         box = html.split('<div class="cmd prompt">', 1)[1].split("</div>", 1)[0]
         assert "\n".join(PROMPT_LINES) in box.replace("&#x27;", "'")
         assert "data-copy" in box
         assert "Mark more answers for a surer number." in seen  # answers left: it stays
+
+
+def test_a_path_or_command_in_code_never_gains_a_hyphen():
+    rule = report_page.STYLE.split("main p code, .notes-list code {", 1)[1].split("}", 1)[0]
+    for part in ("hyphens: manual;", "-webkit-hyphens: manual;", "overflow-wrap: anywhere;"):
+        assert part in rule
+
+
+def test_what_next_reads_left_to_right_with_no_added_hyphen_without_grades(here, marked):
+    marked(["pass"] * 6 + ["fail"] * 4)
+    rule = ".nx-split p { text-align: left; hyphens: manual; -webkit-hyphens: manual; }"
+    assert rule in _report(here)
+    assert rule not in report_page.STYLE  # a page with grades keeps its look
 
 
 def test_the_prompt_names_the_file_with_backslashes_on_windows(here, marked, monkeypatch):

@@ -296,6 +296,7 @@ table { border-collapse: collapse; width: 100%; }
 /* a command in a sentence: the website's code chip */
 main p code, .notes-list code { font-size: .9em; color: var(--text);
   background: rgba(255,255,255,.06); border-radius: 4px; padding: 2px 6px;
+  hyphens: manual; -webkit-hyphens: manual; overflow-wrap: anywhere;
   -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .verdict { padding: 60px 40px 52px; text-align: center; }
 .verdict h1 { margin: 0 auto; font-size: clamp(34px, 3.2vw, 48px); line-height: 1.1;
@@ -654,6 +655,14 @@ def _all_marked(r: dict) -> str:
 
     first, then = all_marked_lines(r["labels"], commands(r)["more"], graded(r))
     return f"{_e(first)} {_code_line(then.removeprefix('Next: '))}"
+
+
+_PATH = "\x00"  # where a sentence names a path, shown as code after the sentence is escaped
+
+
+def _path_code(html: str, path: str | None) -> str:
+    """The path a sentence names (at _PATH) as code, so it reads as a path."""
+    return html.replace(_PATH, f"<code>{_e(path or '')}</code>")
 
 
 def _code_line(text: str) -> str:
@@ -1471,7 +1480,9 @@ SURER_MARK = "Mark more answers for a surer number."
 ONE_CELL = ".nums.one { grid-template-columns: 1fr; }\n"  # this page only: the others stay as they are
 # this page only too: a prompt for a coding agent in the copy box, its lines as they are, no "$"
 PROMPT_BOX = (".cmd.prompt code { white-space: pre-wrap; overflow-wrap: anywhere; }\n"
-              ".cmd.prompt code::before { content: none; }\n")
+              ".cmd.prompt code::before { content: none; }\n"
+              # a long path in a sentence leaves no wide gaps and gains no "-"
+              ".nx-split p { text-align: left; hyphens: manual; -webkit-hyphens: manual; }\n")
 
 
 def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1492,14 +1503,16 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     live, left = back is not None, r.get("left")
     cmd = commands(r)
     mark = f"<code>{look.command(_e(cmd['mark']))}</code>"
-    file = fixing.get("file") or "your results file"
+    file = fixing.get("file")
     more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
-        file=file, n=no_grades.MIN_MARKS, command=_PAGE_FLAGS.sub("", cmd["run"]))
+        file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
+        command=_PAGE_FLAGS.sub("", cmd["run"]))
     cnts = (f'<div class="cnts"><p class="c-pass">{own_line("passed", k)}</p>'
             f'<p class="c-fail">{own_line("failed", n - k)}</p></div>')
     if r["check"] != "result":  # too few marks: as before a graded result
         if left == 0:
-            lead = f"{_e(ALL_MARKED.format(marks=marks_words(labels)))} {_code_line(more)}"
+            lead = (f"{_e(ALL_MARKED.format(marks=marks_words(labels)))} "
+                    f"{_path_code(_code_line(more), file)}")
         elif live:
             lead = f'<a href="{_e(back)}">{_e(TO_A_RESULT)}</a>'
         else:
@@ -1524,12 +1537,13 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
                    f"<p>{_e(SURER_MARK)} Run {mark} in your project folder.</p>")
             then = ""
         else:
-            act = f"<p>{_code_line(more)}</p>"
+            act = f"<p>{_path_code(_code_line(more), file)}</p>"
             then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
                     "it again.</p>" if live else
                     f"<p>To change a mark, run {mark} in your project folder.</p>")
         if fixing.get("prompt"):  # the answers failed, for a coding agent, first
-            act = (f'<p>{_e(no_grades.FAILED_SAVED.format(file=fixing["failed"]))} Give it to '
+            saved = _path_code(_e(no_grades.FAILED_SAVED.format(file=_PATH)), fixing["failed"])
+            act = (f"<p>{saved} Give it to "
                    "your coding agent to improve your AI's prompt:</p>"
                    f'<div class="cmd prompt"><code>{_e(fixing["prompt"])}</code>'
                    '<button type="button" class="copy" data-copy aria-label="Copy the prompt">'
