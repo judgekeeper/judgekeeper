@@ -474,7 +474,23 @@ def _main(page: Path) -> Element:
 
 def test_home_is_the_hero_the_steps_the_public_datasets_and_the_closing_box():
     sections = [el for el in _main(HOME).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"real"}, {"close"}]
+    assert [s.classes() for s in sections] == [{"hero"}, {"steps"}, {"close"}, {"real"},
+                                               {"close"}]
+    assert [s.attrs.get("id") for s in sections] == [None, "steps", "ai-check", "real", None]
+
+
+def test_home_tells_about_checking_an_ais_answers_in_a_plain_box_under_the_steps():
+    """No LLM-as-a-judge: one heading, one sentence and a link to the Guide's section, in the
+    closing box's plain form (no window, no animation)."""
+    (box,) = [s for s in _all(_main(HOME), "section", "close") if s.attrs.get("id") == "ai-check"]
+    assert _flat(_all(box, "h2")[0]) == "No LLM-as-a-judge? Check your AI's answers."
+    assert _flat(_all(box, "p")[0]) == (
+        "The same 5 steps work on your AI's own answers: mark them, see how many pass, fix "
+        "your AI's prompt, and see what changed.")
+    (link,) = _all(box, "a")
+    assert (link.attrs["href"], _flat(link)) == ("start.html#ai-check",
+                                                 "How to check your AI's answers")
+    assert not _all(box, "div", "close-win") and not _all(box, "script")
 
 
 def test_the_demo_card_keeps_one_height():
@@ -635,7 +651,7 @@ def test_the_steps_list_picks_a_screen_for_the_terminal():
 
 
 def test_the_closing_box_points_to_the_browser_check():
-    close = _all(_main(HOME), "section", "close")[0]
+    close = _all(_main(HOME), "section", "close")[-1]
     assert _flat(_all(close, "h2")[0]) == "Have eval results?"
     assert _flat(_all(close, "p")[0]) == ("Check your LLM-as-a-judge. Your file stays on your "
                                           "computer.")
@@ -647,7 +663,7 @@ def test_the_closing_box_is_your_own_terminal_waiting_at_a_prompt():
     """A window like the others, titled "your project", with a green border and no glow; a
     "$" and a blinking cursor wait under the line, with the same space above it as above
     "On public datasets." (8 + 17 + 80 = 24 + 1 + 80 on a laptop, 8 + 17 + 56 on a phone)."""
-    close = _all(_main(HOME), "section", "close")[0]
+    close = _all(_main(HOME), "section", "close")[-1]
     (win,) = _all(close, "div", "close-win")
     (bar,) = _all(win, "div", "rt-bar")
     assert _flat(_all(bar, "span", "rt-title")[0]) == "your project"
@@ -744,7 +760,10 @@ GUIDE_STEPS = [("step-find", "Find your eval results"),
 
 def test_the_guide_is_the_install_the_five_steps_and_three_cards():
     sections = [el for el in _main(GUIDE).children if isinstance(el, Element)]
-    assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"}]
+    assert [s.classes() for s in sections] == [{"hero", "gx-hero"}, {"gx-steps"}, {"gx-more"},
+                                               {"gx-more"}]
+    assert sections[2].attrs["id"] == "ai-check"  # checking an AI's answers: its own band
+    sections = [*sections[:2], sections[3]]
     hero = sections[0]
     assert hero.attrs["id"] == "install"  # judgekeeper prints start.html#install
     (h1,) = _all(hero, "h1")
@@ -1109,9 +1128,13 @@ def test_running_text_is_justified_only_once_the_columns_are_full_width():
     # a path wraps after a "/" there, so the line before it isn't left short
     assert "white-space: normal" in _rule(".gx-text code.path", wide)
     paths = [c for c in _all(_main(GUIDE), "code") if "path" in c.classes()]
-    assert len(paths) == 4
+    assert len(paths) == 5
     text = GUIDE.read_text(encoding="utf-8")
     assert text.count('<code class="path">.judgekeeper/<wbr>') == 4
+    # the AI-check band's path stays on one line: its band is left-aligned, so no wide gaps
+    assert '<code class="path">.judgekeeper/fix/failed-answers.md</code>' in text
+    assert "white-space: nowrap" in _rule("#ai-check .gx-text code.path")
+    assert "text-align: left" in _rule("#ai-check .gx-text p")
 
 
 def test_the_guides_commands_look_like_terminal_lines():
@@ -1147,11 +1170,13 @@ def test_every_command_box_has_a_copy_button_that_says_copied():
         *install, "judgekeeper", "judgekeeper path/to/results.json",
         "judgekeeper", "judgekeeper mark", "judgekeeper fix",
         "judgekeeper fix new-results.json", "judgekeeper check new-results.json",
+        _flat(_all(_by_id(GUIDE, "question-prompt"), "code")[0]),
         "judgekeeper results.csv"]  # the check page has none: its status bar links here
-    for box in boxes:  # each button is named by the command it copies
+    for box in boxes:  # each button is named by the command it copies, or "the prompt"
         (button,) = _all(box, "button", "copy")
         command = _flat(_all(box, "code")[0])
-        assert "data-copy" in button.attrs and button.attrs["aria-label"] == f"Copy command: {command}"
+        named = "Copy the prompt" if "prompt" in box.classes() else f"Copy command: {command}"
+        assert "data-copy" in button.attrs and button.attrs["aria-label"] == named
         assert _all(button, "svg", "i-copy") and _all(button, "svg", "i-tick")
         (said,) = _all(button, "span", "copied")
         assert said.attrs.get("aria-live") == "polite"
@@ -1702,6 +1727,7 @@ def test_on_a_phone_the_guide_gives_a_command_the_whole_box():
     assert [c.text() for c in paths] == [".judgekeeper/fix/mistakes.md",
                                          ".judgekeeper/fix/marked-answers.csv",
                                          ".judgekeeper/fix/marked-answers.csv",
+                                         ".judgekeeper/fix/failed-answers.md",
                                          ".judgekeeper/records/"]
     assert "overflow-wrap: normal" in _last(".cmd code, .gx-pair .cmd code", _narrow(300))
 

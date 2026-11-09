@@ -28,7 +28,7 @@ judgekeeper
 ```
 Or, with no virtual environment: `uvx judgekeeper`. Python 3.11 to 3.14.
 
-Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns. A `verdict` can be pass/fail, true/false, yes/no, correct/incorrect, right/wrong or 1/0, in any case; `--label-map` reads other words. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
+Reads promptfoo, DeepEval, Inspect AI, MLflow, or your own CSV, TSV or JSONL file with `input`, `output` and `verdict` columns, or a file with only `input` and `output` to check your AI's answers. A `verdict` can be pass/fail, true/false, yes/no, correct/incorrect, right/wrong or 1/0, in any case; `--label-map` reads other words. Inspect AI `.eval` logs and MLflow need an extra: `pip install "judgekeeper[inspect]"` or `pip install "judgekeeper[mlflow]"` (the uv forms are in the [reference](https://github.com/judgekeeper/judgekeeper/blob/main/docs/reference.md#install)).
 
 Using a coding agent? Give it this page and tell it: "Follow this to check my LLM-as-a-judge." It runs the steps and gives you the marking page link; you mark, then the coding agent explains the result.
 
@@ -43,6 +43,18 @@ Using a coding agent? Give it this page and tell it: "Follow this to check my LL
 5. **Re-check:** after you change the model or the rule, grade your marked answers again (`judgekeeper fix` writes them to `.judgekeeper/fix/marked-answers.csv`). `judgekeeper check <new results file>` shows if it still agrees with you.
 
 In your project, judgekeeper reads your results files and writes only in `.judgekeeper/`, plus `judgekeeper.toml` after you say yes. It makes no AI call and needs no API key. See [SECURITY.md](https://github.com/judgekeeper/judgekeeper/blob/main/SECURITY.md).
+
+## No LLM-as-a-judge? Check your AI's answers
+
+The same 5 steps work on your AI's own answers. Give judgekeeper a CSV, TSV or JSONL file with `input` and `output` columns and no grades.
+
+1. **Find:** `judgekeeper` finds your answers. No answers yet? It prints a prompt for your coding agent to write about 20 test questions and save your AI's answers.
+2. **Mark:** mark each answer Pass or Fail. Add a reason to the ones you fail.
+3. **Measure:** from 10 marks, see how many passed, with a range.
+4. **Fix:** your failed answers are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
+5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
+
+[An example run](docs/examples/ai-check/README.md).
 
 ## The numbers
 

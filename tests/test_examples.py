@@ -162,7 +162,7 @@ def test_the_examples_readme_has_one_line_per_folder():
     lines = [line for line in text.splitlines() if line.startswith("- ")]
     assert [re.match(r"- \*\*`([\w-]+)/`\*\*", line)[1] for line in lines] == folders
     for line in lines:
-        made_up = "`site-example/`" in line or "`pictures/`" in line
+        made_up = any(f"`{name}/`" in line for name in ("site-example", "pictures", "ai-check"))
         assert ("made-up" in line) is made_up, line
     assert "llmbar-haiku" not in folders
 

@@ -612,7 +612,7 @@ def test_the_examples_index_lists_folders_with_a_readme_or_report_and_is_dark(tm
     _build_pages(tmp_path)
     index = (tmp_path / "examples" / "index.html").read_text(encoding="utf-8")
     listed = re.findall(r'<li><a href="[^"]*">([\w-]+)</a>', index)
-    assert listed == ["jailbreakbench", "jailbreakbench-setups", "kept-aside", "pictures", "probes",
+    assert listed == ["ai-check", "jailbreakbench", "jailbreakbench-setups", "kept-aside", "pictures", "probes",
                       "ragtruth", "ragtruth-data2txt", "ragtruth-qa", "real-data-check",
                       "site-example"]
     # a folder with no report.html links to its report.md on GitHub
