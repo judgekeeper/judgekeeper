@@ -1360,6 +1360,8 @@ def run(path: str = ".", new: bool = False) -> int:
         talk.say(STEP)
         talk.say()
         talk.para(stop[0])
+        for line in no_grades.fix_lines(talk.path):  # the answers failed, for a coding agent
+            talk.say(line)
         talk.next(stop[1])
         return EXIT_NEEDS_YOU
     state = _state(talk.path)

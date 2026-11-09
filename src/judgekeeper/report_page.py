@@ -1126,6 +1126,13 @@ def _same(rows: list[dict]) -> list[tuple[str, str]]:
 SAME = "The same in every answer below"
 
 
+def _split_unknown(fix_command: str | None) -> str:
+    """SPLIT_UNKNOWN, in place of the lists."""
+    return (f'<section class="sec slim"><p>{_e(SPLIT_UNKNOWN[0])}<code>'
+            f'{look.command(_e(fix_command or "judgekeeper fix"))}</code>'
+            f'{_e(SPLIT_UNKNOWN[1])}</p></section>')
+
+
 def _groups(c: dict, fixing: dict | None, live: bool = False,
             fix_command: str | None = None) -> str:
     """The disagreements on the marks the person can see, in two groups (a group with none
@@ -1135,9 +1142,7 @@ def _groups(c: dict, fixing: dict | None, live: bool = False,
     parts, own = (fixing or {}).get("parts") or [], (fixing or {}).get("own") or []
     out = []
     if (fixing or {}).get("split_unknown"):  # no list and no count: it can't say which
-        return (f'<section class="sec slim"><p>{_e(SPLIT_UNKNOWN[0])}<code>'
-                f'{look.command(_e(fix_command or "judgekeeper fix"))}</code>'
-                f'{_e(SPLIT_UNKNOWN[1])}</p></section>')
+        return _split_unknown(fix_command)
     same = _same(mistakes)
     if same:  # each field folded, in one box above the lists
         out.append('<div class="sec slim">' + "".join(
@@ -1464,6 +1469,9 @@ RATE_HEAD = "Your pass rate"
 RATE = "Of the answers you marked, you passed"
 SURER_MARK = "Mark more answers for a surer number."
 ONE_CELL = ".nums.one { grid-template-columns: 1fr; }\n"  # this page only: the others stay as they are
+# this page only too: a prompt for a coding agent in the copy box, its lines as they are, no "$"
+PROMPT_BOX = (".cmd.prompt code { white-space: pre-wrap; overflow-wrap: anywhere; }\n"
+              ".cmd.prompt code::before { content: none; }\n")
 
 
 def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1506,8 +1514,11 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         rng = f'<span class="n-rng">between {_e(between)}</span>' if between != "–" else ""
         rows = fixing.get("mistakes") or []
         names = tuple(x for x, _ in _same(rows))
-        lists = (_group("fail", FAILED, rows, 0, live, [], fixing.get("own") or [], 0, names,
-                        reasons_given=False, asked=no_grades.offered()) if rows else "")
+        lists = (_group("fail", FAILED, rows, r.get("kept") or 0, live, [],
+                        fixing.get("own") or [], 0, names, reasons_given=False,
+                        asked=no_grades.offered()) if rows else "")
+        if fixing.get("split_unknown"):
+            lists = _split_unknown(cmd["fix"])
         if left:
             act = (f'<p><a href="{_e(back)}">{_e(SURER_MARK)}</a></p>' if live else
                    f"<p>{_e(SURER_MARK)} Run {mark} in your project folder.</p>")
@@ -1517,6 +1528,15 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
             then = (f'<p><a href="{_e(back)}">{CHANGE_MARK}</a>: click it in the list and mark '
                     "it again.</p>" if live else
                     f"<p>To change a mark, run {mark} in your project folder.</p>")
+        if fixing.get("prompt"):  # the answers failed, for a coding agent, first
+            act = (f'<p>{_e(no_grades.FAILED_SAVED.format(file=fixing["failed"]))} Give it to '
+                   "your coding agent to improve your AI's prompt:</p>"
+                   f'<div class="cmd prompt"><code>{_e(fixing["prompt"])}</code>'
+                   '<button type="button" class="copy" data-copy aria-label="Copy the prompt">'
+                   f"{COPY_ICONS}</button></div>"
+                   "<p>After you change the prompt, run your AI again, save the new answers, "
+                   f"and run <code>{look.command(_e(_PAGE_FLAGS.sub('', cmd['run'])))}</code> "
+                   "to mark them.</p>") + act
         if started_else:
             act += ('<p class="small">' + _e(STARTED_ELSE).replace(
                 "`judgekeeper`", "<code>judgekeeper</code>") + "</p>")
@@ -1545,6 +1565,6 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
 
     judge = r.get("judge") or {}
     tool = tool_name(judge.get("tool"), judge.get("results_files"))
-    return (look.head("judgekeeper: your result", STYLE + ONE_CELL, meta)
+    return (look.head("judgekeeper: your result", STYLE + ONE_CELL + PROMPT_BOX, meta)
             + look.top(look.meta(None, _e(tool) if tool else None), "")
             + f'<main class="result">{body}</main>\n{scripts}</body>\n</html>\n')

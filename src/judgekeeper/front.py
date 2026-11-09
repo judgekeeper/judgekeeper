@@ -2950,6 +2950,11 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     line = no_grades.reasons_line(no_grades.reason_rows(ws, session))
     if line:
         talk.para(line)
+    agent = no_grades.agent_lines(ws)  # the answers failed, for a coding agent
+    if agent:
+        talk.say()
+        for said in agent:
+            talk.say(said)
     talk.say()
     report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
     talk.say(f"Full report: {report} (open it in your browser)")
