@@ -42,5 +42,4 @@ after that says what a clear answer needs: "A clear answer needs at least 6 kept
 questions to go from Fail to Pass, with none breaking. 4 of yours failed, so add about 25 more
 questions." This example uses 20 questions, so a clear answer was not possible.
 
-Made with judgekeeper from commit `5bced99` (first run) and `3c84b11` (second run) on
-2026-11-09.
+Made with judgekeeper 1.2.0 on 2026-11-09.
