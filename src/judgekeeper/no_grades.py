@@ -818,6 +818,7 @@ SINCE = "Since your last answers"
 COMPARED = "On the {n} kept aside: fixed {fixed}, broke {broke}, same {same}."
 COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from."
 WAIT_NEW = "Mark the new answers to see what changed."
+NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 MARK_MORE = "Mark more questions for a clearer answer."
 CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
     "helped": "Your change helped. A difference this large is unlikely to be a coincidence.",
@@ -933,9 +934,10 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     """What changed since the last answers. A question is compared when it is asked once in
     the results and its answer now and the one marked before it (read_before) are both marked,
     with different text. {"waiting": True} while a new answer of a compared question is not
-    marked. Retired set: {"new_set": True}. Else the counts on the questions kept aside
-    ("kept", "fixed", "broke", "same"), the result ("kind", "clear"), this change's number on
-    the set ("test") and its key (the answers kept aside now). With either, the shown
+    marked. Retired set: {"new_set": True}. None of them kept aside: {"kept": 0}. Else the
+    counts on the questions kept aside ("kept", "fixed", "broke", "same"), the result ("kind",
+    "clear"), this change's number on the set ("test") and its key (the answers kept aside
+    now). With either, the shown
     answers that went from Pass to Fail ("shown_broke"). None when nothing is compared."""
     from judgekeeper.fix import MAX_RULES
 
@@ -979,6 +981,8 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     if split.fresh:
         return {"new_set": True, **out}
     kept = [(i, a, b) for i, a, b in pairs if i in hidden]
+    if not kept:  # nothing to test the change on: no counts, no test
+        return {"kept": 0, **out}
     fixed = sum((a, b) == ("fail", "pass") for _, a, b in kept)
     broke = sum((a, b) == ("pass", "fail") for _, a, b in kept)
     key = hashlib.sha256(json.dumps(sorted(i for i, _, _ in kept)).encode()).hexdigest()[:16]
@@ -1032,6 +1036,8 @@ def since_lines(c: dict | None) -> list[str]:
         return [WAIT_NEW]
     if c.get("new_set"):
         return [new_set_line()]
+    if not c.get("kept"):
+        return [NO_KEPT]
     lines = [COMPARED.format(n=plural(c["kept"], "question"), fixed=c["fixed"],
                              broke=c["broke"], same=c["same"]), result_line(c)]
     return lines + ([new_set_line()] if c.get("last") else [])

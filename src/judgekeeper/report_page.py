@@ -1504,7 +1504,7 @@ def _since(fixing: dict) -> str:
     """"Since your last answers", with no grade (no_grades.compare), from the page's parts:
     the three cells (Fixed, Broke, Same) as the score's, the result and what they were counted
     on, then "Answers that broke" as "Answers you failed" (read-only); while new answers wait
-    for a mark, or once the set is retired, its one line. Nothing without a comparison."""
+    for a mark, with none kept aside compared, or once the set is retired, its one line. Nothing without a comparison."""
     from judgekeeper import no_grades
 
     c = fixing.get("since")
@@ -1514,11 +1514,13 @@ def _since(fixing: dict) -> str:
         lines = [no_grades.WAIT_NEW]
     elif c.get("new_set"):
         lines = [no_grades.new_set_line()]
+    elif not c.get("kept"):
+        lines = [no_grades.NO_KEPT]
     else:
         lines = [no_grades.result_line(c), no_grades.counted_line(c)]
         lines += [no_grades.new_set_line()] if c.get("last") else []
     cells = ""
-    if "kept" in c:
+    if c.get("kept"):
         cells = '<div class="nums">' + "".join(
             f'<div class="cell"><span class="n-lab">{label}</span><span class="n-val">'
             + (f'<span class="{colour}">{n}</span>' if colour else str(n)) + "</span></div>"

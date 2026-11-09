@@ -9,6 +9,7 @@ import csv
 import json
 import os
 import re
+from html import unescape
 
 import pytest
 
@@ -25,6 +26,7 @@ LEANS_WORSE = "Can't tell yet. That leans toward worse."
 SAME = "Can't tell yet. Before and after look about the same."
 MORE = "Mark more questions for a clearer answer."
 WAIT = "Mark the new answers to see what changed."
+NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 NEW_SET = ("You have tested 3 changes on these questions kept aside, so they no longer give a "
            "fair test. Add about 10 new questions and mark their answers; half of them are kept "
            "aside as a new test.")
@@ -183,11 +185,20 @@ def test_only_the_questions_kept_aside_are_counted(project):
     assert HELPED not in said
 
 
-def test_a_change_to_shown_questions_only_counts_none_kept_aside(project):
+def test_a_change_to_shown_questions_only_says_it_cant_be_tested_yet(project):
     project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
-    said = project.again({i: "pass" for i in project.shown("fail")})
-    assert _counts_line(0, 0, 0, 0) in said
-    assert SAME + " " + MORE in said
+    shown_pass = project.shown("pass")[0]
+    said = project.again({i: "pass" for i in project.shown("fail")} | {shown_pass: "fail"})
+    assert NO_KEPT in said  # the kept-aside answers came back word for word
+    assert "questions kept aside:" not in said and "Can't tell yet" not in said
+    assert _result(project.here)["since"]["kept"] == 0
+    assert no_grades.read_split(_ws(project.here)).tests == []  # no change tested
+    html = _report(project.here)
+    since = html.split('id="since-h"', 1)[1].split("</section>", 1)[0]
+    assert NO_KEPT in unescape(since)
+    assert 'class="cell"' not in since and "Counted on" not in since
+    assert "Answers that broke" in html  # the shown questions still list
+    assert f"Answer {shown_pass}, take 2." in html.split("Answers that broke", 1)[1]
 
 
 def test_fewer_than_five_kept_aside_compared_is_never_clear(project):
