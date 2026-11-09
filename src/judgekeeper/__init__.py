@@ -1,6 +1,6 @@
 """Check your LLM-as-a-judge: see how often it agrees with human labels."""
 
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 
 __all__ = ["record"]
 
