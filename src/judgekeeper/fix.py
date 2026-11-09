@@ -963,7 +963,7 @@ def mistakes_md(rule: str | None, rows: list[dict], mark: float | None = None,
             if r.get("reason"):
                 parts.append(fenced("LLM-AS-A-JUDGE'S REASON", r["reason"]))
             parts.append("")
-    return reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
+    return start_fix_rule.sealed(reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n")))
 
 
 def write_suggestions(ws: Workspace, rows: list[dict]) -> bool:

@@ -14,7 +14,7 @@ import unicodedata
 from pathlib import Path
 
 from judgekeeper.links import link
-from judgekeeper.redact import scrub
+from judgekeeper.redact import _SPLITTERS, scrub
 
 CUT = 1500  # characters of each text in the prompt
 SEARCH_CHARS = 60  # of the rule, searched for in the project's files
@@ -85,24 +85,47 @@ def _cut(text) -> str:
     return text if len(text) <= CUT else text[:CUT] + " (cut)"
 
 
-_OPEN, _CLOSE = re.compile(r"<(?=<<)"), re.compile(r">(?=>>)")
+# What a reader skips between signs (every hidden character scrub and printable know, and
+# combining marks), and the signs that read as < or >: three in a row with only those between
+# read as a marker
+_SKIPPED = re.compile(f"{_SPLITTERS.pattern}|[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff"
+                      "\u20d0-\u20ff\ufe20-\ufe2f]")
+_LT = "<\uff1c\ufe64\u2039\u02c2\u1438\u276e\u2770\u3008\u27e8\u2329"
+_GT = ">\uff1e\ufe65\u203a\u02c3\u1433\u276f\u2771\u3009\u27e9\u232a"
+_SIGNS = re.compile(f"[{_LT}{_GT}](?:(?:{_SKIPPED.pattern})*[{_LT}{_GT}])+")
+_OPEN, _CLOSE = re.compile(f"[{_LT}](?=[{_LT}]{{2}})"), re.compile(f"[{_GT}](?=[{_GT}]{{2}})")
+_MARKER_LINE = re.compile(r"<<<[A-Z' -]+|[A-Z' -]+>>>")
 
 
 def unmarked(text: str) -> str:
-    """`text` with every <<< or >>> broken up, so it can neither open nor close a fence."""
-    return _CLOSE.sub("> ", _OPEN.sub("< ", text))
+    """`text` with every <<< or >>> broken up, so it can neither open nor close a fence: also
+    one with hidden characters between its signs (they go: a later step that leaves them out
+    can't join it up again), or written with signs that look like < and >."""
+    text = _SIGNS.sub(lambda m: _SKIPPED.sub("", m[0]), text)
+    return _CLOSE.sub(lambda m: m[0] + " ", _OPEN.sub(lambda m: m[0] + " ", text))
 
 
 def fenced(name: str, text, cut: bool = True) -> str:
     """`text` (cut, unless `cut` is False) between a <<<NAME line and a NAME>>> line. The
-    text is cleaned as the whole file is (reasons.cleaned, keys hidden) before the cut, so no hidden
-    character left out later joins up what comes next: every <<< or >>> in it is broken up,
-    so nothing in it can close the marker or open another."""
+    text is cleaned as the whole file is (reasons.cleaned) and its keys hidden before the cut,
+    and again after it (a cut can leave a key's start that reads as a key only once a hidden
+    character is left out); every <<< or >>> in it is broken up last, so nothing in it can
+    close the marker or open another."""
     from judgekeeper.reasons import cleaned
 
     text = scrub(cleaned("" if text is None else str(text)))  # keys hidden before the cut: a
     # key cut short is too short for scrub to know
-    return f"<<<{name}\n{unmarked(_cut(text) if cut else text)}\n{name}>>>"
+    if cut:
+        text = scrub(cleaned(_cut(text)))
+    return f"<<<{name}\n{unmarked(text)}\n{name}>>>"
+
+
+def sealed(text: str) -> str:
+    """A fenced file's whole text, as the very last step after it is cleaned and its keys
+    hidden: every marker in it broken up (unmarked) but on its own marker lines and in the
+    warning that names them (MARKS). Nothing done to the file after can join one up."""
+    return "\n".join(line if _MARKER_LINE.fullmatch(line) or line.endswith(MARKS)
+                     else unmarked(line) for line in text.split("\n"))
 
 
 # Text from the project's files -------------------------------------------------------------

@@ -30,7 +30,7 @@ from judgekeeper import __version__, marks, reasons
 from judgekeeper.anchors import canonical_hash
 from judgekeeper.fingerprint import utc_now
 from judgekeeper.metrics import wilson
-from judgekeeper.redact import scrub_fingerprint
+from judgekeeper.redact import one_line, scrub_fingerprint
 from judgekeeper.textio import loads, make_private, plural, write_replacing
 
 MIN_MARKS = 10  # marks for a first result
@@ -144,7 +144,7 @@ def _said(row_words: dict, key: str) -> str:
     quotes."""
     if key in reasons.REASONS:
         return reasons.REASONS[key][0]
-    return f"“{row_words.get(key, key)}”"
+    return f"“{one_line(row_words.get(key, key))}”"
 
 
 def tally(rows: list[dict]) -> list[tuple[str, str, int]]:
@@ -677,7 +677,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
     person's words, the reasons counted as the terminal says them, then each answer failed by
     the most common reason (reasons.groups), fenced as data (start_fix_rule.fenced)."""
     from judgekeeper.redact import scrub
-    from judgekeeper.start_fix_rule import MARKS, fenced
+    from judgekeeper.start_fix_rule import MARKS, fenced, sealed
 
     count = f"You failed {plural(len(rows), 'answer')} here."
     if kept:
@@ -701,7 +701,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
             if words:
                 parts.append(fenced("YOUR REASON", words))
             parts.append("")
-    return reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n"))
+    return sealed(reasons.cleaned(scrub("\n".join(parts).rstrip("\n") + "\n")))
 
 
 def _failed_rows(ws, session, r: dict) -> list[dict]:
