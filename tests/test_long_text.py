@@ -430,7 +430,9 @@ def test_rows_fold_to_four_lines_with_one_show_all_per_row():
     style = report_page.STYLE
     laptop = style.split("@media (min-width: 721px) {", 1)[1].split("\n}\n", 1)[0]
     assert "max-height: calc(4 * 1.55em);" in laptop and "line-height: 1.55;" in laptop
-    assert "line-clamp" not in style  # a fade, never "…" after a full stop
+    own = style.split('.chip[data-reason^="own-"] .t {', 1)[1].split("}", 1)[0]
+    assert "line-clamp" not in style.replace(own, "")  # a fade, never "…" after a full stop
+    # (only the person's own reason buttons stop at two lines: test_long_reasons.py)
     assert "grid-template-columns: 26fr 46fr 28fr; column-gap: 48px;" in laptop
     assert ".tbl tr[data-open] td[data-label] { max-height: none; overflow: visible; }" in laptop
     assert "Show less" in report_page.SCRIPT and "open-row" in report_page.SCRIPT
@@ -592,7 +594,9 @@ var document = {getElementById: function () { return cell; },
 var location = {search: "?token=t"};
 var window = {getSelection: function () { return {rangeCount: 0}; },
   fetch: function (url, o) { sent.push(JSON.parse(o.body).note);
-    return {then: function () {}}; }};
+    return {then: function () {}}; },
+  dispatchEvent: function () {}};
+function Event(type) { this.type = type; }
 var input = parts["input"];
 function type(text) { input.value = text; input.fire("input"); }
 """
