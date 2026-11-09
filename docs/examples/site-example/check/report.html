@@ -203,6 +203,10 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .chip { font-size: 14px; line-height: 1.35; padding: 7px 12px; border: 1px solid var(--line);
   border-radius: 4px; color: var(--muted); text-align: left; max-width: 100%;
   overflow-wrap: anywhere; }
+/* the person's own reason, as long as they typed it: two lines at most (its text, so no third
+   line shows in the button's padding), the whole in its title */
+.chip[data-reason^="own-"] .t { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .chip:hover { color: var(--text); background: var(--hover); }
 .chip[aria-pressed="true"] { color: var(--bg); background: var(--text);
   border-color: var(--text); }

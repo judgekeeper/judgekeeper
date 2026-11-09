@@ -423,6 +423,10 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 .chip { font-size: 14px; line-height: 1.35; padding: 7px 12px; border: 1px solid var(--line);
   border-radius: 4px; color: var(--muted); text-align: left; max-width: 100%;
   overflow-wrap: anywhere; }
+/* the person's own reason, as long as they typed it: two lines at most (its text, so no third
+   line shows in the button's padding), the whole in its title */
+.chip[data-reason^="own-"] .t { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .chip:hover { color: var(--text); background: var(--hover); }
 .chip[aria-pressed="true"] { color: var(--bg); background: var(--text);
   border-color: var(--text); }
@@ -965,10 +969,13 @@ def _said(m: dict, parts: list[str], own: dict[str, str]) -> str:
             f'<b>{_e("; ".join(said))}</b></span>' if said else "")
 
 
-def _chip(text: str, pressed: bool, attr: str, said: str = "", whole: str = "") -> str:
+def _chip(text: str, pressed: bool, attr: str, said: str = "", whole: str = "",
+          own: bool = False) -> str:
+    """A reason button; the person's `own` reason has its text in a span cut to two lines."""
     whole = f' data-whole="{_e(whole)}"' if whole and whole != said else ""
+    shown = f'<span class="t">{_e(text)}</span>' if own else _e(text)
     return (f'<button type="button" class="chip" aria-pressed="{str(pressed).lower()}" '
-            f'{attr} data-said="{_e(said)}"{whole}>{_e(text)}</button>')
+            f'{attr} data-said="{_e(said)}"{whole}>{shown}</button>')
 
 
 def _part(k: int, text: str, pressed: bool) -> str:
@@ -1007,8 +1014,9 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
             '</p><span class="saved" aria-live="polite"></span></div>')]
     chips = [_chip(reasons.REASONS[k][0], k in taps, f'data-reason="{k}"', _reason_said(k, words))
              for k in (reasons.offered(m["judge"]) if asked is None else asked)]
-    chips += [_chip(c["text"], c["id"] in taps, f'data-reason="{_e(c["id"])}"',
-                    _reason_said(c["id"], words))
+    chips += [_chip(c["text"], c["id"] in taps,
+                    f'data-reason="{_e(c["id"])}" title="{_e(c["text"])}" '
+                    f'aria-label="{_e(c["text"])}"', _reason_said(c["id"], words), own=True)
               for c in own if c.get("from") != m["id"]]
     note, opened = why.get("note") or "", bool(why.get("note"))
     chips.append(f'<button type="button" class="chip other" aria-expanded="'
