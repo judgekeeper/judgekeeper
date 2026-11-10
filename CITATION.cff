@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use judgekeeper, please cite it as below."
+title: judgekeeper
+type: software
+authors:
+  - family-names: Thota
+    given-names: Sathvik
+repository-code: "https://github.com/judgekeeper/judgekeeper"
+url: "https://www.judgekeeper.com"
+license: Apache-2.0
+abstract: "judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. With no LLM-as-a-judge, it checks your AI's answers directly."
+keywords:
+  - LLM-as-a-judge
+  - evaluation
+  - human labels

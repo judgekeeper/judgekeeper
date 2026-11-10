@@ -35,3 +35,21 @@ def test_every_fixture_file_is_tracked():
     tracked = set(_git("ls-files", "-z", "--", "tests/fixtures").split("\0")) - {""}
     untracked = sorted(on_disk - tracked)
     assert not untracked, f"fixture files not tracked by git (check .gitignore): {untracked}"
+
+
+def test_the_citation_file_names_the_author_and_licence_and_no_version():
+    """Zenodo reads CITATION.cff for the creators when it archives a release."""
+    yaml = pytest.importorskip("yaml")
+    text = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    cff = yaml.safe_load(text)
+    assert cff["cff-version"] == "1.2.0"
+    assert cff["title"] == "judgekeeper"
+    assert cff["type"] == "software"
+    assert cff["authors"] == [{"family-names": "Thota", "given-names": "Sathvik"}]
+    assert cff["repository-code"] == "https://github.com/judgekeeper/judgekeeper"
+    assert cff["url"] == "https://www.judgekeeper.com"
+    assert cff["license"] == "Apache-2.0"
+    assert cff["message"] and cff["abstract"] and "LLM-as-a-judge" in cff["keywords"]
+    assert "@" not in text
+    assert not any(line.startswith("version:") for line in text.splitlines())
+    assert "date-released" not in cff
