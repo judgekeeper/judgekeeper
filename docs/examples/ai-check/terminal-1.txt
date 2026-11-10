@@ -11,6 +11,12 @@ judgekeeper has read from your file:
   question   the input column
   answer     the output column
 
+results.csv has no LLM-as-a-judge grades, so judgekeeper checks
+your AI's answers: you mark each one Pass or Fail.
+Have an LLM-as-a-judge? Save its Pass or Fail in a verdict
+column, or run it with promptfoo, DeepEval, Inspect AI or
+MLflow.
+
 Step 2 of 5: Mark
 
 Opening the marking page in your browser…
@@ -24,6 +30,12 @@ $ judgekeeper
 judgekeeper 1.1.2
 
 Step 3 of 5: Measure
+
+results.csv has no LLM-as-a-judge grades, so judgekeeper checks
+your AI's answers: you mark each one Pass or Fail.
+Have an LLM-as-a-judge? Save its Pass or Fail in a verdict
+column, or run it with promptfoo, DeepEval, Inspect AI or
+MLflow.
 
 You passed 12 of 20 answers.
 Your reasons: It has a wrong fact (3), It's unsafe or not

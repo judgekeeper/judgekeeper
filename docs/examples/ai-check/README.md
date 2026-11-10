@@ -38,7 +38,9 @@ The bot's prompt was changed, and it answered the same 20 questions again.
 The result: 16 of 20 answers passed. On the 10 questions kept aside, 2 were fixed, 1 broke
 and 7 stayed the same. So judgekeeper can't tell yet whether the change helped: it leans
 toward better, but a split this small could easily be a coincidence. The line it prints
-after that, "Mark more questions for a clearer answer.", is the next step here.
+after that says what a clear answer needs: "A clear answer needs at least 6 kept-aside
+questions to go from Fail to Pass, with none breaking. 4 of yours failed, so add about 25 more
+questions." This example uses 20 questions, so a clear answer was not possible.
 
 Made with judgekeeper from commit `5bced99` (first run) and `3c84b11` (second run) on
 2026-11-09.

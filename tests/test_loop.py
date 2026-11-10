@@ -19,6 +19,7 @@ from judgekeeper import __version__, background, label, marks, page, report_page
 from tests.page_http import retried
 from tests.start_projects import promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
+from tests.test_screens import PATH  # which path, for promptfoo's results.json
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
@@ -124,6 +125,7 @@ def test_the_first_run_finds_checks_and_opens_the_page(here, capsys, pages, no_b
         "  answer     each test's output",
         "  grade      your LLM-as-a-judge's Pass or Fail",
         "",
+        *PATH,
         "Your LLM-as-a-judge passed 20 answers and failed 16.",
         "Checked: your LLM-as-a-judge gave every answer a clear Pass or",
         "Fail.",
@@ -191,6 +193,7 @@ def test_marking_started_keeps_the_open_page_and_says_the_count(here, capsys, pa
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
+        *PATH,
         "You marked 10 answers so far: 5 Pass, 5 Fail.",
         "That's not enough for a result yet.",
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
@@ -223,8 +226,9 @@ def test_enough_marks_print_the_result(here, capsys, pages):
         estimate, between = report_page.estimate(r[key], r[f"{key}_interval"],
                                                  report_page.why_for(r, key))
         return estimate if between == "–" else f"{estimate} (between {between})"
-    assert lines[2:21] == [
+    assert lines[2:26] == [
         "Step 3 of 5: Measure", "",
+        *PATH,
         f"Result: {r['verdict'][:1].lower()}{r['verdict'][1:]}",
         "You and your LLM-as-a-judge agreed on all 36 answers.", "",
         "  You passed 20 answers. Of those, your LLM-as-a-judge passed 20",
