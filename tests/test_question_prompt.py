@@ -13,13 +13,16 @@ from tests.test_uvx import UVX, by_uvx  # noqa: F401 (a fixture)
 
 INTRO = "No answers yet? Paste this into your coding agent (Claude Code, Cursor or Codex):"
 PROMPT = [
-    ("Write about 20 test questions for the AI in this project, the way its real users would "
-     "ask them."),
-    ("Mix a few topics it should handle, a few kinds of users, and some hard cases (unclear, "
-     "off-topic or tricky questions)."),
-    ("Run the AI on each question and save the questions and answers in results.csv, with two "
-     "columns: input (the question) and output (the answer)."),
-    "Do not grade the answers. Then run {program}.",
+    ("Read this project and list what its AI is meant to do (its prompt and the tasks it "
+     "handles)."),
+    ("Write about 40 test questions the way its real users would ask them: cover every task, and "
+     "make about half of them hard (missing details, out of scope, against the AI's own rules, "
+     "a wrong premise, or more than one step). No near-duplicates."),
+    ("Show me the questions as a numbered table (question, the task it tests, normal or hard) "
+     "and wait for my yes. I may edit or drop any."),
+    ("Then run the AI on each question and save the questions and answers in results.csv, with "
+     "two columns: input (the question) and output (the answer). Do not grade the answers. Then "
+     "run {program}."),
 ]
 KEY = "Running your AI may use your API key."
 FIRST = "No answers yet?"

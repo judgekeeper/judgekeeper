@@ -34,6 +34,7 @@ from tests.start_projects import (
     promptfoo_data,
     split,
 )
+from tests.test_answers_without_grades import off_path
 from tests.test_front import flat, next_lines, run
 
 ROOT = Path(__file__).parent.parent
@@ -215,7 +216,7 @@ def test_a_table_with_no_grade_column_is_answers_to_mark(here, capsys):
     code, out = find(capsys, "results.tsv")
     assert code == 0, out
     assert "Answers: 1 answer" in flat(out)
-    assert "LLM-as-a-judge" not in out
+    assert "LLM-as-a-judge" not in off_path(out, "results.tsv")
 
 
 # A verdict and a score column with --pass-if -------------------------------------------------

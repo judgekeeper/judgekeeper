@@ -888,7 +888,12 @@ COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from
 WAIT_NEW = "Mark the new answers to see what changed."
 FOUND_NEW = "Found {n} since your last results. Mark them to see what changed."
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
-MARK_MORE = "Mark more questions for a clearer answer."
+# "Can't tell yet": what a clear answer needs (clear_line)
+CLEAR_ADD = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
+             "with none breaking. {kept_fails} of yours failed, so add about {extra} more "
+             "questions.")
+CLEAR_ENOUGH = ("A clear answer needs at least {need} of your {kept_fails} kept-aside Fails to "
+                "pass, with none breaking.")
 CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
     "helped": "Your change helped. A difference this large is unlikely to be a coincidence.",
     "worse": ("Your change made it worse. A difference this large is unlikely to be a "
@@ -1128,10 +1133,33 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     tested = [t["key"] for t in split.tests]
     test = tested.index(key) + 1 if key in tested else len(tested) + 1
     kind = change_kind(fixed, broke, len(kept), test)
+    was = _marks_before(asked, before, new, counted)
     return {"kept": len(kept), "fixed": fixed, "broke": broke,
             "same": len(kept) - fixed - broke, "kind": kind,
             "clear": kind in ("helped", "worse"), "test": test, "key": key,
-            "last": test >= MAX_RULES, **out}
+            "last": test >= MAX_RULES,
+            "kept_fails": sum(m == "fail" and split.questions.get(k) == KEPT
+                              for k, m in was.items()),
+            "fails": sum(m == "fail" for m in was.values()), "marked": len(was), **out}
+
+
+def _marks_before(asked: dict[str, list[str]], before: dict | None, new: set[str],
+                  counted: dict) -> dict[str, str]:
+    """Each question's mark before this change (clear_line): its newest answer marked before
+    the ones that came new now (before.json), else its answers carried over, a Fail if one
+    is. A question with neither (new now) is left out."""
+    last = before["questions"] if before else {}
+    out = {}
+    for key, ids in asked.items():
+        mark = next((counted[a["id"]] for a in reversed(last.get(key) or [])
+                     if a["id"] not in new and counted.get(a["id"]) in ("pass", "fail")), None)
+        if mark is None:
+            old = [counted[i] for i in sorted(ids)
+                   if i not in new and counted.get(i) in ("pass", "fail")]
+            mark = "fail" if "fail" in old else old[0] if old else None
+        if mark:
+            out[key] = mark
+    return out
 
 
 def _record(ws, session) -> None:
@@ -1163,8 +1191,43 @@ def counted_line(c: dict) -> str:
     return COUNTED.format(n=plural(c["kept"], "question"))
 
 
+def clear_need(test: int = 1) -> int:
+    """The fewest kept-aside questions going from Fail to Pass, none breaking, that make this
+    change (its number `test` on the set) clear: change_kind's sign test."""
+    from judgekeeper import targets
+
+    k = FEW_COMPARED
+    while targets.sign_p(k, 0) >= targets.SIGN_LEVEL / max(1, test):
+        k += 1
+    return k
+
+
+def clear_target(need: int) -> int:
+    """Kept-aside Fails enough that a fix repairing two-thirds of them, none breaking, can
+    come out clear."""
+    return -(-need * 3 // 2)
+
+
+def clear_line(c: dict) -> str | None:
+    """What a clear answer needs, with "Can't tell yet" (compare's counts): None when nothing
+    failed. New questions are added with about half of their Fails kept aside
+    (update_split), so the ones to add are twice the kept-aside Fails missing over the share
+    of questions that failed."""
+    fails, marked = c.get("fails") or 0, c.get("marked") or 0
+    if not fails or not marked:
+        return None
+    kept_fails = c.get("kept_fails") or 0
+    need = clear_need(c.get("test") or 1)
+    target = clear_target(need)
+    if kept_fails >= target:
+        return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+    extra = -(-2 * (target - kept_fails) * marked // fails)
+    return CLEAR_ADD.format(need=need, kept_fails=kept_fails, extra=extra)
+
+
 def result_line(c: dict) -> str:
-    return CHANGE[c["kind"]] + ("" if c["clear"] else f" {MARK_MORE}")
+    more = None if c["clear"] else clear_line(c)
+    return CHANGE[c["kind"]] + (f" {more}" if more else "")
 
 
 def since_lines(c: dict | None) -> list[str]:

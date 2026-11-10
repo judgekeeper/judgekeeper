@@ -3,6 +3,12 @@ judgekeeper 1.1.2
 
 Step 2 of 5: Mark
 
+results.csv has no LLM-as-a-judge grades, so judgekeeper checks
+your AI's answers: you mark each one Pass or Fail.
+Have an LLM-as-a-judge? Save its Pass or Fail in a verdict
+column, or run it with promptfoo, DeepEval, Inspect AI or
+MLflow.
+
 Opening the marking page in your browser…
 The marking page is open in your browser. It shows the answers
 one at a time. Mark each one Pass or Fail.
@@ -15,11 +21,18 @@ judgekeeper 1.1.2
 
 Step 3 of 5: Measure
 
+results.csv has no LLM-as-a-judge grades, so judgekeeper checks
+your AI's answers: you mark each one Pass or Fail.
+Have an LLM-as-a-judge? Save its Pass or Fail in a verdict
+column, or run it with promptfoo, DeepEval, Inspect AI or
+MLflow.
+
 You passed 16 of 20 answers.
 On the 10 questions kept aside: fixed 2, broke 1, same 7.
 Can't tell yet. That leans toward better, but a split this small
-could easily be a coincidence. Mark more questions for a clearer
-answer.
+could easily be a coincidence. A clear answer needs at least 6
+kept-aside questions to go from Fail to Pass, with none
+breaking. 4 of yours failed, so add about 25 more questions.
 Your reasons: It's unsafe or not allowed (1).
 
 Paste this into your coding agent (Claude Code, Cursor or Codex):

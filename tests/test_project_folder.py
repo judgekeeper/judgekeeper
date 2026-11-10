@@ -23,7 +23,18 @@ import time
 
 import pytest
 
-from judgekeeper import __version__, check, find, fix, judge_setup, page, start, start_label, textio
+from judgekeeper import (
+    __version__,
+    check,
+    find,
+    fix,
+    front,
+    judge_setup,
+    page,
+    start,
+    start_label,
+    textio,
+)
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from tests.start_projects import promptfoo_data, promptfoo_project, split, table_project, unwrapped
@@ -38,6 +49,8 @@ NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper
                    "are added to the ones you marked.")
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
+
+PATH_TABLE = front.PATH_TABLE_TO_ANSWERS  # the path line's switch, for a table
 
 
 @pytest.fixture
@@ -940,7 +953,8 @@ def test_after_a_check_of_a_file_outside_the_project_its_file_is_not_the_newest(
     newest results here"."""
     _checked_outside(here, capsys, worse=False)
     out = flat(run(capsys)[1])
-    assert "Step 3 of 5: Measure This result is about your LLM-as-a-judge in " in out, out
+    assert "Step 3 of 5: Measure ../outside/results.csv has LLM-as-a-judge grades" in out, out
+    assert f"{PATH_TABLE} This result is about your LLM-as-a-judge in " in out, out
     assert "Reading" not in out and "the newest" not in out, out
 
 
@@ -1419,7 +1433,9 @@ def test_a_newest_file_with_no_grades_says_the_numbers_keep_the_old_ones(here, c
     out = flat(out + err)
     assert code == 0, out
     assert ("Reading blank.csv, the newest results here. It has no Pass or Fail grades, so the "
-            "numbers below still use the grades in results.csv. Result:") in out, out
+            "numbers below still use the grades in results.csv. results.csv has LLM-as-a-judge "
+            f"grades, so judgekeeper checks your LLM-as-a-judge against your marks. {PATH_TABLE} "
+            "Result:") in out, out
     assert "graded again" not in out, out
 
 
@@ -1439,6 +1455,8 @@ def test_a_result_about_the_checked_file_names_no_other_file_read(here, capsys, 
     run(capsys, "--stop")
     out = flat(out + err)
     assert code == 0, out
-    assert ("Step 3 of 5: Measure This result is about your LLM-as-a-judge in "
+    assert ("Step 3 of 5: Measure .judgekeeper/fix/new.csv has LLM-as-a-judge grades, so "
+            "judgekeeper checks your LLM-as-a-judge against your marks. "
+            f"{PATH_TABLE} This result is about your LLM-as-a-judge in "
             ".judgekeeper/fix/new.csv, the file your last check read. Result:") in out, out
     assert "Reading results.csv" not in out, out

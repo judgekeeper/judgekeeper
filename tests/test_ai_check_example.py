@@ -104,19 +104,33 @@ def test_the_second_run_answered_the_same_questions_again():
 def test_the_second_run_printed_fixed_broke_and_same():
     said = _flat(_text(EXAMPLE / "terminal-2.txt"))
     compared = no_grades.COMPARED.format(n="10 questions", fixed=2, broke=1, same=7)
-    lean = f"{no_grades.CHANGE['leans better']} {no_grades.MARK_MORE}"
+    lean = f"{no_grades.CHANGE['leans better']} {_clear_line()}"
     assert "You passed 16 of 20 answers." in said and compared in said and lean in said
+
+
+def _clear_line() -> str:
+    """What a clear answer needs, from the run's figures: 20 marked, 8 failed, 4 of them kept
+    aside, the first change tested on them."""
+    return no_grades.clear_line({"kept": 10, "fixed": 2, "broke": 1, "same": 7, "test": 1,
+                                 "kept_fails": 4, "fails": 8, "marked": 20})
+
+
+def test_every_run_says_which_path_it_took():
+    line = front.PATH_NO_GRADES.format(file="results.csv") + " " + front.PATH_TO_GRADES
+    for name in ("terminal-1.txt", "terminal-2.txt"):
+        assert _flat(_text(EXAMPLE / name)).count(line) == 2, name
 
 
 def test_the_docs_give_the_second_run_as_judgekeeper_says_it():
     example = _flat(_text(EXAMPLE / "README.md"))
     assert "16 of 20 answers passed" in example
     assert "2 were fixed, 1 broke and 7 stayed the same" in example
-    assert f'"{no_grades.MARK_MORE}"' in example
+    assert f'"{_clear_line()}"' in example
+    assert "This example uses 20 questions, so a clear answer was not possible." in example
     reference = _flat(_text(ROOT / "docs" / "reference.md"))
     assert "2 were fixed, 1 broke and 7 stayed the same" in reference
     assert f'"{no_grades.CHANGE["leans better"]}"' in reference
     for words in (no_grades.CHANGE["helped"].split(".")[0],
-                  no_grades.CHANGE["worse"].split(".")[0], no_grades.MARK_MORE, no_grades.BROKE):
+                  no_grades.CHANGE["worse"].split(".")[0], no_grades.BROKE):
         assert f'"{words}' in reference, words
     assert f"fewer than {no_grades.FEW_COMPARED} kept-aside questions" in reference

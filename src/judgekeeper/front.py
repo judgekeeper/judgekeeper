@@ -91,13 +91,16 @@ QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{comm
 QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
                    "Codex):")
 QUESTIONS_PROMPT = (
-    "Write about 20 test questions for the AI in this project, the way its real users would ask "
-    "them.\n"
-    "Mix a few topics it should handle, a few kinds of users, and some hard cases (unclear, "
-    "off-topic or tricky questions).\n"
-    "Run the AI on each question and save the questions and answers in results.csv, with two "
-    "columns: input (the question) and output (the answer).\n"
-    "Do not grade the answers. Then run {program}.")
+    "Read this project and list what its AI is meant to do (its prompt and the tasks it "
+    "handles).\n"
+    "Write about 40 test questions the way its real users would ask them: cover every task, "
+    "and make about half of them hard (missing details, out of scope, against the AI's own "
+    "rules, a wrong premise, or more than one step). No near-duplicates.\n"
+    "Show me the questions as a numbered table (question, the task it tests, normal or hard) "
+    "and wait for my yes. I may edit or drop any.\n"
+    "Then run the AI on each question and save the questions and answers in results.csv, with "
+    "two columns: input (the question) and output (the answer). Do not grade the answers. "
+    "Then run {program}.")
 QUESTIONS_KEY = "Running your AI may use your API key."
 # The options that find the judge, as start.find_judge takes them
 FIND = ("tool", "metric", "experiment", "tracking_uri", "pass_if", "label_map", "judge_model")
@@ -133,6 +136,17 @@ WORSE_LAST = "Your last check found your LLM-as-a-judge in your newest results w
 DEFAULT_GRADER = "promptfoo's default grader (no model written in your config)"
 DEFAULT_GRADER_NOTE = "came from promptfoo's default grader"  # readers.promptfoo's warning
 STEP = "Step {n} of 5: {name}"
+# Which path judgekeeper takes and why, and how to switch: once a run (path_lines)
+PATH_NO_GRADES = ("{file} has no LLM-as-a-judge grades, so judgekeeper checks your AI's "
+                  "answers: you mark each one Pass or Fail.")
+PATH_TO_GRADES = ("Have an LLM-as-a-judge? Save its Pass or Fail in a verdict column, or run it "
+                  "with promptfoo, DeepEval, Inspect AI or MLflow.")
+PATH_GRADES = ("{file} has LLM-as-a-judge grades, so judgekeeper checks your LLM-as-a-judge "
+               "against your marks.")
+PATH_TABLE_TO_ANSWERS = ("To check your AI's answers instead, use a copy of the file without "
+                         "the verdict column.")
+PATH_TOOL_TO_ANSWERS = ("To check your AI's answers instead, save them in a CSV file with input "
+                        "and output columns and no verdict column.")
 INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
 EVERY_ANSWER = "your LLM-as-a-judge gave every answer a clear Pass or Fail."
 FREE_CHECK = "Checked: "  # every free-check line starts with it
@@ -224,6 +238,9 @@ class FrontTalk(start.Talk):
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
         self.find_said = False  # "Step 1 of 5: Find" was said in this run
+        self.path_said = False  # path_lines were said in this run
+        self.found: start.Found | None = None  # the results read, for path_lines
+        self.path_head: list[str] = []  # path_lines in a step's head lines (_path_first)
         # --labels (never repeated in a command): a file's name or labels.IN_RESULTS; then the
         # labels read, and where from (marks.jsonl's "from")
         self.labels: str | None = None
@@ -1505,6 +1522,53 @@ def tool_name(tool: str | None, files: list[str] | None = None) -> str | None:
     return TOOL_NAMES.get(tool, tool)
 
 
+def path_lines(found: start.Found, about: str | None = None) -> list[str]:
+    """Which path judgekeeper takes with these results and why, then how to switch. `about`:
+    the graded file the result is about, named from here, when it is not the one read."""
+    if about is not None and found.graded:
+        table = Path(about).suffix.lower() in (".csv", ".tsv", ".jsonl")
+        return [PATH_GRADES.format(file=about),
+                PATH_TABLE_TO_ANSWERS if table else PATH_TOOL_TO_ANSWERS]
+    if found.tool == "mlflow":
+        file = found.store
+    elif found.tool == "records":
+        file = _read_from(found).split(", ")[0]
+    else:
+        file = _newest(found)
+    if not found.graded:
+        return [PATH_NO_GRADES.format(file=file), PATH_TO_GRADES]
+    table = tool_name(found.tool, [str(found.results[0].rel)]).startswith("your own ")
+    return [PATH_GRADES.format(file=file),
+            PATH_TABLE_TO_ANSWERS if table else PATH_TOOL_TO_ANSWERS]
+
+
+def _path_head(talk: FrontTalk, found: start.Found, about: str | None = None) -> list[str]:
+    """path_lines the first time this run asks, else none: said once a run."""
+    if talk.path_said:
+        return []
+    talk.path_said = True
+    return path_lines(found, about)
+
+
+def _path_first(talk: FrontTalk, head: list[str]) -> list[str]:
+    """Say the path_lines in `head` now, under the step's header; the other head lines."""
+    path = [line for line in talk.path_head if line in head]
+    for line in path:
+        talk.para(line)
+    if path:
+        talk.say()
+    return [line for line in head if line not in path]
+
+
+def _say_path(talk: FrontTalk, found: start.Found) -> None:
+    """path_lines as a paragraph each and a blank line, once a run."""
+    lines = _path_head(talk, found)
+    for line in lines:
+        talk.para(line)
+    if lines:
+        talk.say()
+
+
 def _newest(found: start.Found) -> str:
     """The newest results file read, named from here (linked): `~/...` in the home folder,
     never through a top folder (textio.shown_in)."""
@@ -1879,6 +1943,7 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     if found.tool == "table" and _columns_line(found, talk.options["pass_if"]):
         talk.para(SCORE_READ)
     talk.say()
+    _say_path(talk, found)
     pool = found.pool
     if pool.answers:
         talk.say(passed_failed(pool.n_pass, pool.n_fail))
@@ -2150,6 +2215,13 @@ def _graded_in(ws: Workspace, found: start.Found) -> str:
     return NUMBERS_IN.format(old=" and ".join(textio.shown_in(f, found.root) for f in files))
 
 
+def _graded_files(ws: Workspace, found: start.Found) -> str | None:
+    """The results file(s) the marks were checked with, named from here (_graded_in), when
+    the newest file read is not one of them; else None."""
+    said = _graded_in(ws, found)
+    return said.removeprefix(NUMBERS_IN.format(old="")) if said != NUMBERS_BEFORE else None
+
+
 def _ran_again(ws: Workspace, found: start.Found) -> bool:
     """Whether the newest results differ from the ones being marked, with marks made: other
     files (by where they are, not how they were named) or other grades. No marks yet: nothing
@@ -2203,7 +2275,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     again = start_label.recompute_old(ws, flags=_flags_of(talk, saved, ws))  # this run's
     start_label.repair(ws)  # a result whose saving was stopped half way
     head = [start_label.WORKED_OUT_AGAIN] if again else []
-    if not first and (newest := _newest_line(ws, found)):
+    newest = None if first else _newest_line(ws, found)
+    if newest:
         head.append(newest)
     if not first and _model_given(talk, ws, found):  # the same judge: no change
         head.append(MODEL_WRITTEN.format(model=found.fingerprint["model"]))
@@ -2227,6 +2300,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head[:] = [x for x in head if x != newest]  # that compares them, as Next gives it
         head.append(_regraded_line(talk, ws, found, regraded))
     added, took, added_at = 0, None, None
+    about = elsewhere  # the file the numbers are about, when not the one read (path_lines)
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
@@ -2265,10 +2339,18 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
     elif not first and not regraded and _ran_again(ws, found):
         if not (found.pool.n_pass or found.pool.n_fail):  # nothing was graded again
             head.append(NO_GRADES_HERE.format(numbers=_graded_in(ws, found)))
+            about = _graded_files(ws, found)
+            newest = head[-1]  # "It" is the file read: the path line comes after it
         else:
             head.append(RAN_AGAIN if not ws.data().get("checked_at")
                         else RAN_AGAIN_KEPT if check.last_check(ws) else RAN_AGAIN_CHECKED)
         batches.seen(ws, found)  # said once
+    # which path and why: said first, after NEWEST or READING, of the file the result is about
+    at = head.index(newest) + 1 if newest and newest in head else int(bool(again))
+    talk.path_head = _path_head(talk, found, about)
+    head[at:at] = talk.path_head
+    if added_at is not None and added_at >= at:  # the added line moved down with them
+        added_at += len(talk.path_head)
     if took:
         head.append(took)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
@@ -2461,6 +2543,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
     if marking and n and n == len(items):
         talk.say(STEP.format(n=2, name="Mark"))
         talk.say()
+        head = _path_first(talk, head)  # its other head lines come after the count
         some_imported = marks.imported(marks.read(ws.marks), ids=set(session.by_id))
         talk.say(marked_all(n, "marks on" if some_imported else "marked"))  # imported: not marked
         waits = _waits(ws, session)
@@ -2877,6 +2960,8 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
         for line in _no_grades_block(found):
             _say_found(talk, line)
         talk.say()
+        _say_path(talk, found)
+    talk.found = found
     talk.ask_noted()
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
@@ -2926,6 +3011,8 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     every = bool(session.items) and all(i["label"] for i in session.items)
     talk.say(STEP.format(n=2, name="Mark (more answers)" if marking and enough else "Mark"))
     talk.say()
+    if talk.found is not None:
+        _say_path(talk, talk.found)
     if new:
         talk.para(no_grades.found_line(new))
         talk.say()
@@ -2982,6 +3069,8 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     results, said first."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
+    if talk.found is not None:
+        _say_path(talk, talk.found)
     if new:
         talk.para(no_grades.found_line(new))
         talk.say()

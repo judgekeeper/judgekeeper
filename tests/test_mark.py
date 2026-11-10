@@ -24,6 +24,7 @@ from tests.start_projects import (
     table_project,
 )
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
+from tests.test_screens import PATH  # which path, for promptfoo's results.json
 
 TAG = " SECRET-7f3a"  # in every question and answer: a leak shows
 OPEN = "The marking page is open in your browser."
@@ -103,6 +104,7 @@ def test_no_marking_started_opens_the_page(here, capsys, pages, no_browser):
     assert out.splitlines()[2:] == [
         "Step 2 of 5: Mark",
         "",
+        *PATH,
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
         "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
         "on answers it failed (or all of them, if there are fewer).",
@@ -349,6 +351,7 @@ def test_a_page_that_cannot_start_is_said_in_one_line(here, capsys, pages):
     said = out[:out.index("Next:")].splitlines()[2:]
     assert [line for line in said if line] == [
         "Step 2 of 5: Mark",
+        *PATH[:-1],
         "A result needs at least 15 Pass and 15 Fail marks from you. It",
         "also needs 20 marks on answers your LLM-as-a-judge passed and 20",
         "on answers it failed (or all of them, if there are fewer).",

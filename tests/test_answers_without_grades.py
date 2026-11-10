@@ -10,7 +10,7 @@ from collections import Counter
 
 import pytest
 
-from judgekeeper import find, no_grades, reasons, start, start_label
+from judgekeeper import find, front, no_grades, reasons, start, start_label
 from judgekeeper.metrics import wilson
 from tests.test_front import flat, run
 
@@ -35,6 +35,15 @@ def write_answers(folder, n: int = 12, kind: str = "csv", name: str = "results",
             w.writeheader()
             w.writerows(rows)
     return path.name
+
+
+def off_path(out: str, file: str = "results.csv") -> str:
+    """What the run said besides the one line on which path it takes (front.path_lines),
+    which names an LLM-as-a-judge to say how to switch; that line is said once."""
+    said = flat(out)
+    line = front.PATH_NO_GRADES.format(file=file) + " " + front.PATH_TO_GRADES
+    assert said.count(line) == 1, said
+    return said.replace(line, "")
 
 
 @pytest.fixture
@@ -131,7 +140,7 @@ def test_the_first_run_finds_the_answers_and_opens_the_marking_page(here, capsys
     at = lines.index("Answers:         12 answers")
     assert lines[at + 1] == "Grades:          none. You mark each answer."
     assert "question the input column" in said and "answer the output column" in said
-    assert "LLM-as-a-judge" not in out
+    assert "LLM-as-a-judge" not in off_path(out)
     assert "Mark each one Pass or Fail" in said
     data = start_label.Workspace(here).data()
     assert data["graded"] is False
@@ -151,7 +160,7 @@ def test_nine_marks_are_too_few(here, capsys, pages, kind):
     said = flat(out)
     assert "You marked 9 answers so far: 6 Pass, 3 Fail." in said
     assert "Mark a few more answers to see your result." in said
-    assert "You passed" not in said and "LLM-as-a-judge" not in out
+    assert "You passed" not in said and "LLM-as-a-judge" not in off_path(out, f"results.{kind}")
 
 
 @pytest.mark.parametrize("kind", ["csv", "tsv", "jsonl"])
@@ -167,7 +176,7 @@ def test_ten_marks_give_a_result(here, capsys, pages, kind):
     said = flat(out)
     assert "Step 3 of 5: Measure" in said
     assert "You passed 6 of 10 answers." in said
-    assert "LLM-as-a-judge" not in out
+    assert "LLM-as-a-judge" not in off_path(out, f"results.{kind}")
     for word in ("TPR", "TNR", "Kappa", "kappa", "kept aside", "judgekeeper fix"):
         assert word not in out, word
     r = json.loads(start_label.Workspace(here).result_json.read_text(encoding="utf-8"))

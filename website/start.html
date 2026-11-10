@@ -171,7 +171,7 @@
     <h3>No LLM-as-a-judge? Check your AI’s answers</h3>
     <div class="gx-text">
       <p>The same 5 steps work on your AI’s own answers. Give judgekeeper a CSV, TSV or JSONL file with <code>input</code> and <code>output</code> columns and no grades.</p>
-      <p><b>1. Find:</b> <code>judgekeeper</code> finds your answers. No answers yet? It prints a prompt for your coding agent to write about 20 test questions and save your AI’s answers.</p>
+      <p><b>1. Find:</b> <code>judgekeeper</code> finds your answers. No answers yet? It prints a prompt for your coding agent to write about 40 test questions and save your AI’s answers.</p>
       <p><b>2. Mark:</b> mark each answer Pass or Fail. Add a reason to the ones you fail.</p>
       <p><b>3. Measure:</b> from 10 marks, see how many passed, with a range.</p>
       <p><b>4. Fix:</b> your failed answers are saved in <code class="path">.judgekeeper/fix/failed-answers.md</code>, with a prompt for your coding agent to improve your AI’s prompt.</p>
@@ -183,10 +183,10 @@
     <h3>No answers yet?</h3>
     <div class="gx-text">
       <p>Paste this into your coding agent (Claude Code, Cursor or Codex):</p>
-      <div class="cmd prompt"><code>Write about 20 test questions for the AI in this project, the way its real users would ask them.
-Mix a few topics it should handle, a few kinds of users, and some hard cases (unclear, off-topic or tricky questions).
-Run the AI on each question and save the questions and answers in results.csv, with two columns: input (the question) and output (the answer).
-Do not grade the answers. Then run judgekeeper.</code><button type="button" class="copy" data-copy aria-label="Copy the prompt"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
+      <div class="cmd prompt"><code>Read this project and list what its AI is meant to do (its prompt and the tasks it handles).
+Write about 40 test questions the way its real users would ask them: cover every task, and make about half of them hard (missing details, out of scope, against the AI's own rules, a wrong premise, or more than one step). No near-duplicates.
+Show me the questions as a numbered table (question, the task it tests, normal or hard) and wait for my yes. I may edit or drop any.
+Then run the AI on each question and save the questions and answers in results.csv, with two columns: input (the question) and output (the answer). Do not grade the answers. Then run judgekeeper.</code><button type="button" class="copy" data-copy aria-label="Copy the prompt"><svg class="i-copy" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 5.5v-3h-8v8h3"/></svg><svg class="i-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 8.5l3.2 3.2L13 5"/></svg><span class="copied" aria-live="polite"></span></button></div>
       <p class="gx-small">Running your AI may use your API key.</p>
     </div>
   </div>

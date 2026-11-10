@@ -24,7 +24,14 @@ LEANS_BETTER = ("Can't tell yet. That leans toward better, but a split this smal
                 "be a coincidence.")
 LEANS_WORSE = "Can't tell yet. That leans toward worse."
 SAME = "Can't tell yet. Before and after look about the same."
-MORE = "Mark more questions for a clearer answer."
+
+
+def more(need: int, kept: int, extra: int) -> str:
+    """What a clear answer needs, after "Can't tell yet" (no_grades.clear_line)."""
+    return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
+            f"with none breaking. {kept} of yours failed, so add about {extra} more questions.")
+
+
 WAIT = "Mark the new answers to see what changed."
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 NEW_SET = ("You have tested 3 changes on these questions kept aside, so they no longer give a "
@@ -148,7 +155,7 @@ def test_new_answers_to_the_same_questions_count_fixed_broke_and_same(project):
     new |= {i: "pass" for i in kept_passes}
     said = project.again(new)
     assert _counts_line(10, 3, 0, 7) in said
-    assert LEANS_BETTER + " " + MORE in said  # 3 and 0: not clear
+    assert LEANS_BETTER + " " + more(6, 6, 10) in said  # 3 and 0: not clear; 6 of 9 kept
     since = _result(project.here)["since"]
     assert (since["kept"], since["fixed"], since["broke"], since["same"]) == (10, 3, 0, 7)
     seen = _seen(_report(project.here))
@@ -181,7 +188,7 @@ def test_only_the_questions_kept_aside_are_counted(project):
     said = project.again(new)
     n = len(project.kept())
     assert _counts_line(n, 0, 0, n) in said
-    assert SAME + " " + MORE in said
+    assert SAME + " " + more(6, 3, 24) in said
     assert HELPED not in said
 
 
@@ -207,14 +214,14 @@ def test_fewer_than_five_kept_aside_compared_is_never_clear(project):
     assert len(kept) == 4
     said = project.again({i: "pass" for i in kept})
     assert _counts_line(4, 4, 0, 0) in said
-    assert LEANS_BETTER + " " + MORE in said
+    assert LEANS_BETTER + " " + more(6, 4, 13) in said
 
 
 def test_a_big_enough_split_says_the_change_helped(project):
     project.first(fails=set(range(12)), n=20)
     said = project.again({i: "pass" for i in project.kept("fail")})  # 6 fixed, none broke
     assert _counts_line(6, 6, 0, 0) in said
-    assert HELPED in said and MORE not in said
+    assert HELPED in said and "A clear answer needs" not in said
 
 
 def test_the_same_answer_text_is_not_compared(project):
@@ -346,8 +353,9 @@ def test_the_sign_test_decides(fixed, broke, same, line):
     assert no_grades.CHANGE[kind] == line
     clear = sign_p(fixed, broke) < SIGN_LEVEL
     assert no_grades.since_lines({"kept": fixed + broke + same, "fixed": fixed, "broke": broke,
-                                  "same": same, "kind": kind, "clear": clear, "test": 1})[1] \
-        == line + ("" if clear else " " + MORE)
+                                  "same": same, "kind": kind, "clear": clear, "test": 1,
+                                  "kept_fails": 4, "fails": 8, "marked": 20})[1] \
+        == line + ("" if clear else " " + more(6, 4, 25))
 
 
 def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(project):
@@ -355,10 +363,11 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     kept = project.kept("fail")
     assert HELPED in project.again({i: "pass" for i in kept})  # 6 and 0, under 0.05
     said = project.again({i: "fail" for i in kept})  # 0 and 6: 0.031 is not under 0.05 / 2
-    assert _counts_line(6, 0, 6, 0) in said and LEANS_WORSE + " " + MORE in said
+    assert _counts_line(6, 0, 6, 0) in said
+    assert LEANS_WORSE + " " + more(7, 0, 74) in said  # the 6 shown Fails of 20 failed
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
-    assert LEANS_BETTER + " " + MORE in said
+    assert LEANS_BETTER + " " + more(7, 6, 17) in said  # 12 of 20 failed, 6 kept aside
     assert NEW_SET in said
     tests = no_grades.read_split(_ws(project.here)).tests
     assert len(tests) == fix.MAX_RULES == 3
