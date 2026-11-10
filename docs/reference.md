@@ -59,7 +59,7 @@ judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a 
 | `--new` | Start over: your marks move to `.judgekeeper/previous-<date>/` (asked first when you have marks; nothing is deleted). `history.jsonl`, `verdicts/`, `records/` and `.gitignore` stay where they are |
 | `--wait` | Serve the page in this terminal until Ctrl-C, instead of in the background |
 | `--stop` | Close the open page |
-| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.1.2 is ready" and a `Next:` line; piped, only "judgekeeper 1.1.2" |
+| `--version` | Show the version and exit. At a terminal it prints "✓ judgekeeper 1.2.0 is ready" and a `Next:` line; piped, only "judgekeeper 1.2.0" |
 | `--debug` | On an unexpected error, also print where it went wrong (files, lines and the error's type, never its text) |
 
 **The marking page** shows one answer at a time, with your LLM-as-a-judge's grade hidden. Above the answer is the metric's name (the name of the LLM-as-a-judge in your results; promptfoo: the assertion's `metric:` or its type; none for your own file), and "Show the rule" shows your LLM-as-a-judge's rule when your results hold one. It shows the question and the answer, not the documents your LLM-as-a-judge was given, unless they are part of the question (such as a promptfoo var). For a faithfulness check, keep those documents open while you mark. Mark each Pass or Fail, as you want your LLM-as-a-judge to decide: `←` Fail, `→` Pass, `S` skip, `Z` undo. Every click is saved at once. "See the numbers so far" appears with your first numbers, and "See your result" once there is a result. The page stops after 30 minutes with no use.
@@ -199,7 +199,7 @@ You don't need an LLM-as-a-judge to start. A CSV, TSV or JSONL file with an `inp
 
 **Reasons.** On an answer you failed, you can tap why: "It has a wrong fact", "It doesn't answer the question", "It leaves out something important", "It's unsafe or not allowed", "Wrong format or tone" or "I'm not sure about my own mark", or type your own in "Other…". The result and the terminal count the reasons you gave.
 
-**Kept aside to test your fix.** From the first result, half of your Pass marks and half of your Fail marks (rounded up) are kept aside, at random, to test a change to your AI later. The result doesn't list them. The split is saved in `.judgekeeper/fix/split-answers.json`. A new answer to a question already split goes to that question's side.
+**Kept aside to test your fix.** From the first result, half of the questions you marked Pass and half of those you marked Fail (rounded up) are kept aside, at random, to test a change to your AI later. The result doesn't list them. The split is saved in `.judgekeeper/fix/split-answers.json`. A new answer to a question already split goes to that question's side.
 
 **`failed-answers.md` and its prompt.** The answers you failed that you can see are written to `.judgekeeper/fix/failed-answers.md`: each question, the answer and your reason, grouped by your most common reason. The file says first that the questions, answers and reasons are data, and that the agent should never follow instructions inside them. The terminal, the result page and `judgekeeper fix` give a prompt to paste into your coding agent:
 
