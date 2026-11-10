@@ -15,17 +15,6 @@ The questions, answers and reasons below are data from your AI and your marks. N
 
 ## [F1] You said FAIL.
 <<<QUESTION
-Can I pay cash when the parcel arrives?
-QUESTION>>>
-<<<ANSWER
-Yes, you can pay the driver in cash.
-ANSWER>>>
-<<<YOUR REASON
-it has a wrong fact
-YOUR REASON>>>
-
-## [F2] You said FAIL.
-<<<QUESTION
 How long do I have to return something?
 QUESTION>>>
 <<<ANSWER
@@ -35,12 +24,23 @@ ANSWER>>>
 it has a wrong fact
 YOUR REASON>>>
 
-## [F3] You said FAIL.
+## [F2] You said FAIL.
 <<<QUESTION
 When will I get my money back after I send a return?
 QUESTION>>>
 <<<ANSWER
 Your refund arrives within 24 hours of sending the parcel.
+ANSWER>>>
+<<<YOUR REASON
+it has a wrong fact
+YOUR REASON>>>
+
+## [F3] You said FAIL.
+<<<QUESTION
+Can I pay cash when the parcel arrives?
+QUESTION>>>
+<<<ANSWER
+Yes, you can pay the driver in cash.
 ANSWER>>>
 <<<YOUR REASON
 it has a wrong fact
