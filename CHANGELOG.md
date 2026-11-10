@@ -6,7 +6,7 @@
 - The answers you fail are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
 - After you change your AI and mark its new answers, judgekeeper counts how many were fixed, how many broke and how many stayed the same on the questions kept aside. It says whether the change helped, made it worse, or can't tell yet, and when it can't tell, how many more questions a clear answer needs.
 - No answers yet? judgekeeper prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
-- Each run says whether it checks your LLM-as-a-judge or your AI's answers, because your results file has LLM-as-a-judge grades or not, and how to switch.
+- Each run first says what it checks, your LLM-as-a-judge or your AI's answers, and why: whether your results file has LLM-as-a-judge grades. It also says how to switch.
 - Find's list of what judgekeeper reads, and `--help`, now say input and output, with a verdict column if an LLM-as-a-judge graded them.
 - On the result page, a long reason is shown in full when its row is open. Your own reason buttons are cut to 2 lines, with the full text on hover.
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
