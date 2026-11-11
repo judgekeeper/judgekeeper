@@ -611,7 +611,8 @@ def test_results_in_a_project_below_are_named_not_the_answers_here(here, capsys,
     assert "support-bot" in out and "dataset.csv" not in out
 
 
-def test_the_answers_here_are_read_not_the_results_in_the_project_above(here, monkeypatch):
+def test_the_answers_here_are_read_and_the_hint_names_the_results_above(here, capsys,
+                                                                         monkeypatch):
     (here / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
     write_answers(here, 40, grades=["pass", "fail"] * 20)
     src = here / "src"
@@ -621,6 +622,12 @@ def test_the_answers_here_are_read_not_the_results_in_the_project_above(here, mo
     monkeypatch.chdir(src)
     found = start.find_judge(src, answers=True)
     assert found.graded is False
+    _, out, _ = run(capsys, "--no-browser")
+    said = flat(out)
+    assert "sample.csv has no LLM-as-a-judge grades" in said, said
+    assert said.count("Results in the folder above? Run `judgekeeper .. --no-browser`.") == 1
+    _, out, _ = run(capsys, "..", "--no-browser")
+    assert "results.csv has LLM-as-a-judge grades" in flat(out), out
 
 
 def test_answers_alone_never_make_a_folder_hold_results(here):

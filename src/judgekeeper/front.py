@@ -90,6 +90,7 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 # Each of its lines starts a line of its own, wrapped as every other line.
 QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
 FOLDER_ABOVE = "Results in the folder above? Run `{command}`."  # after the prompt
+FOLDERS_ABOVE = "Results in a folder above? Run `{command}`."  # more than one level up
 QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
                    "Codex):")
 QUESTIONS_PROMPT = (
@@ -1133,15 +1134,24 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
 
 
 def _way_above(talk: FrontTalk, root: Path) -> None:
-    """FOLDER_ABOVE, for a run with no PATH in a folder with code (find.holds_code) when the
-    project folder above holds results: the command that reads them."""
+    """above_line, for a run with no PATH in a folder with code (find.holds_code)."""
     if talk.given or not find.holds_code(root):
         return
-    up = find.above_with_results(root)
-    if up is not None:
+    line = above_line(talk, root)
+    if line is not None:
         talk.say()
-        talk.para(FOLDER_ABOVE.format(command=talk.command_in(
-            Path(os.path.relpath(up, root)).as_posix())))
+        talk.para(line)
+
+
+def above_line(talk: FrontTalk, root: Path) -> str | None:
+    """FOLDER_ABOVE (FOLDERS_ABOVE when it is more than one level up) when the project folder
+    above `root` holds results: the command that reads them, from the folder run in."""
+    up = find.above_with_results(root)
+    if up is None:
+        return None
+    path = Path(os.path.relpath(up, Path.cwd())).as_posix()
+    said = FOLDERS_ABOVE if len(Path(path).parts) > 1 else FOLDER_ABOVE
+    return said.format(command=talk.command_in(path))
 
 
 def _questions_prompt(talk: FrontTalk) -> None:
@@ -1564,7 +1574,14 @@ def _path_head(talk: FrontTalk, found: start.Found, about: str | None = None) ->
     if talk.path_said:
         return []
     talk.path_said = True
-    return path_lines(found, about)
+    lines = path_lines(found, about)
+    root = Path(found.root)
+    if not found.graded and not talk.given and not find.has_marker(root) \
+            and not find.holds_code(root):  # answers here, not the results above (find)
+        line = above_line(talk, root)
+        if line is not None:
+            lines.append(line)
+    return lines
 
 
 def _path_first(talk: FrontTalk, head: list[str]) -> list[str]:

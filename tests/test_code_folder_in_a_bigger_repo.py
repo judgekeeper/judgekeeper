@@ -178,3 +178,27 @@ def test_reading_the_folder_above_says_how_to_start_a_new_project_here(repo, cap
     assert f"{CLIMB} (tests). {NEW_HERE}" in said, said
     code, said = _run(capsys, monkeypatch, folder, ".")
     assert code == 3 and "No answers yet?" in said and NEW_HERE not in said, said
+
+
+ONE_UP = "Results in the folder above? Run `judgekeeper .. --no-browser`."
+TWO_UP = "Results in a folder above? Run `judgekeeper ../.. --no-browser`."
+
+
+def test_a_code_folder_two_levels_down_says_a_folder_above(repo, capsys, monkeypatch):
+    folder = repo / "bots" / "my-bot"
+    folder.mkdir(parents=True)
+    (folder / "bot.py").write_text("", encoding="utf-8")
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 3 and said.count(TWO_UP) == 1 and "the folder above" not in said, said
+
+
+def test_answers_read_here_say_how_to_read_the_results_above(repo, capsys, monkeypatch):
+    folder = repo / "probe" / "a"
+    _answers_only(folder)
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 0 and said.count(TWO_UP) == 1, said
+    assert said.index("has no LLM-as-a-judge grades") < said.index(TWO_UP) < said.index("Step 2")
+    code, said = _run(capsys, monkeypatch, folder)  # every run, the same
+    assert said.count(TWO_UP) == 1, said
+    code, said = _run(capsys, monkeypatch, folder, ".")  # a PATH given: the person chose
+    assert TWO_UP not in said, said
