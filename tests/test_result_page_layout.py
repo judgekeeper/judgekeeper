@@ -303,7 +303,7 @@ def test_the_two_scripts_are_pinned():
 def test_the_ready_box_on_the_marking_page_shows_no_verdict_line():
     html = mark_page.label_page("support bot", "judgekeeper mark",
                                 model="openai:gpt-4.1-mini", tool="promptfoo")
-    box = html[html.index('<div class="scrim" id="ready"'):html.index("</div>\n</div>",
+    box = html[html.index('<div class="ready" id="ready"'):html.index("</div>\n</div>",
                                                                       html.index('id="ready"'))]
     assert "ready-note" not in box and "ready-note" not in html
     assert "Your result is ready." in box and "See your result" in box and "Keep marking" in box

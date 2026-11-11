@@ -175,6 +175,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .intro h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .intro .go { width: 100%; height: 56px; font-size: 17px; }
 .intro .quiet { padding: 10px 20px; }
+/* The result-ready box: the last part of the answer list's column, which gets shorter while
+   it shows, so it covers no answer and no Pass or Fail */
+.ready { flex: none; border-top: 1px solid var(--line); }
+.ready .intro { max-width: none; border: 0; padding: 28px 24px; gap: 18px; }
+.ready .intro h2 { font-size: 24px; }
 .answer ul, .question ul { margin: .4em 0; padding-left: 1.4em; white-space: normal; }
 .answer li, .question li { margin: .15em 0; }
 #answer-card:focus-visible, #end:focus-visible, .intro:focus-visible { outline: none; }
@@ -295,6 +300,14 @@ __TOP__
 <div class="wrap">
 <nav class="side" aria-label="Answers">
   <ol class="list" id="queue"></ol>
+<div class="ready" id="ready" hidden>
+  <div class="intro" id="ready-box" role="region" aria-labelledby="ready-title">
+    __BRAND__
+    <h2 id="ready-title">Your result is ready.</h2>
+    <a class="go" id="ready-see" href="#">See your result</a>
+    <button type="button" class="quiet" id="ready-keep">Keep marking</button>
+  </div>
+</div>
 </nav>
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
@@ -322,14 +335,6 @@ __TOP__
     <button type="button" class="go" id="intro-ok">Start marking</button>
   </div>
 </div>
-<div class="scrim" id="ready" hidden>
-  <div class="intro" id="ready-box" role="dialog" aria-modal="true" aria-labelledby="ready-title" tabindex="-1">
-    __BRAND__
-    <h2 id="ready-title">Your result is ready.</h2>
-    <a class="go" id="ready-see" href="#">See your result</a>
-    <button type="button" class="quiet" id="ready-keep">Keep marking</button>
-  </div>
-</div>
 <script type="application/json" id="data">__DATA__</script>
 <script nonce="__NONCE__">
 "use strict";
@@ -355,8 +360,8 @@ __TOP__
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
   var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
-  // The result-ready box waits until no mark came for READY_WAIT_MS, so it never takes a
-  // click meant for the next answer (`readyDue`: the server said to show it). It opens only
+  // The result-ready box waits until no mark came for READY_WAIT_MS (`readyDue`: the server
+  // said to show it), so it does not come mid-marking; it covers nothing. It opens only
   // while the result is still ready (an undo meanwhile can take it back); until it opens it
   // is owed (`readyOwed`), and opens once a later mark makes the result ready again.
   var READY_WAIT_MS = 1200, readyDue = false, readyTimer = null, readyOwed = false;
@@ -977,6 +982,7 @@ __TOP__
 
   function mark(value) {
     if (ended || fresh()) { return; }
+    closeReady();  // marking goes on: the box goes
     if (readyDue) { readyLater(); }  // still marking: the box waits
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
@@ -989,6 +995,7 @@ __TOP__
 
   function skip() {
     if (ended || fresh()) { return; }
+    closeReady();
     if (readyDue) { readyLater(); }
     var it = items[pos], was = it.label;
     send({deferred: true}, function () {
@@ -1001,6 +1008,7 @@ __TOP__
   function undo(key) {
     if (!history.length) { say("Nothing to undo.", true); return; }
     if (locked(key)) { return; }
+    closeReady();  // an undo can take the result back below ready
     var back = history.pop();
     walkingSkipped = false; open(back.pos);
     var it = items[pos];
@@ -1022,8 +1030,8 @@ __TOP__
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
   var KEYS = {arrowright: "pass", arrowleft: "fail", "1": "pass", "2": "fail"};
   document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden || !$("ready").hidden) {
-      return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || !$("intro").hidden) { return; }
+    if (e.key === "Escape" && !$("ready").hidden) { e.preventDefault(); keepMarking(); return; }
     var tag = e.target && e.target.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") { return; }
     var k = (e.key || "").toLowerCase();
@@ -1055,9 +1063,10 @@ __TOP__
 
   // The result-ready box: once, when the result first turns ready (the server says so with
   // `popup`; not when the page opens already ready, nor after a reload or on another page),
-  // after READY_WAIT_MS with no mark (readyLater). The page behind it is inert. Esc is "Keep
-  // marking"; Tab stays between its two buttons.
-  var readyShown = false, readyBox = $("ready-box");
+  // after READY_WAIT_MS with no mark (readyLater). It is not modal: focus stays on the card,
+  // whose buttons and keys keep working; a mark, skip or undo closes it, and so does Esc or
+  // "Keep marking".
+  var readyShown = false;
   $("ready-see").setAttribute("href", url("/result"));
   function readyLater() {
     readyDue = true; readyOwed = true; clearTimeout(readyTimer);
@@ -1069,24 +1078,13 @@ __TOP__
     }, READY_WAIT_MS);
   }
   function showReady() {
-    readyShown = true; readyOwed = false; queued = [];  // keys pressed meanwhile do not mark behind the box
-    $("ready").hidden = false; $("app").setAttribute("inert", "");
-    readyBox.focus();
+    readyShown = true; readyOwed = false;
+    $("ready").hidden = false;
+    hear($("ready-title").textContent);  // the status line says it: focus stays on the card
   }
-  function keepMarking() {
-    $("ready").hidden = true; $("app").removeAttribute("inert");
-    shownAt = Date.now();  // the box covered the answer until now: its time starts here
-    focusCard();
-  }
+  function closeReady() { $("ready").hidden = true; }
+  function keepMarking() { closeReady(); focusCard(); }
   $("ready-keep").addEventListener("click", keepMarking);
-  readyBox.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") { e.preventDefault(); keepMarking(); }
-    else if (e.key === "Tab") {
-      e.preventDefault();
-      var order = [$("ready-see"), $("ready-keep")], at = order.indexOf(document.activeElement);
-      order[at < 0 ? (e.shiftKey ? 1 : 0) : (at + 1) % 2].focus();
-    }
-  });
 
   var left = items.some(function (it) { return !it.label && !it.skipped; });
   if (left) { open(pos); } else { finish(true); }

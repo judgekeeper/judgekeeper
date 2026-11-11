@@ -220,17 +220,18 @@ def test_keys_pressed_while_a_mark_is_saved_never_mark_the_next_answer():
     assert got["at"] == "Question 1?"
 
 
-def test_an_answer_behind_the_ready_box_counts_its_seconds_from_when_the_box_closed():
-    """The seconds a mark sends are the time its answer was on screen: not the time the
-    "Your result is ready" box covered it."""
+def test_the_ready_box_covers_no_answer_so_seconds_run_from_when_the_answer_showed():
+    """The seconds a mark sends are the time its answer was on screen: the "Your result is
+    ready" box sits beside the answer, so its time keeps running while the box is open."""
     got = _run("""
       status = {text: "Ready.", ready: true, headline: "Good enough"};
       key("ArrowRight"); await settle(); await pause();
       var box = !ids["ready"].hidden;
-      later(14000); ids["ready-box"].fire("keydown", {key: "Escape"}); await settle();
+      later(14000); key("Escape"); await settle();
       later(2000); key("ArrowLeft"); await settle();
-      console.log(JSON.stringify({box: box, seconds: sent[1].body.seconds}));""")
-    assert got == {"box": True, "seconds": 2}
+      console.log(JSON.stringify({box: box, closed: ids["ready"].hidden,
+                                  seconds: sent[1].body.seconds}));""")
+    assert got == {"box": True, "closed": True, "seconds": 16}
 
 
 def test_a_double_click_marks_one_answer():
@@ -789,47 +790,85 @@ def test_a_card_shown_again_still_lets_the_bar_say_only_a_skipped_answer_is_left
                            "your eval on more questions.")]
 
 
-def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_marking():
-    got = _run("""
+def _open_box() -> str:
+    """Marks until the result turns ready, then the pause: the box is open over card 2."""
+    return """
       key("ArrowRight"); await settle();
-      var before = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert")];
       status.first = true; status.ready = true; later(500);
-      status.headline = "Your LLM-as-a-judge needs work.";  // still sent; the box never shows it
-      key("ArrowLeft"); await settle(); await pause();
-      var shown = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
-                   document.activeElement === ids["ready-box"], ids["ready-see"].getAttribute("href"),
-                   sent.length, ids["ready-box"].textContent.indexOf("needs work")];
-      key("ArrowRight"); await settle();  // behind the box: nothing is marked
-      var behind = sent.length;
-      ids["ready-box"].fire("keydown", {key: "Escape"});
-      var closed = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
-                    document.activeElement === ids["answer-card"]];
-      later(500); key("ArrowRight"); await settle();
-      console.log(JSON.stringify({before: before, shown: shown, behind: behind, closed: closed,
-                                  again: ids["ready"].hidden, sent: sent.length}));""")
-    assert got["before"] == [True, None]
-    assert got["shown"] == [False, "", True, "/result?token=t0k", 2, -1]
-    assert got["behind"] == 2
-    assert got["closed"] == [True, None, True]
-    assert got["again"] is True and got["sent"] == 3
+      key("ArrowLeft"); await settle(); await pause(); later(1300);  // the page's clock too
+      var opened = !ids["ready"].hidden, at = ids["q-text"].textContent;
+    """
 
 
-def test_the_ready_box_buttons_and_tab_stay_inside_it():
+def test_the_ready_box_comes_once_takes_no_focus_and_leaves_the_page_working():
+    title = re.search(r'<h2 id="ready-title">(.*?)</h2>', mark_page.label_page(None))[1]
     got = _run("""
-      status.ready = true;
-      key("ArrowRight"); await settle(); await pause();
-      var open = !ids["ready"].hidden;
-      ids["ready-box"].fire("keydown", {key: "Tab"});
-      var first = document.activeElement === ids["ready-see"];
-      ids["ready-see"].fire("keydown", {key: "Tab"});  // on the box's key handler only
-      ids["ready-box"].fire("keydown", {key: "Tab", shiftKey: true});
-      var back = document.activeElement === ids["ready-keep"];
-      ids["ready-keep"].fire("click");
-      console.log(JSON.stringify({open: open, first: first, back: back,
-        closed: ids["ready"].hidden, focus: document.activeElement === ids["answer-card"],
+      var before = ids["ready"].hidden;
+      status.headline = "Your LLM-as-a-judge needs work.";  // still sent; the box never shows it
+    """ + _open_box() + """
+      await new Promise(function (r) { setTimeout(r, 200); });  // the status line, a moment later
+      console.log(JSON.stringify({before: before, opened: opened, at: at,
+        inert: document.getElementById("app").getAttribute("inert"),
+        focus: document.activeElement === ids["answer-card"],
+        href: ids["ready-see"].getAttribute("href"), sent: sent.length,
+        words: document.getElementById("ready-box").textContent.indexOf("needs work"),
+        heard: ids["done"].textContent}));""",
+               before=f'document.getElementById("ready-title")._text = {json.dumps(title)};\n')
+    assert got == {"before": True, "opened": True, "at": "Question 2?", "inert": None,
+                   "focus": True,  # focus stays on the card: the box is not modal
+                   "href": "/result?token=t0k", "sent": 2, "words": -1,
+                   "heard": "Your result is ready."}  # the status line says so
+
+
+@pytest.mark.parametrize("press", ['ids["pass"].fire("click")', 'key("ArrowRight")',
+                                   'ids["fail"].fire("click")', 'key("ArrowLeft")'])
+def test_with_the_ready_box_open_pass_or_fail_marks_the_card_on_screen_and_closes_it(press):
+    """The click or key that comes as the box opens marks the card on screen, once."""
+    got = _run(_open_box() + press + """; await settle();
+      var after = [ids["ready"].hidden, sent.length, sent[2].body.id, ids["q-text"].textContent,
+                   document.activeElement === ids["answer-card"]];
+      later(500); key("ArrowRight"); await settle(); await pause();
+      console.log(JSON.stringify({opened: opened, at: at, after: after,
+        again: ids["ready"].hidden, sent: sent.length}));""")
+    assert got["opened"] is True and got["at"] == "Question 2?"
+    assert got["after"] == [True, 3, "a2", "Question 3?", True]
+    assert got["again"] is True and got["sent"] == 4  # never again this round
+
+
+@pytest.mark.parametrize("press", ['ids["skip"].fire("click")', 'key("s")',
+                                   'ids["undo"].fire("click")', 'key("z")'])
+def test_with_the_ready_box_open_skip_or_undo_works_and_closes_it(press):
+    got = _run(_open_box() + press + """; await settle();
+      console.log(JSON.stringify({opened: opened, closed: ids["ready"].hidden,
+        sent: sent.length, last: sent[2].body}));""")
+    assert got["opened"] is True and got["closed"] is True and got["sent"] == 3
+    assert got["last"].get("deferred") is True or got["last"]["id"] == "a1"
+
+
+def test_the_ready_box_does_not_open_again_after_an_undo_and_a_new_mark():
+    """Undo takes the result back below ready and a new mark makes it ready again: the box
+    came once this round, so it stays shut."""
+    got = _run(_open_box() + """
+      status.ready = false; key("z"); await settle();
+      var shut = ids["ready"].hidden;
+      status.ready = true; later(500); key("ArrowLeft"); await settle(); await pause();
+      console.log(JSON.stringify({opened: opened, shut: shut, again: ids["ready"].hidden,
         sent: sent.length}));""")
-    assert got == {"open": True, "first": True, "back": True, "closed": True, "focus": True,
-                   "sent": 1}
+    assert got == {"opened": True, "shut": True, "again": True, "sent": 4}
+
+
+def test_esc_closes_the_ready_box_from_the_card_and_keep_marking_does_too():
+    got = _run(_open_box() + """
+      var tab = key("Tab");  // not kept inside the box: it is not modal
+      key("Escape");
+      var esc = [ids["ready"].hidden, sent.length, document.activeElement === ids["answer-card"]];
+      console.log(JSON.stringify({opened: opened, tab: tab.defaultPrevented, esc: esc}));""")
+    assert got == {"opened": True, "tab": False, "esc": [True, 2, True]}
+    got = _run(_open_box() + """
+      ids["ready-keep"].fire("click");
+      console.log(JSON.stringify({opened: opened, closed: ids["ready"].hidden,
+        focus: document.activeElement === ids["answer-card"], sent: sent.length}));""")
+    assert got == {"opened": True, "closed": True, "focus": True, "sent": 2}
 
 
 def test_the_ready_box_does_not_come_when_the_page_opens_already_ready():
@@ -842,15 +881,23 @@ def test_the_ready_box_does_not_come_when_the_page_opens_already_ready():
     assert got == {"hidden": True}
 
 
-def test_the_ready_box_has_the_welcome_boxs_look_and_its_words():
+def test_the_ready_box_sits_under_the_answer_list_and_keeps_its_words():
+    """No layer over the page: the box is the last part of the answer list's column, which
+    gets shorter while it shows, so it covers neither the answer nor Pass and Fail."""
     page = mark_page.label_page(None)
-    box = page[page.index('<div class="scrim" id="ready"'):page.index('<script type="application')]
-    assert 'class="intro" id="ready-box" role="dialog" aria-modal="true"' in box
+    side = page[page.index('<nav class="side"'):page.index("</nav>")]
+    box = side[side.index('<div class="ready" id="ready" hidden>'):]
+    assert side.index('id="queue"') < side.index('id="ready"')
+    assert '<div class="scrim" id="ready"' not in page and "aria-modal" not in box
+    assert 'class="intro" id="ready-box" role="region" aria-labelledby="ready-title"' in box
     assert "judgekeeper" in box and 'class="brand"' in box  # the logo
     assert '<h2 id="ready-title">Your result is ready.</h2>' in box
     assert "ready-note" not in box and 'class="note"' not in box  # no verdict line: the page has it
     assert '<a class="go" id="ready-see" href="#">See your result</a>' in box
     assert 'id="ready-keep">Keep marking</button>' in box
+    rules = re.findall(r"^([^{}\n]*\.ready\b[^{}]*)\{([^}]*)\}", mark_page.STYLE, re.MULTILINE)
+    assert rules and not any("fixed" in body or "absolute" in body for _, body in rules)
+    assert "flex: none" in {sel.strip(): body for sel, body in rules}[".ready"]
 
 
 def test_bold_and_bullets_in_an_answer_are_built_without_innerhtml_and_all_else_is_text():
@@ -888,7 +935,7 @@ def test_a_verdict_that_goes_back_to_too_early_changes_the_link_and_never_reopen
       status.first = true; status.ready = true; status.headline = "x"; later(500);
       key("ArrowRight"); await settle(); await pause();
       var opened = !ids["ready"].hidden;
-      ids["ready-box"].fire("keydown", {key: "Escape"});
+      key("Escape");
       status.ready = false; status.headline = null; later(500);
       key("ArrowRight"); await settle();
       var back = [ids["see"].textContent, ids["keep"].hidden, ids["keep"].textContent];
