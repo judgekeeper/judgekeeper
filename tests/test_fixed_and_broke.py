@@ -573,3 +573,23 @@ def test_an_llm_as_a_judge_project_gets_no_comparison(here, capsys, pages):
     promptfoo_project(here, split(20, 16))
     run(capsys)
     assert not (_ws(here).dir / "fix" / no_grades.BEFORE_FILE).exists()
+
+
+def harder(need: int, kept: int) -> str:
+    target = no_grades.clear_target(need)
+    return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
+            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
+            f"{target} kept-aside Fails; you have {kept}. Add harder questions, ones your AI may "
+            f"get wrong, and mark their answers.")
+
+
+@pytest.mark.parametrize("c, said", [
+    # T3, change 2: need 7, so 11 kept-aside Fails; 1 kept aside; 1 of 40 failed: 800
+    ({"test": 2, "kept_fails": 1, "fails": 1, "marked": 40}, harder(7, 1)),
+    # T3, change 1: need 6, so 9; 4 kept aside; 8 of 40 failed: 50
+    ({"test": 1, "kept_fails": 4, "fails": 8, "marked": 40}, more(6, 4, 50)),
+    ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 40}, more(6, 4, 100)),
+    ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 41}, harder(6, 4)),  # 103
+])
+def test_more_than_100_questions_to_add_asks_for_harder_ones(c, said):
+    assert no_grades.clear_line(c) == said
