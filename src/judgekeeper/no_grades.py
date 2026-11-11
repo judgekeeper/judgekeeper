@@ -925,7 +925,7 @@ ALL_KEPT = {1: f"It is kept aside to test {KEPT_FOR}.",
 ALL_SHOWN = "The questions kept aside are all shown now."  # after NEW_SET, which says why
 BEFORE_DAMAGED = ("Can't compare with your last answers: {path} is damaged. Your next change "
                   "will be compared.")
-FOUND_NEW = "Found {n} since your last results. Mark them to see what changed.{same}"
+FOUND_NEW = "Found {n} since your last results. Mark {them} to see what changed.{same}"
 SAME_KEPT = {1: "{n} answer is the same as before and keeps its mark.",
              2: "{n} answers are the same as before and keep their marks."}
 WAITING = {1: "{n} new answer is waiting to be marked.",
@@ -1142,7 +1142,8 @@ def found_line(ws, n: int) -> str:
     counted = _counted(ws)
     same = sum(counted.get(q["id"]) in ("pass", "fail") for q in ws.data().get("queue") or [])
     kept = f" {SAME_KEPT[min(same, 2)].format(n=same)}" if same else ""
-    return FOUND_NEW.format(n=plural(n, "new answer"), same=kept)
+    return FOUND_NEW.format(n=plural(n, "new answer"), them="it" if n == 1 else "them",
+                            same=kept)
 
 
 def waiting_line(ws, session) -> str | None:

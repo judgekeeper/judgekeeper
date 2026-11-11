@@ -342,7 +342,8 @@ def test_new_answers_since_the_last_results_are_named_once(here, capsys):
     assert "since your last results" not in _go(capsys)  # said once, on the run that found them
     _write(here, [(q, f"Newer {a}") for q, a in rows[:1]]
            + [(q, f"New {a}") for q, a in rows[1:3]] + rows[3:])
-    assert FOUND_NEW.format(n="1 new answer", same=9) in flat(_go(capsys))
+    assert FOUND_NEW.format(n="1 new answer", same=9).replace("Mark them", "Mark it") \
+        in flat(_go(capsys))
 
 
 def test_the_same_answers_saved_again_find_nothing_new(here, capsys):
