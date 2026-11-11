@@ -1346,6 +1346,8 @@ def clear_line(c: dict) -> str | None:
     target = clear_target(need)
     if kept_fails >= target:
         return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+    if c.get("last"):  # new_set_line says what to add, with its own number
+        return CLEAR_NEED.format(need=need, target=target, kept_fails=kept_fails)
     if not fails or not marked:
         return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
     extra = -(-2 * (target - kept_fails) * marked // fails)
