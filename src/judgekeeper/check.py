@@ -54,6 +54,7 @@ from judgekeeper.textio import (
     loads,
     make_private,
     old_hook,
+    percent,
     plural,
     program,
     program_in,
@@ -192,7 +193,7 @@ _n = plural  # textio.plural
 
 
 def _pct(x: float | None) -> str:
-    return "unknown" if x is None else f"{x:.0%}"
+    return "unknown" if x is None else percent(x)
 
 
 def _day(stamp: str | None) -> str | None:

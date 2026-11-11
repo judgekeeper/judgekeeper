@@ -31,7 +31,15 @@ from pathlib import Path
 
 SCHEMA_VERSION = 2  # records.SCHEMA_VERSION, kept here so nothing else is imported
 FOLDER = Path(".judgekeeper") / "records"
-MARKERS = ("judgekeeper.toml", "pyproject.toml", "setup.py", ".git")
+MARKERS = ("judgekeeper.toml", "pyproject.toml", "setup.py", "package.json", ".git")
+REQUIREMENTS = "requirements*.txt"  # a project's own too, as MARKERS
+
+
+def marked(folder: Path) -> bool:
+    """Whether `folder` holds a file that makes it a project's own: MARKERS or
+    REQUIREMENTS. The command line takes a project folder by the same files."""
+    return any((folder / m).exists() for m in MARKERS) or next(
+        folder.glob(REQUIREMENTS), None) is not None
 OFF = frozenset({"0", "false", "off", "no"})
 DEFAULT_NAME = "LLM-as-a-judge"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._]+")
@@ -48,8 +56,8 @@ class _RecordError(ValueError):
     """A value record() cannot write; its message is safe to show."""
 
 
-HOME = ("no project root was found (judgekeeper.toml, pyproject.toml, setup.py, .git or "
-        "requirements*.txt) and judgekeeper never writes in your home folder")
+HOME = ("no project root was found (judgekeeper.toml, pyproject.toml, setup.py, package.json, "
+        ".git or requirements*.txt) and judgekeeper never writes in your home folder")
 
 
 def record(input=None, output=None, *, verdict=None, score=None, pass_mark=None, reason=None,
@@ -157,8 +165,7 @@ def project_root(start: Path | None = None) -> Path:
     for folder in (here, *here.parents):
         if folder == home:
             break
-        if any((folder / m).exists() for m in MARKERS) or next(
-                folder.glob("requirements*.txt"), None) is not None:
+        if marked(folder):
             return folder
     return here
 

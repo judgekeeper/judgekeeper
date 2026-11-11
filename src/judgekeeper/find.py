@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from judgekeeper import keys, textio
+from judgekeeper import keys, recorder, textio
 
 TOOLS = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 NAMES = {"records": "judgekeeper.record()", "promptfoo": "promptfoo", "deepeval": "DeepEval",
@@ -830,14 +830,44 @@ NOT_UTF8 = "not saved as UTF-8"
 TITLE_ROW = "has a title row above its header"
 EXCEL = (".xlsx", ".xlsm", ".xls")
 EXCEL_FOUND = "is an Excel file: save it as CSV UTF-8 to use it"  # a whole sentence
-PROJECT_MARKERS = ("pyproject.toml", "package.json", ".git", "judgekeeper.toml", "setup.py")
+PROJECT_MARKERS = recorder.MARKERS  # and recorder.REQUIREMENTS: has_marker
+CODE_SUFFIXES = (".py", ".js", ".ts")  # a folder with one of these holds code (holds_code)
+
+
+def has_marker(folder: Path) -> bool:
+    """Whether `folder` holds a project file (PROJECT_MARKERS or requirements*.txt), as
+    record() takes a project root."""
+    try:
+        return recorder.marked(folder)
+    except OSError:
+        return False
+
+
+def holds_code(folder: Path) -> bool:
+    """Whether `folder` itself holds code: a .py, .js or .ts file, or a project file of
+    pyproject.toml, package.json or requirements*.txt."""
+    try:
+        entries = list(os.scandir(folder))
+    except OSError:
+        return False
+    for entry in entries:
+        name = entry.name.lower()
+        if not (name.endswith(CODE_SUFFIXES) or name in ("pyproject.toml", "package.json")
+                or name.startswith("requirements") and name.endswith(".txt")):
+            continue
+        try:
+            if entry.is_file():
+                return True
+        except OSError:  # an entry that can't be told apart: not code
+            continue
+    return False
 
 
 def is_project(folder: Path) -> bool:
     """Whether `folder` is a project's own: a project file (PROJECT_MARKERS) or its own
     `.judgekeeper/`."""
     try:
-        return any((folder / m).exists() for m in (*PROJECT_MARKERS, ".judgekeeper"))
+        return has_marker(folder) or (folder / ".judgekeeper").exists()
     except OSError:
         return False
 
@@ -902,27 +932,37 @@ def project_folder(folder: Path) -> Path | None:
     for above in folder.parents:
         if above == home:
             return None
-        try:
-            if any((above / m).exists() for m in PROJECT_MARKERS):
-                return above
-        except OSError:
-            return None
+        if has_marker(above):
+            return above
     return None
+
+
+_ABOVE: set[Path] = set()  # the folders whose results_above is being worked out
 
 
 def results_above(root: Path) -> Path | None:
     """The project folder above `root` when it holds results judgekeeper reads; never from a
-    folder that is a project of its own (any PROJECT_MARKERS: one project never reads
-    another)."""
-    try:
-        if any((root / m).exists() for m in PROJECT_MARKERS):
-            return None
-    except OSError:
+    folder that is a project of its own (any PROJECT_MARKERS, or its own .judgekeeper/ that is
+    not passed over: the folder above walks past it as a project below, so one project never
+    reads another, and the two never ask each other)."""
+    if has_marker(root) or holds_code(root):  # a folder with code is its own project
         return None
+    if is_project(root) and not _left_empty(root):
+        return None
+    return above_with_results(root)
+
+
+def above_with_results(root: Path) -> Path | None:
+    """The project folder above `root` when it holds results judgekeeper reads, whatever
+    `root` holds."""
     up = project_folder(root)
-    if up is None:
+    if up is None or root in _ABOVE:
         return None
-    return up if holds_results(search(up)) else None
+    _ABOVE.add(root)
+    try:
+        return up if holds_results(search(up)) else None
+    finally:
+        _ABOVE.discard(root)
 
 
 def _look_above(walk: _Walk) -> None:

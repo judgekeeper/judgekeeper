@@ -57,6 +57,7 @@ from judgekeeper.textio import (
     kept_at,
     kept_path,
     old_hook,
+    percent,
     plural,
     program,
     quote_arg,
@@ -88,6 +89,7 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 # No results and no eval tool: a prompt for the person's coding agent to make answers to check.
 # Each of its lines starts a line of its own, wrapped as every other line.
 QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
+FOLDER_ABOVE = "Results in the folder above? Run `{command}`."  # after the prompt
 QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
                    "Codex):")
 QUESTIONS_PROMPT = (
@@ -382,15 +384,16 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         pass_if: str | None = None, label_map: str | None = None,
         judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
-        wait: bool = False, stop: bool = False, labels: str | None = None) -> int:
+        wait: bool = False, stop: bool = False, labels: str | None = None,
+        given: bool = False) -> int:
     """`judgekeeper`. Returns the exit code. `labels`: --labels, a file's name or
-    labels.IN_RESULTS."""
+    labels.IN_RESULTS. `given`: the PATH was given on the command line (Talk.given)."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
                "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = FrontTalk(yes=yes, path=path, options=options, new=new)
-    talk.labels = labels
+    talk.labels, talk.given = labels, given
     return go(talk, Path(path), wait=wait, stop=stop, marking=False)
 
 
@@ -763,7 +766,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
-    if own is None and (search.skipped or find.results_above(root) is not None):
+    if own is None and (search.skipped or not talk.given
+                        and find.results_above(root) is not None):
         return path, None  # results-like files too far up or down: find_judge names them
     if own is None and tables:  # promptfoo's table output, found past the walk's limits
         raise start.table_output(tables[0])
@@ -1119,12 +1123,25 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                   f"LLM-as-a-judge's results, run `{talk.command_at(own.rel)}`.")
     if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
         _questions_prompt(talk)
+        _way_above(talk, root)
         return talk.stop(EXIT_QUESTION, QUESTIONS_NEXT.format(command=talk.command()))
     again = f"`{talk.command()}`"
     other = "" if signs else (f" If your results are somewhere else, run "
                               f"`{talk.command_at('PATH')}` with their file or folder.")
     return talk.stop(EXIT_QUESTION, f"run your eval once from this folder, then run {again} "
                                     f"again.{other}")
+
+
+def _way_above(talk: FrontTalk, root: Path) -> None:
+    """FOLDER_ABOVE, for a run with no PATH in a folder with code (find.holds_code) when the
+    project folder above holds results: the command that reads them."""
+    if talk.given or not find.holds_code(root):
+        return
+    up = find.above_with_results(root)
+    if up is not None:
+        talk.say()
+        talk.para(FOLDER_ABOVE.format(command=talk.command_in(
+            Path(os.path.relpath(up, root)).as_posix())))
 
 
 def _questions_prompt(talk: FrontTalk) -> None:
@@ -2639,7 +2656,7 @@ def _page(talk: FrontTalk, ws: Workspace, counts: dict, wait: bool, saved: bool,
 
 
 def _pct(x: float) -> str:
-    return f"{x:.0%}"
+    return percent(x)
 
 
 def marked_all(n: int, did: str) -> str:
@@ -2941,10 +2958,11 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
                marking: bool) -> int:
     """Answers with no grade (no_grades.py): Find's block the first time, the marking page until
     no_grades.MIN_MARKS marks, then the result (`judgekeeper mark` always opens the page).
-    Marks made for an LLM-as-a-judge move aside first, after a yes when there are any."""
+    Marks made for an LLM-as-a-judge, or any with --new, move aside first, after a yes when
+    there are any."""
     start_label.refuse_links(ws)
     first = not ws.start.is_file()
-    if not first and not no_grades.here(ws):  # marks for an LLM-as-a-judge
+    if not first and (talk.new or not no_grades.here(ws)):  # for a judge, or --new
         if _has_marks(ws):
             talk.say()
             if not talk.confirm(START_OVER, default=True, with_yes=True, hint=""):
@@ -2955,6 +2973,8 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
             background.stop(ws.dir)
         _move_aside(talk, ws)
         first = True
+        talk.new = False  # done: the commands to go on are without it
+        talk.refresh()
     if first and not marking:
         talk.say()  # a blank line after what Find said first (a file left out), never two
         for line in _no_grades_block(found):
@@ -3014,7 +3034,7 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     if talk.found is not None:
         _say_path(talk, talk.found)
     if new:
-        talk.para(no_grades.found_line(new))
+        talk.para(no_grades.found_line(ws, new))
         talk.say()
     if every and not enough:  # nothing left to mark, and no result yet
         done = no_grades.status(session, _command_of(talk, False))["done"]
@@ -3035,7 +3055,9 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
             page.serve(opened.server)
         return EXIT_OK
     if n:
-        talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail.")
+        waiting = no_grades.waiting_line(ws, session) if marking and not new else None
+        talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail."
+                 + (f" {waiting}" if waiting else ""))
         if not enough:
             talk.say(start_label.VERDICTS[None])
         talk.say()
@@ -3072,7 +3094,7 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     if talk.found is not None:
         _say_path(talk, talk.found)
     if new:
-        talk.para(no_grades.found_line(new))
+        talk.para(no_grades.found_line(ws, new))
         talk.say()
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))
     labels = r["labels"]
@@ -3105,16 +3127,18 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
 
 
 def _stop(talk: FrontTalk, path: Path) -> int:
-    """--stop: close the page open for this project, or the one opened from a folder right
-    below it (Find looks one level down); with several there, where they are."""
+    """--stop: close the page open for this project, or, when marking never started here,
+    the one opened from a folder right below it (Find looks one level down); with several
+    there, where they are. A project with marks of its own never closes another's page."""
     if not path.exists():
         raise not_found(path, talk.path)
     ws = Workspace(project.project_of(path))
     if path.is_dir() and not (ws.start.is_file() or ws.labels.is_file()):
-        ws = Workspace(start.reads_in(path))  # the folder a run from here reads
+        ws = Workspace(start.reads_in(path, talk.given))  # the folder a run from here reads
     if path.is_dir() and not is_open(ws.dir) and is_open(Workspace(path).dir):
         ws = Workspace(path)  # a page open on a session every command now passes over
-    below = [] if is_open(ws.dir) or not path.is_dir() else [
+    own = ws.start.is_file() or ws.labels.is_file()  # marking started in this project
+    below = [] if own or is_open(ws.dir) or not path.is_dir() else [
         name for name, _ in _sessions_below(path) if is_open(Workspace(path / name).dir)]
     if len(below) == 1:  # opened from the folder right below
         ws = Workspace(path / below[0])

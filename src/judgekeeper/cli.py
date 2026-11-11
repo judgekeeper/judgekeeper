@@ -253,7 +253,7 @@ def _front_parser() -> argparse.ArgumentParser:
     p = _TopParser(prog="judgekeeper", usage="judgekeeper [PATH] [options]",
                    formatter_class=lambda prog: _Help(prog, width=HELP_WIDTH))
     p._positionals.title, p._optionals.title = "Arguments", "Options"
-    p.add_argument("path", nargs="?", default=".", metavar="PATH",
+    p.add_argument("path", nargs="?", default=None, metavar="PATH",  # None: not given
                    help="your project folder (default: this folder), one results file, or an "
                         "MLflow store (mlflow.db or an mlruns/ folder)")
     p.add_argument("--tool", choices=TOOLS,
@@ -397,12 +397,13 @@ def cmd_fix(args) -> int:
 def cmd_front(args) -> int:
     from judgekeeper import front
 
-    return front.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
+    return front.run(args.path or ".", tool=args.tool, metric=args.metric,
+                     experiment=args.experiment,
                      tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                      label_map=args.label_map, judge_model=args.judge_model,
                      yes=args.yes, port=args.port,
                      no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop,
-                     labels=args.labels)
+                     labels=args.labels, given=args.path is not None)
 
 
 COMMANDS = {"mark": cmd_mark, "check": cmd_check, "fix": cmd_fix, None: cmd_front}
@@ -607,8 +608,8 @@ def _main(argv: list[str] | None) -> int:
             _next(NEXT_HELP.replace("{command}", program(_command(args_list) or "") + " --help"))
         return EXIT_USAGE
     try:
-        refuse_linked_folder(args.path)
-        hide_project_keys(args.path)
+        refuse_linked_folder(args.path or ".")
+        hide_project_keys(args.path or ".")
         with trash_removed_at_end():  # MLflow's .trash, once the whole command is done
             return COMMANDS[args.command](args)
     except KeyboardInterrupt:  # Ctrl-C, often at a question: what was saved stays saved

@@ -19,7 +19,8 @@ from tests.test_label_server import Client
 
 SHOWN_PATH = (".judgekeeper\\fix\\failed-answers.md" if is_windows()  # as the terminal names it
               else ".judgekeeper/fix/failed-answers.md")
-FOUND_NEW = "Found {n} since your last results. Mark them to see what changed."
+FOUND_NEW = ("Found {n} since your last results. {same} answers are the same as before and keep "
+             "their marks. Mark them to see what changed.")
 QUESTION_NEXT = "Next: paste the prompt above into your coding agent, then run `judgekeeper` again."
 FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes your AI's "
             "prompt, save your AI's new answers and run `judgekeeper` again.")
@@ -337,11 +338,11 @@ def test_new_answers_since_the_last_results_are_named_once(here, capsys):
     _mark_by_answer(here)
     _go(capsys)
     _write(here, [(q, f"New {a}") for q, a in rows[:3]] + rows[3:])
-    assert FOUND_NEW.format(n="3 new answers") in flat(_go(capsys))
+    assert FOUND_NEW.format(n="3 new answers", same=9) in flat(_go(capsys))
     assert "since your last results" not in _go(capsys)  # said once, on the run that found them
     _write(here, [(q, f"Newer {a}") for q, a in rows[:1]]
            + [(q, f"New {a}") for q, a in rows[1:3]] + rows[3:])
-    assert FOUND_NEW.format(n="1 new answer") in flat(_go(capsys))
+    assert FOUND_NEW.format(n="1 new answer", same=9) in flat(_go(capsys))
 
 
 def test_the_same_answers_saved_again_find_nothing_new(here, capsys):

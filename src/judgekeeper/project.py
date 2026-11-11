@@ -362,7 +362,4 @@ def _as_text(value) -> str:
 def is_project(folder: Path) -> bool:
     from judgekeeper import find
 
-    try:
-        return any((folder / m).exists() for m in find.PROJECT_MARKERS)
-    except OSError:
-        return False
+    return find.has_marker(folder)

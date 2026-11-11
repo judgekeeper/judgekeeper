@@ -45,6 +45,7 @@ from judgekeeper.textio import (
     link_in,
     loads,
     make_private,
+    percent,
     plural,
     program,
     read_cached,
@@ -1187,7 +1188,7 @@ def describe(corrected: dict) -> dict:
 
 
 def _pct(x: float) -> str:
-    return f"{x:.0%}"
+    return percent(x)
 
 
 def marks_words(labels: dict) -> str:
@@ -1470,12 +1471,12 @@ def repeat_lines(repeats: dict | None, real_pass: float | None = None,
     if n >= SLIP_FROM and real_pass is not None:
         best = targets.best_possible(real_pass, targets.slip_rate(k / n))
         shown = dict(zip(("tpr", "tnr"), estimates or (), strict=False))
-        if any(shown[key] is not None and round(best[key] * 100) < round(shown[key] * 100)
-               for key in shown):
+        if any(shown[key] is not None and int(percent(best[key])[:-1])
+               < int(percent(shown[key])[:-1]) for key in shown):
             return out
         out.append(f"At this rate, even a perfect LLM-as-a-judge would agree with you only "
-                   f"about {round(best['tpr'] * 100)}% when you say Pass and "
-                   f"{round(best['tnr'] * 100)}% when you say Fail.")
+                   f"about {percent(best['tpr'])} when you say Pass and "
+                   f"{percent(best['tnr'])} when you say Fail.")
     return out
 
 

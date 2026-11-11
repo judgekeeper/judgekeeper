@@ -86,7 +86,8 @@ def test_the_docs_give_the_figures_of_the_run():
 
 
 def test_the_docs_quote_the_prompts_judgekeeper_prints():
-    fix = no_grades.FIX_PROMPT.format(file=".judgekeeper/fix/failed-answers.md")
+    fix = no_grades.FIX_PROMPT.format(file=".judgekeeper/fix/failed-answers.md",
+                                      with_reasons=", with my reasons")
     assert fix in _text(ROOT / "docs" / "reference.md")
     questions = front.QUESTIONS_PROMPT.format(program="judgekeeper")
     assert questions in html.unescape(_text(ROOT / "website" / "start.html"))

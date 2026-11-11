@@ -118,6 +118,8 @@ function fetch(url, opts) {
 }
 function settle() { return new Promise(function (r) { setImmediate(r); }); }
 function later(ms) { NOW += ms; }
+// The result-ready box opens after a pause with no mark (READY_WAIT_MS, real time)
+function pause() { return new Promise(function (r) { setTimeout(r, 1300); }); }
 // The page's elements, placed as the page has them.
 var card = document.getElementById("answer-card");
 main.appendChild(section); section.appendChild(card);
@@ -223,7 +225,7 @@ def test_an_answer_behind_the_ready_box_counts_its_seconds_from_when_the_box_clo
     "Your result is ready" box covered it."""
     got = _run("""
       status = {text: "Ready.", ready: true, headline: "Good enough"};
-      key("ArrowRight"); await settle();
+      key("ArrowRight"); await settle(); await pause();
       var box = !ids["ready"].hidden;
       later(14000); ids["ready-box"].fire("keydown", {key: "Escape"}); await settle();
       later(2000); key("ArrowLeft"); await settle();
@@ -237,6 +239,37 @@ def test_a_double_click_marks_one_answer():
       later(100); ids["pass"].fire("click"); await settle();
       console.log(JSON.stringify({sent: sent.length, at: ids["q-text"].textContent}));""")
     assert got == {"sent": 1, "at": "Question 1?"}
+
+
+def test_twelve_clicks_0_3_s_apart_mark_twelve_answers_each_the_one_on_screen():
+    got = _run("""
+      var shown = [];
+      for (var n = 0; n < 12; n++) {
+        shown.push(ids["q-text"].textContent.replace("Question ", "a").replace("?", ""));
+        ids[n % 3 ? "pass" : "fail"].fire("click"); await settle(); later(300);
+      }
+      console.log(JSON.stringify({shown: shown,
+        sent: sent.map(function (s) { return s.body.id; })}));""", data=_data(14))
+    assert got["sent"] == [f"a{i}" for i in range(12)] == got["shown"]
+
+
+def test_the_ready_box_waits_for_a_pause_so_it_takes_no_click_meant_for_an_answer():
+    """The result turns ready at the 2nd mark; clicks go on 0.3 s apart and all count. The
+    box opens once marking stops for a moment, over the answer then on screen."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(300);
+      status.first = true; status.ready = true;
+      var hidden = [];
+      for (var n = 0; n < 6; n++) {
+        ids["fail"].fire("click"); await settle(); later(300);
+        hidden.push(ids["ready"].hidden);
+        await new Promise(function (r) { setTimeout(r, 300); });
+      }
+      await pause();
+      console.log(JSON.stringify({hidden: hidden, sent: sent.length,
+        box: !ids["ready"].hidden, at: ids["q-text"].textContent}));""", data=_data(12))
+    assert got["hidden"] == [True] * 6 and got["sent"] == 7
+    assert got["box"] is True and got["at"] == "Question 7?"
 
 
 def test_a_held_key_or_one_with_cmd_ctrl_or_alt_does_nothing():
@@ -744,7 +777,7 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
       var before = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert")];
       status.first = true; status.ready = true; later(500);
       status.headline = "Your LLM-as-a-judge needs work.";  // still sent; the box never shows it
-      key("ArrowLeft"); await settle();
+      key("ArrowLeft"); await settle(); await pause();
       var shown = [ids["ready"].hidden, document.getElementById("app").getAttribute("inert"),
                    document.activeElement === ids["ready-box"], ids["ready-see"].getAttribute("href"),
                    sent.length, ids["ready-box"].textContent.indexOf("needs work")];
@@ -766,16 +799,19 @@ def test_the_ready_box_comes_once_when_the_result_turns_ready_and_esc_keeps_mark
 def test_the_ready_box_buttons_and_tab_stay_inside_it():
     got = _run("""
       status.ready = true;
-      key("ArrowRight"); await settle();
+      key("ArrowRight"); await settle(); await pause();
+      var open = !ids["ready"].hidden;
       ids["ready-box"].fire("keydown", {key: "Tab"});
       var first = document.activeElement === ids["ready-see"];
       ids["ready-see"].fire("keydown", {key: "Tab"});  // on the box's key handler only
       ids["ready-box"].fire("keydown", {key: "Tab", shiftKey: true});
       var back = document.activeElement === ids["ready-keep"];
       ids["ready-keep"].fire("click");
-      console.log(JSON.stringify({first: first, back: back, closed: ids["ready"].hidden,
-        focus: document.activeElement === ids["answer-card"], sent: sent.length}));""")
-    assert got == {"first": True, "back": True, "closed": True, "focus": True, "sent": 1}
+      console.log(JSON.stringify({open: open, first: first, back: back,
+        closed: ids["ready"].hidden, focus: document.activeElement === ids["answer-card"],
+        sent: sent.length}));""")
+    assert got == {"open": True, "first": True, "back": True, "closed": True, "focus": True,
+                   "sent": 1}
 
 
 def test_the_ready_box_does_not_come_when_the_page_opens_already_ready():
@@ -832,15 +868,17 @@ def test_bold_and_bullets_work_in_a_question_and_in_its_named_parts():
 def test_a_verdict_that_goes_back_to_too_early_changes_the_link_and_never_reopens_the_box():
     got = _run("""
       status.first = true; status.ready = true; status.headline = "x"; later(500);
-      key("ArrowRight"); await settle();
+      key("ArrowRight"); await settle(); await pause();
+      var opened = !ids["ready"].hidden;
       ids["ready-box"].fire("keydown", {key: "Escape"});
       status.ready = false; status.headline = null; later(500);
       key("ArrowRight"); await settle();
       var back = [ids["see"].textContent, ids["keep"].hidden, ids["keep"].textContent];
       status.ready = true; status.headline = "x"; later(500);
-      key("ArrowRight"); await settle();
-      console.log(JSON.stringify({back: back, box: ids["ready"].hidden,
+      key("ArrowRight"); await settle(); await pause();
+      console.log(JSON.stringify({opened: opened, back: back, box: ids["ready"].hidden,
                                   link: ids["see"].textContent}));""")
+    assert got["opened"] is True
     assert got["back"] == ["See the numbers so far", False,
                            "Your first numbers are in. Too early to tell: keep marking."]
     assert got["box"] is True  # once only
