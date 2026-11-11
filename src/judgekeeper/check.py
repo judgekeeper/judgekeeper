@@ -56,6 +56,7 @@ from judgekeeper.textio import (
     old_hook,
     percent,
     plural,
+    points,
     program,
     program_in,
     quote_arg,
@@ -1086,7 +1087,7 @@ def _say_table(said: Said, g: dict, unit_said: bool = False) -> bool:
 
 
 def _points(x: float) -> int:
-    return round(abs(x) * 100)
+    return points(abs(x))
 
 
 def _worst(low: float) -> int:

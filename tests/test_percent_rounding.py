@@ -49,3 +49,10 @@ def test_23_of_40_passed_reads_about_58(here, capsys, pages):
     assert no_grades.rate_words(result).startswith("about 58%, between")
     page = " ".join(_seen(ws.report_html.read_text(encoding="utf-8")).split())
     assert "about 58%" in page and "about 57%" not in page
+
+
+@pytest.mark.parametrize(("change", "shown"), [(-0.125, 13), (0.125, 13), (-0.145, 15),
+                                               (-0.124, 12), (-23 / 40 + 0.5, 8)])
+def test_check_s_percentage_points_round_half_up_too(change, shown):
+    """A 12.5-point drop is 13 points, as 12.5% is 13%: never round()'s 12."""
+    assert check._points(change) == shown
