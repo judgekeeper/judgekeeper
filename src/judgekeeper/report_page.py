@@ -212,7 +212,14 @@ REASONS_SCRIPT = """
         window.fetch("/label?token=" + encodeURIComponent(token), {method: "POST",
           headers: {"Content-Type": "application/json"}, body: JSON.stringify(body())})
           .then(function (r) {
-            if (r.ok) { saved.textContent = "Saved"; line(); if (close) { shut(); } return; }
+            if (r.ok) {
+              saved.textContent = "Saved"; line(); if (close) { shut(); }
+              // the prompt for a coding agent says "with my reasons" once there is one
+              return r.json().then(function (b) {
+                var code = document.querySelector(".cmd.prompt code");
+                if (code && b.summary && b.summary.prompt) { code.textContent = b.summary.prompt; }
+              }, function () {});
+            }
             return r.json().then(function (e) {
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });

@@ -555,3 +555,20 @@ def test_a_reason_typed_after_a_change_gets_a_button_when_the_old_ones_are_unuse
     run(capsys, "--no-browser")
     page.update({"id": fail, "note": "Invents a 30-day limit on size exchanges"})
     _counted_everywhere(here, capsys, ["Invents a 30-day limit on size exchanges"])
+
+
+def test_a_reason_saved_on_the_page_gives_the_page_the_terminal_s_prompt(here, capsys,
+                                                                         marked):
+    """The page's prompt box follows each reason saved, so it says what the terminal says."""
+    page = marked(["pass"] * 6 + ["fail"] * 4)
+    shown = [i for i in _by_label(page, "fail") if i in _split(here).seen]
+    page.update({"id": shown[0], "note": "It is missing the refund window"})
+    assert page.summary()["prompt"] == "\n".join(HERE_LINES)
+    _, out, _ = run(capsys, "--no-browser")
+    assert "\n".join(HERE_LINES) in out
+    page.update({"id": shown[0], "note": ""})
+    assert page.summary()["prompt"] == "\n".join(HERE_NO_REASONS)
+    page.update({"id": shown[0], "label": "fail", "seconds": 3})  # a mark: no prompt
+    assert "prompt" not in page.summary()
+    assert 'querySelector(".cmd.prompt code")' in report_page.REASONS_SCRIPT
+    assert "b.summary.prompt" in report_page.REASONS_SCRIPT

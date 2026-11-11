@@ -842,6 +842,7 @@ class StartSession(LabelSession):
         self.seed = data.get("seed")
         self.offer: dict | None = None  # an answer to show again, in the answer to the last change
         self.dropped: int | None = None  # a repeat card the last change took back (its slot)
+        self.prompt: str | None = None  # the coding agent's prompt after a reason saved
         self.offered: dict[int, str] = {}  # slot -> the answer this page was asked to show again
         self.link: str | None = None  # marks.PRINTED once the page's link was printed with no terminal
         self.not_counted = 0  # lines of marks.jsonl not made on the page
@@ -919,7 +920,7 @@ class StartSession(LabelSession):
         repeat card still waiting, so the result shows at once."""
         self.before = self.version()
         self._reread()
-        self.offer = self.dropped = None
+        self.offer = self.dropped = self.prompt = None
         item = self.by_id[body["id"]]
         if "again" in body:
             self._repeat(item, body)
@@ -1058,6 +1059,10 @@ class StartSession(LabelSession):
             write_report(self.workspace)
         except OSError:
             pass  # the reasons are saved; report.html catches up with the next result
+        from judgekeeper import no_grades
+
+        if no_grades.here(self.workspace) and no_grades.has_failed(self.workspace):
+            self.prompt = no_grades.fix_prompt(self.workspace, True)  # the page's box follows
 
     def write(self) -> None:
         raise NotImplementedError("marks.jsonl gets one line per change: use update()")
@@ -1078,7 +1083,8 @@ class StartSession(LabelSession):
                 "status": self.current_status(), "version": self.version(),
                 **({"before": self.before} if self.before is not None else {}),
                 **({"again": self.offer} if self.offer else {}),
-                **({"dropped": self.dropped} if self.dropped is not None else {})}
+                **({"dropped": self.dropped} if self.dropped is not None else {}),
+                **({"prompt": self.prompt} if self.prompt else {})}
 
     def _shown(self, i: dict) -> dict:
         """One answer as the page shows it."""
