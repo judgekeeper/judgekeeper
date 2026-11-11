@@ -242,6 +242,7 @@ class FrontTalk(start.Talk):
         self.step: str | None = None  # said before the first line, when there is one (go)
         self.find_said = False  # "Step 1 of 5: Find" was said in this run
         self.path_said = False  # path_lines were said in this run
+        self.switched: str | None = None  # _switched_line, said once
         self.found: start.Found | None = None  # the results read, for path_lines
         self.path_head: list[str] = []  # path_lines in a step's head lines (_path_first)
         # --labels (never repeated in a command): a file's name or labels.IN_RESULTS; then the
@@ -3002,6 +3003,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     talk.ask_noted()
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
+    talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
         start_label.prepare(found, say=lambda line: None, ws=ws)
         _import_labels(talk, ws, found, first)  # --labels: the marks it brings
@@ -3018,6 +3020,30 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
 
 
 NO_GRADES = "none. You mark each answer."  # Find's Grades line: no LLM-as-a-judge checked
+
+
+def _switched_line(ws: Workspace, found: start.Found) -> str | None:
+    """NEWEST (READING for an older one) when the file read now is not the one read last."""
+    if found.given or not found.results:
+        return None
+    try:
+        data = ws.data()
+        files = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if not files or data.get("given") or _same_files(ws, data, files, found):
+        return None
+    return (READING if _older(ws, data, files, found) else NEWEST).format(file=_newest(found))
+
+
+def _say_switched(talk: FrontTalk, new: int) -> None:
+    """_switched_line, in one paragraph with the new answers it brought (found_line)."""
+    line = getattr(talk, "switched", None)
+    if line:
+        talk.para(line)
+        if not new:
+            talk.say()
+        talk.switched = None
 
 
 def _no_grades_block(found: start.Found) -> list[str]:
@@ -3050,6 +3076,7 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     talk.say()
     if talk.found is not None:
         _say_path(talk, talk.found)
+    _say_switched(talk, new)
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()
@@ -3110,6 +3137,7 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     talk.say()
     if talk.found is not None:
         _say_path(talk, talk.found)
+    _say_switched(talk, new)
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()

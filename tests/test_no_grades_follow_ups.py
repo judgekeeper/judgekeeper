@@ -417,3 +417,24 @@ def test_the_result_page_under_ten_marks_says_one_line(here, capsys):
     assert "Mark a few more answers to see your result." in seen
     assert "Mark more answers to get a result." not in seen
 
+
+
+def test_a_newer_results_file_is_named_once_when_it_is_read(here, capsys):
+    """T2: results-b.jsonl saved next to results.jsonl is read as new answers."""
+    import os
+    import time
+
+    write_answers(here, 12, "jsonl")
+    _go(capsys)
+    _mark_by_answer(here)
+    assert "Reading" not in _go(capsys)
+    newer = here / "results-b.jsonl"
+    newer.write_text("".join(json.dumps({"input": f"What is question {i}?",
+                                         "output": f"Another answer {i}."}) + "\n"
+                             for i in range(12)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(newer, (later, later))
+    said = flat(_go(capsys))
+    assert "Reading results-b.jsonl, the newest results here." in said, said
+    assert said.index("Reading results-b.jsonl") < said.index("Found 12 new answers")
+    assert "Reading" not in _go(capsys)  # the same file again: nothing to say
