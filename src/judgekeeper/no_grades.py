@@ -402,6 +402,7 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
         saved = None
     if isinstance(saved, dict) and saved.get("marks_sha256") == d and saved.get("graded") is False:
         write_failed(ws, session, saved)
+        _damage_said(ws, saved)
         return saved
     r = made(ws, session, flags)
     write_failed(ws, session, r)  # before report.html: its What next names the file
@@ -422,7 +423,18 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
     _write_json(ws.result_json, _scrubbed(r))
     if drawn:
         _same_time(ws.report_html, ws.result_json)
+    _damage_said(ws, r)
     return r
+
+
+def _damage_said(ws, r: dict) -> None:
+    """BEFORE_DAMAGED is said by the result that found the damage only: later ones compare as
+    usual."""
+    if not (r.get("since") or {}).get("damaged"):
+        return
+    before = read_before(ws)
+    if before and before["repaired"] and not _before_path(ws).is_symlink():
+        _write_before(ws, {**before, "repaired": False})
 
 
 def status(session, run: str | None = None) -> dict:
@@ -1028,7 +1040,20 @@ def _before_or_new(ws) -> dict | None:
         return None
     if not path.exists():
         return {"questions": {}, "round": None}
-    return read_before(ws) or {"questions": {}, "round": None, "repaired": True}
+    return read_before(ws) or {"questions": {}, "round": _round_now(ws), "repaired": True}
+
+
+def _round_now(ws) -> dict | None:
+    """In place of a damaged before.json's round: the answers now, those not marked yet the
+    new ones (waiting_line)."""
+    try:
+        rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8")) if x.strip()]
+    except (OSError, ValueError):
+        return None
+    ids = [r["id"] for r in rows if isinstance(r, dict) and isinstance(r.get("id"), str)]
+    counted = _counted(ws)
+    return {"stamp": results_stamp(ids),
+            "new": sorted(i for i in ids if counted.get(i) not in ("pass", "fail"))}
 
 
 def remember(ws) -> None:

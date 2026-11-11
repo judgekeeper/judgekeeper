@@ -609,3 +609,17 @@ def test_after_3_changes_the_box_names_one_number(c):
     box = " ".join([no_grades.result_line({**c, "clear": False, "kind": "same"}),
                     no_grades.new_set_line(c)])
     assert box.count("Add ") == 1, box
+
+
+def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
+    """T4: new answers left unmarked, before.json damaged, then runs and `mark`."""
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=20)
+    project.again({0: None, 1: None, 7: None}, marked=False)
+    path = _before(project.here)
+    path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
+    assert DAMAGED in project.run()  # the run that found it
+    assert DAMAGED not in project.run()  # the same answers again: said once
+    _, out, err = run(project.capsys, "mark", "--no-browser")
+    assert "3 new answers are waiting to be marked." in flat(out), out + err
+    _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
+    assert DAMAGED not in project.run()
