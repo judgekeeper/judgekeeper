@@ -123,3 +123,44 @@ def test_mark_stop_with_a_path_closes_the_page_the_main_command_does(repo, capsy
                      page.is_open(repo / ".judgekeeper")))
     assert said[1] == said[0]
     run(capsys, "--stop")
+
+
+def _answers_only(folder, kind: str = "csv") -> None:
+    folder.mkdir(parents=True)
+    write_answers(folder, 2 if kind == "csv" else 12, kind)
+
+
+@pytest.mark.parametrize("kind", ["csv", "jsonl"])
+@pytest.mark.parametrize("argv", [(), (".",)])
+def test_a_folder_holding_answers_with_no_grade_is_the_project(repo, capsys, monkeypatch,
+                                                                kind, argv):
+    folder = repo / "probe" / "a"
+    _answers_only(folder, kind)
+    code, said = _run(capsys, monkeypatch, folder, *argv)
+    assert code == 0 and "No eval results in" not in said and CLIMB not in said, said
+    assert f"File: results.{kind}" in said and "Grades: none." in said, said
+    assert (folder / ".judgekeeper").is_dir() and not (repo / ".judgekeeper").exists()
+
+
+def test_answers_in_a_subfolder_use_its_own_marks_not_the_folder_above(repo, capsys,
+                                                                        monkeypatch):
+    """T2's b/: the folder above holds marks on its own results; b/ holds other answers."""
+    main = repo / "booking"
+    main.mkdir()
+    (main / "bot.py").write_text("", encoding="utf-8")
+    write_answers(main, 12, "jsonl")
+    _run(capsys, monkeypatch, main)
+    from tests.test_answers_without_grades import mark
+
+    mark(main, ["pass"] * 12)
+    b = main / "b"
+    b.mkdir()
+    (b / "results.jsonl").write_text("".join(
+        f'{{"input": "Book a table {i}?", "output": "Booked {i}."}}\n' for i in range(12)),
+        encoding="utf-8")
+    for argv in ((".",), ()):
+        code, said = _run(capsys, monkeypatch, b, *argv)
+        assert code == 0 and "No eval results" not in said and "Your 12 marks" not in said, said
+        assert "results.jsonl has no LLM-as-a-judge grades" in said, said
+        assert project.project_of(b) == b and (b / ".judgekeeper").is_dir()
+    assert "File: results.jsonl" not in flat(capsys.readouterr().out)

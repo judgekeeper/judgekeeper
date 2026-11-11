@@ -611,17 +611,16 @@ def test_results_in_a_project_below_are_named_not_the_answers_here(here, capsys,
     assert "support-bot" in out and "dataset.csv" not in out
 
 
-def test_results_in_the_project_above_are_read_not_the_answers_here(here, monkeypatch):
+def test_the_answers_here_are_read_not_the_results_in_the_project_above(here, monkeypatch):
     (here / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
     write_answers(here, 40, grades=["pass", "fail"] * 20)
     src = here / "src"
     src.mkdir()
     write_answers(src, 12, name="sample")
-    assert find.search(src).readable("table") == []
-    assert find.results_above(src) == here
+    assert [r.rel for r in find.search(src).readable("table")] == ["sample.csv"]
     monkeypatch.chdir(src)
     found = start.find_judge(src, answers=True)
-    assert found.graded is True
+    assert found.graded is False
 
 
 def test_answers_alone_never_make_a_folder_hold_results(here):
