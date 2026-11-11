@@ -94,27 +94,32 @@ def test_a_grader_reading_input_runs_on_the_file_and_fix_reads_its_grades(here, 
         in said, said
 
 
-def _graded_again(here, ws) -> str:
-    """marked-answers.csv as it was handed out, with a verdict column: the person's own marks."""
+def _graded_again(here, ws, names=None) -> str:
+    """marked-answers.csv as it was handed out (or with its two columns `names`, as a script
+    from before writes `question,answer`), with a verdict column: the person's own marks."""
     rows = _rows(ws.dir / "fix" / "marked-answers.csv")
     index = {answer(i): i for i in range(40)}
     with (here / "results-v2.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow([*rows[0], "verdict"])
+        w.writerow([*(names or rows[0]), "verdict"])
         for q, a in rows[1:]:
             w.writerow([q, a, "pass" if person(index[a]) else "fail"])
     return "results-v2.csv"
 
 
+@pytest.mark.parametrize("names", [None, ["question", "answer"]])
 @pytest.mark.parametrize("step", ["fix", "check"])
-def test_marked_answers_with_a_verdict_go_back_as_they_are(here, capsys, monkeypatch, step):
+def test_marked_answers_with_a_verdict_go_back_as_they_are(here, capsys, monkeypatch, step,
+                                                           names):
     ws = project("jsonl", here, monkeypatch)
     capsys.readouterr()
     run(capsys, "fix")
-    code, out = run(capsys, step, _graded_again(here, ws))
+    code, out = run(capsys, step, _graded_again(here, ws, names))
     said = " ".join(out.split())
-    assert code != 2, said
+    assert code == 0, said
     assert "not a results file" not in said and "looks like another eval" not in said, said
+    if step == "fix":
+        assert "tested on the 20 marks kept aside" in said, said
 
 
 def test_question_and_answer_are_read_only_beside_a_grade_and_never_over_input_or_output():
