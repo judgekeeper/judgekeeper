@@ -47,8 +47,10 @@ def _new_results(proj: Path) -> None:
     """marked-answers.csv graded again, as the old judge graded it: no drop."""
     import csv
 
+    from tests.start_projects import marked_rows
+
     with (proj / ".judgekeeper" / "fix" / "marked-answers.csv").open(encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(f)
     with (proj / "new.csv").open("w", encoding="utf-8", newline="") as f:
         out = csv.writer(f)
         out.writerow(["input", "output", "verdict"])

@@ -18,7 +18,7 @@ from judgekeeper import __version__, batches, fix
 from judgekeeper.cli import main
 from judgekeeper.start_label import StartSession, Workspace
 from judgekeeper.textio import quote_arg
-from tests.start_projects import promptfoo_data
+from tests.start_projects import marked_rows, promptfoo_data
 
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def test_the_echo_regrade_still_finds_every_answer_kept_aside(here, capsys):
     capsys.readouterr()
     kept = len(fix.read_split(ws).hidden)
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(f)
     assert len(rows) == YES_NO
     wrong = [(r["answer"] == "Yes.") != (int(re.search(r"Question (\d+):", r["question"])[1])
                                          % 2 == 0) for r in rows]  # every grade the other way
@@ -186,7 +186,7 @@ def test_a_table_under_the_first_models_name_is_still_compared(here, capsys):
 def _regrade_csv(ws: Workspace, path: Path) -> Path:
     """marked-answers.csv graded again, as a new rule that agrees with the person would."""
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(f)
     with path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["input", "output", "verdict", "reason", "model"])
@@ -484,7 +484,7 @@ def test_a_question_asked_twice_is_found_after_the_echo_regrade(here, capsys):
     assert main(["fix"]) == 0
     kept = len(fix.read_split(ws).hidden)
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
+        rows = marked_rows(f)
     asked = [int(re.search(r"Question (\d+):", r["question"])[1]) for r in rows]
     data = promptfoo_data([(r["answer"] == "Yes.") != (q % 2 == 0) for r, q in
                            zip(rows, asked, strict=True)], rubric="Right answers only, please.",
@@ -552,7 +552,7 @@ def test_the_echo_regrades_answer_var_never_matches_another_rows_value(here, cap
     ws = _mark_as_graded(here)
     assert main(["fix"]) == 0
     with (ws.dir / "fix" / "marked-answers.csv").open(encoding="utf-8", newline="") as f:
-        marked = list(csv.DictReader(f))
+        marked = marked_rows(f)
     place = [re.search(r"place (\d+)", r["question"])[1] for r in marked]
     regraded = [({"question": r["question"], "answer": r["answer"]}, r["answer"],
                  r["answer"] == f"City {k}.") for r, k in zip(marked, place, strict=True)]

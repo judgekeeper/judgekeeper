@@ -257,7 +257,8 @@ def test_fix_round_trip_reads_files_only(tool, here, capsys, monkeypatch):
     if os.name != "nt":
         assert mode(folder / "mistakes.md") == mode(folder / "marked-answers.csv") == 0o600
     rows = list(csv.reader((folder / "marked-answers.csv").open(encoding="utf-8")))
-    assert rows[0] == ["question", "answer"] and len(rows) == N + 1
+    assert rows[0] == (["input", "output"] if tool == "jsonl" else ["question", "answer"])
+    assert len(rows) == N + 1
     assert {tuple(r) for r in rows[1:]} == {(question(i), answer(i)) for i in range(N)}
     kept = hidden(ws)
     assert len(kept) == N // 2  # half of each cell: 3 + 2 of the mistakes, 7 + 8 of the rest
@@ -427,10 +428,10 @@ def test_marked_answers_hide_keys_and_guard_formulas(here, capsys, monkeypatch):
 
     # graded again straight from the file, guard quotes and all: every answer is still found
     rows = list(csv.DictReader(written.splitlines(keepends=True)))
-    where = {table.unguard_cell(r["question"]): r for r in rows}
+    where = {table.unguard_cell(r["input"]): r for r in rows}
     regraded = here / "regraded.jsonl"
     regraded.write_text("".join(json.dumps(
-        {"input": where[q]["question"], "output": where[q]["answer"],
+        {"input": where[q]["input"], "output": where[q]["output"],
          "verdict": "pass" if person(i) else "fail", "model": "gpt-4.1"}) + "\n"
         for i, (q, _) in texts.items()), encoding="utf-8")
     with only_reads(monkeypatch):

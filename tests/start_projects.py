@@ -30,6 +30,14 @@ def answer(i: int, tag: str = "") -> str:
     return f"Answer {i}.{tag}"
 
 
+def marked_rows(f) -> list[dict]:
+    """fix/marked-answers.csv's rows as question and answer, by place: its two columns are a
+    CSV, TSV or JSONL file's own names, or `question,answer`."""
+    rows = csv.reader(f)
+    next(rows, None)
+    return [{"question": r[0], "answer": r[1]} for r in rows]
+
+
 def _write_json(path: Path, data) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=1), encoding="utf-8")
