@@ -164,3 +164,17 @@ def test_answers_in_a_subfolder_use_its_own_marks_not_the_folder_above(repo, cap
         assert "results.jsonl has no LLM-as-a-judge grades" in said, said
         assert project.project_of(b) == b and (b / ".judgekeeper").is_dir()
     assert "File: results.jsonl" not in flat(capsys.readouterr().out)
+
+
+NEW_HERE = "Starting a new project here? Run `judgekeeper . --no-browser`."
+
+
+@pytest.mark.parametrize("files", [("notes.md",), ()])
+def test_reading_the_folder_above_says_how_to_start_a_new_project_here(repo, capsys,
+                                                                        monkeypatch, files):
+    folder = _folder(repo, files)
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 0, said
+    assert f"{CLIMB} (tests). {NEW_HERE}" in said, said
+    code, said = _run(capsys, monkeypatch, folder, ".")
+    assert code == 3 and "No answers yet?" in said and NEW_HERE not in said, said

@@ -95,6 +95,7 @@ MIN_POOL = 2 * ROUGH  # a rough check needs ROUGH of each
 RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first block
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point judgekeeper at the results: {program} path/to/results.json"
+NEW_HERE = "Starting a new project here? Run `{command}`."  # after reading the folder above
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
@@ -1513,7 +1514,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
         return _locate(talk, above[1], tool)
     if above is not None:  # run from a subfolder (src/, say) of the project
         _note(talk, f"No eval results in {root.name}. Reading the project folder above it "
-                    f"({above[1].name}).")
+                    f"({above[1].name}). " + NEW_HERE.format(command=talk.command_in(".")))
         talk.say()
         return _locate(talk, above[1], tool)
     if tool is not None:
