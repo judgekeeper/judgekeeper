@@ -500,3 +500,58 @@ def test_the_file_asks_for_changes_shown_first_as_the_prompt_does(here, capsys, 
     assert task == no_grades.FIX_TASK
     assert task.startswith("Suggest changes") and "Change your AI" not in text
     assert "Show the changes before you make them." in task
+
+
+def _typed_on_every_shown_fail(here, page, words: str) -> list[str]:
+    shown = [i for i in _by_label(page, "fail") if i in _split(here).seen]
+    for n, i in enumerate(shown):
+        page.update({"id": i, "note": f"{words} {n}"})
+    return [f"{words} {n}" for n in range(len(shown))]
+
+
+def _counted_everywhere(here, capsys, said: list[str]) -> None:
+    """Every reason typed is in the tally, its own group, result.json, the terminal line and
+    a button another answer can tap."""
+    _, out, _ = run(capsys, "--no-browser")
+    text = _failed(here).read_text(encoding="utf-8")
+    listed = text.split("## Your reasons\n\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert sorted(listed) == sorted(f"- “{w}” (1)" for w in said)
+    assert "## No reason given" not in text
+    assert sorted(w for w, _ in _result(here)["reasons"]) == sorted(f"“{w}”" for w in said)
+    line = flat(out).split("Your reasons: ", 1)[1]
+    assert all(f"“{w}” (1)" in line for w in said), out
+    buttons = [c["text"] for c in reasons.own_chips(_ws(here))]
+    assert said[-1] in buttons
+
+
+def test_every_reason_typed_counts_with_more_than_the_buttons_kept(here, capsys, marked):
+    page = marked(["pass"] * 2 + ["fail"] * 18, n=20)
+    said = _typed_on_every_shown_fail(here, page, "It gets shipping wrong, case")
+    assert len(said) == 9 > reasons.MAX_OWN
+    _, _, _ = run(capsys, "--no-browser")
+    text = _failed(here).read_text(encoding="utf-8")
+    listed = text.split("## Your reasons\n\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert sorted(listed) == sorted(f"- “{w}” (1)" for w in said)
+    assert "## No reason given" not in text
+    assert sorted(w for w, _ in _result(here)["reasons"]) == sorted(f"“{w}”" for w in said)
+
+
+def test_a_reason_typed_after_a_change_gets_a_button_when_the_old_ones_are_unused(
+        here, capsys, pages):
+    write_answers(here, 20)
+    run(capsys, "--no-browser")
+    page = mark(here, ["pass"] * 2 + ["fail"] * 18)
+    run(capsys, "--no-browser")
+    _typed_on_every_shown_fail(here, page, "Old reason")
+    assert len(reasons.own_chips(_ws(here))) == reasons.MAX_OWN
+    rows = [{"input": f"What is question {i}?", "output": f"A new answer {i}."}
+            for i in range(20)]
+    write_rows(here, rows)
+    run(capsys, "--no-browser")
+    page = mark(here, ["pass"] * 20)
+    run(capsys, "--no-browser")
+    fail = next(i for i in _split(here).seen if i in page.by_id)
+    page.update({"id": fail, "label": "fail", "seconds": 3})
+    run(capsys, "--no-browser")
+    page.update({"id": fail, "note": "Invents a 30-day limit on size exchanges"})
+    _counted_everywhere(here, capsys, ["Invents a 30-day limit on size exchanges"])

@@ -1045,7 +1045,12 @@ class StartSession(LabelSession):
             m = marks.read(self.out)
             tapped = {k for i, x in m.last.items() if i != item["id"]
                       for k in x.get("reasons") or []}
-            reasons.sync_own(self.workspace, item["id"], why.get("note", ""), tapped)
+            others = {i: reasons.of_line(x) for i, x in m.last.items()
+                      if i != item["id"] and i in self.by_id}
+            used = {k for w in others.values() for k in w["reasons"]} | {
+                c["id"] for c in reasons.own_chips(self.workspace) for i, w in others.items()
+                if w["note"] and (c.get("from") == i or reasons.same_words(c["text"], w["note"]))}
+            reasons.sync_own(self.workspace, item["id"], why.get("note", ""), tapped, used)
         marks.append(self.out, marks.stamp(item["id"], item["label"],
                                            self.groups.get(item["id"]), None, self.sitting,
                                            link=self.link, why=why))

@@ -41,6 +41,7 @@ from judgekeeper.textio import jsonl_lines, loads, make_private, plural, write_r
 MIN_MARKS = 10  # marks for a first result
 COUNTS = "You passed {k} of {n}."  # the headline, the pop-up and the terminal
 REASONS_LINE = "Your reasons: {said}."
+NOTE = "note:"  # a reason row's key for words typed with no button of their own (MAX_OWN)
 # every answer marked, fewer than MIN_MARKS: the terminal's and the end card's Next line
 MORE_ANSWERS = "add more answers to {file} (at least {n} in all), then run `{command}` again."
 # every answer marked, a result: the same, for a surer number
@@ -141,8 +142,12 @@ def reason_rows(ws, session) -> list[dict]:
             c["id"] for c in own.values() if why["note"] and c["id"] not in why["reasons"]
             and (c.get("from") == item["id"] or reasons.same_words(c["text"], why["note"]))]
         taps = [k for k in taps if k in reasons.REASONS or k in own]
-        rows.append({"id": item["id"], "reasons": taps,
-                     "words": {k: own[k]["text"] for k in taps if k in own}})
+        words = {k: own[k]["text"] for k in taps if k in own}
+        if why["note"] and not any(reasons.same_words(w, why["note"]) for w in words.values()):
+            key = NOTE + " ".join(why["note"].split()).casefold()  # no button: MAX_OWN reached
+            taps.append(key)
+            words[key] = why["note"]
+        rows.append({"id": item["id"], "reasons": taps, "words": words})
     return rows
 
 
