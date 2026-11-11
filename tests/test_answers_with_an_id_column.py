@@ -9,7 +9,7 @@ import csv
 import pytest
 
 from judgekeeper import no_grades, start_label
-from tests.test_answers_without_grades import _session
+from tests.test_answers_without_grades import _session, mark
 from tests.test_front import flat, run
 
 
@@ -67,3 +67,47 @@ def test_exact_repeats_count_once_with_an_id_column_or_without(here, capsys, pag
     said = _ok(capsys)
     assert len(_session(here).items) == 12
     assert "so each counts once." in said, said
+
+
+def test_a_grade_column_added_later_keeps_the_marks_made_with_an_id_column(tmp_path,
+                                                                          monkeypatch, capsys,
+                                                                          pages):
+    monkeypatch.chdir(tmp_path)
+    rows = [{"id": f"case-{i}", "input": f"What is question {i}?", "output": f"Answer {i}."}
+            for i in range(40)]
+
+    def write(grades=None):
+        with (tmp_path / "results.csv").open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=[*rows[0], *(["verdict"] if grades else [])])
+            w.writeheader()
+            w.writerows({**r, **({"verdict": g} if grades else {})}
+                        for r, g in zip(rows, grades or [None] * 40, strict=True))
+
+    write()
+    run(capsys, "--no-browser")
+    mark(tmp_path, ["pass", "pass", "fail"] * 10)
+    write(["pass", "fail"] * 20)
+    code, out, err = run(capsys, "--no-browser")
+    assert code in (0, 3), out + err
+    assert "You marked 30 answers so far" in flat(out), out
+    assert sum(1 for i in _session(tmp_path).items if i["label"]) == 30
+
+
+def test_labels_by_id_and_answer_match_the_answers_whose_ids_come_from_their_text(
+        tmp_path, monkeypatch, capsys, pages):
+    """A label file with the id column and the answer (one with the id alone is refused when
+    it is read, on every path): the answers' ids come from their text, and it still counts."""
+    monkeypatch.chdir(tmp_path)
+    with (tmp_path / "results.csv").open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["id", "input", "output"])
+        w.writerows([f"case-{i}", f"What is question {i}?", f"Answer {i}."] for i in range(12))
+    with (tmp_path / "mylabels.csv").open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["id", "output", "label"])
+        w.writerows([f"case-{i}", f"Answer {i}.", "fail" if i % 3 == 0 else "pass"]
+                    for i in range(11))
+    code, out, err = run(capsys, "--labels", "mylabels.csv", "--no-browser")
+    said = flat(out)
+    assert code == 0, out + err
+    assert "Added 11 marks from mylabels.csv (7 Pass, 4 Fail)." in said, said

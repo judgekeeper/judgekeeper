@@ -15,8 +15,8 @@ def test_one_answer_the_same_keeps_its_mark_and_is_not_new(project):  # noqa: F8
         project.outs[i] = f"Answer {i}, take 2."
     _write(project.here, project.outs)
     said = project.run()
-    assert ("Found 11 new answers since your last results. 1 answer is the same as before "
-            "and keeps its mark.") in said, said
+    assert ("Found 11 new answers since your last results. Mark them to see what changed. "
+            "1 answer is the same as before and keeps its mark.") in said, said
 
 
 def test_an_answer_back_to_an_older_text_keeps_its_mark_and_is_not_new(project):  # noqa: F811
@@ -27,8 +27,20 @@ def test_an_answer_back_to_an_older_text_keeps_its_mark_and_is_not_new(project):
     project.outs[0] = "First answer 0."  # word for word the first answer: marked then
     _write(project.here, project.outs)
     said = project.run()
-    assert ("Found 11 new answers since your last results. 1 answer is the same as before "
-            "and keeps its mark.") in said, said
+    assert ("Found 11 new answers since your last results. Mark them to see what changed. "
+            "1 answer is the same as before and keeps its mark.") in said, said
+
+
+def test_mark_them_comes_right_after_the_new_answers_it_points_at(project):  # noqa: F811
+    project.first(fails={0, 1, 2}, n=12)
+    for i in range(3):
+        project.outs[i] = f"Answer {i}, take 2."
+    _write(project.here, project.outs)
+    said = project.run()
+    at = [said.find(s) for s in ("Found 3 new answers since your last results.",
+                                 "Mark them to see what changed.",
+                                 "9 answers are the same as before and keep their marks.")]
+    assert -1 not in at and at == sorted(at), said
 
 
 def test_mark_says_new_answers_are_waiting(project):  # noqa: F811

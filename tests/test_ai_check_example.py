@@ -73,7 +73,7 @@ def test_the_run_printed_and_wrote_those_figures():
     assert "You passed 12 of 20 answers." in said
     page = _flat(re.sub(r"<[^>]+>", "", html.unescape(_text(EXAMPLE / "report.html"))))
     assert "You passed 12 of 20 answers." in page and "between 39% and 78%" in page
-    assert "You failed 4 answers here. 4 more are kept aside to test your fix." in _text(
+    assert "You failed 4 answers here. 4 more are kept aside to test your next change." in _text(
         EXAMPLE / "failed-answers.md")
 
 

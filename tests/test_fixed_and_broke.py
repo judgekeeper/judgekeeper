@@ -37,8 +37,14 @@ def more(need: int, kept: int, extra: int) -> str:
 WAIT = "Mark the new answers to see what changed."
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 NEW_SET = ("You have tested 3 changes on these questions kept aside, so they no longer give a "
-           "fair test. Add about 10 new questions and mark their answers; half of them are kept "
-           "aside as a new test.")
+           "fair test.")
+
+
+def new_set(n: int | None) -> str:
+    """The 3-changes line asking for about `n` new questions; None: for harder ones."""
+    add = (f"Add about {n} new questions" if n is not None
+           else "Add harder questions, ones your AI may get wrong,")
+    return f"{NEW_SET} {add} and mark their answers; half of them are kept aside as a new test."
 
 
 @pytest.fixture
@@ -363,6 +369,18 @@ def test_the_sign_test_decides(fixed, broke, same, line):
         == line + ("" if clear else " " + more(6, 4, 25))
 
 
+@pytest.mark.parametrize(("fails", "marked", "n"), [
+    (9, 50, 100), (9, 51, None),  # 100 and 102: the most it asks for, and one over
+    (6, 37, None), (1, 40, None),  # T4's share (111) and T3's (720): harder questions
+    (12, 20, 30), (20, 20, 18), (0, 20, None), (0, 0, None)])
+def test_the_new_questions_asked_for_are_enough_for_a_clear_answer(fails, marked, n):
+    """As many new questions as a new set needs for a clear answer (CLEAR_ADD's sum, with no
+    kept-aside Fail yet), at the share of questions that failed, up to 100; over 100, or with
+    no Fail to work it out from, harder questions."""
+    c = {"new_set": True, "fails": fails, "marked": marked}
+    assert no_grades.since_lines(c)[0] == new_set(n)
+
+
 def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(project):
     project.first(fails=set(range(12)), n=20)
     kept = project.kept("fail")
@@ -373,7 +391,7 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
     assert LEANS_BETTER + " " + more(7, 6, 17) in said  # 12 of 20 failed, 6 kept aside
-    assert NEW_SET in said
+    assert new_set(30) in said  # a new set's 9 kept-aside Fails: 18 Fails, at 12 in 20
     tests = no_grades.read_split(_ws(project.here)).tests
     assert len(tests) == fix.MAX_RULES == 3
     again = project.run()  # the same answers: no new test

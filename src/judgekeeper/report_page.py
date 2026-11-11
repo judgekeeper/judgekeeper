@@ -317,6 +317,8 @@ table { border-collapse: collapse; width: 100%; }
 /* Pass and Fail, calmer than the marking page's buttons */
 .w-pass { color: #5cc99b; }
 .w-fail { color: #ef7a7e; }
+/* a blank answer, as the marking page shows it */
+.empty { color: var(--muted); }
 /* a command in a sentence: the website's code chip */
 main p code, .notes-list code { font-size: .9em; color: var(--text);
   background: rgba(255,255,255,.06); border-radius: 4px; padding: 2px 6px;
@@ -1084,10 +1086,11 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
 def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
            parts: list[str] | None = None, own: list[dict] | None = None,
            left_out: int = 0, same: tuple = (), reasons_given: bool = True,
-           asked: list[str] | None = None) -> str:
-    """One group of disagreements: its title, how many more are kept aside (`kept`), the
-    table (its REASON column only when an answer marked has a reason: `reasons_given`), then
-    "Show N more" under it past ROWS_SHOWN rows. Each row's cells show 4 lines,
+           asked: list[str] | None = None, kept_for: str = "your fix") -> str:
+    """One group of disagreements: its title, how many more are kept aside (`kept`, to test
+    `kept_for`), the table (its REASON column only when an answer marked has a reason:
+    `reasons_given`), then "Show N more" under it past ROWS_SHOWN rows. Each row's cells
+    show 4 lines,
     then the row's foot: on the live page (`live`) its reason button and box, the reason
     saved, and the row's own "Show more" (SCRIPT) at the right; in report.html the person's
     reasons, read-only. `asked`: the reason buttons, when not the judge's (_box)."""
@@ -1116,7 +1119,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
             f'aria-controls="t-{key}">Show {len(rows) - ROWS_SHOWN} more</button>'
             if len(rows) > ROWS_SHOWN else "")
     return (f'<section class="sec group" aria-labelledby="g-{key}"><div class="gh">'
-            f'<h2 id="g-{key}">{_colour(_term(said))}</h2>{_kept(kept)}</div>'
+            f'<h2 id="g-{key}">{_colour(_term(said))}</h2>{_kept(kept, kept_for)}</div>'
             f'<table class="tbl{"" if reasons_given else " no-reason"}" id="t-{key}"><colgroup>'
             f'<col class="c1"><col class="c2">{third[0]}</colgroup><thead><tr>'
             f'<th scope="col">Question</th><th scope="col">Answer</th>{third[1]}</tr></thead>'
@@ -1134,12 +1137,13 @@ def kept_line(n: int, of_these: bool = False) -> str:
             "can be tested on answers you haven't looked at again.")
 
 
-def _kept(n: int) -> str:
+def _kept(n: int, kept_for: str = "your fix") -> str:
     """Under a group's heading: how many more of it are kept aside, in fewer words than the
-    terminal's kept_line, or nothing."""
+    terminal's kept_line, or nothing. `kept_for`: what they test (no_grades.KEPT_FOR)."""
     if not n:
         return ""
-    return f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test your fix.</p>'
+    return (f'<p class="kept">{n} more {"is" if n == 1 else "are"} kept aside to test '
+            f'{kept_for}.</p>')
 
 
 def _kept_after(n: int) -> str:
@@ -1547,12 +1551,12 @@ def _since(fixing: dict) -> str:
     elif c.get("damaged"):
         lines = [no_grades.damaged_line()]
     elif c.get("new_set"):
-        lines = [no_grades.new_set_line(), no_grades.all_shown_line()]
+        lines = [no_grades.new_set_line(c), no_grades.ALL_SHOWN]
     elif not c.get("kept"):
         lines = [no_grades.NO_KEPT]
     else:
         lines = [no_grades.result_line(c), no_grades.counted_line(c)]
-        lines += [no_grades.new_set_line()] if c.get("last") else []
+        lines += [no_grades.new_set_line(c)] if c.get("last") else []
     cells = ""
     if c.get("kept"):
         cells = '<div class="nums">' + "".join(
@@ -1621,7 +1625,8 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         names = tuple(x for x, _ in _same(rows))
         lists = (_group("fail", FAILED, rows, r.get("kept") or 0, live, [],
                         fixing.get("own") or [], 0, names, reasons_given=False,
-                        asked=no_grades.offered()) if rows else "")
+                        asked=no_grades.offered(), kept_for=no_grades.KEPT_FOR)
+                 if rows else "")
         if not rows and r.get("kept") and r["kept"] == n - k:  # every Fail is kept aside
             cnts = _own_counts(k, n - k, no_grades.ALL_KEPT[min(n - k, 2)])
         if fixing.get("split_unknown"):
