@@ -48,6 +48,9 @@ def judge_line(out: str) -> str:
 
 
 def read_block(out: str) -> str:
+    """What Find says it read, "" when "How judgekeeper reads it" said it all already."""
+    if "judgekeeper has read from your file:\n" not in out:
+        return ""
     return out.split("judgekeeper has read from your file:\n", 1)[1].split("\n\n", 1)[0]
 
 
@@ -74,7 +77,7 @@ def test_a_jsonl_judge_model_field_that_names_a_model_is_the_judge_model(here, c
     assert f"  model:           judge_model ({value})\n" in out
     assert judge_line(out) == f"LLM-as-a-judge:  {value}"
     assert "model not found" not in out and "not in the file" not in out
-    assert "judge_model" in read_block(out)
+    assert "judge_model" not in read_block(out)  # said once, in "How judgekeeper reads it"
 
 
 @pytest.mark.parametrize("value", NOT_NAMES)
