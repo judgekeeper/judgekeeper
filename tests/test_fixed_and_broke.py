@@ -390,8 +390,8 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     assert LEANS_WORSE + " " + more(7, 0, 74) in said  # the 6 shown Fails of 20 failed
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
-    assert LEANS_BETTER + " " + more(7, 6, 17) in said  # 12 of 20 failed, 6 kept aside
-    assert new_set(30) in said  # a new set's 9 kept-aside Fails: 18 Fails, at 12 in 20
+    assert LEANS_BETTER + " " + need_only(7, 6) + " " + new_set(30) in said  # one number
+    assert "Add about 17" not in said  # a new set's 9 kept-aside Fails: 18 Fails, at 12 in 20
     tests = no_grades.read_split(_ws(project.here)).tests
     assert len(tests) == fix.MAX_RULES == 3
     again = project.run()  # the same answers: no new test
@@ -573,3 +573,53 @@ def test_an_llm_as_a_judge_project_gets_no_comparison(here, capsys, pages):
     promptfoo_project(here, split(20, 16))
     run(capsys)
     assert not (_ws(here).dir / "fix" / no_grades.BEFORE_FILE).exists()
+
+
+def harder(need: int, kept: int) -> str:
+    target = no_grades.clear_target(need)
+    return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
+            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
+            f"{target} kept-aside Fails; you have {kept}. Add harder questions, ones your AI may "
+            f"get wrong, and mark their answers.")
+
+
+@pytest.mark.parametrize("c, said", [
+    # a second change: need 7, so 11 kept-aside Fails; 1 kept aside; 1 of 40 failed: 800
+    ({"test": 2, "kept_fails": 1, "fails": 1, "marked": 40}, harder(7, 1)),
+    # a first change: need 6, so 9; 4 kept aside; 8 of 40 failed: 50
+    ({"test": 1, "kept_fails": 4, "fails": 8, "marked": 40}, more(6, 4, 50)),
+    ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 40}, more(6, 4, 100)),
+    ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 41}, harder(6, 4)),  # 103
+])
+def test_more_than_100_questions_to_add_asks_for_harder_ones(c, said):
+    assert no_grades.clear_line(c) == said
+
+
+def need_only(need: int, kept: int) -> str:
+    return more(need, kept, 0).split(" Add about")[0]
+
+
+@pytest.mark.parametrize("c", [
+    {"test": 3, "kept_fails": 3, "fails": 6, "marked": 38, "last": True},  # was 76 and 86 more
+    {"test": 3, "kept_fails": 0, "fails": 0, "marked": 30, "last": True},  # was harder questions twice
+])
+def test_after_3_changes_the_box_names_one_number(c):
+    said = no_grades.clear_line(c)
+    assert said == need_only(7, c["kept_fails"])
+    box = " ".join([no_grades.result_line({**c, "clear": False, "kind": "same"}),
+                    no_grades.new_set_line(c)])
+    assert box.count("Add ") == 1, box
+
+
+def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
+    """New answers left unmarked, before.json damaged, then runs and `mark`."""
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=20)
+    project.again({0: None, 1: None, 7: None}, marked=False)
+    path = _before(project.here)
+    path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
+    assert DAMAGED in project.run()  # the run that found it
+    assert DAMAGED not in project.run()  # the same answers again: said once
+    _, out, err = run(project.capsys, "mark", "--no-browser")
+    assert "3 new answers are waiting to be marked." in flat(out), out + err
+    _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
+    assert DAMAGED not in project.run()

@@ -342,7 +342,8 @@ def test_new_answers_since_the_last_results_are_named_once(here, capsys):
     assert "since your last results" not in _go(capsys)  # said once, on the run that found them
     _write(here, [(q, f"Newer {a}") for q, a in rows[:1]]
            + [(q, f"New {a}") for q, a in rows[1:3]] + rows[3:])
-    assert FOUND_NEW.format(n="1 new answer", same=9) in flat(_go(capsys))
+    assert FOUND_NEW.format(n="1 new answer", same=9).replace("Mark them", "Mark it") \
+        in flat(_go(capsys))
 
 
 def test_the_same_answers_saved_again_find_nothing_new(here, capsys):
@@ -416,3 +417,24 @@ def test_the_result_page_under_ten_marks_says_one_line(here, capsys):
     assert "Mark a few more answers to see your result." in seen
     assert "Mark more answers to get a result." not in seen
 
+
+
+def test_a_newer_results_file_is_named_once_when_it_is_read(here, capsys):
+    """results-b.jsonl saved next to results.jsonl is read as new answers."""
+    import os
+    import time
+
+    write_answers(here, 12, "jsonl")
+    _go(capsys)
+    _mark_by_answer(here)
+    assert "Reading" not in _go(capsys)
+    newer = here / "results-b.jsonl"
+    newer.write_text("".join(json.dumps({"input": f"What is question {i}?",
+                                         "output": f"Another answer {i}."}) + "\n"
+                             for i in range(12)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(newer, (later, later))
+    said = flat(_go(capsys))
+    assert "Reading results-b.jsonl, the newest results here." in said, said
+    assert said.index("Reading results-b.jsonl") < said.index("Found 12 new answers")
+    assert "Reading" not in _go(capsys)  # the same file again: nothing to say

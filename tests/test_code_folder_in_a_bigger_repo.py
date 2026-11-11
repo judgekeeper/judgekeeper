@@ -123,3 +123,82 @@ def test_mark_stop_with_a_path_closes_the_page_the_main_command_does(repo, capsy
                      page.is_open(repo / ".judgekeeper")))
     assert said[1] == said[0]
     run(capsys, "--stop")
+
+
+def _answers_only(folder, kind: str = "csv") -> None:
+    folder.mkdir(parents=True)
+    write_answers(folder, 2 if kind == "csv" else 12, kind)
+
+
+@pytest.mark.parametrize("kind", ["csv", "jsonl"])
+@pytest.mark.parametrize("argv", [(), (".",)])
+def test_a_folder_holding_answers_with_no_grade_is_the_project(repo, capsys, monkeypatch,
+                                                                kind, argv):
+    folder = repo / "probe" / "a"
+    _answers_only(folder, kind)
+    code, said = _run(capsys, monkeypatch, folder, *argv)
+    assert code == 0 and "No eval results in" not in said and CLIMB not in said, said
+    assert f"File: results.{kind}" in said and "Grades: none." in said, said
+    assert (folder / ".judgekeeper").is_dir() and not (repo / ".judgekeeper").exists()
+
+
+def test_answers_in_a_subfolder_use_its_own_marks_not_the_folder_above(repo, capsys,
+                                                                        monkeypatch):
+    """b/ below a folder whose marks are on its own results: b/ holds other answers."""
+    main = repo / "booking"
+    main.mkdir()
+    (main / "bot.py").write_text("", encoding="utf-8")
+    write_answers(main, 12, "jsonl")
+    _run(capsys, monkeypatch, main)
+    from tests.test_answers_without_grades import mark
+
+    mark(main, ["pass"] * 12)
+    b = main / "b"
+    b.mkdir()
+    (b / "results.jsonl").write_text("".join(
+        f'{{"input": "Book a table {i}?", "output": "Booked {i}."}}\n' for i in range(12)),
+        encoding="utf-8")
+    for argv in ((".",), ()):
+        code, said = _run(capsys, monkeypatch, b, *argv)
+        assert code == 0 and "No eval results" not in said and "Your 12 marks" not in said, said
+        assert "results.jsonl has no LLM-as-a-judge grades" in said, said
+        assert project.project_of(b) == b and (b / ".judgekeeper").is_dir()
+    assert "File: results.jsonl" not in flat(capsys.readouterr().out)
+
+
+NEW_HERE = "Starting a new project here? Run `judgekeeper . --no-browser`."
+
+
+@pytest.mark.parametrize("files", [("notes.md",), ()])
+def test_reading_the_folder_above_says_how_to_start_a_new_project_here(repo, capsys,
+                                                                        monkeypatch, files):
+    folder = _folder(repo, files)
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 0, said
+    assert f"{CLIMB} (tests). {NEW_HERE}" in said, said
+    code, said = _run(capsys, monkeypatch, folder, ".")
+    assert code == 3 and "No answers yet?" in said and NEW_HERE not in said, said
+
+
+ONE_UP = "Results in the folder above? Run `judgekeeper .. --no-browser`."
+TWO_UP = "Results in a folder above? Run `judgekeeper ../.. --no-browser`."
+
+
+def test_a_code_folder_two_levels_down_says_a_folder_above(repo, capsys, monkeypatch):
+    folder = repo / "bots" / "my-bot"
+    folder.mkdir(parents=True)
+    (folder / "bot.py").write_text("", encoding="utf-8")
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 3 and said.count(TWO_UP) == 1 and "the folder above" not in said, said
+
+
+def test_answers_read_here_say_how_to_read_the_results_above(repo, capsys, monkeypatch):
+    folder = repo / "probe" / "a"
+    _answers_only(folder)
+    code, said = _run(capsys, monkeypatch, folder)
+    assert code == 0 and said.count(TWO_UP) == 1, said
+    assert said.index("has no LLM-as-a-judge grades") < said.index(TWO_UP) < said.index("Step 2")
+    code, said = _run(capsys, monkeypatch, folder)  # every run, the same
+    assert said.count(TWO_UP) == 1, said
+    code, said = _run(capsys, monkeypatch, folder, ".")  # a PATH given: the person chose
+    assert TWO_UP not in said, said
