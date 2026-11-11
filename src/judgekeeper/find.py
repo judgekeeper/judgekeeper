@@ -796,14 +796,14 @@ def search(root: str | Path) -> Search:
 def _answers_alone(found: Search, root: Path) -> bool:
     """Whether answers with no grade are all `root` has: no results or table that can't be
     read, no sign of any eval tool, nothing in a format of its own (own_format.search), no
-    results in a project below or above, no records above. A file of questions and answers
-    never takes the place of an LLM-as-a-judge's results."""
+    results in a project below, no records above. A file of questions and answers never takes
+    the place of an LLM-as-a-judge's results here; with them, the folder is the project, so
+    results in the project folder above are not read in their place."""
     from judgekeeper import own_format
 
     return (not found.bad_tables and not any(found.results.values())
             and not any(found.signs.values()) and not _own_results(own_format.search(root))
-            and not nested_results(found) and results_above(root) is None
-            and records_above(root) is None)
+            and not nested_results(found) and records_above(root) is None)
 
 
 def _own_results(own) -> bool:

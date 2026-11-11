@@ -41,6 +41,7 @@ from judgekeeper.textio import jsonl_lines, loads, make_private, plural, write_r
 MIN_MARKS = 10  # marks for a first result
 COUNTS = "You passed {k} of {n}."  # the headline, the pop-up and the terminal
 REASONS_LINE = "Your reasons: {said}."
+NOTE = "note:"  # a reason row's key for words typed with no button of their own (MAX_OWN)
 # every answer marked, fewer than MIN_MARKS: the terminal's and the end card's Next line
 MORE_ANSWERS = "add more answers to {file} (at least {n} in all), then run `{command}` again."
 # every answer marked, a result: the same, for a surer number
@@ -141,8 +142,12 @@ def reason_rows(ws, session) -> list[dict]:
             c["id"] for c in own.values() if why["note"] and c["id"] not in why["reasons"]
             and (c.get("from") == item["id"] or reasons.same_words(c["text"], why["note"]))]
         taps = [k for k in taps if k in reasons.REASONS or k in own]
-        rows.append({"id": item["id"], "reasons": taps,
-                     "words": {k: own[k]["text"] for k in taps if k in own}})
+        words = {k: own[k]["text"] for k in taps if k in own}
+        if why["note"] and not any(reasons.same_words(w, why["note"]) for w in words.values()):
+            key = NOTE + " ".join(why["note"].split()).casefold()  # no button: MAX_OWN reached
+            taps.append(key)
+            words[key] = why["note"]
+        rows.append({"id": item["id"], "reasons": taps, "words": words})
     return rows
 
 
@@ -397,6 +402,7 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
         saved = None
     if isinstance(saved, dict) and saved.get("marks_sha256") == d and saved.get("graded") is False:
         write_failed(ws, session, saved)
+        _damage_said(ws, saved)
         return saved
     r = made(ws, session, flags)
     write_failed(ws, session, r)  # before report.html: its What next names the file
@@ -417,7 +423,18 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
     _write_json(ws.result_json, _scrubbed(r))
     if drawn:
         _same_time(ws.report_html, ws.result_json)
+    _damage_said(ws, r)
     return r
+
+
+def _damage_said(ws, r: dict) -> None:
+    """BEFORE_DAMAGED is said by the result that found the damage only: later ones compare as
+    usual."""
+    if not (r.get("since") or {}).get("damaged"):
+        return
+    before = read_before(ws)
+    if before and before["repaired"] and not _before_path(ws).is_symlink():
+        _write_before(ws, {**before, "repaired": False})
 
 
 def status(session, run: str | None = None) -> dict:
@@ -908,7 +925,7 @@ ALL_KEPT = {1: f"It is kept aside to test {KEPT_FOR}.",
 ALL_SHOWN = "The questions kept aside are all shown now."  # after NEW_SET, which says why
 BEFORE_DAMAGED = ("Can't compare with your last answers: {path} is damaged. Your next change "
                   "will be compared.")
-FOUND_NEW = "Found {n} since your last results. Mark them to see what changed.{same}"
+FOUND_NEW = "Found {n} since your last results. Mark {them} to see what changed.{same}"
 SAME_KEPT = {1: "{n} answer is the same as before and keeps its mark.",
              2: "{n} answers are the same as before and keep their marks."}
 WAITING = {1: "{n} new answer is waiting to be marked.",
@@ -1023,7 +1040,20 @@ def _before_or_new(ws) -> dict | None:
         return None
     if not path.exists():
         return {"questions": {}, "round": None}
-    return read_before(ws) or {"questions": {}, "round": None, "repaired": True}
+    return read_before(ws) or {"questions": {}, "round": _round_now(ws), "repaired": True}
+
+
+def _round_now(ws) -> dict | None:
+    """In place of a damaged before.json's round: the answers now, those not marked yet the
+    new ones (waiting_line)."""
+    try:
+        rows = [loads(x) for x in jsonl_lines(ws.pool.read_text(encoding="utf-8")) if x.strip()]
+    except (OSError, ValueError):
+        return None
+    ids = [r["id"] for r in rows if isinstance(r, dict) and isinstance(r.get("id"), str)]
+    counted = _counted(ws)
+    return {"stamp": results_stamp(ids),
+            "new": sorted(i for i in ids if counted.get(i) not in ("pass", "fail"))}
 
 
 def remember(ws) -> None:
@@ -1112,7 +1142,8 @@ def found_line(ws, n: int) -> str:
     counted = _counted(ws)
     same = sum(counted.get(q["id"]) in ("pass", "fail") for q in ws.data().get("queue") or [])
     kept = f" {SAME_KEPT[min(same, 2)].format(n=same)}" if same else ""
-    return FOUND_NEW.format(n=plural(n, "new answer"), same=kept)
+    return FOUND_NEW.format(n=plural(n, "new answer"), them="it" if n == 1 else "them",
+                            same=kept)
 
 
 def waiting_line(ws, session) -> str | None:
@@ -1333,16 +1364,21 @@ def clear_line(c: dict) -> str | None:
     """What a clear answer needs, with "Can't tell yet" (compare's counts). New questions are
     added with about half of their Fails kept aside (update_split), so the ones to add are
     twice the kept-aside Fails missing over the share of questions that failed; with none
-    failed before the change, there is no share to work it out from: harder questions."""
+    failed before the change, there is no share to work it out from, and past MOST_ASKED
+    questions: harder questions."""
     fails, marked = c.get("fails") or 0, c.get("marked") or 0
     kept_fails = c.get("kept_fails") or 0
     need = clear_need(c.get("test") or 1)
     target = clear_target(need)
     if kept_fails >= target:
         return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
+    if c.get("last"):  # new_set_line says what to add, with its own number
+        return CLEAR_NEED.format(need=need, target=target, kept_fails=kept_fails)
     if not fails or not marked:
         return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
     extra = -(-2 * (target - kept_fails) * marked // fails)
+    if extra > MOST_ASKED:
+        return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
     return CLEAR_ADD.format(need=need, target=target, kept_fails=kept_fails, extra=extra)
 
 

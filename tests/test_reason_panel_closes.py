@@ -21,9 +21,11 @@ var add = parts[".add-reason"];
 add.attrs = {"aria-expanded": "false", "aria-controls": "wb-0"};
 panel.hidden = true;
 document.getElementById = function (id) { return id === "wb-0" ? panel : cell; };
+document.querySelector = function () { return null; };  // no prompt box on this page
 El.prototype.focus = function () { focused = this; };
 window.fetch = function (url, o) { sent.push(JSON.parse(o.body));
-  return {then: function (ok) { ok({ok: true}); }}; };
+  return {then: function (ok) { return ok({ok: true, json: function () {  // as the server answers
+    return {then: function (f) { return f({summary: {}}); }}; }}); }}; };
 function state() {
   return {open: !panel.hidden, expanded: add.getAttribute("aria-expanded"),
           button: add.textContent, said: parts[".said-now"].hidden ? null : words.textContent,

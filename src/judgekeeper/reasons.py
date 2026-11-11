@@ -264,12 +264,14 @@ def own_chips(ws) -> list[dict]:
     return read_file(ws)["own"]
 
 
-def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
+def sync_own(ws, item_id: str, note: str | None, tapped: set[str],
+             used: set[str] | None = None) -> None:
     """After `item_id`'s "Other…" box was saved: its button follows the words in the box (one
     button per box, so typing on never makes a button per save); an empty box removes it,
     unless another answer tapped it (`tapped`). A button another answer tapped keeps its words:
     new words in the box make a new button. A new button only while there are fewer than
-    MAX_OWN, and not for words a button already has."""
+    MAX_OWN, or in place of one no other answer on the page uses (`used`: the ids that are),
+    and not for words a button already has."""
     if note is None:
         return
     data = read_file(ws)
@@ -288,6 +290,9 @@ def sync_own(ws, item_id: str, note: str | None, tapped: set[str]) -> None:
             own.remove(mine)
         mine = None
     if text and text.casefold() not in taken:
+        unused = [c for c in own if used is not None and c["id"] not in used]
+        if mine is None and len(own) >= MAX_OWN and unused:
+            own.remove(unused[0])  # the oldest, from answers no longer on the page
         if mine is not None:
             mine["text"] = text
         elif len(own) < MAX_OWN:

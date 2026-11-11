@@ -96,11 +96,39 @@ def test_a_reason_saved_tells_the_row_to_measure_again():
     scenario = """
       var events = [];
       window.dispatchEvent = function (e) { events.push(e.type); };
-      window.fetch = function () { return {then: function (ok) { ok({ok: true}); }}; };
+      window.fetch = function () { return {then: function (ok) { return ok(REPLY); }}; };
       parts[".said-text"].querySelector = function () { return new El("b"); };
       type("Gives the old price"); input.fire("keydown", {key: "Enter"});
       console.log(JSON.stringify(events));"""
-    assert _node(_REASONS_DOM + report_page.REASONS_SCRIPT + scenario) == ["resize"]
+    assert _node(_REASONS_DOM + _REPLY + report_page.REASONS_SCRIPT + scenario) == ["resize"]
+
+
+# The page's answer to a reason saved, as the server sends it (summary.prompt: the coding
+# agent's prompt now, when there is one)
+_REPLY = """
+var PROMPT = null, promptBox = new El("code");
+var REPLY = {ok: true, json: function () { return {then: function (f) {
+  return f({summary: PROMPT ? {prompt: PROMPT} : {}}); }}; }};
+document.querySelector = function (s) { return s === ".cmd.prompt code" ? promptBox : null; };
+"""
+
+
+def test_a_reason_saved_puts_the_prompt_the_terminal_says_in_the_box():
+    scenario = """
+      window.dispatchEvent = function () {};
+      window.fetch = function () { return {then: function (ok) { return ok(REPLY); }}; };
+      parts[".said-text"].querySelector = function () { return new El("b"); };
+      promptBox.textContent = "Read it. It lists answers my AI gave that I marked Fail.";
+      var seen = [];
+      type("Gives the old price"); input.fire("keydown", {key: "Enter"});
+      seen.push(promptBox.textContent);  // no prompt in the answer: the box stays as it is
+      PROMPT = "Read it. It lists answers my AI gave that I marked Fail, with my reasons.";
+      type("Gives the old price again"); input.fire("keydown", {key: "Enter"});
+      seen.push(promptBox.textContent);
+      console.log(JSON.stringify(seen));"""
+    assert _node(_REASONS_DOM + _REPLY + report_page.REASONS_SCRIPT + scenario) == [
+        "Read it. It lists answers my AI gave that I marked Fail.",
+        "Read it. It lists answers my AI gave that I marked Fail, with my reasons."]
 
 
 # The person's own reason buttons ---------------------------------------------------------------
