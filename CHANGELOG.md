@@ -12,6 +12,7 @@
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
 - Fast Pass and Fail clicks on the marking page all count now, and the "Your result is ready." box waits until you stop marking. A folder with code in it is its own project: judgekeeper no longer reads results in the folder above it in its place. Percentages round half up (23 of 40 is 58%).
+- With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
 
 ## 1.1.2 (2026-11-08)
 
