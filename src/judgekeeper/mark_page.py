@@ -356,8 +356,10 @@ __TOP__
   var FRESH_MS = 250, freshUntil = 0;
   var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
   // The result-ready box waits until no mark came for READY_WAIT_MS, so it never takes a
-  // click meant for the next answer (`readyDue`: the server said to show it).
-  var READY_WAIT_MS = 1200, readyDue = false, readyTimer = null;
+  // click meant for the next answer (`readyDue`: the server said to show it). It opens only
+  // while the result is still ready (an undo meanwhile can take it back); until it opens it
+  // is owed (`readyOwed`), and opens once a later mark makes the result ready again.
+  var READY_WAIT_MS = 1200, readyDue = false, readyTimer = null, readyOwed = false;
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
@@ -937,7 +939,8 @@ __TOP__
       dropAgain(res.body.summary.dropped);
       showAgain(res.body.summary.again);
       then();
-      if (res.body.summary.popup) { readyLater(); }
+      if (res.body.summary.popup || readyOwed && !readyDue && status && status.ready) {
+        readyLater(); }
       while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
       clearTimeout(waited); queued = [];
@@ -1057,15 +1060,16 @@ __TOP__
   var readyShown = false, readyBox = $("ready-box");
   $("ready-see").setAttribute("href", url("/result"));
   function readyLater() {
-    readyDue = true; clearTimeout(readyTimer);
+    readyDue = true; readyOwed = true; clearTimeout(readyTimer);
     readyTimer = setTimeout(function () {
       readyDue = false;
-      if (!readyShown && !ended && !busy) { showReady(); }
-      else if (busy && !readyShown) { readyLater(); }
+      if (readyShown || ended) { return; }
+      if (busy) { readyLater(); }
+      else if (status && status.ready) { showReady(); }
     }, READY_WAIT_MS);
   }
   function showReady() {
-    readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
+    readyShown = true; readyOwed = false; queued = [];  // keys pressed meanwhile do not mark behind the box
     $("ready").hidden = false; $("app").setAttribute("inert", "");
     readyBox.focus();
   }
