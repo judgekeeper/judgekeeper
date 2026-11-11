@@ -1,6 +1,6 @@
 """What the result says of answers kept aside: when every answer failed is kept aside, it says
 so where the list would be; once the set kept aside has tested 3 changes, it says they are all
-shown now."""
+shown now, and says "tested 3 changes" only once."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from html import unescape
 from tests.test_answers_without_grades import _live, _seen
 from tests.test_fixed_and_broke import Project, _report, here, project  # noqa: F401
 
-ALL_SHOWN = "The questions kept aside have tested 3 changes, so they are all shown now."
+ALL_SHOWN = "The questions kept aside are all shown now."
+TESTED = "tested 3 changes"
 
 
 def _page(folder) -> str:
@@ -39,5 +40,7 @@ def test_after_the_set_is_used_up_it_says_all_are_shown(project):  # noqa: F811
         said = project.again({i: m for i in kept})
     assert ALL_SHOWN not in said  # still kept aside: the 3 changes line says what to do
     said = project.again({i: "fail" for i in kept})  # the set is used up now
-    assert said.count(ALL_SHOWN) == 1
-    assert _page(project.here).count(ALL_SHOWN) == 1
+    page = _page(project.here)
+    for seen in (said, page):
+        assert seen.count(ALL_SHOWN) == 1, seen
+        assert seen.count(TESTED) == 1, seen  # the 3 changes line says it; this one does not

@@ -41,12 +41,14 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
         pass_if: str | None = None, label_map: str | None = None,
         judge_model: str | None = None, yes: bool = False,
         port: int = DEFAULT_PORT, no_browser: bool = False, new: bool = False,
-        wait: bool = False, stop: bool = False, labels: str | None = None) -> int:
-    """`judgekeeper mark`. Returns the exit code. `labels`: --labels (front.run)."""
+        wait: bool = False, stop: bool = False, labels: str | None = None,
+        given: bool = False) -> int:
+    """`judgekeeper mark`. Returns the exit code. `labels`: --labels, `given`: the PATH was
+    given (front.run)."""
     options = {"tool": tool, "metric": metric, "experiment": experiment,
                "tracking_uri": tracking_uri, "pass_if": pass_if, "label_map": label_map,
                "judge_model": judge_model, "port": port,
                "no_browser": no_browser}
     talk = MarkTalk(yes=yes, path=path, options=options, new=new)
-    talk.labels = labels
+    talk.labels, talk.given = labels, given
     return front.go(talk, Path(path), wait=wait, stop=stop, marking=True)

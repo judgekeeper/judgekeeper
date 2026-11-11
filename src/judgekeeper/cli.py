@@ -291,7 +291,7 @@ def _parser() -> argparse.ArgumentParser:
     mk = sub.add_parser("mark", parents=[common],
                         help="open a page to mark answers Pass or Fail; with enough marks, "
                              "the result")
-    mk.add_argument("path", nargs="?", default=".", metavar="PATH",
+    mk.add_argument("path", nargs="?", default=None, metavar="PATH",  # None: not given
                     help="your project folder (default: this folder), one results file, or "
                          "an MLflow store (mlflow.db or an mlruns/ folder)")
     mk.add_argument("--tool", choices=TOOLS,
@@ -374,12 +374,12 @@ def _normaliser_args(p: argparse.ArgumentParser) -> None:
 def cmd_mark(args) -> int:
     from judgekeeper import mark
 
-    return mark.run(args.path, tool=args.tool, metric=args.metric, experiment=args.experiment,
+    return mark.run(args.path or ".", tool=args.tool, metric=args.metric, experiment=args.experiment,
                     tracking_uri=args.tracking_uri, pass_if=args.pass_if,
                     label_map=args.label_map, judge_model=args.judge_model,
                     yes=args.yes, port=args.port,
                     no_browser=args.no_browser, new=args.new, wait=args.wait, stop=args.stop,
-                    labels=args.labels)
+                    labels=args.labels, given=args.path is not None)
 
 
 def cmd_check(args) -> int:

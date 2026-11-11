@@ -170,6 +170,12 @@ def canonical(text) -> str:
     return visible(text.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+def _answer(row: dict) -> str:
+    """A row's answer as canonical text: only a missing one is "" (0 and false are shown)."""
+    output = row.get("output")
+    return canonical("" if output is None else output)
+
+
 def marked(text: str, spans) -> list[str]:
     """The words of `spans` in an answer's canonical text."""
     return [text[s:e] for s, e in spans or [] if 0 <= s < e <= len(text)]
@@ -476,7 +482,7 @@ def mentioned(rows: list[dict]) -> tuple[int, int]:
     for r in rows:
         if r.get("judge") != "pass" or not r.get("spans"):
             continue
-        text = " ".join(marked(canonical(r.get("output") or ""), r["spans"])).lower()
+        text = " ".join(marked(_answer(r), r["spans"])).lower()
         words = set(re.findall(r"\d+(?:[.,]\d+)?", text)) | {
             w for w in re.findall(r"[^\W\d_]{4,}", text) if w not in STOPWORDS}
         reason = (r.get("reason") or "").lower()
@@ -650,7 +656,7 @@ def suggestions(rows: list[dict]) -> tuple[list[tuple[str, int, list]], list[tup
         (suggested.append(("Your own words", len(hits), [text])) if len(hits) >= TWICE
          else once.append(("Your own words", hits, [text])))
     for r in rows:
-        text = canonical(r.get("output") or "")
+        text = _answer(r)
         for words in marked(text, merged(r.get("spans"), len(text))):  # as mistakes.md joins
             once.append((MARKED_LINE, [r],  # answer text: fenced, as the answer
                          [(MARKED_PART, one_line(" ".join(words.split())))]))
@@ -709,7 +715,7 @@ def suggestions_md(rows: list[dict], command: str = "judgekeeper mark") -> str:
         parts.append(f"- {line}")
         parts += [fence(note) for note in notes]
         for r in hits:
-            parts.append(fenced("ANSWER", scrub(canonical(r.get("output") or ""))[:SHOWN]))
+            parts.append(fenced("ANSWER", scrub(_answer(r))[:SHOWN]))
         parts.append("")
     if not once:
         parts.append("Nothing.")

@@ -445,6 +445,14 @@ def percent(x: float, places: int = 0) -> str:
     return f"{'-' if n < 0 else ''}{whole}{'.' + part if places else ''}%"
 
 
+def points(x: float) -> int:
+    """`x` (a share, 0 to 1) as whole percentage points, rounded half up on the exact
+    fraction it stands for, as `percent` rounds (0.125 is 13 points)."""
+    from fractions import Fraction
+
+    return (Fraction(x).limit_denominator(10**6) * 100 + Fraction(1, 2)).__floor__()
+
+
 def plural(n: int, one: str, many: str | None = None) -> str:
     """`n` and the word for it: `one` for 1, else `many` (by default `one` + "s")."""
     return f"{n} {one if n == 1 else many or one + 's'}"

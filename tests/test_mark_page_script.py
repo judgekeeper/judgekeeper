@@ -272,6 +272,24 @@ def test_the_ready_box_waits_for_a_pause_so_it_takes_no_click_meant_for_an_answe
     assert got["box"] is True and got["at"] == "Question 7?"
 
 
+def test_an_undo_during_the_wait_keeps_the_ready_box_shut_until_the_result_is_ready_again():
+    """The result turns ready, then an undo in the wait takes it back below ready: the box
+    stays shut, and opens once a later mark makes the result ready again."""
+    got = _run("""
+      ids["pass"].fire("click"); await settle(); later(300);
+      status.first = true; status.ready = true;
+      ids["fail"].fire("click"); await settle(); later(300);
+      status.ready = false;  // the undo takes the result back below ready
+      ids["undo"].fire("click"); await settle(); later(300);
+      await pause();
+      var shut = ids["ready"].hidden;
+      status.ready = true;
+      ids["fail"].fire("click"); await settle(); later(300);
+      await pause();
+      console.log(JSON.stringify({shut: shut, box: !ids["ready"].hidden}));""", data=_data(12))
+    assert got == {"shut": True, "box": True}
+
+
 def test_a_held_key_or_one_with_cmd_ctrl_or_alt_does_nothing():
     got = _run("""
       key("ArrowRight", {repeat: true}); later(500);

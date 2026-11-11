@@ -90,3 +90,36 @@ def test_record_and_the_command_line_take_the_same_project_folders(tmp_path, mon
     assert find.is_project(folder)
     assert find.project_folder(folder / "src") == folder
     assert recorder.project_root(folder / "src") == folder
+
+
+
+def test_mark_with_a_path_reads_the_folder_the_main_command_does(repo, capsys, monkeypatch,
+                                                                  pages):
+    (repo / "evals" / "docs").mkdir(parents=True)  # nothing to read in evals/
+    monkeypatch.chdir(repo)
+    said = []
+    for argv in (["evals"], ["mark", "evals"]):
+        project.forget()
+        code, out, _ = run(capsys, *argv, "--no-browser", "--port", "0")
+        said.append((code, flat(out)))
+    for code, out in said:
+        assert code == 3 and "No eval results found in this folder (evals)." in out, out
+        assert CLIMB not in out, out
+
+
+def test_mark_stop_with_a_path_closes_the_page_the_main_command_does(repo, capsys, monkeypatch,
+                                                                      pages):
+    from judgekeeper import page
+
+    (repo / "evals" / "docs").mkdir(parents=True)  # nothing to read in evals/
+    monkeypatch.chdir(repo)
+    said = []
+    for argv in (["evals", "--stop"], ["mark", "--stop", "evals"]):
+        project.forget()
+        assert run(capsys, "--no-browser", "--port", "0")[0] == 0  # a page for the results here
+        project.forget()
+        code, out, _ = run(capsys, *argv)
+        said.append((code, flat(out).replace("judgekeeper mark", "judgekeeper"),
+                     page.is_open(repo / ".judgekeeper")))
+    assert said[1] == said[0]
+    run(capsys, "--stop")

@@ -51,7 +51,8 @@ def test_a_blank_answer_reads_empty_answer(here, capsys, pages):
     ws = start_label.Workspace(here)
     for html in (_live(here), ws.report_html.read_text(encoding="utf-8")):
         cells = _cells(html)
-        assert cells and all("(empty answer)" in c for c in cells), cells
+        assert cells and all('<span class="empty">(empty answer)</span>' in c for c in cells), cells
+        assert ".empty { color: var(--muted); }" in html  # muted, as on the marking page
     text = no_grades.failed_path(ws).read_text(encoding="utf-8")
     assert "(empty answer)" in text
 

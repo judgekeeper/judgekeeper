@@ -19,8 +19,8 @@ from tests.test_label_server import Client
 
 SHOWN_PATH = (".judgekeeper\\fix\\failed-answers.md" if is_windows()  # as the terminal names it
               else ".judgekeeper/fix/failed-answers.md")
-FOUND_NEW = ("Found {n} since your last results. {same} answers are the same as before and keep "
-             "their marks. Mark them to see what changed.")
+FOUND_NEW = ("Found {n} since your last results. Mark them to see what changed. {same} answers "
+             "are the same as before and keep their marks.")
 QUESTION_NEXT = "Next: paste the prompt above into your coding agent, then run `judgekeeper` again."
 FIX_NEXT = ("Next: paste the prompt above into your coding agent. After it changes your AI's "
             "prompt, save your AI's new answers and run `judgekeeper` again.")

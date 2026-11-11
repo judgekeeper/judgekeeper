@@ -1299,3 +1299,12 @@ def test_a_note_over_several_lines_is_kept_on_one_line(here, served, note):
 def test_a_note_saved_over_several_lines_before_reads_on_one_line():
     line = {"note": "Line one\r\nLine two\nLine three"}
     assert reasons.of_line(line)["note"] == "Line one Line two Line three"
+
+
+@pytest.mark.parametrize(("output", "shown"), [(0, "0"), (False, "false"), ([], "[]")])
+def test_an_answer_of_zero_false_or_an_empty_list_is_the_text_the_page_shows(output, shown):
+    """Only a missing answer is "": 0, false and [] are what the marking page shows."""
+    rows = [{"judge": "pass", "final": "fail", "output": output, "reason": f"Says {shown}.",
+             "spans": [[0, len(shown)]]}]
+    assert reasons.mentioned(rows) == ((1, 0) if output != [] else (0, 1))
+    assert reasons.canonical(output) == shown

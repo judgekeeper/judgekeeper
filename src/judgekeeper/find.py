@@ -947,22 +947,32 @@ def results_above(root: Path) -> Path | None:
     reads another, and the two never ask each other)."""
     if has_marker(root) or holds_code(root):  # a folder with code is its own project
         return None
-    if is_project(root) and not _left_empty(root):
+    if root in _ABOVE:  # asked again while working it out: _left_empty searches `root` too
         return None
-    return above_with_results(root)
+    _ABOVE.add(root)
+    try:
+        if is_project(root) and not _left_empty(root):
+            return None
+        return _up_with_results(root)
+    finally:
+        _ABOVE.discard(root)
 
 
 def above_with_results(root: Path) -> Path | None:
     """The project folder above `root` when it holds results judgekeeper reads, whatever
     `root` holds."""
-    up = project_folder(root)
-    if up is None or root in _ABOVE:
+    if root in _ABOVE:
         return None
     _ABOVE.add(root)
     try:
-        return up if holds_results(search(up)) else None
+        return _up_with_results(root)
     finally:
         _ABOVE.discard(root)
+
+
+def _up_with_results(root: Path) -> Path | None:
+    up = project_folder(root)
+    return up if up is not None and holds_results(search(up)) else None
 
 
 def _look_above(walk: _Walk) -> None:

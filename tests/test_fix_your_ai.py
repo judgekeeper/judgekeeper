@@ -239,7 +239,7 @@ def test_a_kept_aside_answer_never_shows_but_is_counted(here, capsys, marked):
         assert set(_row_ids(html)) == set(shown) or _row_ids(html) == []  # report: no boxes
         for i in kept:
             assert _text(page, i) not in html
-        assert "3 more are kept aside to test your fix." in html
+        assert "3 more are kept aside to test your next change." in html
     live = _live(here)
     assert "kept" not in " ".join(_chips(live, shown[0])).lower()
     assert all("kept" not in c["text"] for c in reasons.own_chips(_ws(here))
@@ -266,7 +266,7 @@ def test_the_file_holds_the_shown_fails_by_the_most_common_reason(here, capsys, 
     lines = text.splitlines()
     assert lines[0] == "# Answers you failed"
     assert no_grades.FIX_TASK in text
-    assert "You failed 5 answers here. 5 more are kept aside to test your fix." in text
+    assert "You failed 5 answers here. 5 more are kept aside to test your next change." in text
     warning = text.index(no_grades.FIX_WARNING)
     assert warning < text.index("<<<")
     assert f"{no_grades.FIX_WARNING} {start_fix_rule.MARKS}" in text
@@ -489,3 +489,14 @@ def test_a_grade_column_added_later_runs_fix_and_check_as_usual(here, capsys, pa
     graded = fix.read_split(_ws(here))
     assert graded is not None  # fix made its own, from the judge's grades
     assert sorted(graded.seen + graded.hidden) == sorted(marked_before)
+
+
+def test_the_file_asks_for_changes_shown_first_as_the_prompt_does(here, capsys, marked):
+    """failed-answers.md and the prompt pasted with it agree: suggest the changes and show
+    them before making them, never "change" straight away."""
+    marked(["pass"] * 2 + ["fail"] * 10)
+    text = _failed(here).read_text(encoding="utf-8")
+    task = text.splitlines()[2]
+    assert task == no_grades.FIX_TASK
+    assert task.startswith("Suggest changes") and "Change your AI" not in text
+    assert "Show the changes before you make them." in task
