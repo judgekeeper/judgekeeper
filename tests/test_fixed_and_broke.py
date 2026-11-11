@@ -28,8 +28,10 @@ SAME = "Can't tell yet. Before and after look about the same."
 
 def more(need: int, kept: int, extra: int) -> str:
     """What a clear answer needs, after "Can't tell yet" (no_grades.clear_line)."""
+    target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-            f"with none breaking. {kept} of yours failed, so add about {extra} more questions.")
+            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
+            f"{target} kept-aside Fails; you have {kept}. Add about {extra} more questions.")
 
 
 WAIT = "Mark the new answers to see what changed."
@@ -178,7 +180,8 @@ def test_the_earlier_mark_is_read_from_marks_jsonl_once_its_answer_left_the_pool
     for i in fixed + broke:
         assert before[i] not in pool  # a new results file was saved: the old answer is gone
         assert before[i] in marks_file  # its mark stays, read from there
-    assert _counts_line(len(fixed + broke), len(fixed), len(broke), 0) in said
+    assert _counts_line(len(kept), len(fixed), len(broke), len(kept) - len(fixed + broke)) \
+        in said  # the others kept aside did not change: the same
 
 
 def test_only_the_questions_kept_aside_are_counted(project):
@@ -208,29 +211,29 @@ def test_a_change_to_shown_questions_only_says_it_cant_be_tested_yet(project):
     assert f"Answer {shown_pass}, take 2." in html.split("Answers that broke", 1)[1]
 
 
-def test_fewer_than_five_kept_aside_compared_is_never_clear(project):
-    project.first(fails=set(range(8)), n=10)  # 8 Fails, 2 Passes: 4 Fails kept aside
+def test_four_fixed_of_five_kept_aside_is_not_clear_yet(project):
+    project.first(fails=set(range(8)), n=10)  # 8 Fails, 2 Passes: 4 Fails, 1 Pass kept aside
     kept = project.kept("fail")
-    assert len(kept) == 4
+    assert len(kept) == 4 and len(project.kept()) == 5
     said = project.again({i: "pass" for i in kept})
-    assert _counts_line(4, 4, 0, 0) in said
-    assert LEANS_BETTER + " " + more(6, 4, 13) in said
+    assert _counts_line(5, 4, 0, 1) in said  # the Pass kept aside did not change: the same
+    assert LEANS_BETTER + " " + more(6, 4, 13) in said  # 2 x (9 - 4) x 10 / 8 = 12.5
 
 
 def test_a_big_enough_split_says_the_change_helped(project):
     project.first(fails=set(range(12)), n=20)
     said = project.again({i: "pass" for i in project.kept("fail")})  # 6 fixed, none broke
-    assert _counts_line(6, 6, 0, 0) in said
+    assert _counts_line(10, 6, 0, 4) in said  # 6 Fails and 4 Passes kept aside
     assert HELPED in said and "A clear answer needs" not in said
 
 
-def test_the_same_answer_text_is_not_compared(project):
+def test_an_unchanged_answer_keeps_its_mark_and_counts_as_the_same(project):
     project.first(fails={0, 1, 2, 3}, n=10)
     kept = project.kept()
     said = project.again({kept[0]: "pass" if project.marks[kept[0]] == "fail" else "fail"})
-    assert _counts_line(1, *((1, 0) if project.marks[kept[0]] == "pass" else (0, 1)), 0) \
-        in said
-    assert _result(project.here)["since"]["kept"] == 1  # the others: the same text
+    assert _counts_line(len(kept), *((1, 0) if project.marks[kept[0]] == "pass" else (0, 1)),
+                        len(kept) - 1) in said
+    assert _result(project.here)["since"]["kept"] == len(kept)  # the others: the same text
 
 
 def test_a_rerun_with_the_same_answers_compares_nothing(project):
@@ -241,7 +244,7 @@ def test_a_rerun_with_the_same_answers_compares_nothing(project):
     assert "since" not in _result(project.here)
 
 
-def test_a_question_asked_twice_in_the_file_is_left_out(project):
+def test_a_question_asked_twice_in_the_file_counts_once(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept = project.kept()
     twice = kept[0]
@@ -256,7 +259,7 @@ def test_a_question_asked_twice_in_the_file_is_left_out(project):
     project.run()
     _mark(project.here, {i: project.marks[i] for i in project.outs})
     project.run()
-    assert _result(project.here)["since"]["kept"] == len(kept) - 1
+    assert _result(project.here)["since"]["kept"] == len(kept)
 
 
 def test_a_question_with_spaces_added_is_the_same_question(project):
@@ -267,7 +270,8 @@ def test_a_question_with_spaces_added_is_the_same_question(project):
     project.run()
     _mark(project.here, {kept_fail: "pass"})
     said = project.run()
-    assert _counts_line(1, 1, 0, 0) in said
+    n = len(project.kept())
+    assert _counts_line(n, 1, 0, n - 1) in said
 
 
 def test_new_answers_not_marked_yet_show_no_counts(project):
@@ -298,7 +302,7 @@ def _resave(here) -> None:
     os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
 
 
-def test_an_answer_carried_over_from_the_last_results_is_not_compared_again(project):
+def test_an_answer_carried_over_from_the_last_results_counts_as_the_same(project):
     project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
     q, shown_pass = project.kept("fail")[0], project.shown("pass")[0]
     project.again({q: "pass", shown_pass: "fail"})  # fixed and broke with these answers
@@ -306,7 +310,7 @@ def test_an_answer_carried_over_from_the_last_results_is_not_compared_again(proj
     others = [i for i in project.kept() if i != q]
     project.again({i: project.marks[i] for i in others})  # the next results: q's answer as it was
     since = _result(project.here)["since"]
-    assert (since["kept"], since["fixed"], since["broke"]) == (len(others), 0, 0)
+    assert (since["kept"], since["fixed"], since["broke"]) == (len(others) + 1, 0, 0)
     assert "Answers that broke" not in _report(project.here)
 
 
@@ -340,7 +344,8 @@ def test_an_answer_that_comes_back_to_an_earlier_text_is_compared(project):
     project.outs[q] = f"First answer {q}."  # the first answer again: its Fail mark is kept
     _write(project.here, project.outs)
     said = project.run()
-    assert _counts_line(1, 0, 1, 0) in said
+    n = len(project.kept())
+    assert _counts_line(n, 0, 1, n - 1) in said
 
 
 # The result: the sign test, divided per change tested -------------------------------------
@@ -363,7 +368,7 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     kept = project.kept("fail")
     assert HELPED in project.again({i: "pass" for i in kept})  # 6 and 0, under 0.05
     said = project.again({i: "fail" for i in kept})  # 0 and 6: 0.031 is not under 0.05 / 2
-    assert _counts_line(6, 0, 6, 0) in said
+    assert _counts_line(10, 0, 6, 4) in said
     assert LEANS_WORSE + " " + more(7, 0, 74) in said  # the 6 shown Fails of 20 failed
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
@@ -424,7 +429,7 @@ def test_the_page_shows_the_three_cells_and_the_answers_that_broke(project):
         assert seen.index("Since your last answers") < seen.index("Answers you failed")
         assert "Fixed" in seen and "Broke" in seen and "Same" in seen
         assert '<span class="w-pass">3</span>' in html and '<span class="w-fail">1</span>' in html
-        assert "Answers that broke" in seen
+        assert "Answers that broke, from the questions not kept aside" in seen
         broke = html.split("Answers that broke", 1)[1].split("</section>", 1)[0]
         assert f"Answer {shown_pass[0]}, take 2." in broke  # the new answer
         assert f"First answer {shown_pass[0]}." not in broke
@@ -498,12 +503,24 @@ def test_a_link_in_place_of_before_json_is_refused(project, tmp_path_factory):
     assert target.read_text(encoding="utf-8") == "{}"
 
 
-def test_a_damaged_before_json_compares_nothing_and_says_no_error(project):
-    project.first(fails={0, 1, 2, 3}, n=10)
+DAMAGED = ("Can't compare with your last answers: .judgekeeper/fix/before.json is damaged. "
+           "Your next change will be compared.")
+
+
+def test_a_damaged_before_json_says_so_and_the_next_change_is_compared(project):
+    project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
+    kept = project.kept("fail")
+    project.again({i: "pass" for i in kept})
+    assert "questions kept aside:" in project.run()
     path = _before(project.here)
     path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
-    said = project.again({i: "pass" for i in project.kept()})
-    assert "questions kept aside" not in said and "before.json" not in said
+    said = project.run()
+    assert DAMAGED in said and "questions kept aside:" not in said
+    assert DAMAGED in " ".join(unescape(_seen(_report(project.here))).split())
+    assert no_grades.read_before(_ws(project.here)) is not None  # a fresh one is written
+    said = project.again({i: "fail" for i in kept})  # the next change: compared again
+    assert DAMAGED not in said and _counts_line(len(project.kept()), 0, len(kept),
+                                                len(project.kept()) - len(kept)) in said
 
 
 def test_a_project_without_before_json_compares_from_the_answers_it_has(project):
@@ -519,7 +536,8 @@ def test_a_project_without_before_json_compares_from_the_answers_it_has(project)
     assert "kept aside:" not in said and "before.json" not in said
     flip = "pass" if project.marks[kept[0]] == "fail" else "fail"
     said = project.again({kept[0]: flip})  # compared with the answer marked just now
-    assert _counts_line(1, *((1, 0) if flip == "pass" else (0, 1)), 0) in said
+    assert _counts_line(len(kept), *((1, 0) if flip == "pass" else (0, 1)), len(kept) - 1) \
+        in said
 
 
 def test_the_last_answers_are_kept_before_new_ones_replace_them(project):
@@ -527,7 +545,8 @@ def test_the_last_answers_are_kept_before_new_ones_replace_them(project):
     _before(project.here).unlink()  # made again from the answers there when new ones come
     fails = project.kept("fail")
     said = project.again({i: "pass" for i in fails})
-    assert _counts_line(len(fails), len(fails), 0, 0) in said
+    n = len(project.kept())
+    assert _counts_line(n, len(fails), 0, n - len(fails)) in said
 
 
 def test_an_llm_as_a_judge_project_gets_no_comparison(here, capsys, pages):

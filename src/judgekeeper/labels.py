@@ -637,8 +637,8 @@ def looks_off(counts: dict) -> dict | None:
         (fp, ff), (pp, pf) = counts[g]["file"], counts[g]["page"]
         p = fisher_p(fp, ff, pp, pf)
         if p < CHECK_LEVEL and (found is None or p < found[0]):
-            found = (p, {"group": g, "file": round(100 * fp / (fp + ff)),
-                         "page": round(100 * pp / (pp + pf))})
+            found = (p, {"group": g, "file": int(textio.percent(fp / (fp + ff))[:-1]),
+                         "page": int(textio.percent(pp / (pp + pf))[:-1])})
     return found and found[1]
 
 

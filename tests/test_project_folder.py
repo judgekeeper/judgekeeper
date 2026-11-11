@@ -1367,6 +1367,21 @@ def test_stop_closes_the_page_opened_from_the_folder_below(here, capsys, marker)
     assert not page.is_open(here / "evals" / ".judgekeeper")
 
 
+def test_stop_in_a_project_with_its_own_marks_leaves_a_page_below_open(here, capsys,
+                                                                       monkeypatch):
+    _marker(here, ".git")
+    table_project(here, split(20, 16))
+    assert run(capsys, "--no-browser")[0] == 0  # this project's own marking started
+    assert "Closed the marking page." in run(capsys, "--stop")[1]
+    _marker(here / "pkg", ".git")
+    table_project(here / "pkg", split(20, 16))
+    monkeypatch.chdir(here / "pkg")
+    assert run(capsys, "--no-browser")[0] == 0  # a page for the project below
+    monkeypatch.chdir(here)
+    assert "No marking page is open." in run(capsys, "--stop")[1]
+    assert page.is_open(here / "pkg" / ".judgekeeper")
+
+
 def test_stop_names_the_pages_open_in_folders_below(here, capsys):
     _marker(here, ".git")
     for name in ("a", "b"):

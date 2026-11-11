@@ -123,7 +123,7 @@ def test_when_the_ends_need_a_decimal_the_value_has_one_too(value, interval, sho
 
 
 @pytest.mark.parametrize(("value", "interval", "shown", "between"), [
-    (0.99335, [0.99332, 0.99338], "about 99.33%", "99.33% and 99.34%"),
+    (0.99335, [0.99332, 0.99338], "about 99.34%", "99.33% and 99.34%"),  # half up
     (0.9933, [0.993251, 0.993349], "about 99.3%", "–"),
     (0.99338, [0.99332, 0.99338], "about 99.34%", "99.33% and 99.34%"),
 ])
@@ -142,7 +142,7 @@ def test_almost_exact_reads_the_same_in_the_terminal(monkeypatch):
          "groups": {"pass": {"pool": 60}, "fail": {"pool": 60}}}
     lines = front.estimate_lines(r)
     assert "  When you say Pass, it also says Pass: about 99.3%" in lines
-    assert ("  When you say Fail, it also says Fail: about 99.33% "
+    assert ("  When you say Fail, it also says Fail: about 99.34% "
             "(between 99.33% and 99.34%)") in lines
 
 

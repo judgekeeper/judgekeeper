@@ -26,8 +26,14 @@ TABLE_SWITCH = ("To check your AI's answers instead, use a copy of the file with
 TOOL_SWITCH = ("To check your AI's answers instead, save them in a CSV file with input and "
                "output columns and no verdict column.")
 OLD_MORE = "Mark more questions for a clearer answer."
-ADD = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-       "with none breaking. {kept} of yours failed, so add about {extra} more questions.")
+NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
+        "with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
+        "{target} kept-aside Fails; you have {kept}.")
+ADD = NEED + " Add about {extra} more questions."
+HARDER = ("A clear answer needs at least 7 kept-aside questions to go from Fail to Pass, with "
+          "none breaking. About 2 in 3 failed questions get fixed, so that needs about 11 "
+          "kept-aside Fails; you have 0. Add harder questions, ones your AI may get wrong, and "
+          "mark their answers.")
 ENOUGH = ("A clear answer needs at least {need} of your {kept} kept-aside Fails to pass, with "
           "none breaking.")
 
@@ -54,14 +60,14 @@ def _c(kind: str = "leans better", **kw) -> dict:
 
 def test_too_few_kept_aside_fails_says_how_many_questions_to_add():
     c = _c(kept_fails=4, fails=8, marked=20)  # f = 0.4
-    assert no_grades.clear_line(c) == ADD.format(need=6, kept=4, extra=25)
+    assert no_grades.clear_line(c) == ADD.format(target=9, need=6, kept=4, extra=25)
     assert no_grades.result_line(c) == (no_grades.CHANGE["leans better"] + " "
-                                        + ADD.format(need=6, kept=4, extra=25))
+                                        + ADD.format(target=9, need=6, kept=4, extra=25))
 
 
 def test_the_extra_is_rounded_up_and_counts_the_round():
     c = _c(kept_fails=0, fails=6, marked=20, test=2)  # target 11, f 0.3: 73.3
-    assert no_grades.clear_line(c) == ADD.format(need=7, kept=0, extra=74)
+    assert no_grades.clear_line(c) == ADD.format(target=11, need=7, kept=0, extra=74)
     assert math.ceil(2 * 11 / 0.3) == 74
 
 
@@ -72,10 +78,17 @@ def test_enough_kept_aside_fails_says_how_many_must_pass():
     assert no_grades.clear_line(c) == ENOUGH.format(need=7, kept=11)
 
 
-def test_nothing_failed_says_no_more():
-    c = _c("same", kept_fails=0, fails=0, marked=20)
-    assert no_grades.clear_line(c) is None
-    assert no_grades.result_line(c) == no_grades.CHANGE["same"]
+def test_nothing_failed_before_asks_for_harder_questions():
+    c = _c("same", kept_fails=0, fails=0, marked=30, test=2)  # a second change, after 30/30
+    assert no_grades.clear_line(c) == HARDER
+    assert no_grades.result_line(c) == no_grades.CHANGE["same"] + " " + HARDER
+
+
+def test_every_cant_tell_yet_says_what_a_clear_answer_needs():
+    for kind in ("leans better", "leans worse", "same"):
+        for fails, kept in ((0, 0), (8, 0), (8, 4)):
+            line = no_grades.result_line(_c(kind, kept_fails=kept, fails=fails, marked=20))
+            assert line.startswith(no_grades.CHANGE[kind] + " A clear answer needs at least")
 
 
 def test_a_clear_result_says_no_more():
@@ -93,7 +106,7 @@ def test_the_terminal_and_page_say_it_with_the_numbers_of_the_project(project):
     kept = project.kept("fail")
     assert len(kept) == 4
     said = project.again({i: "pass" for i in kept[:2]})  # 2 fixed, none broke
-    line = ADD.format(need=6, kept=4, extra=25)
+    line = ADD.format(target=9, need=6, kept=4, extra=25)
     assert no_grades.CHANGE["leans better"] + " " + line in said
     assert OLD_MORE not in said
     for html in (_report(project.here), _live(project.here)):

@@ -33,6 +33,7 @@ from judgekeeper.start_label import (
     TO_A_RESULT,
     VERDICTS,
 )
+from judgekeeper.textio import percent
 
 ROWS_SHOWN = 3  # disagreements shown in a group before "Show N more"
 KAPPA_MEANS = ("Kappa is agreement beyond coincidence. 0 means no better than coincidence, 1 "
@@ -159,7 +160,7 @@ REASONS_SCRIPT = """
           cell = document.getElementById(box.getAttribute("data-answer")),
           add = box.querySelector(".add-reason"), now = box.querySelector(".said-now"),
           said = box.querySelector(".said-text"),
-          text = cell.textContent, shown = parseInt(box.getAttribute("data-len"), 10),
+          shown = parseInt(box.getAttribute("data-len"), 10),
           spans = JSON.parse(box.getAttribute("data-spans") || "[]"),
           sent = input.value, timer = null, pick = null;
       function body() {
@@ -216,18 +217,37 @@ REASONS_SCRIPT = """
               saved.textContent = "Not saved: " + (e.error || r.status); });
           }, function () { saved.textContent = "Not saved: judgekeeper is not running."; });
       }
+      // The marked words in bold, in the cell as it is drawn (bold, lists): each text node
+      // is cut where a span starts and ends; the hidden stars and "- " count, never bold.
       function draw() {
-        var chars = Array.from(text), at = 0;
-        while (cell.firstChild) { cell.removeChild(cell.firstChild); }
-        spans.slice().sort(function (a, b) { return a[0] - b[0]; }).forEach(function (s) {
-          var from = Math.max(s[0], at), to = Math.min(s[1], shown);
-          if (to <= from) { return; }
-          cell.appendChild(document.createTextNode(chars.slice(at, from).join("")));
-          var b = document.createElement("b");
-          b.className = "hl"; b.textContent = chars.slice(from, to).join("");
-          cell.appendChild(b); at = to;
+        each(cell.querySelectorAll("b.hl"), function (b) {
+          b.replaceWith.apply(b, Array.prototype.slice.call(b.childNodes)); });
+        cell.normalize();
+        var sorted = spans.slice().sort(function (a, b) { return a[0] - b[0]; }),
+            walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT), nodes = [], node,
+            at = 0;
+        while ((node = walk.nextNode())) { nodes.push(node); }
+        nodes.forEach(function (t) {
+          var chars = Array.from(t.data), start = at, cuts = [];
+          at += chars.length;
+          if (t.parentNode.closest("[hidden]")) { return; }
+          sorted.forEach(function (s) {
+            var a = Math.max(s[0], start), b = Math.min(s[1], at, shown);
+            if (b > a) { cuts.push([a - start, b - start]); }
+          });
+          if (!cuts.length) { return; }
+          var into = document.createDocumentFragment(), i = 0;
+          cuts.forEach(function (c) {
+            var from = Math.max(c[0], i);
+            if (c[1] <= from) { return; }
+            into.appendChild(document.createTextNode(chars.slice(i, from).join("")));
+            var b = document.createElement("b");
+            b.className = "hl"; b.textContent = chars.slice(from, c[1]).join("");
+            into.appendChild(b); i = c[1];
+          });
+          into.appendChild(document.createTextNode(chars.slice(i).join("")));
+          t.parentNode.replaceChild(into, t);
         });
-        cell.appendChild(document.createTextNode(chars.slice(at).join("")));
         clear.hidden = !spans.length;
       }
       each(box.querySelectorAll("[aria-pressed]"), function (b) {
@@ -585,7 +605,7 @@ b.hl { font-weight: 800; color: var(--text); text-decoration: underline;
 
 
 def _pct(x: float) -> str:
-    return f"{x:.0%}"
+    return percent(x)
 
 
 def _two(x: float) -> str:
@@ -894,11 +914,22 @@ def _question(m: dict, same: tuple = ()) -> tuple[str, str]:
 BOLD = re.compile(r"\*\*(.+?)\*\*")
 
 
-def _rich(text: str, spans=()) -> str:
+EMPTY = "(empty answer)"  # a blank answer, as the marking page shows it
+
+
+def _rich(text: str, spans=(), keep: bool = False) -> str:
     """Text for a cell: escaped first, then only `**bold**` as <strong> and lines that start
-    with "- " as <ul><li>. Anything else stays text; a `**` never closed stays as stars. The
-    words the person marked (`spans`, offsets in `text`) keep their <b class="hl">."""
+    with "- " as <ul><li>, as the marking page shows them. Anything else stays text; a `**`
+    never closed stays as stars. The words the person marked (`spans`, offsets in `text`)
+    keep their <b class="hl">. A blank answer is EMPTY. `keep` (the live page): the stars,
+    the "- " and the line breaks the lists take are kept in hidden spans, so the cell's text
+    is the answer's own and a word marked in it has the same place (REASONS_SCRIPT)."""
+    if not text.strip():
+        return f'<span class="empty">{EMPTY}</span>'
     marks = reasons.merged(spans, len(text))
+
+    def hide(a: int, b: int) -> str:
+        return f"<span hidden>{_e(text[a:b])}</span>" if keep and b > a else ""
 
     def piece(a: int, b: int, bold: bool) -> str:
         out, at = [], a
@@ -913,16 +944,22 @@ def _rich(text: str, spans=()) -> str:
     def line(a: int, b: int) -> str:
         out, at = [], a
         for m in BOLD.finditer(text, a, b):
-            out += [piece(at, m.start(), False), piece(m.start(1), m.end(1), True)]
+            out += [piece(at, m.start(), False), hide(m.start(), m.start(1)),
+                    piece(m.start(1), m.end(1), True), hide(m.end(1), m.end())]
             at = m.end()
         return "".join(out) + piece(at, b, False)
 
-    blocks: list[tuple[str, list[str]]] = []
-    pos = 0
+    lines, pos = [], 0
     for ln in text.split("\n"):
         a, b = pos, pos + len(ln)
         pos = b + 1
-        kind, html = ("ul", line(a + 2, b)) if ln.startswith("- ") else ("p", line(a, b))
+        lines.append(("ul", a, b) if ln.startswith("- ") else ("p", a, b))
+    blocks: list[tuple[str, list[str]]] = []
+    for k, (kind, a, b) in enumerate(lines):
+        html = hide(a, a + 2) + line(a + 2, b) if kind == "ul" else line(a, b)
+        last = k == len(lines) - 1
+        if not last and (kind == "ul" or lines[k + 1][0] != "p"):
+            html += hide(b, b + 1)  # a line break a list takes: kept, never shown
         if blocks and blocks[-1][0] == kind:
             blocks[-1][1].append(html)
         else:
@@ -931,13 +968,8 @@ def _rich(text: str, spans=()) -> str:
                    "<ul>" + "".join(f"<li>{x}</li>" for x in v) + "</ul>" for k, v in blocks)
 
 
-def _answer(text: str, spans) -> str:
-    """An answer, the words the person marked in bold."""
-    out, at = [], 0
-    for s, e in reasons.merged(spans, len(text)):
-        out += [_e(text[at:s]), f'<b class="hl">{_e(text[s:e])}</b>']
-        at = e
-    return "".join(out) + _e(text[at:])
+def _live_rich(text: str, spans) -> str:
+    return _rich(text, spans, keep=True)
 
 
 def _part_said(n: int, part: str, whole: bool = False) -> str:
@@ -1009,7 +1041,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
     words = {c["id"]: c["text"] for c in own}
     said = _said_words(m, parts, words)
     out = [(f'<div class="why" data-id="{_e(m["id"])}" data-answer="a-{n}" '
-            f'data-len="{len(m["answer"])}" '
+            f'data-len="{len(m["answer"]) if m["answer"].strip() else 0}" '
             f'data-spans="{_e(json.dumps(why.get("spans") or []))}" role="group" '
             f'aria-labelledby="q-{n}">'),
            (f'<p class="why-line"><button type="button" class="add-reason sbtn" '
@@ -1075,7 +1107,7 @@ def _group(key: str, said: str, rows: list[dict], kept: int, live: bool = False,
         body.append(f'<tr{extra}>'
                     f'<td data-label="Question"{ht}>{question}</td>'
                     f'<td data-label="Answer" id="a-{n}">'
-                    f'{(_answer if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
+                    f'{(_live_rich if box else _rich)(m["answer"], (m.get("why") or {}).get("spans"))}</td>'
                     + (f'<td data-label="{REASON}">'
                        f'{_e(shown_reason(m.get("reason") or "") or "No reason given")}</td>'
                        if reasons_given else "")
@@ -1218,7 +1250,7 @@ def estimate(value, interval, why: str | None = None) -> tuple[str, str]:
     if targets.width_word(interval) == "exact":
         return f"{share(value)} ({why or EVERY_MARKED})", "–"
     for places in range(3):
-        if f"{lo:.{places}%}" != f"{hi:.{places}%}":
+        if percent(lo, places) != percent(hi, places):
             ends = _end(lo, places), _end(hi, places)
             if ends[0] != ends[1]:
                 return _about(share(value, places)), " and ".join(ends)
@@ -1235,7 +1267,7 @@ def share(x: float, places: int = 0) -> str:
     or 0% though it is not exactly 1 or 0 ("99.6%", never "100%" for 499 of 501); past two
     decimals, "over 99.99%" or "under 0.01%"."""
     for n in range(places, 3):
-        text = f"{x:.{n}%}"
+        text = percent(x, n)
         if x in (0, 1) or float(text[:-1]) not in (0, 100):
             return text
     return "over 99.99%" if x > 0.5 else "under 0.01%"
@@ -1512,8 +1544,10 @@ def _since(fixing: dict) -> str:
         return ""
     if c.get("waiting"):
         lines = [no_grades.WAIT_NEW]
+    elif c.get("damaged"):
+        lines = [no_grades.damaged_line()]
     elif c.get("new_set"):
-        lines = [no_grades.new_set_line()]
+        lines = [no_grades.new_set_line(), no_grades.all_shown_line()]
     elif not c.get("kept"):
         lines = [no_grades.NO_KEPT]
     else:
@@ -1534,6 +1568,13 @@ def _since(fixing: dict) -> str:
             + (_group("broke", no_grades.BROKE, broke, 0, False, [], fixing.get("own") or [],
                       0, tuple(x for x, _ in _same(broke)), reasons_given=False,
                       asked=no_grades.offered()) if broke else ""))
+
+
+def _own_counts(passed: int, failed: int, note: str = "") -> str:
+    """The person's counts; `note` after the Fail count (no_grades.ALL_KEPT)."""
+    note = f" {_e(note)}" if note else ""
+    return (f'<div class="cnts"><p class="c-pass">{own_line("passed", passed)}</p>'
+            f'<p class="c-fail">{own_line("failed", failed)}{note}</p></div>')
 
 
 def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
@@ -1558,8 +1599,7 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
     more = (no_grades.SURER if r["check"] == "result" else no_grades.MORE_ANSWERS).format(
         file=_PATH if file else "your results file", n=no_grades.MIN_MARKS,
         command=_PAGE_FLAGS.sub("", cmd["run"]))
-    cnts = (f'<div class="cnts"><p class="c-pass">{own_line("passed", k)}</p>'
-            f'<p class="c-fail">{own_line("failed", n - k)}</p></div>')
+    cnts = _own_counts(k, n - k)
     if r["check"] != "result":  # too few marks: as before a graded result
         if left == 0:
             lead = (f"{_e(ALL_MARKED.format(marks=marks_words(labels)))} "
@@ -1582,6 +1622,8 @@ def no_grades_page(r: dict, back: str | None = None, fixing: dict | None = None,
         lists = (_group("fail", FAILED, rows, r.get("kept") or 0, live, [],
                         fixing.get("own") or [], 0, names, reasons_given=False,
                         asked=no_grades.offered()) if rows else "")
+        if not rows and r.get("kept") and r["kept"] == n - k:  # every Fail is kept aside
+            cnts = _own_counts(k, n - k, no_grades.ALL_KEPT[min(n - k, 2)])
         if fixing.get("split_unknown"):
             lists = _split_unknown(cmd["fix"])
         if left:

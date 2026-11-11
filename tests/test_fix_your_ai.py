@@ -37,6 +37,9 @@ PROMPT_LINES = [
 SHOWN = (".judgekeeper\\fix\\failed-answers.md" if is_windows()  # as the person types it
          else ".judgekeeper/fix/failed-answers.md")
 HERE_LINES = [x.replace(".judgekeeper/fix/failed-answers.md", SHOWN) for x in PROMPT_LINES]
+# With no reason given yet, the first line ends at "Fail."
+NO_REASONS = [PROMPT_LINES[0].replace(", with my reasons.", "."), *PROMPT_LINES[1:]]
+HERE_NO_REASONS = [HERE_LINES[0].replace(", with my reasons.", "."), *HERE_LINES[1:]]
 LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 
 
@@ -379,13 +382,13 @@ def test_the_page_shows_the_prompt_in_what_next(here, capsys, marked):
         at = seen.index("Your marks and reasons are saved")
         saved = seen.index(f"Your failed answers are saved in {SHOWN} . "
                            "Give it to your coding agent to improve your AI's prompt:")
-        prompt = seen.index(" ".join(HERE_LINES))
+        prompt = seen.index(" ".join(HERE_NO_REASONS))
         after = seen.index("After you change the prompt, run your AI again, save the new "
                            "answers, and run judgekeeper to mark them.")
         assert at < saved < prompt < after
         assert f"saved in <code>{SHOWN}</code>. Give" in html
         box = html.split('<div class="cmd prompt">', 1)[1].split("</div>", 1)[0]
-        assert "\n".join(HERE_LINES) in box.replace("&#x27;", "'")
+        assert "\n".join(HERE_NO_REASONS) in box.replace("&#x27;", "'")
         assert "data-copy" in box
         assert "Mark more answers for a surer number." in seen  # answers left: it stays
 
@@ -409,7 +412,7 @@ def test_the_prompt_names_the_file_with_backslashes_on_windows(here, marked, mon
     assert no_grades.fix_prompt(_ws(here)).splitlines()[0].startswith(
         "Read .judgekeeper\\fix\\failed-answers.md. ")
     monkeypatch.setattr(sys, "platform", "darwin")
-    assert no_grades.fix_prompt(_ws(here)).splitlines() == PROMPT_LINES
+    assert no_grades.fix_prompt(_ws(here)).splitlines() == NO_REASONS
 
 
 def test_fix_names_the_file_and_prints_the_prompt(here, capsys, marked):
@@ -421,7 +424,7 @@ def test_fix_names_the_file_and_prints_the_prompt(here, capsys, marked):
     assert "Your answers have no grades, so there is no LLM-as-a-judge to fix." in said
     assert f"Your failed answers are saved in {SHOWN}." in said
     at = lines.index(LEAD)
-    assert lines[at + 2:at + 5] == HERE_LINES
+    assert lines[at + 2:at + 5] == HERE_NO_REASONS
     assert said.index("no LLM-as-a-judge to fix") < said.index("Your failed answers") < \
         said.index(LEAD) < said.index("Next:")
 

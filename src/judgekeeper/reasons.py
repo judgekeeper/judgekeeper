@@ -159,9 +159,14 @@ def parts_left_out(data: dict) -> int:
 
 # The answer's text the spans point into -------------------------------------------------------
 
-def canonical(text: str) -> str:
+def canonical(text) -> str:
     """An answer as the result page shows it, before any cut: one kind of line break and no
-    hidden character, so an offset counted in the browser points at the same words here."""
+    hidden character, so an offset counted in the browser points at the same words here. An
+    answer that is not text (a JSON object) is first the text the marking page shows for it."""
+    if not isinstance(text, str):
+        from judgekeeper.start_label import display
+
+        text = display(text)
     return visible(text.replace("\r\n", "\n").replace("\r", "\n"))
 
 

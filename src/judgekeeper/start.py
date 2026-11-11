@@ -324,6 +324,7 @@ class Talk:
 
     subcommand = ""  # every printed command starts with textio.program(subcommand)
     asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
+    given = False  # a PATH was given on the command line: that folder is the project
 
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
                  path: str | Path = "."):
@@ -673,7 +674,7 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
             and mapper._judge_column((c,), [row.get(c) for row in rows])])
     verdicts = verdicts or find.grade_columns(columns)
     if not verdicts and answers and find.answers_only(path):  # no grade: the person marks each
-        return _answers_only(rows, ids if own else None)
+        return _answers_only(rows)
     if not verdicts or "input" not in columns or "output" not in columns:
         raise StartError(f"{path.name} needs input, output and a verdict or score column; "
                          f"columns are: {', '.join(columns)}")
@@ -712,15 +713,16 @@ def read_results_table(path: Path, answers: bool = False) -> RecordList:
     return records
 
 
-def _answers_only(rows: list[dict], ids: list | None) -> RecordList:
+def _answers_only(rows: list[dict]) -> RecordList:
     """A table's answers with no grade (find.is_answers_table): no judge records, and its
     answers as `answers` ({"id", "input", "output"}, with app_version when it has one), each
-    once. `ids`: the table's own ids, when every row has its own."""
-    records = RecordList(ids_derived=ids is None)
+    once. An answer's id comes from its question and its text, never from an id column: a new
+    answer under an old id is a new answer to mark, and an exact repeat counts once."""
+    records = RecordList(ids_derived=True)
     answers: dict[str, dict] = {}
     for n, row in enumerate(rows, 1):
         textio.reading(n)
-        key = ids[n - 1] if ids else derive_record_id(row.get("input"), row.get("output"))
+        key = derive_record_id(row.get("input"), row.get("output"))
         answer = {"id": str(key), "input": row.get("input"), "output": row.get("output")}
         if not _blank(row.get("app_version")):
             answer["app_version"] = str(row["app_version"])
@@ -1404,15 +1406,18 @@ def _misshapen(root: Path) -> None:
             raise not_results_error(path, why)
 
 
-def _read_above(root: Path, found: find.Search, tool: str | None) -> tuple[str, Path] | None:
+def _read_above(root: Path, found: find.Search, tool: str | None,
+                stay: bool = False) -> tuple[str, Path] | None:
     """("records" or "results", the project folder above `root`) when a run in `root` reads
     there: no results here, and record()'s records saved there (from any subfolder), or
-    results in the project folder above (find.results_above)."""
+    results in the project folder above (find.results_above) unless the run `stay`s."""
     available = [t for t in find.TOOLS if found.readable(t)]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:
             return "records", above
+    if stay:
+        return None
     if not available and tool is None and not found.too_big() and not found.unreadable:
         above = find.results_above(root)
         if above is not None:
@@ -1420,13 +1425,14 @@ def _read_above(root: Path, found: find.Search, tool: str | None) -> tuple[str, 
     return None
 
 
-def reads_in(folder: Path) -> Path:
+def reads_in(folder: Path, stay: bool = False) -> Path:
     """The folder a run in `folder` (no tool named) reads its results in, and so keeps its
-    marks in: `folder`, or the project folder above it (_read_above). --stop closes the page
-    a run from `folder` opened."""
+    marks in: `folder`, or the project folder above it (_read_above; never for a run that
+    `stay`s). --stop closes the page a run from `folder` opened."""
     root = Path(folder).resolve()
     seen = {root}
-    while (above := _read_above(root, find.search(root), None)) is not None:
+    while (above := _read_above(root, find.search(root), None, stay)) is not None:
+        stay = False
         root = above[1].resolve()
         if root in seen:
             break
@@ -1499,7 +1505,7 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
                 continue
             _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
                   else f"{rel} {how}, so it was left out.")
-    above = _read_above(root, found, tool)
+    above = _read_above(root, found, tool, talk.given)  # a PATH given never climbs
     if above is not None and above[0] == "records":  # record() saves at the project root
         above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
         _note(talk, RECORDS_ABOVE.format(root=above_here))

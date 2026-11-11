@@ -432,6 +432,19 @@ def get_extra(extra: str) -> str:
     return f"install the extra ({install_extra(extra)})"
 
 
+def percent(x: float, places: int = 0) -> str:
+    """`x` (a share, 0 to 1) as a percent with `places` decimals, rounded half up on the
+    exact fraction it stands for (23/40 is 58%, though the float reads 57.4999...%): every
+    percentage judgekeeper shows is made here."""
+    from fractions import Fraction
+
+    scaled = Fraction(x).limit_denominator(10**6) * 100 * 10**places
+    n = (scaled + Fraction(1, 2)).__floor__()
+    digits = str(abs(n)).rjust(places + 1, "0")
+    whole, part = digits[:len(digits) - places], digits[len(digits) - places:]
+    return f"{'-' if n < 0 else ''}{whole}{'.' + part if places else ''}%"
+
+
 def plural(n: int, one: str, many: str | None = None) -> str:
     """`n` and the word for it: `one` for 1, else `many` (by default `one` + "s")."""
     return f"{n} {one if n == 1 else many or one + 's'}"

@@ -1152,10 +1152,14 @@ def test_the_words_the_person_marked_keep_their_highlight_inside_bold():
     assert cell == ('<b class="hl">hello</b> <strong><b class="hl">bold</b></strong> world')
 
 
-def test_a_row_with_a_reason_box_keeps_its_answer_as_text_because_the_box_counts_it():
+def test_a_row_with_a_reason_box_shows_its_answer_as_marked_and_keeps_its_text_to_count():
+    """The live cell shows bold and bullets as the marking page does; the stars and "- " stay
+    in it, hidden, so its text is the answer the reason box counts in."""
     row = {"id": "a1", "answer": "**x** and\n- y"}
     live = _page_with(row, "/?token=t")
-    assert _cell(live, "Answer") == "**x** and\n- y" and 'data-len="13"' in live
+    cell = _cell(live, "Answer")
+    assert "<strong>x</strong>" in cell and "<li>" in cell and 'data-len="13"' in live
+    assert unescape(re.sub(r"<[^>]+>", "", cell)) == "**x** and\n- y"
     assert _cell(_page_with(row), "Answer") == "<strong>x</strong> and<ul><li>y</li></ul>"
 
 

@@ -350,11 +350,14 @@ __TOP__
   var status = data.status;  // whether a result is ready, from the server
   var ended = false;         // nothing left to mark: the page says what comes next
   var walkingSkipped = false;  // "Mark them" or "Go back to them": going through the skipped ones
-  var lockUntil = 0;         // clicks are ignored until then, after each mark
+  var lockUntil = 0;         // an undo click is ignored until then, after the one before
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
   var queued = [];           // keys pressed while a mark is saved: they act, in order, after it
+  // The result-ready box waits until no mark came for READY_WAIT_MS, so it never takes a
+  // click meant for the next answer (`readyDue`: the server said to show it).
+  var READY_WAIT_MS = 1200, readyDue = false, readyTimer = null;
   var $ = function (id) { return document.getElementById(id); };
   var card = $("answer-card");
   function setText(id, text) { $(id).textContent = text == null ? "" : String(text); }
@@ -906,7 +909,7 @@ __TOP__
       version = s.version; history = []; walkingSkipped = false;
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
       hear(heard);
-      if (popup && !readyShown && !ended) { showReady(); }
+      if (popup) { readyLater(); }
     }).catch(function () { window.location.reload(); });
   }
 
@@ -934,7 +937,7 @@ __TOP__
       dropAgain(res.body.summary.dropped);
       showAgain(res.body.summary.again);
       then();
-      if (res.body.summary.popup && !readyShown && !ended) { showReady(); }
+      if (res.body.summary.popup) { readyLater(); }
       while (queued.length && !busy) { queued.shift()(); }
     }).catch(function () {
       clearTimeout(waited); queued = [];
@@ -944,9 +947,10 @@ __TOP__
     return true;
   }
 
-  // Each click waits LOCK_MS after the action before: a double click never marks an answer not
-  // yet on screen. A key (`key`) is not locked: one pressed while a mark is saved waits for it
-  // (act), then does nothing within FRESH_MS of the next answer showing; a key held down does
+  // An undo click waits LOCK_MS after the one before: a double click undoes one mark. A mark
+  // or skip, by click or key, does nothing within FRESH_MS of its answer showing (fresh), so a
+  // double click never marks an answer not yet read; any later click marks the answer on
+  // screen. A key pressed while a mark is saved waits for it (act); a key held down does
   // nothing.
   function locked(key) {
     var t = Date.now();
@@ -968,8 +972,9 @@ __TOP__
 
   function fresh() { return Date.now() < freshUntil; }
 
-  function mark(value, key) {
-    if (ended || fresh() || locked(key)) { return; }
+  function mark(value) {
+    if (ended || fresh()) { return; }
+    if (readyDue) { readyLater(); }  // still marking: the box waits
     var it = items[pos];
     var heard = value === "pass" ? "Marked Pass." : "Marked Fail.";
     var was = it.label;  // a mark changed: Z puts it back, and the result doesn't open
@@ -979,8 +984,9 @@ __TOP__
       next(); hear(heard); focusCard(); }, heard);
   }
 
-  function skip(key) {
-    if (ended || fresh() || locked(key)) { return; }
+  function skip() {
+    if (ended || fresh()) { return; }
+    if (readyDue) { readyLater(); }
     var it = items[pos], was = it.label;
     send({deferred: true}, function () {
       it.label = null; it.skipped = true; history.push({pos: pos, was: was});
@@ -1021,8 +1027,8 @@ __TOP__
     if (!ended && tag !== "BUTTON" && tag !== "A" && scrollAnswer(e, k)) {
       e.preventDefault(); return; }
     if (e.repeat) { return; }
-    if (KEYS[k]) { act(function () { mark(KEYS[k], true); }); }
-    else if (k === "s") { act(function () { skip(true); }); }
+    if (KEYS[k]) { act(function () { mark(KEYS[k]); }); }
+    else if (k === "s") { act(function () { skip(); }); }
     else if (k === "z" || k === "u") { act(function () { undo(true); }); }
     else { return; }
     e.preventDefault();
@@ -1045,10 +1051,19 @@ __TOP__
   });
 
   // The result-ready box: once, when the result first turns ready (the server says so with
-  // `popup`; not when the page opens already ready, nor after a reload or on another page). The page behind it is inert. Esc is "Keep marking"; Tab stays
-  // between its two buttons.
+  // `popup`; not when the page opens already ready, nor after a reload or on another page),
+  // after READY_WAIT_MS with no mark (readyLater). The page behind it is inert. Esc is "Keep
+  // marking"; Tab stays between its two buttons.
   var readyShown = false, readyBox = $("ready-box");
   $("ready-see").setAttribute("href", url("/result"));
+  function readyLater() {
+    readyDue = true; clearTimeout(readyTimer);
+    readyTimer = setTimeout(function () {
+      readyDue = false;
+      if (!readyShown && !ended && !busy) { showReady(); }
+      else if (busy && !readyShown) { readyLater(); }
+    }, READY_WAIT_MS);
+  }
   function showReady() {
     readyShown = true; queued = [];  // keys pressed meanwhile do not mark behind the box
     $("ready").hidden = false; $("app").setAttribute("inert", "");

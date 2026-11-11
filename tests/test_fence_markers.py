@@ -148,12 +148,15 @@ def _no_line_starts_with_the_name(text: str) -> None:
     assert not [x for x in text.splitlines() if x.lstrip().startswith(("folder", "x", "Run"))]
 
 
-def test_a_folder_name_with_a_line_break_stays_on_the_prompt_line(monkeypatch):
+def test_a_folder_name_with_a_line_break_stays_on_the_prompt_line(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
     from judgekeeper import start_label
     monkeypatch.setattr(start_label, "shown_folder", lambda ws: BROKEN)
     monkeypatch.setattr(no_grades, "has_failed", lambda ws: True)
-    _no_line_starts_with_the_name("\n".join(no_grades.agent_lines(object())))
-    assert "my folder" in no_grades.fix_prompt(object())
+    ws = SimpleNamespace(dir=tmp_path)  # no failed-answers.md to read: no reasons
+    _no_line_starts_with_the_name("\n".join(no_grades.agent_lines(ws)))
+    assert "my folder" in no_grades.fix_prompt(ws)
 
 
 def test_a_results_file_name_with_a_line_break_stays_on_its_line(monkeypatch, tmp_path):
