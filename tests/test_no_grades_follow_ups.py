@@ -420,7 +420,7 @@ def test_the_result_page_under_ten_marks_says_one_line(here, capsys):
 
 
 def test_a_newer_results_file_is_named_once_when_it_is_read(here, capsys):
-    """T2: results-b.jsonl saved next to results.jsonl is read as new answers."""
+    """results-b.jsonl saved next to results.jsonl is read as new answers."""
     import os
     import time
 

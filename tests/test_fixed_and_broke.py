@@ -584,9 +584,9 @@ def harder(need: int, kept: int) -> str:
 
 
 @pytest.mark.parametrize("c, said", [
-    # T3, change 2: need 7, so 11 kept-aside Fails; 1 kept aside; 1 of 40 failed: 800
+    # a second change: need 7, so 11 kept-aside Fails; 1 kept aside; 1 of 40 failed: 800
     ({"test": 2, "kept_fails": 1, "fails": 1, "marked": 40}, harder(7, 1)),
-    # T3, change 1: need 6, so 9; 4 kept aside; 8 of 40 failed: 50
+    # a first change: need 6, so 9; 4 kept aside; 8 of 40 failed: 50
     ({"test": 1, "kept_fails": 4, "fails": 8, "marked": 40}, more(6, 4, 50)),
     ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 40}, more(6, 4, 100)),
     ({"test": 1, "kept_fails": 4, "fails": 4, "marked": 41}, harder(6, 4)),  # 103
@@ -600,8 +600,8 @@ def need_only(need: int, kept: int) -> str:
 
 
 @pytest.mark.parametrize("c", [
-    {"test": 3, "kept_fails": 3, "fails": 6, "marked": 38, "last": True},  # T4: 76 and 86
-    {"test": 3, "kept_fails": 0, "fails": 0, "marked": 30, "last": True},  # T2: harder twice
+    {"test": 3, "kept_fails": 3, "fails": 6, "marked": 38, "last": True},  # was 76 and 86 more
+    {"test": 3, "kept_fails": 0, "fails": 0, "marked": 30, "last": True},  # was harder questions twice
 ])
 def test_after_3_changes_the_box_names_one_number(c):
     said = no_grades.clear_line(c)
@@ -612,7 +612,7 @@ def test_after_3_changes_the_box_names_one_number(c):
 
 
 def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
-    """T4: new answers left unmarked, before.json damaged, then runs and `mark`."""
+    """New answers left unmarked, before.json damaged, then runs and `mark`."""
     project.first(fails={0, 1, 2, 3, 4, 5}, n=20)
     project.again({0: None, 1: None, 7: None}, marked=False)
     path = _before(project.here)

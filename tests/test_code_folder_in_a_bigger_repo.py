@@ -144,7 +144,7 @@ def test_a_folder_holding_answers_with_no_grade_is_the_project(repo, capsys, mon
 
 def test_answers_in_a_subfolder_use_its_own_marks_not_the_folder_above(repo, capsys,
                                                                         monkeypatch):
-    """T2's b/: the folder above holds marks on its own results; b/ holds other answers."""
+    """b/ below a folder whose marks are on its own results: b/ holds other answers."""
     main = repo / "booking"
     main.mkdir()
     (main / "bot.py").write_text("", encoding="utf-8")
