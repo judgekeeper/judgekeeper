@@ -65,3 +65,32 @@ def test_sibling_projects_with_marks_never_loop(home, capsys, monkeypatch, pages
     project.forget()
     code, out, err = run(capsys, "--no-browser")
     assert code == 3 and "No answers yet?" in flat(out), out + err
+
+
+@pytest.mark.parametrize("graded", [False, True])
+def test_answers_below_a_marked_project_with_an_unmarked_session_never_loop(
+        home, capsys, monkeypatch, pages, graded):
+    root = home / "bot"
+    root.mkdir()
+    (root / "pyproject.toml").write_text("[project]\nname = 'bot'\n", encoding="utf-8")
+    if graded:
+        rows = [{"input": f"Root question {i}?", "output": f"Root answer {i}.",
+                 "verdict": "pass" if i % 3 else "fail"} for i in range(12)]
+        (root / "results.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows),
+                                            encoding="utf-8")
+    else:
+        _answers(root, "Root")
+    monkeypatch.chdir(root)
+    run(capsys, *(["mark"] if graded else []), "--no-browser")  # 12 graded: marked first
+    mark(root, ["pass"] * 6 + ["fail"] * 4)
+    run(capsys, "--stop")
+    evals = root / "evals"
+    _answers(evals, "Evals")
+    (evals / ".judgekeeper").mkdir()  # a session that holds no marks
+    monkeypatch.chdir(evals)
+    for args in (["--no-browser"], ["mark", "--no-browser"], ["--stop"], ["check"], ["fix"]):
+        project.forget()
+        code, out, err = run(capsys, *args)
+        assert "RecursionError" not in out + err and code in (0, 3), (args, out + err)
+    said = _run(capsys, monkeypatch, evals)
+    assert "results.jsonl" in said and "Reading the project folder above" not in said, said
