@@ -387,6 +387,9 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/regrade.yaml` | With promptfoo: a config that grades the marked answers again; change the rule in it |
 | `fix/marked-answers.yaml` | With promptfoo: the same answers, word for word as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
+| `fix/split-answers.json` | With answers and no grades: which questions you marked are kept aside, at random, to test a change to your AI later |
+| `fix/failed-answers.md` | With answers and no grades: the answers you failed that you can see, each question, the answer and your reason, grouped by your most common reason |
+| `fix/before.json` | With answers and no grades: your marked answers from your last results and the ones before them, as ids and hashes only, to count what was fixed and what broke after you change your AI |
 | `rules/` | Each rule tested, as `<hash>.txt` |
 | `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |
 | `verdicts/` | Each setup's grades on your marked answers (ids and grades only) |
