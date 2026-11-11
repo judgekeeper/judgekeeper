@@ -11,6 +11,7 @@
 - On the result page, a long reason is shown in full when its row is open. Your own reason buttons are cut to 2 lines, with the full text on hover.
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
+- Fast Pass and Fail clicks on the marking page all count now, and the "Your result is ready." box waits until you stop marking. A folder with code in it is its own project: judgekeeper no longer reads the folder above it in its place. Percentages round half up (23 of 40 is 58%).
 
 ## 1.1.2 (2026-11-08)
 
