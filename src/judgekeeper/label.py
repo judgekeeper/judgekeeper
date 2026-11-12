@@ -859,7 +859,16 @@ def _handler(server: LabelServer):
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):
                 summary["popup"] = True
-            self._json(200, {"summary": summary})
+            reply = {"summary": summary}
+            if "note" in body and hasattr(server.session, "workspace"):  # the result page's
+                # own buttons as they are now, for the other answers' boxes
+                from judgekeeper import reasons
+
+                try:
+                    reply["own"] = reasons.own_chips(server.session.workspace)
+                except (OSError, ValueError):
+                    pass
+            self._json(200, reply)
             if server.stays:
                 return
             if server.result is not None and server.finished():

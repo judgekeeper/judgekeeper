@@ -110,6 +110,15 @@ def counts_line(k: int, n: int) -> str:
     return COUNTS.format(k=k, n=plural(n, "answer"))
 
 
+def rate_line(r: dict) -> str | None:
+    """The result page's pass rate, as it is written there: "Of the answers you marked, you
+    passed about 60%, between 39% and 78%."; None before a result."""
+    from judgekeeper.report_page import RATE
+
+    words = rate_words(r)
+    return f"{RATE} {words}." if words else None
+
+
 def rate_words(r: dict) -> str | None:
     """"about 60%, between 31% and 83%", as the result page's estimates are written
     (report_page.estimate); None before a result."""
@@ -753,6 +762,16 @@ def failed_path(ws) -> Path:
     return ws.dir / "fix" / FAILED_FILE
 
 
+def listed_failed(ws) -> bool:
+    """Whether the last result saved (result.json) listed answers failed, as
+    failed-answers.md lists them."""
+    try:
+        r = loads(ws.result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(r, dict) and r.get("check") == "result" and bool(r.get("fails"))
+
+
 def failed_shown(ws, page: bool = False) -> str:
     """fix/failed-answers.md as the person types it: from where they ran judgekeeper (`page`:
     from the project folder, where the page's What next is read, whichever folder the page
@@ -1146,11 +1165,23 @@ def found_line(ws, n: int) -> str:
                             same=kept)
 
 
-def waiting_line(ws, session) -> str | None:
-    """How many answers the last new results brought are not marked yet; None for none."""
+def _waiting(ws, session, after: bool = False) -> int:
     now = round_of(ws)
     new = set(now["new"]) if now else set()
-    n = sum(1 for item in session.items if not item["label"] and item["id"] in new)
+    if after and all(item["id"] in new for item in session.items):
+        return 0  # the first answers read, nothing before them
+    return sum(1 for item in session.items if not item["label"] and item["id"] in new)
+
+
+def waiting(ws, session) -> int:
+    """How many answers new results brought after the ones before are not marked yet; 0 for
+    the first answers read."""
+    return _waiting(ws, session, after=True)
+
+
+def waiting_line(ws, session) -> str | None:
+    """How many answers the last new results brought are not marked yet; None for none."""
+    n = _waiting(ws, session)
     return WAITING[min(n, 2)].format(n=n) if n else None
 
 

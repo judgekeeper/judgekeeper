@@ -17,7 +17,7 @@ judgekeeper [PATH] [--tool NAME] [--metric NAME] [--experiment NAME_OR_ID]
             [--new | --wait | --stop] [--version] [--debug]
 ```
 
-Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks. An LLM-as-a-judge that gave every answer one grade gets its result at the first mark the other way.
+Each run does the next step. A result needs at least 15 Pass and 15 Fail marks from you. It also needs 20 marks on answers your LLM-as-a-judge passed and 20 on answers it failed (or all of them, if there are fewer). If your LLM-as-a-judge fails under 10% of the answers, finding 15 answers you mark Fail can take many marks. None of these counts applies to an LLM-as-a-judge that gave every answer one grade: it gets its result at the first mark the other way.
 
 | What is there | What `judgekeeper` does |
 |---|---|
@@ -33,13 +33,13 @@ New answers from the same LLM-as-a-judge join as a new batch.
 Which `.judgekeeper/` a command uses:
 
 - Every command uses the nearest `.judgekeeper/` that holds your marks, up to the project folder (the one with `judgekeeper.toml`, `pyproject.toml`, `setup.py`, `package.json`, `.git` or `requirements*.txt`). With none, it starts one in the folder you run it in.
-- Run with no PATH in a folder with no results, it reads the results in the project folder above it, unless the folder holds code (a `.py`, `.js` or `.ts` file, `requirements*.txt`, `pyproject.toml` or `package.json`): then that folder is the project, and it says how to read the folder above. A folder with a file of questions and answers and no grades is a project too: it reads that file and says how to read the results in the folder above. The folder above it names is the nearest one, up to the project folder, with results of its own or a judgekeeper session. A PATH you give is always the project. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them.
+- Run with no PATH in a folder with no results, it reads the results in the project folder above it, unless the folder holds code (a `.py`, `.js` or `.ts` file, `requirements*.txt`, `pyproject.toml` or `package.json`): then that folder is the project, and it says how to read the folder above. A folder with a file of questions and answers and no grades is a project too: it reads that file and says how to read the results in the folder above. The folder above that it names is the nearest one, up to the project folder, that has results of its own or a judgekeeper session. A PATH you give is always the project. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them.
 - Run from `/` or a folder above your home folder, it starts nothing: it asks you to go to your project folder (exit 3).
 - A results file in the same folder as the results that `.judgekeeper/` reads uses it too when it is the same eval (read the same way, with questions it holds).
 - Another eval in that folder is never read, marked or taken as a changed LLM-as-a-judge: a plain run keeps reading the marked file and says so, and naming it (`judgekeeper FILE`, `mark FILE`, `check FILE`, `fix FILE`) says so and exits 3. To mark it, put it in a folder of its own and run `judgekeeper` there.
 - Results in a folder of their own get their own `.judgekeeper/` in their folder.
 - If you run it in a folder with no results and no session of its own, and you already ran judgekeeper in folders right below it, it names each of those folders and stops (exit 3) instead of starting a second set of marks there. A folder with results of its own, or its own session, reads its results.
-- From a project folder (such as a repository's top), files inside a project of its own below (one with a project file or its own `.judgekeeper/`) are never read, also not as results in a format of its own: it names those projects and stops (exit 3).
+- From a project folder (such as a repository's top), files inside a project of its own below (one with a project file or its own `.judgekeeper/`) are never read, not even as results in a format of its own: it names those projects and stops (exit 3).
 - It stops the same way when results are in two or more folders right below it and none are in it: it names them, and you check one at a time from its own folder (DeepEval and Inspect AI results in several folders are asked about instead).
 
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLflow, or a CSV, TSV or JSONL file with `input` and `output` columns, and a `verdict` column if an LLM-as-a-judge graded them ([What it reads](#what-it-reads)).
@@ -367,7 +367,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 |---|---|
 | `.gitignore` | `*`, `!.gitignore`, `!judge.json`, `!history.jsonl`: your answers stay off Git. Never overwritten |
 | `judge.json` | Your LLM-as-a-judge's setup: eval tool and version, models, rule and prompt (as hashes), temperature, pass mark, endpoint |
-| `judge-check.json`, `judge-check.csv` | What the first check found, with each answer and its problem |
+| `judge-check.json`, `judge-check.csv` | What the first check found, with each answer and its problem. Written only when it finds something to list, and removed when a later run finds nothing |
 | `start.json` | The results files, the LLM-as-a-judge's fingerprint, counts, the seed, the answers' order and batches |
 | `pool.jsonl` | Each answer to mark: id, input, output, batch |
 | `pool-judge.jsonl` | Your LLM-as-a-judge's grade on every answer, with the fingerprint |
@@ -380,7 +380,7 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `link-said.json` | How many marks came through a printed link when the terminal last said so, so it says it again only when that changes |
 | `result.json`, `report.html` | The result: every number, your counts, the fingerprint and the date. In `result.json`, `labels.correct` and `labels.wrong` count the answers you marked Pass and Fail (not what your LLM-as-a-judge got right or wrong), and `groups.pass.correct` and `groups.fail.correct` count the answers you marked Pass among those it passed and failed |
 | `history/` | Earlier results, with the same fields as `result.json` |
-| `history.jsonl` | One line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text |
+| `history.jsonl` | With an LLM-as-a-judge: one line per result, fix test, check and new set of marks kept aside: counts and numbers, no answer text. Not written for answers with no grades |
 | `anchors.jsonl`, `anchors.manifest.json` | The answers you marked, as a fixed set with its sha256 |
 | `fix/split.json` | Which marks are kept aside, the seed, and every test on them, with its sha256 |
 | `fix/mistakes.md` | The clues, the rule, and each mistake on the marks you can see |
@@ -389,10 +389,10 @@ In your project, judgekeeper writes only inside `.judgekeeper/`, plus `judgekeep
 | `fix/marked-answers.yaml` | With promptfoo: the same answers, word for word as marked, as the tests `regrade.yaml` grades; written again with `marked-answers.csv` |
 | `fix/suggestions.md` | Rule lines suggested from your reasons |
 | `fix/split-answers.json` | With answers and no grades: which questions you marked are kept aside, at random, to test a change to your AI later |
-| `fix/failed-answers.md` | With answers and no grades: the answers you failed that you can see, each question, the answer and your reason, grouped by your most common reason |
+| `fix/failed-answers.md` | With answers and no grades: the answers you failed that you can see, each question, the answer and your reason, grouped by your most common reason. Written again with each mark once there is a result, and removed when no answer you failed is listed (every one you can see passes now, or is kept aside); the next run says so once |
 | `fix/before.json` | With answers and no grades: your marked answers from your last results and the ones before them, as ids and hashes only, to count what was fixed and what broke after you change your AI |
-| `rules/` | Each rule tested, as `<hash>.txt` |
-| `results-seen.json` | The setup last read, so a check with nothing new reads nothing again |
+| `rules/` | Each rule `fix` tested, as `<hash>.txt`. Written only when your results hold the LLM-as-a-judge's rule |
+| `results-seen.json` | The setup last read, so a check with nothing new reads nothing again. Written by `judgekeeper check`, with an LLM-as-a-judge |
 | `verdicts/` | Each setup's grades on your marked answers (ids and grades only) |
 | `records/` | What `judgekeeper.record()` saved; `--new` leaves it |
 | `previous-<date>/` | Everything here before you started over, except `history.jsonl`, `verdicts/`, `records/` and `.gitignore`, which stay |

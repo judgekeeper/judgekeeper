@@ -642,8 +642,8 @@ def test_answers_alone_never_make_a_folder_hold_results(here):
 
 
 def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsys, pages):
-    """All 12 marked, then 10 answers added to the file: the result counts the answers left,
-    so the terminal and the pages say to mark more, not to add answers or change a mark."""
+    """All 12 marked, then 10 answers added to the file: the marking page opens for them, and
+    the result after them counts them, so nothing says to add answers or change a mark."""
     write_answers(here, 12)
     run(capsys, "--no-browser")
     mark(here, ["pass"] * 8 + ["fail"] * 4)
@@ -653,13 +653,13 @@ def test_new_answers_after_every_answer_was_marked_make_a_new_result(here, capsy
     write_answers(here, 22)  # the same 12 and 10 more
     _, out, _ = run(capsys, "--no-browser")
     said = flat(out)
-    assert "You passed 8 of 12 answers." in said
-    assert "Next: run `judgekeeper mark --no-browser` to mark more answers." in said
-    assert "for a surer number, then run" not in said
-    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 10
-    report = _report(here)
-    assert "Mark more answers for a surer number." in report and "Change a mark" not in report
-    assert f'<a href="{BACK}">Mark more answers for a surer number.</a>' in _live(here)
+    assert "Step 2 of 5: Mark" in said and "Found 10 new answers" in said, said
+    assert "You passed" not in said and "for a surer number, then run" not in said
+    assert "Change a mark" not in _report(here)
+    mark(here, ["pass"] * 8 + ["fail"] * 4 + ["pass"] * 10)
+    _, out, _ = run(capsys, "--no-browser")
+    assert "You passed 18 of 22 answers." in flat(out), out
+    assert json.loads(ws.result_json.read_text(encoding="utf-8"))["left"] == 0
 
 
 GRADES_GONE = "results.csv needs input, output and a verdict or score column"

@@ -284,18 +284,19 @@ def test_new_answers_not_marked_yet_show_no_counts(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept = project.kept()
     said = project.again({kept[0]: None, kept[1]: None}, marked=False)  # 10 still marked
-    assert WAIT in said
-    assert "questions kept aside:" not in said
-    assert _result(project.here)["since"] == {"waiting": True}
+    assert "Step 2 of 5: Mark" in said and "2 new answers are waiting to be marked." in said
+    assert "questions kept aside:" not in said and "You passed" not in said
+    assert not _result(project.here).get("since")
     seen = " ".join(_seen(_report(project.here)).split())
-    assert WAIT in seen and "Fixed" not in seen
+    assert "Fixed" not in seen
 
 
 def test_counts_wait_for_every_changed_question_shown_ones_too(project):
     project.first(fails={0, 1, 2, 3}, n=12)
     kept, shown = project.kept(), project.shown()
-    project.again({i: "pass" for i in kept} | {shown[0]: None})
-    assert _result(project.here)["since"] == {"waiting": True}
+    said = project.again({i: "pass" for i in kept} | {shown[0]: None})
+    assert "Step 2 of 5: Mark" in said and "1 new answer is waiting to be marked." in said
+    assert "questions kept aside:" not in said, said
     _mark(project.here, {shown[0]: "pass"})
     said = project.run()
     assert WAIT not in said and f"On the {len(kept)} questions kept aside" in said
@@ -326,11 +327,11 @@ def test_a_question_with_spaces_added_and_the_same_answer_is_never_compared(proj
     project.again({q: "pass"})
     assert _result(project.here)["since"]["fixed"] == 1
     _write(project.here, project.outs, asked={q: f"What is  question {q}? "})
-    project.run()
-    unmarked = _result(project.here).get("since")
+    said = project.run()
+    assert "Step 2 of 5: Mark" in said and "questions kept aside:" not in said, said
     _mark(project.here, {q: "pass"})
     project.run()
-    assert unmarked is None and _result(project.here).get("since") is None
+    assert _result(project.here).get("since") is None
 
 
 def test_the_same_answers_saved_again_keep_the_comparison_and_add_no_test(project):
@@ -617,9 +618,10 @@ def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
     project.again({0: None, 1: None, 7: None}, marked=False)
     path = _before(project.here)
     path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
-    assert DAMAGED in project.run()  # the run that found it
-    assert DAMAGED not in project.run()  # the same answers again: said once
+    said = [project.run(), project.run()]
     _, out, err = run(project.capsys, "mark", "--no-browser")
     assert "3 new answers are waiting to be marked." in flat(out), out + err
     _mark(project.here, {0: "pass", 1: "pass", 7: "pass"})
-    assert DAMAGED not in project.run()
+    said += [project.run(), project.run()]
+    assert [DAMAGED in x for x in said] == [False, False, True, False], said  # on the result
+    # that would compare, once

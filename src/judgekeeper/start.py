@@ -332,7 +332,8 @@ class Talk:
         self.yes = yes
         self.quiet = quiet
         self.flags = flags
-        self.path = str(path)  # the path the person gave; flags[0] when it is not "."
+        self.path = str(path)  # the path the person gave; flags[0] when it is not "." or
+        # when "." was typed (given)
         self._blank = True  # the last line said was empty: never two in a row
 
     @property
@@ -349,7 +350,7 @@ class Talk:
         """`command`, with `where` (a path inside the folder the person gave) as the path,
         written with forward slashes on every system, as the lines that name it write it."""
         flags = self._flags_for(extra)
-        given = flags[:1] == (path_word(self.path),) and self.path != "."
+        given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
@@ -358,14 +359,15 @@ class Talk:
         """`command` run on `folder` (written as it goes on the line, from the folder the
         command runs in) in place of the person's path, where the command takes its path."""
         flags = self._flags_for(extra)
-        given = flags[:1] == (path_word(self.path),) and self.path != "."
+        given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         return " ".join((self.program, folder, *(flags[1:] if given else flags), *extra))
 
     def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
         """The person's flags without those `extra` gives again (`--flag value` or
         `--flag=value`): argparse keeps only the last, so theirs would be lost anyway."""
         again = {w.split("=", 1)[0] for w in extra} & {flag for _, flag in REPEATED}
-        path = 1 if self.flags[:1] == (path_word(self.path),) and self.path != "." else 0
+        path = 1 if self.flags[:1] == (path_word(self.path),) and (
+            self.path != "." or self.given) else 0
         kept, words = list(self.flags[:path]), iter(self.flags[path:])
         for word in words:
             if word in again:

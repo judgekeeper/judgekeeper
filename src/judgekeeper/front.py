@@ -202,6 +202,9 @@ STILL_OPEN = ("The marking page is still open. Mark more answers to make these r
 AGREES = "How often your LLM-as-a-judge agrees with you (estimates):"
 KAPPA_LINE = "Kappa (agreement beyond coincidence): {value}. It never decides the result."
 NEXT_MARK_MORE = "run `{command}` to mark more answers."
+FAILED_REMOVED = "No answer you marked Fail is listed now, so judgekeeper removed {path}."
+PAGE_CLOSED = ("The marking page that was open is closed now: it showed your answers from "
+               "before. To open it again, run `{command}`.")  # a result after new answers
 MARK_ANY_TIME = "To mark more answers at any time, run `{command}`."
 SAY_WHY = "Where you and your LLM-as-a-judge disagree, say why. `fix` uses your reasons."
 RESULT_OPEN = "Your result page is open in your browser."
@@ -260,6 +263,8 @@ class FrontTalk(start.Talk):
         """The printed commands repeat the options as they are now, never --yes: it answers
         only the questions printed in the run just before (ask_noted)."""
         self.flags = start.repeated_flags(self.path, **self.options)
+        if self.path == "." and self.given:  # typed: this folder is the project, never above
+            self.flags = (".", *self.flags)
         if self.new:
             self.flags = (*self.flags, "--new")
 
@@ -398,6 +403,7 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
                "no_browser": no_browser}
     talk = FrontTalk(yes=yes, path=path, options=options, new=new)
     talk.labels, talk.given = labels, given
+    talk.refresh()
     return go(talk, Path(path), wait=wait, stop=stop, marking=False)
 
 
@@ -1107,7 +1113,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
         nested = _from_here(root, nested)
         talk.para(_nested_line(nested, Path.cwd()))
         return talk.stop(EXIT_QUESTION, run_there(nested, Path.cwd()))
-    saved = _saved_marks(root)
+    saved = _marks_in(Workspace(root)) if talk.given else _saved_marks(root)  # a folder named
+    # is the project: never the marks of a project around it
     if saved:  # the results file is gone, the marks are not
         talk.say_step()
         talk.para(f"No eval results found in this folder. Your {_n(saved, 'mark')} "
@@ -1648,7 +1655,8 @@ def _path_head(talk: FrontTalk, found: start.Found, about: str | None = None) ->
     lines = path_lines(found, about)
     root = Path(found.root)
     if not found.graded and not talk.given and not find.has_marker(root) \
-            and not find.holds_code(root):  # answers here, not the results above (find)
+            and not find.holds_code(root) and getattr(talk, "find_shown", True):  # answers
+        # here, not the results above (find): said with Find, never on the runs after it
         line = above_line(talk, root)
         if line is not None:
             lines.append(line)
@@ -1741,7 +1749,7 @@ def _read_from(found: start.Found) -> str:
     if len(found.used) > 1:
         older = [textio.shown_in(r.path, found.root) for label in found.used[1:]
                  for r in found.results[1:] if r.rel == label]
-        names = f": {start._and(older)}" if len(older) == len(found.used) - 1 else ""
+        names = f" ({start._and(older)})" if len(older) == len(found.used) - 1 else ""
         return f"{shown} and {_n(len(found.used) - 1, 'older file')}{names}"
     return shown
 
@@ -3064,7 +3072,8 @@ def _result(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, save
 def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
                marking: bool) -> int:
     """Answers with no grade (no_grades.py): Find's block the first time, the marking page until
-    no_grades.MIN_MARKS marks, then the result (`judgekeeper mark` always opens the page).
+    no_grades.MIN_MARKS marks and while answers new results brought wait to be marked, then
+    the result (`judgekeeper mark` always opens the page).
     Marks made for an LLM-as-a-judge, or any with --new, move aside first, after a yes when
     there are any."""
     start_label.refuse_links(ws)
@@ -3090,6 +3099,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
         _say_path(talk, found)
     talk.found = found
     talk.ask_noted()
+    talk.find_shown = first and not marking  # the folder above is named with Find alone
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
     talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
@@ -3097,14 +3107,16 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
         start_label.prepare(found, say=lambda line: None, ws=ws)
         _import_labels(talk, ws, found, first)  # --labels: the marks it brings
     new = no_grades.found_new(ws, was) if not first else 0  # said once, on this run
+    closed = False
     if before is not None and before != [q["id"] for q in ws.data()["queue"]] and \
             is_open(ws.dir):
         background.stop(ws.dir)  # the page open shows the answers without the new ones
+        closed = True
     session = StartSession(ws)
     counts = session.counts()
     n = counts["correct"] + counts["wrong"]
-    if n >= no_grades.MIN_MARKS and not marking:
-        return _no_grades_result(talk, ws, session, wait, new)
+    if n >= no_grades.MIN_MARKS and not marking and not no_grades.waiting(ws, session):
+        return _no_grades_result(talk, ws, session, wait, new, closed)  # new answers first
     return _no_grades_page(talk, ws, session, wait, marking, first, new)
 
 
@@ -3188,7 +3200,8 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
             page.serve(opened.server)
         return EXIT_OK
     if n:
-        waiting = no_grades.waiting_line(ws, session) if marking and not new else None
+        waiting = (no_grades.waiting_line(ws, session)
+                   if (marking or no_grades.waiting(ws, session)) and not new else None)
         talk.say(f"You marked {_n(n, 'answer')} so far: {n_pass} Pass, {n_fail} Fail."
                  + (f" {waiting}" if waiting else ""))
         if not enough:
@@ -3218,10 +3231,10 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
 
 
 def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
-                      wait: bool, new: int = 0) -> int:
+                      wait: bool, new: int = 0, closed: bool = False) -> int:
     """Step 3 with no grade: how many answers the person passed and the reasons they gave,
     saved in result.json; nothing about an LLM-as-a-judge. `new`: answers new since the last
-    results, said first."""
+    results, said first. `closed`: this run closed the marking page open (PAGE_CLOSED)."""
     talk.say(STEP.format(n=3, name="Measure"))
     talk.say()
     if talk.found is not None:
@@ -3230,9 +3243,14 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()
+    failed = no_grades.failed_path(ws)
+    had = failed.is_file() or no_grades.listed_failed(ws)  # a mark on the page may have
+    # removed it already: the last result listed some
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))
     labels = r["labels"]
-    talk.para(no_grades.counts_line(labels["correct"], labels["correct"] + labels["wrong"]))
+    rate = no_grades.rate_line(r)  # as the result page says it
+    talk.para(no_grades.counts_line(labels["correct"], labels["correct"] + labels["wrong"])
+              + (f" {rate}" if rate else ""))
     for said in no_grades.since_lines(r.get("since")):  # what changed since the last answers
         talk.para(said)
     line = no_grades.reasons_line(no_grades.reason_rows(ws, session))
@@ -3243,6 +3261,9 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         talk.say()
         for said in agent:
             talk.say(said)
+    if had and not failed.is_file():  # this run's result lists none: said once, here
+        talk.say()
+        talk.para(FAILED_REMOVED.format(path=f"{shown_folder(ws)}/fix/{failed.name}"))
     talk.say()
     report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
     talk.say(f"Full report: {report} (open it in your browser)")
@@ -3252,6 +3273,8 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         opened, _ = _open(talk, ws, wait, False)
         talk.say("The page stays open while this runs. To stop it: Ctrl-C.")
         talk.say()
+    elif closed:
+        talk.para(PAGE_CLOSED.format(command=_command_of(talk, False, "mark")))
     talk.para("Next: " + (NEXT_MARK_MORE.format(command=_command_of(talk, False, "mark"))
                           if r["left"] else
                           no_grades.more_answers(ws, _command_of(talk, False), surer=True)))
