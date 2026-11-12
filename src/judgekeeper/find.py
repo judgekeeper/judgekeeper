@@ -879,12 +879,13 @@ def _left_empty(folder: Path) -> bool:
     return project.marks_above(folder) is not None
 
 
-def nested_results(found: Search) -> list[str]:
+def nested_results(found: Search, answers: bool = False) -> list[str]:
     """The projects below the folder searched (`found.nested`) that hold results judgekeeper
-    reads, by their path from it."""
+    reads, by their path from it; `answers`: answers with no grade too (to name them)."""
     out = []
     for folder in found.nested:
-        if holds_results(search(folder)):
+        below = search(folder)
+        if holds_results(below) or answers and below.answers_read:
             out.append(folder.relative_to(found.root).as_posix())
     return out
 

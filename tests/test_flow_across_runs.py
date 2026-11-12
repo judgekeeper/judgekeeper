@@ -762,7 +762,8 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     code, out = _jk(capsys, "--no-browser", "--port", "0")
     assert code == 0, out
     assert "File:            outer_results.csv" in out
-    assert "These results belong to the project in inner/." in flat(out)
+    assert ("The project in inner/ has results too: to check them, run `judgekeeper inner`."
+            in flat(out))
     _jk(capsys, "--stop")
 
 
