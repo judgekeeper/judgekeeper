@@ -275,7 +275,8 @@ def test_too_few_answers_needs_the_person(here, capsys):
     assert code == 3
     flat = " ".join(out.split())
     assert ("You have 10 answers with a clear grade. That is not enough answers for a first "
-            "result. Next:") in flat
+            "result. judgekeeper saved your LLM-as-a-judge's setup in .judgekeeper/judge.json. "
+            "Next:") in flat
     line = assert_one_next_at_the_end(out)
     assert line == ("Next: mark these 10 now with `judgekeeper mark`. Your marks are kept. Then "
                     "run your eval to make more answers (that makes model calls), and run "

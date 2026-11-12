@@ -1,5 +1,5 @@
-"""The marking page's footer says how to come back as a command typed where the page was
-started: from the folder above (`mark p2`) it names the folder, in the project it does not."""
+"""The marking page's footer says how to come back as a command run in the project folder,
+with the program as typed: from the folder above (`mark p2`) too, as `mark` there."""
 from __future__ import annotations
 
 import os
@@ -22,10 +22,10 @@ def _page(out: str) -> str:
 
 
 @pytest.mark.parametrize(("start_in", "given", "said"), [
-    ("parent", ["p2"], "judgekeeper mark p2 --port 0 --no-browser"),
+    ("parent", ["p2"], "judgekeeper mark --port 0 --no-browser"),
     ("project", [], "judgekeeper mark --port 0 --no-browser"),
 ])
-def test_the_footer_names_the_folder_as_the_terminal_did(start_in, given, said, tmp_path,
+def test_the_footer_is_the_command_in_the_project_folder(start_in, given, said, tmp_path,
                                                          monkeypatch, capsys):
     promptfoo_project(tmp_path / "p2", split(25, 25))
     monkeypatch.chdir(tmp_path if start_in == "parent" else tmp_path / "p2")
@@ -36,12 +36,12 @@ def test_the_footer_names_the_folder_as_the_terminal_did(start_in, given, said, 
     assert f'<p class="foot">To come back: <code>{said}</code>' in page
 
 
-def test_a_whole_path_typed_is_said_from_here_on_the_footer(tmp_path, monkeypatch, capsys):
+def test_a_whole_path_typed_gives_the_project_folder_command(tmp_path, monkeypatch, capsys):
     promptfoo_project(tmp_path / "p2", split(25, 25))
     monkeypatch.chdir(tmp_path)
     assert main(["mark", str(tmp_path / "p2"), "--port", "0", "--no-browser"]) == 0
     page = _page(capsys.readouterr().out)
-    assert '<code>judgekeeper mark p2 --port 0 --no-browser</code>' in page
+    assert '<code>judgekeeper mark --port 0 --no-browser</code>' in page
     assert str(tmp_path) not in page
 
 
@@ -54,7 +54,7 @@ def test_junk_given_for_the_footer_leaves_the_project_folder_form(back):
 
 
 @pytest.mark.real_page
-def test_the_page_process_says_the_folder_too(tmp_path, monkeypatch, capsys):
+def test_the_page_process_says_the_same(tmp_path, monkeypatch, capsys):
     promptfoo_project(tmp_path / "p2", split(25, 25))
     monkeypatch.chdir(tmp_path)
     folder = tmp_path / "p2" / ".judgekeeper"
@@ -69,4 +69,4 @@ def test_the_page_process_says_the_folder_too(tmp_path, monkeypatch, capsys):
                 os.kill(lock["pid"], signal.SIGTERM)
             except (PermissionError, ProcessLookupError):  # it was closing already (Windows)
                 pass
-    assert '<code>judgekeeper mark p2 --port 0 --no-browser</code>' in page
+    assert '<code>judgekeeper mark --port 0 --no-browser</code>' in page

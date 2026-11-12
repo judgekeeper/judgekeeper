@@ -90,6 +90,8 @@ READS = ("judgekeeper can read results from promptfoo, DeepEval, Inspect AI, MLf
 # Each of its lines starts a line of its own, wrapped as every other line.
 QUESTIONS_NEXT = "paste the prompt above into your coding agent, then run `{command}` again."
 FOLDER_ABOVE = "Results in the folder above? Run `{command}`."  # after the prompt
+THIS_FOLDER = "This folder already holds your judgekeeper session ({marks})."  # run from below
+SAVED_SETUP = "judgekeeper saved your LLM-as-a-judge's setup in {folder}/judge.json."
 FOLDERS_ABOVE = "Results in a folder above? Run `{command}`."  # more than one level up
 QUESTIONS_INTRO = ("No answers yet? Paste this into your coding agent (Claude Code, Cursor or "
                    "Codex):")
@@ -575,18 +577,19 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if not path.exists():
         raise not_found(path, talk.path)
     asked, path = path, _remembered(talk, path)  # a folder given stays the project
-    if path.is_dir() and not project.is_project(path) and not _marks_in(Workspace(path)) and (
-            sessions := _sessions_below(path)):  # never a second session above one, nor
-        # one above's for them: results in a folder with its own session belong to it
+    if _sent_below(path):  # never a second session above one, nor one above's for them:
+        # results in a folder with its own session belong to it
+        sessions = _sessions_below(path, judged=True)
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
-    if path.is_dir() and not project.is_project(path) and not _saved_marks(path) and (
+    held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
+    if path.is_dir() and not project.is_project(path) and not held and (
             folders := _projects_below(path)):  # nor one session for several projects
         folders = _from_here(path, folders)
         if len(folders) == 1:  # a project of its own: its results are checked there
             talk.para(_nested_line(folders, Path.cwd()))
             raise talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
         raise _go_to_one(talk, folders)
-    if path.is_dir() and not _saved_marks(path) and (folders := _beside_a_session(path)):
+    if path.is_dir() and not held and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
         # other results here
     if path.is_file() and (owner := _session_owning(path)) is not None:
@@ -768,6 +771,9 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
+    if own is None and search.skipped and (nested := find.nested_results(search)):
+        raise _nothing_found(talk, root, search.signs, nested)  # a link left out here
+        # never hides the projects below that hold results
     if own is None and (search.skipped or not talk.given
                         and find.results_above(root) is not None):
         return path, None  # results-like files too far up or down: find_judge names them
@@ -1135,8 +1141,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
 
 
 def _way_above(talk: FrontTalk, root: Path) -> None:
-    """above_line, for a run with no PATH in a folder with code (find.holds_code)."""
-    if talk.given or not find.holds_code(root):
+    """above_line, for a run with no PATH that found nothing to read."""
+    if talk.given:
         return
     line = above_line(talk, root)
     if line is not None:
@@ -1147,7 +1153,7 @@ def _way_above(talk: FrontTalk, root: Path) -> None:
 def above_line(talk: FrontTalk, root: Path) -> str | None:
     """FOLDER_ABOVE (FOLDERS_ABOVE when it is more than one level up) when the project folder
     above `root` holds results: the command that reads them, from the folder run in."""
-    up = find.above_with_results(root)
+    up = reads_above(root)
     if up is None:
         return None
     path = Path(os.path.relpath(up, Path.cwd())).as_posix()
@@ -1179,9 +1185,20 @@ def _marks_in(ws: Workspace) -> int:
         return 0
 
 
-def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[str, int]]:
+def _session_in(folder: Path) -> bool:
+    """Whether the .judgekeeper/ in `folder` holds a session: start.json or labels."""
+    ws = Workspace(folder)
+    try:
+        return ws.start.is_file() or ws.labels.is_file()
+    except OSError:  # a folder that can't be read (/lost+found): no session
+        return False
+
+
+def _sessions_below(folder: Path, names: list[str] | None = None,
+                    judged: bool = False) -> list[tuple[str, int]]:
     """(name, its marks) of each folder right below `folder` (or of `names`, paths from it)
-    whose .judgekeeper/ holds a session."""
+    whose .judgekeeper/ holds a session (_session_in); `judged`: or only the judge.json of a
+    first run that stopped before marking."""
     if names is None:
         try:
             names = sorted(e.name for e in os.scandir(folder)
@@ -1192,7 +1209,7 @@ def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[
     for name in names:
         ws = Workspace(folder / name)
         try:
-            held = ws.start.is_file() or ws.labels.is_file()
+            held = _session_in(folder / name) or judged and (ws.dir / judge_setup.FILE).is_file()
         except OSError:  # a folder that can't be read (/lost+found): no session to name
             continue
         if held:
@@ -1200,16 +1217,69 @@ def _sessions_below(folder: Path, names: list[str] | None = None) -> list[tuple[
     return out
 
 
+def _own_results(folder: Path, besides: Path | None = None) -> bool:
+    """Whether a run in `folder` has results of its own to read: a results file, or answers
+    with no grade, that is not inside a project below it (find.is_project: a project file
+    or its own .judgekeeper/), nor in `besides` (the folder a run below it reads)."""
+    found = find.search(folder)
+    files = [r.path for rs in found.results.values() for r in rs]
+    files += [path for path, _ in found.answers_only]
+    left = Path(besides).resolve() if besides is not None else None
+    return any(not _in_project_below(folder, Path(path))
+               and not (left is not None and Path(path).resolve().is_relative_to(left))
+               for path in files)
+
+
+def reads_above(root: Path) -> Path | None:
+    """The nearest folder above `root`, up to its project folder (find.project_folder), that
+    holds a session (_session_in) or where a run reads results of its own (_own_results, not
+    those in `root`); None when there is none."""
+    root = Path(root).resolve()
+    top = find.project_folder(root)
+    if top is None:
+        return None
+    for folder in root.parents:
+        if _session_in(folder) or _own_results(folder, besides=root):
+            return folder
+        if folder == top:
+            return None
+    return None
+
+
+def _in_project_below(folder: Path, path: Path) -> bool:
+    """Whether `path` is inside a project of its own below `folder`."""
+    folder = folder.resolve()
+    for above in Path(path).resolve().parents:
+        if above == folder or not above.is_relative_to(folder):
+            return False
+        if find.is_project(above) and not find._left_empty(above):
+            return True
+    return False
+
+
+def _sent_below(path: Path) -> bool:
+    """Whether a run in `path` (a folder) goes to the sessions below it: it is no project,
+    holds no session of its own, has no results of its own, and a folder right below holds
+    a session."""
+    return (path.is_dir() and not project.is_project(path) and not _session_in(path)
+            and bool(_sessions_below(path)) and not _own_results(path))
+
+
 def go_to_words(sessions: list[tuple[str, int]], command: str) -> tuple[str, str]:
-    """(where the sessions in folders below are, the Next step: go there and run `command`)."""
+    """(where the sessions in folders below are, the Next step: go there and run `command`).
+    The folder run in is "this folder", and then the step is to run `command` in it."""
     if len(sessions) == 1:
         (name, n), = sessions
-        said = (f"{name}/ already holds your judgekeeper session ({_n(n, 'mark')}): "
+        said = (THIS_FOLDER.format(marks=_n(n, 'mark')) if name == "." else
+                f"{name}/ already holds your judgekeeper session ({_n(n, 'mark')}): "
                 "judgekeeper keeps a project's marks in its own folder.")
     else:
-        named = start._and([f"{name}/ ({_n(n, 'mark')})" for name, n in sessions])
+        named = start._and([f"{'this folder' if name == '.' else name + '/'} "
+                            f"({_n(n, 'mark')})" for name, n in sessions])
         said = (f"{named} already hold your judgekeeper sessions: judgekeeper keeps a "
                 "project's marks in its own folder.")
+    if any(name == "." for name, _ in sessions):
+        return said, f"run `{command}`."
     return said, _go_step([name for name, _ in sessions], command)
 
 
@@ -1669,7 +1739,10 @@ def _read_from(found: start.Found) -> str:
     if found.tool == "mapped":
         return shown + (f", {_n(len(found.used), 'line')}" if len(found.used) > 1 else "")
     if len(found.used) > 1:
-        return f"{shown} and {_n(len(found.used) - 1, 'older file')}"
+        older = [textio.shown_in(r.path, found.root) for label in found.used[1:]
+                 for r in found.results[1:] if r.rel == label]
+        names = f": {start._and(older)}" if len(older) == len(found.used) - 1 else ""
+        return f"{shown} and {_n(len(found.used) - 1, 'older file')}{names}"
     return shown
 
 
@@ -1846,9 +1919,11 @@ def _say_found(talk: FrontTalk, line: str) -> None:
 
 
 def found_block(found: start.Found, pass_if: str | None = None,
-                mapped: settings.StartSettings | None = None) -> list[str]:
+                mapped: settings.StartSettings | None = None,
+                said: list[str] | None = None) -> list[str]:
     """The "Find" block: the eval tool, the file, the answers, the judge, its rule and
-    what was read from the file."""
+    what was read from the file, but for what `said` (own_map.how_lines, printed this run)
+    already said in the same words."""
     answers = found.check.answers if found.check else len(found.pool.answers)
     tool = tool_name(found.tool, [str(found.results[0].rel)])
     unscored = found.check.counts().get(judge_check.NOT_SCORED, 0) if found.check else 0
@@ -1872,12 +1947,22 @@ def found_block(found: start.Found, pass_if: str | None = None,
     if found.model_refused and not found.models:  # so the column is not shown as read
         lines.append(f"{INDENT}The {found.model_refused} column holds no model's name.")
     lines += _rule_lines(found)
-    rows = read_rows(found, pass_if, mapped)
+    rows = _not_said(read_rows(found, pass_if, mapped), said or [])
     if rows:
         width = max(len(k) for k, _ in rows) + 3
         lines.append("judgekeeper has read from your file:")
         lines += [f"  {k:<{width}}{v}" for k, v in rows]
     return lines
+
+
+def _not_said(rows: list[tuple[str, str]], said: list[str]) -> list[tuple[str, str]]:
+    """`rows` but those "How judgekeeper reads it" (`said`: "  what:   where" lines) already
+    said: the same part, in words that start with the row's."""
+    how = {}
+    for line in said:
+        what, _, where = line.strip().partition(":")
+        how[what] = where.strip()
+    return [(what, where) for what, where in rows if not how.get(what, "").startswith(where)]
 
 
 def read_rows(found: start.Found, pass_if: str | None = None,
@@ -1973,7 +2058,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.ask_noted()
     listed = _listed(found)
     talk.say()  # a blank line after what Find said first (a file left out), never two
-    for line in found_block(found, talk.options["pass_if"], mapped):
+    for line in found_block(found, talk.options["pass_if"], mapped,
+                            getattr(talk, "how_said", None) if mapped is not None else None):
         _say_found(talk, line)
     if found.tool == "table" and _columns_line(found, talk.options["pass_if"]):
         talk.para(SCORE_READ)
@@ -2004,6 +2090,9 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
         talk.say()
         talk.para(f"You have {_n(n, 'answer')} with a clear grade. That is not enough answers "
                   "for a first result.")
+        ws = Workspace(found.root)
+        if (ws.dir / judge_setup.FILE).is_file():  # nothing else is written before marking
+            talk.para(SAVED_SETUP.format(folder=shown_folder(ws)))
         raise talk.stop(EXIT_QUESTION, (
             f"mark these {n} now with "
             f"`{_command_of(talk, saved, 'mark')}`. Your marks are kept. Then run your eval to "
