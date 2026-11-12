@@ -90,7 +90,8 @@ STEPS = """\
 READS = """\
 judgekeeper can read results from promptfoo, DeepEval, Inspect AI,
 MLflow, or a CSV, TSV or JSONL file with these columns:
-  input, output, and verdict if an LLM-as-a-judge graded them"""
+  input, output, and verdict if an LLM-as-a-judge graded them
+  (input and output alone work too: you mark each answer Pass or Fail)"""
 FIX_HELP = ("show where your LLM-as-a-judge goes wrong, help you write a better rule and test "
             "it on marks kept aside")
 COMMANDS_HELP = (

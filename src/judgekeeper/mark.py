@@ -51,4 +51,5 @@ def run(path: str | Path = ".", tool: str | None = None, metric: str | None = No
                "no_browser": no_browser}
     talk = MarkTalk(yes=yes, path=path, options=options, new=new)
     talk.labels, talk.given = labels, given
+    talk.refresh()
     return front.go(talk, Path(path), wait=wait, stop=stop, marking=True)

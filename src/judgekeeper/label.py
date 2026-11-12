@@ -660,8 +660,9 @@ def _handler(server: LabelServer):
             return False
 
         def _browser_page(self, url) -> bool:
-            """Whether a browser asks for the page itself (it then gets a page, not JSON)."""
-            return self.command in ("GET", "HEAD") and url.path == "/" and \
+            """Whether a browser asks for the page itself, the marking page or the result page
+            (it then gets a page, not JSON)."""
+            return self.command in ("GET", "HEAD") and url.path in ("/", "/result") and \
                 "text/html" in (self.headers.get("Accept") or "")
 
         def _same_origin(self) -> bool:
@@ -859,7 +860,16 @@ def _handler(server: LabelServer):
             pop_up = getattr(server.session, "pop_up", None)
             if pop_up is not None and pop_up(summary["status"]):
                 summary["popup"] = True
-            self._json(200, {"summary": summary})
+            reply = {"summary": summary}
+            if "note" in body and hasattr(server.session, "workspace"):  # the result page's
+                # own buttons as they are now, for the other answers' boxes
+                from judgekeeper import reasons
+
+                try:
+                    reply["own"] = reasons.own_chips(server.session.workspace)
+                except (OSError, ValueError):
+                    pass
+            self._json(200, reply)
             if server.stays:
                 return
             if server.result is not None and server.finished():

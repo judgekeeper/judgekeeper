@@ -153,6 +153,7 @@ REASONS_SCRIPT = """
     function count(text) { return Array.from(text).length; }
     function each(list, f) { Array.prototype.forEach.call(list, f); }
     function on(b) { return b.getAttribute("aria-pressed") === "true"; }
+    var boxes = [];  // each box's own(list): the person's own buttons as the server has them
     each(document.querySelectorAll(".why"), function (box) {
       var saved = box.querySelector(".saved"), input = box.querySelector("input"),
           other = box.querySelector(".other"), mark = box.querySelector(".mark-part"),
@@ -218,6 +219,7 @@ REASONS_SCRIPT = """
               return r.json().then(function (b) {
                 var code = document.querySelector(".cmd.prompt code");
                 if (code && b.summary && b.summary.prompt) { code.textContent = b.summary.prompt; }
+                if (b.own) { boxes.forEach(function (x) { x(b.own); }); }
               }, function () {});
             }
             return r.json().then(function (e) {
@@ -257,9 +259,37 @@ REASONS_SCRIPT = """
         });
         clear.hidden = !spans.length;
       }
-      each(box.querySelectorAll("[aria-pressed]"), function (b) {
+      function tap(b) {
         b.addEventListener("click", function () {
           b.setAttribute("aria-pressed", String(!on(b))); send(true); });
+      }
+      each(box.querySelectorAll("[aria-pressed]"), tap);
+      // A reason typed in another answer's box: its button here at once, before "Other…";
+      // renamed as it is typed on; gone with it, unless it is tapped here.
+      boxes.push(function (list) {
+        var id = box.getAttribute("data-id"), changed = false, ids = {};
+        list.forEach(function (c) {
+          if (c.from === id) { return; }
+          ids[c.id] = true;
+          var b = Array.prototype.filter.call(box.querySelectorAll("[data-reason]"),
+            function (x) { return x.getAttribute("data-reason") === c.id; })[0],
+              said = "\u201c" + c.text + "\u201d";
+          if (!b) {
+            b = document.createElement("button");
+            b.type = "button"; b.className = "chip";
+            b.setAttribute("aria-pressed", "false"); b.setAttribute("data-reason", c.id);
+            var t = document.createElement("span"); t.className = "t";
+            b.appendChild(t); other.parentNode.insertBefore(b, other);
+            tap(b);
+          }
+          if (b.getAttribute("data-said") !== said) { changed = changed || on(b); }
+          b.querySelector(".t").textContent = c.text; b.setAttribute("data-said", said);
+          b.setAttribute("title", c.text); b.setAttribute("aria-label", c.text);
+        });
+        each(box.querySelectorAll('[data-reason^="own-"]'), function (b) {
+          if (!ids[b.getAttribute("data-reason")] && !on(b)) { b.remove(); }
+        });
+        if (changed) { line(); }
       });
       other.addEventListener("click", function () {
         var open = other.getAttribute("aria-expanded") !== "true";

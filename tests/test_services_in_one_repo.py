@@ -175,6 +175,9 @@ def test_answers_read_below_graded_results_name_the_folder_above(repo, capsys, m
     code, said = _run(capsys, monkeypatch, bot / "src")
     assert code == 0 and "fixtures/qa.csv" in said, said
     assert said.count(ABOVE) == 1, said
+    for argv in ((), ("mark",)):  # said once, with Find: never on the runs after it
+        code, said = _run(capsys, monkeypatch, bot / "src", *argv)
+        assert code == 0 and "Results in" not in said, said
 
 
 def test_no_folder_above_line_with_nothing_above(repo, capsys, monkeypatch):
@@ -204,7 +207,10 @@ def test_the_older_files_read_are_named(tmp_path, capsys, monkeypatch):
     write_answers(tmp_path, 10, name="results-v2", grades=["pass", "fail"] * 5)
     code, said = _run(capsys, monkeypatch, tmp_path)
     assert code == 3, said  # 22 answers: too few for a first result
-    assert "Files: results-v2.csv and 1 older file: results.csv" in said, said
+    assert "Files: results-v2.csv and 1 older file (results.csv)" in said, said
+    write_answers(tmp_path, 10, name="results-v3", grades=["pass", "fail"] * 5)
+    code, said = _run(capsys, monkeypatch, tmp_path)
+    assert "Files: results-v3.csv and 2 older files (results-v2.csv and results.csv)" in said, said
 
 
 def test_a_table_of_its_own_counts_rows_and_says_its_columns_once(tmp_path, capsys,
