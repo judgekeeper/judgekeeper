@@ -328,6 +328,8 @@ judgekeeper's own format: one graded answer per JSONL line, written by you or by
 
 An unknown fingerprint part is `null`, except an unknown endpoint: `"unknown"` (`null` is the provider's default). Unknown fields are kept. The JSON Schema is [records.schema.json](../src/judgekeeper/schemas/records.schema.json), also in the package. Examples: [minimal.jsonl](examples/records/minimal.jsonl), [full.jsonl](examples/records/full.jsonl), [with-human-labels.jsonl](examples/records/with-human-labels.jsonl).
 
+Version 2 only gains optional fields, and files of version 1 and 2 stay readable. A change to what a version 2 field means gets a new `schema_version` and a CHANGELOG line.
+
 ## record(): save your own LLM-as-a-judge's verdicts with one line
 
 When your LLM-as-a-judge runs in your own code, install judgekeeper in your project's environment and add one line after each grade. Run your eval once, then `judgekeeper`:
