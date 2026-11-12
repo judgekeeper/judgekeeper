@@ -58,7 +58,8 @@ PICKS = 10  # ports tried when one judgekeeper picked is taken before the page b
 SLOW_BROWSER = 10  # seconds: a browser that took longer to open may not have shown the page
 _clock = time.monotonic
 STARTS_AGAIN = "The marking page starts again for this command's flags. Your marks stay."
-ANOTHER_PROJECT = "A marking page for another project is open. Close it there with `{command}`."
+ANOTHER_PROJECT = ("Another judgekeeper page is already open on port {old}, so this page uses "
+                   "port {new}. To close that one, run `{command}` in its folder.")
 OPENING = "opening"  # in .judgekeeper/ while a run prepares the pool or opens the page
 OPENING_NOW = "judgekeeper is already opening the marking page for this folder."
 
@@ -84,9 +85,10 @@ def choose_port(port: int, say) -> int:
     default (another project's: this project's is closed first), that is said."""
     if port != DEFAULT_PORT or port_free(port):
         return port
-    if is_page(port):
-        say(ANOTHER_PROJECT.format(command=textio.program("--stop")))
-    return next((other for other in OTHER_PORTS if port_free(other)), port)
+    new = next((other for other in OTHER_PORTS if port_free(other)), port)
+    if new != port and is_page(port):  # no free port: starting the page says it is taken
+        say(ANOTHER_PROJECT.format(old=port, new=new, command=textio.program("--stop")))
+    return new
 
 
 def marking_status(session: StartSession, run: str | None = None) -> dict:

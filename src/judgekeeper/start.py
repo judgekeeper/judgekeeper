@@ -283,13 +283,13 @@ def saved_back(back) -> dict | None:
 
 
 def come_back(flags, back=None) -> str:
-    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: typed
-    where the page was started (`back`, saved_back) when known, else in the project folder
-    (command_from)."""
+    """`judgekeeper mark` with the flags `flags` keep, as the page's footer says it: run in
+    the project folder (command_from), with the program as typed where the page was started
+    (`back`, saved_back) when known."""
     back = saved_back(back)
     if back is None:
         return command_from(flags, "mark", kept=True)
-    words = repeated_flags(kept=True, **{**saved_flags(flags), "path": back["path"]})
+    words = repeated_flags(kept=True, **saved_flags(flags))
     return " ".join((f"{back['program']} mark", *words))
 
 

@@ -256,13 +256,14 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         g = mapper.guess(units)
     except mapper.MapError as e:
         raise cannot(talk, rel, str(e)) from None
+    unit = "row" if path.suffix.lower() in (".csv", ".tsv") else "line"  # as the file holds them
     lines = "" if path.suffix.lower() == ".json" else \
-        f" ({len(units)} {'line' if len(units) == 1 else 'lines'})"  # one JSON document: none
+        f" ({len(units)} {unit if len(units) == 1 else unit + 's'})"  # one JSON document: none
     getattr(talk, "para", talk.say)(  # wrapped on `judgekeeper`'s screens; the path stays whole
         f"{rel} looks like your LLM-as-a-judge's results in a format of its own{lines}."
         if found else f"{rel}{lines}:")
     listed = [p for p, _ in mapper.listing(units[0], g.judges)]
-    talk.say("What one line holds:" if len(units) > 1 else "What it holds:")
+    talk.say(f"What one {unit} holds:" if len(units) > 1 else "What it holds:")
     for p in listed[:MAX_PATHS]:
         talk.say(f"  {p}")
     if len(listed) > MAX_PATHS:
@@ -281,6 +282,7 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         # --yes never accepts it.
         if (g.unsure or g.doubt) and not start._interactive():
             raise unsure(talk, rel, g)
+        talk.how_said = how_lines(g, judge_model)  # the Find block leaves out what it says
         if not start._interactive() or talk.confirm(
                 f'Is this how judgekeeper should read {rel} (the lines under "How judgekeeper '
                 'reads it")?', default=True, with_yes=True, hint=""):

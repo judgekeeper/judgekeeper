@@ -144,8 +144,11 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
     """The most recently changed file in `root` (at most find.MAX_DEPTH folders deep, changed
     in the last RECENT_DAYS days) that looks like judge results in a format of its own. The
     files whose names say results but are too big to look into go to `unlooked`; promptfoo's
-    table output is never one: its path goes to `tables` (relative) instead."""
+    table output is never one: its path goes to `tables` (relative) instead. As find's walk,
+    a search from a project never goes into a project of its own below (find.is_project):
+    its files are that project's."""
     root = Path(root).resolve()
+    own = find.is_project(root)
     since = time.time() - RECENT_DAYS * 86400
     started = time.monotonic()
     candidates: list[tuple[float, Path]] = []
@@ -160,6 +163,8 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
             what = find.kind(entry)  # a device, a pipe or a link: skipped
             path = Path(entry.path)
             if what == find.DIR:
+                if own and find.is_project(path) and not find._left_empty(path):
+                    continue
                 if find.walked(entry) and len(path.relative_to(root).parts) <= find.MAX_DEPTH:
                     queue.append(path)
             elif what == find.FILE and path.suffix.lower() in SUFFIXES:
