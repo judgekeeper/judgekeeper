@@ -660,8 +660,9 @@ def _handler(server: LabelServer):
             return False
 
         def _browser_page(self, url) -> bool:
-            """Whether a browser asks for the page itself (it then gets a page, not JSON)."""
-            return self.command in ("GET", "HEAD") and url.path == "/" and \
+            """Whether a browser asks for the page itself, the marking page or the result page
+            (it then gets a page, not JSON)."""
+            return self.command in ("GET", "HEAD") and url.path in ("/", "/result") and \
                 "text/html" in (self.headers.get("Accept") or "")
 
         def _same_origin(self) -> bool:

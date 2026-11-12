@@ -271,8 +271,9 @@ REASONS_SCRIPT = """
         list.forEach(function (c) {
           if (c.from === id) { return; }
           ids[c.id] = true;
-          var b = box.querySelector('[data-reason="' + c.id + '"]'), said = "\u201c" + c.text +
-            "\u201d";
+          var b = Array.prototype.filter.call(box.querySelectorAll("[data-reason]"),
+            function (x) { return x.getAttribute("data-reason") === c.id; })[0],
+              said = "\u201c" + c.text + "\u201d";
           if (!b) {
             b = document.createElement("button");
             b.type = "button"; b.className = "chip";

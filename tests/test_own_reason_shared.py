@@ -60,8 +60,7 @@ function match(el, s) {
   if (s === "[aria-pressed]") { return el.hasAttribute("aria-pressed"); }
   if (s === '[data-reason^="own-"]') {
     return (el.getAttribute("data-reason") || "").indexOf("own-") === 0; }
-  var m = /^\[data-reason="(.*)"\]$/.exec(s);
-  if (m) { return el.getAttribute("data-reason") === m[1]; }
+  if (s === "[data-reason]") { return el.hasAttribute("data-reason"); }
   return s === "." + el.className || s === el.tagName; }
 El.prototype.querySelectorAll = function (s) {
   return this.all().filter(function (e) { return match(e, s); }); };
@@ -106,7 +105,8 @@ def test_an_own_reason_saved_shows_on_the_other_boxes_at_once():
       steps.push(own(boxes[0]), own(boxes[1]));
       var chips = boxes[1].querySelector(".chips").kids;
       steps.push(chips[chips.length - 1].className);  // "Other…" stays the last button
-      var b = boxes[1].querySelector('[data-reason="own-1"]');
+      var b = boxes[1].querySelectorAll("[data-reason]").filter(function (x) {
+        return x.getAttribute("data-reason") === "own-1"; })[0];
       b.listeners.click();  // the new button works on its own box
       steps.push(b.getAttribute("aria-pressed"));
       REPLY_OWN = [{id: "own-1", text: "Gives an old price", from: "x1"}];  // typed on
