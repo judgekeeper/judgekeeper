@@ -410,7 +410,7 @@ def test_the_end_card_is_one_centred_card_in_the_answers_place():
 def test_marking_page_heading_progressbar_and_row_words():
     page = _marking()
     assert page.count("<h1") == 1 and '<h1 class="question" id="q-text" dir="auto">' in page
-    assert "<h2" not in page.split('id="end"')[0].split("</header>")[1]  # no list heading
+    assert "<h2" not in page.split('id="ready"')[0].split("</header>")[1]  # no list heading
     assert '"marked Pass"' in page and '"marked Fail"' in page and '"not marked"' in page
     assert '<nav class="side" aria-label="Answers">' in page
 
