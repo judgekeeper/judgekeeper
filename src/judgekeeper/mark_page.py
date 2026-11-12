@@ -723,7 +723,11 @@ __TOP__
     });
     while (list.children.length > shown) {
       list.removeChild(list.children[list.children.length - 1]); }
-    var now = list.querySelector("[aria-current]");
+    showCurrent();
+  }
+  // The answer being marked stays in view in the list (also when the list gets shorter).
+  function showCurrent() {
+    var list = $("queue"), now = list.querySelector("[aria-current]");
     if (now && (now.offsetTop < list.scrollTop ||
                 now.offsetTop + now.offsetHeight > list.scrollTop + list.clientHeight)) {
       list.scrollTop = now.offsetTop - list.clientHeight / 2;
@@ -1080,6 +1084,7 @@ __TOP__
   function showReady() {
     readyShown = true; readyOwed = false;
     $("ready").hidden = false;
+    showCurrent();  // the list is shorter now
     hear($("ready-title").textContent);  // the status line says it: focus stays on the card
   }
   function closeReady() { $("ready").hidden = true; }

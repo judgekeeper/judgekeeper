@@ -857,6 +857,24 @@ def test_the_ready_box_does_not_open_again_after_an_undo_and_a_new_mark():
     assert got == {"opened": True, "shut": True, "again": True, "sent": 4}
 
 
+def test_when_the_ready_box_opens_the_shorter_list_keeps_the_current_answer_in_view():
+    """The box takes the bottom of the list's column: the list scrolls so the answer being
+    marked stays in view, as it does after each mark."""
+    got = _run("""
+      var list = ids["queue"], now = new El("a");
+      now.offsetTop = 500; now.offsetHeight = 52;
+      list.querySelector = function () { return now; };
+      list.clientHeight = 728;
+      var box = ids["ready"], shut = true;
+      Object.defineProperty(box, "hidden", {get: function () { return shut; },
+        set: function (v) { shut = v; list.clientHeight = v ? 728 : 458; }});
+    """ + _open_box() + """
+      var top = list.scrollTop;
+      console.log(JSON.stringify({opened: opened, inView: now.offsetTop >= top &&
+        now.offsetTop + now.offsetHeight <= top + list.clientHeight, top: top}));""")
+    assert got["opened"] is True and got["inView"] is True and got["top"] > 0
+
+
 def test_esc_closes_the_ready_box_from_the_card_and_keep_marking_does_too():
     got = _run(_open_box() + """
       var tab = key("Tab");  // not kept inside the box: it is not modal
