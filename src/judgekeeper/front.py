@@ -257,6 +257,7 @@ class FrontTalk(start.Talk):
         self.labels_from: str | None = None
         self.few_fails = False  # Find said how few answers the LLM-as-a-judge failed
         self.held: list[str] | None = None  # Find's Excel notes, said once a labels file is read
+        self.left_below: list[str] = []  # projects below whose files were left out (_tool_below)
         self.refresh()
 
     def refresh(self) -> None:
@@ -590,14 +591,17 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
     if path.is_dir() and not project.is_project(path) and not held and (
             folders := _projects_below(path)):  # nor one session for several projects
-        folders = _from_here(path, folders)
-        if len(folders) == 1:  # a project of its own: its results are checked there
-            talk.para(_nested_line(folders, Path.cwd()))
-            raise talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
-        raise _go_to_one(talk, folders)
+        raise _checked_there(talk, _from_here(path, folders))
     if path.is_dir() and not held and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
         # other results here
+    only, talk.left_below = None, []  # --tool: its files in no project below, never a project's
+    if (tool := talk.options["tool"]) and path.is_dir() and not project.is_project(path):
+        owners, rest = _tool_below(path, tool)
+        if owners and not rest and not held:
+            raise _checked_there(talk, _from_here(path, owners))
+        if owners and rest:
+            only, talk.left_below = rest, _from_here(path, owners)
     if path.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here
         talk.para(_nested_line([owner], Path.cwd()))
@@ -611,9 +615,10 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         for other, marked in project.others_beside(store):
             talk.para(project.other_eval_line(other, marked))
             talk.say()
-    path = _project_reads(path, store)
+    if (read := _project_reads(path, store)) != path:  # the project above's, as before
+        path, only, talk.left_below = read, None, []
     where, saved = _own_format(talk, path)
-    found = _find(talk, where, saved)
+    found = _find(talk, where, saved, only)
     found = _marked_files(talk, where, saved, found)
     root = project.project_of(asked)  # its remembered file is read from there
     if path.is_file() or find.is_mlflow_folder(path):  # read there; kept in the project
@@ -1353,6 +1358,32 @@ def _projects_below(folder: Path) -> list[str]:
     return sorted(tops)
 
 
+def _tool_below(folder: Path, tool: str) -> tuple[list[str], list[str]]:
+    """(the projects of their own below `folder` (find.is_project) that hold `tool`'s results,
+    by their path from it, the paths of its results in none): run from a folder that is no
+    project, a project's files below are never read with the others."""
+    owners, rest = set(), []
+    for result in find.search(folder).results.get(tool, []):
+        parts = Path(result.rel).parts
+        owner = next((Path(*parts[:n]) for n in range(1, len(parts))
+                      if find.is_project(folder / Path(*parts[:n]))
+                      and not find._left_empty(folder / Path(*parts[:n]))), None)
+        if owner is None:
+            rest.append(result.rel)
+        else:
+            owners.add(owner.as_posix())
+    return sorted(owners), rest
+
+
+def _checked_there(talk: FrontTalk, folders: list[str]) -> Stop:
+    """Results in projects of their own below (from here), never run here: where to check
+    them."""
+    if len(folders) == 1:
+        talk.para(_nested_line(folders, Path.cwd()))
+        return talk.stop(EXIT_QUESTION, run_there(folders, Path.cwd()))
+    return _go_to_one(talk, folders)
+
+
 def _beside_a_session(folder: Path) -> list[str]:
     """The folders below `folder` that hold results, when one is a project with a session of
     its own (find.nested_results) and the others hold the rest, none in `folder` itself or a
@@ -2083,8 +2114,9 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
+    left = _results_too(talk.left_below) if talk.left_below else None
     for others in (_other_files(found, talk), _other_projects(found), _nested_here(found),
-                   _outer_marks(found), _kept_apart(found)):
+                   left, _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
