@@ -595,10 +595,11 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not held and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
         # other results here
-    only, talk.left_below = None, []  # --tool: its files in no project below, never a project's
-    if (tool := talk.options["tool"]) and path.is_dir() and not project.is_project(path):
+    only, talk.left_below = None, []  # the files in no project below, never a project's
+    if path.is_dir() and not project.is_project(path) and not held and (
+            tool := _tool_read(talk, path)):  # a session here keeps to its files
         owners, rest = _tool_below(path, tool)
-        if owners and not rest and not held:
+        if owners and not rest:
             raise _checked_there(talk, _from_here(path, owners))
         if owners and rest:
             only, talk.left_below = rest, _from_here(path, owners)
@@ -1373,6 +1374,23 @@ def _tool_below(folder: Path, tool: str) -> tuple[list[str], list[str]]:
         else:
             owners.add(owner.as_posix())
     return sorted(owners), rest
+
+
+def _tool_read(talk: FrontTalk, path: Path) -> str | None:
+    """The eval tool a run on the folder `path` reads: --tool, else the only tool whose results
+    are found there (several are asked about as before). None for a store, a map, or a folder
+    with a tool's config of its own: one project, as _projects_below takes it."""
+    o = talk.options
+    if o["tracking_uri"] is not None or find.is_mlflow_folder(path) or (
+            o["tool"] is None and start._saved(path.resolve()) is not None):
+        return None
+    search = find.search(path)
+    if any("/" not in sign for signs in search.signs.values() for sign in signs):
+        return None
+    if o["tool"] is not None:
+        return o["tool"]
+    tools = [tool for tool in find.TOOLS if search.results.get(tool)]
+    return tools[0] if len(tools) == 1 else None
 
 
 def _checked_there(talk: FrontTalk, folders: list[str]) -> Stop:
