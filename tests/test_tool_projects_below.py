@@ -47,12 +47,14 @@ def services(repo, capsys, monkeypatch):  # noqa: F811
     return top
 
 
-def test_the_plain_run_lists_the_tools_as_before(services, capsys, monkeypatch):
+def test_the_plain_run_reads_the_only_tool_with_files_in_no_project(services, capsys,
+                                                                    monkeypatch):
     code, said = _run(capsys, monkeypatch, services)
-    assert code == 3, said
-    assert "Saved results from more than one eval tool:" in said, said
-    assert "--tool NAME" in said, said
-    assert not (services / ".judgekeeper").exists()
+    assert code == 3, said  # 20 answers: too few
+    assert "Saved results from more than one eval tool" not in said, said
+    assert "File: pf-svc/evals/out.json" in said, said
+    assert ("The projects in de-svc/, größe-prüfung/, insp-svc/, multi/ and my service/ have "
+            "results too") in said, said
 
 
 def test_tool_table_names_the_projects_below_and_stops(services, capsys, monkeypatch):
