@@ -925,9 +925,11 @@ def write_failed(ws, session, r: dict) -> None:
     if not rows:
         if path.is_file():
             path.unlink()
+            set_removed_unsaid(ws, True)  # the next run says so, however it went (a page mark)
         return
     make_private(path.parent)
     write_replacing(path, failed_md(rows, r.get("kept") or 0))
+    set_removed_unsaid(ws, False)
 
 
 # What changed since the last answers ------------------------------------------------------
@@ -1034,7 +1036,7 @@ def read_before(ws) -> dict | None:
         return None
     return {"questions": {k: [dict(x) for x in v] for k, v in d["questions"].items()},
             "round": {"stamp": got["stamp"], "new": list(got["new"])} if got else None,
-            "repaired": d.get("repaired") is True}
+            "repaired": d.get("repaired") is True, "removed_unsaid": d.get("removed_unsaid") is True}
 
 
 def _write_before(ws, before: dict) -> None:
@@ -1044,7 +1046,8 @@ def _write_before(ws, before: dict) -> None:
     make_private(path.parent)
     d = {"questions": before["questions"],
          **({"round": before["round"]} if before.get("round") else {}),
-         **({"repaired": True} if before.get("repaired") else {})}
+         **({"repaired": True} if before.get("repaired") else {}),
+         **({"removed_unsaid": True} if before.get("removed_unsaid") else {})}
     write_replacing(path, json.dumps({**d, "sha256": _sum(d)}, indent=2) + "\n")
 
 
@@ -1060,6 +1063,20 @@ def _before_or_new(ws) -> dict | None:
     if not path.exists():
         return {"questions": {}, "round": None}
     return read_before(ws) or {"questions": {}, "round": _round_now(ws), "repaired": True}
+
+
+def removed_unsaid(ws) -> bool:
+    """Whether failed-answers.md was removed (write_failed) and no run has said so yet."""
+    before = read_before(ws)
+    return bool(before and before["removed_unsaid"])
+
+
+def set_removed_unsaid(ws, on: bool) -> None:
+    """removed_unsaid kept in before.json; never written through a link."""
+    before = read_before(ws)
+    if before is None or before["removed_unsaid"] == on or _before_path(ws).is_symlink():
+        return
+    _write_before(ws, {**before, "removed_unsaid": on})
 
 
 def _round_now(ws) -> dict | None:

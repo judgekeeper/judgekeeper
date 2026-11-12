@@ -11,8 +11,9 @@
 - On the result page, a long reason is shown in full when its row is open. Your own reason buttons are cut to 2 lines, with the full text on hover.
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
-- Fast Pass and Fail clicks on the marking page all count now, and the "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it. A folder with code in it is its own project: judgekeeper no longer reads results in the folder above it in its place. Percentages round half up (23 of 40 is 58%).
+- Quick Pass and Fail clicks count now: only a click in the first quarter second after an answer shows does nothing, so no answer is marked before you see it. The "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it. A folder with code in it is its own project: judgekeeper no longer reads results in the folder above it in its place. Percentages round half up (23 of 40 is 58%).
 - A folder you name (`judgekeeper PATH`, `mark PATH`) is always the project: judgekeeper no longer reads results in the folder above it instead. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them. A folder with a `requirements*.txt` file is a project of its own, so a run in the folder above no longer reads its results. `judgekeeper.record()` also takes a folder with `package.json` as the project root, so in a repository with such subfolders it saves in that subfolder's `.judgekeeper/`, not at the repository root.
+- Run from the top of a repository, judgekeeper now also names the projects below whose answers have no grades. After reading results of its own there, it no longer says those results belong to a project below.
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
 
 ## 1.1.2 (2026-11-08)

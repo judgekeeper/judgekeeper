@@ -777,7 +777,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
-    if own is None and search.skipped and (nested := find.nested_results(search)):
+    if own is None and search.skipped and (nested := find.nested_results(search, answers=True)):
         raise _nothing_found(talk, root, search.signs, nested)  # a link left out here
         # never hides the projects below that hold results
     if own is None and (search.skipped or not talk.given
@@ -800,8 +800,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         raise talk.stop(EXIT_QUESTION, "add the question column (what each answer answers) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search), unlooked,
-                             stopped=search.stopped)
+        raise _nothing_found(talk, root, search.signs, find.nested_results(search, answers=True),
+                             unlooked, stopped=search.stopped)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -1505,11 +1505,15 @@ def _other_projects(found: start.Found) -> str | None:
                      if (p := project_of(r.path)) not in (None, read)})[:OTHERS]
     if read is None or not others:
         return None
+    return f"These results are from the project in {read}/. {_results_too(others)}"
+
+
+def _results_too(others: list[str]) -> str:
+    """The projects in `others` (paths from here) have results too, each with its command."""
     one = len(others) == 1
     named = start._and([f"{p}/" for p in others])
     commands = start._or([f"`{program()} {quote_arg(p)}`" for p in others])
-    return (f"These results are from the project in {read}/. The "
-            f"{'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
+    return (f"The {'project' if one else 'projects'} in {named} {'has' if one else 'have'} "
             f"results too: to check them, run {commands}.")
 
 
@@ -1517,8 +1521,8 @@ def _nested_here(found: start.Found) -> str | None:
     """Results in a project of its own below this one, never read with these: named."""
     if found.given:
         return None
-    nested = find.nested_results(find.search(found.root))
-    return _nested_line(_from_here(found.root, nested), Path.cwd()) if nested else None
+    nested = find.nested_results(find.search(found.root), answers=True)
+    return _results_too(_from_here(found.root, nested)) if nested else None
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -1655,8 +1659,8 @@ def _path_head(talk: FrontTalk, found: start.Found, about: str | None = None) ->
     lines = path_lines(found, about)
     root = Path(found.root)
     if not found.graded and not talk.given and not find.has_marker(root) \
-            and not find.holds_code(root) and getattr(talk, "find_shown", True):  # answers
-        # here, not the results above (find): said with Find, never on the runs after it
+            and getattr(talk, "find_shown", True):  # answers here, with code or not, not the
+        # results above (find): said with Find, never on the runs after it
         line = above_line(talk, root)
         if line is not None:
             lines.append(line)
@@ -3244,8 +3248,7 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         talk.para(no_grades.found_line(ws, new))
         talk.say()
     failed = no_grades.failed_path(ws)
-    had = failed.is_file() or no_grades.listed_failed(ws)  # a mark on the page may have
-    # removed it already: the last result listed some
+    had = no_grades.listed_failed(ws)  # the last result listed some (no before.json to say)
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))
     labels = r["labels"]
     rate = no_grades.rate_line(r)  # as the result page says it
@@ -3261,9 +3264,11 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
         talk.say()
         for said in agent:
             talk.say(said)
-    if had and not failed.is_file():  # this run's result lists none: said once, here
+    if not failed.is_file() and (had or no_grades.removed_unsaid(ws)):  # removed by this run,
+        # a mark on the page or the page's result: said once, here
         talk.say()
         talk.para(FAILED_REMOVED.format(path=f"{shown_folder(ws)}/fix/{failed.name}"))
+        no_grades.set_removed_unsaid(ws, False)
     talk.say()
     report = link(ws.report_html, f"{shown_folder(ws)}/{ws.report_html.name}")
     talk.say(f"Full report: {report} (open it in your browser)")

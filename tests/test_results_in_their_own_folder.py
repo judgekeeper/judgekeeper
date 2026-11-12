@@ -61,10 +61,11 @@ def test_sibling_projects_with_marks_never_loop(home, capsys, monkeypatch, pages
     for name in ("one", "two"):
         said = _run(capsys, monkeypatch, top / name)
         assert "../" not in said
-    monkeypatch.chdir(top)  # its own answers are none: the question prompt, no crash
+    monkeypatch.chdir(top)  # its own answers are none: the sessions below named, no crash
     project.forget()
     code, out, err = run(capsys, "--no-browser")
-    assert code == 3 and "No answers yet?" in flat(out), out + err
+    assert code == 3 and ("one/ (10 marks) and two/ (10 marks) already hold your judgekeeper "
+                          "sessions") in flat(out), out + err
 
 
 @pytest.mark.parametrize("graded", [False, True])
