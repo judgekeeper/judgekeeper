@@ -865,11 +865,22 @@ def holds_code(folder: Path) -> bool:
 
 def is_project(folder: Path) -> bool:
     """Whether `folder` is a project's own: a project file (PROJECT_MARKERS) or its own
-    `.judgekeeper/`."""
+    `.judgekeeper/` holding something judgekeeper wrote (not only its .gitignore)."""
     try:
-        return has_marker(folder) or (folder / ".judgekeeper").exists()
+        return has_marker(folder) or _holds_own(folder / ".judgekeeper")
     except OSError:
         return False
+
+
+def _holds_own(store: Path) -> bool:
+    """Whether `store` (a .judgekeeper/) holds more than nothing or its .gitignore. One that
+    can't be listed may: it still counts."""
+    if not store.is_dir():
+        return store.exists()
+    try:
+        return any(entry.name != ".gitignore" for entry in os.scandir(store))
+    except OSError:
+        return True
 
 
 def _left_empty(folder: Path) -> bool:
