@@ -706,6 +706,7 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
     check_map(mapping, rows, path)
     records = RecordList(unit="line")
     n_big = 0
+    own_ids: set[int] = set()  # the records kept whose target_id is the file's (by id())
     for n, row, size in rows:
         try:
             if isinstance(row, str):
@@ -715,7 +716,8 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
             if found:
                 raise RecordsError(f"{path.name}: line {n}: {found[0]}")
             rec = ScoreRecord.from_dict(d)
-            if rec.target_id is None:
+            own = rec.target_id is not None
+            if not own:
                 rec.target_id = derive_record_id(rec.input, rec.output, rec.trajectory)
                 records.ids_derived = True
             if bad_lines_ok:
@@ -727,15 +729,39 @@ def read_records(path: str | Path, column_map: str | dict | None = None,
             continue
         n_big += size > BIG
         records.append(rec)
+        if own:
+            own_ids.add(id(rec))
     if records.left_out and not records:
         where = (f"line {records.left_out[0]}" if len(records.left_out) == 1
                  else _each(records.left_out, "line"))
         raise Damaged(f"{path.name} is damaged: {where} has a damaged field.",
                       "run your eval again (it writes new records), then run `{command}`.")
+    labels_take_text(records, own_ids)
     records.warnings += file_warnings(path.name, records, n_big)
     if cut:
         records.notes.append(CUT_END)
     return records
+
+
+def labels_take_text(records: list[ScoreRecord], own_ids: set[int]) -> None:
+    """A HUMAN record with no input and no output whose target_id is the file's (in
+    `own_ids`, by id()) takes input, output and trajectory from the LLM record with that
+    target_id and its name, else with that target_id alone. Two of them with different text:
+    no guess, the record is left as it is. Only the text is filled: an answer's id is still
+    made from its text, so marks saved before match."""
+    graded: dict[str, list[ScoreRecord]] = {}
+    for r in records:
+        if r.annotator_kind == LLM:
+            graded.setdefault(r.target_id, []).append(r)
+    for r in records:
+        if r.annotator_kind != HUMAN or id(r) not in own_ids or not (
+                _blank(r.input) and _blank(r.output)):
+            continue
+        found = graded.get(r.target_id, [])
+        found = [x for x in found if x.name == r.name] or found
+        if len({derive_record_id(x.input, x.output, x.trajectory) for x in found}) != 1:
+            continue
+        r.input, r.output, r.trajectory = found[0].input, found[0].output, found[0].trajectory
 
 
 # Records to a report --------------------------------------------------------------------
