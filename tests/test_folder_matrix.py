@@ -224,9 +224,7 @@ def test_an_unrelated_file_never_replaces_a_sessions_files(tmp_path, capsys, mon
             (f"I6: read {reads[-1][1] if reads else None}", said)
 
 
-# PR B's cases (M-3, M-4, the --tool line): held here, waiting for that fix ------------------
-
-WAITING = "fixed separately (M-3, M-4, the --tool line); remove this mark when it lands"
+# A results file that is a link, --stop and --tool -----------------------------------------
 
 
 def _linked(home: Path, capsys, monkeypatch) -> Path:
@@ -244,7 +242,6 @@ def _linked(home: Path, capsys, monkeypatch) -> Path:
     return folder
 
 
-@pytest.mark.xfail(strict=True, reason=WAITING)
 def test_after_stop_the_next_line_runs_the_command_the_session_started_with(
         tmp_path, capsys, monkeypatch):
     """I5 (M-4): the plain command finds nothing there (the file is a link)."""
@@ -254,7 +251,6 @@ def test_after_stop_the_next_line_runs_the_command_the_session_started_with(
     assert "run `judgekeeper results.csv" in said, said
 
 
-@pytest.mark.xfail(strict=True, reason=WAITING)
 def test_a_project_with_a_session_is_named_from_the_top_when_its_file_is_a_link(
         tmp_path, capsys, monkeypatch):
     """M-3: the top's list names every project with results or a session."""
@@ -269,7 +265,6 @@ def test_a_project_with_a_session_is_named_from_the_top_when_its_file_is_a_link(
     assert "symlink-out/" in said, said
 
 
-@pytest.mark.xfail(strict=True, reason=WAITING)
 def test_a_tool_with_no_results_never_says_to_run_the_same_command_again(
         tmp_path, capsys, monkeypatch):
     """I5 (the --tool line): its Next line says what to do, not the command that failed."""

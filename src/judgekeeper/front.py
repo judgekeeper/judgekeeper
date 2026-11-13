@@ -794,7 +794,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
-    if own is None and search.skipped and (nested := find.nested_results(search, answers=True)):
+    if own is None and search.skipped and (nested := _named_below(search)):
         raise _nothing_found(talk, root, search.signs, nested)  # a link left out here
         # never hides the projects below that hold results
     if own is None and (search.skipped or not talk.given
@@ -817,8 +817,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         raise talk.stop(EXIT_QUESTION, "add the question column (what each answer answers) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search, answers=True),
-                             unlooked, stopped=search.stopped)
+        raise _nothing_found(talk, root, search.signs, _named_below(search), unlooked,
+                             stopped=search.stopped)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -1368,7 +1368,8 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     project of its own, never run. A folder that is a project (a git top) or holds results
     of its own walks past the projects below (find.Search.nested): folders holding the rest
     stop it too unless they are rounds of one eval with its own (project.one_eval), and
-    those projects are named with them. With --tool `tool`, only its results and config."""
+    those projects are named with them and with the projects below that hold a session
+    (_named_below). With --tool `tool`, only its results and config."""
     found = find.search(folder)
     signs = found.signs if tool is None else {tool: found.signs.get(tool, [])}
     if (tool in (None, "table") and found.answers_read) or any(
@@ -1384,11 +1385,11 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
             own = True  # results of its own: one project, as a project file makes it
         else:
             tops.add(parts[0])
-    if own:  # the projects below keep theirs (_tool_below): 2 or more plain folders that
-        # are not rounds of one eval with its own stop it (I2)
+    if own or tool is not None:  # the projects below keep theirs (_tool_below): 2 or more
+        # plain folders that are not rounds of one eval with its own stop it (I2)
         results = [r for r in results if find.owner(r.path, folder) is None]
         tops = {Path(r.rel).parts[0] for r in results if len(Path(r.rel).parts) > 1}
-        if len(tops) < 2:
+        if own and len(tops) < 2:
             return []
     if not tops or len(tops) == 1 and not own and not project.is_project(
             folder / next(iter(tops))):
@@ -1397,8 +1398,19 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
         files = [r.path for r in results]
         if all(project.one_eval(files[0], f) for f in files[1:]):
             return []
-        tops.update(find.nested_results(found, answers=True))
+        return _named_below(found, sorted(tops))
     return sorted(tops)
+
+
+def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[str]:
+    """The folders below `found.root` a run there names, never reads, by their path from it:
+    `names`, the projects below holding results or answers with no grade
+    (find.nested_results), and each project below that holds a session of its own
+    (found.nested), its results file a link the walk passes over, say."""
+    names = [*names, *find.nested_results(found, answers=True)]
+    held = [sub.relative_to(found.root).as_posix() for sub in found.nested if _session_in(sub)]
+    return sorted({*names, *(rel for rel in held
+                             if not any(rel == n or rel.startswith(f"{n}/") for n in names))})
 
 
 def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
@@ -3447,7 +3459,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     closed = None if lock is None else {  # how the page was opened: carried on
         "port": lock["port"] if lock["asked"] is None else lock["asked"],
-        "no_browser": bool(lock["no_browser"])}
+        "no_browser": bool(lock["no_browser"]),
+        "flags": (lock["settings"] or {}).get("flags")}
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -3466,13 +3479,17 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
     how the page opens), so a scores project still reads its scores; else as typed. Either
-    way with how the `page` it closed was opened ({"port", "no_browser"}): its port, but the
-    default or any free one (0), and --no-browser when it was given it."""
+    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}): its port,
+    but the default or any free one (0), and --no-browser when it was given it. With no
+    result yet, as the page was started (its flags: the file it was given, say)."""
     port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
+    subcommand = ""  # a result is carried on by the plain run
+    if not isinstance(flags, dict) and page:
+        flags, subcommand = page.get("flags"), talk.subcommand  # as typed: `mark --stop`
     if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
         typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
         extra = ("--port", str(port)) if port and not typed else ()
@@ -3481,7 +3498,7 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
         return talk.command(*extra)  # the paths it keeps are from the project folder
     if page:
         flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
-    return start.command_from(flags)
+    return start.command_from(flags, subcommand)
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",
