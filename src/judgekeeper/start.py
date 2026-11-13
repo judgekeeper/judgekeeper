@@ -96,6 +96,10 @@ RUBRIC_WIDTH = 70  # characters of the rule's first line shown in the first bloc
 GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point judgekeeper at the results: {program} path/to/results.json"
 NEW_HERE = "Starting a new project here? Run `{command}`."  # after reading the folder above
+# After "No saved X results found": what to run instead, never the command that just failed
+TOOL_BELOW = "run `{command}` to check the {name} results in {folder}/."
+TOOL_OTHERS = "run `{command}` to read the results found here."  # {command}: without --tool
+TOOL_ELSEWHERE = "run `{command}` in the folder that holds your {name} results."
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
@@ -357,10 +361,12 @@ class Talk:
 
     def command_in(self, folder: str, *extra: str) -> str:
         """`command` run on `folder` (written as it goes on the line, from the folder the
-        command runs in) in place of the person's path, where the command takes its path."""
+        command runs in) in place of the person's path, where the command takes its path;
+        "" for none (the command run in that folder)."""
         flags = self._flags_for(extra)
         given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
-        return " ".join((self.program, folder, *(flags[1:] if given else flags), *extra))
+        return " ".join((self.program, *([folder] if folder else []),
+                         *(flags[1:] if given else flags), *extra))
 
     def _flags_for(self, extra: tuple[str, ...]) -> tuple[str, ...]:
         """The person's flags without those `extra` gives again (`--flag value` or
@@ -1529,7 +1535,8 @@ def _locate(talk: Talk, path: Path, tool: str | None,
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
             raise StartError(f"No saved {find.NAMES[tool]} results found in "
-                             f"{textio.folder_words(shown_path(root))}.")
+                             f"{textio.folder_words(shown_path(root))}.",
+                             **_tool_elsewhere(talk, found, tool, available))
         available = [tool]
     within = None  # the files chosen from, when only some
     if tool is None and only and any(r.rel in only for t in available
@@ -1702,6 +1709,21 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     if not getattr(talk, "screens", False):
         talk.say(f"Next: {next_step[0].upper()}{next_step[1:]}")
     return talk.stop(EXIT_USAGE, next_step)
+
+
+def _tool_elsewhere(talk, found: find.Search, tool: str, available: list[str]) -> dict:
+    """StartError's Next line when --tool `tool` found nothing here: the project below that
+    holds its results (found.nested), else the results found here (`available`), read
+    without --tool, else where to run it."""
+    name = find.NAMES[tool]
+    below = next((sub for sub in found.nested if find.search(sub).results.get(tool)), None)
+    if below is not None:
+        rel = Path(os.path.relpath(below, Path.cwd())).as_posix()
+        return {"next_step": TOOL_BELOW.format(command=talk.command_in(path_word(rel)),
+                                               name=name, folder=rel)}
+    if available:
+        return {"next_step": TOOL_OTHERS, "drop": "--tool"}
+    return {"next_step": TOOL_ELSEWHERE.format(command=talk.command_in(""), name=name)}
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
