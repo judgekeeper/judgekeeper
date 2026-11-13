@@ -753,7 +753,8 @@ def test_outer_results_are_read_and_the_nested_ones_named(tmp_path, capsys, monk
     outer = tmp_path / "nest3"
     (outer / "inner").mkdir(parents=True)
     (outer / "pyproject.toml").write_text("[project]\nname = 'outer'\n", encoding="utf-8")
-    (outer / "inner" / ".judgekeeper").mkdir()
+    (outer / "inner" / ".judgekeeper").mkdir()  # a first run there that stopped before marking
+    (outer / "inner" / ".judgekeeper" / "judge.json").write_text("{}", encoding="utf-8")
     table_project(outer / "inner", split(30, 30), name="inner_results.csv")
     table_project(outer, split(20, 20), name="outer_results.csv")
     later = time.time() + 60

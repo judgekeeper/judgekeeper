@@ -5,6 +5,7 @@ and the lines of Find that name files and columns."""
 from __future__ import annotations
 
 import csv
+import shutil
 
 import pytest
 
@@ -86,8 +87,9 @@ def test_a_folder_with_nothing_to_read_names_every_session_below(repo, capsys, m
 def test_a_first_run_that_saved_only_judge_json_does_not_stop_the_line(repo, capsys,
                                                                         monkeypatch):
     bot = support_bot(repo)
-    for folder in (bot, bot / "src", bot / "evals"):
+    for folder in (bot, bot / "src"):
         _run(capsys, monkeypatch, folder)
+    shutil.copytree(bot / ".judgekeeper", bot / "evals" / ".judgekeeper")  # made by 1.2.0
     for argv in ((), (".",)):
         code, said = _run(capsys, monkeypatch, bot, *argv)
         assert code == 3, said
