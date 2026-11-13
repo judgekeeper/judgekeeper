@@ -16,6 +16,8 @@
 - Run from the top of a repository, judgekeeper now also names the projects below whose answers have no grades. After reading results of its own there, it no longer says those results belong to a project below.
 - Run from a folder above projects of their own, judgekeeper no longer mixes their results into one: it reads only the results that are in no project below, names the projects that hold the rest, and stops when every result is in one.
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
+- A marked answer that comes back to check your marks now says so on its card.
+- On the result page, the kept-aside lines now say what they count: answers you failed, or questions that failed before your change.
 
 ## 1.1.2 (2026-11-08)
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from judgekeeper import marks
 from judgekeeper.fingerprint import utc_now
+from judgekeeper.judge_setup import FILE
 from judgekeeper.start_label import (
     FOLDER,
     Workspace,
@@ -60,7 +61,7 @@ def project_of(path: Path) -> Path:
     are the ones it reads or there are none here (kept_apart); else the folder itself, the
     same with a path given or not."""
     here, given = _here(path)
-    above = store_above(here)
+    above = store_above(here, judged=True)
     if above is None:
         return here
     marked = marks_above(above, given)
@@ -112,9 +113,10 @@ def _here(path: Path) -> tuple[Path, Path | None]:
     return path.resolve(), None
 
 
-def store_above(here: Path) -> Path | None:
+def store_above(here: Path, judged: bool = False) -> Path | None:
     """The nearest folder from `here` up whose .judgekeeper/ holds a session, without leaving
-    the project or reaching the home folder."""
+    the project or reaching the home folder; `judged`: or only the judge.json of a first run
+    that stopped before marking."""
     try:
         home = Path.home().resolve()
     except (RuntimeError, OSError):
@@ -123,7 +125,7 @@ def store_above(here: Path) -> Path | None:
         if folder == home:
             break
         ws = Workspace(folder)
-        if ws.start.is_file() or ws.labels.is_file():
+        if ws.start.is_file() or ws.labels.is_file() or judged and (ws.dir / FILE).is_file():
             return folder
         if is_project(folder):
             break
@@ -182,8 +184,38 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
 
 
 def _theirs(store: Path) -> list[Path]:
-    """The results files (or folders) the session in `store` reads, as full paths."""
+    """The results files (or folders) the session in `store` reads, as full paths. Only the
+    judge.json of a first run that stopped before marking: the results of its eval tool found
+    from `store`."""
+    ws = Workspace(store)
+    if not ws.start.is_file() and not ws.labels.is_file():
+        return _judged(store)
     return [Path(kept_at(f, store)).resolve() for f in _read_by(store)]
+
+
+def _judged(store: Path) -> list[Path]:
+    """The results of the eval tool named in the judge.json in `store`, found from `store`."""
+    from judgekeeper import find
+
+    tool = session_tool(store)
+    if tool not in find.TOOLS:
+        return []
+    return [r.path.resolve() for r in find.search(store).readable(tool)]
+
+
+def session_tool(store: Path) -> str | None:
+    """The eval tool of the session in `store`: start.json's, else (a first run that stopped
+    before marking) judge.json's."""
+    import json
+
+    ws = Workspace(store)
+    try:
+        if ws.start.is_file():
+            return json.loads(ws.start.read_text(encoding="utf-8"))["tool"]
+        tool = json.loads((ws.dir / FILE).read_text(encoding="utf-8"))["setup"]["tool"]
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return None
+    return tool if isinstance(tool, str) else None
 
 
 OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}), so it looks "

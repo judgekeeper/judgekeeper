@@ -809,9 +809,15 @@ def _answers_alone(found: Search, root: Path) -> bool:
 
 
 def _session_reads(root: Path, answers: list[tuple[Path, int]]) -> bool:
-    """Whether the session in `root`'s own .judgekeeper/ reads one of `answers`."""
+    """Whether the session in `root`'s own .judgekeeper/ reads one of `answers`. Only the
+    judge.json of a first run reads its eval tool's results, never answers with no grade (and
+    finding those would search `root` again)."""
     from judgekeeper import project
+    from judgekeeper.start_label import Workspace
 
+    ws = Workspace(root)
+    if not ws.start.is_file() and not ws.labels.is_file():
+        return False
     theirs = set(project._theirs(root))
     return any(Path(path).resolve() in theirs for path, _ in answers)
 
@@ -875,11 +881,22 @@ def holds_code(folder: Path) -> bool:
 
 def is_project(folder: Path) -> bool:
     """Whether `folder` is a project's own: a project file (PROJECT_MARKERS) or its own
-    `.judgekeeper/`."""
+    `.judgekeeper/` holding something judgekeeper wrote (not only its .gitignore)."""
     try:
-        return has_marker(folder) or (folder / ".judgekeeper").exists()
+        return has_marker(folder) or _holds_own(folder / ".judgekeeper")
     except OSError:
         return False
+
+
+def _holds_own(store: Path) -> bool:
+    """Whether `store` (a .judgekeeper/) holds more than nothing or its .gitignore. One that
+    can't be listed may: it still counts."""
+    if not store.is_dir():
+        return store.exists()
+    try:
+        return any(entry.name != ".gitignore" for entry in os.scandir(store))
+    except OSError:
+        return True
 
 
 def _left_empty(folder: Path) -> bool:
@@ -900,13 +917,46 @@ def nested_results(found: Search, answers: bool = False) -> list[str]:
     return out
 
 
+def projects_below(root: Path) -> list[Path]:
+    """The projects of their own below `root` (is_project, not _left_empty), as the walk from
+    a project finds them (Search.nested): at most MAX_DEPTH folders down, through the folders
+    it walks, never inside one."""
+    root = Path(root).resolve()
+    out, queue = [], [root]
+    while queue:
+        folder = queue.pop(0)
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                    continue
+            except OSError:
+                continue
+            sub = Path(entry.path)
+            if not walked(entry) or entry.name == "mlruns":
+                continue
+            if is_project(sub) and not _left_empty(sub):
+                out.append(sub)
+            elif len(sub.relative_to(root).parts) <= MAX_DEPTH:
+                queue.append(sub)
+    return out
+
+
 def _down(n: int) -> str:
     return f"{n} folder down" if n == 1 else f"{n} folders down"
 
 
-def looked(root: Path) -> str:
-    """How far the walk looks, said when nothing is found."""
-    return f"{_down(MAX_DEPTH)} from {root.name} ({TABLE_DEPTH} for CSV, TSV and JSONL files)"
+def looked(name: str | None = None) -> str:
+    """How far the walk looks, said when nothing is found: the folder `name` (else "this
+    folder") and the folders below it that it walks (a file in a folder MAX_DEPTH down is
+    found, a CSV, TSV or JSONL file only TABLE_DEPTH - 1 down)."""
+    where = "this folder and" if name is None else f"{name} and"
+    after = "" if name is None else " from it"
+    return (f"{where} up to {_down(MAX_DEPTH)}{after} (CSV, TSV and JSONL files: up to "
+            f"{_down(TABLE_DEPTH - 1)})")
 
 
 def _look_deeper(walk: _Walk) -> None:

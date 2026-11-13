@@ -190,3 +190,13 @@ def test_a_new_round_of_the_same_questions_is_new_answers(own, capsys, monkeypat
     _round(own, name)
     said = _run(capsys, monkeypatch, own)[1]
     assert FOUND_3 in said and "another eval" not in said, said
+
+
+def test_after_a_newer_round_another_eval_names_the_file_now_marked(own, capsys, monkeypatch):
+    _round(own, "results-3")
+    assert FOUND_3 in _run(capsys, monkeypatch, own)[1]
+    _unrelated(own)
+    code, said = _run(capsys, monkeypatch, own)
+    assert code == 0, said
+    assert ("zzz-other.jsonl shares few questions with the results you marked (results-3.csv), "
+            "so it looks like another eval.") in said, said

@@ -73,8 +73,8 @@ def test_the_run_printed_and_wrote_those_figures():
     assert "You passed 12 of 20 answers." in said
     page = _flat(re.sub(r"<[^>]+>", "", html.unescape(_text(EXAMPLE / "report.html"))))
     assert "You passed 12 of 20 answers." in page and "between 39% and 78%" in page
-    assert "You failed 4 answers here. 4 more are kept aside to test your next change." in _text(
-        EXAMPLE / "failed-answers.md")
+    assert ("You failed 4 answers here. 4 more answers you failed are kept aside to test your next "
+            "change.") in _text(EXAMPLE / "failed-answers.md")
 
 
 def test_the_docs_give_the_figures_of_the_run():
@@ -104,7 +104,7 @@ def test_the_second_run_answered_the_same_questions_again():
 
 def test_the_second_run_printed_fixed_broke_and_same():
     said = _flat(_text(EXAMPLE / "terminal-2.txt"))
-    compared = no_grades.COMPARED.format(n="10 questions", fixed=2, broke=1, same=7)
+    compared = no_grades.COMPARED.format(n="10 questions", fixed=3, broke=1, same=6)
     lean = f"{no_grades.CHANGE['leans better']} {_clear_line()}"
     assert "You passed 16 of 20 answers." in said and compared in said and lean in said
 
@@ -112,7 +112,7 @@ def test_the_second_run_printed_fixed_broke_and_same():
 def _clear_line() -> str:
     """What a clear answer needs, from the run's figures: 20 marked, 8 failed, 4 of them kept
     aside, the first change tested on them."""
-    return no_grades.clear_line({"kept": 10, "fixed": 2, "broke": 1, "same": 7, "test": 1,
+    return no_grades.clear_line({"kept": 10, "fixed": 3, "broke": 1, "same": 6, "test": 1,
                                  "kept_fails": 4, "fails": 8, "marked": 20})
 
 
@@ -125,11 +125,11 @@ def test_every_run_says_which_path_it_took():
 def test_the_docs_give_the_second_run_as_judgekeeper_says_it():
     example = _flat(_text(EXAMPLE / "README.md"))
     assert "16 of 20 answers passed" in example
-    assert "2 were fixed, 1 broke and 7 stayed the same" in example
+    assert "3 were fixed, 1 broke and 6 stayed the same" in example
     assert f'"{_clear_line()}"' in example
     assert "This example uses 20 questions, so a clear answer was not possible." in example
     reference = _flat(_text(ROOT / "docs" / "reference.md"))
-    assert "2 were fixed, 1 broke and 7 stayed the same" in reference
+    assert "3 were fixed, 1 broke and 6 stayed the same" in reference
     assert f'"{no_grades.CHANGE["leans better"]}"' in reference
     for words in (no_grades.CHANGE["helped"].split(".")[0],
                   no_grades.CHANGE["worse"].split(".")[0], no_grades.BROKE):

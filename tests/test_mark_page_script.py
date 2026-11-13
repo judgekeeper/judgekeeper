@@ -727,6 +727,51 @@ def test_a_repeat_graded_differently_says_its_run_and_nothing_else():
     assert got == {"first": ["Run 2 of 3: graded differently", False], "second": ["", True]}
 
 
+AGAIN_LINE = "You saw this answer before. Mark it as you see it now."
+
+
+def test_a_marked_answer_shown_again_says_so_on_its_card_and_no_other_card_does():
+    """A repeat waiting when the page opened, and one the server offers after a mark: each
+    card shows the line that the answer was seen before (its words are in the page, below);
+    the cards around them hide it. Its mark is still sent with its slot, as a repeat."""
+    data = _data(3, start=1)
+    data["items"][0]["label"] = "pass"
+    data["items"].insert(1, {"id": "a0", "input": "Question 0?", "output": "Answer 0.",
+                             "label": None, "skipped": False, "again": 4})
+    data["total"] = 4
+    got = _run("""
+      var real = fetch;
+      fetch = function (url, opts) {
+        return real(url, opts).then(function (r) {
+          var body = JSON.parse(opts.body);
+          if (body.id === "a1" && body.again === undefined) {
+            return r.json().then(function (b) {
+              b.summary.again = {id: "a1", slot: 7, input: "Question 1?", output: "Answer 1."};
+              return {ok: true, json: function () { return Promise.resolve(b); }};
+            });
+          }
+          return r;
+        });
+      };
+      function line() { return [ids["q-text"].textContent, ids["a-again"].hidden]; }
+      var seen = [line()];
+      key("ArrowRight"); await settle(); seen.push(line());
+      later(400); key("ArrowLeft"); await settle(); seen.push(line());
+      later(400); key("ArrowRight"); await settle(); seen.push(line());
+      console.log(JSON.stringify({seen: seen,
+        sent: sent.map(function (s) { return [s.body.id, s.body.again]; })}));""", data=data)
+    assert got["seen"] == [["Question 0?", False], ["Question 1?", True],
+                                            ["Question 1?", False], ["Question 2?", True]]
+    assert got["sent"] == [["a0", 4], ["a1", None], ["a1", 7]]
+
+
+def test_the_seen_before_line_is_on_the_page_hidden_above_the_answer():
+    page = mark_page.label_page("support bot", "judgekeeper mark")
+    row = page.split('<div class="row row-a">', 1)[1].split("</div></div>", 1)[0]
+    line = f'<p class="again-note" id="a-again" hidden>{AGAIN_LINE}</p>'
+    assert line in row and row.index(line) < row.index('id="a-text"')
+
+
 def test_the_run_line_is_on_the_page_hidden_until_an_answer_has_one():
     page = mark_page.label_page("support bot", "judgekeeper mark")
     assert '<p class="run" id="a-run" hidden></p>' in page

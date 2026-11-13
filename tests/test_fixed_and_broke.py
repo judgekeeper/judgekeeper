@@ -30,8 +30,8 @@ def more(need: int, kept: int, extra: int) -> str:
     """What a clear answer needs, after "Can't tell yet" (no_grades.clear_line)."""
     target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
-            f"{target} kept-aside Fails; you have {kept}. Add about {extra} more questions.")
+            f"with none breaking. If your change fixes about 2 in 3 of them, that needs about "
+            f"{target} kept-aside questions that failed before your change; you had {kept}. Add about {extra} more questions.")
 
 
 WAIT = "Mark the new answers to see what changed."
@@ -579,8 +579,8 @@ def test_an_llm_as_a_judge_project_gets_no_comparison(here, capsys, pages):
 def harder(need: int, kept: int) -> str:
     target = no_grades.clear_target(need)
     return (f"A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-            f"with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
-            f"{target} kept-aside Fails; you have {kept}. Add harder questions, ones your AI may "
+            f"with none breaking. If your change fixes about 2 in 3 of them, that needs about "
+            f"{target} kept-aside questions that failed before your change; you had {kept}. Add harder questions, ones your AI may "
             f"get wrong, and mark their answers.")
 
 
