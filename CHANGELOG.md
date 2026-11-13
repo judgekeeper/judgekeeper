@@ -27,6 +27,7 @@
 - From an empty subfolder, judgekeeper no longer reads past the nearest project above.
 - A newer unrelated file in a subfolder no longer replaces the answers you marked: judgekeeper says it looks like another eval, as it does for one beside your results.
 - A project below with its own `.judgekeeper/` is named even when its results file is a link.
+- An older results file of other questions, beside the newest or in a folder below, no longer joins its count because the same LLM-as-a-judge graded both: judgekeeper names it. A CSV in a folder named `logs/` or `mlruns/` counts as a plain folder's results. If the file you marked is overwritten by another eval, judgekeeper says so and adds none of its answers. `INSPECT_LOG_DIR`, `DEEPEVAL_RESULTS_FOLDER` or an MLflow store that points into a project below is not read from the folder above. Lines saved with `judgekeeper.record()` at the project root no longer win over a session in a nearer folder. An empty or too-big file in a project below no longer stops the folder above or is offered there. After reading a session in the folder above, the commands judgekeeper prints name files from where you are.
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
 - With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
