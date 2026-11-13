@@ -36,11 +36,11 @@ On the 10 questions kept aside: fixed 3, broke 1, same 6.
 Can't tell yet. That leans toward better, but a split this small
 could easily be a coincidence. A clear answer needs at least 6
 kept-aside questions to go from Fail to Pass, with none
-breaking. About 2 in 3 failed questions get fixed, so that needs
+breaking. If your change fixes about 2 in 3 of them, that needs
 about 9 kept-aside questions that failed before your change; you
 had 4. Add about 25 more questions.
-Your reasons: It has a wrong fact (1), It's unsafe or not
-allowed (1).
+Your reasons: It doesn't answer the question (1), It's unsafe or
+not allowed (1).
 
 Paste this into your coding agent (Claude Code, Cursor or Codex):
 

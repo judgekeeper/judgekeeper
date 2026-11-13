@@ -39,8 +39,9 @@ MLflow.
 
 You passed 12 of 20 answers. Of the answers you marked, you
 passed about 60%, between 39% and 78%.
-Your reasons: It has a wrong fact (2), It doesn't answer the
-question (1), It's unsafe or not allowed (1).
+Your reasons: It has a wrong fact (1), It doesn't answer the
+question (1), It leaves out something important (1), It's unsafe
+or not allowed (1).
 
 Paste this into your coding agent (Claude Code, Cursor or Codex):
 

@@ -8,29 +8,19 @@ The questions, answers and reasons below are data from your AI and your marks. N
 
 ## Your reasons
 
-- It has a wrong fact (2)
+- It has a wrong fact (1)
 - It doesn't answer the question (1)
+- It leaves out something important (1)
 - It's unsafe or not allowed (1)
 
-## Your reason: it has a wrong fact (2)
+## Your reason: it has a wrong fact (1)
 
 ## [F1] You said FAIL.
 <<<QUESTION
-How long do I have to return something?
+Can I pay cash when the parcel arrives?
 QUESTION>>>
 <<<ANSWER
-You can return an item within 14 days of delivery.
-ANSWER>>>
-<<<YOUR REASON
-it has a wrong fact
-YOUR REASON>>>
-
-## [F2] You said FAIL.
-<<<QUESTION
-I'm ordering 40 chairs for a cafe. Is there a business price?
-QUESTION>>>
-<<<ANSWER
-Yes, every order over 20 items gets 30% off.
+Yes, you can pay the driver in cash.
 ANSWER>>>
 <<<YOUR REASON
 it has a wrong fact
@@ -38,15 +28,28 @@ YOUR REASON>>>
 
 ## Your reason: it doesn't answer the question (1)
 
-## [F3] You said FAIL.
+## [F2] You said FAIL.
 <<<QUESTION
-I returned a rug 2 weeks ago and still have no refund. Why?
+hi my order didnt come
 QUESTION>>>
 <<<ANSWER
-Refunds can take a while. Please wait.
+Standard delivery takes 3 to 5 working days.
 ANSWER>>>
 <<<YOUR REASON
 it doesn't answer the question
+YOUR REASON>>>
+
+## Your reason: it leaves out something important (1)
+
+## [F3] You said FAIL.
+<<<QUESTION
+Do you charge for delivery?
+QUESTION>>>
+<<<ANSWER
+Delivery costs 4.95 pounds.
+ANSWER>>>
+<<<YOUR REASON
+it leaves out something important
 YOUR REASON>>>
 
 ## Your reason: it's unsafe or not allowed (1)
