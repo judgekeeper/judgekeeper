@@ -1496,12 +1496,14 @@ def _session_owning(path: Path) -> str | None:
     file, from the folder the command runs in. It is checked there, never as this
     project's."""
     root = project.project_of(path)
-    folder = path.resolve().parent
-    if not folder.is_relative_to(root) or find.owner(path, root) is None:
+    if not path.resolve().parent.is_relative_to(root) or (
+            owner := find.owner(path, root)) is None:
         return None
-    while not (find.is_project(folder) and project.marks_above(folder, path.resolve()) is None):
-        folder = folder.parent  # the nearest to the file: where its session is, say
-    return textio.folder_from_here(folder)
+    for folder in Path(os.path.abspath(path)).parents:  # as find.owner walks: it ends there
+        if folder == owner or find.is_project(folder) and project.marks_above(
+                folder, path.resolve()) is None:  # the nearest to the file: its session's
+            return textio.folder_from_here(folder)
+    return textio.folder_from_here(owner)
 
 
 def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
