@@ -779,3 +779,23 @@ def test_a_newer_file_below_a_file_marked_from_above_is_another_eval(
     assert all(files == [marked.resolve()] for _, files in reads), said
     assert "looks like another eval" in said, said
     assert not (top / "runs" / ".judgekeeper").exists(), said
+
+
+def test_the_marked_file_overwritten_by_another_eval_adds_none_of_its_answers(
+        tmp_path, capsys, monkeypatch):
+    """I6 (s17): the session's results.csv is written again by another eval (other questions,
+    the same ids): its answers are never added to the pool; it looks like another eval."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    ids = {"id": [f"r{i}" for i in range(40)]}
+    path = table_project(proj, split(20, 20), tag="a", extra=ids)
+    assert _say(capsys, monkeypatch, proj)[0] == 0  # its session (a page, 0 marks)
+    pool = (proj / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8")
+    table_project(proj, split(20, 20), tag="b", extra=ids)
+    later = time.time() + 60
+    os.utime(path, (later, later))
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert "added for marking" not in said, said
+    assert "looks like another eval" in said, said
+    assert (proj / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool

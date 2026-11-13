@@ -225,6 +225,22 @@ OTHER_EVAL = ("{file} shares few questions with the results you marked ({marked}
               "like another eval.")
 TO_MARK_IT = "To mark it, put it in a folder of its own and run `{program}` there."
 OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there."
+REWRITTEN = ("{file} now holds other questions than the answers you marked, so it looks like "
+             "another eval. Its answers are not added to the ones you mark.")
+
+
+def rewritten(store: Path, path: Path) -> bool:
+    """Whether the results file `path` the session in `store` reads now holds another eval
+    (written again with other questions: _same_eval says no). Its answers never join the
+    pool: two evals are never one (REWRITTEN says so)."""
+    path = Path(path).resolve()
+    if not Workspace(store).start.is_file() or not path.is_file():
+        return False
+    try:
+        stamps = (path.stat().st_mtime_ns, Workspace(store).pool.stat().st_mtime_ns)
+    except OSError:
+        stamps = (0, 0)
+    return not _same_eval_cached(path, Path(store).resolve(), stamps)
 
 
 def other_eval(store: Path, path: Path) -> Path | None:

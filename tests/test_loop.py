@@ -17,7 +17,7 @@ import pytest
 
 from judgekeeper import __version__, background, label, marks, page, report_page, start, start_label
 from tests.page_http import retried
-from tests.start_projects import promptfoo_project, records_project, split
+from tests.start_projects import answer, promptfoo_project, records_project, split
 from tests.test_front import assert_one_next_at_the_end, next_lines, run
 from tests.test_screens import PATH  # which path, for promptfoo's results.json
 
@@ -435,7 +435,8 @@ def test_a_new_eval_run_keeps_the_marks_and_marking_goes_on(here, capsys, pages)
     ws = start_label.Workspace(here)
     _click(ws, 6)
     pool = ws.pool.read_text(encoding="utf-8")
-    promptfoo_project(here, split(18, 18), tag=" new" + TAG)
+    promptfoo_project(here, split(18, 18), tag=TAG,  # the same questions, new answers
+                      outputs=[answer(i, " new" + TAG) for i in range(36)])
     code, out, err = run(capsys)
     assert code == 0, out
     assert START_OVER not in _flat(out) and "other results" not in out
@@ -451,7 +452,7 @@ def test_after_a_new_eval_run_the_result_goes_on(here, capsys, pages):
     run(capsys)
     ws = start_label.Workspace(here)
     _click(ws)
-    promptfoo_project(here, split(18, 18), tag=" new")
+    promptfoo_project(here, split(18, 18), outputs=[answer(i, " new") for i in range(36)])
     code, out, _ = run(capsys)
     assert code == 0, out
     assert _flat(out).count(ADDED) == 1

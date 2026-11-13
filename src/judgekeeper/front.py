@@ -2478,6 +2478,11 @@ def _why_start_over(talk: FrontTalk, ws: Workspace, found: start.Found) -> list[
     return [] if talk.new else None
 
 
+def _newest_path(found: start.Found) -> Path | None:
+    """The newest results file read (found.used[0]), as a path; None for none."""
+    return next((r.path for r in found.results if found.used and r.rel == found.used[0]), None)
+
+
 def _checked_file(ws: Workspace, found: start.Found) -> str | None:
     """The file the last check read (check.last_read_file), named from here; else None."""
     from judgekeeper import check as checking
@@ -2603,6 +2608,11 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         head.append(_regraded_line(talk, ws, found, regraded))
     added, took, added_at = 0, None, None
     about = elsewhere  # the file the numbers are about, when not the one read (path_lines)
+    if not (first or changed or back or grades or elsewhere) and found.tool in FILE_TOOLS and \
+            (read := _newest_path(found)) is not None and project.rewritten(ws.root, read):
+        talk.para(project.REWRITTEN.format(file=textio.line_path(read)))  # never one pool
+        raise talk.stop(EXIT_QUESTION, project.OTHER_EVAL_NEXT.format(
+            file=textio.line_path(read), program=project.program_anywhere()))
     if not (first or changed or back or grades or elsewhere):
         with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one adds the batch
             added = batches.add(ws, found)
