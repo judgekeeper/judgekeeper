@@ -28,10 +28,12 @@ import pytest
 
 from judgekeeper import front, project
 from tests.start_projects import (
+    answer,
     deepeval_project,
     inspect_project,
     own_format_project,
     promptfoo_project,
+    question,
     split,
     table_project,
 )
@@ -633,3 +635,87 @@ def test_a_judge_setup_with_no_results_is_never_a_session_to_go_to(tmp_path, cap
     assert f"{kept}/ already holds your judgekeeper session" in said, said
     assert f"`cd {kept}`" in said and f"{empty}/" not in said, said
     assert "No eval results found" not in _say(capsys, monkeypatch, top / kept)[1]
+
+
+# Two evals are never one pool, wherever the files are ---------------------------------------
+
+
+def _older(path: Path) -> Path:
+    """`path` changed a day ago: the newest file is another."""
+    then = time.time() - 86400
+    os.utime(path, (then, then))
+    return path
+
+
+def _jsonl(folder: Path, n: int, tag: str) -> Path:
+    path = folder / "results.jsonl"
+    path.write_text("".join(json.dumps({"input": question(i, tag), "output": answer(i, tag),
+                                        "verdict": "pass" if i % 2 else "fail"}) + "\n"
+                            for i in range(n)), encoding="utf-8")
+    return path
+
+
+def _two_evals(proj: Path, layout: str, same: bool) -> tuple[Path, Path]:
+    """(the newest file, an older one): of one eval when `same`, else of other questions."""
+    other = "a" if same else "b"
+    if layout == "top-and-archive":  # promptfoo at the top, an archived run two folders down
+        _kind(proj, "git")
+        newest = promptfoo_project(proj, split(6, 6), tag="a")
+        older = promptfoo_project(proj / "archive" / "2025", split(6, 6), tag=other,
+                                  config=False)
+    elif layout == "top-and-old":  # a CSV at the top and one in old/
+        _kind(proj, "file")
+        newest = table_project(proj, split(5, 5), tag="a")
+        older = table_project(proj / "old", split(5, 5), tag=other)
+    elif layout == "jsonl-and-api":  # JSONL at the top, a CSV in api/
+        _kind(proj, "git")
+        newest = _jsonl(proj, 12, "a")
+        older = table_project(proj / "api", split(6, 6), tag=other)
+    else:  # one folder: results.csv and an older old_results.csv
+        _kind(proj, "file")
+        newest = table_project(proj, split(5, 5), tag="a")
+        older = table_project(proj, split(5, 5), tag=other, name="old_results.csv")
+    return newest, _older(older)
+
+
+LAYOUTS = ["top-and-archive", "top-and-old", "jsonl-and-api", "one-folder"]
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_an_older_file_of_other_questions_never_joins_the_pool(tmp_path, capsys, monkeypatch,
+                                                                reads, layout):
+    """I2 (H1): the newest file is read alone; an older one of other questions is named, never
+    pooled because the LLM-as-a-judge is the same."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    newest, older = _two_evals(proj, layout, same=False)
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1] == [newest.resolve()], said
+    assert older.relative_to(proj).as_posix() in said, said
+
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_an_older_round_of_the_same_eval_still_joins_the_pool(tmp_path, capsys, monkeypatch,
+                                                               reads, layout):
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    newest, older = _two_evals(proj, layout, same=True)
+    said = _say(capsys, monkeypatch, proj)[1]
+    assert reads and reads[-1][1] == [newest.resolve(), older.resolve()], said
+    assert "1 older file" in said, said
+
+
+@pytest.mark.parametrize("marker", [False, True])
+def test_a_table_in_a_folder_named_logs_never_lets_two_evals_pool(tmp_path, capsys,
+                                                                   monkeypatch, reads, marker):
+    """I2 (H1): logs/ is Inspect AI's folder, not a CSV's: logs/ and b/ of other questions
+    are named as a/ and b/ would be."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work, "file" if marker else "plain")
+    table_project(work / "logs", split(5, 5), tag="a")
+    _older(table_project(work / "b", split(5, 5), tag="b"))
+    code, said = _say(capsys, monkeypatch, work)
+    assert code == 3, said
+    assert "b/ and logs/ hold eval results" in said, said
+    assert not reads, said

@@ -373,14 +373,8 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
     if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
-    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
-    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
-            if f}
-    questions = set().union(*ours)
-    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
-    if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
-        # the smaller side: the same eval run on more questions is still this one
-        return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
+    if (shared := shares_questions(held, rows)) is not None:
+        return shared
     ids = {str(a.get("id")) for a in held}
     if answers:  # each answer's id made as the marked ones' were (start._answers_only)
         return any(str(a.get("id")) in ids for a in records.answers)
@@ -388,6 +382,22 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):
         return True
+
+
+def shares_questions(held: list, rows: list) -> bool | None:
+    """Whether the answers `rows` ((question, answer) pairs) are of the eval of `held` (dicts
+    with input and output): they share half of the smaller side's distinct questions. None
+    when either side has no question to compare."""
+    # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
+    ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
+            if f}
+    questions = set().union(*ours)
+    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
+    if not (questions and theirs):
+        return None
+    # an answer a refusal or a stock line gives is no sign; half of the smaller side: the
+    # same eval run on more questions is still this one
+    return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
 
 
 def one_eval(first: Path, second: Path) -> bool:

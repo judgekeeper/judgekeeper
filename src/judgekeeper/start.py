@@ -2188,6 +2188,23 @@ def _hide_keys(root: Path, talk: Talk | None = None, results=()) -> None:
             _note(talk, note)
 
 
+def _one_eval(first, older, kind: str) -> bool:
+    """Whether the older file read (`older`) is a round of the eval of the newest (`first`):
+    it shares questions with it (project.shares_questions). Two evals are never one pool, the
+    same LLM-as-a-judge or not: the other is named, never read (front._other_files). Records
+    and MLflow runs are one store's, a mapped file's runs one file's; a file with no question
+    to compare joins as before."""
+    from judgekeeper import project
+
+    if kind in ("records", "mlflow", "mapped"):
+        return True
+    rows = [(r.input, r.output) for r in older.records]
+    if not rows or len(rows) >= table.MAX_ROWS:  # only the first rows read: can't tell
+        return True
+    held = [{"input": r.input, "output": r.output} for r in first.records]
+    return project.shares_questions(held, rows) is not False
+
+
 def _same_eval_only(path: Path, results: list) -> list:
     """`results` without another eval beside a file the marks were made on
     (project.other_eval): never read in their place. None left: why, in one line."""
@@ -2336,7 +2353,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     for older in read_older:
         if len(pool.answers) >= MIN_POOL and kind != "records":
             break
-        if _identity(older.records, metric) == identity:
+        if _identity(older.records, metric) == identity and _one_eval(first, older, kind):
             used.append(older)
             pool = build_pool([(x.label, x.records) for x in used], metric, norm, own_ids,
                               humans)

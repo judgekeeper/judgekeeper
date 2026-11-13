@@ -1362,7 +1362,8 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
 
 # A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
 # MLflow's and judgekeeper.record()'s
-TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
+TOOL_FOLDERS = {"logs": "inspect", find.HIDDEN_KEPT: "deepeval", "mlruns": "mlflow",
+                FOLDER: "records"}
 # Results in several folders: asked which (start._choose_folder)
 FOLDER_ASKED = ("deepeval", "inspect")
 
@@ -1405,8 +1406,9 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     tops = set()
     for result in results:
         parts = Path(result.rel).parts
-        if result.tool in FOLDER_ASKED or any(part in TOOL_FOLDERS for part in parts[:-1]):
-            return []
+        if result.tool in FOLDER_ASKED or any(TOOL_FOLDERS.get(part) == result.tool
+                                              for part in parts[:-1]):  # only its tool's
+            return []  # results: a table in a folder named logs/ is a plain folder's
         if len(parts) > 1:
             tops.add(parts[0])
     if len(tops) < 2:  # one plain folder (evals/) holds this folder's results, or none
