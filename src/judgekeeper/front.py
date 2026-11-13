@@ -242,6 +242,7 @@ class FrontTalk(start.Talk):
         self.new = new  # repeated while starting over is asked about
         super().__init__(yes=yes, path=path)
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
+        self.kept = False  # judgekeeper.toml keeps those answers now (_save)
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
@@ -262,9 +263,13 @@ class FrontTalk(start.Talk):
         self.refresh()
 
     def refresh(self) -> None:
-        """The printed commands repeat the options as they are now, never --yes: it answers
+        """The printed commands repeat the options as they are now, with the answers given at
+        a terminal unless judgekeeper.toml keeps them now (answered), never --yes: it answers
         only the questions printed in the run just before (ask_noted)."""
-        self.flags = start.repeated_flags(self.path, **self.options)
+        options = dict(self.options)
+        if not self.kept:
+            options.update({ASKED[f]: v for f, v in self.answers.items() if f in ASKED})
+        self.flags = start.repeated_flags(self.path, **options)
         if self.path == "." and self.given:  # typed: this folder is the project, never above
             self.flags = (".", *self.flags)
         if self.new:
@@ -291,6 +296,7 @@ class FrontTalk(start.Talk):
         if flag == "PATH":
             self.store = chosen
         self.answers[flag] = chosen
+        self.refresh()
 
     def choose(self, title, options, flag_hint, ask="Which one?", flag=None, values=(),
                what=None, keep=0) -> int:
@@ -1335,15 +1341,16 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
 # A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
 # MLflow's and judgekeeper.record()'s
 TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
-ASKED = ("deepeval", "inspect")  # results in several folders: asked which (start._choose_folder)
+# Results in several folders: asked which (start._choose_folder)
+FOLDER_ASKED = ("deepeval", "inspect")
 
 
 def _projects_below(folder: Path) -> list[str]:
     """The folders right below `folder` that hold results, when there are 2 or more (or one
     that is a project of its own, project.is_project) and nothing says `folder` is one
     project: no results or tool's config in it, and none in a tool's own folder
-    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before (ASKED). Each
-    is a project of its own, never run."""
+    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before
+    (FOLDER_ASKED). Each is a project of its own, never run."""
     found = find.search(folder)
     if found.answers_read or any("/" not in sign for signs in found.signs.values()
                                  for sign in signs):  # answers with no grade: one project
@@ -1351,7 +1358,7 @@ def _projects_below(folder: Path) -> list[str]:
     tops = set()
     for result in (r for rs in found.results.values() for r in rs):
         parts = Path(result.rel).parts
-        if (len(parts) < 2 or result.tool in ASKED
+        if (len(parts) < 2 or result.tool in FOLDER_ASKED
                 or any(part in TOOL_FOLDERS for part in parts[:-1])):
             return []
         tops.add(parts[0])
@@ -2316,6 +2323,8 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
             talk.set(name, None)
+    talk.kept = True
+    talk.refresh()
     return True
 
 
