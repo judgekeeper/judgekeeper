@@ -755,8 +755,10 @@ UNREADABLE = (RecursionError, OverflowError, UnicodeDecodeError, sqlite3.Databas
 
 
 def unreadable(path: Path, tool: str) -> RecordsError:
-    """A reader stopped on a damaged file: said in plain words, never the error's text."""
-    return damaged(path, find.NAMES.get(tool, tool), "is damaged: judgekeeper can't read it")
+    """A reader stopped on a damaged file: said in plain words, never the error's text. A
+    table is saved again from whatever wrote it (CUT_OFF_FROM)."""
+    source = CUT_OFF_FROM if tool == "table" else find.NAMES.get(tool, tool)
+    return damaged(path, source, "is damaged: judgekeeper can't read it")
 
 
 def usage_error(e: Exception, text: str | None = None) -> StartError:

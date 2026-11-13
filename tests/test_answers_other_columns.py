@@ -101,3 +101,17 @@ def test_tool_table_found_nowhere_names_the_results_file(here, capsys):
     assert said.endswith("Next: run `judgekeeper --tool table --no-browser` in the folder that "
                          "holds your CSV, TSV or JSONL results file."), said
     assert "your a CSV" not in said, said
+
+
+def test_no_line_puts_a_table_after_a_or_your():
+    """A table's results by name ("a CSV, TSV or JSONL file") never follows "your" or "a"."""
+    from pathlib import Path
+
+    from judgekeeper import check, start
+
+    assert start.results_of("table") == "CSV, TSV or JSONL results file"
+    assert start.results_of("promptfoo") == "promptfoo results"
+    assert check._new_results("table") == "your new results file"
+    assert check._new_results("deepeval") == "your new DeepEval results"
+    said = str(start.unreadable(Path("res.csv"), "table"))
+    assert "from your eval tool" in said and "from a CSV" not in said, said
