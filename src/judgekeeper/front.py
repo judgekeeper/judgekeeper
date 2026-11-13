@@ -1229,7 +1229,8 @@ def _sessions_below(folder: Path, names: list[str] | None = None,
                     judged: bool = False) -> list[tuple[str, int]]:
     """(name, its marks) of each folder right below `folder` (or of `names`, paths from it)
     whose .judgekeeper/ holds a session (_session_in); `judged`: or only the judge.json of a
-    first run that stopped before marking."""
+    first run that stopped before marking, in a folder with results to mark (_own_results):
+    one with none is no place to go."""
     if names is None:
         try:
             names = sorted(e.name for e in os.scandir(folder)
@@ -1240,7 +1241,8 @@ def _sessions_below(folder: Path, names: list[str] | None = None,
     for name in names:
         ws = Workspace(folder / name)
         try:
-            held = _session_in(folder / name) or judged and (ws.dir / judge_setup.FILE).is_file()
+            held = _session_in(folder / name) or judged and (
+                ws.dir / judge_setup.FILE).is_file() and _own_results(folder / name)
         except OSError:  # a folder that can't be read (/lost+found): no session to name
             continue
         if held:

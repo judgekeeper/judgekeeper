@@ -613,3 +613,23 @@ def test_a_project_below_never_hides_a_folders_own_format_file(tmp_path, capsys,
     code, said = _say(capsys, monkeypatch, top)
     assert "data/prompt_evals.jsonl looks like your LLM-as-a-judge's results" in said, said
     assert not _read_below(reads, top, "q"), said
+
+
+@pytest.mark.parametrize("names", [("c", "proj"), ("a", "runs")])
+def test_a_judge_setup_with_no_results_is_never_a_session_to_go_to(tmp_path, capsys,
+                                                                   monkeypatch, names):
+    """I8: t/ holds c/ (a .judgekeeper/ with only judge.json, no results) and proj/ (40
+    answers, its session). A run in t/ sends the person to proj/ only, where the next run
+    finds its results."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    empty, kept = names
+    _kind(top / empty, "judged")
+    _kind(top / kept, "plain")
+    write_answers(top / kept, 40, name="results")
+    assert _say(capsys, monkeypatch, top / kept)[0] == 0  # its session (a page, 0 marks)
+    code, said = _say(capsys, monkeypatch, top)
+    assert code == 3, said
+    assert f"{kept}/ already holds your judgekeeper session" in said, said
+    assert f"`cd {kept}`" in said and f"{empty}/" not in said, said
+    assert "No eval results found" not in _say(capsys, monkeypatch, top / kept)[1]
