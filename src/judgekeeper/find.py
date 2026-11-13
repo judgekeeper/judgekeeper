@@ -796,30 +796,35 @@ def search(root: str | Path) -> Search:
 def _answers_alone(found: Search, root: Path) -> bool:
     """Whether answers with no grade are all `root` has: no results or table that can't be
     read, no sign of any eval tool, nothing in a format of its own (own_format.search), no
-    results in a project below (unless the session here reads these answers: a project's
-    files are never read in their place), no records above. A file of questions and answers
+    records above. Results or a tool's sign in a project below are its own (owner), never
+    read here, so they never stop these answers being read. A file of questions and answers
     never takes the place of an LLM-as-a-judge's results here; with them, the folder is the
     project, so results in the project folder above are not read in their place."""
     from judgekeeper import own_format
 
-    return (not found.bad_tables and not any(found.results.values())
-            and not any(found.signs.values()) and not _own_results(own_format.search(root))
-            and (not nested_results(found) or _session_reads(root, found.answers_only))
-            and records_above(root) is None)
+    root = Path(root).resolve()
+    return (not found.bad_tables
+            and not any(owner(root / r.rel, root) is None
+                        for rs in found.results.values() for r in rs)
+            and not any(owner(root / sign.rstrip("/"), root) is None
+                        for signs in found.signs.values() for sign in signs if "/" in sign)
+            and not any("/" not in sign for signs in found.signs.values() for sign in signs)
+            and not _own_results(own_format.search(root)) and records_above(root) is None)
 
 
-def _session_reads(root: Path, answers: list[tuple[Path, int]]) -> bool:
-    """Whether the session in `root`'s own .judgekeeper/ reads one of `answers`. Only the
-    judge.json of a first run reads its eval tool's results, never answers with no grade (and
-    finding those would search `root` again)."""
-    from judgekeeper import project
-    from judgekeeper.start_label import Workspace
-
-    ws = Workspace(root)
-    if not ws.start.is_file() and not ws.labels.is_file():
-        return False
-    theirs = set(project._theirs(root))
-    return any(Path(path).resolve() in theirs for path, _ in answers)
+def owner(path: Path, root: Path) -> Path | None:
+    """The project of its own below `root` that `path` (a file or folder found from `root`)
+    belongs to: the first folder below `root` on the way to `path` that is a project
+    (is_project, not _left_empty). None when it is `root`'s own. A run in `root` never reads such a file: it
+    names that project."""
+    root = Path(root).resolve()
+    path = Path(os.path.abspath(path))
+    for folder in reversed(path.parents):
+        if folder == root or not folder.is_relative_to(root):
+            continue
+        if is_project(folder) and not _left_empty(folder):
+            return folder
+    return None
 
 
 def _own_results(own) -> bool:
@@ -1032,8 +1037,29 @@ def above_with_results(root: Path) -> Path | None:
 
 
 def _up_with_results(root: Path) -> Path | None:
-    up = project_folder(root)
-    return up if up is not None and holds_results(search(up)) else None
+    """The nearest project above `root` (_project_above) when it has a project file
+    (PROJECT_MARKERS) and holds results. Never one past it: a folder with code or its own
+    .judgekeeper/ but no project file stops the climb and is never read from below (a shared
+    folder with a script in it is no project of the folders below it)."""
+    up = _project_above(root)
+    return up if up is not None and has_marker(up) and holds_results(search(up)) else None
+
+
+def _project_above(folder: Path) -> Path | None:
+    """The nearest folder above `folder`, below the home folder, that is a project: a project
+    file, code (holds_code), or its own .judgekeeper/ that is not passed over, each by its
+    own entries."""
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
+    for above in folder.parents:
+        if above == home:
+            return None
+        if has_marker(above) or holds_code(above) or is_project(above) \
+                and not _left_empty(above):
+            return above
+    return None
 
 
 def _look_above(walk: _Walk) -> None:

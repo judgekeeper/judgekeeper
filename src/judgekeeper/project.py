@@ -225,17 +225,19 @@ OTHER_EVAL_NEXT = "put {file} in a folder of its own, then run `{program}` there
 
 
 def other_eval(store: Path, path: Path) -> Path | None:
-    """The file the session in `store` reads that the results file `path` sits beside, when
-    `path` is another eval (not _same_eval): it is never read, marked or given marks of its
-    own (other_eval_line says why). None for one it reads, the same eval, or a file
-    elsewhere."""
+    """The file the session in `store` reads that the results file `path`, in the same
+    project (beside it or in a folder below), is another eval of (not _same_eval): it is
+    never read, marked or given marks of its own (other_eval_line says why); the file beside
+    it when there is one. None for one it reads, the same eval, or a file outside `store`."""
     path = Path(path).resolve()
-    if not Workspace(store).start.is_file() or not path.is_file():
+    if not Workspace(store).start.is_file() or not path.is_file() \
+            or not path.is_relative_to(Path(store).resolve()):
         return None
     theirs = _theirs(store)
     if any(path == t or path.is_relative_to(t) for t in theirs):
         return None
-    beside = next((t for t in theirs if not t.is_dir() and path.parent == t.parent), None)
+    files = [t for t in theirs if not t.is_dir()]
+    beside = next((t for t in files if path.parent == t.parent), files[0] if files else None)
     if beside is None or not _results(path):  # a file it can't read as results: no eval
         return None
     try:
@@ -245,23 +247,21 @@ def other_eval(store: Path, path: Path) -> Path | None:
     return None if _same_eval_cached(path, Path(store).resolve(), stamps) else beside
 
 
-def others_beside(store: Path) -> list[tuple[Path, Path]]:
-    """(another eval, the file it sits beside) for each results file in the folder of a file
-    the session in `store` reads that is another eval (other_eval), by name."""
-    out, seen = [], set()
-    for t in _theirs(store):
-        folder = t.parent
-        if t.is_dir() or folder in seen:
-            continue
-        seen.add(folder)
-        try:
-            files = sorted(f for f in folder.iterdir() if f.is_file()
-                           and not f.name.startswith("."))
-        except OSError:
-            continue
-        for f in files:
-            if (beside := other_eval(store, f)) is not None:
-                out.append((f.resolve(), beside))
+def other_evals(store: Path) -> list[tuple[Path, Path]]:
+    """(another eval, the file the marks were made on) for each results file the walk from
+    `store` finds (find.search: never inside a project below) that is another eval
+    (other_eval), by path."""
+    from judgekeeper import find
+
+    if not Workspace(store).start.is_file():
+        return []
+    found = find.search(store)
+    files = [r.path for rs in found.results.values() for r in rs]
+    files += [path for path, _ in found.answers_only]
+    out = []
+    for f in sorted({Path(f).resolve() for f in files}):
+        if (beside := other_eval(store, f)) is not None:
+            out.append((f, beside))
     return out
 
 
@@ -387,6 +387,26 @@ def same_questions(path: Path, tool: str | None, held: list, answers: bool = Fal
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):
         return True
+
+
+def one_eval(first: Path, second: Path) -> bool:
+    """Whether two results files are rounds of one eval: `second` shares questions with
+    `first` as same_questions counts them. A file it can't read is never called another eval
+    (the command that reads it says why)."""
+    from judgekeeper import find, start
+    from judgekeeper.records import RecordsError
+
+    kind = find.classify_file(first)
+    if kind is None:
+        return True
+    try:
+        records = start._read(find.Result(kind, first, first.name, first.stat().st_size),
+                              _answers(first)).records
+    except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
+            *start.UNREADABLE):
+        return True
+    held = [{"input": r.input, "output": r.output} for r in records]
+    return same_questions(second, kind, held)
 
 
 def _forms(question, answer) -> set[str]:

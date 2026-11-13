@@ -596,9 +596,10 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         sessions = _sessions_below(path, judged=True)
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
     held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
-    if path.is_dir() and not project.is_project(path) and not held and (
-            folders := _projects_below(path)):  # nor one session for several projects
-        raise _checked_there(talk, _from_here(path, folders))
+    here = _reads_here(talk, path, project.project_of(asked))
+    if here.is_dir() and not held and (folders := _projects_below(here)):  # nor one
+        # session for several projects, at a git top too
+        raise _checked_there(talk, _from_here(here, folders))
     if path.is_dir() and not held and (folders := _beside_a_session(path)):
         raise _go_to_one(talk, _from_here(path, folders))  # a session below never joins
         # other results here
@@ -623,7 +624,7 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         talk.para(line)
         raise talk.stop(EXIT_QUESTION, step)
     if not asked.is_file():  # the marked file is read still: why not the other
-        for other, marked in project.others_beside(store):
+        for other, marked in project.other_evals(store):
             talk.para(project.other_eval_line(other, marked))
             talk.say()
     if (read := _project_reads(path, store)) != path:  # the project above's, as before
@@ -1268,13 +1269,7 @@ def reads_above(root: Path) -> Path | None:
 
 def _in_project_below(folder: Path, path: Path) -> bool:
     """Whether `path` is inside a project of its own below `folder`."""
-    folder = folder.resolve()
-    for above in Path(path).resolve().parents:
-        if above == folder or not above.is_relative_to(folder):
-            return False
-        if find.is_project(above) and not find._left_empty(above):
-            return True
-    return False
+    return find.owner(Path(path).resolve(), folder) is not None
 
 
 def _sent_below(path: Path) -> bool:
@@ -1345,13 +1340,29 @@ TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
 FOLDER_ASKED = ("deepeval", "inspect")
 
 
+def _reads_here(talk: FrontTalk, path: Path, store: Path) -> Path:
+    """The folder a run on `path` reads its results in: its project folder `store` when the
+    session there reads them (_project_reads), else the project folder above a folder with
+    none of its own (start.reads_in), unless a PATH, --tool or a store was given."""
+    o = talk.options
+    if not path.is_dir() or o["tool"] is not None or o["tracking_uri"] is not None \
+            or find.is_mlflow_folder(path):
+        return path
+    if (read := _project_reads(path, store)) != path:
+        return read
+    return start.reads_in(path, stay=talk.given)
+
+
 def _projects_below(folder: Path) -> list[str]:
     """The folders right below `folder` that hold results, when there are 2 or more (or one
     that is a project of its own, project.is_project) and nothing says `folder` is one
     project: no results or tool's config in it, and none in a tool's own folder
     (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before
-    (FOLDER_ASKED). Each is a project of its own, never run, named with the projects below
-    that hold a session (_named_below)."""
+    (FOLDER_ASKED). Each is a project of its own, never run. A folder that is a project (a
+    git top) walks past the projects below (find.Search.nested): 2 or more folders holding
+    the rest stop it too unless they are rounds of one eval (project.one_eval), and those
+    projects are named with them and with the projects below that hold a session
+    (_named_below)."""
     found = find.search(folder)
     if found.answers_read or any("/" not in sign for signs in found.signs.values()
                                  for sign in signs):  # answers with no grade: one project
@@ -1365,7 +1376,12 @@ def _projects_below(folder: Path) -> list[str]:
         tops.add(parts[0])
     if len(tops) == 1 and not project.is_project(folder / next(iter(tops))):
         return []  # one plain folder (evals/) holds this folder's results
-    return _named_below(found, sorted(tops)) if tops else []  # none: read as before
+    if find.is_project(folder):  # rounds of one eval in its folders are read as before
+        files = [r.path for rs in found.results.values() for r in rs]
+        if all(project.one_eval(files[0], f) for f in files[1:]):
+            return []
+        return _named_below(found, sorted(tops))
+    return sorted(tops)
 
 
 def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[str]:
@@ -1386,14 +1402,11 @@ def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
     owners, rest = set(), []
     found = find.search(folder)
     for result in (r for tool in tools for r in found.results.get(tool, [])):
-        parts = Path(result.rel).parts
-        owner = next((Path(*parts[:n]) for n in range(1, len(parts))
-                      if find.is_project(folder / Path(*parts[:n]))
-                      and not find._left_empty(folder / Path(*parts[:n]))), None)
+        owner = find.owner(folder / result.rel, folder)
         if owner is None:
             rest.append(result.rel)
         else:
-            owners.add(owner.as_posix())
+            owners.add(owner.relative_to(folder.resolve()).as_posix())
     return sorted(owners), rest
 
 
@@ -3199,6 +3212,8 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
             _say_found(talk, line)
         talk.say()
         _say_path(talk, found)
+        if nested := _below_here(talk, found):  # never read with these: named
+            talk.para(nested)
     talk.found = found
     talk.ask_noted()
     talk.find_shown = first and not marking  # the folder above is named with Find alone
