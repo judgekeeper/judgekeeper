@@ -1333,15 +1333,16 @@ def _go_to(talk: FrontTalk, sessions: list[tuple[str, int]]) -> Stop:
 # A tool's own folder for its results, in the project it runs in: Inspect AI's, DeepEval's,
 # MLflow's and judgekeeper.record()'s
 TOOL_FOLDERS = ("logs", find.HIDDEN_KEPT, "mlruns", FOLDER)
-ASKED = ("deepeval", "inspect")  # results in several folders: asked which (start._choose_folder)
+# Results in several folders: asked which (start._choose_folder)
+FOLDER_ASKED = ("deepeval", "inspect")
 
 
 def _projects_below(folder: Path) -> list[str]:
     """The folders right below `folder` that hold results, when there are 2 or more (or one
     that is a project of its own, project.is_project) and nothing says `folder` is one
     project: no results or tool's config in it, and none in a tool's own folder
-    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before (ASKED). Each
-    is a project of its own, never run."""
+    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before
+    (FOLDER_ASKED). Each is a project of its own, never run."""
     found = find.search(folder)
     if found.answers_read or any("/" not in sign for signs in found.signs.values()
                                  for sign in signs):  # answers with no grade: one project
@@ -1349,7 +1350,7 @@ def _projects_below(folder: Path) -> list[str]:
     tops = set()
     for result in (r for rs in found.results.values() for r in rs):
         parts = Path(result.rel).parts
-        if (len(parts) < 2 or result.tool in ASKED
+        if (len(parts) < 2 or result.tool in FOLDER_ASKED
                 or any(part in TOOL_FOLDERS for part in parts[:-1])):
             return []
         tops.add(parts[0])
