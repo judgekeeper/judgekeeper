@@ -39,8 +39,16 @@
 
   // a file of no kind it reads (also an unknown text file): what the page reads, and the tool
   var NOT_RECOGNISED = "This isn't a results file this page can read. It reads promptfoo, DeepEval, CSV, TSV and JSONL files. For other results, run `uvx judgekeeper` in your project.";
+  // a table of answers with no grade column: the tool marks them, the page reads grades only
+  var NO_GRADES = 'This file has answers and no grades. The browser check reads LLM-as-a-judge grades. ' +
+    'To mark these answers, run `uvx judgekeeper` in your project.';
   // a table whose columns it can't place: the columns it found, and those it reads
   function NOT_COLUMNS(columns) {
+    var names = columns.filter(isStr).map(function (c) { return c.trim().toLowerCase(); });
+    var any = function (list) { return names.some(function (n) { return list.indexOf(n) >= 0; }); };
+    if (any(INPUT_WORDS) && any(OUTPUT_WORDS) && !any(SCORE_WORDS) && !gradeColumns(names).length) {
+      return NO_GRADES;
+    }
     var shown = columns.filter(isStr).slice(0, 6).map(function (c) { return clean(c, 30); });
     return "judgekeeper can't tell which columns hold the question, the answer and the grade" +
       (shown.length ? ' (this file has ' + andList(shown) + (columns.length > 6 ? ' and more' : '') + ')' : '') + '. ' + READ_NAMES +

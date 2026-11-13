@@ -158,6 +158,20 @@ def test_a_table_it_cant_place_names_the_columns_it_reads(tmp_path):
         "column (verdict or grade) holding Pass or Fail."), said
 
 
+@pytest.mark.parametrize("name, text", [
+    ("answers.csv", "input,output\nWhat is 2+2?,4\n"),
+    ("answers.tsv", "input\toutput\nWhat is 2+2?\t4\n"),
+    ("answers.jsonl", '{"input": "What is 2+2?", "output": "4"}\n')])
+def test_answers_with_no_grades_say_where_they_are_marked(tmp_path, name, text):
+    """The page reads LLM-as-a-judge grades; answers with none are marked with the tool."""
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    said = browser(path)
+    assert said["ok"] is False and said["message"] == (
+        "This file has answers and no grades. The browser check reads LLM-as-a-judge grades. "
+        "To mark these answers, run `uvx judgekeeper` in your project."), said
+
+
 @pytest.mark.parametrize("suffix, sep", [(".csv", ","), (".tsv", "\t")])
 def test_a_score_column_with_no_verdict_column_is_read_as_a_verdict_column_of_scores(
         tmp_path, suffix, sep):
