@@ -809,9 +809,15 @@ def _answers_alone(found: Search, root: Path) -> bool:
 
 
 def _session_reads(root: Path, answers: list[tuple[Path, int]]) -> bool:
-    """Whether the session in `root`'s own .judgekeeper/ reads one of `answers`."""
+    """Whether the session in `root`'s own .judgekeeper/ reads one of `answers`. Only the
+    judge.json of a first run reads its eval tool's results, never answers with no grade (and
+    finding those would search `root` again)."""
     from judgekeeper import project
+    from judgekeeper.start_label import Workspace
 
+    ws = Workspace(root)
+    if not ws.start.is_file() and not ws.labels.is_file():
+        return False
     theirs = set(project._theirs(root))
     return any(Path(path).resolve() in theirs for path, _ in answers)
 

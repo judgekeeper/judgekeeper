@@ -12,6 +12,7 @@ import pytest
 
 from judgekeeper import find, project
 from tests.start_projects import promptfoo_project, split, table_project
+from tests.test_answers_without_grades import write_answers
 from tests.test_services_in_one_repo import _run, repo, support_bot  # noqa: F401
 
 SAVED_ABOVE = ("judgekeeper saved your LLM-as-a-judge's setup in ../.judgekeeper/judge.json.")
@@ -168,3 +169,19 @@ def test_results_of_another_tool_below_get_no_line_on_marks_above(repo, capsys, 
     code, said = _run(capsys, monkeypatch, pf / "evals")
     assert code == 0 and "get their own marks here" not in said, said
     assert (pf / "evals" / ".judgekeeper" / "start.json").is_file()
+
+
+def test_answers_beside_a_judge_json_with_a_project_below_name_it_as_before(
+        repo, capsys, monkeypatch):  # noqa: F811
+    table_project(repo, split(8, 4), tag="p")
+    _stopped_in(capsys, monkeypatch, repo)
+    (repo / "results.csv").unlink()
+    write_answers(repo, 40)  # answers with no grade now, beside the judge.json of the first run
+    other = repo / "other-eval"
+    other.mkdir()
+    (other / "pyproject.toml").write_text("", encoding="utf-8")
+    write_answers(other, 20, grades=(["pass"] * 4 + ["fail"]) * 4)
+    code, said = _run(capsys, monkeypatch, repo)
+    assert code == 3, said
+    assert ("These results belong to the project in other-eval/. To check them, run "
+            "`judgekeeper` in other-eval/.") in said, said
