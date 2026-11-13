@@ -3,6 +3,8 @@ prints names it as it was typed, so it reads the same file again; never a placeh
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.start_projects import split, table_project
@@ -14,6 +16,7 @@ def _link(link, target):
         link.symlink_to(target)
     except (OSError, NotImplementedError):
         pytest.skip("symbolic links not allowed here")
+    assert link.is_file(), link
 
 
 @pytest.fixture
@@ -33,7 +36,8 @@ def inside(repo):  # noqa: F811
     table_project(repo / "services" / "my support bot", split(12, 6), tag="m")
     folder = repo / "services" / "sym-bot"
     folder.mkdir()
-    _link(folder / "results.csv", "../my support bot/results.csv")
+    # A Path, so Windows gets backslashes: it cannot follow a relative link with "/".
+    _link(folder / "results.csv", Path("..", "my support bot", "results.csv"))
     return folder
 
 
