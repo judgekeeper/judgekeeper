@@ -339,6 +339,31 @@ def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
     assert str(tmp_path) not in said, said
 
 
+def test_a_named_logs_folder_with_no_project_file_above_keeps_the_session_out(
+        tmp_path, capsys, monkeypatch):
+    """H3, no project file: `judgekeeper logs` from a plain folder, or `judgekeeper
+    a/b/logs` from the project, never makes the logs folder a project of its own."""
+    from tests.start_projects import inspect_project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    plain = tmp_path / "plain"
+    inspect_project(plain, split(6, 6), tag="a")
+    code, said = _say(capsys, monkeypatch, plain, "logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (plain / "logs" / ".judgekeeper").exists(), said
+    assert (plain / ".judgekeeper" / "judge.json").is_file(), said
+    said = _say(capsys, monkeypatch, plain, "mark", "logs")[1]
+    assert not (plain / "logs" / ".judgekeeper").exists(), said
+    assert (plain / ".judgekeeper" / "start.json").is_file(), said
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    inspect_project(proj / "a" / "b", split(6, 6), tag="b")
+    code, said = _say(capsys, monkeypatch, proj, "a/b/logs", "--yes")
+    assert code in (0, 3) and "Answers:" in said, said
+    assert not (proj / "a" / "b" / "logs" / ".judgekeeper").exists(), said
+    assert (proj / ".judgekeeper" / "judge.json").is_file(), said
+
+
 def test_many_json_files_never_hide_the_results(tmp_path, capsys, monkeypatch, reads):
     """H2 (a): 250 JSON documents in data/ use up no budget the eval's folder needs."""
     from tests.start_projects import promptfoo_project

@@ -662,13 +662,21 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
 
 def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
     """The project that holds `path` when `path` is an eval tool's own output folder (an
-    Inspect AI logs folder, a DeepEval results folder, with the logs read right in it) in a
-    project: never a project of its own, so its marks stay when its logs are cleared."""
+    Inspect AI logs folder, a DeepEval results folder, with the logs read right in it): never
+    a project of its own, so its marks stay when its logs are cleared. Named from the folder
+    run in, the nearest project on the way up to it, else the folder that holds it; run in
+    it, the project above."""
     if found.tool not in ("deepeval", "inspect") or not path.is_dir() or not found.results:
         return None
-    folder = path.resolve()
+    folder, here = path.resolve(), Path.cwd().resolve()
     if find.is_project(folder) or any(r.path.resolve().parent != folder for r in found.results):
         return None
+    if folder != here and folder.is_relative_to(here):  # named from the folder run in
+        for up in folder.parents:
+            if find.is_project(up):
+                return up
+            if up == here:
+                return folder.parent
     holder = project.project_of(folder.parent)
     return holder if find.is_project(holder) else None
 
