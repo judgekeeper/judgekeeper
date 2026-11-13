@@ -639,9 +639,7 @@ def _project_reads(path: Path, store: Path) -> Path:
     results reads the project above and says so (start._locate)."""
     if not path.is_dir() or find.is_mlflow_folder(path) or store == path.resolve():
         return path
-    try:
-        tool = json.loads(Workspace(store).start.read_text(encoding="utf-8"))["tool"]
-    except (OSError, ValueError, RecursionError, KeyError, TypeError):
+    if (tool := project.session_tool(store)) is None:
         return path
     search = find.search(path)
     if tool in ("deepeval", "inspect") or not any(search.readable(t) for t in find.TOOLS):
