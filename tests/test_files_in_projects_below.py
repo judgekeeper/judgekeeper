@@ -78,15 +78,17 @@ def test_its_own_answers_named_are_read_as_before(marked, capsys, monkeypatch):
     assert "Full report: .judgekeeper/report.html" in said, said
 
 
-def test_answers_with_no_session_still_name_the_project_below(repo, capsys, monkeypatch):  # noqa: F811
+def test_answers_with_no_session_are_read_and_name_the_project_below(repo, capsys,  # noqa: F811
+                                                                     monkeypatch):
     write_answers(repo, 40)
     other = repo / "other-eval"
     other.mkdir()
     write_answers(other, 20, grades=(["pass"] * 4 + ["fail"]) * 4)
     assert _run(capsys, monkeypatch, other)[0] == 3
     code, said = _run(capsys, monkeypatch, repo)
-    assert code == 3 and BELONG in said, said  # no session on them: not the results, as before
-    assert not (repo / ".judgekeeper").exists()
+    assert code == 0 and BELONG not in said, said  # answers with no grade: the folder's own
+    assert "File: results.csv" in said and OTHER_EVAL_TOO in said, said
+    assert not (other / ".judgekeeper" / "start.json").exists()
 
 
 # The plain run in a folder that is no project ------------------------------------------------

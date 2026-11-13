@@ -600,15 +600,17 @@ def test_a_deepeval_project_with_no_run_gives_the_deepeval_steps(here, capsys, p
     assert "Mark each one Pass or Fail" not in out
 
 
-def test_results_in_a_project_below_are_named_not_the_answers_here(here, capsys, pages):
+def test_answers_here_are_read_and_a_project_below_with_results_named(here, capsys, pages):
     below = here / "support-bot"
     below.mkdir()
     (below / "pyproject.toml").write_text("[project]\nname = 'x'\n", encoding="utf-8")
     write_answers(below, 40, grades=["pass", "fail"] * 20)
     write_answers(here, 12, name="dataset")
-    assert [r.rel for r in find.search(here).readable("table")] == ["support-bot/results.csv"]
     _, out, _ = run(capsys, "--no-browser")
-    assert "support-bot" in out and "dataset.csv" not in out
+    said = flat(out)
+    assert "File: dataset.csv" in said and "support-bot/results.csv" not in said, said
+    assert ("The project in support-bot/ has results too: to check them, run "
+            "`judgekeeper support-bot`.") in said, said
 
 
 def test_the_answers_here_are_read_and_the_hint_names_the_results_above(here, capsys,

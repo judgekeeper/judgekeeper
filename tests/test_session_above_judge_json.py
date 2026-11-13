@@ -171,7 +171,7 @@ def test_results_of_another_tool_below_get_no_line_on_marks_above(repo, capsys, 
     assert (pf / "evals" / ".judgekeeper" / "start.json").is_file()
 
 
-def test_answers_beside_a_judge_json_with_a_project_below_name_it_as_before(
+def test_answers_beside_a_judge_json_are_read_and_name_the_project_below(
         repo, capsys, monkeypatch):  # noqa: F811
     table_project(repo, split(8, 4), tag="p")
     _stopped_in(capsys, monkeypatch, repo)
@@ -182,6 +182,7 @@ def test_answers_beside_a_judge_json_with_a_project_below_name_it_as_before(
     (other / "pyproject.toml").write_text("", encoding="utf-8")
     write_answers(other, 20, grades=(["pass"] * 4 + ["fail"]) * 4)
     code, said = _run(capsys, monkeypatch, repo)
-    assert code == 3, said
-    assert ("These results belong to the project in other-eval/. To check them, run "
-            "`judgekeeper` in other-eval/.") in said, said
+    assert code == 0 and "File: results.csv" in said, said
+    assert ("The project in other-eval/ has results too: to check them, run "
+            "`judgekeeper other-eval`.") in said, said
+    assert not (other / ".judgekeeper").exists()
