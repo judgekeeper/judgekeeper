@@ -40,6 +40,10 @@ MAX_FILES = 5000
 MAX_SECONDS = 2
 MAX_DEPTH = 4
 MAX_JSON = 200
+# Folders named like results: walked before the others in each folder, so the limits above
+# are spent on them first (a data/ folder of JSON documents never hides evals/results.json)
+RESULT_FOLDERS = frozenset({"evals", "runs", "results", "logs", "outputs", ".deepeval",
+                            "mlruns"})
 HEAD_BYTES = 64 * 1024
 MAX_BYTES = 200 * 1000 * 1000
 # A table found in a folder is read whole to check it only up to this size: one of 10 MB takes
@@ -127,6 +131,7 @@ class Search:
     # (path, size): answers with no grade (is_answers_table), read only when nothing else is
     answers_only: list[tuple[Path, int]] = field(default_factory=list)
     answers_read: bool = False  # those answers are the results: nothing else is anywhere
+    json_left: int = 0  # JSON files past MAX_JSON, never looked into
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -465,6 +470,7 @@ class _Walk:
         self.project = is_project(root)  # a folder below that is a project is not walked
         self.files = 0
         self.json_sniffed = 0
+        self.direct = False  # a file of the session's own: read whatever the limits
         self.seen_dirs: set[Path] = set()
         self.seen_files: set[Path] = set()
         self.started = _clock()
@@ -523,7 +529,7 @@ class _Walk:
     def _classify(self, path: Path, name: str, size: int) -> None:
         lower = name.lower()
         suffix = path.suffix.lower()
-        depth = self.depth(path)
+        depth = 0 if self.direct else self.depth(path)
         if lower in PROMPTFOO_CONFIGS:
             self.sign("promptfoo", self.rel(path))
         elif lower == "pyproject.toml" or (lower.startswith("requirements")
@@ -546,7 +552,11 @@ class _Walk:
         elif suffix == ".json":
             if DEEPEVAL_RUN.fullmatch(name) or name in DEEPEVAL_COPIES:
                 self.add("deepeval", path, size)
-            elif name not in (*INSPECT_MANIFESTS, DEEPEVAL_TEMP) and self.json_sniffed < MAX_JSON:
+            elif name in (*INSPECT_MANIFESTS, DEEPEVAL_TEMP):
+                pass
+            elif self.json_sniffed >= MAX_JSON and not self.direct:
+                self.search.json_left += 1
+            else:
                 self.json_sniffed += 1
                 tool = sniff_json(_head(path))
                 if tool == PROMPTFOO_TABLE:
@@ -584,8 +594,23 @@ class _Walk:
         elif suffix in EXCEL and depth <= TABLE_DEPTH:  # named, so the person saves it as CSV
             self.search.unreadable.append((self.rel(path), EXCEL_FOUND))
 
+    def own(self, path: Path) -> None:
+        """A results file the session in this folder was made on (start.json): looked at
+        directly, whatever the walk's limits, so marking never loses its own file."""
+        if path in self.seen_files:
+            return
+        self.seen_files.add(path)
+        self.direct = True
+        try:
+            self._classify(path, path.name, path.stat().st_size)
+        except OSError:
+            pass
+        finally:
+            self.direct = False
+
     def folder(self, path: Path) -> None:
-        """Walk `path` breadth first, at most MAX_DEPTH folders below the root."""
+        """Walk `path` breadth first, at most MAX_DEPTH folders below the root, in each
+        folder the ones named like results (RESULT_FOLDERS) first."""
         queue = [path]
         while queue:
             folder = queue.pop(0)
@@ -593,7 +618,8 @@ class _Walk:
                 continue
             self.seen_dirs.add(folder)
             try:
-                entries = sorted(os.scandir(folder), key=lambda e: e.name)
+                entries = sorted(os.scandir(folder),
+                                 key=lambda e: (e.name.lower() not in RESULT_FOLDERS, e.name))
             except OSError:
                 continue
             for entry in entries:
@@ -729,11 +755,44 @@ def records_above(folder: str | Path) -> Path | None:
     return None
 
 
+def _on_disk(root: Path, name: str) -> Path:
+    """root/name as the disk spells it: Logs/ on a disk that ignores case, so it is walked
+    once, by the name it has."""
+    try:
+        for entry in os.scandir(root):
+            if entry.name.lower() == name.lower() and entry.name != name and \
+                    os.path.samefile(entry.path, root / name):
+                return Path(entry.path)
+    except OSError:
+        pass
+    return root / name
+
+
+def session_files(root: Path) -> list[Path]:
+    """The results files the session in `root` was made on (its start.json), inside `root`
+    and there now. Never one outside it or through a link."""
+    try:
+        data = json.loads((root / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
+        rels = [f for f in data.get("results_files") or [] if isinstance(f, str)]
+    except (OSError, ValueError, AttributeError):
+        return []
+    out = []
+    for rel in rels:
+        path = root / rel
+        try:
+            if (not Path(rel).is_absolute() and ".." not in Path(rel).parts
+                    and path.is_file() and not path.is_symlink()):
+                out.append(path)
+        except OSError:
+            continue
+    return out
+
+
 def search(root: str | Path) -> Search:
     """Every tool sign and saved result in `root`; see the module docstring for the rules."""
     root = Path(root).resolve()
     walk = _Walk(root)
-    known = [root / ".deepeval", root / "logs"]
+    known = [_on_disk(root, ".deepeval"), _on_disk(root, "logs")]
     for tool, var in RESULTS_VARS.items():
         value = os.environ.get(var)
         folder = _inside(root, value)
@@ -754,6 +813,8 @@ def search(root: str | Path) -> Search:
             walk.add("mlflow", store, store.stat().st_size)
         elif store is not None and store.is_dir():
             walk.add("mlflow", store)
+        for path in session_files(root):
+            walk.own(path)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             try:
                 link = entry.is_symlink()
