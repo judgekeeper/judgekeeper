@@ -935,11 +935,13 @@ def _left_empty(folder: Path) -> bool:
 
 def nested_results(found: Search, answers: bool = False) -> list[str]:
     """The projects below the folder searched (`found.nested`) that hold results judgekeeper
-    reads, by their path from it; `answers`: answers with no grade too (to name them)."""
+    reads, there or in a project inside them (named in turn), by their path from it;
+    `answers`: answers with no grade too (to name them)."""
     out = []
     for folder in found.nested:
         below = search(folder)
-        if holds_results(below) or answers and below.answers_read:
+        if holds_results(below) or answers and below.answers_read or \
+                nested_results(below, answers):
             out.append(folder.relative_to(found.root).as_posix())
     return out
 

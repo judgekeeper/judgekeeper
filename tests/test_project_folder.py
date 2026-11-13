@@ -178,8 +178,8 @@ def test_stop_and_check_from_a_folder_inside_the_project(here, capsys, monkeypat
 
 @pytest.mark.parametrize("config", [False, True])
 def test_a_folder_with_two_projects_says_which_it_read(here, capsys, config):
-    """A tool's config here: this folder is a project that reads the newest results below;
-    with none, the two are projects of their own, and judgekeeper says to go to one."""
+    """a/ and b/ are projects of their own: judgekeeper says to go to one, with a tool's
+    config here or not (a project below keeps its own results)."""
     if config:
         (here / "promptfooconfig.yaml").write_text("prompts: []\n", encoding="utf-8")
     for name in ("a", "b"):
@@ -188,12 +188,8 @@ def test_a_folder_with_two_projects_says_which_it_read(here, capsys, config):
     later = time.time() + 60
     os.utime(here / "b" / "results.csv", (later, later))
     code, out, err = run(capsys)
-    if not config:
-        assert code == 3 and "a/ and b/ hold eval results" in flat(out), out + err
-        return
-    assert code == 0, out + err
-    assert ("These results are from the project in b/. The project in a/ has results too: to "
-            "check them, run `judgekeeper a`.") in flat(out)
+    assert code == 3 and "a/ and b/ hold eval results" in flat(out), out + err
+    assert not (here / ".judgekeeper").exists()
 
 
 def _session_in(child, capsys, monkeypatch, marked: int) -> None:
@@ -383,8 +379,8 @@ def test_a_file_in_a_project_with_its_own_session_is_never_added_here(here, caps
     marks_before = (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes()
     code, out, err = run(capsys, *command, "sub1/results.csv", "--no-browser")
     assert code == 3, out + err
-    assert ("These results belong to the project in sub1/. To check them, run `judgekeeper` "
-            "in sub1/.") in flat(out), out
+    assert ("These results belong to the project in sub1/. To check them, run `judgekeeper "
+            "results.csv --no-browser` in sub1/.") in flat(out), out
     assert "haven't seen" not in out
     assert (here / ".judgekeeper" / "start.json").read_bytes() == start_json
     assert (here / "sub1" / ".judgekeeper" / "marks.jsonl").read_bytes() == marks_before

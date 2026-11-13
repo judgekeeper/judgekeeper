@@ -97,7 +97,7 @@ def test_tool_table_found_nowhere_names_the_results_file(here, capsys):
     code = main(["--tool", "table", "--no-browser"])
     out = capsys.readouterr()
     said = " ".join((out.out + out.err).split())
-    assert code == 2 and "No saved CSV, TSV or JSONL results file found" in said, said
+    assert code == 2 and "No CSV, TSV or JSONL results file found" in said, said
     assert said.endswith("Next: run `judgekeeper --tool table --no-browser` in the folder that "
                          "holds your CSV, TSV or JSONL results file."), said
     assert "your a CSV" not in said, said
