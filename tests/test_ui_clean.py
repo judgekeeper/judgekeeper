@@ -124,7 +124,7 @@ def _reasoned(live: bool) -> str:
 def test_a_saved_reason_names_a_rule_part_by_its_number():
     for live in (True, False):
         html = _reasoned(live)
-        assert "Your reason: <b" in html and "it has a wrong fact; rule part 2</b>" in html
+        assert "Your reason: <b" in html and "It has a wrong fact; rule part 2</b>" in html
         assert "rule part 2 (" not in _text(html)
         assert PARTS[1] in html  # the whole part in a title
 

@@ -258,8 +258,8 @@ def _write_json(path: Path, data) -> None:
 
 AHEAD = 100  # answers past the furthest one marked that the page gets at once
 # Repeats: from REPEAT_FROM page marks on, one answer in about REPEAT_EVERY comes back a second
-# time (never said, never one of the last REPEAT_GAP marked), so the result can say how often
-# the person marks the same answer differently. Only the first mark counts.
+# time (its card says so; never one of the last REPEAT_GAP marked), so the result can say how
+# often the person marks the same answer differently. Only the first mark counts.
 REPEAT_FROM = 10
 REPEAT_EVERY = 20
 REPEAT_GAP = 5

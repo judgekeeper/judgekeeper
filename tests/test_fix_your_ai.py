@@ -7,6 +7,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 import sys
 from html import unescape
 
@@ -239,7 +240,7 @@ def test_a_kept_aside_answer_never_shows_but_is_counted(here, capsys, marked):
         assert set(_row_ids(html)) == set(shown) or _row_ids(html) == []  # report: no boxes
         for i in kept:
             assert _text(page, i) not in html
-        assert "3 more are kept aside to test your next change." in html
+        assert "3 more answers you failed are kept aside to test your next change." in html
     live = _live(here)
     assert "kept" not in " ".join(_chips(live, shown[0])).lower()
     assert all("kept" not in c["text"] for c in reasons.own_chips(_ws(here))
@@ -266,7 +267,8 @@ def test_the_file_holds_the_shown_fails_by_the_most_common_reason(here, capsys, 
     lines = text.splitlines()
     assert lines[0] == "# Answers you failed"
     assert no_grades.FIX_TASK in text
-    assert "You failed 5 answers here. 5 more are kept aside to test your next change." in text
+    assert ("You failed 5 answers here. 5 more answers you failed are kept aside to test your "
+            "next change.") in text
     warning = text.index(no_grades.FIX_WARNING)
     assert warning < text.index("<<<")
     assert f"{no_grades.FIX_WARNING} {start_fix_rule.MARKS}" in text
@@ -383,9 +385,11 @@ def test_the_page_shows_the_prompt_in_what_next(here, capsys, marked):
         saved = seen.index(f"Your failed answers are saved in {SHOWN} . "
                            "Give it to your coding agent to improve your AI's prompt:")
         prompt = seen.index(" ".join(HERE_NO_REASONS))
-        after = seen.index("After you change the prompt, run your AI again, save the new "
-                           "answers, and run judgekeeper to mark them.")
+        after = seen.index("After you change the prompt, run your AI again on the same "
+                           "questions, save its new answers in results.csv or a new file next "
+                           "to it, and run judgekeeper to mark them.")
         assert at < saved < prompt < after
+        assert "save its new answers in <code>results.csv</code> or a new file" in html
         assert f"saved in <code>{SHOWN}</code>. Give" in html
         box = html.split('<div class="cmd prompt">', 1)[1].split("</div>", 1)[0]
         assert "\n".join(HERE_NO_REASONS) in box.replace("&#x27;", "'")
@@ -572,3 +576,56 @@ def test_a_reason_saved_on_the_page_gives_the_page_the_terminal_s_prompt(here, c
     assert "prompt" not in page.summary()
     assert 'querySelector(".cmd.prompt code")' in report_page.REASONS_SCRIPT
     assert "b.summary.prompt" in report_page.REASONS_SCRIPT
+
+
+def _asked_three_times(here, capsys) -> start_label.StartSession:
+    """14 answers to 12 questions: "Question 0?" asked 3 times, marked Fail, Pass, Fail; 13 of
+    the 14 answers marked, 7 of them Fail. Then a run; the page."""
+    rows = [{"input": "Question 0?", "output": f"Answer 0{c}."} for c in "abc"]
+    rows += [{"input": f"Question {i}?", "output": f"Answer {i}."} for i in range(1, 12)]
+    write_rows(here, rows)
+    run(capsys, "--no-browser")
+    page = _session(here)
+    zero = [i["id"] for i in page.items if page.raw[i["id"]]["input"] == "Question 0?"]
+    others = [i["id"] for i in page.items if i["id"] not in zero]
+    plan = dict(zip(zero, ["fail", "pass", "fail"], strict=True))
+    plan.update(zip(others, ["fail"] * 5 + ["pass"] * 5, strict=False))  # one left unmarked
+    for i, m in plan.items():
+        page.update({"id": i, "label": m, "seconds": 3})
+    run(capsys, "--no-browser")
+    return page
+
+
+
+@pytest.mark.parametrize("side", ["kept", "shown"])
+def test_the_kept_aside_line_counts_answers_and_adds_up_with_a_question_asked_3_times(
+        here, capsys, monkeypatch, side):
+    """With a question asked 3 times, answers and questions differ: the answers failed that are
+    listed and those kept aside are both answers, named so, and add up to the Fail marks."""
+    for seed in range(200):  # a split that puts "Question 0?" on `side`
+        monkeypatch.setattr(no_grades.secrets, "randbelow", lambda _n, s=seed: s)
+        page = _asked_three_times(here, capsys)
+        split = _split(here)
+        zero = {page.raw[i]["input"] for i in split.hidden} >= {"Question 0?"}
+        if zero == (side == "kept"):
+            break
+        for f in here.iterdir():
+            if f.is_dir():
+                shutil.rmtree(f)
+            else:
+                f.unlink()
+    else:
+        raise AssertionError("no seed put the question there")
+    hidden = set(split.hidden)
+    fails = [i for i, m in page.marked().items() if m == "fail"]
+    kept = [i for i in fails if i in hidden]
+    kept_questions = {page.raw[i]["input"] for i in kept}
+    if side == "kept":
+        assert len(kept) > len(kept_questions)  # the line's number is not the questions'
+    shown = len(fails) - len(kept)
+    line = (f"You failed {shown} answers here. {len(kept)} more answers you failed are kept "
+            "aside to test your next change.")
+    assert line in _failed(here).read_text(encoding="utf-8")
+    seen = " ".join(unescape(_seen(_report(here))).split())
+    assert f"You failed {len(fails)} answers." in seen
+    assert f"{len(kept)} more answers you failed are kept aside to test your next change." in seen

@@ -28,14 +28,14 @@ TOOL_SWITCH = ("To check your AI's answers instead, save them in a CSV file with
 OLD_MORE = "Mark more questions for a clearer answer."
 NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
         "with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
-        "{target} kept-aside Fails; you have {kept}.")
+        "{target} kept-aside questions that failed before your change; you had {kept}.")
 ADD = NEED + " Add about {extra} more questions."
 HARDER = ("A clear answer needs at least 7 kept-aside questions to go from Fail to Pass, with "
           "none breaking. About 2 in 3 failed questions get fixed, so that needs about 11 "
-          "kept-aside Fails; you have 0. Add harder questions, ones your AI may get wrong, and "
+          "kept-aside questions that failed before your change; you had 0. Add harder questions, ones your AI may get wrong, and "
           "mark their answers.")
-ENOUGH = ("A clear answer needs at least {need} of your {kept} kept-aside Fails to pass, with "
-          "none breaking.")
+ENOUGH = ("A clear answer needs at least {need} of the {kept} kept-aside questions that failed "
+          "before your change to pass, with none breaking.")
 
 
 # 2. What a clear answer needs ---------------------------------------------------------------

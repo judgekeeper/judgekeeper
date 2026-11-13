@@ -30,15 +30,17 @@ Have an LLM-as-a-judge? Save its Pass or Fail in a verdict
 column, or run it with promptfoo, DeepEval, Inspect AI or
 MLflow.
 
-You passed 16 of 20 answers.
-On the 10 questions kept aside: fixed 2, broke 1, same 7.
+You passed 16 of 20 answers. Of the answers you marked, you
+passed about 80%, between 58% and 92%.
+On the 10 questions kept aside: fixed 3, broke 1, same 6.
 Can't tell yet. That leans toward better, but a split this small
 could easily be a coincidence. A clear answer needs at least 6
 kept-aside questions to go from Fail to Pass, with none
 breaking. About 2 in 3 failed questions get fixed, so that needs
-about 9 kept-aside Fails; you have 4. Add about 25 more
-questions.
-Your reasons: It's unsafe or not allowed (1).
+about 9 kept-aside questions that failed before your change; you
+had 4. Add about 25 more questions.
+Your reasons: It has a wrong fact (1), It's unsafe or not
+allowed (1).
 
 Paste this into your coding agent (Claude Code, Cursor or Codex):
 
