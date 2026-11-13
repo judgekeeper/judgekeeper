@@ -15,7 +15,7 @@
   </p>
 </div>
 
-An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check your AI's answers directly ([see below](#no-llm-as-a-judge-check-your-ais-answers)).
+An LLM-as-a-judge is an AI model that grades another model's answers. judgekeeper shows how often your LLM-as-a-judge agrees with you, and where it goes wrong. No LLM-as-a-judge? judgekeeper can also check your AI's answers directly (see below).
 
 ![judgekeeper finds the results, opens the marking page, and shows how often the LLM-as-a-judge agrees with you.](https://raw.githubusercontent.com/judgekeeper/judgekeeper/main/docs/assets/demo.webp)
 
@@ -54,7 +54,7 @@ The same 5 steps work on your AI's own answers. Give judgekeeper a CSV, TSV or J
 4. **Fix:** your failed answers are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
 5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
-[An example run](docs/examples/ai-check/README.md).
+[An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).
 
 ## The numbers
 
