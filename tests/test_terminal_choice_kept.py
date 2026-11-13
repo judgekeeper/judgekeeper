@@ -43,6 +43,19 @@ def test_a_run_prints_the_metric_picked_in_its_commands(two_metrics, capsys,
     assert f"LLM-as-a-judge:  {CHOSEN}" in out, out
     (last,) = next_lines(out)[-1:]
     assert f"`judgekeeper mark {METRIC} --port 0 --no-browser`" in last, last
+    assert f"run `judgekeeper {METRIC} --port 0 --no-browser` again" in last, last
+
+
+def test_once_judgekeeper_toml_keeps_the_metric_the_commands_need_not_say_it(
+        two_metrics, capsys, terminal):  # noqa: F811
+    answers, _ = terminal
+    answers += ["2", ""]  # Relevancy [GEval]; save in judgekeeper.toml? yes
+    code, out, _ = run(capsys, "--no-browser", "--port", "0")
+    assert code == 3, out
+    assert CHOSEN in (two_metrics / "judgekeeper.toml").read_text(encoding="utf-8")
+    last = next_lines(out)[-1]
+    assert "--metric" not in last, last
+    assert "run `judgekeeper --port 0 --no-browser` again" in last, last
 
 
 def test_mark_repeats_the_metric_picked_as_its_flag(two_metrics, capsys, pages,

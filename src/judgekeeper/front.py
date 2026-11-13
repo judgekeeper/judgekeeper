@@ -242,6 +242,7 @@ class FrontTalk(start.Talk):
         self.new = new  # repeated while starting over is asked about
         super().__init__(yes=yes, path=path)
         self.answers: dict[str, str] = {}  # what the person chose at a terminal: flag -> value
+        self.kept = False  # judgekeeper.toml keeps those answers now (_save)
         self.store: str | None = None  # the MLflow store chosen at a terminal
         self.noted: list[str] = []  # yes/no questions taken as yes without a terminal
         self.step: str | None = None  # said before the first line, when there is one (go)
@@ -262,9 +263,13 @@ class FrontTalk(start.Talk):
         self.refresh()
 
     def refresh(self) -> None:
-        """The printed commands repeat the options as they are now, never --yes: it answers
+        """The printed commands repeat the options as they are now, with the answers given at
+        a terminal unless judgekeeper.toml keeps them now (answered), never --yes: it answers
         only the questions printed in the run just before (ask_noted)."""
-        self.flags = start.repeated_flags(self.path, **self.options)
+        options = dict(self.options)
+        if not self.kept:
+            options.update({ASKED[f]: v for f, v in self.answers.items() if f in ASKED})
+        self.flags = start.repeated_flags(self.path, **options)
         if self.path == "." and self.given:  # typed: this folder is the project, never above
             self.flags = (".", *self.flags)
         if self.new:
@@ -291,6 +296,7 @@ class FrontTalk(start.Talk):
         if flag == "PATH":
             self.store = chosen
         self.answers[flag] = chosen
+        self.refresh()
 
     def choose(self, title, options, flag_hint, ask="Which one?", flag=None, values=(),
                what=None, keep=0) -> int:
@@ -2292,6 +2298,8 @@ def _save(talk: FrontTalk, found: start.Found, new: settings.StartSettings,
     if made:  # judgekeeper.toml keeps the judge, its model and pass mark now
         for name in ("metric", "pass_if", "judge_model"):
             talk.set(name, None)
+    talk.kept = True
+    talk.refresh()
     return True
 
 
