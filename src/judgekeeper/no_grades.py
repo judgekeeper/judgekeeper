@@ -1423,15 +1423,16 @@ def clear_line(c: dict) -> str | None:
     added with about half of their Fails kept aside (update_split), so the ones to add are
     twice the kept-aside Fails missing over the share of questions that failed; with none
     failed before the change, there is no share to work it out from, and past MOST_ASKED
-    questions: harder questions."""
+    questions: harder questions. None once the set is used up: never more of its questions
+    (new_set_line says what to add instead)."""
+    if c.get("last"):
+        return None
     fails, marked = c.get("fails") or 0, c.get("marked") or 0
     kept_fails = c.get("kept_fails") or 0
     need = clear_need(c.get("test") or 1)
     target = clear_target(need)
     if kept_fails >= target:
         return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
-    if c.get("last"):  # new_set_line says what to add, with its own number
-        return CLEAR_NEED.format(need=need, target=target, kept_fails=kept_fails)
     if not fails or not marked:
         return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
     extra = -(-2 * (target - kept_fails) * marked // fails)
