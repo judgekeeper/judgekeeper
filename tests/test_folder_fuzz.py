@@ -46,7 +46,7 @@ from tests.start_projects import (
 )
 from tests.test_front import flat
 
-FIXED = (*range(13), 35, 100, 135, 201, 207)  # 12 and up: layouts once found here
+FIXED = (*range(13), 35, 100, 135, 201, 207, 5062)  # 12 and up: layouts once found here
 KINDS = ("plain", "plain", "file", "code", "git", "judged", "script")
 CONTENTS = ("none", "none", "csv", "jsonl", "promptfoo", "deepeval", "inspect", "answers")
 NAMES = ("a", "b", "c", "data", "evals", "proj", "sub", "runs", "my evals")
@@ -57,7 +57,9 @@ CODE = (".py", ".js", ".ts")
 HAS_INSPECT = importlib.util.find_spec("inspect_ai") is not None
 NONE_FOUND = ("No eval results found", "No saved", "There is no file", "There is no folder")
 READS_ELSEWHERE = ("mark", "check", "fix", "measure")
-STARTS_OVER = ("Starting a new project here? Run",)  # finds nothing until answers are there
+STARTS_OVER = ("Starting a new project here? Run",  # each finds nothing until the step its
+               "coding agent, then run",  # line asks for first is done
+               "put it in a folder of its own and run")
 TOOLS_ = ("records", "promptfoo", "deepeval", "inspect", "mlflow", "table")
 
 

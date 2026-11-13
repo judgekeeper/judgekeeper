@@ -1376,21 +1376,20 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
             "/" not in sign for kept in signs.values() for sign in kept):  # answers with no
         return []  # grade: one project
     results = [r for t, rs in found.results.items() if tool in (None, t) for r in rs]
-    tops, own = set(), False
+    own = any(len(Path(r.rel).parts) < 2 for r in results)  # results of its own: one
+    # project, as a project file makes it
+    if own or tool is not None:  # the projects below keep theirs (_tool_below): 2 or more
+        # plain folders that are not rounds of one eval with its own stop it (I2)
+        results = [r for r in results if find.owner(r.path, folder) is None]
+    tops = set()
     for result in results:
         parts = Path(result.rel).parts
         if result.tool in FOLDER_ASKED or any(part in TOOL_FOLDERS for part in parts[:-1]):
             return []
-        if len(parts) < 2:
-            own = True  # results of its own: one project, as a project file makes it
-        else:
+        if len(parts) > 1:
             tops.add(parts[0])
-    if own or tool is not None:  # the projects below keep theirs (_tool_below): 2 or more
-        # plain folders that are not rounds of one eval with its own stop it (I2)
-        results = [r for r in results if find.owner(r.path, folder) is None]
-        tops = {Path(r.rel).parts[0] for r in results if len(Path(r.rel).parts) > 1}
-        if own and len(tops) < 2:
-            return []
+    if own and len(tops) < 2:
+        return []
     if not tops or len(tops) == 1 and not own and not project.is_project(
             folder / next(iter(tops))):
         return []  # one plain folder (evals/) holds this folder's results

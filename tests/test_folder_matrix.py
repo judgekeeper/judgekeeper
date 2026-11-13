@@ -463,3 +463,21 @@ def test_projects_nested_two_deep_are_named_all_the_way_down(tmp_path, capsys, m
     deepeval_project(inner, split(3, 3))
     said = _say(capsys, monkeypatch, top)[1]
     _every_command_reads(capsys, monkeypatch, top, said)
+
+
+def test_a_project_below_with_folder_asked_results_never_lets_two_folders_pool(
+        tmp_path, capsys, monkeypatch, reads):
+    """I2: top/ results.csv; evals/ a project of its own with DeepEval results (asked about
+    by folder); c/ and runs/ results.csv files, c/'s of other questions. evals/'s results
+    are its own and never let c/ and runs/ pool."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    table_project(top, split(3, 3), tag="t0")
+    table_project(top / "c", split(3, 3), tag="t4")
+    _kind(top / "evals", "file")
+    deepeval_project(top / "evals", split(3, 3), tag="t0")
+    table_project(top / "runs", split(3, 3), tag="t0")
+    code, said = _say(capsys, monkeypatch, top)
+    assert code == 3, said
+    assert not (_read_below(reads, top, "c") and _read_below(reads, top, "runs")), said
+    assert not _read_below(reads, top, "evals"), said
