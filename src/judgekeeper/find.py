@@ -597,7 +597,7 @@ class _Walk:
     def own(self, path: Path) -> None:
         """A results file the session in this folder was made on (start.json): looked at
         directly, whatever the walk's limits, so marking never loses its own file."""
-        if path in self.seen_files:
+        if any(r.path == path for found in self.search.results.values() for r in found):
             return
         self.seen_files.add(path)
         self.direct = True
@@ -774,7 +774,7 @@ def session_files(root: Path) -> list[Path]:
     try:
         data = json.loads((root / ".judgekeeper" / "start.json").read_text(encoding="utf-8"))
         rels = [f for f in data.get("results_files") or [] if isinstance(f, str)]
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, TypeError, RecursionError):  # damaged: none
         return []
     out = []
     for rel in rels:
@@ -813,8 +813,6 @@ def search(root: str | Path) -> Search:
             walk.add("mlflow", store, store.stat().st_size)
         elif store is not None and store.is_dir():
             walk.add("mlflow", store)
-        for path in session_files(root):
-            walk.own(path)
         for entry in sorted(os.scandir(root), key=lambda e: e.name):
             try:
                 link = entry.is_symlink()
@@ -832,6 +830,8 @@ def search(root: str | Path) -> Search:
         walk.folder(root)
     except _Stop:
         pass
+    for path in session_files(root):  # past the walk's limits: still looked at
+        walk.own(path)
     bad = walk.search.bad_tables
     if walk.search.answers_only and _answers_alone(walk.search, root):
         for path, size in walk.search.answers_only:
