@@ -799,3 +799,51 @@ def test_the_marked_file_overwritten_by_another_eval_adds_none_of_its_answers(
     assert "added for marking" not in said, said
     assert "looks like another eval" in said, said
     assert (proj / ".judgekeeper" / "pool.jsonl").read_text(encoding="utf-8") == pool
+
+
+# A tool's folder named by its variable, inside a project below, is that project's -----------
+
+
+def _mono(tmp_path: Path, monkeypatch) -> Path:
+    """mono/ (a git top) with results.csv of its own; svc/ a project of its own below."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    mono = tmp_path / "mono"
+    _kind(mono, "git")
+    table_project(mono, split(6, 6), tag="m")
+    _kind(mono / "svc", "file")
+    return mono
+
+
+@pytest.mark.parametrize("argv", [(), ("--tool", "TOOL")])
+@pytest.mark.parametrize("tool", ["inspect", "deepeval"])
+def test_a_results_variable_into_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
+                                                                reads, tool, argv):
+    """I1 (M1): INSPECT_LOG_DIR or DEEPEVAL_RESULTS_FOLDER naming a folder in svc/ (a project
+    below) is never read from mono/: svc/ is named, as with no variable."""
+    mono = _mono(tmp_path, monkeypatch)
+    if tool == "inspect":
+        pytest.importorskip("inspect_ai")
+        inspect_project(mono / "svc", split(6, 6), tag="s")
+        monkeypatch.setenv("INSPECT_LOG_DIR", "svc/logs")
+    else:
+        deepeval_project(mono / "svc", split(6, 6), tag="s",
+                         name="results/test_run_20261002_101010.json")
+        monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", "svc/results")
+    code, said = _say(capsys, monkeypatch, mono, *(a.replace("TOOL", tool) for a in argv))
+    assert not _read_below(reads, mono, "svc"), said
+    assert "Saved results from more than one eval tool" not in said, said
+    assert "svc" in said, said
+
+
+def test_a_tracking_store_in_a_project_below_is_never_read(tmp_path, capsys, monkeypatch,
+                                                           reads):
+    """I1 (M1): MLFLOW_TRACKING_URI naming svc/mlruns (svc/ a project below) is never read
+    from mono/ with --tool mlflow."""
+    from tests.conftest import build_mlflow_folder_store
+
+    mono = _mono(tmp_path, monkeypatch)
+    build_mlflow_folder_store(mono / "svc" / "mlruns")
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "svc/mlruns")
+    code, said = _say(capsys, monkeypatch, mono, "--tool", "mlflow")
+    assert not _read_below(reads, mono, "svc"), said
+    assert "svc" in said, said

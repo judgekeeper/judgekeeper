@@ -720,6 +720,19 @@ def _inside(root: Path, value: str | None) -> Path | None:
     return path if path == root or root in path.parents else None
 
 
+def _into_project_below(walk: _Walk, path: Path, var: str) -> bool:
+    """Whether the folder or store `path` the variable `var` names is inside a project of its
+    own below the folder searched (owner, that project too): that project's, never read
+    here, only named."""
+    project = owner(path / "x", walk.search.root)
+    if project is None:
+        return False
+    rel = project.relative_to(walk.search.root).as_posix()
+    walk.search.notes.append(f"{var} points into the project in {rel}/, so it was not read "
+                             "here.")
+    return True
+
+
 def _tracking_store(root: Path, uri: str | None) -> Path | None:
     """The local store MLFLOW_TRACKING_URI names, when it is inside `root`."""
     if not uri:
@@ -761,10 +774,12 @@ def search(root: str | Path) -> Search:
         folder = _inside(root, value)
         if value and folder is None:
             walk.search.notes.append(f"{var} points outside this folder, so it was not read.")
-        elif folder is not None:
+        elif folder is not None and not _into_project_below(walk, folder, var):
             known.insert(0, folder)
             walk.sign(tool, var)
     store = _tracking_store(root, os.environ.get("MLFLOW_TRACKING_URI"))
+    if store is not None and _into_project_below(walk, store, "MLFLOW_TRACKING_URI"):
+        store = None
     records = root / RECORDS_DIR
     try:
         if records.is_dir() and not records.is_symlink():
