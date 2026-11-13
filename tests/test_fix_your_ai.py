@@ -439,29 +439,7 @@ def test_fix_without_the_file_says_what_it_said_before(here, capsys, marked):
     assert LEAD not in out and "failed-answers.md" not in out
 
 
-# A damaged split, and an LLM-as-a-judge ---------------------------------------------------------
-
-def test_a_damaged_split_lists_nothing_and_writes_no_file(here, capsys, marked):
-    marked(["pass"] * 6 + ["fail"] * 4)
-    path = _split_file(here)
-    d = json.loads(path.read_text(encoding="utf-8"))
-    d["hidden"], d["visible"] = d["visible"], d["hidden"]  # changed by hand
-    path.write_text(json.dumps(d), encoding="utf-8")
-    _failed(here).unlink()
-    _, out, _ = run(capsys, "--no-browser")
-    assert not _failed(here).exists()
-    assert LEAD not in out
-    for html in (_report(here), _live(here)):
-        assert "judgekeeper can't use the file that says which answers are kept aside." in \
-            " ".join(unescape(_seen(html)).split())
-        assert _row_ids(html) == [] and "Answers you failed" not in html
-    assert json.loads(path.read_text(encoding="utf-8"))["hidden"] == d["hidden"]  # kept
-    _, out, _ = run(capsys, "fix")
-    said = flat(out)
-    assert ("judgekeeper can't use .judgekeeper/fix/split-answers.json: it was changed by hand."
-            in said)
-    assert LEAD not in out
-
+# An LLM-as-a-judge ---------------------------------------------------------
 
 def test_an_llm_as_a_judge_project_gets_no_failed_answers_file(here, capsys, pages):
     write_answers(here, 40, grades=["pass", "fail"] * 20)

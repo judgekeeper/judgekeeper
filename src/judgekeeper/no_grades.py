@@ -481,6 +481,16 @@ def results_file(ws) -> str:
     return one_line(line_path(path))  # a name with a line break never starts a line
 
 
+def fix_next(path) -> str:
+    """FIX_NEXT for the project of `path`, its results file named (results_file)."""
+    from judgekeeper.project import project_of
+    from judgekeeper.start_label import Workspace
+    from judgekeeper.textio import program
+
+    return FIX_NEXT.format(file=results_file(Workspace(project_of(Path(path)))),
+                           command=program())
+
+
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
     """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
     the marks (`run`), without the page's own flags (start_label.mark_command's)."""
@@ -518,9 +528,11 @@ FIX_PROMPT = ("Read {file}. It lists answers my AI gave that I marked Fail{with_
               "answers.")
 AGENT_LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 FAILED_SAVED = "Your failed answers are saved in {file}."
+DAMAGED_AGAIN = ("judgekeeper can't use {file}: {why}. The next result starts it again, with "
+                 "every answer you marked shown.")  # `fix`, before the run that makes it again
 FIX_NEXT = ("paste the prompt above into your coding agent. After it changes your AI's prompt, "
-            "save your AI's new answers in your results file or a new file next to it and run "
-            "`{command}` again.")  # `fix`, with the prompt
+            "save your AI's new answers in {file} or a new file next to it and run "
+            "`{command}` again.")  # `fix`, with the prompt: the file as the result page names it
 
 
 def question_key(text) -> str:
@@ -535,7 +547,8 @@ def question_key(text) -> str:
 
 
 class SplitUnknown(ValueError):
-    """fix/split-answers.json is there but can't be used: never replaced, never guessed."""
+    """fix/split-answers.json is there but can't be used: a link, never written through;
+    else damaged, made again by the next result (update_split, _started_again)."""
 
 
 @dataclass
@@ -687,7 +700,12 @@ def update_split(ws, session) -> AnswersSplit | None:
     new questions wait (`pending`) until the set's `fresh` want of them are marked, then are
     split as the first ones were, a new set. SplitUnknown as read_split."""
     marked = session.marked()
-    split = read_split(ws)
+    try:
+        split = read_split(ws)
+    except SplitUnknown as e:
+        if _split_path(ws).is_symlink():
+            raise
+        split = _started_again(marked, str(e))
     if split is None and len(marked) < MIN_MARKS:
         return None
     from judgekeeper.fix import _cells, _top_up
@@ -737,6 +755,16 @@ def update_split(ws, session) -> AnswersSplit | None:
     if before is None or before.to_json() != split.to_json():
         _save_split(ws, split)
     return split
+
+
+def _started_again(marked: dict[str, str], why: str) -> AnswersSplit:
+    """A damaged split made again, as a set used up (retire): no one can say which answers
+    were kept aside, so every answer marked is shown and the next new questions make a new
+    set; `why` it was damaged is kept with it, for new_set_line."""
+    from judgekeeper.fix import FRESH
+
+    return AnswersSplit(seed=secrets.randbelow(2 ** 31), seen=sorted(marked), hidden=[],
+                        made_at=utc_now(), fresh={"want": FRESH, "damaged": why})
 
 
 def retire(split: AnswersSplit) -> None:
@@ -818,7 +846,9 @@ def fix_lines(path) -> list[str]:
         read_split(ws)
     except SplitUnknown as e:
         file = one_line(f"{shown_folder(ws)}/fix/{SPLIT_FILE}")
-        return ["", DAMAGED.format(file=file, why=e)]
+        if _split_path(ws).is_symlink():
+            return ["", DAMAGED.format(file=file, why=e)]
+        return ["", DAMAGED_AGAIN.format(file=file, why=e)]
     if not has_failed(ws):
         return []
     return ["", FAILED_SAVED.format(file=failed_shown(ws)), "", *agent_lines(ws)]
@@ -915,9 +945,12 @@ def after_mark(ws, session) -> None:
 
 def write_failed(ws, session, r: dict) -> None:
     """fix/failed-answers.md written again from the result `r`; removed when it lists no
-    answer (under MIN_MARKS marks, no Fail, or a split that can't be used). A link in its
+    answer (under MIN_MARKS marks or no Fail); kept as it is when the split can't be used
+    (a link: _failed_rows can't say which are kept aside). A link in its
     place, or in the folders to it, is refused: nothing is written through it."""
     path = failed_path(ws)
+    if r.get("split_unknown"):  # a link: it can't say which are kept aside, so the file
+        return  # keeps the answers it listed (shown ones only), never removed
     rows = _failed_rows(ws, session, r)
     try:
         marks._refuse_links(path)
@@ -975,6 +1008,9 @@ CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
 }
 NEW_SET = ("You have tested {n} changes on these questions kept aside, so they no longer give a "
            "fair test. {add} and mark their answers; half of them are kept aside as a new test.")
+NEW_SET_DAMAGED = ("{path} was damaged ({why}), so judgekeeper started it again, and the "
+                   "questions kept aside before no longer give a fair test. {add} and mark their "
+                   "answers; half of them are kept aside as a new test.")
 NEW_SET_ADD = "Add about {n} new questions"
 NEW_SET_HARDER = "Add harder questions, ones your AI may get wrong,"
 MOST_ASKED = 100  # more new questions than this: harder ones instead (new_set_line)
@@ -1289,7 +1325,9 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     if split.fresh:  # with the share of questions that fail now (new_set_line)
         now = [[counted.get(i) for i in ids] for ids in asked.values()]
         now = [m for m in now if None not in m]
+        damaged = split.fresh.get("damaged")
         return {"new_set": True, "fails": sum("fail" in m for m in now), "marked": len(now),
+                **({"damaged_split": one_line(damaged)} if isinstance(damaged, str) else {}),
                 **out}
     if waiting:
         return {"waiting": True}
@@ -1370,6 +1408,11 @@ def new_set_line(c: dict) -> str:
 
     n = new_questions(c)
     add = NEW_SET_HARDER if n is None or n > MOST_ASKED else NEW_SET_ADD.format(n=n)
+    if c.get("damaged_split"):  # made again (_started_again), not used up by changes
+        from judgekeeper.start_label import FOLDER
+
+        return NEW_SET_DAMAGED.format(path=f"{FOLDER}/fix/{SPLIT_FILE}",
+                                      why=c["damaged_split"], add=add)
     return NEW_SET.format(n=MAX_RULES, add=add)
 
 
@@ -1423,15 +1466,16 @@ def clear_line(c: dict) -> str | None:
     added with about half of their Fails kept aside (update_split), so the ones to add are
     twice the kept-aside Fails missing over the share of questions that failed; with none
     failed before the change, there is no share to work it out from, and past MOST_ASKED
-    questions: harder questions."""
+    questions: harder questions. None once the set is used up: never more of its questions
+    (new_set_line says what to add instead)."""
+    if c.get("last"):
+        return None
     fails, marked = c.get("fails") or 0, c.get("marked") or 0
     kept_fails = c.get("kept_fails") or 0
     need = clear_need(c.get("test") or 1)
     target = clear_target(need)
     if kept_fails >= target:
         return CLEAR_ENOUGH.format(need=need, kept_fails=kept_fails)
-    if c.get("last"):  # new_set_line says what to add, with its own number
-        return CLEAR_NEED.format(need=need, target=target, kept_fails=kept_fails)
     if not fails or not marked:
         return CLEAR_HARDER.format(need=need, target=target, kept_fails=kept_fails)
     extra = -(-2 * (target - kept_fails) * marked // fails)

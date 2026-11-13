@@ -391,7 +391,8 @@ def test_a_second_and_third_change_divide_the_level_then_ask_for_new_questions(p
     assert LEANS_WORSE + " " + more(7, 0, 74) in said  # the 6 shown Fails of 20 failed
     assert NEW_SET not in said
     said = project.again({i: "pass" for i in kept})  # 6 and 0: not under 0.05 / 3
-    assert LEANS_BETTER + " " + need_only(7, 6) + " " + new_set(30) in said  # one number
+    assert LEANS_BETTER + " " + new_set(30) in said  # one number: new questions only
+    assert "you had 6" not in said, said  # never more of the used-up set
     assert "Add about 17" not in said  # a new set's 9 kept-aside Fails: 18 Fails, at 12 in 20
     tests = no_grades.read_split(_ws(project.here)).tests
     assert len(tests) == fix.MAX_RULES == 3
@@ -596,20 +597,19 @@ def test_more_than_100_questions_to_add_asks_for_harder_ones(c, said):
     assert no_grades.clear_line(c) == said
 
 
-def need_only(need: int, kept: int) -> str:
-    return more(need, kept, 0).split(" Add about")[0]
-
-
 @pytest.mark.parametrize("c", [
     {"test": 3, "kept_fails": 3, "fails": 6, "marked": 38, "last": True},  # was 76 and 86 more
     {"test": 3, "kept_fails": 0, "fails": 0, "marked": 30, "last": True},  # was harder questions twice
+    {"test": 3, "kept_fails": 12, "fails": 20, "marked": 40, "last": True},  # enough, used up
 ])
-def test_after_3_changes_the_box_names_one_number(c):
-    said = no_grades.clear_line(c)
-    assert said == need_only(7, c["kept_fails"])
+def test_after_3_changes_the_box_asks_only_for_new_questions(c):
+    """The kept-aside set used up: no line asks for more of its questions, so the box says
+    one thing, the new set's (new_set_line)."""
+    assert no_grades.clear_line(c) is None
     box = " ".join([no_grades.result_line({**c, "clear": False, "kind": "same"}),
                     no_grades.new_set_line(c)])
-    assert box.count("Add ") == 1, box
+    assert box.count("Add ") == 1 and "kept-aside questions that failed before" not in box, box
+    assert box.startswith(no_grades.CHANGE["same"] + " You have tested 3 changes"), box
 
 
 def test_a_damaged_before_json_is_said_once_and_new_answers_still_wait(project):
