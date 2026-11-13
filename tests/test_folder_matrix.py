@@ -878,6 +878,27 @@ def test_records_at_the_project_top_never_beat_a_nearer_session(tmp_path, capsys
     assert "No marking page is open" not in out + err, out + err
 
 
+@pytest.mark.parametrize("between", ["code", "records"])
+def test_an_empty_folder_never_reads_a_session_past_a_nearer_project(tmp_path, capsys,
+                                                                      monkeypatch, reads,
+                                                                      between):
+    """I3 (seeds 52010, 54496): t/ holds a session; t/mid/ is a project of its own (code, or
+    judgekeeper.record()'s files). A run in the empty t/mid/empty/ never reads t/."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    table_project(top, split(3, 3), tag="t0")
+    assert _say(capsys, monkeypatch, top)[0] == 3  # its session (judge.json)
+    mid = top / "mid"
+    if between == "code":
+        _kind(mid, "code")
+    else:
+        records_project(mid, split(3, 3), tag="r")
+    (mid / "empty").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, mid / "empty")[1]
+    assert all(root != top.resolve() for root, _ in reads), said
+
+
 # A project below's file it can't read never decides the folder above ------------------------
 
 
