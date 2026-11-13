@@ -1363,8 +1363,7 @@ def run(path: str = ".", new: bool = False) -> int:
         lines = no_grades.fix_lines(talk.path)  # the answers failed, for a coding agent
         for line in lines:
             talk.say(line)
-        talk.next(no_grades.FIX_NEXT.format(command=program()) if no_grades.AGENT_LEAD in lines
-                  else stop[1])
+        talk.next(no_grades.fix_next(talk.path) if no_grades.AGENT_LEAD in lines else stop[1])
         return EXIT_NEEDS_YOU
     state = _state(talk.path)
 

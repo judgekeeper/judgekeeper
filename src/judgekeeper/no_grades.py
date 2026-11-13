@@ -481,6 +481,16 @@ def results_file(ws) -> str:
     return one_line(line_path(path))  # a name with a line break never starts a line
 
 
+def fix_next(path) -> str:
+    """FIX_NEXT for the project of `path`, its results file named (results_file)."""
+    from judgekeeper.project import project_of
+    from judgekeeper.start_label import Workspace
+    from judgekeeper.textio import program
+
+    return FIX_NEXT.format(file=results_file(Workspace(project_of(Path(path)))),
+                           command=program())
+
+
 def more_answers(ws, run: str | None = None, surer: bool = False) -> str:
     """MORE_ANSWERS (`surer`: SURER, with a result) for the run that opened the page or made
     the marks (`run`), without the page's own flags (start_label.mark_command's)."""
@@ -518,9 +528,11 @@ FIX_PROMPT = ("Read {file}. It lists answers my AI gave that I marked Fail{with_
               "answers.")
 AGENT_LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 FAILED_SAVED = "Your failed answers are saved in {file}."
+DAMAGED_AGAIN = ("judgekeeper can't use {file}: {why}. The next result starts it again, with "
+                 "every answer you marked shown.")  # `fix`, before the run that makes it again
 FIX_NEXT = ("paste the prompt above into your coding agent. After it changes your AI's prompt, "
-            "save your AI's new answers in your results file or a new file next to it and run "
-            "`{command}` again.")  # `fix`, with the prompt
+            "save your AI's new answers in {file} or a new file next to it and run "
+            "`{command}` again.")  # `fix`, with the prompt: the file as the result page names it
 
 
 def question_key(text) -> str:
