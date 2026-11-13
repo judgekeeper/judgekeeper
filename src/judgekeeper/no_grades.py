@@ -957,9 +957,9 @@ WAITING = {1: "{n} new answer is waiting to be marked.",
 NO_KEPT = "No question kept aside has a new answer, so your change can't be tested yet."
 # "Can't tell yet": what a clear answer needs (clear_line)
 CLEAR_NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to "
-              "Pass, with none breaking. About 2 in 3 failed questions get fixed, so that needs "
+              "Pass, with none breaking. If your change fixes about 2 in 3 of them, that needs "
               "about {target} kept-aside questions that failed before your change; you had "
-              "{kept_fails}.")
+              "{kept_fails}.")  # 2 in 3: clear_target's planning share, never measured
 CLEAR_ADD = CLEAR_NEED + " Add about {extra} more questions."
 CLEAR_HARDER = CLEAR_NEED + " Add harder questions, ones your AI may get wrong, and mark their answers."
 CLEAR_ENOUGH = ("A clear answer needs at least {need} of the {kept_fails} kept-aside questions "
