@@ -791,7 +791,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
     unlooked: list = []
     tables: list[str] = []
     own = own_format.search(root, unlooked, tables)
-    if own is None and search.skipped and (nested := find.nested_results(search, answers=True)):
+    if own is None and search.skipped and (nested := _named_below(search)):
         raise _nothing_found(talk, root, search.signs, nested)  # a link left out here
         # never hides the projects below that hold results
     if own is None and (search.skipped or not talk.given
@@ -814,8 +814,8 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
         raise talk.stop(EXIT_QUESTION, "add the question column (what each answer answers) to "
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
-        raise _nothing_found(talk, root, search.signs, find.nested_results(search, answers=True),
-                             unlooked, stopped=search.stopped)
+        raise _nothing_found(talk, root, search.signs, _named_below(search), unlooked,
+                             stopped=search.stopped)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -1350,7 +1350,8 @@ def _projects_below(folder: Path) -> list[str]:
     that is a project of its own, project.is_project) and nothing says `folder` is one
     project: no results or tool's config in it, and none in a tool's own folder
     (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before
-    (FOLDER_ASKED). Each is a project of its own, never run."""
+    (FOLDER_ASKED). Each is a project of its own, never run, named with the projects below
+    that hold a session (_named_below)."""
     found = find.search(folder)
     if found.answers_read or any("/" not in sign for signs in found.signs.values()
                                  for sign in signs):  # answers with no grade: one project
@@ -1364,7 +1365,18 @@ def _projects_below(folder: Path) -> list[str]:
         tops.add(parts[0])
     if len(tops) == 1 and not project.is_project(folder / next(iter(tops))):
         return []  # one plain folder (evals/) holds this folder's results
-    return sorted(tops)
+    return _named_below(found, sorted(tops)) if tops else []  # none: read as before
+
+
+def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[str]:
+    """The folders below `found.root` a run there names, never reads, by their path from it:
+    `names`, the projects below holding results or answers with no grade
+    (find.nested_results), and each project below that holds a session of its own
+    (found.nested), its results file a link the walk passes over, say."""
+    names = [*names, *find.nested_results(found, answers=True)]
+    held = [sub.relative_to(found.root).as_posix() for sub in found.nested if _session_in(sub)]
+    return sorted({*names, *(rel for rel in held
+                             if not any(rel == n or rel.startswith(f"{n}/") for n in names))})
 
 
 def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
