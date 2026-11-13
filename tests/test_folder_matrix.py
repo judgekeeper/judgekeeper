@@ -34,6 +34,7 @@ from tests.start_projects import (
     own_format_project,
     promptfoo_project,
     question,
+    records_project,
     split,
     table_project,
 )
@@ -829,7 +830,7 @@ def test_a_results_variable_into_a_project_below_is_never_read(tmp_path, capsys,
         deepeval_project(mono / "svc", split(6, 6), tag="s",
                          name="results/test_run_20261002_101010.json")
         monkeypatch.setenv("DEEPEVAL_RESULTS_FOLDER", "svc/results")
-    code, said = _say(capsys, monkeypatch, mono, *(a.replace("TOOL", tool) for a in argv))
+    said = _say(capsys, monkeypatch, mono, *(a.replace("TOOL", tool) for a in argv))[1]
     assert not _read_below(reads, mono, "svc"), said
     assert "Saved results from more than one eval tool" not in said, said
     assert "svc" in said, said
@@ -844,6 +845,34 @@ def test_a_tracking_store_in_a_project_below_is_never_read(tmp_path, capsys, mon
     mono = _mono(tmp_path, monkeypatch)
     build_mlflow_folder_store(mono / "svc" / "mlruns")
     monkeypatch.setenv("MLFLOW_TRACKING_URI", "svc/mlruns")
-    code, said = _say(capsys, monkeypatch, mono, "--tool", "mlflow")
+    said = _say(capsys, monkeypatch, mono, "--tool", "mlflow")[1]
     assert not _read_below(reads, mono, "svc"), said
     assert "svc" in said, said
+
+
+def test_records_at_the_project_top_never_beat_a_nearer_session(tmp_path, capsys, monkeypatch,
+                                                                reads):
+    """I3 (M3): proj/ (a project file) keeps judgekeeper.record()'s files; proj/exp/ holds a
+    session on another eval. A run in proj/exp/empty/ reads exp/, the nearest project."""
+    from judgekeeper import start_label
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    proj = tmp_path / "proj"
+    _kind(proj, "file")
+    records_project(proj, split(6, 6), tag="r")
+    exp = proj / "exp"
+    results = table_project(exp, split(20, 20), tag="e")
+    (exp / ".judgekeeper").mkdir()
+    assert _say(capsys, monkeypatch, exp)[0] == 0  # its session (a page)
+    session = start_label.StartSession(start_label.Workspace(exp))
+    for item in session.items[:4]:
+        session.update({"id": item["id"], "label": "pass", "seconds": 3})
+    (exp / "empty").mkdir()
+    reads.clear()
+    said = _say(capsys, monkeypatch, exp / "empty")[1]
+    assert reads and reads[-1] == (exp.resolve(), [results.resolve()]), said
+    assert "record()" not in said, said
+    monkeypatch.chdir(exp / "empty")  # --stop there closes the page that run opened
+    _, out, err = run(capsys, "--stop")
+    assert "No marking page is open" not in out + err, out + err
+

@@ -649,15 +649,27 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
 def _project_reads(path: Path, store: Path) -> Path:
     """Where a run from `path` reads: the project folder `store` when `path` is a folder below
     it with the results its marks are on, as if run there, so no second session starts. A
-    folder of logs is the project's choice of folder (_log_folder_of), and a folder with no
-    results reads the project above and says so (start._locate)."""
+    folder of logs is the project's choice of folder (_log_folder_of). A folder with no
+    results reads the project above and says so (start._locate); one with nothing in it (no
+    code either) that climbs nowhere reads `store`, the nearest project with a session (one
+    with no project file)."""
     if not path.is_dir() or find.is_mlflow_folder(path) or store == path.resolve():
         return path
     if (tool := project.session_tool(store)) is None:
         return path
-    if tool in ("deepeval", "inspect") or not _reads_own(find.search(path)):
-        return path
-    return store
+    search = find.search(path)
+    if not _reads_own(search):  # nothing here and no climb (start.reads_in): the session's
+        return store if _holds_nothing(path, search) and start.reads_in(
+            path) == path.resolve() else path
+    return path if tool in ("deepeval", "inspect") else store
+
+
+def _holds_nothing(path: Path, search: find.Search) -> bool:
+    """Whether a run in `path` finds nothing at all: no results (in no project below), no
+    answers, no tool's config, no file it left out, and no code (a folder with code is its own
+    project)."""
+    return not (search.answers_only or search.signs or search.unreadable or search.skipped
+                or search.too_big() or search.stopped or find.holds_code(path))
 
 
 def _reads_own(search: find.Search) -> bool:

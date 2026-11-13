@@ -747,12 +747,16 @@ def _tracking_store(root: Path, uri: str | None) -> Path | None:
 def records_above(folder: str | Path) -> Path | None:
     """The project root above `folder` whose .judgekeeper/records/ holds files that
     judgekeeper.record() wrote, found by record()'s own rule (recorder.project_root), when that
-    is not `folder` itself; else None. record() saves there from any subfolder."""
+    is not `folder` itself; else None. record() saves there from any subfolder. A folder on
+    the way that holds a session (start.json or labels.csv) is nearer: it is read."""
     from judgekeeper.recorder import project_root
+    from judgekeeper.start_label import Workspace
 
     folder = Path(folder).resolve()
     root = project_root(folder)
-    if root == folder:
+    if root == folder or any(Workspace(f).start.is_file() or Workspace(f).labels.is_file()
+                             for f in (folder, *folder.parents) if f != root
+                             and f.is_relative_to(root)):
         return None
     records = root / RECORDS_DIR
     try:
