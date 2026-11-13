@@ -11,9 +11,9 @@ maybe a session made by a real run (and then, maybe, a newer file of other quest
 share questions with another folder's or not; every file gets its own time. From a second
 stream, so a seed's first tree stays as it was: an older file of another eval beside a folder's
 results or in its archive/2025/, a table in a folder named logs/ or mlruns/, judgekeeper.record()
-files, and INSPECT_LOG_DIR or DEEPEVAL_RESULTS_FOLDER naming a folder. Then judgekeeper
-runs once in a random folder (plain, `.`, a named file or `--tool X`) and every command it
-prints is run in turn.
+files, and INSPECT_LOG_DIR, DEEPEVAL_RESULTS_FOLDER or MLFLOW_TRACKING_URI naming a folder. Then
+judgekeeper runs once in a random folder (plain, `.`, a named file or `--tool X`) and every
+command it prints is run in turn.
 
 CI runs FIXED seeds. JK_FUZZ=5000 runs that many (JK_FUZZ_START sets the first; JK_FUZZ=seeds=
 3,7 runs those); each failure
@@ -50,7 +50,7 @@ from tests.start_projects import (
 )
 from tests.test_front import flat
 
-FIXED = (*range(13), 35, 100, 135, 201, 207, 5062, 10626, 15846, 17815, 35769, 35831, 37214, 41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
+FIXED = (*range(13), 35, 100, 135, 201, 207, 4646, 5062, 10626, 15846, 17815, 35769, 35831, 37214, 41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
 KINDS = ("plain", "plain", "file", "code", "git", "judged", "script")
 CONTENTS = ("none", "none", "csv", "jsonl", "promptfoo", "deepeval", "inspect", "answers")
 NAMES = ("a", "b", "c", "data", "evals", "proj", "sub", "runs", "my evals")
@@ -89,6 +89,7 @@ class Tree:
     run_in: str
     argv: tuple[str, ...]
     env: tuple[str, str] | tuple[()] = ()  # (variable, the folder it names, below the top)
+    uri: str = ""  # the folder MLFLOW_TRACKING_URI names, below the top (a table in mlruns/)
 
 
 # The tree -----------------------------------------------------------------------------------
@@ -151,6 +152,9 @@ def _more(tree: Tree, rng: random.Random) -> Tree:
         f = rng.choice(tree.folders)
         var, sub = VARS[f.content] if f.content in VARS else VARS[rng.choice(sorted(VARS))]
         tree.env = (var, _join(f.path, sub))
+    if rng.random() < 0.08:  # the last draw, so the layouts above stay as they were
+        named = [f for f in tree.folders if f.tool_named == "mlruns"] or tree.folders
+        tree.uri = _join(rng.choice(named).path, "mlruns")
     return tree
 
 
@@ -239,8 +243,12 @@ class World:
         self.monkeypatch.setattr("pathlib.Path.home", lambda: self.home)
         table_project(self.out / "data", split(20, 20), tag="out")
         self.tags[self.out / "data" / "results.csv"] = "out"
+        for var in ("INSPECT_LOG_DIR", "DEEPEVAL_RESULTS_FOLDER", "MLFLOW_TRACKING_URI"):
+            self.monkeypatch.delenv(var, raising=False)  # a smaller tree's: none of the last
         if tree.env:
             self.monkeypatch.setenv(tree.env[0], str(self.top / tree.env[1]))
+        if tree.uri:
+            self.monkeypatch.setenv("MLFLOW_TRACKING_URI", str(self.top / tree.uri))
         older = []
         for f in tree.folders:
             folder = self.top / f.path
@@ -376,9 +384,11 @@ class World:
             if root not in (folder, above):
                 broken.append(f"I3: from an empty folder read {self.rel(root)}"
                               f" (project above: {self.rel(above) if above else None})")
-        # the project read: never a tool's output folder that became the root
-        jk = (root.parent if root.name in ("logs", "mlruns", ".deepeval") else root) / \
-            ".judgekeeper"
+        # the project read: never a tool's output folder that became the root; a table in a
+        # folder named logs/ or mlruns/ is a plain folder's
+        tool_folder = root.name in ("logs", "mlruns", ".deepeval") and not all(
+            f.suffix in (".csv", ".jsonl") for f in files)
+        jk = (root.parent if tool_folder else root) / ".judgekeeper"
         for p in changed:  # I4 (judgekeeper.toml: the answers saved, as asked, in its folder)
             if not Path(p).is_relative_to(jk) and Path(p) != jk.parent / "judgekeeper.toml":
                 broken.append(f"I4: wrote {self.rel(Path(p))}, read {self.rel(root)}")
@@ -526,6 +536,8 @@ def listing(tree: Tree) -> str:
         lines.append("  " * depth + (f.path.split("/")[-1] or "t") + "/  " + ", ".join(bits))
     if tree.env:
         lines.append(f"{tree.env[0]}=t/{tree.env[1]}")
+    if tree.uri:
+        lines.append(f"MLFLOW_TRACKING_URI=t/{tree.uri}")
     lines.append(f"run in t/{tree.run_in}: judgekeeper {shlex.join(tree.argv)}".rstrip())
     return "\n".join(lines)
 
@@ -577,13 +589,14 @@ def _smaller(tree: Tree):
             argv = tree.argv
             if any(a.startswith(f.path) or f"/{f.path}/" in f"/{a}" for a in argv):
                 continue
-            yield Tree([dataclasses.replace(o, link="" if o.link.split(":", 1)[-1] == f.path
-                                            else o.link) for o in keep], tree.run_in, argv,
-                       tree.env)
+            yield dataclasses.replace(tree, folders=[dataclasses.replace(
+                o, link="" if o.link.split(":", 1)[-1] == f.path else o.link) for o in keep])
     if tree.argv and not any(a.endswith((".csv", ".json", ".jsonl")) for a in tree.argv):
-        yield Tree(tree.folders, tree.run_in, (), tree.env)
+        yield dataclasses.replace(tree, argv=())
     if tree.env:
-        yield Tree(tree.folders, tree.run_in, tree.argv)
+        yield dataclasses.replace(tree, env=())
+    if tree.uri:
+        yield dataclasses.replace(tree, uri="")
     for i, f in enumerate(tree.folders):
         for change in ({"older": ""}, {"tool_named": ""}, {"records": False},
                        {"late": ""}, {"session": False, "late": ""}, {"link": ""},
@@ -598,7 +611,7 @@ def _smaller(tree: Tree):
                 continue
             folders = list(tree.folders)
             folders[i] = dataclasses.replace(f, **change)
-            yield Tree(folders, tree.run_in, tree.argv, tree.env)
+            yield dataclasses.replace(tree, folders=folders)
 
 
 def _seeds():
