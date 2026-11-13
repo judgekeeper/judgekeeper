@@ -2,8 +2,9 @@
 
 Every file reader is a pure function `read_<tool>(path, **options) -> list[ScoreRecord]` (a
 RecordList, which also carries what the reader learned about the file). Platform readers
-(MLflow) read a store instead of a path and return [(run label, RecordList)]. This package is
-the only place that knows about any framework.
+(MLflow) read a store instead of a path and return [(run label, RecordList)]. This package
+reads each framework's files; start.py and check.py also know some of each tool's ways (its
+folders, config files and how it saves a value).
 """
 
 from __future__ import annotations

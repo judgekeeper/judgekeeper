@@ -10,8 +10,10 @@ entry. The traps handled here:
 - llm-rubric saves the exact prompt it sent; with the answer and vars put back as
   placeholders, it is the grading template whose hash is the prompt hash.
 - A grader that failed is saved as a plain fail; `metadata.graderError` (or, in older files,
-  promptfoo's own reasons) marks it for the judge check. The row's `error` never does.
-- The STRIP_* settings remove answers, inputs or grading from every row: a warning names them.
+  promptfoo's own reasons) marks it for the judge check. A row's `error` marks it only when
+  the row has no grading (_provider_failed): the model under test never answered.
+- The STRIP_* settings remove answers, inputs or grading from every row: with answers or
+  inputs gone a warning names them; with grading gone the file can't be read (RecordsError).
 """
 
 from __future__ import annotations

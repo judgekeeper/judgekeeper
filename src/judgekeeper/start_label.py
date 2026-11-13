@@ -9,11 +9,12 @@ can be rebuilt.
 starts or a batch joins), marks.jsonl (written by the page), the anchors, judge-check files,
 result.json, report.html and history.jsonl, and fix/. Its .gitignore keeps the answers off Git.
 
-report.html is written first, then the history line, then result.json, each renamed into
-place, so a run stopped half way is repaired by the next. A cloned project controls
-`.judgekeeper/`: a link in it stops judgekeeper (`refuse_links`), and every file is written as
-a new file renamed over the old one, which replaces a link instead of following it. Every
-string from a results file is scrubbed of credentials before it is written.
+report.html is written first, then the history line, then result.json, so a run stopped
+half way is repaired by the next. A cloned project controls `.judgekeeper/`: a link in it
+stops judgekeeper (`refuse_links`). Most files are written as a new file renamed over the old
+one, which replaces a link instead of following it; marks.jsonl, history.jsonl and page.log
+are added to, so a link there is refused before anything is written. Every string from a
+results file is scrubbed of credentials before it is written.
 """
 
 from __future__ import annotations
@@ -1237,8 +1238,8 @@ def too_early(value, interval) -> bool:
 
 
 def side_sentence(key: str, value, interval, why: str | None = None) -> str:
-    """One side of the result, as the terminal says it: "You passed: your judge also passed
-    about 61% (between 42% and 78%)."; too early to tell only with no number."""
+    """One side of the result, as the terminal says it: "You passed: your LLM-as-a-judge also
+    passed about 61% (between 42% and 78%)."; too early to tell only with no number."""
     did = DID[key]
     if too_early(value, interval):
         return f"You {did}: {TOO_EARLY}."

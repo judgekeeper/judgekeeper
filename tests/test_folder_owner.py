@@ -157,3 +157,32 @@ def test_a_shared_folder_with_a_script_is_never_read_from_an_empty_folder_below(
     assert code == 3, said
     assert "Reading the project folder above" not in said and "Answers:" not in said, said
     assert not (work / "new" / ".judgekeeper").exists()
+
+
+def test_a_named_files_project_is_found_between_it_and_the_folder_run_in(tmp_path,
+                                                                        monkeypatch):
+    """The nearest project to a named file (front._session_owning) is looked for only up to
+    the project find.owner found: even when every folder on the way says its marks are kept
+    above (marks_above, asked about that file), it ends there."""
+    import threading
+    from pathlib import Path
+
+    from judgekeeper import front, project
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    _judged_only(top / "a")
+    table_project(top / "a" / "evals", split(3, 3), tag="a")
+    monkeypatch.chdir(top)
+    project.forget()
+    real = project.marks_above
+    monkeypatch.setattr(project, "marks_above", lambda store, given=None: real(store) if given
+                        is None else Path(tmp_path))  # kept above, for that file
+    named = Path("a/evals/results.csv")
+    got = []
+    worker = threading.Thread(target=lambda: got.append(front._session_owning(named)),
+                              daemon=True)
+    worker.start()
+    worker.join(10)
+    assert not worker.is_alive(), "it looked past the project"
+    assert got == ["a"], got

@@ -9,10 +9,11 @@ textContent. The server fills in __DATA__ (start_label.StartSession.state), __TO
 __NONCE__.
 
 So that each mark comes from a real look at the answer: Fail and Pass look the same but for
-their colour; after each mark the page ignores input for about 400 ms, and it ignores a held
-key and any key with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The
-progress bar follows how close the result is (Pass and Fail marks, each counted up to ROUGH;
-a skipped answer counts for nothing), never full before the result is ready, and no number on
+their colour; a mark or skip within FRESH_MS (250 ms) of an answer showing does nothing, an
+undo waits LOCK_MS (400 ms) after the one before, and the page ignores a held key and any key
+with Cmd, Ctrl or Alt. Focus goes to the answer, never to a button. The progress bar follows
+how close the result is (Pass and Fail marks, each counted up to ROUGH; a skipped answer
+counts for nothing), never full before the first numbers (status.first), and no number on
 the page is a target. When the result becomes ready while the page is open, a box says so,
 once. In an answer or a question only `**bold**` and "- " lines are formatted, built with
 createElement and createTextNode. Skipped answers come back at the end. On a phone (760px and
@@ -1115,8 +1116,8 @@ AGAIN = "You saw this answer before. Mark it as you see it now."
 
 def _progress() -> str:
     """The top bar's right: the segments by how close the result is, the count of marks, and
-    the link to the result (hidden until one is ready); under them, hidden until it is
-    wanted, the line that says to keep going."""
+    the link to the numbers (hidden until the first numbers, status.first); under them,
+    hidden until it is wanted, the line that says to keep going."""
     return ('<div class="progress-box" id="progress-box"><div class="status-1"><div class="seg" id="progress" '
             'role="progressbar" aria-label="How close your first numbers are" aria-valuemin="0" '
             'aria-valuemax="100" '

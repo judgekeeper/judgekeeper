@@ -6,7 +6,8 @@ when that would not help (a DeepEval metric's `measure()` called directly saves 
 looks instead for a recent JSON, JSONL or CSV file whose items hold a score-like key with an
 input-like and an output-like key (looks_judged), at any depth, names it, and prints
 AGENT_PROMPT: a short prompt to paste into a coding agent, which writes the converter.
-Standard library only; nothing is written, and only the first part of each file is read.
+Standard library only; nothing is written. A .json file up to JSON_BYTES is read whole (a bigger
+one is passed over); of any other file, only the first part.
 """
 
 from __future__ import annotations
@@ -144,11 +145,10 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
     """The most recently changed file in `root` (at most find.MAX_DEPTH folders deep, changed
     in the last RECENT_DAYS days) that looks like judge results in a format of its own. The
     files whose names say results but are too big to look into go to `unlooked`; promptfoo's
-    table output is never one: its path goes to `tables` (relative) instead. As find's walk,
-    a search from a project never goes into a project of its own below (find.is_project):
-    its files are that project's."""
+    table output is never one: its path goes to `tables` (relative) instead. It never goes
+    into a project of its own below (find.is_project), from a project or not: its files are
+    that project's, only named (find.owner)."""
     root = Path(root).resolve()
-    own = find.is_project(root)
     since = time.time() - RECENT_DAYS * 86400
     started = time.monotonic()
     candidates: list[tuple[float, Path]] = []
@@ -164,7 +164,7 @@ def search(root: Path, unlooked: list[OwnFile] | None = None,
             what = find.kind(entry)  # a device, a pipe or a link: skipped
             path = Path(entry.path)
             if what == find.DIR:
-                if own and find.is_project(path) and not find._left_empty(path):
+                if find.is_project(path) and not find._left_empty(path):
                     continue
                 if find.walked(entry) and len(path.relative_to(root).parts) <= find.MAX_DEPTH:
                     queue.append(path)

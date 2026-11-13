@@ -1256,7 +1256,8 @@ def _add_failed(judged: dict[str, RecordList], failed: list, wanted: list, exper
     the same judge (evaluator) as its other verdicts, the error's code as the explanation.
     A scorer that only ever failed (no verdict of its name, from a judge or from code) is
     taken for a judge whose every call failed, never dropped in silence; one that also has
-    code verdicts is a code scorer. With no LLM judge verdict at all: RecordsError."""
+    code verdicts is a code scorer. With no LLM judge verdict at all and some failed calls:
+    JudgeCallsFailed (a RecordsError)."""
     evaluators: dict[tuple, dict] = {}
     for run, recs in judged.items():
         for r in recs:

@@ -5,13 +5,14 @@ No AI call and no API key: everything comes from files the user's eval tool alre
 too few answers it prints the command that makes more, and the user runs it.
 
 The pool is every answer with a clear pass or fail. A repeat of the same answer (input,
-output and any agent steps) counts once: the newest results file wins, and inside it the
-majority of its verdicts, a tie going to fail. An answer with no real decision (judge_check)
-is left out, counted and said.
+output and any agent steps) is read from the newest results file that has it: repeats with
+the same grade count once, and repeats with different grades each count as an answer of
+their own (build_pool). An answer with no real decision (judge_check) is left out, counted
+and said.
 
 Questions are asked only at a terminal. Without one, judgekeeper prints the question as the
-flag that answers it and exits 3; `--yes` takes the default of a yes/no question, but never
-picks between tools or judges.
+flag that answers it and exits 3; `--yes` answers a yes/no question as that question
+says (Talk.confirm's `with_yes`), but never picks between tools or judges.
 """
 
 from __future__ import annotations
@@ -331,6 +332,7 @@ class Talk:
     subcommand = ""  # every printed command starts with textio.program(subcommand)
     asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
     given = False  # a PATH was given on the command line: that folder is the project
+    read_in: str | None = None  # the folder above read (no PATH given), from here (_locate)
 
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
                  path: str | Path = "."):
@@ -348,7 +350,10 @@ class Talk:
 
     def command(self, *extra: str) -> str:
         """`judgekeeper` with the person's flags, then `extra`: run as printed, it gets
-        past the question it answers."""
+        past the question it answers. After a climb, one with --tool (it never climbs)
+        names the folder read."""
+        if self.read_in is not None and any(w.split("=", 1)[0] == "--tool" for w in extra):
+            return self.command_in(quote_arg(self.read_in), *extra)
         return " ".join((self.program, *self._flags_for(extra), *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
@@ -358,6 +363,8 @@ class Talk:
         given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
+        if self.read_in is not None and self.path == ".":  # after a climb: from here
+            path = Path(self.read_in) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
     def command_in(self, folder: str, *extra: str) -> str:
@@ -911,8 +918,8 @@ def _read_mapped(result: find.Result, saved, judge_model: str | None = None) -> 
 
 
 def _where(result: find.Result) -> str:
-    """The file, and when it was saved: for DeepEval only the run's own time (a file's time
-    can be when the project was copied), else no date."""
+    """The file, and when it was saved: find.Result.date, but for DeepEval and MLflow only the
+    run's own time (a file's time can be when the project was copied), no date without one."""
     date = result.run_date() if result.tool in ("deepeval", "mlflow") else result.date()
     return result.rel if date is None else f"{result.rel}, saved {date:%Y-%m-%d %H:%M}"
 
@@ -1165,7 +1172,7 @@ class Found:
     metric: str
     pool: Pool
     fingerprint: dict
-    judge: str  # the judge, as `Your judge:` names it
+    judge: str  # the judge, as the `LLM-as-a-judge:` line names it
     signs: dict
     rule: str | None = None  # the judge's whole rule, as its results file holds it
     description: str | None = None  # promptfoo's `config.description` of the newest results
@@ -1243,7 +1250,8 @@ def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) ->
     pass mark; `follows` says whether every verdict is the score held against it. The
     direction of a DeepEval threshold comes from the verdicts (some of its metrics pass a
     lower score); when they do not tell it, None. `source` is "pass_if" (with its "rule"),
-    "deepeval", "records" or "mapped" (with the "key" a mapped file states it in)."""
+    else the tool's name, such as "deepeval", "promptfoo", "records" or "mapped" (with the
+    "key" a mapped file states it in)."""
     answers = pool.answers
     if not answers or any(a.score is None or a.pass_mark is None for a in answers):
         return None
@@ -1423,8 +1431,10 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
                 stay: bool = False) -> tuple[str, Path] | None:
     """("records" or "results", the project folder above `root`) when a run in `root` reads
     there: no results here, and record()'s records saved there (from any subfolder), or
-    results in the project folder above (find.results_above) unless the run `stay`s."""
-    available = [t for t in find.TOOLS if found.readable(t)]
+    results in the project folder above (find.results_above) unless the run `stay`s. Results
+    in a project below never count here: they only name it."""
+    available = [t for t in find.TOOLS
+                 if any(find.owner(r.path, root) is None for r in found.readable(t))]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:
@@ -1521,6 +1531,8 @@ def _locate(talk: Talk, path: Path, tool: str | None,
             _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
                   else f"{rel} {how}, so it was left out.")
     above = _read_above(root, found, tool, talk.given)  # a PATH given never climbs
+    if above is not None:  # the commands said from here on name it (Talk.read_in)
+        talk.read_in = Path(os.path.relpath(above[1], Path.cwd())).as_posix()
     if above is not None and above[0] == "records":  # record() saves at the project root
         above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
         _note(talk, RECORDS_ABOVE.format(root=above_here))
@@ -1537,7 +1549,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {results_of(tool)} found in "
+            raise StartError(f"No {_saved_words(tool)} found in "
                              f"{textio.folder_words(shown_path(root))}.",
                              **_tool_elsewhere(talk, found, tool, available))
         available = [tool]
@@ -1694,6 +1706,12 @@ def is_empty_file(path: Path) -> bool:
             return f.read(4) in (b"", b"\xef\xbb\xbf")
     except OSError:
         return False
+
+
+def _saved_words(tool: str) -> str:
+    """What --tool `tool` looks for, in words: "saved promptfoo results", "CSV, TSV or JSONL
+    results file"."""
+    return TABLE_RESULTS if tool == "table" else f"saved {results_of(tool)}"
 
 
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:

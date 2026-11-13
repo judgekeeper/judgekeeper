@@ -3,8 +3,9 @@ bar and the focus ring.
 
 The pages are dark only (page #0b0c0e, text #e6e8eb): there is no light theme and no switch,
 and `color-scheme: dark` on :root keeps the browser's own parts (scroll bars, form controls)
-dark too. Hairlines only: no boxes, no shadows, no rounded panels. Green and red colour only
-Pass and Fail (and the "See your result" link), amber a verdict that needs work.
+dark too. Hairlines only: no boxes, no shadows, no rounded panels. Red colours only Fail;
+green colours Pass, a good verdict, the "See your result" link, the .go buttons, a command's
+"$" and Copy's tick; amber a verdict that needs work.
 
 The fonts (Manrope, and JetBrains Mono at 400 and 500, both under the SIL Open Font License;
 the mono files are Fontsource's) are embedded as base64 from this package's `fonts/` folder, so

@@ -319,8 +319,8 @@ def general_strata(items: list[tuple], pool: dict, level: float = LEVEL, draws: 
     strata the answers were picked from, each with its range. `items` are (stratum, label,
     fresh verdict); a stratum is (batch, the judge's saved grade), or a saved grade alone, and
     `pool` its size. Each labeled answer weighs N_stratum / n_stratum and the draws are per
-    stratum. A stratum of the pool with no labeled answer counts for nothing in the numbers,
-    and leaves the ranges unknown, as in `stratified`. The fresh verdicts are drawn per
+    stratum. A stratum of the pool with no labeled answer leaves TPR, TNR and kappa and their
+    ranges unknown (None), as in `stratified`. The fresh verdicts are drawn per
     stratum too (`_verdict_shares`): a judge asked once can turn some grades round when asked
     again."""
     by_group = {g: [x for x in items if x[0] == g] for g in pool}
