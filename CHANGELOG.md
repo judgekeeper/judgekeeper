@@ -19,6 +19,15 @@
 - A marked answer that comes back to check your marks now says so on its card.
 - On the result page, the kept-aside lines now say what they count: answers you failed, or questions that failed before your change.
 - A metric, tool or experiment you pick when judgekeeper asks is now kept in the commands it prints, and judgekeeper no longer asks for it again or stops after a later question.
+- Run from the top of a repository or from a folder above several evals, judgekeeper no longer reads files inside a project below that has its own `.judgekeeper/` or project file, and no longer mixes results from two folders that share no questions into one count: it names them and stops.
+- A folder with answers and no grades reads them even when a project below has results; that project is named, never read.
+- From an empty subfolder, judgekeeper no longer reads past the nearest project above.
+- A newer unrelated file in a subfolder no longer replaces the answers you marked: judgekeeper says it looks like another eval, as it does for one beside your results.
+- A project below with its own `.judgekeeper/` is named even when its results file is a link.
+- After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
+- After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
+- `judgekeeper fix` names your results file in its Next line, as the result page does.
+- A damaged `.judgekeeper/fix/split-answers.json` is said and started again: the questions kept aside before no longer count as a fair test, and your failed answers stay listed.
 
 ## 1.1.2 (2026-11-08)
 
