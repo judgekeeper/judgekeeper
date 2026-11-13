@@ -3423,7 +3423,8 @@ def _stop(talk: FrontTalk, path: Path) -> int:
     lock = read_lock(ws.dir) if is_open(ws.dir) else None
     closed = None if lock is None else {  # how the page was opened: carried on
         "port": lock["port"] if lock["asked"] is None else lock["asked"],
-        "no_browser": bool(lock["no_browser"])}
+        "no_browser": bool(lock["no_browser"]),
+        "flags": (lock["settings"] or {}).get("flags")}
     if not is_open(ws.dir):
         talk.say("No marking page is open.")
     elif not background.stop(ws.dir):
@@ -3442,13 +3443,17 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
     """The run that carries on the project after --stop: in its own folder, as the result
     was made (result.json's flags: the pass mark in use, the flags that read the results,
     how the page opens), so a scores project still reads its scores; else as typed. Either
-    way with how the `page` it closed was opened ({"port", "no_browser"}): its port, but the
-    default or any free one (0), and --no-browser when it was given it."""
+    way with how the `page` it closed was opened ({"port", "no_browser", "flags"}): its port,
+    but the default or any free one (0), and --no-browser when it was given it. With no
+    result yet, as the page was started (its flags: the file it was given, say)."""
     port = page and page["port"] not in (None, 0, DEFAULT_PORT) and page["port"]
     try:
         flags = json.loads(ws.result_json.read_text(encoding="utf-8")).get("flags")
     except (OSError, ValueError, AttributeError):
         flags = None
+    subcommand = ""  # a result is carried on by the plain run
+    if not isinstance(flags, dict) and page:
+        flags, subcommand = page.get("flags"), talk.subcommand  # as typed: `mark --stop`
     if not isinstance(flags, dict) or Path.cwd().resolve() != ws.root.resolve():
         typed = talk.options.get("port", DEFAULT_PORT) != DEFAULT_PORT
         extra = ("--port", str(port)) if port and not typed else ()
@@ -3457,7 +3462,7 @@ def _continue_command(talk: FrontTalk, ws: Workspace, page: dict | None = None) 
         return talk.command(*extra)  # the paths it keeps are from the project folder
     if page:
         flags = {**flags, "port": port or DEFAULT_PORT, "no_browser": page["no_browser"]}
-    return start.command_from(flags)
+    return start.command_from(flags, subcommand)
 
 
 __all__ = ["EXIT_NEEDS_YOU", "FrontTalk", "answered", "find_found", "found_block", "go", "run",
