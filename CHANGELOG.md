@@ -18,6 +18,7 @@
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
 - A marked answer that comes back to check your marks now says so on its card.
 - On the result page, the kept-aside lines now say what they count: answers you failed, or questions that failed before your change.
+- A metric, tool or experiment you pick when judgekeeper asks is now kept in the commands it prints, and judgekeeper no longer asks for it again or stops after a later question.
 
 ## 1.1.2 (2026-11-08)
 
