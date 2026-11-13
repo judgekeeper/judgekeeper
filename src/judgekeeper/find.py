@@ -132,6 +132,8 @@ class Search:
     answers_only: list[tuple[Path, int]] = field(default_factory=list)
     answers_read: bool = False  # those answers are the results: nothing else is anywhere
     json_left: int = 0  # JSON files past MAX_JSON, never looked into
+    # (rel, columns): answers under other column names, no grade (other_answers): named only
+    other_columns: list[tuple[str, list[str]]] = field(default_factory=list)
 
     def readable(self, tool: str) -> list[Result]:
         return [r for r in self.results.get(tool, []) if not r.too_big]
@@ -247,6 +249,24 @@ def answers_only(path: Path) -> bool:
     from judgekeeper import mapper
 
     if not is_answers_table(table_columns(path)):
+        return False
+    try:
+        mapper.guess(_first_units(path, mapper.SAMPLE_UNITS))
+    except mapper.MapError as e:
+        return str(e) == mapper.NO_VERDICTS
+    return False
+
+
+def other_answers(path: Path) -> bool:
+    """Whether the table at `path` holds answers under other column names and no grade: a
+    column named as a question and one named as an answer (own_format's words: question and
+    answer, prompt and reply, ...), and in its first rows no LLM-as-a-judge's verdict
+    (mapper.guess). Never read as answers: only named, so the person can rename them."""
+    from judgekeeper import mapper, own_format
+
+    columns = table_columns(path)
+    if not all(any(mapper._is(c, words) for c in columns)
+               for words in (own_format.INPUT_WORDS, own_format.OUTPUT_WORDS)):
         return False
     try:
         mapper.guess(_first_units(path, mapper.SAMPLE_UNITS))
@@ -585,6 +605,8 @@ class _Walk:
                 self.search.judge_only.append(self.rel(path))
             elif judge_table_without_questions(columns):
                 self.search.no_question.append(self.rel(path))
+            elif other_answers(path):
+                self.search.other_columns.append((self.rel(path), columns))
         elif suffix in TABLE_SUFFIXES and _results_like(path):  # deeper than tables are read
             columns = table_columns(path)
             if is_table(columns) or (suffix in JSONL_SUFFIXES and is_records(columns)):

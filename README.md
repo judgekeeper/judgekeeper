@@ -49,9 +49,9 @@ In your project, judgekeeper reads your results files and writes only in `.judge
 The same 5 steps work on your AI's own answers. Give judgekeeper a CSV, TSV or JSONL file with `input` and `output` columns and no grades. No file yet? A coding agent (Claude Code, Cursor or Codex) can make one.
 
 1. **Find:** `judgekeeper` finds your answers. No answers yet? It prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
-2. **Mark:** mark each answer Pass or Fail. Add a reason to the ones you fail.
+2. **Mark:** mark each answer Pass or Fail. On the result page, add a reason to the failed answers it lists.
 3. **Measure:** from 10 marks, see how many passed, with a range.
-4. **Fix:** your failed answers are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
+4. **Fix:** the failed answers that are not kept aside are saved in `.judgekeeper/fix/failed-answers.md`, with a prompt for your coding agent to improve your AI's prompt.
 5. **Re-check:** run your AI again and mark the new answers. On the questions kept aside, judgekeeper counts how many were fixed and how many broke, and says whether the change is more than a coincidence.
 
 [An example run](https://github.com/judgekeeper/judgekeeper/blob/main/docs/examples/ai-check/README.md).

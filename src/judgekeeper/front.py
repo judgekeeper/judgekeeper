@@ -151,7 +151,7 @@ PATH_TO_GRADES = ("Have an LLM-as-a-judge? Save its Pass or Fail in a verdict co
 PATH_GRADES = ("{file} has LLM-as-a-judge grades, so judgekeeper checks your LLM-as-a-judge "
                "against your marks.")
 PATH_TABLE_TO_ANSWERS = ("To check your AI's answers instead, use a copy of the file without "
-                         "the verdict column.")
+                         "the {column} column.")
 PATH_TOOL_TO_ANSWERS = ("To check your AI's answers instead, save them in a CSV file with input "
                         "and output columns and no verdict column.")
 INDENT = " " * 17  # under the value of "LLM-as-a-judge:  "
@@ -847,7 +847,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
                                        f"{rel}, then run `{talk.command()}`.")
     if own is None:
         raise _nothing_found(talk, root, search.signs, _named_below(search), unlooked,
-                             stopped=search.stopped)
+                             stopped=search.stopped, renamed=search.other_columns)
     return root, own_map.map_file(talk, root, own.path, o["metric"], o["judge_model"],
                                   o["pass_if"], found=True)
 
@@ -1142,12 +1142,15 @@ def _program_there(folders: list[str], base: Path) -> str:
 
 def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                    nested: list[str] | None = None, unlooked: list | None = None,
-                   stopped: str | None = None) -> Stop:
+                   stopped: str | None = None, renamed: list | None = None) -> Stop:
     """No results: the tools found here (with what saves their results), else what
     judgekeeper can read. The folder by its name only. Results in a project of its own below
     (`nested`) are named, never read; results-like files too big to look into (`unlooked`,
-    own_format.search) are named. `stopped` (find.Search.stopped): the walk gave up before
-    the end, so the person gives the path."""
+    own_format.search) are named, and so are tables of answers under other column names
+    (`renamed`, find.Search.other_columns), with what to rename. `stopped`
+    (find.Search.stopped): the walk gave up before the end, so the person gives the path."""
+    from judgekeeper import own_map
+
     if stopped:
         talk.para(f"judgekeeper {stopped[0].lower()}{stopped[1:]}")
         return talk.stop(EXIT_QUESTION, (f"give the path of your results: run "
@@ -1189,6 +1192,13 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
                  else f"{size / 1000:,.0f} KB")
         talk.para(f"It left out {own.rel} ({shown}): too big to look into. If it holds your "
                   f"LLM-as-a-judge's results, run `{talk.command_at(own.rel)}`.")
+    for rel, columns in (renamed or [])[:OTHERS]:
+        talk.para(f"It left out {rel} (columns {own_map.columns_said(columns)}): to check the "
+                  f"answers in it, {own_map.rename_step(columns)}.")
+    if renamed and not (saved or signs or unlooked):  # answers, under other column names
+        rel, columns = renamed[0]
+        return talk.stop(EXIT_QUESTION, f"{own_map.rename_step(columns, rel)}, then run "
+                                        f"`{talk.command()}` again.")
     if not (saved or signs or unlooked):  # no eval tool set up here: maybe no answers yet
         _questions_prompt(talk)
         _way_above(talk, root)
@@ -1783,7 +1793,8 @@ def path_lines(found: start.Found, about: str | None = None) -> list[str]:
     if about is not None and found.graded:
         table = Path(about).suffix.lower() in (".csv", ".tsv", ".jsonl")
         return [PATH_GRADES.format(file=about),
-                PATH_TABLE_TO_ANSWERS if table else PATH_TOOL_TO_ANSWERS]
+                PATH_TABLE_TO_ANSWERS.format(column=_grade_column(found, Path(about)))
+                if table else PATH_TOOL_TO_ANSWERS]
     if found.tool == "mlflow":
         file = found.store
     elif found.tool == "records":
@@ -1794,7 +1805,21 @@ def path_lines(found: start.Found, about: str | None = None) -> list[str]:
         return [PATH_NO_GRADES.format(file=file), PATH_TO_GRADES]
     table = tool_name(found.tool, [str(found.results[0].rel)]).startswith("your own ")
     return [PATH_GRADES.format(file=file),
-            PATH_TABLE_TO_ANSWERS if table else PATH_TOOL_TO_ANSWERS]
+            PATH_TABLE_TO_ANSWERS.format(column=_grade_column(found, found.results[0].path))
+            if table else PATH_TOOL_TO_ANSWERS]
+
+
+def _grade_column(found: start.Found, path: Path) -> str:
+    """The column of the table at `path` that holds the LLM-as-a-judge's grades: the judge's
+    own (a mapped file's judge is named after it), else the first find.VERDICT_COLUMNS one,
+    else "verdict"."""
+    try:
+        columns = find.table_columns(path) if path.is_file() else []
+    except OSError:
+        columns = []
+    if found.metric in columns:
+        return found.metric
+    return next((c for c in find.VERDICT_COLUMNS if c in columns), "verdict")
 
 
 def _path_head(talk: FrontTalk, found: start.Found, about: str | None = None) -> list[str]:

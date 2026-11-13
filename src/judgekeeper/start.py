@@ -97,9 +97,10 @@ GIVEN_BY_YOU = "given by you"
 POINT_ME = "Point judgekeeper at the results: {program} path/to/results.json"
 NEW_HERE = "Starting a new project here? Run `{command}`."  # after reading the folder above
 # After "No saved X results found": what to run instead, never the command that just failed
-TOOL_BELOW = "run `{command}` to check the {name} results in {folder}/."
+TOOL_BELOW = "run `{command}` to check the {results} in {folder}/."
 TOOL_OTHERS = "run `{command}` to read the results found here."  # {command}: without --tool
-TOOL_ELSEWHERE = "run `{command}` in the folder that holds your {name} results."
+TOOL_ELSEWHERE = "run `{command}` in the folder that holds your {results}."
+TABLE_RESULTS = "CSV, TSV or JSONL results file"  # a table's results, in TOOL_* lines
 RECORDS_ABOVE = ("Nothing to read here, but judgekeeper.record() saves your LLM-as-a-judge's "
                  "decisions at the project root: reading them in {root}.")
 PAIRWISE = "These are A/B comparisons. judgekeeper handles pass/fail answers for now."
@@ -754,8 +755,10 @@ UNREADABLE = (RecursionError, OverflowError, UnicodeDecodeError, sqlite3.Databas
 
 
 def unreadable(path: Path, tool: str) -> RecordsError:
-    """A reader stopped on a damaged file: said in plain words, never the error's text."""
-    return damaged(path, find.NAMES.get(tool, tool), "is damaged: judgekeeper can't read it")
+    """A reader stopped on a damaged file: said in plain words, never the error's text. A
+    table is saved again from whatever wrote it (CUT_OFF_FROM)."""
+    source = CUT_OFF_FROM if tool == "table" else find.NAMES.get(tool, tool)
+    return damaged(path, source, "is damaged: judgekeeper can't read it")
 
 
 def usage_error(e: Exception, text: str | None = None) -> StartError:
@@ -1534,7 +1537,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {find.NAMES[tool]} results found in "
+            raise StartError(f"No saved {results_of(tool)} found in "
                              f"{textio.folder_words(shown_path(root))}.",
                              **_tool_elsewhere(talk, found, tool, available))
         available = [tool]
@@ -1723,19 +1726,24 @@ def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     return talk.stop(EXIT_USAGE, next_step)
 
 
+def results_of(tool: str) -> str:
+    """A tool's results in words: "promptfoo results"; a table's, TABLE_RESULTS."""
+    return TABLE_RESULTS if tool == "table" else f"{find.NAMES[tool]} results"
+
+
 def _tool_elsewhere(talk, found: find.Search, tool: str, available: list[str]) -> dict:
     """StartError's Next line when --tool `tool` found nothing here: the project below that
     holds its results (found.nested), else the results found here (`available`), read
     without --tool, else where to run it."""
-    name = find.NAMES[tool]
+    results = results_of(tool)
     below = next((sub for sub in found.nested if find.search(sub).results.get(tool)), None)
     if below is not None:
         rel = Path(os.path.relpath(below, Path.cwd())).as_posix()
         return {"next_step": TOOL_BELOW.format(command=talk.command_in(path_word(rel)),
-                                               name=name, folder=rel)}
+                                               results=results, folder=rel)}
     if available:
         return {"next_step": TOOL_OTHERS, "drop": "--tool"}
-    return {"next_step": TOOL_ELSEWHERE.format(command=talk.command_in(""), name=name)}
+    return {"next_step": TOOL_ELSEWHERE.format(command=talk.command_in(""), results=results)}
 
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
