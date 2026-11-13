@@ -4,7 +4,7 @@ How judgekeeper finds and reads the results each eval tool saves. Commands, flag
 
 ## How it looks
 
-- Inside your project folder, four folders deep (a CSV, TSV or JSONL file: two). A results file outside it is read only when you name it.
+- In your project folder and up to four folders down (a CSV, TSV or JSONL file: in the folder or up to one folder down). A results file outside it is read only when you name it.
 - It skips `.git`, `node_modules`, virtual environments (any folder holding `pyvenv.cfg`) and hidden folders, except `.deepeval` and `.judgekeeper/records/`. It does not follow symbolic links. It stops after 5,000 files or 2 seconds, and says so.
 - A results file over 200 MB is listed, not read, unless you name it and say yes.
 - When it finds nothing, it names the results-like files it left out (too deep, links, not UTF-8, Excel workbooks) with the command that reads each.

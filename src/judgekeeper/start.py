@@ -1316,8 +1316,9 @@ NO_RESULTS = {
 def _nothing_found(talk: Talk, root: Path, signs: dict) -> None:
     from judgekeeper import own_format
 
-    talk.say(f"No saved eval results found in {textio.folder_words(shown_path(root))}. "
-             f"judgekeeper looked {find.looked(root).replace(' from ' + root.name, '')}.")
+    folder = textio.folder_words(shown_path(root))
+    talk.say(f"No saved eval results found in {folder}. judgekeeper looked in "
+             f"{find.looked(None if folder == 'this folder' else folder)}.")
     for tool, where in signs.items():
         talk.say(f"{find.NAMES[tool]} is used here ({where[0]}), "
                  + NO_RESULTS.get(tool, "but it has no saved results in this folder yet.")
@@ -1676,7 +1677,7 @@ def is_empty_file(path: Path) -> bool:
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
     """Nothing found where judgekeeper looks, but results-like files elsewhere: name them
     and the command that reads the first."""
-    _note(talk, f"No eval results found where judgekeeper looks: {find.looked(root)}. It "
+    _note(talk, f"No eval results found where judgekeeper looks: {find.looked(root.name)}. It "
                 "left out:")
     for rel, why in found.skipped[:5]:
         talk.say(f"  {rel} ({why})")

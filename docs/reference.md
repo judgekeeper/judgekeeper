@@ -274,13 +274,13 @@ When your LLM-as-a-judge changed since you marked, the result says which one it 
 
 ## What it reads
 
-It looks only inside your project folder, four folders deep; a results file outside it is read only when you name it. Your eval tool's files are never changed. It finds:
+It looks only in your project folder and up to four folders down (a CSV, TSV or JSONL file: in the folder or up to one folder down); a results file outside it is read only when you name it. Your eval tool's files are never changed. It finds:
 
 - promptfoo by `promptfooconfig.yaml`, `.yml` or `.json`, and reads its JSON results files;
 - DeepEval by `.deepeval/` or `deepeval` in your dependencies, and reads `test_run_*.json`, else `.deepeval/.latest_run_full.json`;
 - Inspect AI by `logs/` or `inspect-ai` in your dependencies, and reads `.json` logs, and `.eval` logs with the `inspect` extra;
 - MLflow's local store, `mlruns/` or `mlflow.db`, with the `mlflow` extra;
-- A CSV, TSV or JSONL file at most two folders deep, with `input`, `output` and `verdict` columns, and at most 200 columns. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name. A row with more filled cells than the header stops it and names the line. One it can't read is left out, with one line saying how many;
+- A CSV, TSV or JSONL file in the project folder or up to one folder down, with `input`, `output` and `verdict` columns, and at most 200 columns. A `judge_model` (or `model`) column names the model when each value is a name, not a grade or a rule's name. A row with more filled cells than the header stops it and names the line. One it can't read is left out, with one line saying how many;
 - the lines `judgekeeper.record()` saved in `.judgekeeper/records/`.
 
 It reads the first 100,000 answers of a results file, and the newest 100,000 records in `.judgekeeper/records/` in all, and says so when there are more.
