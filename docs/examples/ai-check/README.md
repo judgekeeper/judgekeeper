@@ -24,8 +24,8 @@ replacement.
 - `failed-answers.md`: the answers failed, with the reasons, for a coding agent.
 
 The result: 12 of 20 answers passed, about 60%, between 39% and 78%. Of the 8 failed, 4 are
-kept aside to test a fix, so the result lists the other 4: 2 with a wrong fact, 1 that doesn't
-answer the question, 1 unsafe.
+kept aside to test a fix, so the result lists the other 4: 1 with a wrong fact, 1 that leaves
+out something important, 1 that doesn't answer the question, 1 unsafe.
 
 ## The second run
 
@@ -40,7 +40,7 @@ The result: 16 of 20 answers passed. On the 10 questions kept aside, 3 were fixe
 6 stayed the same. So judgekeeper can't tell yet whether the change helped: it leans toward
 better, but a split this small could easily be a coincidence. The line it prints after that
 says what a clear answer needs: "A clear answer needs at least 6 kept-aside questions to go
-from Fail to Pass, with none breaking. About 2 in 3 failed questions get fixed, so that needs
+from Fail to Pass, with none breaking. If your change fixes about 2 in 3 of them, that needs
 about 9 kept-aside questions that failed before your change; you had 4. Add about 25 more
 questions." This example uses 20 questions, so a clear answer was not possible.
 

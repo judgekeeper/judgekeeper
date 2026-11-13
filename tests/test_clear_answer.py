@@ -7,6 +7,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+from pathlib import Path
 
 from judgekeeper import front, no_grades, targets
 from judgekeeper.start_label import Workspace
@@ -27,11 +28,11 @@ TOOL_SWITCH = ("To check your AI's answers instead, save them in a CSV file with
                "output columns and no verdict column.")
 OLD_MORE = "Mark more questions for a clearer answer."
 NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to Pass, "
-        "with none breaking. About 2 in 3 failed questions get fixed, so that needs about "
+        "with none breaking. If your change fixes about 2 in 3 of them, that needs about "
         "{target} kept-aside questions that failed before your change; you had {kept}.")
 ADD = NEED + " Add about {extra} more questions."
 HARDER = ("A clear answer needs at least 7 kept-aside questions to go from Fail to Pass, with "
-          "none breaking. About 2 in 3 failed questions get fixed, so that needs about 11 "
+          "none breaking. If your change fixes about 2 in 3 of them, that needs about 11 "
           "kept-aside questions that failed before your change; you had 0. Add harder questions, ones your AI may get wrong, and "
           "mark their answers.")
 ENOUGH = ("A clear answer needs at least {need} of the {kept} kept-aside questions that failed "
@@ -267,3 +268,17 @@ def test_a_new_answer_comes_to_the_page_with_no_mark(project, tmp_path_factory, 
     run(project.capsys, "--no-browser")
     unmarked = {k for x in _session(fresh).state()["items"] for k in x}
     assert {k for x in new for k in x} <= unmarked
+
+
+def test_the_share_fixed_is_said_as_an_assumption_never_as_a_fact():
+    """2 in 3 is the share clear_target plans with, not something measured: the line says
+    "if", and the old words are nowhere they could be shown or quoted."""
+    root = Path(__file__).resolve().parent.parent
+    assert "If your change fixes about 2 in 3 of them, that needs about" in no_grades.CLEAR_NEED
+    for top in ("src", "docs", "website"):
+        for path in (root / top).rglob("*"):
+            if path.is_file() and path.suffix in (".py", ".md", ".txt", ".html", ".js"):
+                assert "failed questions get fixed" not in path.read_text(
+                    encoding="utf-8", errors="replace"), path
+    for name in ("README.md", "CHANGELOG.md"):
+        assert "failed questions get fixed" not in (root / name).read_text(encoding="utf-8")

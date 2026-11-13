@@ -1,26 +1,26 @@
-{"marks": 1, "created_at": "2026-11-13T01:50:02Z", "judgekeeper_version": "1.2.0", "judge": {"tool": "table", "model": null, "rule_hash": null, "pass_mark": null, "fingerprint": {"provider": null, "model": null, "snapshot": null, "prompt_hash": null, "rubric_version": null, "temperature": null, "created_at": "2026-11-13T01:50:02Z", "endpoint": "unknown"}}, "pool": {"pass": 0, "fail": 0}, "results": ["results.csv"]}
-{"id": "a136b2c3969f9e69", "mark": "pass", "group": null, "at": "2026-11-13T01:50:02Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "90d71e4d0821d065", "mark": "pass", "group": null, "at": "2026-11-13T01:50:02Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "a1c521421360938c", "mark": "fail", "group": null, "at": "2026-11-13T01:50:03Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "ad62f23ca3fca9f1", "mark": "pass", "group": null, "at": "2026-11-13T01:50:03Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "9896b5ab52a8d887", "mark": "pass", "group": null, "at": "2026-11-13T01:50:03Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "c7722daecc46a0ef", "mark": "pass", "group": null, "at": "2026-11-13T01:50:04Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "6fc9ef07b898b531", "mark": "pass", "group": null, "at": "2026-11-13T01:50:04Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "363238d6c843a90b", "mark": "fail", "group": null, "at": "2026-11-13T01:50:04Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "82666f56b220850f", "mark": "fail", "group": null, "at": "2026-11-13T01:50:05Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "3c6a02be0cc7371c", "mark": "pass", "group": null, "at": "2026-11-13T01:50:05Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "1b96e1e88409b3b0", "mark": "pass", "group": null, "at": "2026-11-13T01:50:05Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "9b8bab3a13f9c2f4", "mark": "pass", "group": null, "at": "2026-11-13T01:50:06Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "51aec1c93d37a09d", "mark": "pass", "group": null, "at": "2026-11-13T01:50:06Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "8f68e9a927c1d553", "mark": "fail", "group": null, "at": "2026-11-13T01:50:06Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "975c46c6c9ecb216", "mark": "fail", "group": null, "at": "2026-11-13T01:50:06Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "3c6a02be0cc7371c", "mark": "pass", "group": null, "at": "2026-11-13T01:50:07Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env", "repeat": true, "slot": 15}
-{"id": "ed1d5a68fbf63f3f", "mark": "fail", "group": null, "at": "2026-11-13T01:50:07Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "4bb5de6c551b5825", "mark": "fail", "group": null, "at": "2026-11-13T01:50:07Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "8dc53c9689c6a27e", "mark": "fail", "group": null, "at": "2026-11-13T01:50:08Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "d6a472606901c18d", "mark": "pass", "group": null, "at": "2026-11-13T01:50:08Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "be6d4b406f11eaa5", "mark": "pass", "group": null, "at": "2026-11-13T01:50:08Z", "seconds": 3, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env"}
-{"id": "8f68e9a927c1d553", "mark": "fail", "group": null, "at": "2026-11-13T01:50:09Z", "seconds": null, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env", "reasons": ["no_answer"]}
-{"id": "975c46c6c9ecb216", "mark": "fail", "group": null, "at": "2026-11-13T01:50:09Z", "seconds": null, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env", "reasons": ["wrong_fact"]}
-{"id": "ed1d5a68fbf63f3f", "mark": "fail", "group": null, "at": "2026-11-13T01:50:09Z", "seconds": null, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env", "reasons": ["unsafe"]}
-{"id": "4bb5de6c551b5825", "mark": "fail", "group": null, "at": "2026-11-13T01:50:09Z", "seconds": null, "sitting": "a765bb3aa62d2830", "by": "page", "link": "browser-env", "reasons": ["wrong_fact"]}
+{"marks": 1, "created_at": "2026-11-13T03:10:34Z", "judgekeeper_version": "1.2.0", "judge": {"tool": "table", "model": null, "rule_hash": null, "pass_mark": null, "fingerprint": {"provider": null, "model": null, "snapshot": null, "prompt_hash": null, "rubric_version": null, "temperature": null, "created_at": "2026-11-13T03:10:34Z", "endpoint": "unknown"}}, "pool": {"pass": 0, "fail": 0}, "results": ["results.csv"]}
+{"id": "82666f56b220850f", "mark": "fail", "group": null, "at": "2026-11-13T03:10:34Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "363238d6c843a90b", "mark": "fail", "group": null, "at": "2026-11-13T03:10:34Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "ed1d5a68fbf63f3f", "mark": "fail", "group": null, "at": "2026-11-13T03:10:35Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "9896b5ab52a8d887", "mark": "pass", "group": null, "at": "2026-11-13T03:10:35Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "d6a472606901c18d", "mark": "pass", "group": null, "at": "2026-11-13T03:10:35Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "ad62f23ca3fca9f1", "mark": "pass", "group": null, "at": "2026-11-13T03:10:36Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "a136b2c3969f9e69", "mark": "pass", "group": null, "at": "2026-11-13T03:10:36Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "9b8bab3a13f9c2f4", "mark": "pass", "group": null, "at": "2026-11-13T03:10:36Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "1b96e1e88409b3b0", "mark": "pass", "group": null, "at": "2026-11-13T03:10:37Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "4bb5de6c551b5825", "mark": "fail", "group": null, "at": "2026-11-13T03:10:37Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "3c6a02be0cc7371c", "mark": "pass", "group": null, "at": "2026-11-13T03:10:37Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "8dc53c9689c6a27e", "mark": "fail", "group": null, "at": "2026-11-13T03:10:38Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "8f68e9a927c1d553", "mark": "fail", "group": null, "at": "2026-11-13T03:10:38Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "6fc9ef07b898b531", "mark": "pass", "group": null, "at": "2026-11-13T03:10:38Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "82666f56b220850f", "mark": "fail", "group": null, "at": "2026-11-13T03:10:39Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env", "repeat": true, "slot": 14}
+{"id": "c7722daecc46a0ef", "mark": "pass", "group": null, "at": "2026-11-13T03:10:39Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "be6d4b406f11eaa5", "mark": "pass", "group": null, "at": "2026-11-13T03:10:39Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "51aec1c93d37a09d", "mark": "pass", "group": null, "at": "2026-11-13T03:10:39Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "90d71e4d0821d065", "mark": "pass", "group": null, "at": "2026-11-13T03:10:40Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "a1c521421360938c", "mark": "fail", "group": null, "at": "2026-11-13T03:10:40Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "975c46c6c9ecb216", "mark": "fail", "group": null, "at": "2026-11-13T03:10:40Z", "seconds": 3, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env"}
+{"id": "82666f56b220850f", "mark": "fail", "group": null, "at": "2026-11-13T03:10:41Z", "seconds": null, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env", "reasons": ["no_answer"]}
+{"id": "363238d6c843a90b", "mark": "fail", "group": null, "at": "2026-11-13T03:10:41Z", "seconds": null, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env", "reasons": ["wrong_fact"]}
+{"id": "ed1d5a68fbf63f3f", "mark": "fail", "group": null, "at": "2026-11-13T03:10:41Z", "seconds": null, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env", "reasons": ["unsafe"]}
+{"id": "a1c521421360938c", "mark": "fail", "group": null, "at": "2026-11-13T03:10:41Z", "seconds": null, "sitting": "79e1a4e2afc3a000", "by": "page", "link": "browser-env", "reasons": ["left_out"]}
