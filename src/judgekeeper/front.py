@@ -608,8 +608,10 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
     if path.is_dir() and not project.is_project(path) and not held and (
             tools := _tools_read(talk, path)):  # a session here keeps to its files
         owners, rest = _tool_below(path, tools)
-        if owners and not rest:
-            raise _checked_there(talk, _from_here(path, owners))
+        if owners and not rest and here.resolve() == path.resolve() and (
+                talk.options["tool"] is not None or own_format.search(path) is None):
+            raise _checked_there(talk, _from_here(path, owners))  # nothing of its own to read
+            # here or in the project above
         if owners and rest:
             only = rest
         if rest:  # every project of its own below with results, read from here or not
@@ -653,10 +655,16 @@ def _project_reads(path: Path, store: Path) -> Path:
         return path
     if (tool := project.session_tool(store)) is None:
         return path
-    search = find.search(path)
-    if tool in ("deepeval", "inspect") or not any(search.readable(t) for t in find.TOOLS):
+    if tool in ("deepeval", "inspect") or not _reads_own(find.search(path)):
         return path
     return store
+
+
+def _reads_own(search: find.Search) -> bool:
+    """Whether `search` found results to read in no project below its folder: a project
+    below's results never decide how this folder is read, they only name that project."""
+    return any(find.owner(r.path, search.root) is None
+               for t in find.TOOLS for r in search.readable(t))
 
 
 def _log_folder_of(root: Path, found: start.Found) -> bool:
@@ -788,7 +796,7 @@ def _own_format(talk: FrontTalk, path: Path) -> tuple[Path, settings.StartSettin
             or start._saved(root)):
         return path, None
     search = find.search(root)
-    if (any(search.readable(t) for t in find.TOOLS) or search.too_big() or search.unreadable
+    if (_reads_own(search) or search.too_big() or search.unreadable
             or find.records_above(root) is not None or "promptfoo" in search.signs):
         return path, None  # find_judge reads them, or says how
     unlooked: list = []
@@ -1361,12 +1369,13 @@ def _reads_here(talk: FrontTalk, path: Path, store: Path) -> Path:
 
 
 def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
-    """The folders right below `folder` that hold results, when there are 2 or more (or one
-    that is a project of its own, project.is_project) and nothing says `folder` is one
-    project: no results in a tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI
-    results are asked about as before (FOLDER_ASKED). Each is a project of its own, never
-    run. A folder that is a project (a git top) or holds results or a tool's config of its
-    own walks past the projects below (find.Search.nested): 2 or more folders holding the rest
+    """The plain folders right below `folder` that hold results, when there are 2 or more and
+    no results in a tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI results are
+    asked about as before (FOLDER_ASKED). Each is a project of its own, never run. Results
+    inside a project below (find.owner) never weigh here: that project is only named
+    (_tool_below). A folder that is a project (a git top) or holds results or a tool's
+    config of its own walks past the projects below (find.Search.nested): 2 or more folders
+    holding the rest
     stop it too unless they are rounds of one eval with its own (project.one_eval), and
     those projects are named with them and with the projects below that hold a session
     (_named_below). With --tool `tool`, only its results and config."""
@@ -1378,9 +1387,9 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     own = any(len(Path(r.rel).parts) < 2 for r in results) or any(
         "/" not in sign for kept in signs.values() for sign in kept)  # results or a tool's
     # config of its own: one project, as a project file makes it
-    if own or tool is not None:  # the projects below keep theirs (_tool_below): 2 or more
-        # plain folders that are not rounds of one eval with its own stop it (I2)
-        results = [r for r in results if find.owner(r.path, folder) is None]
+    # a project below's results never weigh here: they only name it
+    owners = {find.owner(r.path, folder) for r in results} - {None}
+    results = [r for r in results if find.owner(r.path, folder) is None]
     tops = set()
     for result in results:
         parts = Path(result.rel).parts
@@ -1388,17 +1397,14 @@ def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
             return []
         if len(parts) > 1:
             tops.add(parts[0])
-    if own and len(tops) < 2:
+    if len(tops) < 2:  # one plain folder (evals/) holds this folder's results, or none
         return []
-    if not tops or len(tops) == 1 and not own and not project.is_project(
-            folder / next(iter(tops))):
-        return []  # one plain folder (evals/) holds this folder's results
     if own or find.is_project(folder):  # rounds of one eval in its folders are read as before
         files = [r.path for r in results]
         if all(project.one_eval(files[0], f) for f in files[1:]):
             return []
-        return _named_below(found, sorted(tops))
-    return sorted(tops)
+    return _named_below(found, sorted({*tops, *(
+        Path(os.path.relpath(o, folder)).as_posix() for o in owners)}))  # named with them
 
 
 def _named_below(found: find.Search, names: list[str] | tuple[()] = ()) -> list[str]:

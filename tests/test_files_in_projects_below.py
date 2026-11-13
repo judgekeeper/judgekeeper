@@ -133,14 +133,14 @@ def test_with_no_file_left_the_plain_run_names_the_projects_and_stops(services, 
     assert not (services / ".judgekeeper").exists()
 
 
-def test_the_list_offers_only_the_tools_left(services, capsys, monkeypatch):
+def test_two_folders_left_stop_as_with_no_project_below_and_name_the_projects(
+        services, capsys, monkeypatch):  # the projects' DeepEval and Inspect AI results never
+    # decide how this folder is read: only that they are named
     promptfoo_project(services / "pf-loose", split(10, 5), name="evals/out.json")  # no project
     code, said = _run(capsys, monkeypatch, services)
     assert code == 3, said
-    assert "Saved results from more than one eval tool:" in said, said
-    assert "promptfoo (pf-loose/evals/out.json" in said, said
-    assert "a CSV, TSV or JSONL file (loose/results.csv" in said, said
-    assert "DeepEval" not in said and "Inspect AI" not in said, said
+    assert "de-bot/, insp-bot/, loose/, pf-bot/ and pf-loose/ hold eval results" in said, said
+    assert "Saved results" not in said, said
     assert not (services / ".judgekeeper").exists()
 
 

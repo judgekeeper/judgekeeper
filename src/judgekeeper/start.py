@@ -1426,8 +1426,10 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
                 stay: bool = False) -> tuple[str, Path] | None:
     """("records" or "results", the project folder above `root`) when a run in `root` reads
     there: no results here, and record()'s records saved there (from any subfolder), or
-    results in the project folder above (find.results_above) unless the run `stay`s."""
-    available = [t for t in find.TOOLS if found.readable(t)]
+    results in the project folder above (find.results_above) unless the run `stay`s. Results
+    in a project below never count here: they only name it."""
+    available = [t for t in find.TOOLS
+                 if any(find.owner(r.path, root) is None for r in found.readable(t))]
     if "records" not in available and (tool == "records" or tool is None and not available):
         above = find.records_above(root)
         if above is not None:

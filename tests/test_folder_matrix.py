@@ -30,6 +30,7 @@ from judgekeeper import front, project
 from tests.start_projects import (
     deepeval_project,
     inspect_project,
+    own_format_project,
     promptfoo_project,
     split,
     table_project,
@@ -538,3 +539,77 @@ def test_a_tools_config_pools_dated_output_folders(tmp_path, capsys, monkeypatch
     said = _say(capsys, monkeypatch, top)[1]
     assert "hold eval results" not in said, said
     assert _read_below(reads, top, "outputs"), said
+
+
+@pytest.mark.parametrize("answers_here", [False, True])
+def test_a_project_below_with_folder_asked_results_never_lets_folders_pool_from_above(
+        tmp_path, capsys, monkeypatch, reads, answers_here):
+    """I2: top/ (no results of its own, or answers with no grade); evals/ and proj/
+    results.csv files of other questions; proj/data/ a project of its own with DeepEval
+    results. evals/ and proj/ are named, never pooled."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    top.mkdir()
+    if answers_here:
+        write_answers(top, 6, name="answers")
+    table_project(top / "evals", split(3, 3), tag="t1")
+    table_project(top / "proj", split(3, 3), tag="t0")
+    _kind(top / "proj" / "data", "file")
+    deepeval_project(top / "proj" / "data", split(3, 3), tag="t3")
+    code, said = _say(capsys, monkeypatch, top)
+    assert code == 3, said
+    assert not (_read_below(reads, top, "evals") and _read_below(reads, top, "proj")), said
+    assert not _read_below(reads, top, "proj/data"), said
+
+
+@pytest.mark.parametrize("session", [False, True])
+@pytest.mark.parametrize("top_kind", ["file", "git"])
+def test_a_project_below_never_stops_a_folder_reading_the_project_above(
+        tmp_path, capsys, monkeypatch, reads, top_kind, session):
+    """I3: top/ (a project file or a git top) holds graded results, with a session on them or not;
+    top/sub/ holds nothing but sub/q/, a project of its own with results. A run in sub/ reads
+    top/ as with no q/ (only q/ named), and never q/'s file."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    _kind(top, top_kind)
+    results = table_project(top, split(20, 20), tag="t")
+    if session:
+        assert _say(capsys, monkeypatch, top)[0] == 0  # its session (a page, 0 marks)
+    _kind(top / "sub" / "q", "file")
+    table_project(top / "sub" / "q", split(6, 6), tag="q")
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, top / "sub")
+    assert not _read_below(reads, top, "sub/q"), said
+    assert reads and reads[-1][1] == [results.resolve()], said
+    assert "The project in q/ has results too: to check them, run `judgekeeper q`." in said, said
+
+
+@pytest.mark.parametrize("q_kind", ["file", "judged"])
+def test_a_projects_own_format_file_below_is_never_read_from_a_plain_folder(
+        tmp_path, capsys, monkeypatch, reads, q_kind):
+    """I1: top/ (plain) holds nothing; q/, a project of its own, keeps scores in a format of
+    its own. A run in top/ never reads q/'s file."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    _kind(top / "q", q_kind)
+    own_format_project(top / "q")
+    code, said = _say(capsys, monkeypatch, top)
+    assert not _read_below(reads, top, "q"), said
+    assert "q/data/prompt_evals.jsonl" not in said, said
+
+
+def test_a_project_below_never_hides_a_folders_own_format_file(tmp_path, capsys, monkeypatch,
+                                                                 reads):
+    """I3: top/ (plain) keeps its scores in a format of its own; q/, a project of its own,
+    holds a results.csv. A run in top/ maps top/'s file as with no q/, and never reads q/'s."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    top.mkdir()
+    own_format_project(top)
+    (top / "requirements.txt").unlink()  # no project: a plain folder
+    (top / "evals" / "run_evals.py").unlink()
+    _kind(top / "q", "file")
+    table_project(top / "q", split(6, 6), tag="q")
+    code, said = _say(capsys, monkeypatch, top)
+    assert "data/prompt_evals.jsonl looks like your LLM-as-a-judge's results" in said, said
+    assert not _read_below(reads, top, "q"), said
