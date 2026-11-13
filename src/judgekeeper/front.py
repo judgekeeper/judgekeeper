@@ -597,7 +597,8 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
     held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
     here = _reads_here(talk, path, project.project_of(asked))
-    if here.is_dir() and not held and (folders := _projects_below(here)):  # nor one
+    if here.is_dir() and not held and (folders := _projects_below(
+            here, talk.options["tool"])):  # nor one
         # session for several projects, at a git top too
         raise _checked_there(talk, _from_here(here, folders))
     if path.is_dir() and not held and (folders := _beside_a_session(path)):
@@ -616,8 +617,9 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             talk.left_below = _from_here(path, sorted({*owners, *below}))
     if path.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here
-        talk.para(_nested_line([owner], Path.cwd()))
-        raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd()))
+        command = _file_there(talk, owner, path)
+        talk.para(_nested_line([owner], Path.cwd(), command))
+        raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd(), command))
     store = project.project_of(asked)
     if path.is_file() and (marked := project.other_eval(store, path)) is not None:
         line, step = project.other_eval_stop(path, marked)  # never read, marked or set apart
@@ -1075,7 +1077,7 @@ def _long_text(talk: FrontTalk, found: start.Found, long: list) -> Stop:
 OTHERS_HOME = "in another person's home folder, which judgekeeper doesn't name in full"
 
 
-def _nested_line(nested: list[str], base: Path) -> str:
+def _nested_line(nested: list[str], base: Path, command: str | None = None) -> str:
     """Results in projects of their own below this one (find.nested_results, named from the
     folder `base`): whose they are, and where to check them. A folder in another person's
     home folder (cut short) is said to be there."""
@@ -1083,17 +1085,17 @@ def _nested_line(nested: list[str], base: Path) -> str:
     cut = any(textio.cut_short(p) for p in nested)
     return (f"These results belong to the {'project' if len(nested) == 1 else 'projects'} in "
             f"{named}{f', {OTHERS_HOME}' if cut else ''}. To check them, "
-            f"{run_there(nested, base)}")
+            f"{run_there(nested, base, command)}")
 
 
-def run_there(folders: list[str], base: Path) -> str:
-    """"run `<program>` in <folder>." for `folders` (named from `base`): "in that folder" when
-    one is cut short, which no one can go to by its name."""
+def run_there(folders: list[str], base: Path, command: str | None = None) -> str:
+    """"run `<program>` in <folder>." for `folders` (named from `base`), or `command`: "in
+    that folder" when one is cut short, which no one can go to by its name."""
     if any(textio.cut_short(p) for p in folders):
         where = "that folder" if len(folders) == 1 else "one of those folders"
     else:
         where = start._or([f"{p}/" for p in folders])
-    return f"run `{_program_there(folders, base)}` in {where}."
+    return f"run `{command or _program_there(folders, base)}` in {where}."
 
 
 def _from_here(base: Path, names: list[str]) -> list[str]:
@@ -1174,7 +1176,7 @@ def _way_above(talk: FrontTalk, root: Path) -> None:
 def above_line(talk: FrontTalk, root: Path) -> str | None:
     """FOLDER_ABOVE (FOLDERS_ABOVE when it is more than one level up) when the project folder
     above `root` holds results: the command that reads them, from the folder run in."""
-    up = reads_above(root)
+    up = reads_above(root, talk.options["tool"])
     if up is None:
         return None
     path = Path(os.path.relpath(up, Path.cwd())).as_posix()
@@ -1238,29 +1240,34 @@ def _sessions_below(folder: Path, names: list[str] | None = None,
     return out
 
 
-def _own_results(folder: Path, besides: Path | None = None) -> bool:
+def _own_results(folder: Path, besides: Path | None = None, tool: str | None = None) -> bool:
     """Whether a run in `folder` has results of its own to read: a results file, or answers
     with no grade, that is not inside a project below it (find.is_project: a project file
-    or its own .judgekeeper/), nor in `besides` (the folder a run below it reads)."""
+    or its own .judgekeeper/), nor in `besides` (the folder a run below it reads). With
+    --tool `tool`, only that tool's results."""
     found = find.search(folder)
-    files = [r.path for rs in found.results.values() for r in rs]
-    files += [path for path, _ in found.answers_only]
+    if tool is not None:
+        files = [r.path for r in found.results.get(tool, [])]
+    else:
+        files = [r.path for rs in found.results.values() for r in rs]
+        files += [path for path, _ in found.answers_only]
     left = Path(besides).resolve() if besides is not None else None
     return any(not _in_project_below(folder, Path(path))
                and not (left is not None and Path(path).resolve().is_relative_to(left))
                for path in files)
 
 
-def reads_above(root: Path) -> Path | None:
+def reads_above(root: Path, tool: str | None = None) -> Path | None:
     """The nearest folder above `root`, up to its project folder (find.project_folder), that
     holds a session (_session_in) or where a run reads results of its own (_own_results, not
-    those in `root`); None when there is none."""
+    those in `root`); None when there is none. With --tool `tool`, where a run reads that
+    tool's results."""
     root = Path(root).resolve()
     top = find.project_folder(root)
     if top is None:
         return None
     for folder in root.parents:
-        if _session_in(folder) or _own_results(folder, besides=root):
+        if tool is None and _session_in(folder) or _own_results(folder, root, tool):
             return folder
         if folder == top:
             return None
@@ -1353,30 +1360,41 @@ def _reads_here(talk: FrontTalk, path: Path, store: Path) -> Path:
     return start.reads_in(path, stay=talk.given)
 
 
-def _projects_below(folder: Path) -> list[str]:
+def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     """The folders right below `folder` that hold results, when there are 2 or more (or one
     that is a project of its own, project.is_project) and nothing says `folder` is one
-    project: no results or tool's config in it, and none in a tool's own folder
-    (TOOL_FOLDERS). DeepEval and Inspect AI results are asked about as before
-    (FOLDER_ASKED). Each is a project of its own, never run. A folder that is a project (a
-    git top) walks past the projects below (find.Search.nested): 2 or more folders holding
-    the rest stop it too unless they are rounds of one eval (project.one_eval), and those
-    projects are named with them."""
+    project: no tool's config in it, and no results in a tool's own folder (TOOL_FOLDERS).
+    DeepEval and Inspect AI results are asked about as before (FOLDER_ASKED). Each is a
+    project of its own, never run. A folder that is a project (a git top) or holds results
+    of its own walks past the projects below (find.Search.nested): folders holding the rest
+    stop it too unless they are rounds of one eval with its own (project.one_eval), and
+    those projects are named with them. With --tool `tool`, only its results and config."""
     found = find.search(folder)
-    if found.answers_read or any("/" not in sign for signs in found.signs.values()
-                                 for sign in signs):  # answers with no grade: one project
-        return []
-    tops = set()
-    for result in (r for rs in found.results.values() for r in rs):
+    signs = found.signs if tool is None else {tool: found.signs.get(tool, [])}
+    if (tool in (None, "table") and found.answers_read) or any(
+            "/" not in sign for kept in signs.values() for sign in kept):  # answers with no
+        return []  # grade: one project
+    results = [r for t, rs in found.results.items() if tool in (None, t) for r in rs]
+    tops, own = set(), False
+    for result in results:
         parts = Path(result.rel).parts
-        if (len(parts) < 2 or result.tool in FOLDER_ASKED
-                or any(part in TOOL_FOLDERS for part in parts[:-1])):
+        if result.tool in FOLDER_ASKED or any(part in TOOL_FOLDERS for part in parts[:-1]):
             return []
-        tops.add(parts[0])
-    if len(tops) == 1 and not project.is_project(folder / next(iter(tops))):
+        if len(parts) < 2:
+            own = True  # results of its own: one project, as a project file makes it
+        else:
+            tops.add(parts[0])
+    if own:  # the projects below keep theirs (_tool_below): 2 or more plain folders that
+        # are not rounds of one eval with its own stop it (I2)
+        results = [r for r in results if find.owner(r.path, folder) is None]
+        tops = {Path(r.rel).parts[0] for r in results if len(Path(r.rel).parts) > 1}
+        if len(tops) < 2:
+            return []
+    if not tops or len(tops) == 1 and not own and not project.is_project(
+            folder / next(iter(tops))):
         return []  # one plain folder (evals/) holds this folder's results
-    if find.is_project(folder):  # rounds of one eval in its folders are read as before
-        files = [r.path for rs in found.results.values() for r in rs]
+    if own or find.is_project(folder):  # rounds of one eval in its folders are read as before
+        files = [r.path for r in results]
         if all(project.one_eval(files[0], f) for f in files[1:]):
             return []
         tops.update(find.nested_results(found, answers=True))
@@ -1418,15 +1436,13 @@ def _held_below(folder: Path, tool: str | None) -> list[str]:
 def _tools_read(talk: FrontTalk, path: Path) -> list[str]:
     """The eval tools a run on the folder `path` reads from: --tool, else each tool whose
     results are found there (of those in no project below, one is read and several are asked
-    about, start._locate). None for a store, a map, or a folder with a tool's config of its
-    own: one project, as _projects_below takes it, read as before."""
+    about, start._locate). None for a store or a map. A folder with a tool's config of its own
+    is one project (_projects_below), but a project below still keeps its own results."""
     o = talk.options
     if o["tracking_uri"] is not None or find.is_mlflow_folder(path) or (
             o["tool"] is None and start._saved(path.resolve()) is not None):
         return []
     search = find.search(path)
-    if any("/" not in sign for signs in search.signs.values() for sign in signs):
-        return []
     if o["tool"] is not None:
         return [o["tool"]]
     return [tool for tool in find.TOOLS if search.results.get(tool)]
@@ -1463,22 +1479,27 @@ def _beside_a_session(folder: Path) -> list[str]:
 
 
 def _session_owning(path: Path) -> str | None:
-    """A results file in a folder below this project whose own .judgekeeper/ holds a
-    session: that folder, from the folder the command runs in. From a folder that is no
-    project, a project below (project.is_project) owns its files too, used or not."""
+    """A results file named from this project inside a project of its own below it
+    (find.owner: a project file, or its own .judgekeeper/): the nearest such project to the
+    file, from the folder the command runs in. It is checked there, never as this
+    project's."""
     root = project.project_of(path)
     folder = path.resolve().parent
-    if not folder.is_relative_to(root):
+    if not folder.is_relative_to(root) or find.owner(path, root) is None:
         return None
-    no_project = not project.is_project(root)
-    while folder != root:
-        ws = Workspace(folder)
-        held = (ws.start.is_file() or ws.labels.is_file()) and (
-            project.marks_above(folder, path.resolve()) is None)
-        if held or no_project and project.is_project(folder):
-            return textio.folder_from_here(folder)
-        folder = folder.parent
-    return None
+    while not (find.is_project(folder) and project.marks_above(folder, path.resolve()) is None):
+        folder = folder.parent  # the nearest to the file: where its session is, say
+    return textio.folder_from_here(folder)
+
+
+def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
+    """The command that checks the file `path` in the project `owner` (from here): its path
+    from there, with the person's other flags, as judgekeeper is typed there."""
+    there = textio.folder_of(owner, Path.cwd())
+    there = Path(there) if there != textio.ANYWHERE else path.resolve().parent
+    rel = Path(os.path.relpath(path.resolve(), there.resolve())).as_posix()
+    command = talk.command_in(textio.quote_arg(rel))
+    return _program_there([owner], Path.cwd()) + command[len(talk.program):]
 
 
 def _go_to_one(talk: FrontTalk, folders: list[str]) -> Stop:

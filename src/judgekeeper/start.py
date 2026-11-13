@@ -326,6 +326,7 @@ class Talk:
     subcommand = ""  # every printed command starts with textio.program(subcommand)
     asks_everything = False  # without a terminal, ask instead of taking a default (front.py)
     given = False  # a PATH was given on the command line: that folder is the project
+    read_in: str | None = None  # the folder above read (no PATH given), from here (_locate)
 
     def __init__(self, yes: bool = False, quiet: bool = False, flags: tuple[str, ...] = (),
                  path: str | Path = "."):
@@ -343,7 +344,10 @@ class Talk:
 
     def command(self, *extra: str) -> str:
         """`judgekeeper` with the person's flags, then `extra`: run as printed, it gets
-        past the question it answers."""
+        past the question it answers. After a climb, one with --tool (it never climbs)
+        names the folder read."""
+        if self.read_in is not None and any(w.split("=", 1)[0] == "--tool" for w in extra):
+            return self.command_in(quote_arg(self.read_in), *extra)
         return " ".join((self.program, *self._flags_for(extra), *extra))
 
     def command_at(self, where: str | Path, *extra: str) -> str:
@@ -353,6 +357,8 @@ class Talk:
         given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
+        if self.read_in is not None and self.path == ".":  # after a climb: from here
+            path = Path(self.read_in) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 
     def command_in(self, folder: str, *extra: str) -> str:
@@ -1512,6 +1518,8 @@ def _locate(talk: Talk, path: Path, tool: str | None,
             _note(talk, f"{rel} {how}." if how == find.EXCEL_FOUND
                   else f"{rel} {how}, so it was left out.")
     above = _read_above(root, found, tool, talk.given)  # a PATH given never climbs
+    if above is not None:  # the commands said from here on name it (Talk.read_in)
+        talk.read_in = Path(os.path.relpath(above[1], Path.cwd())).as_posix()
     if above is not None and above[0] == "records":  # record() saves at the project root
         above_here = textio.folder_words(textio.shown_from_here(above[1]))  # never whole
         _note(talk, RECORDS_ABOVE.format(root=above_here))
@@ -1528,7 +1536,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
                 raise _too_big(talk, found)
             if tool == "promptfoo" and "promptfoo" in found.signs:
                 return _export(talk, root, found.signs["promptfoo"][0])
-            raise StartError(f"No saved {find.NAMES[tool]} results found in "
+            raise StartError(f"No {_saved_words(tool)} found in "
                              f"{textio.folder_words(shown_path(root))}.")
         available = [tool]
     within = None  # the files chosen from, when only some
@@ -1672,6 +1680,13 @@ def is_empty_file(path: Path) -> bool:
             return f.read(4) in (b"", b"\xef\xbb\xbf")
     except OSError:
         return False
+
+
+def _saved_words(tool: str) -> str:
+    """What --tool `tool` looks for, in words: "saved promptfoo results", "CSV, TSV or JSONL
+    results file"."""
+    return "CSV, TSV or JSONL results file" if tool == "table" else \
+        f"saved {find.NAMES[tool]} results"
 
 
 def _left_out(talk: Talk, root: Path, found: find.Search) -> Stop:
