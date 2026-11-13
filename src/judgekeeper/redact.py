@@ -10,7 +10,8 @@ a hidden character is looked for with the character dropped, and a key right aft
 after a letter. A secret with a terminal code in it, or right after one, is looked for with
 the code taken out.
 
-`printable` drops terminal escape sequences from text taken from an input file, and
+`printable` drops control characters (the escape that starts a terminal code among them, but
+not the rest of the code; tab and newline stay) from text taken from an input file, and
 `one_line` also turns every line break into a space, so a name from a results file can never
 start a line of its own (one that could look like the `Next:` line). A judge fingerprint is
 scrubbed too: its model and snapshot come from the provider's response, and a gateway can put

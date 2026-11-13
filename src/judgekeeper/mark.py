@@ -4,8 +4,10 @@ It goes through `judgekeeper`'s state table (front.py). When something must be a
 tools or judges, a pass mark, an own format), it asks the same question, exit 3. When the
 marks are for another LLM-as-a-judge, it asks "Start over with these results?" (not when
 nothing is marked yet); a yes moves the old marks to previous-<date>/ and goes on. Otherwise it prepares the pool if needed, opens
-the page and prints the count so far (exit 0), unless every answer is marked with under 15 of
-one kind (exit 3, no page).
+the page and prints the count so far (exit 0), unless every answer is marked and the marks
+are still too few for a result (exit 3, no page): under targets.ROUGH of each kind or
+targets.FIRST_GROUP in a group of the judge (targets.check), or with no LLM-as-a-judge under
+no_grades.MIN_MARKS.
 
 `--wait` serves the page in this terminal, `--stop` closes it, `--new` starts over (asked
 first). Marks in a labels.csv file are never used: they have no stamps. The

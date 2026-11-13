@@ -5,13 +5,14 @@ No AI call and no API key: everything comes from files the user's eval tool alre
 too few answers it prints the command that makes more, and the user runs it.
 
 The pool is every answer with a clear pass or fail. A repeat of the same answer (input,
-output and any agent steps) counts once: the newest results file wins, and inside it the
-majority of its verdicts, a tie going to fail. An answer with no real decision (judge_check)
-is left out, counted and said.
+output and any agent steps) is read from the newest results file that has it: repeats with
+the same grade count once, and repeats with different grades each count as an answer of
+their own (build_pool). An answer with no real decision (judge_check) is left out, counted
+and said.
 
 Questions are asked only at a terminal. Without one, judgekeeper prints the question as the
-flag that answers it and exits 3; `--yes` takes the default of a yes/no question, but never
-picks between tools or judges.
+flag that answers it and exits 3; `--yes` answers a yes/no question as that question
+says (Talk.confirm's `with_yes`), but never picks between tools or judges.
 """
 
 from __future__ import annotations
@@ -908,8 +909,8 @@ def _read_mapped(result: find.Result, saved, judge_model: str | None = None) -> 
 
 
 def _where(result: find.Result) -> str:
-    """The file, and when it was saved: for DeepEval only the run's own time (a file's time
-    can be when the project was copied), else no date."""
+    """The file, and when it was saved: find.Result.date, but for DeepEval and MLflow only the
+    run's own time (a file's time can be when the project was copied), no date without one."""
     date = result.run_date() if result.tool in ("deepeval", "mlflow") else result.date()
     return result.rel if date is None else f"{result.rel}, saved {date:%Y-%m-%d %H:%M}"
 
@@ -1162,7 +1163,7 @@ class Found:
     metric: str
     pool: Pool
     fingerprint: dict
-    judge: str  # the judge, as `Your judge:` names it
+    judge: str  # the judge, as the `LLM-as-a-judge:` line names it
     signs: dict
     rule: str | None = None  # the judge's whole rule, as its results file holds it
     description: str | None = None  # promptfoo's `config.description` of the newest results
@@ -1240,7 +1241,8 @@ def pass_mark_of(pool: Pool, tool: str, pass_if=None, key: str | None = None) ->
     pass mark; `follows` says whether every verdict is the score held against it. The
     direction of a DeepEval threshold comes from the verdicts (some of its metrics pass a
     lower score); when they do not tell it, None. `source` is "pass_if" (with its "rule"),
-    "deepeval", "records" or "mapped" (with the "key" a mapped file states it in)."""
+    else the tool's name, such as "deepeval", "promptfoo", "records" or "mapped" (with the
+    "key" a mapped file states it in)."""
     answers = pool.answers
     if not answers or any(a.score is None or a.pass_mark is None for a in answers):
         return None

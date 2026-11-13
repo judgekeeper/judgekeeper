@@ -1072,7 +1072,7 @@ def _box(m: dict, n: str, parts: list[str], own: list[dict], left_out: int = 0,
          asked: list[str] | None = None) -> str:
     """The row foot and reason box of one disagreement on the live page (`left_out`: the
     rule's parts with no button): "Add a reason" (or "Change" and the reason saved), "Show
-    all" at the right; in the box, the everyday reasons first (`asked`, when not those
+    more" at the right; in the box, the everyday reasons first (`asked`, when not those
     reasons.offered gives for the judge's grade), then the rule's parts."""
     why = m.get("why") or {}
     taps, chosen = set(why.get("reasons") or []), set(why.get("rule_parts") or [])
@@ -1440,7 +1440,8 @@ def _next(r: dict, back: str | None, extra: list[str]) -> str:
     Copy; when it is good enough, that there is nothing more to do; then, unless every answer
     is marked, how to mark more: on the page the marking server serves, a link back to the
     marking page (`back`, with its token) and the command for once it has closed; in
-    report.html the command only, so the token is never saved. `extra`: lines under the
+    report.html no link, so the token is never saved, and no line to mark more unless fix
+    needs more marks (fix.NOT_ENOUGH). `extra`: lines under the
     command (how to say why, STARTED_ELSE). NOTES marks where the notes go."""
     step = next_step(r)
     if step == "mark":
