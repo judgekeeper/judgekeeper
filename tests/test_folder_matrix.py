@@ -578,7 +578,7 @@ def test_a_project_below_never_stops_a_folder_reading_the_project_above(
     _kind(top / "sub" / "q", "file")
     table_project(top / "sub" / "q", split(6, 6), tag="q")
     reads.clear()
-    code, said = _say(capsys, monkeypatch, top / "sub")
+    _code, said = _say(capsys, monkeypatch, top / "sub")
     assert not _read_below(reads, top, "sub/q"), said
     assert reads and reads[-1][1] == [results.resolve()], said
     assert "The project in q/ has results too: to check them, run `judgekeeper q`." in said, said
@@ -593,7 +593,7 @@ def test_a_projects_own_format_file_below_is_never_read_from_a_plain_folder(
     top = tmp_path / "top"
     _kind(top / "q", q_kind)
     own_format_project(top / "q")
-    code, said = _say(capsys, monkeypatch, top)
+    _code, said = _say(capsys, monkeypatch, top)
     assert not _read_below(reads, top, "q"), said
     assert "q/data/prompt_evals.jsonl" not in said, said
 
@@ -610,7 +610,7 @@ def test_a_project_below_never_hides_a_folders_own_format_file(tmp_path, capsys,
     (top / "evals" / "run_evals.py").unlink()
     _kind(top / "q", "file")
     table_project(top / "q", split(6, 6), tag="q")
-    code, said = _say(capsys, monkeypatch, top)
+    _code, said = _say(capsys, monkeypatch, top)
     assert "data/prompt_evals.jsonl looks like your LLM-as-a-judge's results" in said, said
     assert not _read_below(reads, top, "q"), said
 
