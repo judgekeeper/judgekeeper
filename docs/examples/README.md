@@ -2,7 +2,7 @@
 
 One line per folder: what it is, the commit it ran on, the model and the date.
 
-- **`ai-check/`**: checking an AI's answers with no LLM-as-a-judge: a made-up shop help bot's 20 answers, marked on the marking page, with the result page and `failed-answers.md`. Made on commit `5bced99`; no model; 2026-11-09.
+- **`ai-check/`**: checking an AI's answers with no LLM-as-a-judge: a made-up shop help bot's 20 answers, marked on the marking page, with the result page and `failed-answers.md`. Made on commit `a427415`; no model; 2026-11-12.
 - **`coverage/`**: how often judgekeeper's ranges hold the true value, on simulated checks. Made by `scripts/coverage_check.py`; numbers from commit `8b5a71f`; no model; 2026-11-01.
 - **`jailbreakbench/`**: judgekeeper's steps on JailbreakBench's LLM-as-a-judge comparison set, checked against the experts' labels. 100 draws of 100 marks on commit `e8de85d` (2026-11-03), two batches (250 marks per draw) on commit `7059dbd`, one draw on `6437d85` (first run `e3052c7`); GPT-4 (`openai:gpt-4-0613`), its grades taken from the dataset; two batches 2026-11-01, one draw 2026-10-21, first run 2026-10-17.
 - **`jailbreakbench-setups/`**: judgekeeper's steps on the same JailbreakBench set, with two Claude LLM-as-a-judge setups grading the 300 answers and the experts' majority as the marks, 1 run each. Graded on commit `bfc3606` (2026-10-30), judgekeeper's steps run again from the saved results on `7059dbd` (2026-11-01); Claude Haiku 5.5 and Claude Sonnet 5.5.

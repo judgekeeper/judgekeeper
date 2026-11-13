@@ -111,7 +111,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .state .said { font-weight: 600; }
 .state .said.pass { color: var(--green); }
 .state .said.fail { color: var(--red); }
-.run { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
+.run, .again-note { margin: -4px 0 12px; font-size: 13px; color: var(--muted); }
 .question { font-size: 26px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
   margin: 0; max-width: 28ch; white-space: pre-wrap; overflow-wrap: anywhere; }
 .question .field-name { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em;
@@ -221,7 +221,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   .row-a { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 + 65px); display: flex;
     flex-direction: column; overflow: hidden; padding-top: 26px; padding-bottom: 0; }
   .card:has(.rule:not([hidden])) .row-q { flex-shrink: 0; }  /* the rule gives way, not the question */
-  .row-a > .graded, .row-a > .label, .row-a > .run { flex: none; }
+  .row-a > .graded, .row-a > .label, .row-a > .run, .row-a > .again-note { flex: none; }
   .a-scroll { flex: 1 1 0; min-height: calc((100vh - 72px) * .35 - 30px); overflow: auto;
     overscroll-behavior: contain; margin: 0 -40px; padding: 0 40px 32px; }
   .a-scroll.fits { flex: 0 0 auto; min-height: 0; }
@@ -312,7 +312,7 @@ __TOP__
 <main class="main">
   <section class="card" id="answer-card" tabindex="-1" aria-label="The answer to mark">
     <div class="row row-q"><div id="q-row"><div class="label" id="q-label">Question</div><h1 class="question" id="q-text" dir="auto"></h1><button type="button" class="quiet q-more" id="q-more" aria-expanded="false" aria-controls="q-text" hidden>Show all</button></div><div class="state" id="ans-status" aria-live="polite"></div></div>
-    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
+    <div class="row row-a">__GRADED__<div class="label">Answer</div><p class="again-note" id="a-again" hidden>__AGAIN__</p><p class="run" id="a-run" hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" dir="auto"></p></div></div>
     <div class="actions" id="decide">
       <button type="button" class="btn fail" id="fail" aria-pressed="false" aria-keyshortcuts="ArrowLeft">__CROSS__<span>Fail</span><kbd>←</kbd></button>
       <button type="button" class="btn pass" id="pass" aria-pressed="false" aria-keyshortcuts="ArrowRight">__TICK__<span>Pass</span><kbd>→</kbd></button>
@@ -789,6 +789,7 @@ __TOP__
     setText("a-run", it.run ? "Run " + it.run[0] + " of " + it.run[1] +
       ": graded differently" : "");
     $("a-run").hidden = !it.run;
+    $("a-again").hidden = it.again == null;  // a marked answer back to check the marks: said
     showQuestion(it);
     showAnswer(it.output);
     $("fail").setAttribute("aria-pressed", String(it.label === "fail"));
@@ -886,8 +887,8 @@ __TOP__
       e.preventDefault(); lookAgain(); }
   });
 
-  // An answer the server asks to show again, next, as any answer looks (never said); its
-  // mark is sent with its slot and never counts as a mark.
+  // An answer the server asks to show again, next; its card says it was seen before
+  // (AGAIN). Its mark is sent with its slot and never counts as a mark.
   function showAgain(again) {
     if (!again) { return; }
     var it = {id: again.id, input: again.input, output: again.output, label: null,
@@ -1108,6 +1109,8 @@ KEEP_GOING = "Keep going: your result appears once there are enough Pass and Fai
 FEW_ANSWERS = "A first result needs at least {n} answers. Your marks are kept for when more answers come."
 SEE_FIRST = "See the numbers so far"  # from the first numbers until a coloured verdict
 SEE_READY = "See your result"
+# On the card of a marked answer shown again to check the marks (start_label's repeats)
+AGAIN = "You saw this answer before. Mark it as you see it now."
 
 
 def _progress() -> str:
@@ -1197,6 +1200,7 @@ def label_page(description: str | None, command: str | None = None,
             .replace("__HELD__", "".join(f"<br><code>{_shown(f'{PLACEHOLDER}: {v}')}</code>"
                                          for v in held or ()))
             .replace("__TITLE__", _text(TITLE))
+            .replace("__AGAIN__", _text(AGAIN))
             .replace("__FIRST__", str(FIRST)).replace("__ROUGH__", str(ROUGH))
             .replace("__SEGMENTS__", str(SEGMENTS)).replace("__WORDS__", _words())
             .replace("__OUTPUT_WORDS__", json.dumps(OUTPUT_WORDS))

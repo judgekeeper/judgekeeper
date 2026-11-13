@@ -519,7 +519,8 @@ FIX_PROMPT = ("Read {file}. It lists answers my AI gave that I marked Fail{with_
 AGENT_LEAD = "Paste this into your coding agent (Claude Code, Cursor or Codex):"
 FAILED_SAVED = "Your failed answers are saved in {file}."
 FIX_NEXT = ("paste the prompt above into your coding agent. After it changes your AI's prompt, "
-            "save your AI's new answers and run `{command}` again.")  # `fix`, with the prompt
+            "save your AI's new answers in your results file or a new file next to it and run "
+            "`{command}` again.")  # `fix`, with the prompt
 
 
 def question_key(text) -> str:
@@ -845,7 +846,7 @@ def failed_md(rows: list[dict], kept: int) -> str:
 
     count = f"You failed {plural(len(rows), 'answer')} here."
     if kept:
-        count += f" {kept} more {'is' if kept == 1 else 'are'} kept aside to test {KEPT_FOR}."
+        count += f" {kept_line(kept)}"
     parts = ["# Answers you failed", "", FIX_TASK, "", count, "", f"{FIX_WARNING} {MARKS}", ""]
     said = tally(rows)
     if said:
@@ -941,6 +942,8 @@ COMPARED = "On the {n} kept aside: fixed {fixed}, broke {broke}, same {same}."
 COUNTED = "Counted on the {n} kept aside, not the ones your fix was written from."
 WAIT_NEW = "Mark the new answers to see what changed."
 KEPT_FOR = "your next change"  # what the answers kept aside are for, in every line of them
+KEPT_LINE = {1: f"{{n}} more answer you failed is kept aside to test {KEPT_FOR}.",
+             2: f"{{n}} more answers you failed are kept aside to test {KEPT_FOR}."}
 ALL_KEPT = {1: f"It is kept aside to test {KEPT_FOR}.",
             2: f"They are kept aside to test {KEPT_FOR}."}  # after "You failed N answers."
 ALL_SHOWN = "The questions kept aside are all shown now."  # after NEW_SET, which says why
@@ -955,11 +958,12 @@ NO_KEPT = "No question kept aside has a new answer, so your change can't be test
 # "Can't tell yet": what a clear answer needs (clear_line)
 CLEAR_NEED = ("A clear answer needs at least {need} kept-aside questions to go from Fail to "
               "Pass, with none breaking. About 2 in 3 failed questions get fixed, so that needs "
-              "about {target} kept-aside Fails; you have {kept_fails}.")
+              "about {target} kept-aside questions that failed before your change; you had "
+              "{kept_fails}.")
 CLEAR_ADD = CLEAR_NEED + " Add about {extra} more questions."
 CLEAR_HARDER = CLEAR_NEED + " Add harder questions, ones your AI may get wrong, and mark their answers."
-CLEAR_ENOUGH = ("A clear answer needs at least {need} of your {kept_fails} kept-aside Fails to "
-                "pass, with none breaking.")
+CLEAR_ENOUGH = ("A clear answer needs at least {need} of the {kept_fails} kept-aside questions "
+                "that failed before your change to pass, with none breaking.")
 CHANGE = {  # the result, from targets.sign_p as `fix` says it of a new rule
     "helped": "Your change helped. A difference this large is unlikely to be a coincidence.",
     "worse": ("Your change made it worse. A difference this large is unlikely to be a "
@@ -1385,6 +1389,12 @@ def damaged_line() -> str:
     from judgekeeper.start_label import FOLDER
 
     return BEFORE_DAMAGED.format(path=f"{FOLDER}/fix/{BEFORE_FILE}")
+
+
+def kept_line(n: int) -> str:
+    """The answers failed kept aside, after "You failed N answers here.": answers, as that
+    count is, never questions (a question asked twice is two answers)."""
+    return KEPT_LINE[min(n, 2)].format(n=n)
 
 
 def counted_line(c: dict) -> str:

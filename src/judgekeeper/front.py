@@ -609,7 +609,10 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         if owners and not rest:
             raise _checked_there(talk, _from_here(path, owners))
         if owners and rest:
-            only, talk.left_below = rest, _from_here(path, owners)
+            only = rest
+        if rest:  # every project of its own below with results, read from here or not
+            below = _held_below(path, talk.options["tool"])
+            talk.left_below = _from_here(path, sorted({*owners, *below}))
     if path.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here
         talk.para(_nested_line([owner], Path.cwd()))
@@ -1137,9 +1140,8 @@ def _nothing_found(talk: FrontTalk, root: Path, signs: dict,
             talk.para(f"Found {name} in this folder ({where[0]}), but no saved results yet. "
                       + SAVES.get(tool, ""))
     else:
-        down = find.looked(root).replace(f" from {root.name}", "")
-        talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked "
-                  f"{down}.")
+        talk.para(f"No eval results found in this folder ({root.name}). judgekeeper looked in "
+                  f"{find.looked()}.")
         talk.para(READS)
     for own in (unlooked or [])[:OTHERS]:
         size = own.path.stat().st_size
@@ -1383,6 +1385,23 @@ def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
     return sorted(owners), rest
 
 
+def _held_below(folder: Path, tool: str | None) -> list[str]:
+    """The projects of their own below `folder` (find.projects_below) that hold results,
+    answers with no grade or a session, by their path from it, as a project's run names them
+    (find.nested_results), those too deep to be read from here too; with --tool, only those
+    with results of that tool (answers with no grade for a CSV file's)."""
+    out = []
+    for sub in find.projects_below(folder):
+        below = find.search(sub)
+        if tool is None:
+            held = find.holds_results(below) or below.answers_read or _session_in(sub)
+        else:
+            held = bool(below.results.get(tool)) or tool == "table" and below.answers_read
+        if held:
+            out.append(sub.relative_to(folder.resolve()).as_posix())
+    return out
+
+
 def _tools_read(talk: FrontTalk, path: Path) -> list[str]:
     """The eval tools a run on the folder `path` reads from: --tool, else each tool whose
     results are found there (of those in no project below, one is read and several are asked
@@ -1413,7 +1432,8 @@ def _beside_a_session(folder: Path) -> list[str]:
     """The folders below `folder` that hold results, when one is a project with a session of
     its own (find.nested_results) and the others hold the rest, none in `folder` itself or a
     tool's own folder there: projects of their own, never one session for them."""
-    if not _sessions_below(folder):  # the walk below only when a session is right below
+    if not project.is_project(folder) or not _sessions_below(folder):  # a folder that is no
+        # project reads the files in no project below and names the projects (_tool_below)
         return []
     found = find.search(folder)
     nested = find.nested_results(found)
@@ -1579,6 +1599,12 @@ def _nested_here(found: start.Found) -> str | None:
         return None
     nested = find.nested_results(find.search(found.root), answers=True)
     return _results_too(_from_here(found.root, nested)) if nested else None
+
+
+def _below_here(talk: FrontTalk, found: start.Found) -> str | None:
+    """The projects of their own below with results, never read with these: those left out
+    from a folder that is no project (talk.left_below), else those below this project."""
+    return _results_too(talk.left_below) if talk.left_below else _nested_here(found)
 
 
 def _outer_marks(found: start.Found) -> str | None:
@@ -2139,9 +2165,8 @@ def _say(talk: FrontTalk, found: start.Found, mapped: settings.StartSettings | N
     for note in _notes(found, None if talk.labels is not None else talk.command("--labels")):
         talk.few_fails = talk.few_fails or note.startswith(FAILED_ONLY)
         talk.para(note)
-    left = _results_too(talk.left_below) if talk.left_below else None
-    for others in (_other_files(found, talk), _other_projects(found), _nested_here(found),
-                   left, _outer_marks(found), _kept_apart(found)):
+    for others in (_other_files(found, talk), _other_projects(found), _below_here(talk, found),
+                   _outer_marks(found), _kept_apart(found)):
         if others:
             talk.para(others)
     _free_check(talk, found, listed)
@@ -2548,7 +2573,7 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         added_at += len(talk.path_head)
     if took:
         head.append(took)
-    if not first and (nested := _nested_here(found)):  # never read with these: named
+    if not first and (nested := _below_here(talk, found)):  # never read with these: named
         head.append(nested)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
@@ -3168,7 +3193,8 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
     talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
-    talk.nested = None if first else _nested_here(found)  # Find's block names them first
+    talk.nested = None if first else _below_here(talk, found)  # Find's block names them
+    # first
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
         start_label.prepare(found, say=lambda line: None, ws=ws)
         _import_labels(talk, ws, found, first)  # --labels: the marks it brings
