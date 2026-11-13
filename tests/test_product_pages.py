@@ -285,9 +285,11 @@ def test_the_marking_page_words():
             'hidden>Show all</button></div>'
             '<div class="state" id="ans-status" aria-live="polite"></div></div>'
             ) in page  # the state: one quiet line at the top right of the question row
-    assert ('<div class="row row-a"><div class="label">Answer</div><p class="run" id="a-run" '
+    assert ('<div class="row row-a"><div class="label">Answer</div><p class="again-note" '
+            f'id="a-again" hidden>{mark_page.AGAIN}</p><p class="run" id="a-run" '
             'hidden></p><div class="a-scroll" id="a-scroll"><p class="answer" id="a-text" '
-            'dir="auto">') in page  # the run line: only for a repeat graded differently
+            'dir="auto">') in page  # seen before: only on a repeat; the run line: only for a
+    # repeat graded differently
     assert "avatar" not in page and "ans-pos" not in page  # no icons, no "Answer 4" heading
     assert ('<div class="sub"><button type="button" class="quiet" id="skip" aria-keyshortcuts="S">'
             '<span>Skip this one</span><kbd>S</kbd></button><button type="button" class="quiet" '
