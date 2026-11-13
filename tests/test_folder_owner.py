@@ -139,3 +139,21 @@ def test_an_unrelated_newer_file_never_replaces_the_marked_answers(own, capsys, 
     assert f"{where}other.jsonl shares few questions with the results you marked" in said, said
     assert "new answers" not in said and "15 of 15" not in said, said
     assert "Full report: .judgekeeper/report.html" in said, said
+
+
+@pytest.mark.parametrize("stray", ["script.py", ".judgekeeper/judge.json"])
+def test_a_shared_folder_with_a_script_is_never_read_from_an_empty_folder_below(
+        tmp_path, capsys, monkeypatch, stray):
+    """work/ holds a script of its own (or a .judgekeeper/ from a run there once) and two
+    folders with results; a run in work/new/ (empty) never reads them."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    (work / stray).parent.mkdir(parents=True, exist_ok=True)
+    (work / stray).write_text("{}", encoding="utf-8")
+    _code_project(work / "a", "a")
+    table_project(work / "b", split(5, 5), tag="b")
+    (work / "new").mkdir()
+    code, said = _run(capsys, monkeypatch, work / "new")
+    assert code == 3, said
+    assert "Reading the project folder above" not in said and "Answers:" not in said, said
+    assert not (work / "new" / ".judgekeeper").exists()

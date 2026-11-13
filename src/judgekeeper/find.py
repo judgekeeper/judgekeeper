@@ -1037,16 +1037,18 @@ def above_with_results(root: Path) -> Path | None:
 
 
 def _up_with_results(root: Path) -> Path | None:
-    """The nearest project above `root` (_project_above) when it holds results; never one
-    past it."""
+    """The nearest project above `root` (_project_above) when it has a project file
+    (PROJECT_MARKERS) and holds results. Never one past it: a folder with code or its own
+    .judgekeeper/ but no project file stops the climb and is never read from below (a shared
+    folder with a script in it is no project of the folders below it)."""
     up = _project_above(root)
-    return up if up is not None and holds_results(search(up)) else None
+    return up if up is not None and has_marker(up) and holds_results(search(up)) else None
 
 
 def _project_above(folder: Path) -> Path | None:
     """The nearest folder above `folder`, below the home folder, that is a project: a project
-    file, code (holds_code), or its own .judgekeeper/ that is not passed over. A run from a
-    folder with no results reads there, never a folder past it."""
+    file, code (holds_code), or its own .judgekeeper/ that is not passed over, each by its
+    own entries."""
     try:
         home = Path.home().resolve()
     except (RuntimeError, OSError):
