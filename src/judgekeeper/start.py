@@ -363,7 +363,7 @@ class Talk:
         given = flags[:1] == (path_word(self.path),) and (self.path != "." or self.given)
         flags = flags[1:] if given else flags
         path = Path(where) if self.path == "." else Path(self.path) / where
-        if self.read_in is not None and self.path == ".":  # after a climb: from here
+        if self.read_in is not None:  # a folder above read (a climb, a session): from here
             path = Path(self.read_in) / where
         return " ".join((self.program, quote_arg(path.as_posix()), *flags, *extra))
 

@@ -633,6 +633,8 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             talk.say()
     if (read := _project_reads(path, store)) != path:  # the project above's, as before
         path, only, talk.left_below = read, None, []
+        # the commands said from here on name its files from here (Talk.read_in)
+        talk.read_in = Path(os.path.relpath(read, Path.cwd())).as_posix()
     where, saved = _own_format(talk, path)
     found = _find(talk, where, saved, only)
     found = _marked_files(talk, where, saved, found)

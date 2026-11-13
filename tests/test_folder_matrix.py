@@ -925,3 +925,19 @@ def test_a_too_big_file_named_in_a_project_below_keeps_its_yes(tmp_path, capsys,
     said = _say(capsys, monkeypatch, work, "a/results.csv", "--yes")[1]
     assert "belong to the project in a/" in said, said
     assert re.search(r"`judgekeeper results\.csv[^`]*--yes[^`]*` in a/", said), said
+
+
+@pytest.mark.parametrize("given", [False, True])
+def test_a_file_named_after_reading_the_session_above_is_named_from_here(tmp_path, capsys,
+                                                                         monkeypatch, given):
+    """I8 (seed 50210): evals/ holds a session; a run in evals/b/ reads evals/ and names the
+    file it did not read by its path from b/, so the printed command finds it."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    evals = tmp_path / "t" / "runs" / "evals"
+    _older(table_project(evals, split(3, 3), tag="t2"))
+    (evals / "b").mkdir()
+    _jsonl(evals / "b", 6, "t1")
+    assert _say(capsys, monkeypatch, evals)[0] == 3  # its judge.json
+    run_in, args = (evals.parent, ("evals/b",)) if given else (evals / "b", ())
+    said = _say(capsys, monkeypatch, run_in, *args)[1]
+    _every_command_reads(capsys, monkeypatch, run_in, said)
