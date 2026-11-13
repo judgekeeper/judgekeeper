@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from judgekeeper import mapper, own_format, settings, start, textio
+from judgekeeper import find, mapper, own_format, settings, start, textio
 from judgekeeper.normalise import NormaliseError, parse_pass_if
 from judgekeeper.records import LLM, RecordsError
 from judgekeeper.redact import scrub
@@ -30,6 +30,35 @@ RECORD_DOOR = ("Or save your LLM-as-a-judge's decisions from now on with one jud
 NOT_UTF8 = "is not saved as UTF-8 text"  # textio.not_utf8_message
 QUOTE = re.compile(r"line (\d+) of .+ (has a quote that never closes|has more cells than its)")
 PASS_IF = '"score>=N"'  # the placeholder of --pass-if in a Next: line; quoted for every shell
+# A CSV, TSV or JSONL file of answers under other column names, with no grades
+ANSWER_COLUMNS = ("judgekeeper reads answers from an input column and an output column, with a "
+                  "verdict column only if an LLM-as-a-judge graded them.")
+MAX_COLUMNS = 8
+
+
+def columns_said(columns: list[str]) -> str:
+    """A file's columns as words: "question and answer", the first MAX_COLUMNS only."""
+    more = len(columns) - MAX_COLUMNS
+    return start._and([*columns[:MAX_COLUMNS], *([f"{more} more"] if more > 0 else [])])
+
+
+def rename_step(columns: list[str], rel: str | None = None) -> str:
+    """What to rename so a file of answers is read: "rename the question column in res.csv to
+    input and the answer column to output", only the columns it lacks."""
+    parts = [(what, to) for what, to in (("question", "input"), ("answer", "output"))
+             if to not in columns] or [("question", "input"), ("answer", "output")]
+    said = [f"the {what} column{f' in {rel}' if rel and not n else ''} to {to}"
+            for n, (what, to) in enumerate(parts)]
+    return "rename " + " and ".join(said)
+
+
+def other_columns(talk: Talk, rel: str, columns: list[str]):
+    """A CSV, TSV or JSONL file with answers under other column names and no grades: its
+    columns, and what to rename. Returns the Stop to raise."""
+    _para(talk, f"{rel} has the columns {columns_said(columns)}, and no LLM-as-a-judge grades. "
+                f"{ANSWER_COLUMNS}")
+    return talk.stop(EXIT_USAGE, f"{rename_step(columns, Path(rel).name)}, then run "
+                                 f"`{talk.command()}`.")
 
 
 def _para(talk: Talk, text: str) -> None:
@@ -255,6 +284,8 @@ def map_file(talk: Talk, root: Path, path: Path, metric: str | None,
         units = [u for _, u in mapper.load_numbered(path)]
         g = mapper.guess(units)
     except mapper.MapError as e:
+        if str(e) == mapper.NO_VERDICTS and path.suffix.lower() in find.TABLE_SUFFIXES:
+            raise other_columns(talk, rel, find.table_columns(path)) from None
         raise cannot(talk, rel, str(e)) from None
     unit = "row" if path.suffix.lower() in (".csv", ".tsv") else "line"  # as the file holds them
     lines = "" if path.suffix.lower() == ".json" else \

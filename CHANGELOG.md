@@ -3,7 +3,7 @@
 ## 1.2.0 (2026-11-13)
 
 - No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
-- The answers you fail are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
+- The answers you fail that are not kept aside are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
 - After you change your AI and mark its new answers, judgekeeper counts how many were fixed, how many broke and how many stayed the same on the questions kept aside. It says whether the change helped, made it worse, or can't tell yet, and when it can't tell, how many more questions a clear answer needs.
 - No answers yet? judgekeeper prints a prompt for your coding agent to write about 40 test questions and save your AI's answers.
 - Each run first says what it checks, your LLM-as-a-judge or your AI's answers, and why: whether your results file has LLM-as-a-judge grades. It also says how to switch.
@@ -11,8 +11,10 @@
 - On the result page, a long reason is shown in full when its row is open. Your own reason buttons are cut to 2 lines, with the full text on hover.
 - Text in answers can no longer fake the markers that fence answers off in files written for a coding agent; this also covers mistakes.md.
 - The `inspect` extra keeps agent-client-protocol below 1, because Inspect AI 0.3.288 can't import with 1.0.0.
-- Quick Pass and Fail clicks count now: only a click in the first quarter second after an answer shows does nothing, so no answer is marked before you see it. The "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it. A folder with code in it is its own project: judgekeeper no longer reads results in the folder above it in its place. Percentages round half up (23 of 40 is 58%).
-- A folder you name (`judgekeeper PATH`, `mark PATH`) is always the project: judgekeeper no longer reads results in the folder above it instead. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them. A folder with a `requirements*.txt` file is a project of its own, so a run in the folder above no longer reads its results. `judgekeeper.record()` also takes a folder with `package.json` as the project root, so in a repository with such subfolders it saves in that subfolder's `.judgekeeper/`, not at the repository root.
+- Quick Pass and Fail clicks count now: only a click in the first quarter second after an answer shows does nothing, so no answer is marked before you see it.
+- The "Your result is ready." box no longer blocks the card: a Pass or Fail click marks the answer and closes it.
+- Percentages round half up (23 of 40 is 58%).
+- A folder you name (`judgekeeper PATH`, `mark PATH`), or a folder with code in it, is always the project: judgekeeper no longer reads results in the folder above it instead. Lines saved with `judgekeeper.record()` still come from the project root, where it saves them. A folder with a `requirements*.txt` file is a project of its own, so a run in the folder above no longer reads its results. `judgekeeper.record()` also takes a folder with `package.json` as the project root, so in a repository with such subfolders it saves in that subfolder's `.judgekeeper/`, not at the repository root.
 - Run from the top of a repository, judgekeeper now also names the projects below whose answers have no grades. After reading results of its own there, it no longer says those results belong to a project below.
 - Run from a folder above projects of their own, judgekeeper no longer mixes their results into one: it reads only the results that are in no project below, names the projects that hold the rest, and stops when every result is in one.
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
@@ -27,8 +29,10 @@
 - A project below with its own `.judgekeeper/` is named even when its results file is a link.
 - After `--stop`, the command it prints to carry on repeats the file you named. After "No saved ... results found", the Next line says what to run instead of repeating the same command.
 - After 3 changes, the result no longer asks for more of the questions kept aside: it says to add new questions.
-- `judgekeeper fix` names your results file in its Next line, as the result page does.
+- With answers and no grades, `judgekeeper fix` names your results file in its Next line, as the result page does.
 - A damaged `.judgekeeper/fix/split-answers.json` is said and started again: the questions kept aside before no longer count as a fair test, and your failed answers stay listed.
+- A CSV, TSV or JSONL file of answers under other column names, such as `question` and `answer`, with no grades: judgekeeper names its columns and says to rename them `input` and `output`, instead of asking for grades or printing the prompt that writes answers. With grades, the line on how to switch names the file's own grade column.
+- `--tool table` with no results now says "your CSV, TSV or JSONL results file".
 
 ## 1.1.2 (2026-11-08)
 
