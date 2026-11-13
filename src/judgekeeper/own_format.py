@@ -6,7 +6,8 @@ when that would not help (a DeepEval metric's `measure()` called directly saves 
 looks instead for a recent JSON, JSONL or CSV file whose items hold a score-like key with an
 input-like and an output-like key (looks_judged), at any depth, names it, and prints
 AGENT_PROMPT: a short prompt to paste into a coding agent, which writes the converter.
-Standard library only; nothing is written, and only the first part of each file is read.
+Standard library only; nothing is written. A .json file up to JSON_BYTES is read whole (a bigger
+one is passed over); of any other file, only the first part.
 """
 
 from __future__ import annotations

@@ -31,11 +31,12 @@ EPS = 1e-9
 # The bar a judge is good enough at: the low end of both the TPR and the TNR range reach it.
 RATE_GATE = 0.80
 
-# A re-check: the paired range and the margin a drop must stay within (see the top)
+# A re-check: the paired range (paired_verdict) and the margin a drop must stay within
 PAIRED_LEVEL = 0.90
 NO_DROP_MARGIN = 0.20
 
-# The smallest drop: the model (see the top of this file)
+# The smallest drop (smallest_drop): a fall of DROP_STEP points at a time, until a re-check
+# calls it "Worse" at least POWER of the time; TURNS_RIGHT of the wrong grades turn right
 RIGHT_NOW = 0.90  # how often the judge is right, when its rate is not known
 TURNS_RIGHT = 0.03
 POWER = 0.80
@@ -216,7 +217,7 @@ def paired_verdict(now_right: int, now_wrong: int, n: int) -> dict:
 @lru_cache(maxsize=1 << 16)
 def _worse_from(n: int, right: int) -> int:
     """With `right` turned right, the fewest turned wrong that a re-check of n marks calls
-    "Worse" (n + 1 when none does). More turned wrong only lowers the range."""
+    "Worse" (n - right + 1 when none does). More turned wrong only lowers the range."""
     lo, hi = right, n - right + 1  # the first count turned wrong with the range below 0
     while lo < hi:
         mid = (lo + hi) // 2
@@ -256,7 +257,7 @@ def _smallest(n: int, right: float) -> int | None:
 
 def smallest_drop(n_pass: int, n_fail: int, tpr: float | None = None,
                   tnr: float | None = None) -> int | None:
-    """The smallest drop, in points, these marks can see (top of this file); None under
+    """The smallest drop, in points, these marks can see (_smallest); None under
     ROUGH of each kind, or when a kind of mark can see none. `tpr` and `tnr`: how often this
     judge is right on the answers marked Pass and Fail (RIGHT_NOW when not known)."""
     if min(n_pass, n_fail) < ROUGH:
@@ -271,7 +272,6 @@ def smallest_drop(n_pass: int, n_fail: int, tpr: float | None = None,
 SIGN_LEVEL = 0.05  # two-sided, better or worse
 SAFE_LEVEL = 0.025  # one-sided, safe to try
 SAFE_MARGIN = 0.10  # safe to try: not more than 10 points worse
-FIX_FEW = 3  # fewer of the judge's mistakes hidden than this: a test can only catch worse
 
 
 @dataclass(frozen=True)

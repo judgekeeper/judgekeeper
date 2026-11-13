@@ -16,7 +16,7 @@ from judgekeeper.start_label import (
 )
 from judgekeeper.textio import PRIVATE_FOLDER, kept_at
 
-# Not part of a check: .gitignore, baseline.json (set by `baseline set`), records/
+# Not part of a check: .gitignore, baseline.json (from an older judgekeeper), records/
 # (judgekeeper.record()); and what `judgekeeper check` keeps across marks: history.jsonl and
 # the verdicts of each judge setup (verdicts/)
 KEPT = (".gitignore", "baseline.json", "records", "history.jsonl", "verdicts")
@@ -28,8 +28,9 @@ def _stamp() -> str:
 
 
 def move_to_previous(ws: Workspace, say) -> Path | None:
-    """Move everything in `.judgekeeper/` except baseline.json, records/ and earlier
-    previous-<date>/ folders into a new previous-<date>/ folder. Nothing is deleted. Said
+    """Move everything in `.judgekeeper/` except KEPT (.gitignore, baseline.json, records/,
+    history.jsonl, verdicts/) and earlier previous-<date>/ folders into a new previous-<date>/
+    folder. Nothing is deleted. Said
     only when marks moved."""
     if not ws.dir.is_dir():
         return None

@@ -1,6 +1,6 @@
 """The API key names of the LLM providers judgekeeper knows, and the hiding of key values.
 
-judgekeeper never needs, holds, prints, stores, logs or passes on a key. These names tell
+judgekeeper never needs a key, and never prints, writes, logs or sends one. These names tell
 `redact` which variables hold a key, so a value that turns up in a results file or an error is
 scrubbed before it is shown or written. So is every credential in the project's .env files and
 promptfoo configs, as soon as the project is found (`hide_keys`): only to hide it. A `.env`
@@ -465,8 +465,9 @@ def _env_files(folder: Path) -> list[Path]:
 
 def _env_folders(folder: Path) -> list[Path]:
     """`folder` and each folder above it up to the project's own folder (find.is_project),
-    never above it and never the home folder: where a tool run in `folder` may read .env
-    files. With no project above, `folder` and the nearest folder above it with a .env file."""
+    never above it and never the home folder above `folder` (`folder` itself is read, even
+    when it is the home folder): where a tool run in `folder` may read .env files. With no
+    project above, `folder` and the nearest folder above it with a .env file."""
     from judgekeeper import find  # find imports this module
 
     try:

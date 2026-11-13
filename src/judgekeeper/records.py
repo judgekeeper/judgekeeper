@@ -273,15 +273,18 @@ def problems(d: dict) -> list[str]:
 
 @dataclass(frozen=True)
 class Mark:
-    """What a reader learned about one verdict that its file keeps no field for: held in memory
-    only, for `start`'s judge check (judgekeeper.judge_check). Never written to any file and
-    never compared, so it does not change how records compare or print.
+    """What a reader learned about one verdict that its file keeps no field for, for `start`'s
+    judge check (judgekeeper.judge_check). Never compared, so it does not change how records
+    compare or print; the judge check writes `problem` and `tool_counted_as` of each answer
+    left out to judge-check.json and judge-check.csv.
 
     `problem`: the judge made no real decision: "error" (its call failed), "unreadable" (its
-    reply could not be read) or "nothing_checked" (it checked nothing and the tool gave full
-    marks). `tool_counted_as`: what the eval tool counted such a verdict as ("pass", "fail" or
-    "left out"); None when it does not say. `output_elsewhere`: the answer is not in `output`
-    (a DeepEval conversation's turns).
+    reply could not be read), "nothing_checked" (it checked nothing and the tool gave full
+    marks), "empty_answer_refused" (it refused an empty answer), "not_scored" (the run failed
+    before the judge was called) or "model_failed" (the call to the model under test failed,
+    so there was no answer to judge). `tool_counted_as`: what the eval tool counted such a
+    verdict as ("pass", "fail" or "left out"); None when it does not say. `output_elsewhere`:
+    the answer is not in `output` (a DeepEval conversation's turns).
     """
 
     problem: str | None = None

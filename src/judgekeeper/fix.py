@@ -1832,8 +1832,8 @@ def _plain_setting(name: str, value) -> bool:
 
 
 def _plain_value(value) -> bool:
-    """A number, true or false, or text that is no template, URL or file, or a list or set of
-    them."""
+    """A number, true or false, or text that is no template, URL or file, or a list of them or
+    a dict whose keys and values are all plain."""
     if isinstance(value, str):
         return not (value.startswith(LOADS) or "://" in value or TEMPLATE.search(value))
     if isinstance(value, list):
@@ -2326,7 +2326,8 @@ def _given(talk: Talk, state, m: Marks, path: Path):
 def test_results(talk: Talk, state, m: Marks, split: Split, path: Path) -> int:
     """The test of a new rule: the new results in `path`, read as step 1 reads results, on the
     hidden marks: how the old and the new grades agree with the person's marks, and the
-    verdict from the math. A hidden answer not in the file is counted, said once and left out."""
+    verdict from the math. A hidden answer not in the file stops the test: it is said
+    (MISSING), the answers to grade again are written, and it exits EXIT_NEEDS_YOU."""
     from judgekeeper import judge_setup
     from judgekeeper.check import (
         NEXT_UNKNOWN,

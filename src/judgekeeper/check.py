@@ -8,9 +8,10 @@ with nothing new read nothing again.
 The new grades are the ones in the results: a marked answer is found by its exact text and
 question (_free). judgekeeper never asks the LLM-as-a-judge itself; a marked answer the results
 don't hold is counted, said once and left out. Per group (answers the person passed, and failed),
-the paired change gives "Worse", "No drop bigger than 20 points" or "Not sure", always with
-the worst drop the marks could hide (targets.paired_verdict). Unless the check ends worse, the
-marks then test the new LLM-as-a-judge (_adopt); a worse check stays open until it changes.
+the paired change gives "Worse", "No drop bigger than 20 points", "Not sure" or "Better" (the
+whole range a rise of more than 20 points), always with the worst drop the marks could hide
+(targets.paired_verdict). Unless the check ends worse, the marks then test the new
+LLM-as-a-judge (_adopt); a worse check stays open until it changes.
 
 Exit 0 no drop over 20 points, 1 a drop over 20 points, 2 results it can't compare, 3 needs
 the person.

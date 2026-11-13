@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
-from urllib.parse import urlsplit
 
 # Fields that must match for two judgment files to count as the same judge.
 IDENTITY_FIELDS = ("provider", "model", "prompt_hash", "rubric_version", "temperature",
@@ -70,47 +69,6 @@ class JudgeFingerprint:
 
     def with_(self, **changes) -> JudgeFingerprint:
         return replace(self, **changes)
-
-
-def endpoint_host(base_url: str | None) -> str | None:
-    """The host of a base URL, for the fingerprint: no scheme, port, path, query or credentials.
-
-    Raises ValueError for a URL that carries credentials (user:password@host) or is not an
-    http(s) URL with a host. The message never repeats the URL, which may hold a secret.
-    """
-    if not base_url:
-        return None
-    parts = urlsplit(base_url)
-    if "@" in parts.netloc:
-        raise ValueError(
-            "base URL must not contain credentials (user:password@host); put the key in an "
-            "environment variable"
-        )
-    if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise ValueError("base URL must be an http:// or https:// URL with a host, "
-                         "e.g. https://gateway.example.com/v1")
-    return parts.hostname
-
-
-LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
-
-
-def is_local_host(hostname: str) -> bool:
-    return hostname in LOCAL_HOSTS or hostname.endswith(".localhost")
-
-
-def plaintext_warning(url: str | None) -> str | None:
-    """A warning when `url` is plain http:// to a host that is not this machine, else None.
-
-    The key and every judgment would travel unencrypted. Names the host only, never the URL.
-    """
-    if not url:
-        return None
-    parts = urlsplit(url)
-    if parts.scheme != "http" or not parts.hostname or is_local_host(parts.hostname):
-        return None
-    return (f"{parts.hostname} is reached over plain http://, so the API key and every request "
-            "travel unencrypted; use https:// unless this is a local server")
 
 
 def rule_hash(rule: str | None) -> str | None:
