@@ -178,6 +178,8 @@ def _apart_cached(here: Path, store: Path, given: Path | None, stamp: int) -> bo
     if not mine:
         return False
     theirs = _theirs(store)
+    if any(t.is_relative_to(here) for t in theirs):  # a folder holding a file it reads is
+        return False  # its own, the folders below too: another eval there is said so
     # a file beside one it reads is its own: new results of it join, another eval is said so
     # (other_eval) and never gets marks of its own
     return not all(any(m == t or m.is_relative_to(t) or not t.is_dir() and m.parent == t.parent

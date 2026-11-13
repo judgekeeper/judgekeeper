@@ -719,3 +719,63 @@ def test_a_table_in_a_folder_named_logs_never_lets_two_evals_pool(tmp_path, caps
     assert code == 3, said
     assert "b/ and logs/ hold eval results" in said, said
     assert not reads, said
+
+
+def _answers_csv(folder: Path, n: int, tag: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "answers.csv"
+    path.write_text("input,output\n" + "".join(f"{question(i, tag)},{answer(i, tag)}\n"
+                                                for i in range(n)), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("above", [False, True])
+@pytest.mark.parametrize("where", ["beside", "more"])
+def test_a_newer_file_of_other_questions_never_replaces_a_sessions_answers(
+        tmp_path, capsys, monkeypatch, reads, above, where):
+    """I6: runs/ holds a session on answers.csv (6 answers with no grade), and t/ above it
+    one of its own or not; a newer other.jsonl of other questions beside it or in more/ is
+    named as another eval, never read in its place."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    runs = top / "runs"
+    marked = _answers_csv(runs, 6, "t2")
+    if above:  # its session started while runs/ had none
+        _answers_csv(top, 6, "t0")
+        assert _say(capsys, monkeypatch, top)[0] == 0
+    assert _say(capsys, monkeypatch, runs)[0] == 0
+    other = runs / ("more" if where == "more" else "") / "other.jsonl"
+    other.parent.mkdir(exist_ok=True)
+    other.write_text("".join(json.dumps({"input": f"Unrelated {i}?", "output": f"Other {i}."})
+                             + "\n" for i in range(15)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(other, (later, later))
+    reads.clear()
+    said = _say(capsys, monkeypatch, runs)[1]
+    assert all(files == [marked.resolve()] for _, files in reads), said
+    assert "looks like another eval" in said, said
+
+
+@pytest.mark.parametrize("where", ["beside", "more"])
+def test_a_newer_file_below_a_file_marked_from_above_is_another_eval(
+        tmp_path, capsys, monkeypatch, reads, where):
+    """I6 (seed 35831): t/'s session marks runs/answers.csv (runs/ holds code, no session of
+    its own); a newer other.jsonl of other questions beside it or in runs/more/ never starts
+    a session of its own in runs/: it looks like another eval."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    _older(_answers_csv(top, 40, "t0"))
+    _kind(top / "runs", "code")
+    marked = _answers_csv(top / "runs", 12, "t2")
+    assert _say(capsys, monkeypatch, top)[0] == 0  # t/'s session, on the newest: runs/'s
+    other = top / "runs" / ("more" if where == "more" else "") / "other.jsonl"
+    other.parent.mkdir(exist_ok=True)
+    other.write_text("".join(json.dumps({"input": f"Unrelated {i}?", "output": f"Other {i}."})
+                             + "\n" for i in range(15)), encoding="utf-8")
+    later = time.time() + 60
+    os.utime(other, (later, later))
+    reads.clear()
+    said = _say(capsys, monkeypatch, top / "runs")[1]
+    assert all(files == [marked.resolve()] for _, files in reads), said
+    assert "looks like another eval" in said, said
+    assert not (top / "runs" / ".judgekeeper").exists(), said
