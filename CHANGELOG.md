@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (2026-11-09)
+## 1.2.0 (2026-11-13)
 
 - No LLM-as-a-judge? judgekeeper now reads a CSV, TSV or JSONL file with `input` and `output` columns and no grades, and you mark your AI's answers Pass or Fail. From 10 marks it shows how many passed, with a range.
 - The answers you fail are saved in `.judgekeeper/fix/failed-answers.md` with your reasons, and judgekeeper prints a prompt for your coding agent to improve your AI's prompt. Half of the questions you marked Pass and half of those you marked Fail are kept aside, at random, to test the change.
@@ -18,6 +18,7 @@
 - With your own CSV, TSV or JSONL file, `fix/marked-answers.csv` now uses your file's column names (such as `input` and `output`), not `question` and `answer`, so your grader runs on it as it is.
 - A marked answer that comes back to check your marks now says so on its card.
 - On the result page, the kept-aside lines now say what they count: answers you failed, or questions that failed before your change.
+- A metric, tool or experiment you pick when judgekeeper asks is now kept in the commands it prints, and judgekeeper no longer asks for it again or stops after a later question.
 
 ## 1.1.2 (2026-11-08)
 
