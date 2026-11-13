@@ -661,11 +661,14 @@ def _project_reads(path: Path, store: Path) -> Path:
         return path
     search = find.search(path)
     if not _reads_own(search):  # nothing here and no climb (start.reads_in): the session's,
-        # unless a project of its own (code, a project file, its .judgekeeper/) is nearer
+        # unless a project of its own (code, a project file, its .judgekeeper/) is nearer, or
+        # the session's folder holds code or a project file (a run below it names it,
+        # start._locate)
         between = [f for f in path.resolve().parents if f.is_relative_to(store) and f != store]
         return store if _holds_nothing(path, search) and start.reads_in(
             path) == path.resolve() and not any(
-            find.is_project(f) or find.holds_code(f) for f in between) else path
+            find.is_project(f) or find.holds_code(f) for f in between) and not (
+            find.has_marker(store) or find.holds_code(store)) else path
     return path if tool in ("deepeval", "inspect") else store
 
 
