@@ -481,3 +481,60 @@ def test_a_project_below_with_folder_asked_results_never_lets_two_folders_pool(
     assert code == 3, said
     assert not (_read_below(reads, top, "c") and _read_below(reads, top, "runs")), said
     assert not _read_below(reads, top, "evals"), said
+
+
+def test_a_tools_config_never_lets_folders_of_other_questions_pool(tmp_path, capsys,
+                                                                   monkeypatch, reads):
+    """I2: top/ promptfooconfig.yaml and results.json; proj/proj/ and sub/runs/ promptfoo
+    results of other questions each. The config makes top/ one project, but those folders
+    are other evals: named, never pooled."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    promptfoo_project(top, split(6, 6), tag="t0")
+    promptfoo_project(top / "proj" / "proj", split(3, 3), tag="t5", config=False)
+    promptfoo_project(top / "sub" / "runs", split(3, 3), tag="t2", config=False)
+    code, said = _say(capsys, monkeypatch, top)
+    assert code == 3, said
+    assert not (_read_below(reads, top, "proj") and _read_below(reads, top, "sub")), said
+    assert "proj/ and sub/" in said, said
+
+
+def test_a_tools_config_still_pools_rounds_of_one_eval(tmp_path, capsys, monkeypatch, reads):
+    """top/ promptfooconfig.yaml and results.json; runs/a/ and runs/b/ promptfoo results of
+    the same questions: rounds of one eval, read together as before."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    promptfoo_project(top, split(6, 6), tag="t0")
+    promptfoo_project(top / "a", split(3, 3), tag="t0", config=False)
+    promptfoo_project(top / "b", split(3, 3), tag="t0", config=False)
+    said = _say(capsys, monkeypatch, top)[1]
+    assert "hold eval results" not in said, said
+    assert _read_below(reads, top, "a") or _read_below(reads, top, "b"), said
+
+
+def test_a_tools_config_pools_folders_that_share_questions(tmp_path, capsys, monkeypatch,
+                                                           reads):
+    """A test set that grew between runs: top/ promptfooconfig.yaml and results.json (6
+    questions); a/ and b/ results of 12 and 9 questions, the first 6 the same. One eval."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    promptfoo_project(top, split(3, 3), tag="t0")
+    promptfoo_project(top / "a", split(6, 6), tag="t0", config=False)
+    promptfoo_project(top / "b", split(5, 4), tag="t0", config=False)
+    said = _say(capsys, monkeypatch, top)[1]
+    assert "hold eval results" not in said, said
+    assert _read_below(reads, top, "a") and _read_below(reads, top, "b"), said
+
+
+def test_a_tools_config_pools_dated_output_folders(tmp_path, capsys, monkeypatch, reads):
+    """top/ promptfooconfig.yaml; outputs/2026-11-01/ and outputs/2026-11-02/ hold its
+    results: one output folder, read together."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "top"
+    promptfoo_project(top / "outputs" / "2026-11-01", split(3, 3), tag="t0")
+    (top / "outputs" / "2026-11-01" / "promptfooconfig.yaml").rename(
+        top / "promptfooconfig.yaml")
+    promptfoo_project(top / "outputs" / "2026-11-02", split(3, 3), tag="t1", config=False)
+    said = _say(capsys, monkeypatch, top)[1]
+    assert "hold eval results" not in said, said
+    assert _read_below(reads, top, "outputs"), said

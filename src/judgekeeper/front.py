@@ -1363,21 +1363,21 @@ def _reads_here(talk: FrontTalk, path: Path, store: Path) -> Path:
 def _projects_below(folder: Path, tool: str | None = None) -> list[str]:
     """The folders right below `folder` that hold results, when there are 2 or more (or one
     that is a project of its own, project.is_project) and nothing says `folder` is one
-    project: no tool's config in it, and no results in a tool's own folder (TOOL_FOLDERS).
-    DeepEval and Inspect AI results are asked about as before (FOLDER_ASKED). Each is a
-    project of its own, never run. A folder that is a project (a git top) or holds results
-    of its own walks past the projects below (find.Search.nested): folders holding the rest
+    project: no results in a tool's own folder (TOOL_FOLDERS). DeepEval and Inspect AI
+    results are asked about as before (FOLDER_ASKED). Each is a project of its own, never
+    run. A folder that is a project (a git top) or holds results or a tool's config of its
+    own walks past the projects below (find.Search.nested): 2 or more folders holding the rest
     stop it too unless they are rounds of one eval with its own (project.one_eval), and
     those projects are named with them and with the projects below that hold a session
     (_named_below). With --tool `tool`, only its results and config."""
     found = find.search(folder)
     signs = found.signs if tool is None else {tool: found.signs.get(tool, [])}
-    if (tool in (None, "table") and found.answers_read) or any(
-            "/" not in sign for kept in signs.values() for sign in kept):  # answers with no
-        return []  # grade: one project
+    if tool in (None, "table") and found.answers_read:  # answers with no grade: one project
+        return []
     results = [r for t, rs in found.results.items() if tool in (None, t) for r in rs]
-    own = any(len(Path(r.rel).parts) < 2 for r in results)  # results of its own: one
-    # project, as a project file makes it
+    own = any(len(Path(r.rel).parts) < 2 for r in results) or any(
+        "/" not in sign for kept in signs.values() for sign in kept)  # results or a tool's
+    # config of its own: one project, as a project file makes it
     if own or tool is not None:  # the projects below keep theirs (_tool_below): 2 or more
         # plain folders that are not rounds of one eval with its own stop it (I2)
         results = [r for r in results if find.owner(r.path, folder) is None]
