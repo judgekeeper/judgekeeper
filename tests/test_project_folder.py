@@ -50,7 +50,7 @@ NEXT_ALL_MARKED = ("Next: run your eval on more questions, then run `judgekeeper
 RULE_A = "Is polite and correct."
 RULE_B = "Is polite, correct and short."
 
-PATH_TABLE = front.PATH_TABLE_TO_ANSWERS  # the path line's switch, for a table
+PATH_TABLE = front.PATH_TABLE_TO_ANSWERS.format(column="verdict")  # the switch, for a table
 
 
 @pytest.fixture
