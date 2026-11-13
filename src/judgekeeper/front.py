@@ -248,6 +248,7 @@ class FrontTalk(start.Talk):
         self.find_said = False  # "Step 1 of 5: Find" was said in this run
         self.path_said = False  # path_lines were said in this run
         self.switched: str | None = None  # _switched_line, said once
+        self.nested: str | None = None  # _nested_here with no grades, said once (_say_nested)
         self.found: start.Found | None = None  # the results read, for path_lines
         self.path_head: list[str] = []  # path_lines in a step's head lines (_path_first)
         # --labels (never repeated in a command): a file's name or labels.IN_RESULTS; then the
@@ -597,8 +598,8 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         # other results here
     only, talk.left_below = None, []  # the files in no project below, never a project's
     if path.is_dir() and not project.is_project(path) and not held and (
-            tool := _tool_read(talk, path)):  # a session here keeps to its files
-        owners, rest = _tool_below(path, tool)
+            tools := _tools_read(talk, path)):  # a session here keeps to its files
+        owners, rest = _tool_below(path, tools)
         if owners and not rest:
             raise _checked_there(talk, _from_here(path, owners))
         if owners and rest:
@@ -1357,12 +1358,13 @@ def _projects_below(folder: Path) -> list[str]:
     return sorted(tops)
 
 
-def _tool_below(folder: Path, tool: str) -> tuple[list[str], list[str]]:
-    """(the projects of their own below `folder` (find.is_project) that hold `tool`'s results,
-    by their path from it, the paths of its results in none): run from a folder that is no
-    project, a project's files below are never read with the others."""
+def _tool_below(folder: Path, tools: list[str]) -> tuple[list[str], list[str]]:
+    """(the projects of their own below `folder` (find.is_project) that hold the results of
+    `tools`, by their path from it, the paths of those results in none): run from a folder
+    that is no project, a project's files below are never read with the others."""
     owners, rest = set(), []
-    for result in find.search(folder).results.get(tool, []):
+    found = find.search(folder)
+    for result in (r for tool in tools for r in found.results.get(tool, [])):
         parts = Path(result.rel).parts
         owner = next((Path(*parts[:n]) for n in range(1, len(parts))
                       if find.is_project(folder / Path(*parts[:n]))
@@ -1374,21 +1376,21 @@ def _tool_below(folder: Path, tool: str) -> tuple[list[str], list[str]]:
     return sorted(owners), rest
 
 
-def _tool_read(talk: FrontTalk, path: Path) -> str | None:
-    """The eval tool a run on the folder `path` reads: --tool, else the only tool whose results
-    are found there (several are asked about as before). None for a store, a map, or a folder
-    with a tool's config of its own: one project, as _projects_below takes it."""
+def _tools_read(talk: FrontTalk, path: Path) -> list[str]:
+    """The eval tools a run on the folder `path` reads from: --tool, else each tool whose
+    results are found there (of those in no project below, one is read and several are asked
+    about, start._locate). None for a store, a map, or a folder with a tool's config of its
+    own: one project, as _projects_below takes it, read as before."""
     o = talk.options
     if o["tracking_uri"] is not None or find.is_mlflow_folder(path) or (
             o["tool"] is None and start._saved(path.resolve()) is not None):
-        return None
+        return []
     search = find.search(path)
     if any("/" not in sign for signs in search.signs.values() for sign in signs):
-        return None
+        return []
     if o["tool"] is not None:
-        return o["tool"]
-    tools = [tool for tool in find.TOOLS if search.results.get(tool)]
-    return tools[0] if len(tools) == 1 else None
+        return [o["tool"]]
+    return [tool for tool in find.TOOLS if search.results.get(tool)]
 
 
 def _checked_there(talk: FrontTalk, folders: list[str]) -> Stop:
@@ -2537,6 +2539,8 @@ def _marking(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool, sav
         added_at += len(talk.path_head)
     if took:
         head.append(took)
+    if not first and (nested := _nested_here(found)):  # never read with these: named
+        head.append(nested)
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the marks
         _import_labels(talk, ws, found, first)
     session = StartSession(ws)
@@ -3155,6 +3159,7 @@ def _no_grades(talk: FrontTalk, ws: Workspace, found: start.Found, wait: bool,
     before = [q["id"] for q in ws.data().get("queue") or []] if not first else None
     was = no_grades.round_of(ws) if not first else None
     talk.switched = None if first else _switched_line(ws, found)  # said with the new answers
+    talk.nested = None if first else _nested_here(found)  # Find's block names them first
     with page.one_at_a_time(ws.dir, talk.say):  # two runs at once: one writes the pool
         start_label.prepare(found, say=lambda line: None, ws=ws)
         _import_labels(talk, ws, found, first)  # --labels: the marks it brings
@@ -3199,6 +3204,16 @@ def _say_switched(talk: FrontTalk, new: int) -> None:
         talk.switched = None
 
 
+def _say_nested(talk: FrontTalk) -> None:
+    """Results in a project of its own below, never read with these (_nested_here): said once,
+    after the new answers."""
+    line = talk.nested
+    if line:
+        talk.para(line)
+        talk.say()
+        talk.nested = None
+
+
 def _no_grades_block(found: start.Found) -> list[str]:
     """Find's block for answers with no grade: the file, the answers, what was read."""
     answers = len(found.pool.answers)
@@ -3233,6 +3248,7 @@ def _no_grades_page(talk: FrontTalk, ws: Workspace, session: StartSession, wait:
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()
+    _say_nested(talk)
     if every and not enough:  # nothing left to mark, and no result yet
         done = no_grades.status(session, _command_of(talk, False))["done"]
         talk.para(done[0])
@@ -3295,6 +3311,7 @@ def _no_grades_result(talk: FrontTalk, ws: Workspace, session: StartSession,
     if new:
         talk.para(no_grades.found_line(ws, new))
         talk.say()
+    _say_nested(talk)
     failed = no_grades.failed_path(ws)
     had = no_grades.listed_failed(ws)  # the last result listed some (no before.json to say)
     r = start_label.store_result(ws, session, _flags_of(talk, False, ws))

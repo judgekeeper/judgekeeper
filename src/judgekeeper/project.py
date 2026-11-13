@@ -275,6 +275,18 @@ def _results(path: Path) -> bool:
         return False
 
 
+def _answers(path: Path) -> bool:
+    """Whether `path` is a table of answers with no grade (find.answers_only)."""
+    import csv
+
+    from judgekeeper import find
+
+    try:
+        return find.answers_only(path)
+    except (OSError, ValueError, RecursionError, csv.Error):
+        return False
+
+
 def other_eval_line(path: Path, marked: Path) -> str:
     """The line for `path`, another eval beside `marked`: both named as every path line names
     them (textio.line_path), a typed path too."""
@@ -331,37 +343,46 @@ def _same_eval(path: Path, store: Path) -> bool:
                 if line.strip()]
     except (OSError, ValueError, AttributeError, RecursionError):
         return True  # the session's own files: the command says what is wrong with them
-    return same_questions(path, tool, held)
+    from judgekeeper import no_grades
+
+    return same_questions(path, tool, held, answers=no_grades.here(ws))
 
 
-def same_questions(path: Path, tool: str | None, held: list) -> bool:
+def same_questions(path: Path, tool: str | None, held: list, answers: bool = False) -> bool:
     """Whether the results file `path` is of the eval of `tool` whose answers are `held`
-    (dicts with input, output and id), as _same_eval says."""
+    (dicts with input, output and id), as _same_eval says. `answers`: `held` are answers
+    marked with no grade, so a table of answers with no grade is read as they were."""
     from judgekeeper import find, start, table
     from judgekeeper.records import RecordsError, derive_record_id
 
     kind = find.classify_file(path)
+    answers = answers and kind == "table" and _answers(path)
     if not tool or kind is None:
         return False
     if kind not in ("table", "inspect", *start.FILE_READERS):
         return kind == tool
     try:  # another tool's file too: one with these answers is no other eval, only misread
-        records = start._read(find.Result(kind, path, path.name, path.stat().st_size)).records
+        records = start._read(find.Result(kind, path, path.name, path.stat().st_size),
+                              answers).records
     except (OSError, ValueError, TypeError, AttributeError, RecordsError, start.StartError,
             *start.UNREADABLE):
         return True  # the command says why it can't read it
-    if not records or len(records) >= table.MAX_ROWS:  # none or only the first rows read
+    rows = ([(a.get("input"), a.get("output")) for a in records.answers] if answers
+            else [(r.input, r.output) for r in records])  # answers with no grade: as marked
+    if not rows or len(rows) >= table.MAX_ROWS:  # none or only the first rows read
         return True  # can't tell: the command says what it found
     held = [a for a in held if isinstance(a, dict)]
     # distinct questions, never rows: repeats (epochs) and one row per assertion multiply rows
     ours = {frozenset(f) for f in (_forms(a.get("input"), a.get("output")) - {""} for a in held)
             if f}
     questions = set().union(*ours)
-    theirs = {frozenset(f) for f in (_forms(r.input, r.output) - {""} for r in records) if f}
+    theirs = {frozenset(f) for f in (_forms(q, a) - {""} for q, a in rows) if f}
     if questions and theirs:  # an answer a refusal or a stock line gives is no sign; half of
         # the smaller side: the same eval run on more questions is still this one
         return 2 * sum(bool(f & questions) for f in theirs) >= min(len(ours), len(theirs))
     ids = {str(a.get("id")) for a in held}
+    if answers:  # each answer's id made as the marked ones' were (start._answers_only)
+        return any(str(a.get("id")) in ids for a in records.answers)
     try:
         return any(derive_record_id(r.input, r.output, r.trajectory) in ids for r in records)
     except (TypeError, ValueError):

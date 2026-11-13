@@ -1465,8 +1465,10 @@ def _its_columns(path: Path) -> str:
     return ITS_COLUMNS.format(names=said)
 
 
-def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, dict]:
-    """(project folder, tool, its readable results newest first, tool signs)."""
+def _locate(talk: Talk, path: Path, tool: str | None,
+            only: list[str] | None = None) -> tuple[Path, str, list, dict]:
+    """(project folder, tool, its readable results newest first, tool signs). `only` (paths
+    from `path`): with no `tool`, the tools chosen from are those with one of these files."""
     if not path.exists():
         raise StartError(f"file or folder not found: {shown_path(path)}")
     if find.is_mlflow_folder(path) and tool in (None, "mlflow"):  # a store, like a file
@@ -1528,6 +1530,11 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             raise StartError(f"No saved {find.NAMES[tool]} results found in "
                              f"{textio.folder_words(shown_path(root))}.")
         available = [tool]
+    within = None  # the files chosen from, when only some
+    if tool is None and only and any(r.rel in only for t in available
+                                     for r in found.readable(t)):
+        within = set(only)  # files in projects below are theirs: never chosen from here
+        available = [t for t in available if any(r.rel in within for r in found.readable(t))]
     if not available:
         if found.too_big():  # said above, with how to read them anyway
             raise _too_big(talk, found)
@@ -1541,7 +1548,8 @@ def _locate(talk: Talk, path: Path, tool: str | None) -> tuple[Path, str, list, 
             return _export(talk, root, found.signs["promptfoo"][0])
         _nothing_found(talk, root, found.signs)
         raise Stop(EXIT_USAGE)
-    by_date = {t: sorted(found.readable(t), key=lambda r: r.date(), reverse=True)
+    by_date = {t: sorted((r for r in found.readable(t) if within is None or r.rel in within),
+                         key=lambda r: r.date(), reverse=True)
                for t in available}
     kind = available[0]
     if len(available) > 1:
@@ -2178,7 +2186,7 @@ def find_judge(path: str | Path = ".", tool: str | None = None, metric: str | No
     elif saved is not None and saved.source == "map":
         root, kind, results, signs = _mapped_source(talk, Path(path).resolve(), saved)
     else:
-        root, kind, results, signs = _locate(talk, Path(path), tool)
+        root, kind, results, signs = _locate(talk, Path(path), tool, only)
     _hide_keys(root, talk, results)
     if only:
         results = [r for r in results if r.rel in only] or results
