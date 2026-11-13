@@ -20,6 +20,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 import shlex
 import time
 from pathlib import Path
@@ -876,3 +877,51 @@ def test_records_at_the_project_top_never_beat_a_nearer_session(tmp_path, capsys
     _, out, err = run(capsys, "--stop")
     assert "No marking page is open" not in out + err, out + err
 
+
+# A project below's file it can't read never decides the folder above ------------------------
+
+
+def test_an_empty_file_in_a_project_below_never_stops_the_folder_above(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """L2: work/ holds nothing of its own; a/ (a project file) an empty results.json. The run
+    in work/ names a/, never says a/'s file is empty from here."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work / "a", "file")
+    (work / "a" / "results.json").write_text("", encoding="utf-8")
+    said = _say(capsys, monkeypatch, work)[1]
+    assert "is empty" not in said and "a/results.json" not in said, said
+    assert not reads, said
+
+
+def test_a_too_big_file_in_a_project_below_is_never_offered_from_above(tmp_path, capsys,
+                                                                       monkeypatch, reads):
+    """L2: work/ holds results.csv of its own; a/ (a project file) one over find.MAX_BYTES.
+    The run reads work/'s file and offers no `--yes` for a/'s."""
+    from judgekeeper import find
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work, "plain")
+    own = table_project(work, split(6, 6), tag="w")
+    _kind(work / "a", "file")
+    big = table_project(work / "a", split(20, 20), tag="a")
+    monkeypatch.setattr(find, "MAX_BYTES", big.stat().st_size - 1)
+    said = _say(capsys, monkeypatch, work)[1]
+    assert "--yes" not in said and "to read it anyway" not in said, said
+    assert reads and reads[-1][1] == [own.resolve()], said
+
+
+def test_a_too_big_file_named_in_a_project_below_keeps_its_yes(tmp_path, capsys, monkeypatch):
+    """L2: `judgekeeper a/results.csv --yes` from work/ sends the person to a/ with a command
+    that keeps --yes, so it reads the file there."""
+    from judgekeeper import find
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    work = tmp_path / "work"
+    _kind(work / "a", "file")
+    big = table_project(work / "a", split(20, 20), tag="a")
+    monkeypatch.setattr(find, "MAX_BYTES", big.stat().st_size - 1)
+    said = _say(capsys, monkeypatch, work, "a/results.csv", "--yes")[1]
+    assert "belong to the project in a/" in said, said
+    assert re.search(r"`judgekeeper results\.csv[^`]*--yes[^`]*` in a/", said), said

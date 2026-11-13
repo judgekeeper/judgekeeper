@@ -134,7 +134,9 @@ class Search:
         return [r for r in self.results.get(tool, []) if not r.too_big]
 
     def too_big(self) -> list[Result]:
-        return [r for rs in self.results.values() for r in rs if r.too_big]
+        """The results over MAX_BYTES, never one in a project below (owner): only named."""
+        return [r for rs in self.results.values() for r in rs
+                if r.too_big and owner(r.path, self.root) is None]
 
 
 # Reading as little as possible --------------------------------------------------------------
@@ -812,6 +814,10 @@ def search(root: str | Path) -> Search:
         walk.folder(root)
     except _Stop:
         pass
+    # a file of a project below it can't read is that project's to say: never said here
+    walk.search.unreadable = [(rel, how) for rel, how in walk.search.unreadable
+                              if owner(root / rel, root) is None]
+    walk.search.bad_tables = [b for b in walk.search.bad_tables if owner(b[2], root) is None]
     bad = walk.search.bad_tables
     if walk.search.answers_only and _answers_alone(walk.search, root):
         for path, size in walk.search.answers_only:

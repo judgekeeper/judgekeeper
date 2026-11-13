@@ -1543,7 +1543,7 @@ def _file_there(talk: FrontTalk, owner: str, path: Path) -> str:
     there = textio.folder_of(owner, Path.cwd())
     there = Path(there) if there != textio.ANYWHERE else path.resolve().parent
     rel = Path(os.path.relpath(path.resolve(), there.resolve())).as_posix()
-    command = talk.command_in(textio.quote_arg(rel))
+    command = talk.command_in(textio.quote_arg(rel), *(("--yes",) if talk.yes else ()))
     return _program_there([owner], Path.cwd()) + command[len(talk.program):]
 
 
