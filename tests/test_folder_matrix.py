@@ -278,7 +278,7 @@ def test_a_tool_with_no_results_never_says_to_run_the_same_command_again(
     assert "run `judgekeeper --tool promptfoo" not in said[said.rindex("Next:"):], said
 
 
-# The folder review's trees: a tool's folder, the walk's limits, a code folder, .judgekeeper/ --
+# A tool's folder, the walk's limits, a code folder, .judgekeeper/ ----------------------------
 
 
 def _marked(folder: Path, n: int) -> None:
@@ -303,7 +303,7 @@ def _older(path: Path, days: int = 300) -> None:
 
 def test_the_chosen_inspect_logs_folder_keeps_the_session_in_the_project(
         tmp_path, capsys, monkeypatch):
-    """H3: `judgekeeper logs`, as the choice of folders prints it, marks in proj/, never in
+    """`judgekeeper logs`, as the choice of folders prints it, marks in proj/, never in
     proj/logs/ (cleared with old logs), and `check` in proj/ never says `cd logs`."""
     from tests.start_projects import inspect_project
 
@@ -327,7 +327,7 @@ def test_the_chosen_inspect_logs_folder_keeps_the_session_in_the_project(
 
 def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
         tmp_path, capsys, monkeypatch):
-    """H3, DeepEval: a results folder named as PATH is no project of its own."""
+    """DeepEval: a results folder named as PATH is no project of its own."""
     from tests.start_projects import deepeval_project
 
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
@@ -348,7 +348,7 @@ def test_a_named_deepeval_results_folder_keeps_the_session_in_the_project(
 
 def test_a_named_logs_folder_with_no_project_file_above_keeps_the_session_out(
         tmp_path, capsys, monkeypatch):
-    """H3, no project file: `judgekeeper logs` from a plain folder, or `judgekeeper
+    """No project file: `judgekeeper logs` from a plain folder, or `judgekeeper
     a/b/logs` from the project, never makes the logs folder a project of its own."""
     from tests.start_projects import inspect_project
 
@@ -372,7 +372,7 @@ def test_a_named_logs_folder_with_no_project_file_above_keeps_the_session_out(
 
 
 def test_many_json_files_never_hide_the_results(tmp_path, capsys, monkeypatch, reads):
-    """H2 (a): 250 JSON documents in data/ use up no budget the eval's folder needs."""
+    """250 JSON documents in data/ use up no budget the eval's folder needs."""
     from tests.start_projects import promptfoo_project
 
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
@@ -385,7 +385,7 @@ def test_many_json_files_never_hide_the_results(tmp_path, capsys, monkeypatch, r
 
 
 def test_the_sessions_own_file_is_always_found(tmp_path, capsys, monkeypatch, reads):
-    """H2 (b): after marking, 250 JSON files sorted before the results never make plain,
+    """After marking, 250 JSON files sorted before the results never make plain,
     `mark` or `check` say there are no saved results (a loop)."""
     from tests.start_projects import promptfoo_project
 
@@ -410,7 +410,7 @@ def test_the_sessions_own_file_is_always_found(tmp_path, capsys, monkeypatch, re
 
 def test_a_walk_that_stopped_says_so_even_when_it_read_something(tmp_path, capsys,
                                                                  monkeypatch, reads):
-    """H2 (c): over 5,000 files: the folder named like results is looked in first, and the
+    """Over 5,000 files: the folder named like results is looked in first, and the
     run says it stopped looking, so an older file is never read in silence."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     proj = tmp_path / "proj"
@@ -430,7 +430,7 @@ def test_a_walk_that_stopped_says_so_even_when_it_read_something(tmp_path, capsy
 
 def test_a_code_folder_under_a_project_with_marks_names_the_project(tmp_path, capsys,
                                                                     monkeypatch):
-    """M2: from proj/scripts/ (code), plain and `mark` agree with `check`: the marks are in
+    """From proj/scripts/ (code), plain and `mark` agree with `check`: the marks are in
     the project above, run there; never "they come back when your results file is back"."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     proj = tmp_path / "proj"
@@ -456,7 +456,7 @@ def test_a_code_folder_under_a_project_with_marks_names_the_project(tmp_path, ca
 
 def test_a_run_inside_judgekeepers_folder_never_reads_its_files(tmp_path, capsys,
                                                                 monkeypatch):
-    """M4: run in proj/.judgekeeper/, pool.jsonl is never read as answers and no
+    """Run in proj/.judgekeeper/, pool.jsonl is never read as answers and no
     .judgekeeper/ is made inside it."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     proj = tmp_path / "proj"
@@ -472,7 +472,7 @@ def test_a_run_inside_judgekeepers_folder_never_reads_its_files(tmp_path, capsys
 
 
 def test_a_logs_folder_named_with_a_capital_is_found_once(tmp_path, capsys, monkeypatch):
-    """L1: on a disk that ignores case, Logs/ is the known logs/ folder: one folder."""
+    """On a disk that ignores case, Logs/ is the known logs/ folder: one folder."""
     from tests.start_projects import inspect_project
 
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
