@@ -1373,6 +1373,7 @@ BY_HAND = "it was changed by hand"
     (_unknown, "it names answers judgekeeper doesn't have"),
     (_forged_test, "a test in it has counts that don't fit its marks"),
     (_wrong_verdict, "a test in it has a result its counts don't give"),
+    (lambda d: d.update(note="\ud800"), BY_HAND),  # a lone surrogate: no crash
     (lambda d: d.update(set="x"), "it is not as judgekeeper writes it"),
     (lambda d: d.update(visible="abc"), "it is not as judgekeeper writes it"),
     (lambda d: d.update(tests=["x"]), "a test in it has counts that don't fit its marks")])

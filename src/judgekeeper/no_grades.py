@@ -409,7 +409,8 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
         saved = loads(ws.result_json.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = None
-    if isinstance(saved, dict) and saved.get("marks_sha256") == d and saved.get("graded") is False:
+    if isinstance(saved, dict) and saved.get("marks_sha256") == d and \
+            saved.get("graded") is False and _as_written(saved):
         write_failed(ws, session, saved)
         _damage_said(ws, saved)
         return saved
@@ -434,6 +435,34 @@ def store(ws, session, flags: dict | None = None, drawn: bool = True) -> dict:
         _same_time(ws.report_html, ws.result_json)
     _damage_said(ws, r)
     return r
+
+
+_SINCE_COUNTS = ("kept", "fixed", "broke", "same", "test", "fails", "marked")
+_SINCE_FLAGS = ("damaged", "waiting", "new_set", "clear", "last")
+
+
+def _count(x) -> bool:
+    return type(x) is int and x >= 0
+
+
+def _as_written(r: dict) -> bool:
+    """Whether a saved result's values have the types judgekeeper writes, so it can be used
+    again as it is. One changed by hand (kept=-1, since="x") is damaged: made again from the
+    marks."""
+    labels, since = r.get("labels"), r.get("since")
+    if not _count(r.get("kept", 0)) or not isinstance(r.get("fails", []), list) or \
+            not all(isinstance(i, str) for i in r.get("fails", [])):
+        return False
+    if not isinstance(labels, dict) or not all(_count(labels.get(k)) for k in ("correct",
+                                                                             "wrong")):
+        return False
+    if since is None:
+        return True
+    return isinstance(since, dict) and \
+        all(_count(since[k]) for k in _SINCE_COUNTS if k in since) and \
+        all(type(since[k]) is bool for k in _SINCE_FLAGS if k in since) and \
+        isinstance(since.get("shown_broke", []), list) and \
+        all(isinstance(i, str) for i in since.get("shown_broke", []))
 
 
 def _damage_said(ws, r: dict) -> None:

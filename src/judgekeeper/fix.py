@@ -495,10 +495,12 @@ def _earlier_in_marks(ws: Workspace, seen: list[str], hidden: list[str]) -> int:
 
 
 def _sum(d: dict) -> str:
-    """The sha256 of split.json's data `d` without its own: any edit by hand changes it."""
+    """The sha256 of split.json's data `d` without its own: any edit by hand changes it. A
+    lone surrogate ("\\ud800", which JSON can hold and UTF-8 can't) is hashed too, so a file
+    with one is changed by hand, never a crash."""
     body = json.dumps({k: v for k, v in d.items() if k != "sha256"}, sort_keys=True,
                       ensure_ascii=False)
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+    return hashlib.sha256(body.encode("utf-8", "surrogatepass")).hexdigest()
 
 
 def _split_problem(ws: Workspace, d) -> str | None:

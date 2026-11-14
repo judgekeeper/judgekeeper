@@ -527,13 +527,22 @@ DAMAGED = ("Can't compare with your last answers: .judgekeeper/fix/before.json i
            "Your next change will be compared.")
 
 
-def test_a_damaged_before_json_says_so_and_the_next_change_is_compared(project):
+def _quotes(text: str) -> str:
+    return text.replace('"', "'", 2)
+
+
+def _surrogate(text: str) -> str:  # a character no file can hold, written as JSON escapes it
+    return json.dumps({**json.loads(text), "note": "\ud800"})
+
+
+@pytest.mark.parametrize("damage", [_quotes, _surrogate])
+def test_a_damaged_before_json_says_so_and_the_next_change_is_compared(project, damage):
     project.first(fails={0, 1, 2, 3, 4, 5}, n=12)
     kept = project.kept("fail")
     project.again({i: "pass" for i in kept})
     assert "questions kept aside:" in project.run()
     path = _before(project.here)
-    path.write_text(path.read_text(encoding="utf-8").replace('"', "'", 2), encoding="utf-8")
+    path.write_text(damage(path.read_text(encoding="utf-8")), encoding="utf-8")
     said = project.run()
     assert DAMAGED in said and "questions kept aside:" not in said
     assert DAMAGED in " ".join(unescape(_seen(_report(project.here))).split())
