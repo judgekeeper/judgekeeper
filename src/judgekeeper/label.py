@@ -79,6 +79,14 @@ class PageBusy(LabelError):
     """The page named in the project's lock did not answer in time (BUSY)."""
 
 
+# A change that carries the mark its page saw (`was`) for an item that has another one now
+STALE_MARK = "this answer was already marked in another tab"
+
+
+class StaleMark(ValueError):
+    """The page's change was made on an old view of its item: nothing is written."""
+
+
 def _text(value) -> str:
     return "" if _blank(value) else _plain(value)
 
@@ -142,9 +150,11 @@ class LabelSession:
     def update(self, body: dict) -> None:
         """Apply one change: {"id", "label"?: label | None, "deferred"?: bool, "note"?: str}.
         The sheet on disk is read again first, so marks another page wrote are kept, not
-        written over from memory."""
+        written over from memory. A change that says the mark its page saw (`was`) is refused
+        when the item has another now (StaleMark): it was marked elsewhere since."""
         self._reread()
         item = self.by_id[body["id"]]
+        self._seen(item, body)
         before = dict(item)
         try:
             self._apply(item, body)
@@ -152,6 +162,13 @@ class LabelSession:
         except BaseException:
             item.update(before)  # memory matches the file on disk
             raise
+
+    def _seen(self, item: dict, body: dict) -> None:
+        """Refuse a mark or an undo made on an old view of `item`: `was` is its mark when the
+        page showed it (none, pass or fail). A change that says nothing of it is applied."""
+        if ("label" in body or "deferred" in body) and "was" in body \
+                and body["was"] != item["label"]:
+            raise StaleMark(STALE_MARK)
 
     def _reread(self) -> None:
         """The labels and notes on disk, over the ones in memory (_resume); a sheet that can't
@@ -845,6 +862,9 @@ def _handler(server: LabelServer):
                 return
             try:
                 server.session.update(body)
+            except StaleMark as e:  # marked in another tab since this page loaded
+                self._json(409, {"error": str(e), "stale": True})
+                return
             except ValueError as e:
                 self._json(400, {"error": str(e)})
                 return

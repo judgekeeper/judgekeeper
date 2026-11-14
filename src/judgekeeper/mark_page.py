@@ -362,9 +362,9 @@ __TOP__
   // A mark or skip within FRESH_MS of the next answer showing does nothing (`freshUntil`):
   // nobody reads an answer that fast, so it was a second press meant for the one before.
   var FRESH_MS = 250, freshUntil = 0;
-  // Pressed while a mark is saved, held in order until it ends: an undo ({run}) acts then; a
-  // Pass, Fail or Skip ({run, id}) acts only on the answer that was on screen when it was
-  // pressed (`id`), else the page says it was not marked.
+  // Pressed while a mark is saved, held in order until it ends: an undo ({run}, by key or
+  // click) acts then; a Pass, Fail or Skip ({run, id}) acts only on the answer that was on
+  // screen when it was pressed (`id`), else the page says it was not marked.
   var queued = [];
   // The result-ready box waits until no mark came for READY_WAIT_MS (`readyDue`: the server
   // said to show it), so it does not come mid-marking; it covers nothing. It opens only
@@ -925,9 +925,11 @@ __TOP__
       items = s.items; total = s.total || items.length; counts = s.counts; status = s.status;
       version = s.version; history = []; walkingSkipped = false;
       if (nextIndex(0) !== null) { open(s.start); focusCard(); } else { finish(); }
-      var lost = queued.some(function (q) { return q.id !== undefined; });
+      var lines = [];
+      if (queued.some(function (q) { return q.id !== undefined; })) { lines.push(notMarkedLine()); }
+      if (queued.some(function (q) { return q.id === undefined; })) { lines.push(WORDS.notUndone); }
       queued = [];
-      if (lost) { notMarked(heard); } else { hear(heard); }
+      if (lines.length) { told(lines, heard); } else { hear(heard); }
       if (popup) { readyLater(); }
     }).catch(function () { window.location.reload(); });
   }
@@ -937,6 +939,7 @@ __TOP__
     busy = true; saving(true);
     change.id = items[pos].id;
     if (items[pos].again != null) { change.again = items[pos].again; }  // shown again: its slot
+    else { change.was = items[pos].label || null; }  // the mark this page saw: else it is refused
     change.seconds = Math.max(0, (Date.now() - shownAt) / 1000);
     // No answer in SAVE_MS (judgekeeper stopped, or the computer slept): not saved, as below.
     var stop = new AbortController(), waited = setTimeout(function () { stop.abort(); }, SAVE_MS);
@@ -944,9 +947,11 @@ __TOP__
       method: "POST", headers: {"Content-Type": "application/json"},
       referrerPolicy: "same-origin", body: JSON.stringify(change), signal: stop.signal
     }).then(function (r) {
-      return r.json().then(function (body) { return {ok: r.ok, body: body}; });
+      return r.json().then(function (body) { return {ok: r.ok, status: r.status, body: body}; });
     }).then(function (res) {
       clearTimeout(waited);
+      if (res.status === 409 && res.body.stale) {  // marked in another tab since this page loaded
+        queued = []; say(WORDS.otherTab); refresh(WORDS.otherTab, false); return; }
       if (!res.ok) { queued = []; render(); say("Not saved: " + res.body.error); return; }
       counts = res.body.summary.counts; status = res.body.summary.status;
       setText("status", "");
@@ -1009,11 +1014,15 @@ __TOP__
   }
 
   // A held click or key that is not used: said on screen and aloud, never dropped in silence.
-  function notMarked(heard) {
-    var line = WORDS.notMarked.replace("{shown}", function () { return shownQuestion(); });
+  function notMarkedLine() {
+    return WORDS.notMarked.replace("{shown}", function () { return shownQuestion(); });
+  }
+  function told(lines, heard) {
+    var line = lines.join(" ");
     say(line);
     hear((heard ? heard + " " : "") + line);
   }
+  function notMarked(heard) { told([notMarkedLine()], heard); }
 
   // After a save: what was held acts, in order, if its answer is the one on screen; else the
   // page says so once.
@@ -1074,14 +1083,26 @@ __TOP__
       "Undone.");
   }
 
-  // Mouse presses never leave focus on a button; focus stays on the answer.
-  ["fail", "pass", "skip", "undo"].forEach(function (id) {
-    $(id).addEventListener("mousedown", function (e) { e.preventDefault(); });
+  // Mouse presses never leave focus on a button; focus stays on the answer. A press counts on
+  // mouseup, after a mousedown on the same button: a tool that sends no click count (Chrome's
+  // DevTools Protocol) gives those two and no click event. The click event that follows a
+  // press is not counted again (`pressed`); a click with no mouse events before it (a button
+  // reached from the keyboard) counts.
+  var DO = {fail: function () { mark("fail"); }, pass: function () { mark("pass"); },
+            skip: function () { skip(); }, undo: function () { act(function () { undo(); }); }};
+  var down = null, pressed = false;
+  Object.keys(DO).forEach(function (id) {
+    var button = $(id);
+    button.addEventListener("mousedown", function (e) {
+      e.preventDefault(); if (!e.button) { down = id; } });
+    button.addEventListener("mouseup", function (e) {
+      var from = down; down = null;
+      if (e.button || from !== id) { return; }
+      pressed = true; setTimeout(function () { pressed = false; }, 0);
+      DO[id]();
+    });
+    button.addEventListener("click", function () { if (!pressed) { DO[id](); } });
   });
-  $("fail").addEventListener("click", function () { mark("fail"); });
-  $("pass").addEventListener("click", function () { mark("pass"); });
-  $("skip").addEventListener("click", function () { skip(); });
-  $("undo").addEventListener("click", function () { undo(); });
 
   // The keys: → Pass and ← Fail (shown), 1 Pass and 2 Fail (an old habit, still working),
   // S skip, Z undo (U too). A held key or any key with Cmd, Ctrl or Alt does nothing.
@@ -1181,6 +1202,13 @@ def _progress() -> str:
 # Gone, or no answer: the footer names the command, as typed where it ran (and NAME's lines)
 NO_ANSWER = ("Not saved: judgekeeper's marking page isn't answering. To open it again, run "
              "the command at the bottom of this page. Your marks are kept.")
+# A mark or an undo the server refused: the answer was marked in another tab since this page
+# loaded. The page takes its list again.
+OTHER_TAB = ("Not marked: this answer was already marked in another tab. "
+             "The list is up to date again.")
+# An Undo made while a mark was saving, dropped because the list was taken again
+NOT_UNDONE = ("Not undone: the list changed while your last mark was saving. "
+              "Press Undo again.")
 # A click or key made while a mark was saving, for an answer no longer on screen: the page
 # puts in the answer now showing ({shown}: the start of its question)
 NOT_MARKED = ("Not marked: your last click or key came while a mark was saving. Showing now: "
@@ -1196,7 +1224,7 @@ def _words() -> str:
     from judgekeeper.start_label import FIRST_NUMBERS, ONLY_SKIPPED_CARD, only_skipped
 
     words = {"wait": KEEP_GOING, "first": FIRST_NUMBERS, "seeFirst": SEE_FIRST,
-             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED,
+             "seeReady": SEE_READY, "noAnswer": NO_ANSWER, "notMarked": NOT_MARKED, "notUndone": NOT_UNDONE, "otherTab": OTHER_TAB,
              "change": CHANGE_MARK,
              # the end card with only skipped answers left; the page puts in their number
              "skippedOne": only_skipped(1, ONLY_SKIPPED_CARD),

@@ -752,3 +752,14 @@ def test_a_target_that_starts_with_two_slashes_gets_no_state(tmp_path, serve):
                            f"Host: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").encode())
     assert answer.split(b"\r\n", 1)[0].split(b" ")[1] in (b"400", b"404")
     assert b'"items"' not in answer
+
+
+def test_a_label_from_a_page_whose_item_was_labeled_elsewhere_is_refused(tmp_path, serve):
+    out = tmp_path / "labels.csv"
+    client = serve(_items(tmp_path), out)
+    client.label(id="it0", label="pass", was=None)  # another tab
+    status, body = client.label(id="it0", label="fail", was=None)
+    assert status == 409 and body["stale"] is True
+    assert _read(out)[0]["human_label"] == "pass"
+    assert client.label(id="it0", label="fail", was="pass")[0] == 200
+    assert _read(out)[0]["human_label"] == "fail"

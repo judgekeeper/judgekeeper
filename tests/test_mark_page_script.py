@@ -321,8 +321,9 @@ def test_skip_and_undo_by_key_and_skipped_answers_come_back_at_the_end():
       ids["again"].fire("click"); await settle();
       console.log(JSON.stringify({skipped: skipped, undone: undone, back: back, end: end,
         title: title, again: ids["q-text"].textContent}));""", data=_data(3))
-    assert got["skipped"] == {"deferred": True, "id": "a0", "seconds": 0}
-    assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0}
+    assert got["skipped"] == {"deferred": True, "id": "a0", "seconds": 0, "was": None}
+    assert got["undone"] == {"label": None, "deferred": False, "id": "a0", "seconds": 0,
+                             "was": None}
     assert got["back"] == "Question 0?"
     # The end card in the answer card's place: the title, one button, no note, no result yet
     assert got["end"] == [False, True, False, True, "Mark it", "2 marked", ""]
@@ -1349,3 +1350,165 @@ def test_a_pass_click_while_an_undo_saves_marks_the_answer_that_stayed_on_screen
     assert got["back"] == "Question 0?"
     assert got["sent"] == [["a0", "pass"], ["a0", None], ["a0", "fail"]]
     assert got["at"] == "Question 1?" and got["status"] == ""
+
+
+# A click that sends no `click` event ----------------------------------------------------------
+
+# A mouse press that a tool sends with no click count (Chrome's DevTools Protocol, no
+# `clickCount`) gives mousedown and mouseup on the button, and no click event.
+def _press(button: str, up_on: str | None = None, clicks: bool = False) -> str:
+    return (f'ids["{button}"].fire("mousedown", {{button: 0}}); '
+            f'ids["{up_on or button}"].fire("mouseup", {{button: 0}}); '
+            + (f'ids["{up_on or button}"].fire("click"); ' if clicks else ""))
+
+
+@pytest.mark.parametrize("button, sent", [
+    ("pass", [["a0", "pass", False]]), ("fail", [["a0", "fail", False]]),
+    ("skip", [["a0", None, True]])])
+def test_a_press_with_no_click_event_marks_the_answer_on_screen(button, sent):
+    got = _run(f"""
+      {_press(button)} await settle();
+      console.log(JSON.stringify({{at: ids["q-text"].textContent,
+        sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null, !!s.body.deferred]; }})}}));""")
+    assert got == {"at": "Question 1?", "sent": sent}
+
+
+def test_a_press_with_no_click_event_undoes_the_last_mark():
+    got = _run(f"""
+      ids["pass"].fire("click"); await settle(); later(500);
+      {_press("undo")} await settle();
+      console.log(JSON.stringify({{at: ids["q-text"].textContent,
+        sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null]; }})}}));""")
+    assert got == {"at": "Question 0?", "sent": [["a0", "pass"], ["a0", None]]}
+
+
+def test_a_press_with_a_click_event_after_it_counts_once():
+    """A real click gives mousedown, mouseup, then click: one mark, not two."""
+    got = _run(f"""
+      {_press("pass", clicks=True)} await settle(); later(500);
+      {_press("fail", clicks=True)} await settle();
+      console.log(JSON.stringify({{sent: sent.map(function (s) {{ return [s.body.id, s.body.label]; }})}}));""")
+    assert got == {"sent": [["a0", "pass"], ["a1", "fail"]]}
+
+
+def test_a_press_that_starts_on_one_button_and_ends_on_another_marks_nothing():
+    got = _run(f"""
+      {_press("pass", up_on="fail")} await settle();
+      console.log(JSON.stringify({{sent: sent.length}}));""")
+    assert got == {"sent": 0}
+
+
+def test_a_click_with_no_mouse_events_still_marks():
+    """A button activated from the keyboard gives a click and no mouse events."""
+    got = _run("""
+      ids["fail"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""")
+    assert got == {"sent": [["a0", "fail"]]}
+
+
+# An Undo while a mark saves -------------------------------------------------------------------
+
+NOT_UNDONE = ("Not undone: the list changed while your last mark was saving. "
+              "Press Undo again.")
+
+
+def test_an_undo_click_during_the_first_save_waits_and_takes_that_mark_back():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["undo"].fire("click"); await settle();
+      var waiting = [pending.length, document.getElementById("status").textContent];
+      await tick(2500);
+      console.log(JSON.stringify({waiting: waiting, at: ids["q-text"].textContent,
+        status: document.getElementById("status").textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || null]; })}));""")
+    assert got["waiting"] == [1, ""]  # one save at a time, and nothing said yet
+    assert got["sent"] == [["a0", "pass"], ["a0", None]]
+    assert got["at"] == "Question 0?" and got["status"] == ""
+
+
+def test_an_undo_click_during_a_later_save_takes_back_the_mark_just_made_not_an_older_one():
+    got = _run(SLOW_SAVES % 600 + """
+      ids["pass"].fire("click"); await settle(); await tick(1000);
+      ids["pass"].fire("click"); await settle();
+      later(300); ids["undo"].fire("click"); await settle();
+      var shown = [ids["q-text"].textContent, pending.length];
+      await tick(3000);
+      console.log(JSON.stringify({shown: shown, at: ids["q-text"].textContent,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label || null]; })}));""")
+    assert got["shown"] == ["Question 1?", 1]  # the answer being marked stays; one save runs
+    assert got["sent"] == [["a0", "pass"], ["a1", "pass"], ["a1", None]]
+    assert got["at"] == "Question 1?"
+
+
+@pytest.mark.parametrize("how", ['ids["undo"].fire("click");', 'key("z");'])
+def test_an_undo_dropped_when_the_list_is_taken_again_says_so(how):
+    got = _run("var BEFORE = 'v2';" + STALE + f"""
+      key("ArrowRight"); {how}
+      for (var n = 0; n < 6; n++) {{ await settle(); }}
+      console.log(JSON.stringify({{status: document.getElementById("status").textContent,
+        stateAsked: stateAsked, sent: sent.map(function (s) {{ return [s.body.id, s.body.label || null]; }})}}));""",
+               _data(version="v1"))
+    assert got["stateAsked"] == 1 and got["sent"] == [["a0", "pass"]]
+    assert got["status"] == NOT_UNDONE
+
+
+# Two tabs on one card -------------------------------------------------------------------------
+
+OTHER_TAB_LINE = ("Not marked: this answer was already marked in another tab. "
+                  "The list is up to date again.")
+
+# The server refuses a mark: its card was marked in another tab (a0, Pass) since this page loaded.
+OTHER_TAB = """
+  var stateAsked = 0;
+  fetch = function (url, opts) {
+    if (url.indexOf("/state") === 0) {
+      stateAsked += 1;
+      var items = DATA.items.map(function (it, k) {
+        return Object.assign({}, it, {label: k === 0 ? "pass" : null}); });
+      return Promise.resolve({ok: true, status: 200, json: function () { return Promise.resolve(
+        {items: items, total: items.length, start: 1, version: "v3",
+         counts: {correct: 1, wrong: 0, skipped: 0}, status: {text: "Keep going.", ready: false}});
+      }});
+    }
+    var body = JSON.parse(opts.body); sent.push({url: url, body: body});
+    return Promise.resolve({ok: false, status: 409, json: function () { return Promise.resolve(
+      {error: "this answer was already marked in another tab", stale: true}); }});
+  };
+"""
+
+
+def test_a_mark_says_what_the_page_saw_of_its_card():
+    got = _run("""
+      key("ArrowRight"); await settle(); later(500);
+      ids["undo"].fire("click"); await settle();
+      console.log(JSON.stringify({sent: sent.map(function (s) {
+        return [s.body.id, s.body.label || null, "was" in s.body ? s.body.was : "absent"]; })}));""")
+    # a first mark saw the card unmarked; the undo saw it marked Pass
+    assert got == {"sent": [["a0", "pass", None], ["a0", None, "pass"]]}
+
+
+def test_a_card_shown_again_says_nothing_of_what_it_saw():
+    """Its mark is a repeat, never a change to the first mark: the server compares nothing."""
+    data = _data()
+    data["items"][0]["again"] = 7
+    data["items"][0]["first"] = "pass"
+    got = _run("""
+      key("ArrowLeft"); await settle();
+      console.log(JSON.stringify({body: sent[0].body}));""", data)
+    assert got["body"]["again"] == 7 and "was" not in got["body"]
+
+
+def test_a_mark_refused_because_its_card_was_marked_elsewhere_says_so_and_takes_the_list_again():
+    got = _run(OTHER_TAB + """
+      function wait(ms) { return new Promise(function (r) { realTimeout(r, ms); }); }
+      key("ArrowLeft"); for (var n = 0; n < 6; n++) { await settle(); }
+      await wait(250);
+      console.log(JSON.stringify({status: document.getElementById("status").textContent,
+        heard: document.getElementById("done").textContent, stateAsked: stateAsked,
+        at: ids["q-text"].textContent, reloads: reloads,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               before="var realTimeout = setTimeout;\n")
+    assert got["status"] == OTHER_TAB_LINE and got["heard"] == OTHER_TAB_LINE
+    assert got["stateAsked"] == 1 and got["reloads"] == 0
+    assert got["at"] == "Question 1?"  # a0 is marked now, in the list
+    assert got["sent"] == [["a0", "fail"]]
