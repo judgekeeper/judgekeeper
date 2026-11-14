@@ -1448,7 +1448,7 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
     """("records" or "results", the project folder above `root`) when a run in `root` reads
     there: no results here, and record()'s records saved there (from any subfolder), or
     results in the project folder above (find.results_above) unless the run `stay`s. Results
-    in a project below never count here: they only name it."""
+    in a project below never count here: they only name it (results_above_past)."""
     available = [t for t in find.TOOLS
                  if any(find.owner(r.path, root) is None for r in found.readable(t))]
     if "records" not in available and (tool == "records" or tool is None and not available):
@@ -1460,10 +1460,26 @@ def _read_above(root: Path, found: find.Search, tool: str | None,
     if not available and tool is None and not found.too_big() and not found.unreadable \
             and not any(how == find.LINK for _, how in found.skipped):  # a linked results
         # file here is said, never read above by another path
-        above = find.results_above(root)
+        above = results_above_past(root)
         if above is not None:
             return "results", above
     return None
+
+
+def results_above_past(root: Path) -> Path | None:
+    """find.results_above, from a folder that may hold a project of its own below: then only
+    a folder above with a session or a results file right in it is read. One whose results
+    are all in folders of their own would only list them, so the run says what
+    `judgekeeper .` says (the project below)."""
+    above = find.results_above(root)
+    if above is None or not find.projects_below(root):
+        return above
+    if (above / textio.WORKSPACE / "start.json").is_file():  # its session
+        return above
+    found = find.search(above)
+    files = [r.path for rs in found.results.values() for r in rs] + \
+        [path for path, _ in found.answers_only]
+    return above if any(Path(f).resolve().parent == above.resolve() for f in files) else None
 
 
 def reads_in(folder: Path, stay: bool = False) -> Path:
@@ -1539,7 +1555,7 @@ def _locate(talk: Talk, path: Path, tool: str | None,
         _note(talk, note)
     keys.said(found.notes)
     for big in found.too_big():
-        talk.say(big.too_big_message(talk.command_at(big.rel, "--yes")))
+        talk.say(big.too_big_message(_anyway(talk, big)))
     available = [t for t in find.TOOLS if found.readable(t)]
     if found.unreadable and (available or found.too_big()):
         for rel, how in found.unreadable:
@@ -1799,8 +1815,14 @@ def _tool_elsewhere(talk, found: find.Search, tool: str, available: list[str]) -
 
 def _too_big(talk: Talk, found: find.Search) -> Stop:
     big = found.too_big()[0]
-    return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, run "
-                                 f"`{talk.command_at(big.rel, '--yes')}`.")
+    return talk.stop(EXIT_USAGE, f"to read {big.rel} anyway, {_anyway(talk, big)}.")
+
+
+def _anyway(talk: Talk, big: find.Result) -> str:
+    """"run `<command>`" that reads the file `big` anyway, where it runs: in the project of its
+    own below that holds it (front.FrontTalk.run_there), else here."""
+    there = getattr(talk, "run_there", None)
+    return (there and there(big.rel, "--yes")) or f"run `{talk.command_at(big.rel, '--yes')}`"
 
 
 def _read_anyway(talk: Talk, path: Path, given: tuple[str, ...] = ()) -> None:

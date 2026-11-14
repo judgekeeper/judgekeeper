@@ -99,8 +99,9 @@ class Result:
     def too_big(self) -> bool:
         return self.tool != "mlflow" and self.size > MAX_BYTES
 
-    def too_big_message(self, command: str) -> str:
-        return f"{self.rel} is {megabytes(self.size)}. Run {command} to read it anyway."
+    def too_big_message(self, run: str) -> str:
+        """Its size, and `run`: the words that run the command reading it anyway (and where)."""
+        return f"{self.rel} is {megabytes(self.size)}. To read it anyway, {run}."
 
     def run_date(self) -> datetime | None:
         """The tool's own date for the results, when the file has one."""

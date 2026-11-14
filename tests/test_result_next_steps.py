@@ -51,7 +51,8 @@ def test_fix_with_no_fail_left_gives_the_next_step_for_answers_with_no_grade(pro
     _code, out, err = run(project.capsys, "fix")
     said = flat(out + err)
     assert "verdict column" not in said, said
-    assert _next(said) == _next(project.run()), said  # as the result says it
+    # as the result says it, each with the flags of its own run (fix takes no page flags)
+    assert _next(said) == _next(project.run()).replace(" --no-browser", ""), said
 
 
 def test_after_three_changes_the_one_next_step_is_new_questions(project):
