@@ -1318,23 +1318,26 @@ def test_a_file_left_out_in_a_project_below_names_the_project(tmp_path, capsys, 
     assert reads and reads[-1][1] == [path.resolve()]
 
 
-def test_a_judge_set_up_above_never_pulls_a_folder_with_results_of_its_own(tmp_path, capsys,
-                                                                            monkeypatch, reads):
+def test_a_judge_set_up_by_a_named_file_never_sends_runs_back_and_forth(tmp_path, capsys,
+                                                                       monkeypatch, reads):
     """data/ holds results.csv, named once (too few answers: only its judge.json is written),
-    and a/ and data/ below it results of other questions. A run in a/ reads a/'s file, and
-    every command the run in data/ prints works."""
+    and a/ and data/ below it results of other questions. A run in data/ reads its own
+    folder, as a run in a/ does (it uses the judge.json above), and every command either
+    prints works."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
     data = tmp_path / "t" / "data"
     table_project(data, split(3, 3), tag="t0")
-    own = table_project(data / "a", split(3, 3), tag="t2")
+    table_project(data / "a", split(3, 3), tag="t2")
     table_project(data / "data", split(3, 3), tag="t2")
     _say(capsys, monkeypatch, data, "results.csv")
     assert (data / ".judgekeeper" / "judge.json").is_file()
     assert not (data / ".judgekeeper" / "start.json").exists()
-    reads.clear()
-    said = _say(capsys, monkeypatch, data / "a")[1]
-    assert reads and reads[-1] == ((data / "a").resolve(), [own.resolve()]), said
-    _every_command_works(capsys, monkeypatch, data, _say(capsys, monkeypatch, data)[1])
+    for folder in (data, data / "a"):
+        reads.clear()
+        said = _say(capsys, monkeypatch, folder)[1]
+        assert reads and reads[-1][0] == data.resolve(), said
+        if "`judgekeeper" in said.replace("`judgekeeper mark", ""):
+            _every_command_works(capsys, monkeypatch, folder, said)
 
 
 def test_an_empty_folder_never_reads_a_named_file_past_a_nearer_project(tmp_path, capsys,

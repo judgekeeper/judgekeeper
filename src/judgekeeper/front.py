@@ -619,7 +619,8 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
         # results in a folder with its own session belong to it
         sessions = _sessions_below(path, judged=True)
         raise _go_to(talk, [(_from_here(path, [n])[0], k) for n, k in sessions])
-    held = _saved_marks(path) or _session_in(project.project_of(path))  # never sent below
+    held = _saved_marks(path) or _session_in(project.project_of(path)) or \
+        _judged(project.project_of(path))  # never sent below
     here = _reads_here(talk, path, project.project_of(asked))
     if here.is_dir() and not held and (folders := _projects_below(
             here, talk.options["tool"])):  # nor one
@@ -707,8 +708,7 @@ def _project_reads(path: Path, store: Path) -> Path:
         return path
     if (tool := project.session_tool(store)) is None:
         return path
-    if _reads_own(search := find.search(path)) and not _session_in(store):
-        return path  # its own results, and only a judge set up above: no marks to keep to
+    search = find.search(path)
     if not _reads_own(search):  # nothing here and no climb (start.reads_in): the session's,
         # unless a project of its own (code, a project file, its .judgekeeper/) is nearer, or
         # the session's folder holds code or a project file (a run below it names it,
@@ -1318,6 +1318,13 @@ def _session_in(folder: Path) -> bool:
         return ws.start.is_file() or ws.labels.is_file()
     except OSError:  # a folder that can't be read (/lost+found): no session
         return False
+
+
+def _judged(folder: Path) -> bool:
+    """Whether the .judgekeeper/ in `folder` holds the judge.json of a first run that stopped
+    before marking: a run below reads there (_project_reads), so a run there reads its own
+    folder too, never sends them back below."""
+    return project.session_tool(folder) is not None
 
 
 def _sessions_below(folder: Path, names: list[str] | None = None,
