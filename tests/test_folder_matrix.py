@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import time
 from pathlib import Path
 
@@ -1392,3 +1393,54 @@ def test_a_folder_the_tracking_uri_names_is_mlflow_only_with_mlflow_in_it(tmp_pa
     assert "more than one eval tool" not in said and "--tool mlflow" not in said, said
     assert reads and reads[-1] == (proj.resolve(), [results.resolve()]), said
 
+
+@pytest.mark.parametrize("sub", ["sub", "data"])
+def test_a_named_file_of_another_eval_below_a_session_says_so_from_above(tmp_path, capsys,
+                                                                        monkeypatch, reads,
+                                                                        sub):
+    """t/sub/ holds a session; t/sub/proj/results.jsonl is another eval. Named from t/, the
+    run says it is another eval there and then, never "run it in sub/" (which says so)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    held = top / sub
+    table_project(held, split(20, 20), tag="s")
+    assert _say(capsys, monkeypatch, held)[0] == 0
+    (held / "proj").mkdir()
+    _older(_jsonl(held / "proj", 6, "p"))
+    before = _files(top)
+    reads.clear()
+    code, said = _say(capsys, monkeypatch, top, f"{sub}/proj/results.jsonl")
+    assert code == 3 and not reads, said
+    assert "looks like another eval" in said and "belong to the project" not in said, said
+    assert f"put {sub}/proj/results.jsonl in a folder of its own" in said, said
+    assert _files(top) == before, said
+
+
+@pytest.mark.parametrize("var", ["INSPECT_LOG_DIR", "DEEPEVAL_RESULTS_FOLDER"])
+@pytest.mark.parametrize("where", ["here", "below"])
+def test_a_results_variable_naming_no_results_never_hides_answers(tmp_path, capsys,
+                                                                  monkeypatch, reads, var,
+                                                                  where):
+    """answers.csv (no grades) in t/ (git) or in t/my evals/ (a judge.json only), and a results
+    variable naming a folder there with nothing in it: the run there reads the answers, and
+    every command a run from beside or above prints reads them too."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    top = tmp_path / "t"
+    if where == "here":
+        _kind(top, "git")
+        held, run_in = top, top / "my evals"
+        run_in.mkdir()
+    else:
+        held = run_in = top / "my evals"
+        _kind(held, "judged")
+        run_in = top
+    write_answers(held, 6, name="answers")
+    monkeypatch.setenv(var, str(held / ("logs" if var == "INSPECT_LOG_DIR" else ".deepeval")))
+    code, said = _say(capsys, monkeypatch, held)
+    assert code == 0 and reads and reads[-1][0] == held.resolve(), said
+    assert "no saved results yet" not in said, said
+    shutil.rmtree(held / ".judgekeeper")
+    if where == "below":
+        _kind(held, "judged")
+    said = _say(capsys, monkeypatch, run_in)[1]
+    _every_command_reads(capsys, monkeypatch, run_in, said)

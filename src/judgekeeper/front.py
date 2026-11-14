@@ -644,6 +644,12 @@ def find_found(talk: FrontTalk, path: Path) -> tuple[start.Found, settings.Start
             talk.left_below = _from_here(path, sorted({*owners, *below}))
     if asked.is_file() and (owner := _session_owning(path)) is not None:
         # its own project's answers, never a batch here (a folder named reads its own file)
+        there = textio.folder_of(owner, Path.cwd())
+        if there != textio.ANYWHERE and (
+                marked := project.other_eval(Path(there), path)) is not None:
+            line, step = project.other_eval_stop(path, marked, talk.away)  # as it says there
+            talk.para(line)
+            raise talk.stop(EXIT_QUESTION, step)
         command = _file_there(talk, owner, path)
         talk.para(_nested_line([owner], Path.cwd(), command))
         raise talk.stop(EXIT_QUESTION, run_there([owner], Path.cwd(), command))

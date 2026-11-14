@@ -67,6 +67,7 @@ VERDICT_COLUMNS = ("verdict", "judge_verdict", "judge")
 JSONL_SUFFIXES = (".jsonl", ".ndjson")  # one JSON object per line, under either name
 TABLE_SUFFIXES = (".csv", ".tsv", *JSONL_SUFFIXES)
 RESULTS_VARS = {"deepeval": "DEEPEVAL_RESULTS_FOLDER", "inspect": "INSPECT_LOG_DIR"}
+ENV_SIGNS = frozenset(RESULTS_VARS.values())  # a sign named after the variable that set it
 INSPECT_SKIP = "logs.json"  # Inspect's listing of a log folder, not a log
 INSPECT_MANIFESTS = (INSPECT_SKIP, "eval-set.json")  # Inspect's own files next to logs
 DEEPEVAL_TEMP = ".temp_test_run_data.json"  # DeepEval's file while a run goes on, not results
@@ -934,10 +935,12 @@ def search(root: str | Path) -> Search:
 def _answers_alone(found: Search, root: Path) -> bool:
     """Whether answers with no grade are all `root` has: no results or table that can't be
     read, no sign of any eval tool, nothing in a format of its own (own_format.search), no
-    records above. Results or a tool's sign in a project below are its own (owner), never
-    read here, so they never stop these answers being read. A file of questions and answers
-    never takes the place of an LLM-as-a-judge's results here; with them, the folder is the
-    project, so results in the project folder above are not read in their place."""
+    records above. A variable set in the shell (ENV_SIGNS) whose folder holds no results is
+    no sign: it is set for every folder. Results or a tool's sign in a project below are its
+    own (owner), never read here, so they never stop these answers being read. A file of
+    questions and answers never takes the place of an LLM-as-a-judge's results here; with
+    them, the folder is the project, so results in the project folder above are not read in
+    their place."""
     from judgekeeper import own_format
 
     root = Path(root).resolve()
@@ -946,7 +949,8 @@ def _answers_alone(found: Search, root: Path) -> bool:
                         for rs in found.results.values() for r in rs)
             and not any(owner(root / sign.rstrip("/"), root) is None
                         for signs in found.signs.values() for sign in signs if "/" in sign)
-            and not any("/" not in sign for signs in found.signs.values() for sign in signs)
+            and not any("/" not in sign and sign not in ENV_SIGNS
+                        for signs in found.signs.values() for sign in signs)
             and not _own_results(own_format.search(root)) and records_above(root) is None)
 
 
