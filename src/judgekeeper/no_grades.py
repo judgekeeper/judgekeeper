@@ -471,8 +471,11 @@ def _damage_said(ws, r: dict) -> None:
     if not (r.get("since") or {}).get("damaged"):
         return
     before = read_before(ws)
-    if before and before["repaired"] and not _before_path(ws).is_symlink():
-        _write_before(ws, {**before, "repaired": False})
+    if before and before["repaired"]:
+        try:
+            _write_before(ws, {**before, "repaired": False})
+        except marks.MarksError:
+            pass  # never written through a link
 
 
 def status(session, run: str | None = None) -> dict:
@@ -1109,9 +1112,12 @@ def read_before(ws) -> dict | None:
 
 
 def _write_before(ws, before: dict) -> None:
+    """before.json written; a MarksError when it, fix/ or a folder above it in .judgekeeper/
+    is a link: nothing is written through one."""
     from judgekeeper.fix import _sum
 
     path = _before_path(ws)
+    marks._refuse_links(path)
     make_private(path.parent)
     d = {"questions": before["questions"],
          **({"round": before["round"]} if before.get("round") else {}),
@@ -1143,9 +1149,12 @@ def removed_unsaid(ws) -> bool:
 def set_removed_unsaid(ws, on: bool) -> None:
     """removed_unsaid kept in before.json; never written through a link."""
     before = read_before(ws)
-    if before is None or before["removed_unsaid"] == on or _before_path(ws).is_symlink():
+    if before is None or before["removed_unsaid"] == on:
         return
-    _write_before(ws, {**before, "removed_unsaid": on})
+    try:
+        _write_before(ws, {**before, "removed_unsaid": on})
+    except marks.MarksError:
+        pass
 
 
 def _round_now(ws) -> dict | None:

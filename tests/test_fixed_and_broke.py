@@ -523,6 +523,27 @@ def test_a_link_in_place_of_before_json_is_refused(project, tmp_path_factory):
     assert target.read_text(encoding="utf-8") == "{}"
 
 
+def test_a_linked_fix_folder_is_never_written_through(project, tmp_path_factory):
+    """.judgekeeper/fix/ a link to another folder: before.json there is left as it is by
+    the writers that check only the file (the line said once, the damage said once)."""
+    if os.name == "nt":
+        pytest.skip("links need admin rights on Windows")
+    project.first(fails={0, 1, 2, 3}, n=10)
+    ws = _ws(project.here)
+    no_grades._write_before(ws, {**no_grades.read_before(ws), "repaired": True})
+    fix_dir = ws.dir / "fix"
+    elsewhere = tmp_path_factory.mktemp("elsewhere") / "fix"
+    os.replace(fix_dir, elsewhere)
+    fix_dir.symlink_to(elsewhere, target_is_directory=True)
+    kept = (elsewhere / no_grades.BEFORE_FILE).read_text(encoding="utf-8")
+    no_grades.set_removed_unsaid(ws, True)
+    no_grades._damage_said(ws, {"since": {"damaged": True}})
+    assert (elsewhere / no_grades.BEFORE_FILE).read_text(encoding="utf-8") == kept
+    with pytest.raises(OSError):
+        no_grades._write_before(ws, {"questions": {}})
+    assert (elsewhere / no_grades.BEFORE_FILE).read_text(encoding="utf-8") == kept
+
+
 DAMAGED = ("Can't compare with your last answers: .judgekeeper/fix/before.json is damaged. "
            "Your next change will be compared.")
 
