@@ -1114,12 +1114,13 @@ def read_before(ws) -> dict | None:
         return None
     got = d.get("round")
     if got is not None and not (isinstance(got, dict) and isinstance(got.get("stamp"), str)
-                                and _strings(got.get("new"))):
+                                and _strings(got.get("new")) and _strings(got.get("gone", []))):
         return None
     if d.get("sha256") != _sum(d):
         return None
     return {"questions": {k: [dict(x) for x in v] for k, v in d["questions"].items()},
-            "round": {"stamp": got["stamp"], "new": list(got["new"])} if got else None,
+            "round": {"stamp": got["stamp"], "new": list(got["new"]),
+                      "gone": list(got.get("gone", []))} if got else None,
             "repaired": d.get("repaired") is True, "removed_unsaid": d.get("removed_unsaid") is True}
 
 
@@ -1227,7 +1228,9 @@ def new_round(ws, stamp: str, old: set[str], ids: list[str]) -> None:
     before = _before_or_new(ws)
     if before is None or (before["round"] or {}).get("stamp") == stamp:
         return
-    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old)}
+    gone = sorted(old - set(ids))  # a repeated question's answer removed: it changed too
+    before["round"] = {"stamp": stamp, "new": sorted(i for i in ids if i not in old),
+                       **({"gone": gone} if gone else {})}
     if before["round"]["new"]:  # new answers: compared with the ones before them
         before.pop("repaired", None)
     _write_before(ws, before)
@@ -1333,6 +1336,7 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
         return {"damaged": True}
     round_ = before["round"] if before else None
     new = set(round_["new"]) if round_ else set()
+    gone = set(round_["gone"]) if round_ else set()
     asked: dict[str, list[str]] = {}
     for i in session.by_id:
         asked.setdefault(question_key((session.raw.get(i) or {}).get("input")), []).append(i)
@@ -1342,7 +1346,8 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
         if not last:
             continue
         now = sorted(ids)
-        came = any(i in new for i in now)
+        lost = any(i in gone for v in last for i in v["ids"])  # one of its answers removed
+        came = lost or any(i in new for i in now)
         if came and last[-1]["ids"] != now and sorted(last[-1]["answers"]) == sorted(
                 _answer_key((session.raw.get(i) or {}).get("output")) for i in now):
             came = False  # the same answers (the question's spaces changed): no change
@@ -1387,7 +1392,7 @@ def compare(ws, session, split: AnswersSplit | None = None) -> dict | None:
     tested = [t["key"] for t in split.tests]
     test = tested.index(key) + 1 if key in tested else len(tested) + 1
     kind = change_kind(fixed, broke, len(kept), test)
-    was = _marks_before(asked, before, new, counted)
+    was = _marks_before(asked, before, new, counted, gone)
     return {"kept": len(kept), "fixed": fixed, "broke": broke,
             "same": len(kept) - fixed - broke, "kind": kind,
             "clear": kind in ("helped", "worse"), "test": test, "key": key,
@@ -1406,15 +1411,20 @@ def _broke(was: list[str], now: list[str]) -> bool:
 
 
 def _marks_before(asked: dict[str, list[str]], before: dict | None, new: set[str],
-                  counted: dict) -> dict[str, str]:
+                  counted: dict, gone: set[str] = frozenset()) -> dict[str, str]:
     """Each question's mark before this change (clear_line): its newest version of answers
-    marked before the ones that came new now (before.json), else its answers carried over;
-    a Fail if one of them is. A question with neither (new now) is left out."""
+    marked before the ones that came new now (before.json), or before one was removed
+    (`gone`), else its answers carried over; a Fail if one of them is. A question with
+    neither (new now) is left out."""
     last = before["questions"] if before else {}
     out = {}
     for key, ids in asked.items():
         mark = None
-        for v in reversed(last.get(key) or []):
+        versions = last.get(key) or []
+        lost = any(i in gone for v in versions for i in v["ids"])
+        for v in reversed(versions):
+            if lost and not any(i in gone for i in v["ids"]):
+                continue  # its answers now, after one was removed
             got = [counted.get(i) for i in v["ids"] if i not in new]
             if got and len(got) == len(v["ids"]) and all(m in ("pass", "fail") for m in got):
                 mark = "fail" if "fail" in got else "pass"
