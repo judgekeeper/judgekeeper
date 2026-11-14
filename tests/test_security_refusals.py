@@ -809,7 +809,9 @@ def test_a_key_next_to_letters_of_another_script_is_hidden(key, before, after):
 
 
 @pytest.mark.parametrize("unit", ["\u200bsk-", "\u200beyJ", "\u200bAIza", "x\u00adsk-",
-                                  "x\u200bsk-ant-api03-", "\u200ba"])
+                                  "x\u200bsk-ant-api03-", "\u200ba", "x\u200bsk_live_",
+                                  "\u200bpassword=", "x\u200bsecret:",
+                                  "-----BEGIN PRIVATE KEY-----\u200b", "\u200b-----BEGIN "])
 def test_scrub_takes_little_time_on_many_hidden_characters(unit):
     import time
 

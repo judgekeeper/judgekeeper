@@ -284,3 +284,64 @@ def test_inside_scrub_once_each_text_is_scrubbed_once(monkeypatch):
         assert scrub(text) == f"the value is {REDACTED}"
     scrub(text)
     assert len(calls) == 3  # outside it, nothing is kept
+
+
+# Stripe keys, private key blocks, passwords after their name ----------------------------------
+# Fake values only, put together here so no secret scanner takes this file for one
+
+STRIPE = "sk_" + "live_" + "FAKEFAKE0123456789abcdXYZ"
+STRIPE_RESTRICTED = "rk_" + "live_" + "FAKEFAKE0123456789abcdXYZ"
+BODY = "MIIEowIBAAKCAQEAfakefakefakefake\nZmFrZSBrZXkgYm9keQ==\nAbCdEf+/0123"
+
+
+def _pem(kind: str = "RSA ", body: str = BODY, end: bool = True) -> str:
+    key = "PRIVATE" + " KEY"
+    out = f"-----BEGIN {kind}{key}-----\n{body}\n"
+    return out + (f"-----END {kind}{key}-----" if end else "")
+
+
+PEM_IN_JSON = _pem().replace("\n", "\\n")  # as JSON keeps it in a string
+
+
+@pytest.mark.parametrize("text,expected", [
+    (f"key {STRIPE} rest", f"key {REDACTED} rest"),
+    (f"STRIPE_KEY={STRIPE_RESTRICTED}", f"STRIPE_KEY={REDACTED}"),
+    (f'"{STRIPE}"', f'"{REDACTED}"'),
+    (f"Here it is:\n{_pem()}\nThanks.", f"Here it is:\n{REDACTED}\nThanks."),
+    (f"{_pem('')}", REDACTED),
+    (f"{_pem('OPENSSH ')} and {_pem('EC ')}", f"{REDACTED} and {REDACTED}"),
+    (f'{{"key": "{PEM_IN_JSON}"}}', f'{{"key": "{REDACTED}"}}'),
+    ("password: hunter2!", f"password: {REDACTED}"),
+    ("PASSWD=abc123", f"PASSWD={REDACTED}"),
+    ('Secret = "s3cr3t-value"', f'Secret = "{REDACTED}"'),
+    ('{"password": "hunter2"}', f'{{"password": "{REDACTED}"}}'),
+    ("MY_CLIENT_SECRET:xyz789 next", f"MY_CLIENT_SECRET:{REDACTED} next"),
+    ('{\\"db\\": \\"x\\",\\npassword=hunter22\\n}',
+     f'{{\\"db\\": \\"x\\",\\npassword={REDACTED}\\n}}'),
+])
+def test_stripe_keys_private_keys_and_passwords_are_redacted(text, expected):
+    assert scrub(text) == expected
+
+
+def test_a_private_key_with_no_end_line_is_hidden_to_its_last_line():
+    said = scrub(f"cut short: {_pem(end=False)}")
+    assert said.startswith(f"cut short: {REDACTED}") and "MIIE" not in said
+    assert "ZmFrZ" not in said and "AbCdEf" not in said
+
+
+@pytest.mark.parametrize("text", [
+    f"key sk_li\u200bve_{STRIPE[8:]} rest", f"key x\u200b{STRIPE} rest",
+    "pass\u200bword: hunter2!", f"\x1b[31m{STRIPE}\x1b[0m"])
+def test_a_split_stripe_key_or_password_is_still_hidden(text):
+    said = scrub(text)
+    assert "FAKEFAKE" not in said and "hunter2" not in said, said
+
+
+@pytest.mark.parametrize("text", [
+    "passwords: 3 were reset today",
+    "The secret of good soup is time.",
+    "Set a strong password, then save it.",
+    "sk_live is how the docs name a live key",
+])
+def test_words_like_password_in_prose_stay(text):
+    assert scrub(text) == text
