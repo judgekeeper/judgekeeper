@@ -475,6 +475,8 @@ def _run(talk: FrontTalk, path: Path, wait: bool, marking: bool) -> int:
         where = Path(os.path.relpath(holder, Path.cwd())).as_posix()
         talk.para(KEPT_HERE.format(folder=f"{textio.WORKSPACE}/"))
         raise talk.stop(EXIT_QUESTION, f"run `{talk.command_in('' if where == '.' else where)}`.")
+    if (busy := _port_taken(talk, path)) is not None:  # a run that can't show its page
+        raise busy  # writes nothing
     talk.held = [] if given is not None else None  # never above a stop about the labels
     found, mapped = find_found(talk, path)  # anything it says comes under Step 1's label
     _read_labels(talk, found, given)  # nothing is written before the labels are read
@@ -2885,6 +2887,31 @@ def _kept(talk: FrontTalk, opened: page.Page, shown: str, after: str) -> bool | 
     return True
 
 
+def _port_stop(talk: FrontTalk, port: int, path: str, options: dict) -> Stop:
+    """The page can't start: `port` is taken (by another project's page, or not). The
+    command that opens it on any free port."""
+    command = " ".join((program(), *start.repeated_flags(path, **{**options, "port": 0})))
+    if is_page(port):  # another project's page (its name needs its token): close it
+        talk.para(PORT_PAGE.format(port=port))
+        with textio.run_from(textio.ANYWHERE):  # its folder can't be named
+            stop = program("--stop")
+        return talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop, command=command))
+    talk.say(PORT_TAKEN.format(port=port))
+    return talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
+
+
+def _port_taken(talk: FrontTalk, path: Path) -> Stop | None:
+    """Before anything is written: the port the person gave is taken, and not by this
+    project's own page (opening it again closes that one first). None when it is free."""
+    port = talk.options.get("port")
+    if port in (None, 0, page.DEFAULT_PORT) or page.port_free(port):  # the default moves
+        return None
+    lock = read_lock(Workspace(project.project_of(path)).dir)
+    if lock and lock.get("port") == port:
+        return None
+    return _port_stop(talk, port, talk.path, talk.options)
+
+
 def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
           result: bool = False) -> tuple[page.Page, str]:
     """A new page (the open one closed), shown: (the page, how it was shown). `result`:
@@ -2908,17 +2935,7 @@ def _open(talk: FrontTalk, ws: Workspace, wait: bool, saved: bool,
             background.stop(ws.dir)
         tried = page.choose_port(talk.options["port"], lambda line: None)
         if opened is None and not page.port_free(tried):  # --wait would need the same port
-            path, options = answered(talk, saved)
-            command = " ".join((program(), *start.repeated_flags(path, **{**options,
-                                                                          "port": 0})))
-            if is_page(tried):  # another project's page (its name needs its token): close it
-                talk.para(PORT_PAGE.format(port=tried))
-                with textio.run_from(textio.ANYWHERE):  # its folder can't be named
-                    stop = program("--stop")
-                raise talk.stop(EXIT_QUESTION, NEXT_STOP_THERE.format(stop=stop,
-                                                                      command=command))
-            talk.say(PORT_TAKEN.format(port=tried))
-            raise talk.stop(EXIT_QUESTION, NEXT_ANY_PORT.format(command=command))
+            raise _port_stop(talk, tried, *answered(talk, saved))
         talk.say(f"The marking page could not start in the background (what went wrong is in "
                  f"{link(ws.dir / background.LOG, f'{shown_folder(ws)}/{background.LOG}')}).")
         raise talk.stop(EXIT_QUESTION, COULD_NOT.format(command=talk.command("--wait")))

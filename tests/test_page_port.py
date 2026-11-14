@@ -108,6 +108,22 @@ def test_no_free_port_never_suggests_wait(here, taken, capsys, pages, monkeypatc
     assert next_lines(out)[-1].startswith("Next: run `judgekeeper --port 0")
 
 
+def test_a_taken_port_given_stops_before_anything_is_written(here, capsys, pages):
+    """--port names a port something else listens on: the run says so and writes no
+    .judgekeeper/ (a run again on a free port starts from nothing)."""
+    held = socket.socket()
+    held.bind(("127.0.0.1", 0))
+    held.listen()
+    port = held.getsockname()[1]
+    try:
+        code, out = _run(capsys, "--port", port, "--no-browser")
+    finally:
+        held.close()
+    assert code == 3, out
+    assert f"Port {port} is in use" in out
+    assert not (here / ".judgekeeper").exists(), out
+
+
 def _free_port() -> int:
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
