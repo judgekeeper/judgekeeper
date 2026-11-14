@@ -1520,3 +1520,63 @@ def test_the_folder_above_hint_never_passes_a_folder_of_other_sessions(tmp_path,
     said = _say(capsys, monkeypatch, t / "g1")[1]
     assert reads and reads[-1][0] == (t / "g1").resolve(), said
     assert "../.." not in said, said
+
+
+@pytest.mark.parametrize("table,argv", [(False, ()), (True, ("--tool", "inspect"))])
+def test_a_run_in_an_inspect_logs_folder_keeps_its_marks_in_the_folder_that_holds_it(
+        tmp_path, capsys, monkeypatch, reads, table, argv):
+    """t/a/logs/ (Inspect AI's logs, and a table of other questions too), no project file
+    anywhere: a run in logs/ keeps its session in a/, as `judgekeeper logs` from a/ does, so
+    its marks stay when the logs are cleared."""
+    pytest.importorskip("inspect_ai")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    a = tmp_path / "t" / "a"
+    inspect_project(a, split(3, 3), tag="i")
+    if table:
+        table_project(a / "logs", split(3, 3), tag="other")
+    _, said = _say(capsys, monkeypatch, a / "logs", *argv)
+    assert reads and reads[-1][1][0].suffix == ".json", said
+    assert (a / ".judgekeeper").is_dir(), said
+    assert not (a / "logs" / ".judgekeeper").exists(), said
+
+
+def test_a_run_in_an_inspect_logs_folder_in_the_home_folder_keeps_its_marks_there(
+        tmp_path, capsys, monkeypatch):
+    """~/logs/: never a session in the home folder itself."""
+    pytest.importorskip("inspect_ai")
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    inspect_project(tmp_path, split(3, 3), tag="i")
+    said = _say(capsys, monkeypatch, tmp_path / "logs")[1]
+    assert not (tmp_path / ".judgekeeper").exists(), said
+    assert (tmp_path / "logs" / ".judgekeeper").is_dir(), said
+
+
+def test_a_climb_to_record_files_beside_a_session_reads_with_the_session_tool(
+        tmp_path, capsys, monkeypatch, reads):
+    """t/ (git, a session on results.csv, and judgekeeper.record() files of other questions)
+    above runs/proj/ (a project below in proj/): a plain run in runs/proj/ reads t/ with the
+    session's tool, as a run in t/ does, never offering the record() files as a tool to
+    check; every command it prints, pasted, reads results.csv (or the project below's)."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    t = tmp_path / "t"
+    table_project(t, split(20, 20), tag="t")
+    _kind(t, "git")
+    assert _say(capsys, monkeypatch, t, "results.csv")[0] == 0  # the session, 0 marks
+    records_project(t, split(3, 3), tag="records")
+    inner = t / "runs" / "proj" / "proj"
+    table_project(inner, split(3, 3), tag="inner")
+    _kind(inner, "file")
+    here = t / "runs" / "proj"
+    reads.clear()
+    said = _say(capsys, monkeypatch, here)[1]
+    assert "more than one eval tool" not in said, said
+    assert reads and reads[-1][1] == [(t / "results.csv").resolve()], said
+    from tests.test_folder_fuzz import commands
+
+    for where, args in commands(said):  # each where its line says, as printed
+        reads.clear()
+        said2 = _say(capsys, monkeypatch, (here / where).resolve(),
+                     *(a for a in args if a not in ("--no-browser", "--port", "0")))[1]
+        assert "looks like another eval" not in said2, (args, where, said2)
+        assert reads and reads[-1][1] in ([(t / "results.csv").resolve()],
+                                          [(inner / "results.csv").resolve()]), (args, said2)

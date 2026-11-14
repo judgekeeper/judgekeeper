@@ -54,8 +54,8 @@ from tests.start_projects import (
 from tests.test_front import flat
 
 FIXED = (*range(13), 35, 45, 100, 105, 124, 135, 201, 207, 256, 410, 597, 1655, 2288, 4213,
-         4646, 5062, 10626, 15846, 17815, 20375, 21334, 22811, 23469, 35769, 35831, 37214,
-         41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
+         4646, 5062, 10626, 15846, 17815, 20375, 21334, 22811, 23469, 31758, 34944, 35769,
+         35831, 37214, 41714, 50210, 52010, 54496)  # 12 and up: layouts once found here
 KINDS = ("plain", "plain", "file", "code", "git", "judged", "script")
 CONTENTS = ("none", "none", "csv", "jsonl", "promptfoo", "deepeval", "inspect", "answers")
 NAMES = ("a", "b", "c", "data", "evals", "proj", "sub", "runs", "my evals")

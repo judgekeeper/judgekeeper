@@ -705,7 +705,8 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
     Inspect AI logs folder, a DeepEval results folder, with the logs read right in it): never
     a project of its own, so its marks stay when its logs are cleared. Named from the folder
     run in (or from one beside it), the nearest project on the way up to it (to the folder
-    both are in), else the folder that holds it; run in it, the project above."""
+    both are in), else the folder that holds it; run in it, the project above, else the
+    folder that holds it too (never the home folder)."""
     if found.tool not in ("deepeval", "inspect") or not path.is_dir() or not found.results:
         return None
     folder, here = path.resolve(), Path.cwd().resolve()
@@ -719,7 +720,9 @@ def _tool_folder_holder(path: Path, found: start.Found) -> Path | None:
             if up == top:
                 return folder.parent
     holder = project.project_of(folder.parent)
-    return holder if find.is_project(holder) else None
+    if find.is_project(holder):
+        return holder
+    return folder.parent if folder.parent != Path.home().resolve() else None
 
 
 def _project_reads(path: Path, store: Path) -> Path:
