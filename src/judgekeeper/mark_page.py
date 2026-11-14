@@ -860,7 +860,7 @@ __TOP__
       }
       if (queued.length) {  // a key pressed while the last mark saved (Z, say) comes first;
         // the result opens after it only when every answer is still marked
-        queued.push(function () { if (ended && !changing) { leave(); } });
+        queued.push({run: function () { if (ended && !changing) { leave(); } }});
         return;
       }
       leave();

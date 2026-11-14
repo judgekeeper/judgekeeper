@@ -1370,6 +1370,23 @@ def test_an_undo_pressed_while_the_last_mark_saves_takes_it_back_and_no_result_o
     assert got["card"] is False and got["at"] == "Question 2?"
 
 
+def test_a_second_pass_pressed_while_the_last_mark_saves_still_opens_the_result():
+    """Pass twice at once on the last answer: the second, held while the mark saves, finds no
+    answer left to mark, and the result opens on the marks that stand."""
+    got = _run("""
+      for (var i = 0; i < 2; i++) { key("ArrowRight"); await settle(); later(500); }
+      var answer = [], real = fetch;
+      fetch = function (url, opts) { var r = real(url, opts);
+        return new Promise(function (ok) { answer.push(function () { ok(r); }); }); };
+      key("ArrowRight"); key("ArrowRight"); await settle();
+      while (answer.length) { answer.shift()(); for (var n = 0; n < 4; n++) { await settle(); } }
+      console.log(JSON.stringify({href: window.location.href,
+        sent: sent.map(function (s) { return [s.body.id, s.body.label]; })}));""",
+               data=_data(3))
+    assert got["sent"][-1] == ["a2", "pass"] and len(got["sent"]) == 3
+    assert got["href"] == "/result?token=t0k"
+
+
 def test_an_undo_after_the_result_started_opening_says_so_and_sends_nothing():
     """Every answer marked: the result is opening. Z then takes nothing back behind it; the
     page says the result is opening."""
